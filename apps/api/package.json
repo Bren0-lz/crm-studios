@@ -1,0 +1,36 @@
+{
+  "name": "@crm/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "db:setup": "tsx src/db-cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run src",
+    "test:postgres": "vitest run src/postgres.integration.test.ts",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "dependencies": {
+    "@crm/contracts": "*",
+    "@fastify/cors": "latest",
+    "@fastify/jwt": "latest",
+    "bcryptjs": "latest",
+    "dotenv": "latest",
+    "fastify": "latest",
+    "pg": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@types/node": "latest",
+    "@types/pg": "latest",
+    "eslint": "latest",
+    "globals": "latest",
+    "tsx": "latest",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

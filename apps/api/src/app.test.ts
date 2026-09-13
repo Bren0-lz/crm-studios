@@ -1,0 +1,1412 @@
+import { describe, expect, it } from "vitest";
+import type { Appointment, Lead } from "@crm/contracts";
+import { buildApp } from "./app.js";
+import { MemoryClinicRepository } from "./memory-repository.js";
+
+async function authenticatedApp() {
+  const app = await buildApp({
+    repository: new MemoryClinicRepository(),
+    logger: false,
+  });
+  const response = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: { email: "admin@movimenta.local", password: "Admin@123" },
+  });
+  return { app, token: response.json().token as string };
+}
+
+describe("CRM API", () => {
+  it("reports health", async () => {
+    const app = await buildApp({
+      repository: new MemoryClinicRepository(),
+      logger: false,
+    });
+    const response = await app.inject({ method: "GET", url: "/health" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: "ok", storage: "memory" });
+    await app.close();
+  });
+
+  it("authenticates the demo owner", async () => {
+    const { app, token } = await authenticatedApp();
+    expect(token).toBeTypeOf("string");
+    await app.close();
+  });
+
+  it("creates and searches a patient", async () => {
+    const { app, token } = await authenticatedApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        fullName: "Joana de Souza",
+        phone: "11999990000",
+        cpf: "12345678901",
+        tags: ["Avaliação"],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const listed = await app.inject({
+      method: "GET",
+      url: "/patients?search=Joana",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json()).toHaveLength(1);
+    expect(listed.json()[0].fullName).toBe("Joana de Souza");
+    await app.close();
+  });
+
+  it("prevents schedule conflicts", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = (
+      await app.inject({ method: "GET", url: "/patients", headers })
+    ).json();
+    const professionals = (
+      await app.inject({ method: "GET", url: "/professionals", headers })
+    ).json();
+    const rooms = (
+      await app.inject({ method: "GET", url: "/rooms", headers })
+    ).json();
+    const services = (
+      await app.inject({ method: "GET", url: "/services", headers })
+    ).json();
+    const startsAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const payload = {
+      patientId: patients[0].id,
+      professionalId: professionals[0].id,
+      roomId: rooms[0].id,
+      serviceId: services[0].id,
+      startsAt,
+    };
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/appointments",
+          headers,
+          payload,
+        })
+      ).statusCode,
+    ).toBe(201);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/appointments",
+          headers,
+          payload,
+        })
+      ).statusCode,
+    ).toBe(409);
+    await app.close();
+  });
+
+  it("versions and finalizes a complete clinical record", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const appointments = (
+      await app.inject({
+        method: "GET",
+        url: `/appointments?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+        headers,
+      })
+    ).json();
+
+    const draft = await app.inject({
+      method: "POST",
+      url: "/clinical-records",
+      headers,
+      payload: {
+        appointmentId: appointments[0].id,
+        subjective: "Paciente relata redução da dor.",
+        objective: "Amplitude de movimento em evolução.",
+        assessment: "Resposta positiva ao tratamento.",
+        plan: "Manter exercícios e progressão de carga.",
+        painScale: 3,
+      },
+    });
+    expect(draft.statusCode).toBe(201);
+    const draftBody = draft.json<{
+      id: string;
+      appointmentId: string;
+      objective: string;
+      assessment: string;
+      plan: string;
+      painScale?: number;
+    }>();
+    expect(draftBody).toMatchObject({ status: "draft", version: 1 });
+
+    const finalized = await app.inject({
+      method: "POST",
+      url: `/clinical-records/${draftBody.id}/finalize`,
+      headers,
+    });
+    expect(finalized.json()).toMatchObject({ status: "finalized", version: 2 });
+
+    const editAfterFinalize = await app.inject({
+      method: "POST",
+      url: "/clinical-records",
+      headers,
+      payload: {
+        appointmentId: draftBody.appointmentId,
+        subjective: "Tentativa de alteração",
+        objective: draftBody.objective,
+        assessment: draftBody.assessment,
+        plan: draftBody.plan,
+        painScale: draftBody.painScale,
+      },
+    });
+    expect(editAfterFinalize.statusCode).toBe(409);
+
+    const revisions = await app.inject({
+      method: "GET",
+      url: `/clinical-records/${draftBody.id}/revisions`,
+      headers,
+    });
+    expect(revisions.json()).toHaveLength(2);
+    await app.close();
+  });
+
+  it("denies clinical records to reception profiles", async () => {
+    const app = await buildApp({
+      repository: new MemoryClinicRepository(),
+      logger: false,
+    });
+    const token = app.jwt.sign({
+      sub: "22222222-2222-4222-8222-222222222222",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      role: "reception",
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/clinical-records",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: "CLINICAL_ACCESS_DENIED" });
+    await app.close();
+  });
+
+  it("creates installments and consumes a session exactly once", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const appointments = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+      headers,
+    });
+    const appointment = appointments.json()[0];
+    const service = services
+      .json()
+      .find((item: { id: string }) => item.id === appointment.serviceId);
+    const patient = patients
+      .json()
+      .find((item: { id: string }) => item.id === appointment.patientId);
+    const date = appointment.startsAt.slice(0, 10);
+    const created = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: {
+        patientId: patient.id,
+        serviceId: service.id,
+        name: "Pacote teste",
+        kind: "fixed_package",
+        totalSessions: 5,
+        validFrom: date,
+        totalValueInCents: 10001,
+        installments: 3,
+        firstDueDate: date,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ remainingSessions: 5 });
+
+    const financial = await app.inject({
+      method: "GET",
+      url: "/finance/summary",
+      headers,
+    });
+    expect(financial.json().receivables).toHaveLength(3);
+    expect(
+      financial
+        .json()
+        .receivables.reduce(
+          (sum: number, item: { amountInCents: number }) =>
+            sum + item.amountInCents,
+          0,
+        ),
+    ).toBe(10001);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/appointments/${appointment.id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    let plans = await app.inject({ method: "GET", url: "/plans", headers });
+    expect(plans.json()[0].remainingSessions).toBe(4);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/appointments/${appointment.id}/status`,
+      headers,
+      payload: { status: "confirmed" },
+    });
+    plans = await app.inject({ method: "GET", url: "/plans", headers });
+    expect(plans.json()[0].remainingSessions).toBe(5);
+
+    const receivableId = financial.json().receivables[0].id;
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${receivableId}/pay`,
+      headers,
+    });
+    expect(paid.json().status).toBe("paid");
+    const reversed = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${receivableId}/reverse`,
+      headers,
+    });
+    expect(reversed.json().status).toBe("open");
+    await app.inject({
+      method: "PATCH",
+      url: `/plans/${created.json().id}/status`,
+      headers,
+      payload: { status: "cancelled" },
+    });
+    const afterCancellation = await app.inject({
+      method: "GET",
+      url: "/finance/summary",
+      headers,
+    });
+    expect(
+      afterCancellation
+        .json()
+        .receivables.every(
+          (item: { status: string }) => item.status === "cancelled",
+        ),
+    ).toBe(true);
+    await app.close();
+  });
+
+  it("moves and converts leads without duplicating patients", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const before = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    const existing = before.json()[0];
+    const created = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: existing.fullName,
+        phone: existing.phone,
+        source: "Indicação",
+        interest: "Fisioterapia",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const invalidLoss = await app.inject({
+      method: "PATCH",
+      url: `/leads/${created.json().id}/stage`,
+      headers,
+      payload: { stage: "lost" },
+    });
+    expect(invalidLoss.statusCode).toBe(400);
+    const moved = await app.inject({
+      method: "PATCH",
+      url: `/leads/${created.json().id}/stage`,
+      headers,
+      payload: { stage: "contacted" },
+    });
+    expect(moved.json().stage).toBe("contacted");
+    const conversion = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+    });
+    expect(conversion.json()).toMatchObject({
+      reusedExisting: true,
+      patient: { id: existing.id },
+      lead: { stage: "won" },
+    });
+    const after = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    expect(after.json()).toHaveLength(before.json().length);
+    await app.close();
+  });
+
+  it("respects opt-out and generates reminders idempotently", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const appointments = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${encodeURIComponent(new Date(Date.now() - 86_400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 86_400_000).toISOString())}`,
+      headers,
+    });
+    const appointment = appointments.json()[0];
+    const referenceDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date(appointment.startsAt));
+    await app.inject({
+      method: "PUT",
+      url: "/communications/preferences",
+      headers,
+      payload: {
+        patientId: appointment.patientId,
+        channel: "whatsapp",
+        allowed: false,
+      },
+    });
+    const blocked = await app.inject({
+      method: "POST",
+      url: "/communications/messages",
+      headers,
+      payload: {
+        patientId: appointment.patientId,
+        channel: "whatsapp",
+        body: "Mensagem administrativa",
+      },
+    });
+    expect(blocked.statusCode).toBe(409);
+    const skipped = await app.inject({
+      method: "POST",
+      url: "/communications/reminders/generate",
+      headers,
+      payload: { referenceDate },
+    });
+    expect(skipped.json().skippedByPreference).toBeGreaterThan(0);
+    await app.inject({
+      method: "PUT",
+      url: "/communications/preferences",
+      headers,
+      payload: {
+        patientId: appointment.patientId,
+        channel: "whatsapp",
+        allowed: true,
+      },
+    });
+    const first = await app.inject({
+      method: "POST",
+      url: "/communications/reminders/generate",
+      headers,
+      payload: { referenceDate },
+    });
+    expect(first.json().queued).toBeGreaterThan(0);
+    const second = await app.inject({
+      method: "POST",
+      url: "/communications/reminders/generate",
+      headers,
+      payload: { referenceDate },
+    });
+    expect(second.json().queued).toBe(0);
+    expect(second.json().alreadyQueued).toBeGreaterThan(0);
+    const center = await app.inject({
+      method: "GET",
+      url: "/communications",
+      headers,
+    });
+    expect(center.json()).toMatchObject({ deliveryMode: "outbox_only" });
+    expect(center.json().messages.length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it("versions templates without changing issued document snapshots", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    const patient = patients.json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Contrato de teste",
+        kind: "contract",
+        body: "Versão original para {{paciente_nome}} em {{data_emissao}}.",
+      },
+    });
+    expect(template.statusCode).toBe(201);
+    expect(template.json()).toMatchObject({ version: 1, active: true });
+    const document = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        title: "Contrato preservado",
+      },
+    });
+    expect(document.statusCode).toBe(201);
+    expect(document.json().snapshotBody).toContain("Versão original");
+    expect(document.json().snapshotBody).toContain(patient.fullName);
+    const nextVersion = await app.inject({
+      method: "POST",
+      url: `/document-templates/${template.json().id}/versions`,
+      headers,
+      payload: { body: "Nova versão do contrato para {{paciente_nome}}." },
+    });
+    expect(nextVersion.json()).toMatchObject({ version: 2, active: true });
+    const documents = await app.inject({
+      method: "GET",
+      url: "/documents",
+      headers,
+    });
+    expect(documents.json()[0].snapshotBody).toContain("Versão original");
+    const issued = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "issued" },
+    });
+    expect(issued.json()).toMatchObject({ status: "issued" });
+    const cancelled = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "cancelled" },
+    });
+    expect(cancelled.json()).toMatchObject({ status: "cancelled" });
+    const invalidTransition = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "issued" },
+    });
+    expect(invalidTransition.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("returns reproducible management metrics and an authenticated CSV", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const report = await app.inject({
+      method: "GET",
+      url: `/reports/management?from=${date}&to=${date}`,
+      headers,
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.json()).toMatchObject({ from: date, to: date });
+    expect(report.json().appointments.total).toBeGreaterThan(0);
+    expect(report.json().byProfessional.length).toBeGreaterThan(0);
+    const csv = await app.inject({
+      method: "GET",
+      url: `/reports/management.csv?from=${date}&to=${date}`,
+      headers,
+    });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.headers["content-type"]).toContain("text/csv");
+    expect(csv.body).toContain("atendimentos");
+    const receptionToken = app.jwt.sign({
+      sub: "22222222-2222-4222-8222-222222222222",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      role: "reception",
+    });
+    const denied = await app.inject({
+      method: "GET",
+      url: `/reports/management?from=${date}&to=${date}`,
+      headers: { authorization: `Bearer ${receptionToken}` },
+    });
+    expect(denied.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it("creates recurring appointments atomically and enforces schedule blocks", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const start = new Date();
+    start.setDate(start.getDate() + 30);
+    start.setHours(15, 0, 0, 0);
+    const input = {
+      patientId: patients.json()[0].id,
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId: services.json()[0].id,
+      startsAt: start.toISOString(),
+      occurrences: 3,
+      intervalWeeks: 1,
+    };
+    const recurring = await app.inject({
+      method: "POST",
+      url: "/appointments/recurring",
+      headers,
+      payload: input,
+    });
+    expect(recurring.statusCode).toBe(201);
+    expect(recurring.json()).toHaveLength(3);
+    expect(
+      new Set(recurring.json().map((item: Appointment) => item.seriesId)).size,
+    ).toBe(1);
+
+    const blockedStart = new Date(start);
+    blockedStart.setHours(18, 0, 0, 0);
+    const blockedEnd = new Date(blockedStart);
+    blockedEnd.setHours(19, 0, 0, 0);
+    const block = await app.inject({
+      method: "POST",
+      url: "/schedule-blocks",
+      headers,
+      payload: {
+        professionalId: input.professionalId,
+        startsAt: blockedStart.toISOString(),
+        endsAt: blockedEnd.toISOString(),
+        reason: "Reunião de equipe",
+      },
+    });
+    expect(block.statusCode).toBe(201);
+    const conflicting = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...input, startsAt: blockedStart.toISOString() },
+    });
+    expect(conflicting.statusCode).toBe(409);
+    await app.inject({
+      method: "POST",
+      url: `/schedule-blocks/${block.json().id}/cancel`,
+      headers,
+    });
+    const afterCancellation = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...input, startsAt: blockedStart.toISOString() },
+    });
+    expect(afterCancellation.statusCode).toBe(201);
+    await app.close();
+  });
+
+  it("tracks lead contacts, owners, tags and overdue tasks", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const ownerId = "22222222-2222-4222-8222-222222222222";
+    const lead = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Contato Comercial",
+        phone: "11999990000",
+        source: "Instagram",
+        interest: "Pilates",
+        responsibleUserId: ownerId,
+        tags: ["Prioridade", "Pilates"],
+      },
+    });
+    expect(lead.statusCode).toBe(201);
+    expect(lead.json()).toMatchObject({
+      responsibleName: "Mariana Costa",
+      tags: ["Prioridade", "Pilates"],
+    });
+    const contact = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.json().id}/contacts`,
+      headers,
+      payload: {
+        channel: "whatsapp",
+        direction: "outbound",
+        notes: "Apresentação enviada e avaliação explicada.",
+      },
+    });
+    expect(contact.statusCode).toBe(201);
+    expect(contact.json()).toMatchObject({ actorName: "Mariana Costa" });
+    const task = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.json().id}/tasks`,
+      headers,
+      payload: {
+        title: "Retornar contato",
+        dueAt: new Date(Date.now() - 60_000).toISOString(),
+        assignedUserId: ownerId,
+      },
+    });
+    expect(task.statusCode).toBe(201);
+    let leads = await app.inject({ method: "GET", url: "/leads", headers });
+    const withTask = leads
+      .json()
+      .find((item: Lead) => item.id === lead.json().id);
+    expect(withTask).toMatchObject({ openTasks: 1, overdueTasks: 1 });
+    const activity = await app.inject({
+      method: "GET",
+      url: `/leads/${lead.json().id}/activity`,
+      headers,
+    });
+    expect(activity.json().contacts).toHaveLength(1);
+    expect(activity.json().tasks).toHaveLength(1);
+    await app.inject({
+      method: "PATCH",
+      url: `/lead-tasks/${task.json().id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    leads = await app.inject({ method: "GET", url: "/leads", headers });
+    expect(
+      leads.json().find((item: Lead) => item.id === lead.json().id),
+    ).toMatchObject({ openTasks: 0, overdueTasks: 0 });
+    await app.close();
+  });
+
+  it("operates receivables, payables, receipts and monthly cash flow", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patientsResponse, servicesResponse] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const patient = patientsResponse.json()[0];
+    const service = servicesResponse.json()[0];
+    const date = new Date().toISOString().slice(0, 10);
+
+    const plan = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: {
+        patientId: patient.id,
+        serviceId: service.id,
+        name: "Plano financeiro",
+        kind: "fixed_package",
+        totalSessions: 1,
+        validFrom: date,
+        totalValueInCents: 12_000,
+        installments: 1,
+        firstDueDate: date,
+      },
+    });
+    expect(plan.statusCode).toBe(201);
+
+    let workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const receivableId = workspace.json().summary.receivables[0].id;
+    const adjusted = await app.inject({
+      method: "PATCH",
+      url: `/finance/receivables/${receivableId}/adjust`,
+      headers,
+      payload: {
+        amountInCents: 11_500,
+        reason: "Desconto comercial autorizado",
+      },
+    });
+    expect(adjusted.json()).toMatchObject({
+      amountInCents: 11_500,
+      status: "open",
+    });
+    const received = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${receivableId}/pay`,
+      headers,
+      payload: { paymentMethod: "card" },
+    });
+    expect(received.json()).toMatchObject({
+      status: "paid",
+      paymentMethod: "card",
+    });
+    const receipt = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivableId}/receipt`,
+      headers,
+    });
+    expect(receipt.statusCode).toBe(200);
+    expect(receipt.json()).toMatchObject({
+      patientName: patient.fullName,
+      amountInCents: 11_500,
+      paymentMethod: "card",
+    });
+
+    const category = workspace
+      .json()
+      .categories.find((item: { kind: string }) => item.kind === "expense");
+    const costCenter = workspace.json().costCenters[0];
+    const payable = await app.inject({
+      method: "POST",
+      url: "/finance/payables",
+      headers,
+      payload: {
+        description: "Aluguel da unidade",
+        supplier: "Imobiliária Centro",
+        categoryId: category.id,
+        costCenterId: costCenter.id,
+        dueDate: date,
+        amountInCents: 4_000,
+      },
+    });
+    expect(payable.statusCode).toBe(201);
+    const expense = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${payable.json().id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix" },
+    });
+    expect(expense.json()).toMatchObject({
+      status: "paid",
+      paymentMethod: "pix",
+    });
+
+    workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    expect(workspace.json()).toMatchObject({
+      paidExpensesThisMonthInCents: 4_000,
+      cashBalanceThisMonthInCents: 7_500,
+    });
+
+    const reversed = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${payable.json().id}/reverse`,
+      headers,
+    });
+    expect(reversed.json()).toMatchObject({ status: "open" });
+    await app.close();
+  });
+
+  it("builds a protected longitudinal clinical record", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    const patient = patients.json()[0];
+    let workspace = await app.inject({
+      method: "GET",
+      url: `/clinical-workspace/${patient.id}`,
+      headers,
+    });
+    expect(workspace.statusCode).toBe(200);
+    const customTemplate = await app.inject({
+      method: "POST",
+      url: "/assessment-templates",
+      headers,
+      payload: {
+        name: "Avaliação funcional lombar",
+        specialty: "Fisioterapia ortopédica",
+        fields: [
+          {
+            key: "chief_complaint",
+            label: "Queixa principal",
+            type: "text",
+            required: true,
+          },
+          {
+            key: "pain_scale",
+            label: "Escala de dor",
+            type: "scale",
+            required: true,
+            min: 0,
+            max: 10,
+            unit: "0–10",
+          },
+          {
+            key: "range_of_motion",
+            label: "Amplitude de movimento",
+            type: "number",
+            required: false,
+            unit: "graus",
+          },
+        ],
+      },
+    });
+    expect(customTemplate.statusCode).toBe(201);
+    const template = customTemplate.json();
+
+    const invalidAssessment = await app.inject({
+      method: "POST",
+      url: "/clinical-assessments",
+      headers,
+      payload: {
+        patientId: patient.id,
+        templateId: template.id,
+        values: { chief_complaint: "Dor lombar", pain_scale: 12 },
+      },
+    });
+    expect(invalidAssessment.statusCode).toBe(400);
+
+    const assessment = await app.inject({
+      method: "POST",
+      url: "/clinical-assessments",
+      headers,
+      payload: {
+        patientId: patient.id,
+        templateId: template.id,
+        values: {
+          chief_complaint: "Dor lombar ao permanecer sentado.",
+          pain_scale: 7,
+          range_of_motion: 65,
+        },
+        notes: "Avaliação inicial.",
+      },
+    });
+    expect(assessment.statusCode).toBe(201);
+    expect(assessment.json()).toMatchObject({
+      patientId: patient.id,
+      templateName: template.name,
+    });
+
+    const goal = await app.inject({
+      method: "POST",
+      url: "/therapeutic-goals",
+      headers,
+      payload: {
+        patientId: patient.id,
+        title: "Reduzir escala de dor",
+        baselineValue: 7,
+        targetValue: 2,
+        unit: "0–10",
+      },
+    });
+    expect(goal.statusCode).toBe(201);
+    const measurement = await app.inject({
+      method: "POST",
+      url: "/clinical-measurements",
+      headers,
+      payload: {
+        patientId: patient.id,
+        goalId: goal.json().id,
+        name: "Escala de dor",
+        value: 2,
+        unit: "0–10",
+        measuredAt: new Date().toISOString(),
+      },
+    });
+    expect(measurement.statusCode).toBe(201);
+    const achieved = await app.inject({
+      method: "PATCH",
+      url: `/therapeutic-goals/${goal.json().id}/status`,
+      headers,
+      payload: { status: "achieved" },
+    });
+    expect(achieved.json()).toMatchObject({ status: "achieved" });
+    expect(achieved.json().achievedAt).toBeTypeOf("string");
+
+    const closure = await app.inject({
+      method: "POST",
+      url: "/treatment-closures",
+      headers,
+      payload: {
+        patientId: patient.id,
+        kind: "discharge",
+        summary: "Objetivos alcançados e quadro funcional estabilizado.",
+        recommendations: "Manter exercícios domiciliares.",
+        occurredAt: new Date().toISOString(),
+      },
+    });
+    expect(closure.statusCode).toBe(201);
+
+    const [professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const appointment = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: {
+        patientId: patient.id,
+        professionalId: professionals.json()[0].id,
+        roomId: rooms.json()[0].id,
+        serviceId: services.json()[0].id,
+        startsAt: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    });
+    expect(appointment.statusCode).toBe(201);
+    const draft = await app.inject({
+      method: "POST",
+      url: "/clinical-records",
+      headers,
+      payload: {
+        appointmentId: appointment.json().id,
+        subjective: "Paciente relata melhora funcional progressiva.",
+        objective: "Teste funcional com resposta satisfatória.",
+        assessment: "Evolução compatível com os objetivos propostos.",
+        plan: "Finalizar ciclo e manter programa domiciliar.",
+        painScale: 2,
+      },
+    });
+    const prematureAddendum = await app.inject({
+      method: "POST",
+      url: "/clinical-addenda",
+      headers,
+      payload: {
+        clinicalRecordId: draft.json().id,
+        reason: "Complemento necessário",
+        content: "Informação clínica complementar registrada posteriormente.",
+      },
+    });
+    expect(prematureAddendum.statusCode).toBe(409);
+    await app.inject({
+      method: "POST",
+      url: `/clinical-records/${draft.json().id}/finalize`,
+      headers,
+    });
+    const addendum = await app.inject({
+      method: "POST",
+      url: "/clinical-addenda",
+      headers,
+      payload: {
+        clinicalRecordId: draft.json().id,
+        reason: "Complemento necessário",
+        content: "Informação clínica complementar registrada posteriormente.",
+      },
+    });
+    expect(addendum.statusCode).toBe(201);
+
+    const pdfContent = Buffer.from("%PDF-1.4\nclinical-test");
+    const invalidAttachment = await app.inject({
+      method: "POST",
+      url: "/clinical-attachments",
+      headers,
+      payload: {
+        patientId: patient.id,
+        fileName: "imagem-falsa.pdf",
+        mimeType: "application/pdf",
+        sizeInBytes: 4,
+        contentBase64: Buffer.from("fake").toString("base64"),
+      },
+    });
+    expect(invalidAttachment.statusCode).toBe(400);
+    const attachment = await app.inject({
+      method: "POST",
+      url: "/clinical-attachments",
+      headers,
+      payload: {
+        patientId: patient.id,
+        fileName: "laudo.pdf",
+        mimeType: "application/pdf",
+        sizeInBytes: pdfContent.length,
+        contentBase64: pdfContent.toString("base64"),
+        notes: "Laudo de apoio.",
+      },
+    });
+    expect(attachment.statusCode).toBe(201);
+    expect(attachment.json().sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(attachment.json().contentBase64).toBeUndefined();
+    const downloaded = await app.inject({
+      method: "GET",
+      url: `/clinical-attachments/${attachment.json().id}/content`,
+      headers,
+    });
+    expect(downloaded.json().contentBase64).toBe(pdfContent.toString("base64"));
+    const exported = await app.inject({
+      method: "GET",
+      url: `/clinical-workspace/${patient.id}/export`,
+      headers,
+    });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers["content-disposition"]).toContain("attachment");
+
+    workspace = await app.inject({
+      method: "GET",
+      url: `/clinical-workspace/${patient.id}`,
+      headers,
+    });
+    expect(workspace.json().assessments).toHaveLength(1);
+    expect(workspace.json().measurements).toHaveLength(1);
+    expect(workspace.json().closures).toHaveLength(1);
+    expect(workspace.json().attachments).toHaveLength(1);
+    expect(workspace.json().addenda).toHaveLength(1);
+    expect(workspace.json().goals[0]).toMatchObject({ status: "achieved" });
+    const accessEvents = await app.inject({
+      method: "GET",
+      url: `/clinical-workspace/${patient.id}/access-events`,
+      headers,
+    });
+    expect(
+      accessEvents.json().map((item: { action: string }) => item.action),
+    ).toEqual(
+      expect.arrayContaining([
+        "read",
+        "upload",
+        "download",
+        "export",
+        "addendum",
+      ]),
+    );
+    await app.close();
+  });
+
+  it("renegotiates debt and generates commissions idempotently", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+    ]);
+    const startsAt = new Date(
+      Date.now() + 55 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const date = startsAt.slice(0, 10);
+    await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: {
+        patientId: patients.json()[0].id,
+        serviceId: services.json()[0].id,
+        name: "Plano renegociado",
+        kind: "fixed_package",
+        totalSessions: 2,
+        validFrom: date,
+        totalValueInCents: 10000,
+        installments: 2,
+        firstDueDate: date,
+      },
+    });
+    let workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const ids = workspace
+      .json()
+      .summary.receivables.map((item: { id: string }) => item.id);
+    const renegotiated = await app.inject({
+      method: "POST",
+      url: "/finance/renegotiations",
+      headers,
+      payload: {
+        receivableIds: ids,
+        totalAmountInCents: 9001,
+        installments: 3,
+        firstDueDate: date,
+        reason: "Acordo comercial de teste",
+      },
+    });
+    expect(renegotiated.statusCode).toBe(201);
+    expect(renegotiated.json().newReceivables).toHaveLength(3);
+    expect(
+      renegotiated
+        .json()
+        .newReceivables.reduce(
+          (sum: number, item: { amountInCents: number }) =>
+            sum + item.amountInCents,
+          0,
+        ),
+    ).toBe(9001);
+
+    const appointment = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: {
+        patientId: patients.json()[0].id,
+        professionalId: professionals.json()[0].id,
+        roomId: rooms.json()[0].id,
+        serviceId: services.json()[0].id,
+        startsAt,
+      },
+    });
+    await app.inject({
+      method: "PATCH",
+      url: `/appointments/${appointment.json().id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/finance/commission-rules",
+      headers,
+      payload: {
+        professionalId: professionals.json()[0].id,
+        percentage: 30,
+        effectiveFrom: date,
+      },
+    });
+    const first = await app.inject({
+      method: "POST",
+      url: "/finance/commissions/generate",
+      headers,
+      payload: { competence: startsAt.slice(0, 7) },
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/finance/commissions/generate",
+      headers,
+      payload: { competence: startsAt.slice(0, 7) },
+    });
+    expect(first.json()).toHaveLength(1);
+    expect(second.json()).toHaveLength(1);
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/commissions/${first.json()[0].id}/pay`,
+      headers,
+    });
+    expect(paid.json().status).toBe("paid");
+    workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    expect(workspace.json().commissions).toHaveLength(1);
+    await app.close();
+  });
+
+  it("manages group capacity, waitlist and one-time replacement credits", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+    ]);
+    const references = {
+      patients: patients.json(),
+      service: services.json()[0],
+      professional: professionals.json()[0],
+      room: rooms
+        .json()
+        .find((item: { capacity: number }) => item.capacity >= 4),
+    };
+    const createGroup = async (name: string, capacity: number) =>
+      app.inject({
+        method: "POST",
+        url: "/groups",
+        headers,
+        payload: {
+          name,
+          capacity,
+          serviceId: references.service.id,
+          professionalId: references.professional.id,
+          roomId: references.room.id,
+        },
+      });
+    const group = await createGroup("Pilates terapÃªutico", 1);
+    expect(group.statusCode).toBe(201);
+    const enroll = (patientId: string) =>
+      app.inject({
+        method: "POST",
+        url: "/group-enrollments",
+        headers,
+        payload: { groupId: group.json().id, patientId },
+      });
+    const first = await enroll(references.patients[0].id);
+    const waiting = await enroll(references.patients[1].id);
+    expect(first.json().status).toBe("active");
+    expect(waiting.json()).toMatchObject({
+      status: "waitlisted",
+      queuePosition: 1,
+    });
+    await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${first.json().id}/cancel`,
+      headers,
+    });
+    const startsAt = new Date(Date.now() + 80 * 86_400_000);
+    startsAt.setUTCHours(21, 0, 0, 0);
+    const sessions = await app.inject({
+      method: "POST",
+      url: "/group-sessions/series",
+      headers,
+      payload: {
+        groupId: group.json().id,
+        startsAt: startsAt.toISOString(),
+        occurrences: 2,
+        intervalWeeks: 1,
+      },
+    });
+    expect(sessions.json()).toHaveLength(2);
+    const attendance = await app.inject({
+      method: "PUT",
+      url: `/group-sessions/${sessions.json()[0].id}/attendance/${references.patients[1].id}`,
+      headers,
+      payload: { status: "excused_absence", notes: "Atestado" },
+    });
+    expect(attendance.statusCode).toBe(200);
+    const workspace = await app.inject({
+      method: "GET",
+      url: `/groups/workspace?from=${encodeURIComponent(startsAt.toISOString())}&to=${encodeURIComponent(new Date(startsAt.getTime() + 20 * 86_400_000).toISOString())}`,
+      headers,
+    });
+    expect(
+      workspace
+        .json()
+        .enrollments.find(
+          (item: { id: string }) => item.id === waiting.json().id,
+        ).status,
+    ).toBe("active");
+    const credit = workspace.json().replacementCredits[0];
+    expect(credit.status).toBe("available");
+    const targetGroup = await createGroup("Mobilidade em grupo", 4);
+    const targetStart = new Date(startsAt.getTime() + 2 * 86_400_000);
+    const target = await app.inject({
+      method: "POST",
+      url: "/group-sessions/series",
+      headers,
+      payload: {
+        groupId: targetGroup.json().id,
+        startsAt: targetStart.toISOString(),
+        occurrences: 1,
+      },
+    });
+    const booking = await app.inject({
+      method: "POST",
+      url: "/group-replacements/book",
+      headers,
+      payload: { creditId: credit.id, sessionId: target.json()[0].id },
+    });
+    expect(booking.json().credit.status).toBe("used");
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/group-replacements/book",
+      headers,
+      payload: { creditId: credit.id, sessionId: target.json()[0].id },
+    });
+    expect(duplicate.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("controls stock and reverses inventory and finance when a tab is cancelled", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    const product = await app.inject({
+      method: "POST",
+      url: "/inventory/products",
+      headers,
+      payload: {
+        name: "Faixa elÃ¡stica",
+        sku: "FX-001",
+        unit: "un",
+        costInCents: 2000,
+        salePriceInCents: 4500,
+        initialStock: 5,
+        minimumStock: 2,
+      },
+    });
+    expect(product.statusCode).toBe(201);
+    const excessiveLoss = await app.inject({
+      method: "POST",
+      url: "/inventory/movements",
+      headers,
+      payload: {
+        productId: product.json().id,
+        kind: "loss",
+        quantity: 6,
+        notes: "Avaria identificada",
+      },
+    });
+    expect(excessiveLoss.statusCode).toBe(409);
+    const tab = await app.inject({
+      method: "POST",
+      url: "/patient-tabs",
+      headers,
+      payload: { patientId: patients.json()[0].id, notes: "Venda interna" },
+    });
+    const withItem = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${tab.json().id}/items`,
+      headers,
+      payload: { productId: product.json().id, quantity: 2 },
+    });
+    expect(withItem.json().totalInCents).toBe(9000);
+    let inventory = await app.inject({
+      method: "GET",
+      url: "/inventory/workspace",
+      headers,
+    });
+    expect(inventory.json().products[0].currentStock).toBe(3);
+    const closed = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${tab.json().id}/close`,
+      headers,
+      payload: {
+        settlement: "paid",
+        paymentMethod: "pix",
+        dueDate: new Date().toISOString().slice(0, 10),
+      },
+    });
+    expect(closed.json()).toMatchObject({
+      status: "closed",
+      paymentStatus: "paid",
+    });
+    let finance = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    expect(finance.json().summary.receivables[0].status).toBe("paid");
+    const cancelled = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${tab.json().id}/cancel`,
+      headers,
+    });
+    expect(cancelled.json().status).toBe("cancelled");
+    inventory = await app.inject({
+      method: "GET",
+      url: "/inventory/workspace",
+      headers,
+    });
+    expect(inventory.json().products[0].currentStock).toBe(5);
+    expect(
+      inventory.json().movements.map((item: { kind: string }) => item.kind),
+    ).toEqual(
+      expect.arrayContaining(["initial_stock", "sale", "sale_reversal"]),
+    );
+    finance = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    expect(finance.json().summary.receivables[0].status).toBe("cancelled");
+    const duplicateCancellation = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${tab.json().id}/cancel`,
+      headers,
+    });
+    expect(duplicateCancellation.statusCode).toBe(409);
+    await app.close();
+  });
+});
