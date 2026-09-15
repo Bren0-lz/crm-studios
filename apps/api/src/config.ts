@@ -1,5 +1,8 @@
-import "dotenv/config";
+import { fileURLToPath } from "node:url";
+import { config as loadEnv } from "dotenv";
 import { z } from "zod";
+
+loadEnv({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
 
 const configSchema = z.object({
   NODE_ENV: z

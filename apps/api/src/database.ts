@@ -73,7 +73,7 @@ export async function seedDemoData(pool: Pool) {
       `
       INSERT INTO users (id, clinic_id, full_name, email, password_hash, role)
       VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Mariana Costa', 'admin@movimenta.local', $1, 'owner')
-      ON CONFLICT (clinic_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+      ON CONFLICT (clinic_id, email) DO NOTHING
       `,
       [passwordHash],
     );

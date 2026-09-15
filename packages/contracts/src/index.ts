@@ -104,6 +104,15 @@ export const appointmentInputSchema = z.object({
 });
 export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
 
+export const appointmentRescheduleInputSchema = z.object({
+  professionalId: z.uuid(),
+  roomId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+});
+export type AppointmentRescheduleInput = z.infer<
+  typeof appointmentRescheduleInputSchema
+>;
+
 export const recurringAppointmentInputSchema = appointmentInputSchema.extend({
   occurrences: z.number().int().min(2).max(52),
   intervalWeeks: z.number().int().min(1).max(4).default(1),
@@ -614,6 +623,25 @@ export interface Appointment extends AppointmentInput {
   createdAt: string;
   updatedAt: string;
   seriesId?: string;
+}
+
+export interface AppointmentRescheduleEvent {
+  id: string;
+  appointmentId: string;
+  previousStartsAt: string;
+  previousEndsAt: string;
+  previousProfessionalId: string;
+  previousProfessionalName: string;
+  previousRoomId: string;
+  previousRoomName: string;
+  startsAt: string;
+  endsAt: string;
+  professionalId: string;
+  professionalName: string;
+  roomId: string;
+  roomName: string;
+  actorName: string;
+  createdAt: string;
 }
 
 export interface ScheduleBlock extends ScheduleBlockInput {

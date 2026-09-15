@@ -5,6 +5,8 @@ import type {
   AdminUserUpdate,
   Appointment,
   AppointmentInput,
+  AppointmentRescheduleEvent,
+  AppointmentRescheduleInput,
   AppointmentStatus,
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -225,6 +227,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updatePatient: (id: string, input: PatientInput) =>
+    request<Patient>(`/patients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   professionals: () => request<Professional[]>("/professionals"),
   rooms: () => request<Room[]>("/rooms"),
   services: () => request<Service[]>("/services"),
@@ -237,6 +244,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  rescheduleAppointment: (id: string, input: AppointmentRescheduleInput) =>
+    request<Appointment>(`/appointments/${id}/schedule`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  appointmentReschedules: (id: string) =>
+    request<AppointmentRescheduleEvent[]>(`/appointments/${id}/reschedules`),
   createRecurringAppointments: (input: RecurringAppointmentInput) =>
     request<Appointment[]>("/appointments/recurring", {
       method: "POST",

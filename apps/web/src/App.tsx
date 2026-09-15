@@ -41,6 +41,7 @@ import type {
   AdminUser,
   Appointment,
   AppointmentInput,
+  AppointmentRescheduleEvent,
   AppointmentStatus,
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -632,6 +633,7 @@ function PatientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 
   async function load(query = search) {
     setLoading(true);
@@ -744,7 +746,11 @@ function PatientsPage() {
                   <i />
                   Ativo
                 </span>
-                <button className="ghost-icon">
+                <button
+                  className="ghost-icon"
+                  aria-label={`Editar ${patient.fullName}`}
+                  onClick={() => setEditingPatient(patient)}
+                >
                   <ChevronRight size={18} />
                 </button>
               </div>
@@ -752,16 +758,21 @@ function PatientsPage() {
           </div>
         )}
       </section>
-      {modalOpen && (
+      {(modalOpen || editingPatient) && (
         <PatientModal
-          onClose={() => setModalOpen(false)}
-          onCreated={(patient) => {
+          patient={editingPatient ?? undefined}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingPatient(null);
+          }}
+          onSaved={(patient) => {
             setPatients((current) =>
-              [...current, patient].sort((a, b) =>
+              [...current.filter((item) => item.id !== patient.id), patient].sort((a, b) =>
                 a.fullName.localeCompare(b.fullName),
               ),
             );
             setModalOpen(false);
+            setEditingPatient(null);
           }}
         />
       )}
@@ -770,23 +781,26 @@ function PatientsPage() {
 }
 
 function PatientModal({
+  patient,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  patient: Patient | undefined;
   onClose: () => void;
-  onCreated: (patient: Patient) => void;
+  onSaved: (patient: Patient) => void;
 }) {
-  const [form, setForm] = useState<PatientInput>({
-    fullName: "",
-    phone: "",
-    cpf: "",
-    email: "",
-    birthDate: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    notes: "",
-    tags: [],
-  });
+  const [form, setForm] = useState<PatientInput>(() => ({
+    fullName: patient?.fullName ?? "",
+    phone: patient?.phone ?? "",
+    cpf: patient?.cpf ?? "",
+    email: patient?.email ?? "",
+    birthDate: patient?.birthDate ?? "",
+    emergencyContactName: patient?.emergencyContactName ?? "",
+    emergencyContactPhone: patient?.emergencyContactPhone ?? "",
+    notes: patient?.notes ?? "",
+    tags: patient?.tags ?? [],
+  }));
+  const [tagsText, setTagsText] = useState(() => (patient?.tags ?? []).join(", "));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
@@ -797,7 +811,14 @@ function PatientModal({
     setLoading(true);
     setError("");
     try {
-      onCreated(await api.createPatient(form));
+      const input = {
+        ...form,
+        tags: tagsText
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      };
+      onSaved(patient ? await api.updatePatient(patient.id, input) : await api.createPatient(input));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -806,8 +827,8 @@ function PatientModal({
   }
   return (
     <Modal
-      title="Novo paciente"
-      subtitle="Cadastre as informações essenciais. O restante pode ser completado depois."
+      title={patient ? "Editar paciente" : "Novo paciente"}
+      subtitle={patient ? `Atualize o cadastro ${patient.recordNumber}.` : "Cadastre as informações essenciais. O restante pode ser completado depois."}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -865,13 +886,28 @@ function PatientModal({
             onChange={(e) => field("emergencyContactPhone", e.target.value)}
           />
         </label>
+        <label className="span-2">
+          Etiquetas (separadas por vírgula)
+          <input
+            value={tagsText}
+            onChange={(e) => setTagsText(e.target.value)}
+          />
+        </label>
+        <label className="span-2">
+          Observações administrativas
+          <textarea
+            value={form.notes}
+            onChange={(e) => field("notes", e.target.value)}
+            rows={3}
+          />
+        </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
-            {loading ? "Salvando…" : "Salvar paciente"}
+            {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar paciente"}
           </button>
         </div>
       </form>
@@ -5264,6 +5300,8 @@ function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
+  const [historyAppointment, setHistoryAppointment] = useState<Appointment | null>(null);
   const date = localIsoDate(selectedDate);
   const weekStart = new Date(selectedDate);
   weekStart.setHours(12, 0, 0, 0);
@@ -5443,6 +5481,14 @@ function AgendaPage() {
                         />
                         <strong>{appointment.patientName}</strong>
                         <span>{appointment.serviceName}</span>
+                        {["scheduled", "confirmed"].includes(appointment.status) && (
+                          <button
+                            className="text-link"
+                            onClick={() => setRescheduling(appointment)}
+                          >
+                            Reagendar
+                          </button>
+                        )}
                       </article>
                     ))}
                     {dayAppointments.length === 0 && dayBlocks.length === 0 && (
@@ -5471,6 +5517,8 @@ function AgendaPage() {
               <AgendaCard
                 appointment={appointment}
                 key={appointment.id}
+                onReschedule={() => setRescheduling(appointment)}
+                onHistory={() => setHistoryAppointment(appointment)}
                 onStatus={async (status) => {
                   try {
                     const updated = await api.updateAppointmentStatus(
@@ -5529,6 +5577,30 @@ function AgendaPage() {
           }}
         />
       )}
+      {rescheduling && (
+        <AppointmentRescheduleModal
+          appointment={rescheduling}
+          professionals={professionals}
+          rooms={rooms}
+          onClose={() => setRescheduling(null)}
+          onSaved={(updated) => {
+            setAppointments((items) =>
+              items
+                .map((item) => (item.id === updated.id ? updated : item))
+                .filter((item) => item.startsAt < rangeTo && item.endsAt > rangeFrom)
+                .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+            );
+            setSelectedDate(new Date(updated.startsAt));
+            setRescheduling(null);
+          }}
+        />
+      )}
+      {historyAppointment && (
+        <AppointmentRescheduleHistoryModal
+          appointment={historyAppointment}
+          onClose={() => setHistoryAppointment(null)}
+        />
+      )}
     </>
   );
 
@@ -5582,9 +5654,13 @@ function ScheduleBlockCard({
 function AgendaCard({
   appointment,
   onStatus,
+  onReschedule,
+  onHistory,
 }: {
   appointment: Appointment;
   onStatus: (status: AppointmentStatus) => void;
+  onReschedule: () => void;
+  onHistory: () => void;
 }) {
   return (
     <article className="agenda-card">
@@ -5620,12 +5696,164 @@ function AgendaCard({
             <option value="professional_absence">Ausência profissional</option>
             <option value="cancelled">Cancelado</option>
           </select>
-          <button className="ghost-icon">
+          {["scheduled", "confirmed"].includes(appointment.status) && (
+            <button className="secondary-button" onClick={onReschedule}>
+              Reagendar
+            </button>
+          )}
+          <button
+            className="ghost-icon"
+            aria-label={`Histórico de ${appointment.patientName}`}
+            title="Histórico de reagendamentos"
+            onClick={onHistory}
+          >
             <MoreHorizontal size={19} />
           </button>
         </div>
       </div>
     </article>
+  );
+}
+
+function AppointmentRescheduleModal({
+  appointment,
+  professionals,
+  rooms,
+  onClose,
+  onSaved,
+}: {
+  appointment: Appointment;
+  professionals: Professional[];
+  rooms: Room[];
+  onClose: () => void;
+  onSaved: (appointment: Appointment) => void;
+}) {
+  const [form, setForm] = useState({
+    professionalId: appointment.professionalId,
+    roomId: appointment.roomId,
+    startsAt: toLocalDateTimeInput(new Date(appointment.startsAt)),
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      onSaved(
+        await api.rescheduleAppointment(appointment.id, {
+          professionalId: form.professionalId,
+          roomId: form.roomId,
+          startsAt: new Date(form.startsAt).toISOString(),
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível reagendar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Modal
+      title="Reagendar atendimento"
+      subtitle={`${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <label>
+          Profissional
+          <select
+            required
+            value={form.professionalId}
+            onChange={(e) => setForm({ ...form, professionalId: e.target.value })}
+          >
+            {professionals.map((item) => (
+              <option value={item.id} key={item.id}>{item.fullName}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Sala
+          <select
+            required
+            value={form.roomId}
+            onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+          >
+            {rooms.map((item) => (
+              <option value={item.id} key={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="span-2">
+          Nova data e horário
+          <input
+            required
+            type="datetime-local"
+            value={form.startsAt}
+            onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+          />
+        </label>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={loading}>
+            {loading ? "Salvando…" : "Confirmar reagendamento"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AppointmentRescheduleHistoryModal({
+  appointment,
+  onClose,
+}: {
+  appointment: Appointment;
+  onClose: () => void;
+}) {
+  const [events, setEvents] = useState<AppointmentRescheduleEvent[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.appointmentReschedules(appointment.id)
+      .then((data) => { if (active) setEvents(data); })
+      .catch((cause: Error) => { if (active) setError(cause.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [appointment.id]);
+  return (
+    <Modal
+      title="Histórico de reagendamentos"
+      subtitle={appointment.patientName}
+      onClose={onClose}
+    >
+      {error && <ErrorBanner error={error} />}
+      {loading ? <LoadingBlock /> : events.length === 0 ? (
+        <EmptyState title="Sem reagendamentos" copy="O horário deste atendimento ainda não foi alterado." />
+      ) : (
+        <div className="reschedule-history">
+          {events.map((event) => (
+            <article key={event.id}>
+              <small>{event.actorName} · {new Date(event.createdAt).toLocaleString("pt-BR")}</small>
+              <div>
+                <span>{new Date(event.previousStartsAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+                <strong>→</strong>
+                <span>{new Date(event.startsAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+              </div>
+              <p>
+                {event.previousProfessionalName} · {event.previousRoomName}
+                {" → "}
+                {event.professionalName} · {event.roomName}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }
 

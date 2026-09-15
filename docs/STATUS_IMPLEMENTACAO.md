@@ -1,6 +1,6 @@
 # Status da implementação
 
-Atualizado em 12 de setembro de 2026.
+Atualizado em 15 de setembro de 2026.
 
 ## Incremento 1 — Fundação e operação básica
 
@@ -275,8 +275,22 @@ Concluído:
 - interface responsiva e persistência equivalente em memória e PostgreSQL;
 - cobertura integrada do fluxo de venda, pagamento, cancelamento e estorno.
 
+## Incremento 19 — Edição de pacientes e reagendamento individual
+
+Concluído:
+
+- edição dos dados cadastrais do paciente sem alterar seu número de prontuário;
+- proteção contra CPF duplicado na clínica, inclusive no PostgreSQL;
+- reagendamento individual de atendimentos agendados ou confirmados, com troca de profissional e sala;
+- prevenção de conflitos com atendimentos, bloqueios e encontros de turmas;
+- registro imutável do horário, profissional e sala anteriores e novos, com operador e data;
+- interface de edição, reagendamento e consulta do histórico na agenda;
+- testes dos fluxos em memória, PostgreSQL e interface web.
+
+Os relatórios já incluem uma DRE gerencial básica, rentabilidade por serviço/produto e indicadores operacionais. A classificação gerencial detalhada prevista no plano funcional ainda precisa ser conciliada com dados reais da clínica.
+
 ## Próximo incremento de desenvolvimento autônomo
 
-DRE gerencial, rentabilidade por serviço/produto e indicadores operacionais avançados.
+Conciliação dos cálculos financeiros e preparação da importação validada dos dados do sistema anterior.
 
 O aplicativo e o portal do paciente permanecem fora do escopo.

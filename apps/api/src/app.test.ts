@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Appointment, Lead } from "@crm/contracts";
 import { buildApp } from "./app.js";
+import { config } from "./config.js";
 import { MemoryClinicRepository } from "./memory-repository.js";
 
 async function authenticatedApp() {
@@ -24,7 +25,10 @@ describe("CRM API", () => {
     });
     const response = await app.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ status: "ok", storage: "memory" });
+    expect(response.json()).toMatchObject({
+      status: "ok",
+      storage: config.STORAGE_MODE,
+    });
     await app.close();
   });
 
@@ -56,6 +60,90 @@ describe("CRM API", () => {
     });
     expect(listed.json()).toHaveLength(1);
     expect(listed.json()[0].fullName).toBe("Joana de Souza");
+    await app.close();
+  });
+
+  it("edits a patient without changing their record number or duplicating a CPF", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patient = (
+      await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: {
+          fullName: "Joana de Souza",
+          phone: "11999990000",
+          cpf: "12345678901",
+          tags: [],
+        },
+      })
+    ).json();
+    const [professional, room, service] = await Promise.all([
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const startsAt = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
+    startsAt.setUTCHours(18, 0, 0, 0);
+    const appointment = (
+      await app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patient.id,
+          professionalId: professional.json()[0].id,
+          roomId: room.json()[0].id,
+          serviceId: service.json()[0].id,
+          startsAt: startsAt.toISOString(),
+        },
+      })
+    ).json();
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/patients/${patient.id}`,
+      headers,
+      payload: {
+        fullName: "Joana Pereira",
+        phone: "11988887777",
+        cpf: patient.cpf,
+        tags: ["Retorno"],
+      },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({
+      id: patient.id,
+      recordNumber: patient.recordNumber,
+      fullName: "Joana Pereira",
+      tags: ["Retorno"],
+    });
+    const agenda = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${encodeURIComponent(startsAt.toISOString())}&to=${encodeURIComponent(new Date(startsAt.getTime() + 60 * 60 * 1000).toISOString())}`,
+      headers,
+    });
+    expect(agenda.json().find((item: Appointment) => item.id === appointment.id).patientName).toBe("Joana Pereira");
+    const other = (
+      await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: { fullName: "Outra Pessoa", phone: "11911112222", tags: [] },
+      })
+    ).json();
+    const duplicate = await app.inject({
+      method: "PUT",
+      url: `/patients/${other.id}`,
+      headers,
+      payload: {
+        fullName: other.fullName,
+        phone: other.phone,
+        cpf: patient.cpf,
+        tags: [],
+      },
+    });
+    expect(duplicate.statusCode).toBe(409);
     await app.close();
   });
 
@@ -103,6 +191,75 @@ describe("CRM API", () => {
           payload,
         })
       ).statusCode,
+    ).toBe(409);
+    await app.close();
+  });
+
+  it("reschedules one appointment, keeps history and rejects occupied or closed slots", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const base = new Date(Date.now() + 46 * 24 * 60 * 60 * 1000);
+    base.setUTCHours(18, 0, 0, 0);
+    const at = (hours: number) =>
+      new Date(base.getTime() + hours * 60 * 60 * 1000).toISOString();
+    const payload = {
+      patientId: patients.json()[0].id,
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId: services.json()[0].id,
+    };
+    const first = (
+      await app.inject({ method: "POST", url: "/appointments", headers, payload: { ...payload, startsAt: at(0) } })
+    ).json();
+    expect(
+      (await app.inject({ method: "POST", url: "/appointments", headers, payload: { ...payload, startsAt: at(2) } })).statusCode,
+    ).toBe(201);
+    const move = { professionalId: payload.professionalId, roomId: payload.roomId, startsAt: at(1) };
+    const moved = await app.inject({
+      method: "PUT",
+      url: `/appointments/${first.id}/schedule`,
+      headers,
+      payload: move,
+    });
+    expect(moved.statusCode).toBe(200);
+    expect(moved.json().startsAt).toBe(at(1));
+    const history = await app.inject({
+      method: "GET",
+      url: `/appointments/${first.id}/reschedules`,
+      headers,
+    });
+    expect(history.json()).toHaveLength(1);
+    expect(history.json()[0]).toMatchObject({ previousStartsAt: at(0), startsAt: at(1), actorName: "Mariana Costa" });
+    expect(
+      (await app.inject({ method: "PUT", url: `/appointments/${first.id}/schedule`, headers, payload: move })).statusCode,
+    ).toBe(200);
+    const conflict = await app.inject({
+      method: "PUT",
+      url: `/appointments/${first.id}/schedule`,
+      headers,
+      payload: { ...move, startsAt: at(2) },
+    });
+    expect(conflict.statusCode).toBe(409);
+    const afterConflict = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(3))}`,
+      headers,
+    });
+    expect(afterConflict.json().find((item: Appointment) => item.id === first.id).startsAt).toBe(at(1));
+    expect(
+      (await app.inject({ method: "GET", url: `/appointments/${first.id}/reschedules`, headers })).json(),
+    ).toHaveLength(1);
+    expect(
+      (await app.inject({ method: "PATCH", url: `/appointments/${first.id}/status`, headers, payload: { status: "cancelled" } })).statusCode,
+    ).toBe(200);
+    expect(
+      (await app.inject({ method: "PUT", url: `/appointments/${first.id}/schedule`, headers, payload: move })).statusCode,
     ).toBe(409);
     await app.close();
   });

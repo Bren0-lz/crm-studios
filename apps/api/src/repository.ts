@@ -5,6 +5,8 @@ import type {
   AdminUserUpdate,
   Appointment,
   AppointmentInput,
+  AppointmentRescheduleEvent,
+  AppointmentRescheduleInput,
   AppointmentStatus,
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -148,6 +150,11 @@ export interface ClinicRepository {
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  updatePatient(
+    clinicId: string,
+    patientId: string,
+    input: PatientInput,
+  ): Promise<Patient | null>;
   listProfessionals(clinicId: string): Promise<Professional[]>;
   createProfessional(
     clinicId: string,
@@ -166,6 +173,16 @@ export interface ClinicRepository {
     clinicId: string,
     input: AppointmentInput,
   ): Promise<Appointment>;
+  rescheduleAppointment(
+    clinicId: string,
+    actorUserId: string,
+    appointmentId: string,
+    input: AppointmentRescheduleInput,
+  ): Promise<Appointment | null>;
+  listAppointmentReschedules(
+    clinicId: string,
+    appointmentId: string,
+  ): Promise<AppointmentRescheduleEvent[] | null>;
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: crm
       POSTGRES_PASSWORD: crm
     ports:
-      - "5432:5432"
+      - "${CRM_POSTGRES_PORT:-5432}:5432"
     volumes:
       - crm_postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -6,6 +6,8 @@ import type {
   AdminUserUpdate,
   Appointment,
   AppointmentInput,
+  AppointmentRescheduleEvent,
+  AppointmentRescheduleInput,
   AppointmentStatus,
   AssessmentField,
   AssessmentTemplate,
@@ -1831,6 +1833,41 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
   }
 
+  async updatePatient(clinicId: string, patientId: string, input: PatientInput) {
+    try {
+      const result = await this.pool.query<PatientRow>(
+        `UPDATE patients SET full_name = $3, cpf = $4, email = $5,
+                phone = $6, birth_date = $7, emergency_contact_name = $8,
+                emergency_contact_phone = $9, notes = $10, tags = $11,
+                updated_at = now()
+         WHERE clinic_id = $1 AND id = $2
+         RETURNING ${patientColumns}`,
+        [
+          clinicId,
+          patientId,
+          input.fullName,
+          input.cpf || null,
+          input.email || null,
+          input.phone,
+          input.birthDate || null,
+          input.emergencyContactName || null,
+          input.emergencyContactPhone || null,
+          input.notes || null,
+          input.tags,
+        ],
+      );
+      return result.rows[0] ? mapPatient(result.rows[0]) : null;
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505"))
+        throw new DomainError(
+          "PATIENT_DUPLICATE",
+          "Já existe um paciente com este CPF.",
+          409,
+        );
+      throw error;
+    }
+  }
+
   async listProfessionals(clinicId: string) {
     const result = await this.pool.query<ProfessionalRow>(
       `
@@ -2009,7 +2046,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       );
       return (await this.findAppointment(clinicId, inserted.rows[0]!.id))!;
     } catch (error) {
-      if (hasDatabaseCode(error, "23P01")) {
+      if (hasDatabaseCode(error, "23P01") || hasDatabaseCode(error, "40P01")) {
         throw new DomainError(
           "APPOINTMENT_CONFLICT",
           "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
@@ -2018,6 +2055,204 @@ export class PostgresClinicRepository implements ClinicRepository {
       }
       throw error;
     }
+  }
+
+  async rescheduleAppointment(
+    clinicId: string,
+    actorUserId: string,
+    appointmentId: string,
+    input: AppointmentRescheduleInput,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query<{
+        status: AppointmentStatus;
+        startsAt: Date;
+        endsAt: Date;
+        professionalId: string;
+        roomId: string;
+        serviceId: string;
+      }>(
+        `SELECT status, starts_at AS "startsAt", ends_at AS "endsAt",
+                professional_id AS "professionalId", room_id AS "roomId",
+                service_id AS "serviceId"
+         FROM appointments WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+        [clinicId, appointmentId],
+      );
+      const previous = current.rows[0];
+      if (!previous) {
+        await client.query("COMMIT");
+        return null;
+      }
+      if (!["scheduled", "confirmed"].includes(previous.status))
+        throw new DomainError(
+          "APPOINTMENT_RESCHEDULE_FORBIDDEN",
+          "Somente atendimentos agendados ou confirmados podem ser reagendados.",
+          409,
+        );
+      const related = await client.query<{ durationMinutes: number }>(
+        `SELECT s.duration_minutes AS "durationMinutes"
+         FROM services s, professionals p, rooms r
+         WHERE s.clinic_id = $1 AND s.id = $2
+           AND p.clinic_id = $1 AND p.id = $3 AND p.active
+           AND r.clinic_id = $1 AND r.id = $4 AND r.active`,
+        [
+          clinicId,
+          previous.serviceId,
+          input.professionalId,
+          input.roomId,
+        ],
+      );
+      if (!related.rows[0])
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Profissional, sala ou serviço não encontrado.",
+          404,
+        );
+      const startsAt = new Date(input.startsAt);
+      const endsAt = new Date(
+        startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
+      );
+      if (
+        startsAt.getTime() === previous.startsAt.getTime() &&
+        input.professionalId === previous.professionalId &&
+        input.roomId === previous.roomId
+      ) {
+        const unchanged = await this.findAppointment(
+          clinicId,
+          appointmentId,
+          client,
+        );
+        await client.query("COMMIT");
+        return unchanged;
+      }
+      if (
+        await hasGroupSessionConflict(
+          client,
+          clinicId,
+          input.professionalId,
+          input.roomId,
+          startsAt,
+          endsAt,
+        )
+      )
+        throw new DomainError(
+          "APPOINTMENT_CONFLICT",
+          "O profissional ou a sala está ocupado por uma turma nesse horário.",
+          409,
+        );
+      await client.query(
+        `UPDATE appointments
+         SET professional_id = $3, room_id = $4, starts_at = $5,
+             ends_at = $6, updated_at = now()
+         WHERE clinic_id = $1 AND id = $2`,
+        [
+          clinicId,
+          appointmentId,
+          input.professionalId,
+          input.roomId,
+          startsAt,
+          endsAt,
+        ],
+      );
+      await client.query(
+        `INSERT INTO appointment_reschedules (
+           clinic_id, appointment_id, actor_user_id,
+           previous_starts_at, previous_ends_at,
+           previous_professional_id, previous_room_id,
+           starts_at, ends_at, professional_id, room_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          clinicId,
+          appointmentId,
+          actorUserId,
+          previous.startsAt,
+          previous.endsAt,
+          previous.professionalId,
+          previous.roomId,
+          startsAt,
+          endsAt,
+          input.professionalId,
+          input.roomId,
+        ],
+      );
+      const appointment = await this.findAppointment(
+        clinicId,
+        appointmentId,
+        client,
+      );
+      await client.query("COMMIT");
+      return appointment;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (hasDatabaseCode(error, "23P01") || hasDatabaseCode(error, "40P01"))
+        throw new DomainError(
+          "APPOINTMENT_CONFLICT",
+          "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+          409,
+        );
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listAppointmentReschedules(clinicId: string, appointmentId: string) {
+    const appointment = await this.pool.query(
+      "SELECT 1 FROM appointments WHERE clinic_id = $1 AND id = $2",
+      [clinicId, appointmentId],
+    );
+    if (!appointment.rowCount) return null;
+    const result = await this.pool.query<{
+      id: string;
+      appointmentId: string;
+      previousStartsAt: Date;
+      previousEndsAt: Date;
+      previousProfessionalId: string;
+      previousProfessionalName: string;
+      previousRoomId: string;
+      previousRoomName: string;
+      startsAt: Date;
+      endsAt: Date;
+      professionalId: string;
+      professionalName: string;
+      roomId: string;
+      roomName: string;
+      actorName: string;
+      createdAt: Date;
+    }>(
+      `SELECT ar.id, ar.appointment_id AS "appointmentId",
+              ar.previous_starts_at AS "previousStartsAt",
+              ar.previous_ends_at AS "previousEndsAt",
+              ar.previous_professional_id AS "previousProfessionalId",
+              previous_pr.full_name AS "previousProfessionalName",
+              ar.previous_room_id AS "previousRoomId",
+              previous_r.name AS "previousRoomName",
+              ar.starts_at AS "startsAt", ar.ends_at AS "endsAt",
+              ar.professional_id AS "professionalId",
+              current_pr.full_name AS "professionalName",
+              ar.room_id AS "roomId", current_r.name AS "roomName",
+              u.full_name AS "actorName", ar.created_at AS "createdAt"
+       FROM appointment_reschedules ar JOIN users u ON u.id = ar.actor_user_id
+       JOIN professionals previous_pr ON previous_pr.id = ar.previous_professional_id
+       JOIN rooms previous_r ON previous_r.id = ar.previous_room_id
+       JOIN professionals current_pr ON current_pr.id = ar.professional_id
+       JOIN rooms current_r ON current_r.id = ar.room_id
+       WHERE ar.clinic_id = $1 AND ar.appointment_id = $2
+       ORDER BY ar.created_at DESC, ar.id DESC`,
+      [clinicId, appointmentId],
+    );
+    return result.rows.map(
+      (row): AppointmentRescheduleEvent => ({
+        ...row,
+        previousStartsAt: row.previousStartsAt.toISOString(),
+        previousEndsAt: row.previousEndsAt.toISOString(),
+        startsAt: row.startsAt.toISOString(),
+        endsAt: row.endsAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      }),
+    );
   }
 
   async createRecurringAppointments(

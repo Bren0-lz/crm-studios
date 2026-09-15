@@ -6,6 +6,7 @@ import {
   adminUserInputSchema,
   adminUserUpdateSchema,
   appointmentInputSchema,
+  appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   assessmentTemplateInputSchema,
   clinicalAddendumInputSchema,
@@ -566,6 +567,24 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return reply.status(201).send(patient);
     },
   );
+  app.put(
+    "/patients/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const patient = await repository.updatePatient(
+        request.user.clinicId,
+        id,
+        patientInputSchema.parse(request.body),
+      );
+      if (!patient)
+        return reply.status(404).send({
+          code: "PATIENT_NOT_FOUND",
+          message: "Paciente não encontrado.",
+        });
+      return patient;
+    },
+  );
 
   app.get("/professionals", { preHandler: authenticate }, async (request) =>
     repository.listProfessionals(request.user.clinicId),
@@ -648,6 +667,42 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
             recurringAppointmentInputSchema.parse(request.body),
           ),
         ),
+  );
+  app.put(
+    "/appointments/:id/schedule",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const appointment = await repository.rescheduleAppointment(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        appointmentRescheduleInputSchema.parse(request.body),
+      );
+      if (!appointment)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        });
+      return appointment;
+    },
+  );
+  app.get(
+    "/appointments/:id/reschedules",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const events = await repository.listAppointmentReschedules(
+        request.user.clinicId,
+        id,
+      );
+      if (!events)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        });
+      return events;
+    },
   );
   app.patch(
     "/appointments/:id/status",

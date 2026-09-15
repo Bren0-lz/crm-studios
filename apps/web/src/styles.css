@@ -1187,6 +1187,12 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.week-appointment .text-link {
+  justify-self: start;
+  padding: 0;
+  font-size: 9px;
+}
+
 .week-empty {
   padding: 15px 3px;
   color: #aaa79e;
@@ -1333,6 +1339,42 @@ textarea:focus {
   width: 132px;
   min-height: 34px;
   font-size: 10px;
+}
+
+.agenda-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.agenda-actions .secondary-button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.reschedule-history {
+  display: grid;
+  gap: 10px;
+}
+
+.reschedule-history article {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+
+.reschedule-history small {
+  color: var(--muted);
+}
+
+.reschedule-history article > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 13px;
 }
 
 .modal-backdrop {

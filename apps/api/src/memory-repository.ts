@@ -5,6 +5,8 @@ import type {
   AdminUserUpdate,
   Appointment,
   AppointmentInput,
+  AppointmentRescheduleEvent,
+  AppointmentRescheduleInput,
   AppointmentStatus,
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -138,6 +140,7 @@ function dateAt(hour: number, minute = 0, addDays = 0) {
 }
 
 export class MemoryClinicRepository implements ClinicRepository {
+  private readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
   private readonly clinicalRecords: ClinicalRecord[] = [];
   private readonly clinicalRecordRevisions: ClinicalRecordRevision[] = [];
   private readonly assessmentTemplates: AssessmentTemplate[] = [
@@ -657,6 +660,42 @@ export class MemoryClinicRepository implements ClinicRepository {
     return patient;
   }
 
+  async updatePatient(clinicId: string, patientId: string, input: PatientInput) {
+    const patient = this.patients.find(
+      (item) => item.clinicId === clinicId && item.id === patientId,
+    );
+    if (!patient) return null;
+    if (
+      input.cpf &&
+      this.patients.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id !== patientId &&
+          item.cpf === input.cpf,
+      )
+    )
+      throw new DomainError(
+        "PATIENT_DUPLICATE",
+        "Já existe um paciente com este CPF.",
+        409,
+      );
+    Object.assign(patient, input, { updatedAt: now() });
+    for (const collection of [
+      this.appointments,
+      this.clinicalRecords,
+      this.patientPlans,
+      this.receivables,
+      this.groupEnrollments,
+      this.groupAttendance,
+      this.replacementCredits,
+      this.patientTabs,
+    ]) {
+      for (const item of collection)
+        if (item.patientId === patientId) item.patientName = patient.fullName;
+    }
+    return patient;
+  }
+
   async listProfessionals(clinicId: string) {
     return this.professionals.filter(
       (item) => item.clinicId === clinicId && item.active,
@@ -796,6 +835,130 @@ export class MemoryClinicRepository implements ClinicRepository {
     };
     this.appointments.push(appointment);
     return appointment;
+  }
+
+  async rescheduleAppointment(
+    clinicId: string,
+    actorUserId: string,
+    appointmentId: string,
+    input: AppointmentRescheduleInput,
+  ) {
+    const appointment = this.appointments.find(
+      (item) => item.clinicId === clinicId && item.id === appointmentId,
+    );
+    if (!appointment) return null;
+    if (!["scheduled", "confirmed"].includes(appointment.status))
+      throw new DomainError(
+        "APPOINTMENT_RESCHEDULE_FORBIDDEN",
+        "Somente atendimentos agendados ou confirmados podem ser reagendados.",
+        409,
+      );
+    const professional = this.professionals.find(
+      (item) =>
+        item.clinicId === clinicId && item.id === input.professionalId && item.active,
+    );
+    const room = this.rooms.find(
+      (item) => item.clinicId === clinicId && item.id === input.roomId && item.active,
+    );
+    const service = this.services.find(
+      (item) => item.clinicId === clinicId && item.id === appointment.serviceId,
+    );
+    if (!professional || !room || !service)
+      throw new DomainError(
+        "RELATED_RECORD_NOT_FOUND",
+        "Profissional, sala ou serviço não encontrado.",
+        404,
+      );
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(
+      startsAt.getTime() + service.durationMinutes * 60_000,
+    );
+    if (
+      appointment.startsAt === startsAt.toISOString() &&
+      appointment.professionalId === professional.id &&
+      appointment.roomId === room.id
+    )
+      return appointment;
+    const overlaps = (from: string, to: string) =>
+      new Date(from) < endsAt && new Date(to) > startsAt;
+    const appointmentConflict = this.appointments.some(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id !== appointmentId &&
+        item.status !== "cancelled" &&
+        (item.professionalId === professional.id || item.roomId === room.id) &&
+        overlaps(item.startsAt, item.endsAt),
+    );
+    const blockConflict = this.scheduleBlocks.some(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.status === "active" &&
+        (item.professionalId === professional.id || item.roomId === room.id) &&
+        overlaps(item.startsAt, item.endsAt),
+    );
+    const groupConflict = this.groupSessions.some((session) => {
+      const group = this.groupClasses.find(
+        (item) => item.id === session.groupId,
+      );
+      return (
+        session.clinicId === clinicId &&
+        session.status !== "cancelled" &&
+        Boolean(group) &&
+        (group!.professionalId === professional.id || group!.roomId === room.id) &&
+        overlaps(session.startsAt, session.endsAt)
+      );
+    });
+    if (appointmentConflict || blockConflict || groupConflict)
+      throw new DomainError(
+        "APPOINTMENT_CONFLICT",
+        "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+        409,
+      );
+    const actor = this.users.find(
+      (item) => item.clinicId === clinicId && item.id === actorUserId,
+    );
+    const event: AppointmentRescheduleEvent = {
+      id: uuid(),
+      appointmentId,
+      previousStartsAt: appointment.startsAt,
+      previousEndsAt: appointment.endsAt,
+      previousProfessionalId: appointment.professionalId,
+      previousProfessionalName: appointment.professionalName,
+      previousRoomId: appointment.roomId,
+      previousRoomName: appointment.roomName,
+      startsAt: startsAt.toISOString(),
+      endsAt: endsAt.toISOString(),
+      professionalId: professional.id,
+      professionalName: professional.fullName,
+      roomId: room.id,
+      roomName: room.name,
+      actorName: actor?.fullName ?? "Usuário",
+      createdAt: now(),
+    };
+    Object.assign(appointment, {
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      professionalId: professional.id,
+      professionalName: professional.fullName,
+      professionalColor: professional.color,
+      roomId: room.id,
+      roomName: room.name,
+      updatedAt: event.createdAt,
+    });
+    this.appointmentReschedules.push(event);
+    return appointment;
+  }
+
+  async listAppointmentReschedules(clinicId: string, appointmentId: string) {
+    if (
+      !this.appointments.some(
+        (item) => item.clinicId === clinicId && item.id === appointmentId,
+      )
+    )
+      return null;
+    return this.appointmentReschedules
+      .filter((item) => item.appointmentId === appointmentId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async createRecurringAppointments(

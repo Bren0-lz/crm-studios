@@ -6,9 +6,9 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 
 - autenticação com perfis de acesso;
 - painel com indicadores operacionais;
-- cadastro e pesquisa de pacientes;
+- cadastro, edição e pesquisa de pacientes;
 - profissionais, salas e serviços;
-- agenda diária e semanal, recorrência e bloqueios com prevenção de conflitos;
+- agenda diária e semanal, recorrência, bloqueios e reagendamento individual com histórico e prevenção de conflitos;
 - alteração do status dos atendimentos;
 - prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
 - bloqueio de prontuários para perfis sem acesso clínico;
@@ -19,7 +19,7 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - CRM comercial com Kanban, tarefas, contatos e conversão segura de leads;
 - central de comunicações com opt-out, outbox e lembretes idempotentes;
 - modelos versionados e documentos com snapshot imutável;
-- relatórios gerenciais por período com exportação CSV;
+- relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
 - trilha inicial de auditoria no modelo de dados;
 - interface responsiva para desktop, tablet e celular.
 
@@ -60,13 +60,15 @@ PostgreSQL e Redis podem ser iniciados com:
 docker compose up -d
 ```
 
-Copie `.env.example` para `.env`, altere `STORAGE_MODE` e execute:
+Copie `.env.example` para `.env` e configure:
 
 ```text
 STORAGE_MODE=postgres
 DATABASE_URL=postgresql://crm:crm@localhost:5432/crm
 SEED_DEMO_DATA=true
 ```
+
+Se a porta 5432 já estiver ocupada, defina `CRM_POSTGRES_PORT` e use a mesma porta em `DATABASE_URL` nesse arquivo.
 
 ```bash
 npm run db:setup
