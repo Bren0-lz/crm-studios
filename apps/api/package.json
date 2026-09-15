@@ -19,6 +19,7 @@
     "@fastify/jwt": "latest",
     "bcryptjs": "latest",
     "dotenv": "latest",
+    "exceljs": "^4.4.0",
     "fastify": "latest",
     "pg": "latest",
     "zod": "latest"

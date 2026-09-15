@@ -71,6 +71,7 @@ import type {
   LeadStage,
   ManualMessageInput,
   ManagementReport,
+  SalesReport,
   Patient,
   PatientInput,
   PatientPlan,
@@ -474,8 +475,12 @@ function ErrorBanner({ error }: { error: string }) {
 
 function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [sales, setSales] = useState<SalesReport | null>(null);
   const [error, setError] = useState("");
   const today = localIsoDate();
+  const canSeeSales = ["owner", "finance"].includes(
+    getStoredUser()?.role ?? "",
+  );
 
   useEffect(() => {
     api
@@ -483,6 +488,14 @@ function DashboardPage() {
       .then(setData)
       .catch((cause: Error) => setError(cause.message));
   }, [today]);
+
+  useEffect(() => {
+    if (!canSeeSales) return;
+    api
+      .salesReport(today.slice(0, 7))
+      .then(setSales)
+      .catch((cause: Error) => setError(cause.message));
+  }, [canSeeSales, today]);
 
   return (
     <>
@@ -529,9 +542,54 @@ function DashboardPage() {
                 <span>Faltas no mês</span>
                 <strong>{data.noShowsThisMonth}</strong>
               </div>
-              <span className="metric-note good">sob controle</span>
+              <span className="metric-note">neste mês</span>
             </article>
           </section>
+          {canSeeSales && sales && (
+            <section className="dashboard-sales panel">
+              <div className="panel-head">
+                <div>
+                  <span className="eyebrow">
+                    Mês até {sales.current.to.split("-").reverse().join("/")}
+                  </span>
+                  <h2>Vendas e retorno dos pacientes</h2>
+                </div>
+                <NavLink to="/relatorios" className="text-link">
+                  Ver detalhes <ChevronRight size={16} />
+                </NavLink>
+              </div>
+              <div className="sales-metrics">
+                <article>
+                  <span>Vendido líquido</span>
+                  <strong>
+                    {currency.format(sales.current.netSalesInCents / 100)}
+                  </strong>
+                  <small>
+                    {sales.changePercent === null
+                      ? "Sem base anterior"
+                      : `${sales.changePercent > 0 ? "+" : ""}${sales.changePercent}% vs. mês anterior comparável`}
+                  </small>
+                </article>
+                <article>
+                  <span>Recebido</span>
+                  <strong>
+                    {currency.format(sales.current.receivedInCents / 100)}
+                  </strong>
+                  <small>Pela data da baixa</small>
+                </article>
+                <article>
+                  <span>Pacientes atendidos</span>
+                  <strong>{sales.current.attendedPatients}</strong>
+                  <small>Com atendimento concluído</small>
+                </article>
+                <article>
+                  <span>Sem retorno neste mês</span>
+                  <strong>{sales.patientsWithoutReturn.length}</strong>
+                  <small>Atendidos no mês anterior</small>
+                </article>
+              </div>
+            </section>
+          )}
           <section className="dashboard-grid">
             <article className="panel schedule-panel">
               <div className="panel-head">
@@ -556,44 +614,39 @@ function DashboardPage() {
                 </div>
               )}
             </article>
-            <article className="panel pulse-panel">
-              <div className="panel-head">
-                <div>
-                  <span className="eyebrow">Pulso da operação</span>
-                  <h2>Atenção do dia</h2>
-                </div>
-              </div>
-              <div className="attention-list">
-                <div className="attention-item">
-                  <span className="attention-number">02</span>
+            {canSeeSales && sales && (
+              <article className="panel pulse-panel">
+                <div className="panel-head">
                   <div>
-                    <strong>Cadastros incompletos</strong>
-                    <small>Revise telefones e contatos de emergência</small>
+                    <span className="eyebrow">Acompanhamento</span>
+                    <h2>Pacientes sem retorno</h2>
                   </div>
                 </div>
-                <div className="attention-item">
-                  <span className="attention-number warm">03</span>
-                  <div>
-                    <strong>Planos próximos da renovação</strong>
-                    <small>Acompanhamento previsto para esta semana</small>
-                  </div>
+                <div className="attention-list">
+                  {sales.patientsWithoutReturn.length === 0 ? (
+                    <p>Nenhum paciente nessa situação.</p>
+                  ) : (
+                    sales.patientsWithoutReturn.slice(0, 4).map((item) => (
+                      <div className="attention-item" key={item.patientId}>
+                        <span className="attention-number">
+                          {initials(item.patientName)}
+                        </span>
+                        <div>
+                          <strong>{item.patientName}</strong>
+                          <small>
+                            Último atendimento:{" "}
+                            {shortDate.format(new Date(item.lastCompletedAt))}
+                            {item.nextAppointmentAt
+                              ? ` · Próximo agendamento: ${shortDate.format(new Date(item.nextAppointmentAt))}`
+                              : " · Sem próximo agendamento"}
+                          </small>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div className="attention-item">
-                  <span className="attention-number soft">01</span>
-                  <div>
-                    <strong>Conta em aberto</strong>
-                    <small>Aguardando confirmação de pagamento</small>
-                  </div>
-                </div>
-              </div>
-              <div className="privacy-note">
-                <Stethoscope size={19} />
-                <span>
-                  <strong>Prontuários protegidos</strong>Dados clínicos visíveis
-                  apenas para perfis autorizados.
-                </span>
-              </div>
-            </article>
+              </article>
+            )}
           </section>
         </>
       )}
@@ -1594,6 +1647,187 @@ function DocumentsPage() {
   );
 }
 
+function SalesInsights() {
+  const [month, setMonth] = useState(localIsoDate().slice(0, 7));
+  const [report, setReport] = useState<SalesReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const currentMovements =
+    report?.sales.filter(
+      (item) =>
+        new Date(item.occurredAt)
+          .toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
+          .slice(0, 7) === month,
+    ) ?? [];
+
+  useEffect(() => {
+    let active = true;
+    api
+      .salesReport(month)
+      .then((data) => active && setReport(data))
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [month]);
+
+  async function exportXlsx() {
+    setExporting(true);
+    setError("");
+    try {
+      const blob = await api.salesReportXlsx(month);
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = `vendas-${month}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <section className="panel sales-report">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">Vendas e pacientes</span>
+          <h2>Comparação mensal</h2>
+        </div>
+        <div className="sales-report-actions">
+          <label>
+            Mês{" "}
+            <input
+              type="month"
+              value={month}
+              max={localIsoDate().slice(0, 7)}
+              onChange={(event) => {
+                setLoading(true);
+                setError("");
+                setMonth(event.target.value);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!report || exporting || loading}
+            onClick={() => void exportXlsx()}
+          >
+            {exporting ? "Exportando…" : "Exportar Excel detalhado"}
+          </button>
+        </div>
+      </div>
+      {error && <ErrorBanner error={error} />}
+      {loading || !report ? (
+        <LoadingBlock />
+      ) : (
+        <>
+          <p className="sales-period">
+            {report.current.from} a {report.current.to} comparado com{" "}
+            {report.previousComparable.from} a {report.previousComparable.to}.
+          </p>
+          <div className="sales-metrics">
+            <article>
+              <span>Vendas líquidas</span>
+              <strong>
+                {currency.format(report.current.netSalesInCents / 100)}
+              </strong>
+              <small>
+                {report.changePercent === null
+                  ? "Sem vendas no período anterior"
+                  : `${report.changePercent > 0 ? "+" : ""}${report.changePercent}% · ${currency.format(report.changeInCents / 100)} de diferença`}
+              </small>
+            </article>
+            <article>
+              <span>Vendas brutas</span>
+              <strong>
+                {currency.format(report.current.grossSalesInCents / 100)}
+              </strong>
+              <small>
+                {currency.format(report.current.cancelledSalesInCents / 100)} em
+                cancelamentos
+              </small>
+            </article>
+            <article>
+              <span>Recebido</span>
+              <strong>
+                {currency.format(report.current.receivedInCents / 100)}
+              </strong>
+              <small>Pagamentos baixados no período</small>
+            </article>
+            <article>
+              <span>Sem retorno</span>
+              <strong>{report.patientsWithoutReturn.length}</strong>
+              <small>
+                Atendidos no mês anterior, sem atendimento concluído neste
+              </small>
+            </article>
+          </div>
+          <div className="sales-detail-grid">
+            <div>
+              <h3>Movimentos deste mês</h3>
+              {currentMovements.length === 0 ? (
+                <p>Nenhuma venda ou cancelamento.</p>
+              ) : (
+                <div className="sales-detail-list">
+                  {currentMovements.slice(0, 12).map((item) => (
+                    <div key={item.id}>
+                      <span>
+                        <strong>{item.itemName}</strong>
+                        <small>
+                          {item.patientName} ·{" "}
+                          {item.kind === "sale" ? "Venda" : "Cancelamento"}
+                        </small>
+                      </span>
+                      <b>{currency.format(item.amountInCents / 100)}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h3>Pacientes sem retorno</h3>
+              {report.patientsWithoutReturn.length === 0 ? (
+                <p>Nenhum paciente nessa situação.</p>
+              ) : (
+                <div className="sales-detail-list">
+                  {report.patientsWithoutReturn.slice(0, 12).map((item) => (
+                    <div key={item.patientId}>
+                      <span>
+                        <strong>{item.patientName}</strong>
+                        <small>
+                          Último atendimento:{" "}
+                          {shortDate.format(new Date(item.lastCompletedAt))}
+                        </small>
+                      </span>
+                      <small>
+                        {item.nextAppointmentAt
+                          ? `Agendado: ${shortDate.format(new Date(item.nextAppointmentAt))}`
+                          : "Sem agendamento"}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <p className="report-definition">
+            Venda = plano criado ou comanda fechada. Cancelamento entra na data
+            do movimento: parcelas abertas do plano ou valor da comanda.
+            Recebido = pagamentos menos estornos. A planilha contém todos os
+            movimentos dos dois meses exibidos.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function ReportsPage() {
   const today = localIsoDate();
   const [filter, setFilter] = useState({
@@ -1665,6 +1899,7 @@ function ReportsPage() {
           </button>
         }
       />
+      <SalesInsights />
       <section className="report-filter">
         <label>
           De
@@ -1736,7 +1971,7 @@ function ReportsPage() {
               <div className="panel-head">
                 <div>
                   <span className="eyebrow">Resultado financeiro</span>
-                  <h2>DRE gerencial</h2>
+                  <h2>DRE básica por caixa</h2>
                 </div>
                 <strong
                   className={
@@ -5844,6 +6079,7 @@ function AppointmentRescheduleHistoryModal({
                 <strong>→</strong>
                 <span>{new Date(event.startsAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
               </div>
+              <p className="report-definition">Receitas e despesas pela baixa. A classificação gerencial detalhada ainda precisa de conciliação.</p>
               <p>
                 {event.previousProfessionalName} · {event.previousRoomName}
                 {" → "}

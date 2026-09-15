@@ -63,6 +63,7 @@ import type {
   LeadTaskStatus,
   ManualMessageInput,
   ManagementReport,
+  SalesReport,
   IssuedDocument,
   InventoryWorkspace,
   IssuedDocumentInput,
@@ -510,6 +511,7 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ManagementReport>;
+  getSalesReport(clinicId: string, month: string): Promise<SalesReport>;
 }
 
 export class DomainError extends Error {

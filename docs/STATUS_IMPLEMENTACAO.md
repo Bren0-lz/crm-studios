@@ -289,8 +289,24 @@ Concluído:
 
 Os relatórios já incluem uma DRE gerencial básica, rentabilidade por serviço/produto e indicadores operacionais. A classificação gerencial detalhada prevista no plano funcional ainda precisa ser conciliada com dados reais da clínica.
 
+## Incremento 20 — Vendas mensais e retorno dos pacientes
+
+Concluído:
+
+- livro de movimentos rastreáveis de planos criados, itens de comandas fechadas e cancelamentos;
+- cancelamento de plano limitado ao valor das parcelas ainda abertas, preservado no registro do plano;
+- pagamentos e estornos apresentados pela data dos eventos financeiros;
+- comparação do mês em andamento com os mesmos dias do mês anterior;
+- pacientes distintos com atendimento concluído no mês anterior e sem atendimento concluído no mês selecionado;
+- resumo de vendas, recebimentos e retorno na página inicial de gestão;
+- planilha XLSX com resumo, movimentos de vendas, recebimentos, pacientes sem retorno e definições;
+- leitura do PostgreSQL com snapshot único para o relatório mensal;
+- testes de períodos, estornos, cancelamento parcial, planilha e interface.
+
+Limites atuais: o relatório detalhado cobre vendas, recebimentos e retorno, não todos os módulos do CRM. A migração dos dados anteriores ainda precisa preencher os eventos financeiros de origem. Cancelamentos antigos de planos recebem uma data estimada a partir da última atualização no banco. A exportação Excel de dados clínicos deve seguir permissões próprias e permanece fora deste relatório gerencial.
+
 ## Próximo incremento de desenvolvimento autônomo
 
-Conciliação dos cálculos financeiros e preparação da importação validada dos dados do sistema anterior.
+Conciliação dos cálculos financeiros com casos reais da clínica e preparação da importação validada dos dados do sistema anterior, inclusive seu modelo de planilha.
 
 O aplicativo e o portal do paciente permanecem fora do escopo.

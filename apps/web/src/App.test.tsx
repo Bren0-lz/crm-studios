@@ -10,6 +10,37 @@ afterEach(() => {
 });
 
 describe("application shell", () => {
+  it("shows monthly sales and patients without return directly on the manager dashboard", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      JSON.stringify({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Mariana Costa",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/reports/sales?")
+        ? {
+            month: "2026-09",
+            current: { to: "2026-09-15", netSalesInCents: 120000, receivedInCents: 90000, attendedPatients: 14 },
+            changePercent: 20,
+            patientsWithoutReturn: [{ patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida", lastCompletedAt: "2026-08-20T15:00:00Z" }],
+          }
+        : { appointmentsToday: 3, completedToday: 1, patientsActive: 40, noShowsThisMonth: 1, nextAppointments: [] };
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Vendas e retorno dos pacientes" })).toBeInTheDocument();
+    expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
+    expect(screen.getByText("+20% vs. mês anterior comparável")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pacientes sem retorno" })).toBeInTheDocument();
+    expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
+    expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
+  });
+
   it("shows the login when there is no session", () => {
     localStorage.clear();
     render(

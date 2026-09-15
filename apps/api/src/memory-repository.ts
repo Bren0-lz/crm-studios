@@ -65,6 +65,9 @@ import type {
   InventoryWorkspace,
   ManualMessageInput,
   ManagementReport,
+  SalesReport,
+  SaleMovement,
+  ReceivedPayment,
   OutboundMessage,
   Patient,
   PatientInput,
@@ -105,6 +108,7 @@ import type {
   ReplacementCredit,
 } from "@crm/contracts";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { buildSalesReport } from "./sales-report.js";
 import {
   DomainError,
   type AuthenticatedUser,
@@ -200,6 +204,14 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly patientPlans: PatientPlan[] = [];
   private readonly sessionMovements: SessionMovement[] = [];
   private readonly receivables: Receivable[] = [];
+  private readonly receiptEvents: Array<{
+    id: string;
+    receivableId: string;
+    kind: ReceivedPayment["kind"];
+    occurredAt: string;
+    amountInCents: number;
+    paymentMethod?: PaymentMethod;
+  }> = [];
   private readonly receivableRenegotiations: ReceivableRenegotiation[] = [];
   private readonly commissionRules: CommissionRule[] = [];
   private readonly commissions: CommissionEntry[] = [];
@@ -1700,6 +1712,15 @@ export class MemoryClinicRepository implements ClinicRepository {
       updatedAt: timestamp,
     };
     this.receivables.push(receivable);
+    if (receivable.status === "paid")
+      this.receiptEvents.push({
+        id: uuid(),
+        receivableId: receivable.id,
+        kind: "payment",
+        occurredAt: timestamp,
+        amountInCents: receivable.amountInCents,
+        paymentMethod: input.paymentMethod!,
+      });
     tab.status = "closed";
     tab.paymentStatus = input.settlement;
     tab.receivableId = receivable.id;
@@ -2508,9 +2529,14 @@ export class MemoryClinicRepository implements ClinicRepository {
         409,
       );
     }
+    if (plan.status === status) return plan;
     plan.status = status;
     plan.updatedAt = now();
     if (status === "cancelled") {
+      plan.cancelledAt = plan.updatedAt;
+      plan.cancelledValueInCents = this.receivables
+        .filter((item) => item.planId === plan.id && item.status === "open")
+        .reduce((sum, item) => sum + item.amountInCents, 0);
       for (const receivable of this.receivables) {
         if (receivable.planId === plan.id && receivable.status === "open") {
           receivable.status = "cancelled";
@@ -2581,6 +2607,14 @@ export class MemoryClinicRepository implements ClinicRepository {
     receivable.paymentMethod = paymentMethod;
     receivable.overdue = false;
     receivable.updatedAt = receivable.paidAt;
+    this.receiptEvents.push({
+      id: uuid(),
+      receivableId,
+      kind: "payment",
+      occurredAt: receivable.paidAt,
+      amountInCents: receivable.amountInCents,
+      paymentMethod,
+    });
     return receivable;
   }
 
@@ -2601,6 +2635,13 @@ export class MemoryClinicRepository implements ClinicRepository {
       );
     }
     receivable.status = "open";
+    this.receiptEvents.push({
+      id: uuid(),
+      receivableId,
+      kind: "reversal",
+      occurredAt: now(),
+      amountInCents: -receivable.amountInCents,
+    });
     delete receivable.paidAt;
     delete receivable.paymentMethod;
     receivable.overdue = receivable.dueDate < today();
@@ -3678,6 +3719,90 @@ export class MemoryClinicRepository implements ClinicRepository {
     return document;
   }
 
+  async getSalesReport(clinicId: string, month: string): Promise<SalesReport> {
+    const sales: SaleMovement[] = [];
+    for (const plan of this.patientPlans.filter((item) => item.clinicId === clinicId)) {
+      const base = {
+        sourceId: plan.id,
+        sourceType: "plan" as const,
+        patientId: plan.patientId,
+        patientName: plan.patientName,
+        itemName: `${plan.name} (${plan.serviceName})`,
+        quantity: 1,
+      };
+      sales.push({
+        ...base,
+        id: `${plan.id}:sale`,
+        kind: "sale",
+        occurredAt: plan.createdAt,
+        amountInCents: plan.totalValueInCents,
+      });
+      if (plan.cancelledAt)
+        sales.push({
+          ...base,
+          id: `${plan.id}:cancellation`,
+          kind: "cancellation",
+          occurredAt: plan.cancelledAt,
+          amountInCents: -(plan.cancelledValueInCents ?? plan.totalValueInCents),
+        });
+    }
+    for (const tab of this.patientTabs.filter(
+      (item) => item.clinicId === clinicId && item.closedAt,
+    )) {
+      for (const item of tab.items) {
+        const base = {
+          sourceId: tab.id,
+          sourceType: "product" as const,
+          patientId: tab.patientId,
+          patientName: tab.patientName,
+          itemName: item.productName,
+          quantity: item.quantity,
+          ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
+        };
+        sales.push({
+          ...base,
+          id: `${item.id}:sale`,
+          kind: "sale",
+          occurredAt: tab.closedAt!,
+          amountInCents: item.totalInCents,
+        });
+        if (tab.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${item.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: tab.cancelledAt,
+            amountInCents: -item.totalInCents,
+          });
+      }
+    }
+    const payments: ReceivedPayment[] = this.receiptEvents
+      .map((event) => {
+        const item = this.receivables.find((candidate) => candidate.id === event.receivableId);
+        if (!item || item.clinicId !== clinicId) return null;
+        const tab = this.patientTabs.find((candidate) => candidate.receivableId === item.id);
+        return {
+          id: event.id,
+          receivableId: item.id,
+          kind: event.kind,
+          ...(item.planId || tab ? { sourceId: item.planId ?? tab!.id } : {}),
+          occurredAt: event.occurredAt,
+          patientId: item.patientId,
+          patientName: item.patientName,
+          description: item.description,
+          amountInCents: event.amountInCents,
+          ...(event.paymentMethod ? { paymentMethod: event.paymentMethod } : {}),
+        };
+      })
+      .filter((item): item is ReceivedPayment => item !== null);
+    return buildSalesReport(
+      month,
+      sales,
+      payments,
+      this.appointments.filter((item) => item.clinicId === clinicId),
+    );
+  }
+
   async getManagementReport(
     clinicId: string,
     from: string,
@@ -3956,10 +4081,12 @@ export class MemoryClinicRepository implements ClinicRepository {
         overdueInCents: openReceivables
           .filter((item) => item.dueDate < today())
           .reduce((sum, item) => sum + item.amountInCents, 0),
-        paidInPeriodInCents: paidInPeriod.reduce(
-          (sum, item) => sum + item.amountInCents,
-          0,
-        ),
+        paidInPeriodInCents: this.receiptEvents
+          .filter((event) => {
+            const receivable = this.receivables.find((item) => item.id === event.receivableId);
+            return receivable?.clinicId === clinicId && inPeriod(event.occurredAt);
+          })
+          .reduce((sum, event) => sum + event.amountInCents, 0),
       },
       commercial: {
         leadsCreated: leads.length,

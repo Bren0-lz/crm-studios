@@ -67,6 +67,9 @@ import type {
   InventoryWorkspace,
   ManualMessageInput,
   ManagementReport,
+  SalesReport,
+  SaleMovement,
+  ReceivedPayment,
   OutboundMessage,
   Patient,
   PatientInput,
@@ -107,6 +110,7 @@ import type {
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { buildSalesReport, salesReportBounds } from "./sales-report.js";
 import {
   DomainError,
   type AuthenticatedUser,
@@ -4223,9 +4227,29 @@ export class PostgresClinicRepository implements ClinicRepository {
           409,
         );
       }
+      if (current.rows[0].status === status) {
+        const unchanged = await this.findPatientPlan(client, clinicId, planId);
+        await client.query("COMMIT");
+        return unchanged;
+      }
+      const cancellationValue =
+        status === "cancelled"
+          ? (
+              await client.query<{ amountInCents: number }>(
+                `SELECT COALESCE(SUM(amount_in_cents),0)::int AS "amountInCents"
+                 FROM receivables
+                 WHERE clinic_id=$1 AND plan_id=$2 AND status='open'`,
+                [clinicId, planId],
+              )
+            ).rows[0]!.amountInCents
+          : 0;
       await client.query(
-        "UPDATE patient_plans SET status = $3, updated_at = now() WHERE clinic_id = $1 AND id = $2",
-        [clinicId, planId, status],
+        `UPDATE patient_plans
+         SET status = $3, updated_at = now(),
+             cancelled_at = CASE WHEN $3::plan_status = 'cancelled' THEN now() ELSE cancelled_at END,
+             cancelled_value_in_cents = CASE WHEN $3::plan_status = 'cancelled' THEN $4::int ELSE cancelled_value_in_cents END
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, planId, status, cancellationValue],
       );
       if (status === "cancelled") {
         const cancelled = await client.query<{
@@ -5558,6 +5582,180 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
   }
 
+  async getSalesReport(clinicId: string, month: string): Promise<SalesReport> {
+    const asOf = new Date();
+    const bounds = salesReportBounds(month, asOf);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const planResult = await client.query<{
+        id: string;
+        patientId: string;
+        patientName: string;
+        name: string;
+        serviceName: string;
+        totalValueInCents: number;
+        cancelledValueInCents: number;
+        createdAt: Date;
+        cancelledAt: Date | null;
+      }>(
+        `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
+                pp.name, s.name AS "serviceName",
+                pp.total_value_in_cents AS "totalValueInCents",
+                pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+         FROM patient_plans pp
+         JOIN patients p ON p.id=pp.patient_id
+         JOIN services s ON s.id=pp.service_id
+         WHERE pp.clinic_id=$1 AND (
+           (pp.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+           OR (pp.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+         )`,
+        [clinicId, bounds.previousFrom, bounds.currentTo],
+      );
+      const productResult = await client.query<{
+        id: string;
+        tabId: string;
+        patientId: string;
+        patientName: string;
+        productName: string;
+        quantity: number;
+        amountInCents: number;
+        closedAt: Date;
+        cancelledAt: Date | null;
+        receivableId: string | null;
+      }>(
+        `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId",
+                p.full_name AS "patientName", pr.name AS "productName",
+                i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
+                t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
+                t.receivable_id AS "receivableId"
+         FROM patient_tab_items i
+         JOIN patient_tabs t ON t.id=i.tab_id
+         JOIN patients p ON p.id=t.patient_id
+         JOIN products pr ON pr.id=i.product_id
+         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND (
+           (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+           OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+         )`,
+        [clinicId, bounds.previousFrom, bounds.currentTo],
+      );
+      const paymentResult = await client.query<{
+        id: string;
+        receivableId: string;
+        kind: "payment" | "payment_reversal";
+        patientId: string;
+        patientName: string;
+        planId: string | null;
+        tabId: string | null;
+        description: string;
+        amountInCents: number;
+        occurredAt: Date;
+        paymentMethod: ReceivedPayment["paymentMethod"] | null;
+      }>(
+        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+                r.patient_id AS "patientId", p.full_name AS "patientName",
+                r.plan_id AS "planId", t.id AS "tabId", r.description,
+                fe.amount_in_cents AS "amountInCents", fe.created_at AS "occurredAt",
+                fe.metadata->>'paymentMethod' AS "paymentMethod"
+         FROM financial_events fe
+         JOIN receivables r ON r.id=fe.receivable_id
+         JOIN patients p ON p.id=r.patient_id
+         LEFT JOIN patient_tabs t ON t.receivable_id=r.id
+         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND
+           (fe.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
+        [clinicId, bounds.previousFrom, bounds.currentTo],
+      );
+      const appointmentResult = await client.query<AppointmentRow>(
+        `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
+         WHERE a.clinic_id=$1 AND (
+           (a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)
+           OR (a.status IN ('scheduled','confirmed') AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date)
+         )`,
+        [clinicId, bounds.previousFrom, bounds.currentTo, bounds.today],
+      );
+      await client.query("COMMIT");
+      const sales: SaleMovement[] = [];
+      for (const plan of planResult.rows) {
+        const base = {
+          sourceId: plan.id,
+          sourceType: "plan" as const,
+          patientId: plan.patientId,
+          patientName: plan.patientName,
+          itemName: `${plan.name} (${plan.serviceName})`,
+          quantity: 1,
+        };
+        sales.push({
+          ...base,
+          id: `${plan.id}:sale`,
+          kind: "sale",
+          occurredAt: plan.createdAt.toISOString(),
+          amountInCents: plan.totalValueInCents,
+        });
+        if (plan.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${plan.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: plan.cancelledAt.toISOString(),
+            amountInCents: -plan.cancelledValueInCents,
+          });
+      }
+      for (const item of productResult.rows) {
+        const base = {
+          sourceId: item.tabId,
+          sourceType: "product" as const,
+          patientId: item.patientId,
+          patientName: item.patientName,
+          itemName: item.productName,
+          quantity: item.quantity,
+          ...(item.receivableId ? { receivableId: item.receivableId } : {}),
+        };
+        sales.push({
+          ...base,
+          id: `${item.id}:sale`,
+          kind: "sale",
+          occurredAt: item.closedAt.toISOString(),
+          amountInCents: item.amountInCents,
+        });
+        if (item.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${item.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: item.cancelledAt.toISOString(),
+            amountInCents: -item.amountInCents,
+          });
+      }
+      const payments: ReceivedPayment[] = paymentResult.rows.map((item) => ({
+        id: item.id,
+        receivableId: item.receivableId,
+        kind: item.kind === "payment" ? "payment" : "reversal",
+        ...(item.planId || item.tabId
+          ? { sourceId: item.planId ?? item.tabId! }
+          : {}),
+        occurredAt: item.occurredAt.toISOString(),
+        patientId: item.patientId,
+        patientName: item.patientName,
+        description: item.description,
+        amountInCents: item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      }));
+      return buildSalesReport(
+        month,
+        sales,
+        payments,
+        appointmentResult.rows.map(mapAppointment),
+        asOf,
+      );
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getManagementReport(
     clinicId: string,
     from: string,
@@ -5635,9 +5833,11 @@ export class PostgresClinicRepository implements ClinicRepository {
            COALESCE(SUM(amount_in_cents) FILTER (WHERE status = 'open'), 0)::int AS "openInCents",
            COALESCE(SUM(amount_in_cents) FILTER
              (WHERE status = 'open' AND due_date < CURRENT_DATE), 0)::int AS "overdueInCents",
-           COALESCE(SUM(amount_in_cents) FILTER
-             (WHERE status = 'paid' AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date
-              BETWEEN $2::date AND $3::date), 0)::int AS "paidInPeriodInCents"
+           COALESCE((SELECT SUM(fe.amount_in_cents)
+             FROM financial_events fe
+             WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+               AND (fe.created_at AT TIME ZONE 'America/Sao_Paulo')::date
+                   BETWEEN $2::date AND $3::date), 0)::int AS "paidInPeriodInCents"
          FROM receivables WHERE clinic_id = $1`,
         [clinicId, from, to],
       ),

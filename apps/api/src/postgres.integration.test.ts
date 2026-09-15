@@ -10,6 +10,7 @@ const testCpf = "98765432100";
 const duplicateCpf = "98765432101";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
+const salesMarker = "postgres-sales-test";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
@@ -24,6 +25,20 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
   afterAll(async () => {
     if (!pool) return;
+    await pool.query(
+      `DELETE FROM financial_events WHERE receivable_id IN
+       (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name=$1)`,
+      [salesMarker],
+    );
+    await pool.query(
+      `DELETE FROM session_movements WHERE plan_id IN (SELECT id FROM patient_plans WHERE name=$1)`,
+      [salesMarker],
+    );
+    await pool.query(
+      `DELETE FROM receivables WHERE plan_id IN (SELECT id FROM patient_plans WHERE name=$1)`,
+      [salesMarker],
+    );
+    await pool.query("DELETE FROM patient_plans WHERE name=$1", [salesMarker]);
     await pool.query("TRUNCATE appointment_reschedules");
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
       [appointmentMarker, rescheduleMarker],
@@ -180,5 +195,117 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         move,
       ),
     ).rejects.toMatchObject({ code: "APPOINTMENT_RESCHEDULE_FORBIDDEN" });
+  });
+
+  it("reconciles PostgreSQL sales, cancellation, payment and reversal movements", async () => {
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      {
+        patientId: patients[0]!.id,
+        serviceId: services[0]!.id,
+        name: salesMarker,
+        kind: "fixed_package",
+        totalSessions: 2,
+        validFrom: date,
+        totalValueInCents: 24000,
+        installments: 2,
+        firstDueDate: date,
+      },
+    );
+    const receivable = await pool.query<{ id: string }>(
+      "SELECT id FROM receivables WHERE plan_id=$1 ORDER BY installment_number LIMIT 1",
+      [plan.id],
+    );
+    await repository.settleReceivable(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      receivable.rows[0]!.id,
+      "pix",
+    );
+    await repository.reverseReceivablePayment(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      receivable.rows[0]!.id,
+    );
+    await repository.updatePatientPlanStatus(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      plan.id,
+      "cancelled",
+    );
+    await repository.updatePatientPlanStatus(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      plan.id,
+      "cancelled",
+    );
+    const anotherInstance = new PostgresClinicRepository(pool);
+    const report = await anotherInstance.getSalesReport(clinicId, date.slice(0, 7));
+    const planMovements = report.sales.filter((item) => item.sourceId === plan.id);
+    expect(planMovements).toHaveLength(2);
+    expect(planMovements.reduce((sum, item) => sum + item.amountInCents, 0)).toBe(0);
+    expect(planMovements.map((item) => item.kind).sort()).toEqual(["cancellation", "sale"]);
+    const paymentMovements = report.payments.filter((item) => item.receivableId === receivable.rows[0]!.id);
+    expect(paymentMovements).toHaveLength(2);
+    expect(paymentMovements.reduce((sum, item) => sum + item.amountInCents, 0)).toBe(0);
+
+    const partial = await repository.createPatientPlan(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      {
+        patientId: patients[0]!.id,
+        serviceId: services[0]!.id,
+        name: salesMarker,
+        kind: "fixed_package",
+        totalSessions: 2,
+        validFrom: date,
+        totalValueInCents: 24000,
+        installments: 2,
+        firstDueDate: date,
+      },
+    );
+    const partialReceivable = await pool.query<{ id: string }>(
+      "SELECT id FROM receivables WHERE plan_id=$1 ORDER BY installment_number LIMIT 1",
+      [partial.id],
+    );
+    await repository.settleReceivable(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      partialReceivable.rows[0]!.id,
+      "pix",
+    );
+    await repository.updatePatientPlanStatus(
+      clinicId,
+      "22222222-2222-4222-8222-222222222222",
+      partial.id,
+      "cancelled",
+    );
+    const partialReport = await anotherInstance.getSalesReport(clinicId, date.slice(0, 7));
+    expect(
+      partialReport.sales
+        .filter((item) => item.sourceId === partial.id)
+        .reduce((sum, item) => sum + item.amountInCents, 0),
+    ).toBe(12000);
+    expect(
+      partialReport.payments
+        .filter((item) => item.receivableId === partialReceivable.rows[0]!.id)
+        .reduce((sum, item) => sum + item.amountInCents, 0),
+    ).toBe(12000);
+    const management = await anotherInstance.getManagementReport(
+      clinicId,
+      `${date.slice(0, 7)}-01`,
+      date,
+    );
+    expect(management.finance.paidInPeriodInCents).toBe(
+      partialReport.current.receivedInCents,
+    );
   });
 });

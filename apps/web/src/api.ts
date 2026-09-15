@@ -66,6 +66,7 @@ import type {
   LeadTaskStatus,
   ManualMessageInput,
   ManagementReport,
+  SalesReport,
   OutboundMessage,
   ReminderGenerationResult,
   Patient,
@@ -562,4 +563,8 @@ export const api = {
     requestBlob(
       `/reports/management.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  salesReport: (month: string) =>
+    request<SalesReport>(`/reports/sales?month=${encodeURIComponent(month)}`),
+  salesReportXlsx: (month: string) =>
+    requestBlob(`/reports/sales.xlsx?month=${encodeURIComponent(month)}`),
 };

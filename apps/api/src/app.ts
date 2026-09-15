@@ -34,6 +34,7 @@ import {
   leadTaskStatusSchema,
   issuedDocumentInputSchema,
   managementReportFilterSchema,
+  salesReportFilterSchema,
   payableInputSchema,
   paymentInputSchema,
   passwordResetSchema,
@@ -65,6 +66,7 @@ import {
 } from "@crm/contracts";
 import { config } from "./config.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
+import { salesReportToXlsx } from "./sales-workbook.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -1773,6 +1775,32 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         filter.from,
         filter.to,
       );
+    },
+  );
+  app.get(
+    "/reports/sales",
+    { preHandler: [authenticate, requireManagementAccess] },
+    async (request) => {
+      const { month } = salesReportFilterSchema.parse(request.query);
+      return repository.getSalesReport(request.user.clinicId, month);
+    },
+  );
+  app.get(
+    "/reports/sales.xlsx",
+    { preHandler: [authenticate, requireManagementAccess] },
+    async (request, reply) => {
+      const { month } = salesReportFilterSchema.parse(request.query);
+      const report = await repository.getSalesReport(request.user.clinicId, month);
+      return reply
+        .header(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header(
+          "Content-Disposition",
+          `attachment; filename="vendas-${month}.xlsx"`,
+        )
+        .send(await salesReportToXlsx(report));
     },
   );
   app.get(

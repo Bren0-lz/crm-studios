@@ -20,6 +20,7 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - central de comunicações com opt-out, outbox e lembretes idempotentes;
 - modelos versionados e documentos com snapshot imutável;
 - relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
+- livro mensal de vendas e cancelamentos, comparação com o mês anterior, pacientes sem retorno e exportação Excel detalhada;
 - trilha inicial de auditoria no modelo de dados;
 - interface responsiva para desktop, tablet e celular.
 
@@ -51,6 +52,10 @@ npm test
 npm run build
 npm run lint
 ```
+
+## Relatório mensal de vendas
+
+Perfis de gestão e financeiro veem no painel o valor vendido, o recebido e os pacientes que compareceram no mês anterior sem atendimento concluído no mês atual. A página **Relatórios** permite escolher o mês e baixar um XLSX com resumo, movimentos de vendas e cancelamentos, pagamentos e estornos, pacientes sem retorno e definições dos indicadores. O mês em andamento é comparado com os mesmos dias do mês anterior; vendas seguem a data da criação do plano ou do fechamento da comanda, enquanto recebimentos seguem a data do movimento financeiro.
 
 ## Banco de dados local
 

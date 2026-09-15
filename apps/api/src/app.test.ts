@@ -699,6 +699,28 @@ describe("CRM API", () => {
       headers: { authorization: `Bearer ${receptionToken}` },
     });
     expect(denied.statusCode).toBe(403);
+    const month = date.slice(0, 7);
+    const sales = await app.inject({
+      method: "GET",
+      url: `/reports/sales?month=${month}`,
+      headers,
+    });
+    expect(sales.statusCode).toBe(200);
+    expect(sales.json()).toMatchObject({ month, current: { from: `${month}-01` } });
+    const xlsx = await app.inject({
+      method: "GET",
+      url: `/reports/sales.xlsx?month=${month}`,
+      headers,
+    });
+    expect(xlsx.statusCode).toBe(200);
+    expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
+    expect(xlsx.headers["content-disposition"]).toContain(`vendas-${month}.xlsx`);
+    const deniedSales = await app.inject({
+      method: "GET",
+      url: `/reports/sales?month=${month}`,
+      headers: { authorization: `Bearer ${receptionToken}` },
+    });
+    expect(deniedSales.statusCode).toBe(403);
     await app.close();
   });
 
@@ -1535,6 +1557,19 @@ describe("CRM API", () => {
       headers,
     });
     expect(finance.json().summary.receivables[0].status).toBe("paid");
+    const month = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date()).slice(0, 7);
+    const soldReport = await app.inject({
+      method: "GET",
+      url: `/reports/sales?month=${month}`,
+      headers,
+    });
+    expect(soldReport.json().current).toMatchObject({
+      grossSalesInCents: 9000,
+      netSalesInCents: 9000,
+      receivedInCents: 9000,
+    });
     const cancelled = await app.inject({
       method: "POST",
       url: `/patient-tabs/${tab.json().id}/cancel`,
@@ -1558,6 +1593,17 @@ describe("CRM API", () => {
       headers,
     });
     expect(finance.json().summary.receivables[0].status).toBe("cancelled");
+    const cancelledReport = await app.inject({
+      method: "GET",
+      url: `/reports/sales?month=${month}`,
+      headers,
+    });
+    expect(cancelledReport.json().current).toMatchObject({
+      grossSalesInCents: 9000,
+      cancelledSalesInCents: 9000,
+      netSalesInCents: 0,
+      receivedInCents: 9000,
+    });
     const duplicateCancellation = await app.inject({
       method: "POST",
       url: `/patient-tabs/${tab.json().id}/cancel`,

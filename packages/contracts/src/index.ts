@@ -549,6 +549,67 @@ export type ManagementReportFilter = z.infer<
   typeof managementReportFilterSchema
 >;
 
+export const salesReportFilterSchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+});
+export type SalesReportFilter = z.infer<typeof salesReportFilterSchema>;
+
+export interface SaleMovement {
+  id: string;
+  sourceId: string;
+  sourceType: "plan" | "product";
+  kind: "sale" | "cancellation";
+  occurredAt: string;
+  patientId: string;
+  patientName: string;
+  itemName: string;
+  quantity: number;
+  amountInCents: number;
+  receivableId?: string;
+}
+
+export interface ReceivedPayment {
+  id: string;
+  receivableId: string;
+  kind: "payment" | "reversal";
+  sourceId?: string;
+  occurredAt: string;
+  patientId: string;
+  patientName: string;
+  description: string;
+  amountInCents: number;
+  paymentMethod?: PaymentMethod;
+}
+
+export interface PatientWithoutReturn {
+  patientId: string;
+  patientName: string;
+  lastCompletedAt: string;
+  nextAppointmentAt?: string;
+}
+
+export interface SalesReportPeriod {
+  from: string;
+  to: string;
+  grossSalesInCents: number;
+  cancelledSalesInCents: number;
+  netSalesInCents: number;
+  receivedInCents: number;
+  attendedPatients: number;
+}
+
+export interface SalesReport {
+  month: string;
+  generatedAt: string;
+  current: SalesReportPeriod;
+  previousComparable: SalesReportPeriod;
+  changeInCents: number;
+  changePercent: number | null;
+  sales: SaleMovement[];
+  payments: ReceivedPayment[];
+  patientsWithoutReturn: PatientWithoutReturn[];
+}
+
 export interface UserSummary {
   id: string;
   fullName: string;
@@ -916,6 +977,8 @@ export interface PatientPlan extends PatientPlanInput {
   remainingSessions: number;
   createdAt: string;
   updatedAt: string;
+  cancelledAt?: string;
+  cancelledValueInCents?: number;
 }
 
 export interface SessionMovement {

@@ -20,6 +20,9 @@
   "engines": {
     "node": ">=22"
   },
+  "overrides": {
+    "uuid": "11.1.1"
+  },
   "devDependencies": {
     "concurrently": "latest",
     "jsdom": "^27.4.0",
