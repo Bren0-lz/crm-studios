@@ -974,20 +974,27 @@ function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <label>
-          Contato de emergência
-          <input
-            value={form.emergencyContactName}
-            onChange={(e) => field("emergencyContactName", e.target.value)}
-          />
-        </label>
-        <label>
-          Telefone de emergência
-          <PhoneInput
-            value={form.emergencyContactPhone ?? ""}
-            onChange={(digits) => field("emergencyContactPhone", digits)}
-          />
-        </label>
+        <fieldset className="form-fieldset span-2">
+          <legend>Contato de emergência</legend>
+          <div className="form-fieldset-grid">
+            <label>
+              Nome
+              <input
+                autoComplete="off"
+                placeholder="Ex.: Maria Souza (mãe)"
+                value={form.emergencyContactName}
+                onChange={(e) => field("emergencyContactName", e.target.value)}
+              />
+            </label>
+            <label>
+              Telefone
+              <PhoneInput
+                value={form.emergencyContactPhone ?? ""}
+                onChange={(digits) => field("emergencyContactPhone", digits)}
+              />
+            </label>
+          </div>
+        </fieldset>
         <label className="span-2">
           Etiquetas (separadas por vírgula)
           <input
@@ -6138,8 +6145,7 @@ function AppointmentDetailsModal({
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
               <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
-              <div><small>Contato de emergência</small><strong>{patient.emergencyContactName || "Não informado"}</strong></div>
-              <div><small>Telefone de emergência</small><strong>{patient.emergencyContactPhone ? formatPhone(patient.emergencyContactPhone) : "Não informado"}</strong></div>
+              <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
               {patient.notes && <div className="detail-wide"><small>Observações do paciente</small><strong>{patient.notes}</strong></div>}
