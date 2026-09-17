@@ -2283,10 +2283,7 @@ textarea:focus {
 .group-actions-bar button { background: white; }
 .group-slot-summary { display: flex; flex-wrap: wrap; gap: 6px; }
 .group-slot-summary span { padding: 6px 9px; border-radius: 8px; background: #f0f3ef; color: #385d50; font-size: 11px; font-weight: 700; }
-.group-card > .secondary-button,
-.group-session > .secondary-button { justify-self: start; }
-.attendance-actions > span { color: var(--muted); font-size: 12px; }
-.attendance-actions .secondary-button.selected { border-color: var(--green-2); background: var(--mint); color: var(--green); }
+.group-card > .secondary-button { justify-self: start; }
 
 @media (max-width: 600px) {
   .drawer-head { padding: 21px 20px 17px; }
@@ -2455,8 +2452,7 @@ textarea:focus {
   gap: 14px;
 }
 
-.group-card,
-.group-session {
+.group-card {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 18px;
@@ -2467,14 +2463,12 @@ textarea:focus {
   box-shadow: 0 6px 20px rgba(42, 53, 48, 0.035);
 }
 
-.group-card > div:first-child strong,
-.group-session > div:first-child strong {
+.group-card > div:first-child strong {
   font-family: "Manrope", sans-serif;
   font-size: 15px;
 }
 
-.group-card > div:first-child small,
-.group-session > div:first-child small {
+.group-card > div:first-child small {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
@@ -2493,24 +2487,19 @@ textarea:focus {
 .group-card > small { color: var(--muted); font-size: 11px; }
 .group-card-schedule { color: var(--green); font-size: 12px; font-weight: 700; line-height: 1.4; }
 
-.group-card > div:first-child,
-.group-session > div:first-child {
+.group-card > div:first-child {
   display: grid;
   gap: 4px;
 }
 
-.group-members,
-.group-session-list,
-.attendance-actions {
+.group-members {
   display: grid;
   gap: 10px;
 }
 
 .group-members { padding-top: 13px; border-top: 1px solid var(--line); }
-.group-session-list { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
 
-.group-members > div,
-.attendance-actions > div {
+.group-members > div {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -2548,17 +2537,6 @@ textarea:focus {
 .group-cancel-button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .group-cancel-button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.attendance-actions { padding-top: 12px; border-top: 1px solid var(--line); }
-.attendance-actions > div { padding: 9px 0; border-bottom: 1px solid #f0eee8; }
-.attendance-actions > div:last-child { border-bottom: 0; }
-.attendance-actions > div > span { width: 100%; font-size: 12px; font-weight: 700; }
-.group-session > .text-button { justify-self: start; margin-top: 3px; }
-
-.secondary-button.compact {
-  padding: 6px 9px;
-  font-size: 0.75rem;
-}
-
 @media (max-width: 1050px) {
   .groups-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2574,8 +2552,7 @@ textarea:focus {
   .groups-layout > .panel { padding: 20px; }
   .group-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .group-overview > div { padding: 15px; }
-  .groups-layout .groups-wide.group-form-panel .form-grid,
-  .group-session-list { grid-template-columns: 1fr; }
+  .groups-layout .groups-wide.group-form-panel .form-grid { grid-template-columns: 1fr; }
 }
 
 .admin-users article {

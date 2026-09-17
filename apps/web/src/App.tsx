@@ -123,11 +123,6 @@ const tabStatusNames = {
   closed: "Fechada",
   cancelled: "Cancelada",
 };
-const groupSessionStatusNames = {
-  scheduled: "Agendado",
-  completed: "Concluído",
-  cancelled: "Cancelado",
-};
 
 function localIsoDate(date = new Date()) {
   const year = date.getFullYear();
@@ -7570,7 +7565,6 @@ function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const [drawer, setDrawer] = useState<"create" | "enroll" | "series" | "replacement" | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
   const [groupForm, setGroupForm] = useState({
@@ -7658,7 +7652,6 @@ function GroupsPage() {
   const newGroupService = services.find((item) => item.id === groupForm.serviceId);
   const nextGroupSequence = Math.max(0, ...(workspace?.groups ?? []).filter((item) => item.serviceId === groupForm.serviceId).map((item) => item.sequence)) + 1;
   const groupOptionLabel = (group: GroupClass) => `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
-  const selectedSession = workspace?.sessions.find((item) => item.id === selectedSessionId);
   function openGroup(group: GroupClass) {
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
@@ -7667,14 +7660,13 @@ function GroupsPage() {
   function closeDrawers() {
     setDrawer(null);
     setSelectedGroupId(null);
-    setSelectedSessionId(null);
   }
   return (
     <>
       <PageHeader
         eyebrow="Operação coletiva"
         title="Turmas e reposições"
-        description="Capacidade, lista de espera, encontros recorrentes e frequência em um fluxo único."
+        description="Capacidade, lista de espera, encontros recorrentes e reposições em um fluxo único."
         action={<button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
       />
       {error && <ErrorBanner error={error} />}
@@ -7989,50 +7981,6 @@ function GroupsPage() {
                   {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
                 </div>
               </section>
-            </div>
-          </Drawer>}
-
-          <section className="panel groups-wide">
-            <h2>Encontros e frequência</h2>
-            <p className="group-panel-copy">Registre a presença dos pacientes em cada encontro.</p>
-            {workspace?.sessions.length === 0 && <p className="group-empty">Nenhum encontro agendado. Gere uma série para começar.</p>}
-            <div className="group-session-list">
-              {workspace?.sessions.map((session) => (
-                <article className="group-session" key={session.id}>
-                  <div>
-                    <strong>{session.groupName}</strong>
-                    <small>
-                      {shortDate.format(new Date(session.startsAt))} ·{" "}
-                      {timeLabel.format(new Date(session.startsAt))} ·{" "}
-                      {groupSessionStatusNames[session.status]}
-                    </small>
-                  </div>
-                  <div className="attendance-actions">
-                    <span>{session.attendanceCount} presenças registradas</span>
-                  </div>
-                  <button className="secondary-button" onClick={() => setSelectedSessionId(session.id)}>Abrir encontro</button>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          {selectedSession && <Drawer title={selectedSession.groupName} subtitle={`${shortDate.format(new Date(selectedSession.startsAt))} · ${timeLabel.format(new Date(selectedSession.startsAt))}`} onClose={closeDrawers}>
-            <div className="group-drawer-content">
-              {error && <ErrorBanner error={error} />}
-              <section className="group-drawer-section">
-                <h3>Frequência</h3>
-                <div className="attendance-actions">
-                  {activeEnrollments.filter((item) => item.groupId === selectedSession.groupId).map((enrollment) => (
-                    <div key={enrollment.id}>
-                      <span>{enrollment.patientName}</span>
-                      {([ ["present", "Presente"], ["absent", "Falta"], ["excused_absence", "Justificada"] ] as const).map(([status, label]) => (
-                        <button key={status} className={`secondary-button compact ${workspace?.attendance.find((item) => item.sessionId === selectedSession.id && item.patientId === enrollment.patientId)?.status === status ? "selected" : ""}`} onClick={() => void run(() => api.recordGroupAttendance(selectedSession.id, enrollment.patientId, { status }))}>{label}</button>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </section>
-              {selectedSession.status === "scheduled" && <button className="primary-button" onClick={() => void run(async () => { await api.completeGroupSession(selectedSession.id); closeDrawers(); })}>Concluir encontro</button>}
             </div>
           </Drawer>}
 

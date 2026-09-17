@@ -43,7 +43,6 @@ import type {
   FinancialCategoryInput,
   FinancialWorkspace,
   GroupAttendance,
-  GroupAttendanceInput,
   GroupClass,
   GroupClassInput,
   GroupClassUpdateInput,
@@ -299,17 +298,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  recordGroupAttendance: (
-    sessionId: string,
-    patientId: string,
-    input: GroupAttendanceInput,
-  ) =>
-    request<GroupAttendance>(
-      `/group-sessions/${sessionId}/attendance/${patientId}`,
-      { method: "PUT", body: JSON.stringify(input) },
-    ),
-  completeGroupSession: (id: string) =>
-    request<GroupSession>(`/group-sessions/${id}/complete`, { method: "POST" }),
   bookReplacement: (input: ReplacementBookingInput) =>
     request<{ attendance: GroupAttendance; credit: ReplacementCredit }>(
       "/group-replacements/book",
