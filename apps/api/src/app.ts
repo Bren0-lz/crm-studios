@@ -263,7 +263,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     { failures: number; blockedUntil?: number }
   >();
 
-  await app.register(cors, { origin: config.WEB_ORIGIN, credentials: true });
+  await app.register(cors, {
+    origin: config.WEB_ORIGIN,
+    // O @fastify/cors 11 libera só GET, HEAD e POST por padrão; sem isto o navegador
+    // bloqueia PUT/PATCH/DELETE com "Failed to fetch".
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  });
   await app.register(jwt, { secret: config.JWT_SECRET });
 
   app.setErrorHandler((error, _request, reply) => {

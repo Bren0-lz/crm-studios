@@ -18,6 +18,24 @@ async function authenticatedApp() {
 }
 
 describe("CRM API", () => {
+  it("allows the web app to send every write method through CORS", async () => {
+    const app = await buildApp({ repository: new MemoryClinicRepository(), logger: false });
+    for (const method of ["PUT", "PATCH", "DELETE"]) {
+      const preflight = await app.inject({
+        method: "OPTIONS",
+        url: "/patients/99999999-9999-4999-8999-999999999999",
+        headers: {
+          origin: config.WEB_ORIGIN,
+          "access-control-request-method": method,
+          "access-control-request-headers": "authorization,content-type",
+        },
+      });
+      expect(preflight.headers["access-control-allow-origin"]).toBe(config.WEB_ORIGIN);
+      expect(String(preflight.headers["access-control-allow-methods"])).toContain(method);
+    }
+    await app.close();
+  });
+
   it("reports health", async () => {
     const app = await buildApp({
       repository: new MemoryClinicRepository(),
