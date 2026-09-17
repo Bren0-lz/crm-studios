@@ -1165,6 +1165,7 @@ textarea:focus {
 .month-day-events { display: grid; min-width: 0; gap: 4px; }
 .month-event,
 .month-block,
+.month-group,
 .month-more {
   display: block;
   overflow: hidden;
@@ -1191,6 +1192,7 @@ textarea:focus {
 .month-event-name { display: block; overflow: hidden; text-overflow: ellipsis; }
 .month-event time { font-weight: 800; }
 .month-block { background: #fbf0eb; color: #955a48; }
+.month-group { background: #e3f0e9; color: var(--green); font-weight: 700; }
 .month-more { color: var(--green-2); font-weight: 700; }
 
 @media (max-width: 1100px) {
@@ -1207,6 +1209,7 @@ textarea:focus {
   .month-day-events { justify-items: center; }
   .month-event,
   .month-block,
+  .month-group,
   .month-more { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 50%; background: var(--green-2); font-size: 0; }
   .month-event { background: transparent; }
   .month-event i { display: block; width: 6px; height: 6px; margin: 0; }
@@ -1506,6 +1509,34 @@ textarea:focus {
   color: #aaa79e;
   font-size: 9px;
   text-align: center;
+}
+
+.group-session-block {
+  display: grid;
+  gap: 3px;
+  min-height: 62px;
+  padding: 12px 16px;
+  border: 1px solid #b9d7ca;
+  border-left: 4px solid var(--green-2);
+  border-radius: 12px;
+  background: #eef6f1;
+}
+
+.group-session-block strong {
+  color: var(--green);
+  font-size: 11px;
+}
+
+.group-session-block span,
+.group-session-block small {
+  color: #4f7466;
+  font-size: 9px;
+}
+
+.group-session-block.compact {
+  min-height: auto;
+  padding: 9px;
+  border-radius: 8px;
 }
 
 .schedule-block {

@@ -63,6 +63,7 @@ import type {
   DocumentTemplateInput,
   FinancialWorkspace,
   GroupClass,
+  GroupSession,
   GroupWorkspace,
   InventoryWorkspace,
   IssuedDocument,
@@ -168,18 +169,6 @@ function PhoneInput({ value, onChange, required }: { value: string; onChange: (d
 
 function groupSlotLabel(slot: GroupClass["weeklySlots"][number], weekDayNames: string[]) {
   return `${weekDayNames[slot.weekday]} · ${slot.startTime}–${slot.endTime}`;
-}
-
-function groupSlotEndsAt(startsAt: string, slot: GroupClass["weeklySlots"][number]) {
-  return new Date(`${startsAt.slice(0, 10)}T${slot.endTime}`).toISOString();
-}
-
-function nextGroupSlotStart(slot: GroupClass["weeklySlots"][number]) {
-  const date = new Date();
-  const [hours, minutes] = slot.startTime.split(":").map(Number);
-  date.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-  while (date.getDay() !== slot.weekday || date <= new Date()) date.setDate(date.getDate() + 1);
-  return toLocalDateTimeInput(date);
 }
 
 function initials(name: string) {
@@ -5582,6 +5571,7 @@ function AgendaPage() {
   const [view, setView] = useState<"day" | "week" | "month">("day");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
+  const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -5626,6 +5616,7 @@ function AgendaPage() {
     Promise.all([
       api.appointments(rangeFrom, rangeTo),
       api.scheduleBlocks(rangeFrom, rangeTo),
+      api.groupSessions(rangeFrom, rangeTo),
       api.professionals(),
       api.rooms(),
       api.services(),
@@ -5635,6 +5626,7 @@ function AgendaPage() {
         ([
           appointmentData,
           blockData,
+          groupSessionData,
           professionalData,
           roomData,
           serviceData,
@@ -5643,6 +5635,7 @@ function AgendaPage() {
           if (!active) return;
           setAppointments(appointmentData);
           setBlocks(blockData);
+          setGroupSessions(groupSessionData);
           setProfessionals(professionalData);
           setRooms(roomData);
           setServices(serviceData);
@@ -5681,7 +5674,7 @@ function AgendaPage() {
       <PageHeader
         eyebrow="Operação diária"
         title="Agenda"
-        description="Visualize atendimentos, profissionais e salas sem conflitos."
+        description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
           <div className="page-actions">
             <button
@@ -5769,6 +5762,7 @@ function AgendaPage() {
                 const dayKey = localIsoDate(day);
                 const dayAppointments = appointments.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
                 const dayBlocks = blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey && item.status === "active");
+                const dayGroups = groupSessions.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
                 return (
                   <div
                     className={`month-day ${day.getMonth() !== selectedDate.getMonth() ? "outside" : ""} ${dayKey === localIsoDate() ? "today" : ""} ${dayKey === date ? "selected" : ""}`}
@@ -5778,7 +5772,7 @@ function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => { setSelectedDate(day); setView("day"); }}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayBlocks.length} bloqueios`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} turmas, ${dayBlocks.length} bloqueios`}
                     >
                       <strong>{day.getDate()}</strong>
                       {dayAppointments.length > 0 && <small>{dayAppointments.length} {dayAppointments.length === 1 ? "atendimento" : "atendimentos"}</small>}
@@ -5791,6 +5785,7 @@ function AgendaPage() {
                         </button>
                       ))}
                       {dayAppointments.length > 2 && <span className="month-more">+{dayAppointments.length - 2} atendimentos</span>}
+                      {dayGroups.length > 0 && <span className="month-group">{dayGroups.length} {dayGroups.length === 1 ? "turma" : "turmas"}</span>}
                       {dayBlocks.length > 0 && <span className="month-block">{dayBlocks.length} {dayBlocks.length === 1 ? "bloqueio" : "bloqueios"}</span>}
                     </span>
                   </div>
@@ -5806,6 +5801,9 @@ function AgendaPage() {
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               const dayBlocks = blocks.filter(
+                (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
+              );
+              const dayGroups = groupSessions.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               return (
@@ -5824,6 +5822,9 @@ function AgendaPage() {
                         key={block.id}
                         onCancel={() => void cancelBlock(block)}
                       />
+                    ))}
+                    {dayGroups.map((session) => (
+                      <GroupSessionCard compact session={session} key={session.id} />
                     ))}
                     {dayAppointments.map((appointment) => (
                       <article
@@ -5846,7 +5847,7 @@ function AgendaPage() {
                         <span>{appointment.serviceName}</span>
                       </article>
                     ))}
-                    {dayAppointments.length === 0 && dayBlocks.length === 0 && (
+                    {dayAppointments.length === 0 && dayBlocks.length === 0 && dayGroups.length === 0 && (
                       <span className="week-empty">Livre</span>
                     )}
                   </div>
@@ -5854,7 +5855,7 @@ function AgendaPage() {
               );
             })}
           </div>
-        ) : appointments.length === 0 && blocks.length === 0 ? (
+        ) : appointments.length === 0 && blocks.length === 0 && groupSessions.length === 0 ? (
           <EmptyState
             title="Dia disponível"
             copy="Não há atendimentos agendados para esta data."
@@ -5867,6 +5868,9 @@ function AgendaPage() {
                 key={block.id}
                 onCancel={() => void cancelBlock(block)}
               />
+            ))}
+            {groupSessions.map((session) => (
+              <GroupSessionCard session={session} key={session.id} />
             ))}
             {appointments.map((appointment) => (
               <AgendaCard
@@ -5981,6 +5985,18 @@ function AgendaPage() {
       setError((cause as Error).message);
     }
   }
+}
+
+function GroupSessionCard({ session, compact = false }: { session: GroupSession; compact?: boolean }) {
+  return (
+    <article className={`group-session-block ${compact ? "compact" : ""}`} aria-label={`Turma ${session.groupName}`}>
+      <strong>{session.groupName}</strong>
+      <span>
+        {timeLabel.format(new Date(session.startsAt))}–{timeLabel.format(new Date(session.endsAt))}
+      </span>
+      {!compact && <small>{session.professionalName} · {session.roomName}</small>}
+    </article>
+  );
 }
 
 function ScheduleBlockCard({
@@ -7540,7 +7556,7 @@ function GroupSlotsEditor({ slots, onChange, weekDayNames }: { slots: GroupClass
   }
   return (
     <div className="group-slots-editor">
-      <div className="group-slots-head"><div><h4>Dias e horários fixos</h4><p>Os encontros usam estes horários de início e término toda semana.</p></div><button type="button" className="secondary-button" disabled={slots.length >= 14} onClick={addSlot}>Adicionar horário</button></div>
+      <div className="group-slots-head"><div><h4>Dias e horários fixos</h4><p>Estes horários ficam reservados na agenda toda semana, com o profissional e a sala da turma.</p></div><button type="button" className="secondary-button" disabled={slots.length >= 14} onClick={addSlot}>Adicionar horário</button></div>
       {slots.length === 0 && <p className="group-empty">Adicione ao menos um dia e horário para a turma.</p>}
       {slots.map((slot, index) => (
         <div className="group-slot-row" key={index}>
@@ -7563,7 +7579,7 @@ function GroupsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [drawer, setDrawer] = useState<"create" | "enroll" | "series" | "replacement" | null>(null);
+  const [drawer, setDrawer] = useState<"create" | "enroll" | "replacement" | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
@@ -7578,13 +7594,6 @@ function GroupsPage() {
     groupId: "",
     patientId: "",
   });
-  const [seriesForm, setSeriesForm] = useState({
-    groupId: "",
-    startsAt: "",
-    occurrences: 4,
-    intervalWeeks: 1,
-  });
-  const [seriesSlotIndex, setSeriesSlotIndex] = useState(0);
   const [replacementForm, setReplacementForm] = useState({
     creditId: "",
     sessionId: "",
@@ -7682,7 +7691,6 @@ function GroupsPage() {
           </div>
           <div className="group-actions-bar">
             <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular paciente</button>
-            <button className="secondary-button" onClick={() => setDrawer("series")}>Gerar encontros</button>
             <button className="secondary-button" onClick={() => setDrawer("replacement")}>Agendar reposição</button>
           </div>
           {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
@@ -7837,93 +7845,6 @@ function GroupsPage() {
             </form>
           </section>
           </Drawer>}
-          {drawer === "series" && <Drawer title="Gerar encontros" subtitle="Escolha um horário fixo e gere uma série por vez." onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
-            {error && <ErrorBanner error={error} />}
-            <h2>Gerar encontros</h2>
-            <p className="group-panel-copy">Escolha um horário fixo e gere a série. Repita para os outros horários da turma.</p>
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(async () => {
-                  const slot = workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots[seriesSlotIndex];
-                  await api.createGroupSessionSeries({
-                    ...seriesForm,
-                    startsAt: new Date(seriesForm.startsAt).toISOString(),
-                    ...(slot ? { endsAt: groupSlotEndsAt(seriesForm.startsAt, slot) } : {}),
-                  });
-                  closeDrawers();
-                });
-              }}
-            >
-              <label>
-                Turma
-                <select
-                  required
-                  value={seriesForm.groupId}
-                  onChange={(event) => {
-                    const group = workspace?.groups.find((item) => item.id === event.target.value);
-                    setSeriesSlotIndex(0);
-                    setSeriesForm({ ...seriesForm, groupId: event.target.value, startsAt: group?.weeklySlots[0] ? nextGroupSlotStart(group.weeklySlots[0]) : "" });
-                  }}
-                >
-                  <option value="">Selecione</option>
-                  {workspace?.groups.filter((item) => item.weeklySlots?.length).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {groupOptionLabel(item)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Horário fixo
-                <select required value={seriesSlotIndex} onChange={(event) => {
-                  const index = Number(event.target.value);
-                  const group = workspace?.groups.find((item) => item.id === seriesForm.groupId);
-                  setSeriesSlotIndex(index);
-                  setSeriesForm({ ...seriesForm, startsAt: group?.weeklySlots[index] ? nextGroupSlotStart(group.weeklySlots[index]) : "" });
-                }}>
-                  {(workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots ?? []).map((slot, index) => (
-                    <option key={`${slot.weekday}-${slot.startTime}`} value={index}>{groupSlotLabel(slot, weekDayNames)}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="group-next-session">Primeiro encontro: <strong>{seriesForm.startsAt ? `${new Date(seriesForm.startsAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} às ${workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots[seriesSlotIndex]?.endTime ?? ""}` : "Selecione uma turma"}</strong></div>
-              <label>
-                Ocorrências
-                <input
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={seriesForm.occurrences}
-                  onChange={(event) =>
-                    setSeriesForm({
-                      ...seriesForm,
-                      occurrences: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Intervalo (semanas)
-                <input
-                  type="number"
-                  min={1}
-                  max={4}
-                  value={seriesForm.intervalWeeks}
-                  onChange={(event) =>
-                    setSeriesForm({
-                      ...seriesForm,
-                      intervalWeeks: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <button className="primary-button" disabled={!seriesForm.startsAt}>Gerar série</button>
-            </form>
-          </section>
-          </Drawer>}
 
           <section className="panel groups-wide">
             <h2>Turmas</h2>
@@ -7957,11 +7878,10 @@ function GroupsPage() {
               {error && <ErrorBanner error={error} />}
               <div className="group-drawer-quick-actions">
                 <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular paciente</button>
-                <button className="secondary-button" disabled={!selectedGroup.weeklySlots?.length} onClick={() => { setSeriesForm({ ...seriesForm, groupId: selectedGroup.id, startsAt: nextGroupSlotStart(selectedGroup.weeklySlots[0]!) }); setSeriesSlotIndex(0); setSelectedGroupId(null); setDrawer("series"); }}>Gerar encontros</button>
               </div>
               <section className="group-drawer-section">
                 <h3>Capacidade e horários</h3>
-                <p>Alterações nos horários não movem encontros já agendados.</p>
+                <p>Ao salvar, os próximos encontros são refeitos nos novos horários. Encontros com presença registrada são mantidos.</p>
                 <form className="form-grid" onSubmit={(event) => {
                   event.preventDefault();
                   void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeDrawers(); });

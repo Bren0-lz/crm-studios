@@ -235,19 +235,6 @@ export const groupClassUpdateSchema = z.object({
   weeklySlots: groupWeeklySlotsSchema.min(1),
 });
 export type GroupClassUpdateInput = z.infer<typeof groupClassUpdateSchema>;
-export const groupSessionSeriesInputSchema = z.object({
-  groupId: z.uuid(),
-  startsAt: z.iso.datetime({ offset: true }),
-  endsAt: z.iso.datetime({ offset: true }).optional(),
-  occurrences: z.number().int().min(1).max(52),
-  intervalWeeks: z.number().int().min(1).max(4).default(1),
-}).refine(
-  (input) => !input.endsAt || new Date(input.endsAt) > new Date(input.startsAt),
-  { message: "O término deve ser posterior ao início.", path: ["endsAt"] },
-);
-export type GroupSessionSeriesInput = z.infer<
-  typeof groupSessionSeriesInputSchema
->;
 export const groupEnrollmentInputSchema = z.object({
   groupId: z.uuid(),
   patientId: z.uuid(),
@@ -832,6 +819,10 @@ export interface GroupSession {
   clinicId: string;
   groupId: string;
   groupName: string;
+  professionalId: string;
+  professionalName: string;
+  roomId: string;
+  roomName: string;
   startsAt: string;
   endsAt: string;
   status: "scheduled" | "completed" | "cancelled";

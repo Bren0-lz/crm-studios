@@ -50,7 +50,6 @@ import type {
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
-  GroupSessionSeriesInput,
   GroupWorkspace,
   Lead,
   LeadActivity,
@@ -224,9 +223,10 @@ export interface ClinicRepository {
     clinicId: string,
     enrollmentId: string,
   ): Promise<GroupEnrollment | null>;
-  createGroupSessionSeries(
+  listGroupSessions(
     clinicId: string,
-    input: GroupSessionSeriesInput,
+    from: string,
+    to: string,
   ): Promise<GroupSession[]>;
   recordGroupAttendance(
     clinicId: string,

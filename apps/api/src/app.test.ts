@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Appointment, Lead } from "@crm/contracts";
 import { groupClassName } from "@crm/contracts";
+import { localParts, zonedTimeToUtc } from "./group-schedule.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { MemoryClinicRepository } from "./memory-repository.js";
@@ -1421,7 +1422,10 @@ describe("CRM API", () => {
         .json()
         .find((item: { capacity: number }) => item.capacity >= 4),
     };
-    const createGroup = async (capacity: number) =>
+    const createGroup = async (
+      capacity: number,
+      weeklySlots = [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
+    ) =>
       app.inject({
         method: "POST",
         url: "/groups",
@@ -1431,7 +1435,7 @@ describe("CRM API", () => {
           serviceId: references.service.id,
           professionalId: references.professional.id,
           roomId: references.room.id,
-          weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
+          weeklySlots,
         },
       });
     const group = await createGroup(1);
@@ -1474,28 +1478,27 @@ describe("CRM API", () => {
       url: `/group-enrollments/${first.json().id}/cancel`,
       headers,
     });
-    const startsAt = new Date(Date.now() + 80 * 86_400_000);
-    startsAt.setUTCHours(21, 0, 0, 0);
-    const sessions = await app.inject({
-      method: "POST",
-      url: "/group-sessions/series",
-      headers,
-      payload: {
-        groupId: group.json().id,
-        startsAt: startsAt.toISOString(),
-        endsAt: new Date(startsAt.getTime() + 90 * 60_000).toISOString(),
-        occurrences: 2,
-        intervalWeeks: 1,
-      },
+    const agendaRange = `from=${encodeURIComponent(new Date().toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 13 * 7 * 86_400_000).toISOString())}`;
+    const agenda = await app.inject({ method: "GET", url: `/group-sessions?${agendaRange}`, headers });
+    expect(agenda.statusCode).toBe(200);
+    const sessions = agenda
+      .json()
+      .filter((item: { groupId: string }) => item.groupId === group.json().id);
+    // Terças 18:00–19:00 e quintas 18:00–19:30 reservadas automaticamente por 12 semanas.
+    expect(sessions.length).toBeGreaterThanOrEqual(22);
+    for (const session of sessions) {
+      const local = localParts(new Date(session.startsAt), "America/Sao_Paulo");
+      const minutes = (new Date(session.endsAt).getTime() - new Date(session.startsAt).getTime()) / 60_000;
+      expect([local.weekday, local.time, minutes]).toEqual(local.weekday === 2 ? [2, "18:00", 60] : [4, "18:00", 90]);
+    }
+    expect(sessions[0]).toMatchObject({
+      professionalName: references.professional.fullName,
+      roomName: references.room.name,
     });
-    expect(sessions.json()).toHaveLength(2);
-    expect(
-      new Date(sessions.json()[1].endsAt).getTime() -
-        new Date(sessions.json()[1].startsAt).getTime(),
-    ).toBe(90 * 60_000);
+    const startsAt = new Date(sessions[0].startsAt);
     const attendance = await app.inject({
       method: "PUT",
-      url: `/group-sessions/${sessions.json()[0].id}/attendance/${references.patients[1].id}`,
+      url: `/group-sessions/${sessions[0].id}/attendance/${references.patients[1].id}`,
       headers,
       payload: { status: "excused_absence", notes: "Atestado" },
     });
@@ -1514,36 +1517,98 @@ describe("CRM API", () => {
     ).toBe("active");
     const credit = workspace.json().replacementCredits[0];
     expect(credit.status).toBe("available");
-    const targetGroup = await createGroup(4);
+    const sameSlot = await createGroup(4);
+    expect(sameSlot.statusCode).toBe(409);
+    expect(sameSlot.json().message).toContain(group.json().name);
+    const targetGroup = await createGroup(4, [{ weekday: 3, startTime: "10:00", endTime: "11:00" }]);
     expect(targetGroup.json()).toMatchObject({
       sequence: group.json().sequence + 1,
       name: groupClassName(references.service.name, group.json().sequence + 1),
     });
-    const targetStart = new Date(startsAt.getTime() + 2 * 86_400_000);
-    const target = await app.inject({
-      method: "POST",
-      url: "/group-sessions/series",
-      headers,
-      payload: {
-        groupId: targetGroup.json().id,
-        startsAt: targetStart.toISOString(),
-        occurrences: 1,
-      },
-    });
+    const targetSessions = await app.inject({ method: "GET", url: `/group-sessions?${agendaRange}`, headers });
+    const targetSession = targetSessions
+      .json()
+      .find((item: { groupId: string }) => item.groupId === targetGroup.json().id);
     const booking = await app.inject({
       method: "POST",
       url: "/group-replacements/book",
       headers,
-      payload: { creditId: credit.id, sessionId: target.json()[0].id },
+      payload: { creditId: credit.id, sessionId: targetSession.id },
     });
     expect(booking.json().credit.status).toBe("used");
     const duplicate = await app.inject({
       method: "POST",
       url: "/group-replacements/book",
       headers,
-      payload: { creditId: credit.id, sessionId: target.json()[0].id },
+      payload: { creditId: credit.id, sessionId: targetSession.id },
     });
     expect(duplicate.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("reserves group hours in the agenda and blocks conflicting appointments", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+    ]);
+    const service = services.json()[0];
+    const professional = professionals.json()[0];
+    const room = rooms.json().find((item: { capacity: number }) => item.capacity >= 4);
+    const timezone = "America/Sao_Paulo";
+    // Primeira sexta-feira a partir de `weeksAhead` semanas, no horário local informado.
+    const friday = (weeksAhead: number, time: string) => {
+      let date = localParts(new Date(Date.now() + weeksAhead * 7 * 86_400_000), timezone).date;
+      while (new Date(`${date}T12:00:00Z`).getUTCDay() !== 5) {
+        const next = new Date(`${date}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 1);
+        date = next.toISOString().slice(0, 10);
+      }
+      return zonedTimeToUtc(date, time, timezone).toISOString();
+    };
+    const book = (startsAt: string) =>
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          professionalId: professional.id,
+          roomId: room.id,
+          serviceId: service.id,
+          startsAt,
+        },
+      });
+    const createGroup = (startTime: string, endTime: string) =>
+      app.inject({
+        method: "POST",
+        url: "/groups",
+        headers,
+        payload: {
+          capacity: 4,
+          serviceId: service.id,
+          professionalId: professional.id,
+          roomId: room.id,
+          weeklySlots: [{ weekday: 5, startTime, endTime }],
+        },
+      });
+
+    const booked = await book(friday(20, "07:00"));
+    expect(booked.statusCode).toBe(201);
+    const blocked = await createGroup("07:00", "08:00");
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().code).toBe("GROUP_SCHEDULE_CONFLICT");
+    expect(blocked.json().message).toContain("Atendimento de");
+
+    const group = await createGroup("06:00", "06:50");
+    expect(group.statusCode).toBe(201);
+    expect((await book(friday(2, "06:00"))).json().code).toBe("APPOINTMENT_CONFLICT");
+    // Além das 12 semanas já reservadas, o horário fixo da turma continua ocupado.
+    expect((await book(friday(30, "06:30"))).json().code).toBe("APPOINTMENT_CONFLICT");
+    expect((await book(friday(30, "06:50"))).statusCode).toBe(201);
     await app.close();
   });
 

@@ -49,7 +49,6 @@ import type {
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
-  GroupSessionSeriesInput,
   GroupWorkspace,
   Lead,
   LeadActivity,
@@ -109,6 +108,16 @@ import type {
   ReplacementCredit,
 } from "@crm/contracts";
 import { groupClassName } from "@crm/contracts";
+import {
+  clampGroupSessionUntil,
+  findWeeklyScheduleConflicts,
+  groupScheduleConflictMessage,
+  groupSessionHorizon,
+  intervalHitsSlots,
+  localParts,
+  weeklyOccurrences,
+  zonedTimeToUtc,
+} from "./group-schedule.js";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
@@ -387,6 +396,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly groupClasses: GroupClass[] = [];
   private readonly groupEnrollments: GroupEnrollment[] = [];
   private readonly groupSessions: GroupSession[] = [];
+  private readonly groupSessionsGeneratedUntil = new Map<string, Date>();
   private readonly groupAttendance: GroupAttendance[] = [];
   private readonly replacementCredits: ReplacementCredit[] = [];
   private readonly products: Product[] = [];
@@ -850,7 +860,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         new Date(session.startsAt) < endsAt &&
         new Date(session.endsAt) > startsAt
       );
-    });
+    }) || this.hasWeeklyGroupSlotConflict(clinicId, professional.id, room.id, startsAt, endsAt);
     if (conflict || blocked || groupConflict) {
       throw new DomainError(
         "APPOINTMENT_CONFLICT",
@@ -948,7 +958,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         (group!.professionalId === professional.id || group!.roomId === room.id) &&
         overlaps(session.startsAt, session.endsAt)
       );
-    });
+    }) || this.hasWeeklyGroupSlotConflict(clinicId, professional.id, room.id, startsAt, endsAt);
     if (appointmentConflict || blockConflict || groupConflict)
       throw new DomainError(
         "APPOINTMENT_CONFLICT",
@@ -1138,6 +1148,9 @@ export class MemoryClinicRepository implements ClinicRepository {
     from: string,
     to: string,
   ): Promise<GroupWorkspace> {
+    this.ensureGroupSessions(clinicId, groupSessionHorizon(), {
+      renewBefore: new Date(groupSessionHorizon().getTime() - 7 * 86_400_000),
+    });
     return {
       groups: this.groupClasses.filter((item) => item.clinicId === clinicId),
       enrollments: this.groupEnrollments.filter(
@@ -1196,6 +1209,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         "A capacidade da turma excede a capacidade da sala.",
         409,
       );
+    this.assertGroupScheduleAvailable(clinicId, input);
     const sequence =
       Math.max(
         0,
@@ -1218,6 +1232,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       createdAt: now(),
     };
     this.groupClasses.push(group);
+    this.ensureGroupSessions(clinicId, groupSessionHorizon(), { groupId: group.id });
     return group;
   }
 
@@ -1230,8 +1245,22 @@ export class MemoryClinicRepository implements ClinicRepository {
     const activeCount = this.groupEnrollments.filter((item) => item.groupId === groupId && item.status === "active").length;
     if (input.capacity < activeCount)
       throw new DomainError("GROUP_BELOW_ENROLLMENTS", "A capacidade não pode ser menor que o número de matrículas ativas.", 409);
+    this.assertGroupScheduleAvailable(clinicId, { ...group, weeklySlots: input.weeklySlots });
     group.capacity = input.capacity;
     group.weeklySlots = input.weeklySlots;
+    const nowDate = new Date();
+    for (let index = this.groupSessions.length - 1; index >= 0; index -= 1) {
+      const session = this.groupSessions[index]!;
+      const hasRecords =
+        this.groupAttendance.some((item) => item.sessionId === session.id) ||
+        this.replacementCredits.some(
+          (item) => item.sourceSessionId === session.id || item.usedSessionId === session.id,
+        );
+      if (session.groupId === groupId && session.status === "scheduled" && new Date(session.startsAt) > nowDate && !hasRecords)
+        this.groupSessions.splice(index, 1);
+    }
+    this.groupSessionsGeneratedUntil.delete(groupId);
+    this.ensureGroupSessions(clinicId, groupSessionHorizon(), { groupId });
     const waitlist = this.groupEnrollments
       .filter((item) => item.groupId === groupId && item.status === "waitlisted")
       .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0));
@@ -1347,47 +1376,103 @@ export class MemoryClinicRepository implements ClinicRepository {
     return enrollment;
   }
 
-  async createGroupSessionSeries(
+  async listGroupSessions(clinicId: string, from: string, to: string) {
+    const until = clampGroupSessionUntil(new Date(to));
+    this.ensureGroupSessions(clinicId, until, {
+      renewBefore: new Date(until.getTime() - 7 * 86_400_000),
+    });
+    return this.groupSessions
+      .filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.status !== "cancelled" &&
+          item.startsAt < to &&
+          item.endsAt > from,
+      )
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }
+
+  private ensureGroupSessions(
     clinicId: string,
-    input: GroupSessionSeriesInput,
+    until: Date,
+    options: { groupId?: string; renewBefore?: Date } = {},
   ) {
-    const group = this.groupClasses.find(
-      (item) =>
-        item.clinicId === clinicId && item.id === input.groupId && item.active,
-    );
-    if (!group)
-      throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
-    const service = this.services.find((item) => item.id === group.serviceId)!;
-    const durationMs = input.endsAt
-      ? new Date(input.endsAt).getTime() - new Date(input.startsAt).getTime()
-      : service.durationMinutes * 60_000;
-    const created: GroupSession[] = [];
-    for (let index = 0; index < input.occurrences; index += 1) {
-      const startsAt = new Date(input.startsAt);
-      startsAt.setUTCDate(
-        startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-      );
-      const endsAt = new Date(startsAt.getTime() + durationMs);
-      if (this.hasGroupScheduleConflict(clinicId, group, startsAt, endsAt))
-        throw new DomainError(
-          "GROUP_SESSION_CONFLICT",
-          `Conflito de agenda na ocorrência ${index + 1}.`,
-          409,
-        );
-      created.push({
-        id: uuid(),
-        clinicId,
-        groupId: group.id,
-        groupName: group.name,
-        startsAt: startsAt.toISOString(),
-        endsAt: endsAt.toISOString(),
-        status: "scheduled",
-        attendanceCount: 0,
-        createdAt: now(),
-      });
+    const nowDate = new Date();
+    const renewBefore = options.renewBefore ?? until;
+    for (const group of this.groupClasses) {
+      if (group.clinicId !== clinicId || !group.active) continue;
+      if (options.groupId && group.id !== options.groupId) continue;
+      const generatedUntil = this.groupSessionsGeneratedUntil.get(group.id);
+      if (generatedUntil && generatedUntil >= renewBefore) continue;
+      const after = generatedUntil && generatedUntil > nowDate ? generatedUntil : nowDate;
+      for (const occurrence of weeklyOccurrences(group.weeklySlots, this.clinicSettings.timezone, after, until)) {
+        const startsAt = occurrence.startsAt.toISOString();
+        if (this.groupSessions.some((item) => item.groupId === group.id && item.startsAt === startsAt)) continue;
+        if (this.hasGroupScheduleConflict(clinicId, group, occurrence.startsAt, occurrence.endsAt)) continue;
+        this.groupSessions.push({
+          id: uuid(),
+          clinicId,
+          groupId: group.id,
+          groupName: group.name,
+          professionalId: group.professionalId,
+          professionalName: group.professionalName,
+          roomId: group.roomId,
+          roomName: group.roomName,
+          startsAt,
+          endsAt: occurrence.endsAt.toISOString(),
+          status: "scheduled",
+          attendanceCount: 0,
+          createdAt: now(),
+        });
+      }
+      this.groupSessionsGeneratedUntil.set(group.id, until);
     }
-    this.groupSessions.push(...created);
-    return created;
+  }
+
+  private assertGroupScheduleAvailable(
+    clinicId: string,
+    group: { id?: string; professionalId: string; roomId: string; weeklySlots: GroupClass["weeklySlots"] },
+  ) {
+    const nowDate = new Date();
+    const sharesResource = (item: { professionalId?: string; roomId?: string }) =>
+      item.professionalId === group.professionalId || item.roomId === group.roomId;
+    const busy = [
+      ...this.appointments
+        .filter((item) => item.clinicId === clinicId && item.status !== "cancelled" && new Date(item.endsAt) > nowDate && sharesResource(item))
+        .map((item) => ({ startsAt: new Date(item.startsAt), endsAt: new Date(item.endsAt), label: `Atendimento de ${item.patientName}` })),
+      ...this.groupSessions
+        .filter((item) => item.clinicId === clinicId && item.status !== "cancelled" && item.groupId !== group.id && new Date(item.endsAt) > nowDate)
+        .filter((item) => {
+          const other = this.groupClasses.find((candidate) => candidate.id === item.groupId);
+          return Boolean(other && sharesResource(other));
+        })
+        .map((item) => ({ startsAt: new Date(item.startsAt), endsAt: new Date(item.endsAt), label: item.groupName })),
+    ];
+    const patterns = this.groupClasses
+      .filter((item) => item.clinicId === clinicId && item.active && item.id !== group.id && sharesResource(item))
+      .map((item) => ({ slots: item.weeklySlots, label: item.name }));
+    const conflicts = findWeeklyScheduleConflicts(group.weeklySlots, this.clinicSettings.timezone, busy, patterns);
+    if (conflicts.length)
+      throw new DomainError("GROUP_SCHEDULE_CONFLICT", groupScheduleConflictMessage(conflicts), 409);
+  }
+
+  // Horários fixos das turmas ocupam a agenda depois do período já reservado.
+  private hasWeeklyGroupSlotConflict(
+    clinicId: string,
+    professionalId: string,
+    roomId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    const timezone = this.clinicSettings.timezone;
+    return this.groupClasses.some((group) => {
+      if (group.clinicId !== clinicId || !group.active) return false;
+      if (group.professionalId !== professionalId && group.roomId !== roomId) return false;
+      const slot = intervalHitsSlots(group.weeklySlots, timezone, startsAt, endsAt);
+      if (!slot) return false;
+      const occurrence = zonedTimeToUtc(localParts(startsAt, timezone).date, slot.startTime, timezone);
+      return occurrence > (this.groupSessionsGeneratedUntil.get(group.id) ?? new Date());
+    });
   }
 
   async recordGroupAttendance(

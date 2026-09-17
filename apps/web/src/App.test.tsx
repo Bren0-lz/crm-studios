@@ -83,22 +83,38 @@ describe("application shell", () => {
       roomName: "Sala Movimento",
       status: "scheduled",
     };
+    const groupStartsAt = new Date(startsAt);
+    groupStartsAt.setHours(18, 0, 0, 0);
+    const groupSession = {
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      groupId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      groupName: "Pilates · Turma A",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Estúdio 1",
+      startsAt: groupStartsAt.toISOString(),
+      endsAt: new Date(groupStartsAt.getTime() + 60 * 60_000).toISOString(),
+      status: "scheduled",
+    };
     vi.mocked(fetch).mockImplementation(async (input) => ({
       ok: true,
       status: 200,
-      json: async () => String(input).includes("/appointments?") ? [appointment] : [],
+      json: async () => String(input).includes("/appointments?") ? [appointment]
+        : String(input).includes("/group-sessions?") ? [groupSession] : [],
     }) as Response);
 
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Mês" }));
-    const day = await screen.findByRole("button", { name: /1 atendimentos, 0 bloqueios/ });
+    const day = await screen.findByRole("button", { name: /1 atendimentos, 1 turmas, 0 bloqueios/ });
+    expect(screen.getByText("1 turma")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Detalhes de Helena Almeida/ }));
     expect(screen.getByRole("heading", { name: "Detalhes do atendimento" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     fireEvent.click(day);
     expect(await screen.findByRole("heading", { name: "Helena Almeida" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Turma Pilates · Turma A" })).toHaveTextContent("Dra. Ana Martins · Estúdio 1");
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
     expect(await screen.findByText("10:00–10:50")).toBeInTheDocument();
+    expect(screen.getByText("18:00–19:00")).toBeInTheDocument();
   });
 
   it("shows patient and booking details before cancelling an appointment", async () => {

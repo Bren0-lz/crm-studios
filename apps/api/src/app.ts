@@ -27,7 +27,6 @@ import {
   groupClassInputSchema,
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
-  groupSessionSeriesInputSchema,
   leadInputSchema,
   leadContactInputSchema,
   leadMoveSchema,
@@ -858,19 +857,20 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return enrollment;
     },
   );
-  app.post(
-    "/group-sessions/series",
-    { preHandler: [authenticate, requireGroupAccess] },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createGroupSessionSeries(
-            request.user.clinicId,
-            groupSessionSeriesInputSchema.parse(request.body),
-          ),
-        ),
-  );
+  // Encontros das turmas exibidos na agenda; a reserva é feita ao salvar a turma.
+  app.get("/group-sessions", { preHandler: authenticate }, async (request) => {
+    const query = request.query as { from?: string; to?: string };
+    if (!query.from || !query.to)
+      throw new DomainError(
+        "DATE_RANGE_REQUIRED",
+        "Informe o período da agenda.",
+      );
+    return repository.listGroupSessions(
+      request.user.clinicId,
+      query.from,
+      query.to,
+    );
+  });
   app.put(
     "/group-sessions/:sessionId/attendance/:patientId",
     { preHandler: [authenticate, requireGroupAccess] },

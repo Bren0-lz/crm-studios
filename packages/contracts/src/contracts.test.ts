@@ -8,7 +8,6 @@ import {
   groupClassInputSchema,
   groupClassUpdateSchema,
   groupLetter,
-  groupSessionSeriesInputSchema,
   leadMoveSchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
@@ -140,24 +139,6 @@ describe("shared contracts", () => {
     expect(
       leadMoveSchema.parse({ stage: "lost", lostReason: "Sem retorno" }).stage,
     ).toBe("lost");
-  });
-
-  it("limits recurring group sessions", () => {
-    const base = {
-      groupId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      startsAt: "2026-09-12T10:00:00-03:00",
-      occurrences: 4,
-    };
-    expect(groupSessionSeriesInputSchema.parse(base).intervalWeeks).toBe(1);
-    expect(() =>
-      groupSessionSeriesInputSchema.parse({ ...base, occurrences: 53 }),
-    ).toThrow();
-    expect(() =>
-      groupSessionSeriesInputSchema.parse({ ...base, endsAt: "2026-09-12T09:30:00-03:00" }),
-    ).toThrow();
-    expect(
-      groupSessionSeriesInputSchema.parse({ ...base, endsAt: "2026-09-12T11:30:00-03:00" }).endsAt,
-    ).toBe("2026-09-12T11:30:00-03:00");
   });
 
   it("requires a payment method for immediately paid tabs", () => {

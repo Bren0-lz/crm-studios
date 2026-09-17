@@ -51,7 +51,6 @@ import type {
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
-  GroupSessionSeriesInput,
   GroupWorkspace,
   Lead,
   LeadActivity,
@@ -110,6 +109,13 @@ import type {
   ReplacementCredit,
 } from "@crm/contracts";
 import { groupClassName } from "@crm/contracts";
+import {
+  clampGroupSessionUntil,
+  findWeeklyScheduleConflicts,
+  groupScheduleConflictMessage,
+  groupSessionHorizon,
+  weeklyOccurrences,
+} from "./group-schedule.js";
 import type { Pool, PoolClient } from "pg";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
@@ -254,6 +260,10 @@ interface GroupSessionRow {
   clinicId: string;
   groupId: string;
   groupName: string;
+  professionalId: string;
+  professionalName: string;
+  roomId: string;
+  roomName: string;
   startsAt: Date;
   endsAt: Date;
   status: GroupSession["status"];
@@ -952,6 +962,10 @@ function mapGroupSession(row: GroupSessionRow): GroupSession {
     clinicId: row.clinicId,
     groupId: row.groupId,
     groupName: row.groupName,
+    professionalId: row.professionalId,
+    professionalName: row.professionalName,
+    roomId: row.roomId,
+    roomName: row.roomName,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     status: row.status,
@@ -1427,6 +1441,9 @@ function hasDatabaseCode(error: unknown, code: string) {
   );
 }
 
+// Encontros já reservados ocupam a agenda. Com `includeWeeklySlots`, os horários fixos das
+// turmas ativas também contam depois do período já reservado, para que um atendimento marcado
+// meses à frente não ocupe o horário de uma turma antes de o encontro ser gerado.
 async function hasGroupSessionConflict(
   client: Pool | PoolClient,
   clinicId: string,
@@ -1434,6 +1451,7 @@ async function hasGroupSessionConflict(
   roomId: string | undefined,
   startsAt: Date,
   endsAt: Date,
+  includeWeeklySlots = true,
 ) {
   const result = await client.query(
     `SELECT 1 FROM group_sessions gs
@@ -1441,11 +1459,29 @@ async function hasGroupSessionConflict(
      WHERE gs.clinic_id = $1 AND gs.status <> 'cancelled'
        AND (($2::uuid IS NOT NULL AND g.professional_id = $2)
          OR ($3::uuid IS NOT NULL AND g.room_id = $3))
-       AND gs.starts_at < $5 AND gs.ends_at > $4 LIMIT 1`,
-    [clinicId, professionalId ?? null, roomId ?? null, startsAt, endsAt],
+       AND gs.starts_at < $5 AND gs.ends_at > $4
+     UNION ALL
+     SELECT 1 FROM group_classes g
+     JOIN clinics c ON c.id = g.clinic_id
+     CROSS JOIN LATERAL jsonb_array_elements(g.weekly_slots) AS s(slot)
+     WHERE $6 AND g.clinic_id = $1 AND g.active
+       AND (($2::uuid IS NOT NULL AND g.professional_id = $2)
+         OR ($3::uuid IS NOT NULL AND g.room_id = $3))
+       AND EXTRACT(DOW FROM ($4::timestamptz AT TIME ZONE c.timezone)) = (s.slot->>'weekday')::int
+       AND (s.slot->>'endTime')::time > ($4::timestamptz AT TIME ZONE c.timezone)::time
+       AND (s.slot->>'startTime')::time < CASE
+         WHEN ($5::timestamptz AT TIME ZONE c.timezone)::date > ($4::timestamptz AT TIME ZONE c.timezone)::date
+           THEN time '23:59:59.999'
+         ELSE ($5::timestamptz AT TIME ZONE c.timezone)::time END
+       AND ((($4::timestamptz AT TIME ZONE c.timezone)::date + (s.slot->>'startTime')::time) AT TIME ZONE c.timezone)
+         > coalesce(g.sessions_generated_until, now())
+     LIMIT 1`,
+    [clinicId, professionalId ?? null, roomId ?? null, startsAt, endsAt, includeWeeklySlots],
   );
   return Boolean(result.rowCount);
 }
+
+const groupSessionColumns = `gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",g.professional_id AS "professionalId",p.full_name AS "professionalName",g.room_id AS "roomId",r.name AS "roomName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,gs.created_at AS "createdAt"`;
 
 export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {}
@@ -2411,6 +2447,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         input.roomId,
         new Date(input.startsAt),
         new Date(input.endsAt),
+        false,
       )
     )
       throw new DomainError(
@@ -2458,6 +2495,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     from: string,
     to: string,
   ): Promise<GroupWorkspace> {
+    await this.ensureGroupSessionsUntil(clinicId, groupSessionHorizon());
     const [groups, enrollments, sessions, attendance, credits] =
       await Promise.all([
         this.pool.query<GroupClassRow>(
@@ -2469,7 +2507,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           [clinicId],
         ),
         this.pool.query<GroupSessionRow>(
-          `SELECT gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,gs.created_at AS "createdAt",count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 GROUP BY gs.id,g.name ORDER BY gs.starts_at`,
+          `SELECT ${groupSessionColumns},count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 GROUP BY gs.id,g.id,p.full_name,r.name ORDER BY gs.starts_at`,
           [clinicId, from, to],
         ),
         this.pool.query<GroupAttendanceRow>(
@@ -2516,6 +2554,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           "A capacidade da turma excede a capacidade da sala.",
           409,
         );
+      await this.assertGroupScheduleAvailable(client, clinicId, input);
       // O lock no serviço serializa a escolha da próxima letra entre criações simultâneas.
       const next = await client.query<{ sequence: number }>(
         `SELECT coalesce(max(sequence),0)+1 AS sequence FROM group_classes WHERE clinic_id=$1 AND service_id=$2`,
@@ -2536,6 +2575,9 @@ export class PostgresClinicRepository implements ClinicRepository {
           JSON.stringify(input.weeklySlots),
         ],
       );
+      await this.ensureGroupSessions(client, clinicId, groupSessionHorizon(), {
+        groupId: result.rows[0]!.id,
+      });
       await client.query("COMMIT");
       return {
         ...input,
@@ -2563,8 +2605,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await client.query<{ roomCapacity: number; activeEnrollments: string }>(
-        `SELECT r.capacity AS "roomCapacity",(SELECT count(*) FROM group_enrollments e WHERE e.group_id=g.id AND e.status='active') AS "activeEnrollments" FROM group_classes g JOIN rooms r ON r.id=g.room_id WHERE g.clinic_id=$1 AND g.id=$2 FOR UPDATE OF g`,
+      const result = await client.query<{ roomCapacity: number; activeEnrollments: string; professionalId: string; roomId: string }>(
+        `SELECT r.capacity AS "roomCapacity",(SELECT count(*) FROM group_enrollments e WHERE e.group_id=g.id AND e.status='active') AS "activeEnrollments",g.professional_id AS "professionalId",g.room_id AS "roomId" FROM group_classes g JOIN rooms r ON r.id=g.room_id WHERE g.clinic_id=$1 AND g.id=$2 FOR UPDATE OF g`,
         [clinicId, groupId],
       );
       const current = result.rows[0];
@@ -2574,10 +2616,23 @@ export class PostgresClinicRepository implements ClinicRepository {
       const activeCount = Number(current.activeEnrollments);
       if (input.capacity < activeCount)
         throw new DomainError("GROUP_BELOW_ENROLLMENTS", "A capacidade não pode ser menor que o número de matrículas ativas.", 409);
+      await this.assertGroupScheduleAvailable(client, clinicId, {
+        id: groupId,
+        professionalId: current.professionalId,
+        roomId: current.roomId,
+        weeklySlots: input.weeklySlots,
+      });
       await client.query(
-        `UPDATE group_classes SET capacity=$3,weekly_slots=$4::jsonb,updated_at=now() WHERE clinic_id=$1 AND id=$2`,
+        `UPDATE group_classes SET capacity=$3,weekly_slots=$4::jsonb,sessions_generated_until=NULL,updated_at=now() WHERE clinic_id=$1 AND id=$2`,
         [clinicId, groupId, input.capacity, JSON.stringify(input.weeklySlots)],
       );
+      // Refaz a agenda futura: encontros sem presença nem reposição saem e são gerados de novo
+      // com os horários atuais; os que já têm registros ficam como estão.
+      await client.query(
+        `DELETE FROM group_sessions gs WHERE gs.clinic_id=$1 AND gs.group_id=$2 AND gs.starts_at>now() AND gs.status='scheduled' AND NOT EXISTS (SELECT 1 FROM group_attendance ga WHERE ga.session_id=gs.id) AND NOT EXISTS (SELECT 1 FROM replacement_credits rc WHERE rc.source_session_id=gs.id OR rc.used_session_id=gs.id)`,
+        [clinicId, groupId],
+      );
+      await this.ensureGroupSessions(client, clinicId, groupSessionHorizon(), { groupId });
       if (input.capacity > activeCount) {
         await client.query(
           `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now() FROM waiting WHERE e.id=waiting.id`,
@@ -2698,60 +2753,100 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
   }
 
-  async createGroupSessionSeries(
-    clinicId: string,
-    input: GroupSessionSeriesInput,
-  ) {
+  async listGroupSessions(clinicId: string, from: string, to: string) {
+    await this.ensureGroupSessionsUntil(clinicId, clampGroupSessionUntil(new Date(to)));
+    const result = await this.pool.query<GroupSessionRow>(
+      `SELECT ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY gs.starts_at`,
+      [clinicId, from, to],
+    );
+    return result.rows.map(mapGroupSession);
+  }
+
+  private async ensureGroupSessionsUntil(clinicId: string, until: Date) {
+    // Só renova quando falta menos de uma semana para o fim do período reservado.
+    const renewBefore = new Date(until.getTime() - 7 * 86_400_000);
+    const pending = await this.pool.query(
+      `SELECT 1 FROM group_classes WHERE clinic_id=$1 AND active AND (sessions_generated_until IS NULL OR sessions_generated_until<$2) LIMIT 1`,
+      [clinicId, renewBefore],
+    );
+    if (!pending.rowCount) return;
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await client.query<{
-        name: string;
-        professionalId: string;
-        roomId: string;
-        durationMinutes: number;
-      }>(
-        `SELECT g.name,g.professional_id AS "professionalId",g.room_id AS "roomId",s.duration_minutes AS "durationMinutes" FROM group_classes g JOIN services s ON s.id=g.service_id WHERE g.id=$2 AND g.clinic_id=$1 AND g.active FOR UPDATE OF g`,
-        [clinicId, input.groupId],
-      );
-      const group = result.rows[0];
-      if (!group)
-        throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
-      const seriesId = randomUUID();
-      const durationMs = input.endsAt
-        ? new Date(input.endsAt).getTime() - new Date(input.startsAt).getTime()
-        : group.durationMinutes * 60_000;
-      const created: GroupSession[] = [];
-      for (let index = 0; index < input.occurrences; index += 1) {
-        const startsAt = new Date(input.startsAt);
-        startsAt.setUTCDate(
-          startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-        );
-        const endsAt = new Date(startsAt.getTime() + durationMs);
-        const conflict = await client.query(
-          `SELECT 1 FROM(SELECT a.starts_at,a.ends_at FROM appointments a WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND(a.professional_id=$2 OR a.room_id=$3) UNION ALL SELECT b.starts_at,b.ends_at FROM schedule_blocks b WHERE b.clinic_id=$1 AND b.status='active' AND(b.professional_id=$2 OR b.room_id=$3) UNION ALL SELECT gs.starts_at,gs.ends_at FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND(g.professional_id=$2 OR g.room_id=$3)) occupied WHERE starts_at<$5 AND ends_at>$4 LIMIT 1`,
-          [clinicId, group.professionalId, group.roomId, startsAt, endsAt],
-        );
-        if (conflict.rowCount)
-          throw new DomainError(
-            "GROUP_SESSION_CONFLICT",
-            `Conflito de agenda na ocorrência ${index + 1}.`,
-            409,
-          );
-        const inserted = await client.query<GroupSessionRow>(
-          `INSERT INTO group_sessions(clinic_id,group_id,starts_at,ends_at,series_id) VALUES($1,$2,$3,$4,$5) RETURNING id,clinic_id AS "clinicId",group_id AS "groupId",$6::text AS "groupName",starts_at AS "startsAt",ends_at AS "endsAt",status,0 AS "attendanceCount",created_at AS "createdAt"`,
-          [clinicId, input.groupId, startsAt, endsAt, seriesId, group.name],
-        );
-        created.push(mapGroupSession(inserted.rows[0]!));
-      }
+      await this.ensureGroupSessions(client, clinicId, until, { renewBefore });
       await client.query("COMMIT");
-      return created;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  // Reserva na agenda os encontros das turmas ativas até `until`. Datas que já estiverem
+  // ocupadas por atendimento, bloqueio ou outra turma ficam de fora.
+  private async ensureGroupSessions(
+    client: PoolClient,
+    clinicId: string,
+    until: Date,
+    options: { groupId?: string; renewBefore?: Date } = {},
+  ) {
+    const groups = await client.query<{
+      id: string;
+      professionalId: string;
+      roomId: string;
+      weeklySlots: GroupClassInput["weeklySlots"];
+      generatedUntil: Date | null;
+      timezone: string;
+    }>(
+      `SELECT g.id,g.professional_id AS "professionalId",g.room_id AS "roomId",g.weekly_slots AS "weeklySlots",g.sessions_generated_until AS "generatedUntil",c.timezone FROM group_classes g JOIN clinics c ON c.id=g.clinic_id WHERE g.clinic_id=$1 AND g.active AND ($2::uuid IS NULL OR g.id=$2) AND (g.sessions_generated_until IS NULL OR g.sessions_generated_until<$3) ORDER BY g.created_at FOR UPDATE OF g`,
+      [clinicId, options.groupId ?? null, options.renewBefore ?? until],
+    );
+    const now = new Date();
+    for (const group of groups.rows) {
+      const after = group.generatedUntil && group.generatedUntil > now ? group.generatedUntil : now;
+      const occurrences = weeklyOccurrences(group.weeklySlots, group.timezone, after, until);
+      if (occurrences.length)
+        await client.query(
+          `INSERT INTO group_sessions(clinic_id,group_id,starts_at,ends_at) SELECT $1,$2,o.starts_at,o.ends_at FROM jsonb_to_recordset($5::jsonb) AS o(starts_at timestamptz,ends_at timestamptz) WHERE NOT EXISTS (SELECT 1 FROM appointments a WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND (a.professional_id=$3 OR a.room_id=$4) AND a.starts_at<o.ends_at AND a.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM schedule_blocks b WHERE b.clinic_id=$1 AND b.status='active' AND (b.professional_id=$3 OR b.room_id=$4) AND b.starts_at<o.ends_at AND b.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM group_sessions gs JOIN group_classes og ON og.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND (og.professional_id=$3 OR og.room_id=$4) AND gs.starts_at<o.ends_at AND gs.ends_at>o.starts_at) ON CONFLICT (group_id,starts_at) DO NOTHING`,
+          [
+            clinicId,
+            group.id,
+            group.professionalId,
+            group.roomId,
+            JSON.stringify(occurrences.map((item) => ({ starts_at: item.startsAt.toISOString(), ends_at: item.endsAt.toISOString() }))),
+          ],
+        );
+      await client.query(`UPDATE group_classes SET sessions_generated_until=$2 WHERE id=$1`, [group.id, until]);
+    }
+  }
+
+  // Impede salvar uma turma cujos horários fixos batem com atendimentos futuros ou com outra
+  // turma do mesmo profissional ou sala.
+  private async assertGroupScheduleAvailable(
+    client: PoolClient,
+    clinicId: string,
+    group: { id?: string; professionalId: string; roomId: string; weeklySlots: GroupClassInput["weeklySlots"] },
+  ) {
+    const clinic = await client.query<{ timezone: string }>(`SELECT timezone FROM clinics WHERE id=$1`, [clinicId]);
+    const busy = await client.query<{ startsAt: Date; endsAt: Date; label: string }>(
+      `SELECT a.starts_at AS "startsAt",a.ends_at AS "endsAt",'Atendimento de ' || pt.full_name AS label FROM appointments a JOIN patients pt ON pt.id=a.patient_id WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND a.ends_at>now() AND (a.professional_id=$2 OR a.room_id=$3)
+       UNION ALL
+       SELECT gs.starts_at,gs.ends_at,g.name FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.ends_at>now() AND ($4::uuid IS NULL OR gs.group_id<>$4) AND (g.professional_id=$2 OR g.room_id=$3)`,
+      [clinicId, group.professionalId, group.roomId, group.id ?? null],
+    );
+    const patterns = await client.query<{ label: string; slots: GroupClassInput["weeklySlots"] }>(
+      `SELECT name AS label,weekly_slots AS slots FROM group_classes WHERE clinic_id=$1 AND active AND ($4::uuid IS NULL OR id<>$4) AND (professional_id=$2 OR room_id=$3)`,
+      [clinicId, group.professionalId, group.roomId, group.id ?? null],
+    );
+    const conflicts = findWeeklyScheduleConflicts(
+      group.weeklySlots,
+      clinic.rows[0]?.timezone ?? "America/Sao_Paulo",
+      busy.rows,
+      patterns.rows,
+    );
+    if (conflicts.length)
+      throw new DomainError("GROUP_SCHEDULE_CONFLICT", groupScheduleConflictMessage(conflicts), 409);
   }
 
   async recordGroupAttendance(
@@ -2822,7 +2917,7 @@ export class PostgresClinicRepository implements ClinicRepository {
 
   async completeGroupSession(clinicId: string, sessionId: string) {
     const result = await this.pool.query<GroupSessionRow>(
-      `UPDATE group_sessions gs SET status='completed',updated_at=now() FROM group_classes g WHERE gs.id=$2 AND gs.clinic_id=$1 AND gs.status<>'cancelled' AND g.id=gs.group_id RETURNING gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount",gs.created_at AS "createdAt"`,
+      `UPDATE group_sessions gs SET status='completed',updated_at=now() FROM group_classes g,professionals p,rooms r WHERE gs.id=$2 AND gs.clinic_id=$1 AND gs.status<>'cancelled' AND g.id=gs.group_id AND p.id=g.professional_id AND r.id=g.room_id RETURNING ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount"`,
       [clinicId, sessionId],
     );
     return result.rows[0] ? mapGroupSession(result.rows[0]) : null;

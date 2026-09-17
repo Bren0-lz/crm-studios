@@ -49,7 +49,6 @@ import type {
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
-  GroupSessionSeriesInput,
   GroupWorkspace,
   IssuedDocument,
   IssuedDocumentInput,
@@ -257,6 +256,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  groupSessions: (from: string, to: string) =>
+    request<GroupSession[]>(
+      `/group-sessions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
   scheduleBlocks: (from: string, to: string) =>
     request<ScheduleBlock[]>(
       `/schedule-blocks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
@@ -292,11 +295,6 @@ export const api = {
   cancelGroupEnrollment: (id: string) =>
     request<GroupEnrollment>(`/group-enrollments/${id}/cancel`, {
       method: "POST",
-    }),
-  createGroupSessionSeries: (input: GroupSessionSeriesInput) =>
-    request<GroupSession[]>("/group-sessions/series", {
-      method: "POST",
-      body: JSON.stringify(input),
     }),
   bookReplacement: (input: ReplacementBookingInput) =>
     request<{ attendance: GroupAttendance; credit: ReplacementCredit }>(
