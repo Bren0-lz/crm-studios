@@ -44,6 +44,24 @@ admin@movimenta.local
 Admin@123
 ```
 
+O ambiente de demonstração traz 123 pacientes fictícios, incluindo 120 cadastros variados de fisioterapia, depilação, dançaterapia e outros serviços. Há pacientes ativos e inativos, com e sem e-mail, além de contatos, datas de nascimento e etiquetas para avaliar listas, buscas e formulários. Os e-mails usam `example.com` e os dados adicionais têm identificadores fixos; no PostgreSQL, executar o seed novamente não duplica esses cadastros.
+
+### Cenários de operação
+
+Com `SEED_DEMO_DATA=true`, a demonstração também inclui 56 planos com preços e parcelas, 160 atendimentos individuais, uma turma de dançaterapia duas vezes por semana e seu histórico de aulas e presenças. Busque as etiquetas abaixo em **Pacientes** para examinar cada trajetória:
+
+| Etiqueta | Cenário | Valor simulado |
+| --- | --- | --- |
+| Frequente / Dançaterapia | 8 clientes em plano ativo de 24 aulas, com presença e próximas aulas | R$ 1.497 em 3 parcelas |
+| Frequente / Pilates | 8 clientes com sessões concluídas e retorno agendado | R$ 1.200 em 2 parcelas |
+| Em tratamento | 8 clientes com pacote de fisioterapia e saldo de sessões | R$ 1.500 em 2 parcelas |
+| Serviço avulso | 8 compras de depilação de pernas ou axilas | R$ 120 ou R$ 55 |
+| Assinatura cancelada | 8 ex-alunos de dançaterapia com pagamentos e parcelas canceladas | R$ 1.497 por plano |
+| Sem retorno | 8 clientes com pacote vencido e sessões restantes | R$ 1.500 por pacote |
+| Pagamento atrasado | 8 clientes de Pilates com plano ativo e parcela vencida | R$ 1.200 em 2 parcelas |
+
+Os planos recorrentes representam períodos contratados com sessões e parcelas. O CRM ainda não renova automaticamente um plano ao fim do período. As datas são posicionadas em relação ao dia em que a base é carregada pela primeira vez; reiniciar a API preserva os registros e as alterações feitas neles.
+
 ## Verificações
 
 ```bash

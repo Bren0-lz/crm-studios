@@ -15,7 +15,7 @@ if (config.STORAGE_MODE === "postgres") {
   repository = new PostgresClinicRepository(pool);
   closeDatabase = () => pool.end();
 } else {
-  repository = new MemoryClinicRepository();
+  repository = new MemoryClinicRepository(config.SEED_DEMO_DATA);
 }
 
 const app = await buildApp({ repository });

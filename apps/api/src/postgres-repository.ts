@@ -47,6 +47,7 @@ import type {
   GroupAttendanceInput,
   GroupClass,
   GroupClassInput,
+  GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
@@ -108,6 +109,7 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
 } from "@crm/contracts";
+import { groupClassName } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
@@ -215,10 +217,12 @@ interface GroupClassRow {
   id: string;
   clinicId: string;
   name: string;
+  sequence: number;
   serviceId: string;
   professionalId: string;
   roomId: string;
   capacity: number;
+  weeklySlots: GroupClassInput["weeklySlots"];
   serviceName: string;
   professionalName: string;
   roomName: string;
@@ -907,10 +911,12 @@ function mapGroupClass(row: GroupClassRow): GroupClass {
     id: row.id,
     clinicId: row.clinicId,
     name: row.name,
+    sequence: row.sequence,
     serviceId: row.serviceId,
     professionalId: row.professionalId,
     roomId: row.roomId,
     capacity: row.capacity,
+    weeklySlots: row.weeklySlots,
     serviceName: row.serviceName,
     professionalName: row.professionalName,
     roomName: row.roomName,
@@ -2024,7 +2030,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "APPOINTMENT_CONFLICT",
-        "O profissional ou a sala estÃ¡ ocupado por uma turma nesse horÃ¡rio.",
+        "O profissional ou a sala está ocupado por uma turma nesse horário.",
         409,
       );
     try {
@@ -2309,7 +2315,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         )
           throw new DomainError(
             "APPOINTMENT_CONFLICT",
-            `A ocorrÃªncia ${index + 1} conflita com uma turma.`,
+            `A ocorrência ${index + 1} conflita com uma turma.`,
             409,
           );
         const inserted = await client.query<{ id: string }>(
@@ -2449,7 +2455,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     const [groups, enrollments, sessions, attendance, credits] =
       await Promise.all([
         this.pool.query<GroupClassRow>(
-          `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
+          `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
           [clinicId],
         ),
         this.pool.query<GroupEnrollmentRow>(
@@ -2479,44 +2485,58 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async createGroupClass(clinicId: string, input: GroupClassInput) {
-    const related = await this.pool.query<{
-      serviceName: string;
-      professionalName: string;
-      roomName: string;
-      roomCapacity: number;
-    }>(
-      `SELECT s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",r.capacity AS "roomCapacity" FROM services s,professionals p,rooms r WHERE s.id=$2 AND s.clinic_id=$1 AND s.active AND p.id=$3 AND p.clinic_id=$1 AND p.active AND r.id=$4 AND r.clinic_id=$1 AND r.active`,
-      [clinicId, input.serviceId, input.professionalId, input.roomId],
-    );
-    const names = related.rows[0];
-    if (!names)
-      throw new DomainError(
-        "GROUP_RELATED_RECORD_NOT_FOUND",
-        "ServiÃ§o, profissional ou sala nÃ£o encontrado.",
-        404,
-      );
-    if (input.capacity > names.roomCapacity)
-      throw new DomainError(
-        "GROUP_EXCEEDS_ROOM_CAPACITY",
-        "A capacidade da turma excede a capacidade da sala.",
-        409,
-      );
+    const client = await this.pool.connect();
     try {
-      const result = await this.pool.query<{ id: string; createdAt: Date }>(
-        `INSERT INTO group_classes(clinic_id,name,service_id,professional_id,room_id,capacity) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at AS "createdAt"`,
+      await client.query("BEGIN");
+      const related = await client.query<{
+        serviceName: string;
+        professionalName: string;
+        roomName: string;
+        roomCapacity: number;
+      }>(
+        `SELECT s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",r.capacity AS "roomCapacity" FROM services s,professionals p,rooms r WHERE s.id=$2 AND s.clinic_id=$1 AND s.active AND p.id=$3 AND p.clinic_id=$1 AND p.active AND r.id=$4 AND r.clinic_id=$1 AND r.active FOR UPDATE OF s`,
+        [clinicId, input.serviceId, input.professionalId, input.roomId],
+      );
+      const names = related.rows[0];
+      if (!names)
+        throw new DomainError(
+          "GROUP_RELATED_RECORD_NOT_FOUND",
+          "Serviço, profissional ou sala não encontrado.",
+          404,
+        );
+      if (input.capacity > names.roomCapacity)
+        throw new DomainError(
+          "GROUP_EXCEEDS_ROOM_CAPACITY",
+          "A capacidade da turma excede a capacidade da sala.",
+          409,
+        );
+      // O lock no serviço serializa a escolha da próxima letra entre criações simultâneas.
+      const next = await client.query<{ sequence: number }>(
+        `SELECT coalesce(max(sequence),0)+1 AS sequence FROM group_classes WHERE clinic_id=$1 AND service_id=$2`,
+        [clinicId, input.serviceId],
+      );
+      const sequence = next.rows[0]!.sequence;
+      const name = groupClassName(names.serviceName, sequence);
+      const result = await client.query<{ id: string; createdAt: Date }>(
+        `INSERT INTO group_classes(clinic_id,name,sequence,service_id,professional_id,room_id,capacity,weekly_slots) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING id,created_at AS "createdAt"`,
         [
           clinicId,
-          input.name,
+          name,
+          sequence,
           input.serviceId,
           input.professionalId,
           input.roomId,
           input.capacity,
+          JSON.stringify(input.weeklySlots),
         ],
       );
+      await client.query("COMMIT");
       return {
         ...input,
         id: result.rows[0]!.id,
         clinicId,
+        name,
+        sequence,
         serviceName: names.serviceName,
         professionalName: names.professionalName,
         roomName: names.roomName,
@@ -2526,14 +2546,54 @@ export class PostgresClinicRepository implements ClinicRepository {
         createdAt: result.rows[0]!.createdAt.toISOString(),
       };
     } catch (error) {
-      if (hasDatabaseCode(error, "23505"))
-        throw new DomainError(
-          "GROUP_NAME_EXISTS",
-          "JÃ¡ existe uma turma com este nome.",
-          409,
-        );
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
+  }
+
+  async updateGroupClass(clinicId: string, groupId: string, input: GroupClassUpdateInput) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<{ roomCapacity: number; activeEnrollments: string }>(
+        `SELECT r.capacity AS "roomCapacity",(SELECT count(*) FROM group_enrollments e WHERE e.group_id=g.id AND e.status='active') AS "activeEnrollments" FROM group_classes g JOIN rooms r ON r.id=g.room_id WHERE g.clinic_id=$1 AND g.id=$2 FOR UPDATE OF g`,
+        [clinicId, groupId],
+      );
+      const current = result.rows[0];
+      if (!current) { await client.query("ROLLBACK"); return null; }
+      if (input.capacity > current.roomCapacity)
+        throw new DomainError("GROUP_EXCEEDS_ROOM_CAPACITY", "A capacidade da turma excede a capacidade da sala.", 409);
+      const activeCount = Number(current.activeEnrollments);
+      if (input.capacity < activeCount)
+        throw new DomainError("GROUP_BELOW_ENROLLMENTS", "A capacidade não pode ser menor que o número de matrículas ativas.", 409);
+      await client.query(
+        `UPDATE group_classes SET capacity=$3,weekly_slots=$4::jsonb,updated_at=now() WHERE clinic_id=$1 AND id=$2`,
+        [clinicId, groupId, input.capacity, JSON.stringify(input.weeklySlots)],
+      );
+      if (input.capacity > activeCount) {
+        await client.query(
+          `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now() FROM waiting WHERE e.id=waiting.id`,
+          [clinicId, groupId, input.capacity - activeCount],
+        );
+      }
+      await client.query(
+        `WITH ordered AS (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') UPDATE group_enrollments e SET queue_position=ordered.position FROM ordered WHERE e.id=ordered.id`,
+        [clinicId, groupId],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    const updated = await this.pool.query<GroupClassRow>(
+      `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND g.id=$2 GROUP BY g.id,s.name,p.full_name,r.name`,
+      [clinicId, groupId],
+    );
+    return updated.rows[0] ? mapGroupClass(updated.rows[0]) : null;
   }
 
   async createGroupEnrollment(clinicId: string, input: GroupEnrollmentInput) {
@@ -2551,7 +2611,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!group.rows[0] || !patient.rows[0])
         throw new DomainError(
           "GROUP_OR_PATIENT_NOT_FOUND",
-          "Turma ou paciente ativo nÃ£o encontrado.",
+          "Turma ou paciente ativo não encontrado.",
           404,
         );
       const counts = await client.query<{
@@ -2583,7 +2643,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (hasDatabaseCode(error, "23505"))
         throw new DomainError(
           "GROUP_ENROLLMENT_EXISTS",
-          "O paciente jÃ¡ estÃ¡ matriculado ou na lista de espera.",
+          "O paciente já está matriculado ou na lista de espera.",
           409,
         );
       throw error;
@@ -2650,17 +2710,18 @@ export class PostgresClinicRepository implements ClinicRepository {
       );
       const group = result.rows[0];
       if (!group)
-        throw new DomainError("GROUP_NOT_FOUND", "Turma nÃ£o encontrada.", 404);
+        throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
       const seriesId = randomUUID();
+      const durationMs = input.endsAt
+        ? new Date(input.endsAt).getTime() - new Date(input.startsAt).getTime()
+        : group.durationMinutes * 60_000;
       const created: GroupSession[] = [];
       for (let index = 0; index < input.occurrences; index += 1) {
         const startsAt = new Date(input.startsAt);
         startsAt.setUTCDate(
           startsAt.getUTCDate() + index * input.intervalWeeks * 7,
         );
-        const endsAt = new Date(
-          startsAt.getTime() + group.durationMinutes * 60_000,
-        );
+        const endsAt = new Date(startsAt.getTime() + durationMs);
         const conflict = await client.query(
           `SELECT 1 FROM(SELECT a.starts_at,a.ends_at FROM appointments a WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND(a.professional_id=$2 OR a.room_id=$3) UNION ALL SELECT b.starts_at,b.ends_at FROM schedule_blocks b WHERE b.clinic_id=$1 AND b.status='active' AND(b.professional_id=$2 OR b.room_id=$3) UNION ALL SELECT gs.starts_at,gs.ends_at FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND(g.professional_id=$2 OR g.room_id=$3)) occupied WHERE starts_at<$5 AND ends_at>$4 LIMIT 1`,
           [clinicId, group.professionalId, group.roomId, startsAt, endsAt],
@@ -2668,7 +2729,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         if (conflict.rowCount)
           throw new DomainError(
             "GROUP_SESSION_CONFLICT",
-            `Conflito de agenda na ocorrÃªncia ${index + 1}.`,
+            `Conflito de agenda na ocorrência ${index + 1}.`,
             409,
           );
         const inserted = await client.query<GroupSessionRow>(
@@ -2704,7 +2765,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!allowed.rows[0])
         throw new DomainError(
           "GROUP_ATTENDANCE_NOT_ALLOWED",
-          "SessÃ£o ou matrÃ­cula ativa nÃ£o encontrada.",
+          "Sessão ou matrícula ativa não encontrada.",
           404,
         );
       const creditResult = await client.query<ReplacementCreditRow>(
@@ -2715,7 +2776,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (credit?.status === "used" && input.status !== "excused_absence")
         throw new DomainError(
           "REPLACEMENT_ALREADY_USED",
-          "A reposiÃ§Ã£o desta falta jÃ¡ foi utilizada.",
+          "A reposição desta falta já foi utilizada.",
           409,
         );
       const attendance = await client.query<GroupAttendanceRow>(
@@ -2791,7 +2852,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       )
         throw new DomainError(
           "REPLACEMENT_NOT_AVAILABLE",
-          "CrÃ©dito ou sessÃ£o de reposiÃ§Ã£o indisponÃ­vel.",
+          "Crédito ou sessão de reposição indisponível.",
           409,
         );
       const seats = await client.query<{
@@ -2810,7 +2871,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       )
         throw new DomainError(
           "GROUP_SESSION_FULL",
-          "A sessÃ£o estÃ¡ lotada.",
+          "A sessão está lotada.",
           409,
         );
       let attendance: GroupAttendanceRow;
@@ -2831,7 +2892,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         if (hasDatabaseCode(error, "23505"))
           throw new DomainError(
             "REPLACEMENT_DUPLICATE_ATTENDANCE",
-            "O paciente jÃ¡ possui presenÃ§a registrada nesta sessÃ£o.",
+            "O paciente já possui presença registrada nesta sessão.",
             409,
           );
         throw error;
@@ -2931,7 +2992,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (hasDatabaseCode(error, "23505"))
         throw new DomainError(
           "PRODUCT_SKU_EXISTS",
-          "JÃ¡ existe um produto com este SKU.",
+          "Já existe um produto com este SKU.",
           409,
         );
       throw error;
@@ -2956,7 +3017,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!row)
         throw new DomainError(
           "PRODUCT_NOT_FOUND",
-          "Produto nÃ£o encontrado.",
+          "Produto não encontrado.",
           404,
         );
       const quantity = ["adjustment_out", "loss"].includes(input.kind)
@@ -2966,7 +3027,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (balance < 0)
         throw new DomainError(
           "INSUFFICIENT_STOCK",
-          "O estoque disponÃ­vel Ã© insuficiente.",
+          "O estoque disponível é insuficiente.",
           409,
         );
       await client.query(
@@ -3008,7 +3069,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!result.rows[0])
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente nÃ£o encontrado.",
+        "Paciente não encontrado.",
         404,
       );
     return (await this.findPatientTab(clinicId, result.rows[0].id))!;
@@ -3051,13 +3112,13 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!productRow)
         throw new DomainError(
           "PRODUCT_NOT_FOUND",
-          "Produto nÃ£o encontrado.",
+          "Produto não encontrado.",
           404,
         );
       if (productRow.currentStock < input.quantity)
         throw new DomainError(
           "INSUFFICIENT_STOCK",
-          "O estoque disponÃ­vel Ã© insuficiente.",
+          "O estoque disponível é insuficiente.",
           409,
         );
       await client.query(
@@ -3206,7 +3267,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (row.status === "cancelled")
         throw new DomainError(
           "PATIENT_TAB_ALREADY_CANCELLED",
-          "A comanda jÃ¡ foi cancelada.",
+          "A comanda já foi cancelada.",
           409,
         );
       const items = await client.query<{
@@ -3316,7 +3377,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       )
         throw new DomainError(
           "APPOINTMENT_CONFLICT",
-          "Este atendimento conflita com uma turma no mesmo horÃ¡rio.",
+          "Este atendimento conflita com uma turma no mesmo horário.",
           409,
         );
       if (current.rows[0].status !== "completed" && status === "completed") {

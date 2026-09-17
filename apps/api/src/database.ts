@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { hash } from "bcryptjs";
 import { Pool } from "pg";
 import { config } from "./config.js";
+import { demoPatients } from "./demo-patients.js";
+import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 
 const migrationsPath = fileURLToPath(new URL("../migrations", import.meta.url));
 const migrationLockId = 927_410_615;
@@ -113,6 +115,23 @@ export async function seedDemoData(pool: Pool) {
       ON CONFLICT (id) DO NOTHING
     `);
 
+    await client.query(
+      `INSERT INTO patients (
+        id, clinic_id, record_number, full_name, email, phone, birth_date,
+        emergency_contact_name, emergency_contact_phone, notes, tags, status, created_at, updated_at
+      )
+      SELECT id, "clinicId", "recordNumber", "fullName", email, phone, "birthDate"::date,
+        "emergencyContactName", "emergencyContactPhone", notes, tags, status::patient_status,
+        "createdAt"::timestamptz, "updatedAt"::timestamptz
+      FROM jsonb_to_recordset($1::jsonb) AS p(
+        id uuid, "clinicId" uuid, "recordNumber" text, "fullName" text, email text,
+        phone text, "birthDate" text, "emergencyContactName" text,
+        "emergencyContactPhone" text, notes text, tags text[], status text,
+        "createdAt" text, "updatedAt" text
+      )
+      ON CONFLICT DO NOTHING`,
+      [JSON.stringify(demoPatients)],
+    );
     await client.query(`
       INSERT INTO appointments (
       id, clinic_id, patient_id, professional_id, room_id, service_id,
@@ -142,6 +161,7 @@ export async function seedDemoData(pool: Pool) {
       )
       ON CONFLICT (id) DO NOTHING
     `);
+    await seedDemoScenarios(client);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

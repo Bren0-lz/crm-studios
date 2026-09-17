@@ -45,6 +45,7 @@ import type {
   GroupAttendanceInput,
   GroupClass,
   GroupClassInput,
+  GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
@@ -107,7 +108,10 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
 } from "@crm/contracts";
+import { groupClassName } from "@crm/contracts";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { demoPatients } from "./demo-patients.js";
+import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
 import {
   DomainError,
@@ -329,6 +333,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   ];
 
   private readonly patients: Patient[] = [
+    ...demoPatients.map((patient) => ({ ...patient, tags: [...patient.tags] })),
     this.seedPatient(
       "99999999-9999-4999-8999-999999999999",
       "Helena Almeida",
@@ -387,6 +392,27 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly products: Product[] = [];
   private readonly stockMovements: StockMovement[] = [];
   private readonly patientTabs: PatientTab[] = [];
+
+  constructor(withRichDemo = false) {
+    if (!withRichDemo) return;
+    const data = buildDemoScenarios();
+    this.professionals.push(...demoProfessionals);
+    this.rooms.push(...demoRooms);
+    this.services.push(...demoServices);
+    this.appointments.push(...data.appointments);
+    this.patientPlans.push(...data.plans);
+    this.sessionMovements.push(...data.movements);
+    this.receivables.push(...data.receivables);
+    this.groupClasses.push(...data.groups);
+    this.groupEnrollments.push(...data.enrollments);
+    this.groupSessions.push(...data.sessions);
+    this.groupAttendance.push(...data.attendance);
+    this.receiptEvents.push(...data.financialEvents.filter((event) => event.kind === "payment").map((event) => ({
+      id: event.id, receivableId: event.receivableId, kind: "payment" as const,
+      occurredAt: event.createdAt, amountInCents: event.amountInCents,
+      paymentMethod: this.receivables.find((item) => item.id === event.receivableId)?.paymentMethod ?? "pix",
+    })));
+  }
 
   private seedPatient(
     id: string,
@@ -1158,7 +1184,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!service || !professional || !room)
       throw new DomainError(
         "GROUP_RELATED_RECORD_NOT_FOUND",
-        "ServiÃ§o, profissional ou sala nÃ£o encontrado.",
+        "Serviço, profissional ou sala não encontrado.",
         404,
       );
     if (input.capacity > room.capacity)
@@ -1167,10 +1193,19 @@ export class MemoryClinicRepository implements ClinicRepository {
         "A capacidade da turma excede a capacidade da sala.",
         409,
       );
+    const sequence =
+      Math.max(
+        0,
+        ...this.groupClasses
+          .filter((item) => item.clinicId === clinicId && item.serviceId === input.serviceId)
+          .map((item) => item.sequence),
+      ) + 1;
     const group: GroupClass = {
       ...input,
       id: uuid(),
       clinicId,
+      name: groupClassName(service.name, sequence),
+      sequence,
       serviceName: service.name,
       professionalName: professional.fullName,
       roomName: room.name,
@@ -1180,6 +1215,30 @@ export class MemoryClinicRepository implements ClinicRepository {
       createdAt: now(),
     };
     this.groupClasses.push(group);
+    return group;
+  }
+
+  async updateGroupClass(clinicId: string, groupId: string, input: GroupClassUpdateInput) {
+    const group = this.groupClasses.find((item) => item.clinicId === clinicId && item.id === groupId);
+    if (!group) return null;
+    const room = this.rooms.find((item) => item.clinicId === clinicId && item.id === group.roomId);
+    if (room && input.capacity > room.capacity)
+      throw new DomainError("GROUP_EXCEEDS_ROOM_CAPACITY", "A capacidade da turma excede a capacidade da sala.", 409);
+    const activeCount = this.groupEnrollments.filter((item) => item.groupId === groupId && item.status === "active").length;
+    if (input.capacity < activeCount)
+      throw new DomainError("GROUP_BELOW_ENROLLMENTS", "A capacidade não pode ser menor que o número de matrículas ativas.", 409);
+    group.capacity = input.capacity;
+    group.weeklySlots = input.weeklySlots;
+    const waitlist = this.groupEnrollments
+      .filter((item) => item.groupId === groupId && item.status === "waitlisted")
+      .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0));
+    for (let index = 0; index < Math.min(input.capacity - activeCount, waitlist.length); index += 1) {
+      waitlist[index]!.status = "active";
+      delete waitlist[index]!.queuePosition;
+      waitlist[index]!.updatedAt = now();
+    }
+    waitlist.filter((item) => item.status === "waitlisted").forEach((item, index) => { item.queuePosition = index + 1; });
+    this.refreshGroupCounts(group);
     return group;
   }
 
@@ -1197,7 +1256,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!group || !patient)
       throw new DomainError(
         "GROUP_OR_PATIENT_NOT_FOUND",
-        "Turma ou paciente ativo nÃ£o encontrado.",
+        "Turma ou paciente ativo não encontrado.",
         404,
       );
     if (
@@ -1211,7 +1270,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "GROUP_ENROLLMENT_EXISTS",
-        "O paciente jÃ¡ estÃ¡ matriculado ou na lista de espera.",
+        "O paciente já está matriculado ou na lista de espera.",
         409,
       );
     const activeCount = this.groupEnrollments.filter(
@@ -1294,21 +1353,22 @@ export class MemoryClinicRepository implements ClinicRepository {
         item.clinicId === clinicId && item.id === input.groupId && item.active,
     );
     if (!group)
-      throw new DomainError("GROUP_NOT_FOUND", "Turma nÃ£o encontrada.", 404);
+      throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
     const service = this.services.find((item) => item.id === group.serviceId)!;
+    const durationMs = input.endsAt
+      ? new Date(input.endsAt).getTime() - new Date(input.startsAt).getTime()
+      : service.durationMinutes * 60_000;
     const created: GroupSession[] = [];
     for (let index = 0; index < input.occurrences; index += 1) {
       const startsAt = new Date(input.startsAt);
       startsAt.setUTCDate(
         startsAt.getUTCDate() + index * input.intervalWeeks * 7,
       );
-      const endsAt = new Date(
-        startsAt.getTime() + service.durationMinutes * 60_000,
-      );
+      const endsAt = new Date(startsAt.getTime() + durationMs);
       if (this.hasGroupScheduleConflict(clinicId, group, startsAt, endsAt))
         throw new DomainError(
           "GROUP_SESSION_CONFLICT",
-          `Conflito de agenda na ocorrÃªncia ${index + 1}.`,
+          `Conflito de agenda na ocorrência ${index + 1}.`,
           409,
         );
       created.push({
@@ -1348,7 +1408,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!session || session.status === "cancelled" || !enrollment)
       throw new DomainError(
         "GROUP_ATTENDANCE_NOT_ALLOWED",
-        "SessÃ£o ou matrÃ­cula ativa nÃ£o encontrada.",
+        "Sessão ou matrícula ativa não encontrada.",
         404,
       );
     let attendance = this.groupAttendance.find(
@@ -1361,7 +1421,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (credit?.status === "used" && input.status !== "excused_absence")
       throw new DomainError(
         "REPLACEMENT_ALREADY_USED",
-        "A reposiÃ§Ã£o desta falta jÃ¡ foi utilizada.",
+        "A reposição desta falta já foi utilizada.",
         409,
       );
     if (attendance) {
@@ -1436,7 +1496,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "REPLACEMENT_NOT_AVAILABLE",
-        "CrÃ©dito ou sessÃ£o de reposiÃ§Ã£o indisponÃ­vel.",
+        "Crédito ou sessão de reposição indisponível.",
         409,
       );
     if (
@@ -1447,7 +1507,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "REPLACEMENT_DUPLICATE_ATTENDANCE",
-        "O paciente jÃ¡ possui presenÃ§a registrada nesta sessÃ£o.",
+        "O paciente já possui presença registrada nesta sessão.",
         409,
       );
     const regularSeats = this.groupEnrollments.filter(
@@ -1465,7 +1525,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patientIsRegular && regularSeats + replacementSeats >= group.capacity)
       throw new DomainError(
         "GROUP_SESSION_FULL",
-        "A sessÃ£o estÃ¡ lotada.",
+        "A sessão está lotada.",
         409,
       );
     const attendance: GroupAttendance = {
@@ -1519,7 +1579,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "PRODUCT_SKU_EXISTS",
-        "JÃ¡ existe um produto com este SKU.",
+        "Já existe um produto com este SKU.",
         409,
       );
     const timestamp = now();
@@ -1560,7 +1620,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!product)
       throw new DomainError(
         "PRODUCT_NOT_FOUND",
-        "Produto nÃ£o encontrado.",
+        "Produto não encontrado.",
         404,
       );
     const quantity = ["adjustment_out", "loss"].includes(input.kind)
@@ -1569,7 +1629,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (product.currentStock + quantity < 0)
       throw new DomainError(
         "INSUFFICIENT_STOCK",
-        "O estoque disponÃ­vel Ã© insuficiente.",
+        "O estoque disponível é insuficiente.",
         409,
       );
     product.currentStock += quantity;
@@ -1592,7 +1652,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente nÃ£o encontrado.",
+        "Paciente não encontrado.",
         404,
       );
     const tab: PatientTab = {
@@ -1635,13 +1695,13 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!product)
       throw new DomainError(
         "PRODUCT_NOT_FOUND",
-        "Produto nÃ£o encontrado.",
+        "Produto não encontrado.",
         404,
       );
     if (product.currentStock < input.quantity)
       throw new DomainError(
         "INSUFFICIENT_STOCK",
-        "O estoque disponÃ­vel Ã© insuficiente.",
+        "O estoque disponível é insuficiente.",
         409,
       );
     const existing = tab.items.find((item) => item.productId === product.id);
@@ -1740,7 +1800,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (tab.status === "cancelled")
       throw new DomainError(
         "PATIENT_TAB_ALREADY_CANCELLED",
-        "A comanda jÃ¡ foi cancelada.",
+        "A comanda já foi cancelada.",
         409,
       );
     for (const item of tab.items) {

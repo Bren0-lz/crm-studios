@@ -46,6 +46,7 @@ import type {
   GroupAttendanceInput,
   GroupClass,
   GroupClassInput,
+  GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
@@ -210,6 +211,11 @@ export interface ClinicRepository {
     clinicId: string,
     input: GroupClassInput,
   ): Promise<GroupClass>;
+  updateGroupClass(
+    clinicId: string,
+    groupId: string,
+    input: GroupClassUpdateInput,
+  ): Promise<GroupClass | null>;
   createGroupEnrollment(
     clinicId: string,
     input: GroupEnrollmentInput,

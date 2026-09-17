@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   appointmentInputSchema,
   clinicalRecordInputSchema,
+  describeGroupSchedule,
+  groupClassName,
+  groupClassInputSchema,
+  groupClassUpdateSchema,
+  groupLetter,
   groupSessionSeriesInputSchema,
   leadMoveSchema,
   patientPlanInputSchema,
@@ -10,6 +15,49 @@ import {
 } from "./index.js";
 
 describe("shared contracts", () => {
+  it("names groups with a per-service letter", () => {
+    expect(groupLetter(1)).toBe("A");
+    expect(groupLetter(26)).toBe("Z");
+    expect(groupLetter(27)).toBe("AA");
+    expect(groupClassName("Pilates", 2)).toBe("Pilates · Turma B");
+  });
+
+  it("describes group schedules by weekdays and period", () => {
+    expect(describeGroupSchedule([])).toBe("Horários ainda não definidos");
+    expect(describeGroupSchedule([
+      { weekday: 4, startTime: "09:00" },
+      { weekday: 2, startTime: "08:00" },
+    ])).toBe("Turma de terça e quinta da manhã");
+    expect(describeGroupSchedule([
+      { weekday: 0, startTime: "10:00" },
+      { weekday: 1, startTime: "07:30" },
+      { weekday: 3, startTime: "11:59" },
+    ])).toBe("Turma de segunda, quarta e domingo da manhã");
+    expect(describeGroupSchedule([
+      { weekday: 5, startTime: "19:00" },
+      { weekday: 1, startTime: "08:00" },
+      { weekday: 3, startTime: "08:00" },
+      { weekday: 6, startTime: "12:00" },
+    ])).toBe("Turma de segunda e quarta da manhã, sábado da tarde e sexta da noite");
+  });
+
+  it("requires distinct weekly hours for a group", () => {
+    const input = {
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      professionalId: "33333333-3333-4333-8333-333333333333",
+      roomId: "55555555-5555-4555-8555-555555555555",
+      capacity: 8,
+      weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
+    };
+    expect(groupClassInputSchema.parse(input).weeklySlots).toEqual(input.weeklySlots);
+    expect(() => groupClassInputSchema.parse({ ...input, weeklySlots: [] })).toThrow();
+    expect(() => groupClassUpdateSchema.parse({ capacity: 8, weeklySlots: [...input.weeklySlots, ...input.weeklySlots] })).toThrow();
+    expect(() => groupClassUpdateSchema.parse({ capacity: 8, weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "18:00" }] })).toThrow();
+    expect(() => groupClassUpdateSchema.parse({ capacity: 8, weeklySlots: [{ weekday: 2, startTime: "18:00" }] })).toThrow();
+    expect(() => groupClassUpdateSchema.parse({ capacity: 8, weeklySlots: [...input.weeklySlots, { weekday: 2, startTime: "18:30", endTime: "19:30" }] })).toThrow();
+    expect(groupClassUpdateSchema.parse({ capacity: 8, weeklySlots: [...input.weeklySlots, { weekday: 2, startTime: "19:00", endTime: "20:00" }] }).weeklySlots).toHaveLength(2);
+  });
+
   it("normalizes a valid patient", () => {
     const result = patientInputSchema.parse({
       fullName: "  Maria da Silva  ",
@@ -89,6 +137,12 @@ describe("shared contracts", () => {
     expect(() =>
       groupSessionSeriesInputSchema.parse({ ...base, occurrences: 53 }),
     ).toThrow();
+    expect(() =>
+      groupSessionSeriesInputSchema.parse({ ...base, endsAt: "2026-09-12T09:30:00-03:00" }),
+    ).toThrow();
+    expect(
+      groupSessionSeriesInputSchema.parse({ ...base, endsAt: "2026-09-12T11:30:00-03:00" }).endsAt,
+    ).toBe("2026-09-12T11:30:00-03:00");
   });
 
   it("requires a payment method for immediately paid tabs", () => {

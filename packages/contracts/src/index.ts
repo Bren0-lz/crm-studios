@@ -143,20 +143,81 @@ export const scheduleBlockInputSchema = z
   );
 export type ScheduleBlockInput = z.infer<typeof scheduleBlockInputSchema>;
 
+const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+export const groupWeeklySlotsSchema = z.array(z.object({
+  weekday: z.number().int().min(0).max(6),
+  startTime: clockTimeSchema,
+  endTime: clockTimeSchema,
+}).refine((slot) => slot.endTime > slot.startTime, {
+  message: "O término deve ser posterior ao início.",
+  path: ["endTime"],
+})).max(14).refine(
+  (slots) => slots.every((slot, index) => slots.every((other, otherIndex) =>
+    otherIndex === index || other.weekday !== slot.weekday ||
+    other.startTime >= slot.endTime || other.endTime <= slot.startTime)),
+  "Os horários de um mesmo dia não podem se sobrepor.",
+);
+export type GroupWeeklySlot = z.infer<typeof groupWeeklySlotsSchema>[number];
+
+export function groupLetter(sequence: number): string {
+  let letters = "";
+  for (let rest = sequence; rest > 0; rest = Math.floor((rest - 1) / 26)) {
+    letters = String.fromCharCode(65 + ((rest - 1) % 26)) + letters;
+  }
+  return letters;
+}
+
+export function groupClassName(serviceName: string, sequence: number): string {
+  return `${serviceName} · Turma ${groupLetter(sequence)}`;
+}
+
+const scheduleWeekdayNames = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const schedulePeriods = [
+  { label: "da manhã", until: "12:00" },
+  { label: "da tarde", until: "18:00" },
+  { label: "da noite", until: "24:00" },
+];
+
+function joinWithAnd(items: string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} e ${items.at(-1)}`;
+}
+
+export function describeGroupSchedule(slots: readonly Pick<GroupWeeklySlot, "weekday" | "startTime">[]): string {
+  if (slots.length === 0) return "Horários ainda não definidos";
+  const weekOrder = (weekday: number) => (weekday + 6) % 7;
+  const parts = schedulePeriods.flatMap((period, index) => {
+    const from = schedulePeriods[index - 1]?.until ?? "00:00";
+    const days = [...new Set(
+      slots.filter((slot) => slot.startTime >= from && slot.startTime < period.until).map((slot) => slot.weekday),
+    )].sort((a, b) => weekOrder(a) - weekOrder(b));
+    return days.length ? [`${joinWithAnd(days.map((day) => scheduleWeekdayNames[day]!))} ${period.label}`] : [];
+  });
+  return `Turma de ${joinWithAnd(parts)}`;
+}
+
 export const groupClassInputSchema = z.object({
-  name: z.string().trim().min(3).max(120),
   serviceId: z.uuid(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
   capacity: z.number().int().min(1).max(100),
+  weeklySlots: groupWeeklySlotsSchema.min(1),
 });
 export type GroupClassInput = z.infer<typeof groupClassInputSchema>;
+export const groupClassUpdateSchema = z.object({
+  capacity: z.number().int().min(1).max(100),
+  weeklySlots: groupWeeklySlotsSchema.min(1),
+});
+export type GroupClassUpdateInput = z.infer<typeof groupClassUpdateSchema>;
 export const groupSessionSeriesInputSchema = z.object({
   groupId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }).optional(),
   occurrences: z.number().int().min(1).max(52),
   intervalWeeks: z.number().int().min(1).max(4).default(1),
-});
+}).refine(
+  (input) => !input.endsAt || new Date(input.endsAt) > new Date(input.startsAt),
+  { message: "O término deve ser posterior ao início.", path: ["endsAt"] },
+);
 export type GroupSessionSeriesInput = z.infer<
   typeof groupSessionSeriesInputSchema
 >;
@@ -718,6 +779,8 @@ export interface ScheduleBlock extends ScheduleBlockInput {
 export interface GroupClass extends GroupClassInput {
   id: string;
   clinicId: string;
+  name: string;
+  sequence: number;
   serviceName: string;
   professionalName: string;
   roomName: string;

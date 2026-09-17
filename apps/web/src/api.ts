@@ -46,6 +46,7 @@ import type {
   GroupAttendanceInput,
   GroupClass,
   GroupClassInput,
+  GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
   GroupSession,
@@ -277,6 +278,11 @@ export const api = {
   createGroupClass: (input: GroupClassInput) =>
     request<GroupClass>("/groups", {
       method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateGroupClass: (id: string, input: GroupClassUpdateInput) =>
+    request<GroupClass>(`/groups/${id}`, {
+      method: "PUT",
       body: JSON.stringify(input),
     }),
   createGroupEnrollment: (input: GroupEnrollmentInput) =>

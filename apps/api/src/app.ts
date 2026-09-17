@@ -25,6 +25,7 @@ import {
   financialCategoryInputSchema,
   groupAttendanceInputSchema,
   groupClassInputSchema,
+  groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   groupSessionSeriesInputSchema,
   leadInputSchema,
@@ -142,7 +143,7 @@ function reportToCsv(report: ManagementReport) {
     ],
     [
       "dre",
-      "receita de serviÃ§os",
+      "receita de serviços",
       "",
       "",
       "",
@@ -178,7 +179,7 @@ function reportToCsv(report: ManagementReport) {
     ],
     [
       "dre",
-      "comissÃµes",
+      "comissões",
       "",
       "",
       "",
@@ -187,7 +188,7 @@ function reportToCsv(report: ManagementReport) {
     ],
     [
       "dre",
-      "resultado lÃ­quido",
+      "resultado líquido",
       "",
       "",
       "",
@@ -231,7 +232,7 @@ function reportToCsv(report: ManagementReport) {
       "",
     ]),
     ...report.profitability.byService.map((item) => [
-      "rentabilidade por serviÃ§o",
+      "rentabilidade por serviço",
       item.name,
       item.completedAppointments,
       "",
@@ -263,8 +264,16 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     { failures: number; blockedUntil?: number }
   >();
 
+  const webOrigins = new Set([config.WEB_ORIGIN]);
+  if (config.NODE_ENV !== "production") {
+    const localOrigin = new URL(config.WEB_ORIGIN);
+    if (localOrigin.hostname === "localhost" || localOrigin.hostname === "127.0.0.1") {
+      localOrigin.hostname = localOrigin.hostname === "localhost" ? "127.0.0.1" : "localhost";
+      webOrigins.add(localOrigin.origin);
+    }
+  }
   await app.register(cors, {
-    origin: config.WEB_ORIGIN,
+    origin: (origin, callback) => callback(null, !origin || webOrigins.has(origin)),
     // O @fastify/cors 11 libera só GET, HEAD e POST por padrão; sem isto o navegador
     // bloqueia PUT/PATCH/DELETE com "Failed to fetch".
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
@@ -335,7 +344,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     ) {
       return reply.status(403).send({
         code: "GROUP_ACCESS_DENIED",
-        message: "Seu perfil nÃ£o possui acesso Ã  operaÃ§Ã£o de turmas.",
+        message: "Seu perfil não possui acesso à operação de turmas.",
       } satisfies ApiError);
     }
   }
@@ -783,7 +792,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!query.from || !query.to)
         throw new DomainError(
           "DATE_RANGE_REQUIRED",
-          "Informe o perÃ­odo das turmas.",
+          "Informe o período das turmas.",
         );
       return repository.getGroupWorkspace(
         request.user.clinicId,
@@ -804,6 +813,20 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
             groupClassInputSchema.parse(request.body),
           ),
         ),
+  );
+  app.put(
+    "/groups/:id",
+    { preHandler: [authenticate, requireGroupAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const group = await repository.updateGroupClass(
+        request.user.clinicId,
+        id,
+        groupClassUpdateSchema.parse(request.body),
+      );
+      if (!group) return reply.status(404).send({ code: "GROUP_NOT_FOUND", message: "Turma não encontrada." });
+      return group;
+    },
   );
   app.post(
     "/group-enrollments",
@@ -830,7 +853,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!enrollment)
         return reply.status(404).send({
           code: "GROUP_ENROLLMENT_NOT_FOUND",
-          message: "MatrÃ­cula nÃ£o encontrada.",
+          message: "Matrícula não encontrada.",
         });
       return enrollment;
     },
@@ -877,7 +900,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!session)
         return reply.status(404).send({
           code: "GROUP_SESSION_NOT_FOUND",
-          message: "SessÃ£o nÃ£o encontrada.",
+          message: "Sessão não encontrada.",
         });
       return session;
     },
@@ -954,7 +977,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!tab)
         return reply.status(404).send({
           code: "PATIENT_TAB_NOT_FOUND",
-          message: "Comanda nÃ£o encontrada.",
+          message: "Comanda não encontrada.",
         });
       return tab;
     },
@@ -973,7 +996,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!tab)
         return reply.status(404).send({
           code: "PATIENT_TAB_NOT_FOUND",
-          message: "Comanda nÃ£o encontrada.",
+          message: "Comanda não encontrada.",
         });
       return tab;
     },
@@ -991,7 +1014,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!tab)
         return reply.status(404).send({
           code: "PATIENT_TAB_NOT_FOUND",
-          message: "Comanda nÃ£o encontrada.",
+          message: "Comanda não encontrada.",
         });
       return tab;
     },

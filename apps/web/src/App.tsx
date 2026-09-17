@@ -61,6 +61,7 @@ import type {
   DocumentTemplate,
   DocumentTemplateInput,
   FinancialWorkspace,
+  GroupClass,
   GroupWorkspace,
   InventoryWorkspace,
   IssuedDocument,
@@ -89,6 +90,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
+import { describeGroupSchedule, groupClassName } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -115,12 +117,27 @@ const timeLabel = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const tabStatusNames = {
+  open: "Aberta",
+  closed: "Fechada",
+  cancelled: "Cancelada",
+};
+const groupSessionStatusNames = {
+  scheduled: "Agendado",
+  completed: "Concluído",
+  cancelled: "Cancelado",
+};
 
 function localIsoDate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatIsoDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
 }
 
 function toLocalDateTimeInput(date: Date) {
@@ -135,6 +152,22 @@ function groupOperationRange() {
   const to = new Date();
   to.setDate(to.getDate() + 120);
   return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function groupSlotLabel(slot: GroupClass["weeklySlots"][number], weekDayNames: string[]) {
+  return `${weekDayNames[slot.weekday]} · ${slot.startTime}–${slot.endTime}`;
+}
+
+function groupSlotEndsAt(startsAt: string, slot: GroupClass["weeklySlots"][number]) {
+  return new Date(`${startsAt.slice(0, 10)}T${slot.endTime}`).toISOString();
+}
+
+function nextGroupSlotStart(slot: GroupClass["weeklySlots"][number]) {
+  const date = new Date();
+  const [hours, minutes] = slot.startTime.split(":").map(Number);
+  date.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+  while (date.getDay() !== slot.weekday || date <= new Date()) date.setDate(date.getDate() + 1);
+  return toLocalDateTimeInput(date);
 }
 
 function initials(name: string) {
@@ -478,6 +511,7 @@ function DashboardPage() {
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [error, setError] = useState("");
   const today = localIsoDate();
+  const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = ["owner", "finance"].includes(
     getStoredUser()?.role ?? "",
   );
@@ -501,7 +535,7 @@ function DashboardPage() {
     <>
       <PageHeader
         eyebrow="Hoje na clínica"
-        title="Bom dia, Mariana."
+        title={firstName ? `Olá, ${firstName}.` : "Olá."}
         description={dateLabel.format(new Date())}
         action={
           <NavLink to="/agenda" className="primary-button">
@@ -558,6 +592,9 @@ function DashboardPage() {
                   Ver detalhes <ChevronRight size={16} />
                 </NavLink>
               </div>
+              <p className="dashboard-sales-context">
+                {sales.current.attendedPatients} pacientes atendidos neste mês.
+              </p>
               <div className="sales-metrics">
                 <article>
                   <span>Vendido líquido</span>
@@ -576,11 +613,6 @@ function DashboardPage() {
                     {currency.format(sales.current.receivedInCents / 100)}
                   </strong>
                   <small>Pela data da baixa</small>
-                </article>
-                <article>
-                  <span>Pacientes atendidos</span>
-                  <strong>{sales.current.attendedPatients}</strong>
-                  <small>Com atendimento concluído</small>
                 </article>
                 <article>
                   <span>Sem retorno neste mês</span>
@@ -1707,6 +1739,7 @@ function SalesInsights() {
               max={localIsoDate().slice(0, 7)}
               onChange={(event) => {
                 setLoading(true);
+                setReport(null);
                 setError("");
                 setMonth(event.target.value);
               }}
@@ -1723,52 +1756,50 @@ function SalesInsights() {
         </div>
       </div>
       {error && <ErrorBanner error={error} />}
-      {loading || !report ? (
+      {loading ? (
         <LoadingBlock />
-      ) : (
+      ) : report ? (
         <>
           <p className="sales-period">
-            {report.current.from} a {report.current.to} comparado com{" "}
-            {report.previousComparable.from} a {report.previousComparable.to}.
+            {formatIsoDate(report.current.from)} a {formatIsoDate(report.current.to)}
+            {" · "}Comparado com {formatIsoDate(report.previousComparable.from)}
+            {" "}a {formatIsoDate(report.previousComparable.to)}.
+            {" "}{report.current.attendedPatients} pacientes atendidos neste mês.
           </p>
           <div className="sales-metrics">
             <article>
-              <span>Vendas líquidas</span>
+              <span>Vendido no mês</span>
               <strong>
                 {currency.format(report.current.netSalesInCents / 100)}
               </strong>
               <small>
                 {report.changePercent === null
                   ? "Sem vendas no período anterior"
-                  : `${report.changePercent > 0 ? "+" : ""}${report.changePercent}% · ${currency.format(report.changeInCents / 100)} de diferença`}
+                  : `${report.changePercent > 0 ? "+" : ""}${report.changePercent}% frente ao mês anterior`}
               </small>
-            </article>
-            <article>
-              <span>Vendas brutas</span>
-              <strong>
-                {currency.format(report.current.grossSalesInCents / 100)}
-              </strong>
               <small>
-                {currency.format(report.current.cancelledSalesInCents / 100)} em
-                cancelamentos
+                Antes dos cancelamentos: {currency.format(report.current.grossSalesInCents / 100)}
+                {" · "}Cancelado: {currency.format(report.current.cancelledSalesInCents / 100)}
               </small>
             </article>
             <article>
-              <span>Recebido</span>
+              <span>Dinheiro recebido</span>
               <strong>
                 {currency.format(report.current.receivedInCents / 100)}
               </strong>
-              <small>Pagamentos baixados no período</small>
+              <small>Pagamentos registrados, após estornos</small>
             </article>
             <article>
-              <span>Sem retorno</span>
+              <span>Pacientes sem retorno</span>
               <strong>{report.patientsWithoutReturn.length}</strong>
               <small>
-                Atendidos no mês anterior, sem atendimento concluído neste
+                Atendidos no mês anterior, sem consulta concluída neste mês
               </small>
             </article>
           </div>
-          <div className="sales-detail-grid">
+          <details className="report-disclosure sales-details">
+            <summary>Ver vendas e pacientes do mês</summary>
+            <div className="sales-detail-grid">
             <div>
               <h3>Movimentos deste mês</h3>
               {currentMovements.length === 0 ? (
@@ -1815,15 +1846,14 @@ function SalesInsights() {
                 </div>
               )}
             </div>
-          </div>
-          <p className="report-definition">
-            Venda = plano criado ou comanda fechada. Cancelamento entra na data
-            do movimento: parcelas abertas do plano ou valor da comanda.
-            Recebido = pagamentos menos estornos. A planilha contém todos os
-            movimentos dos dois meses exibidos.
+            </div>
+          </details>
+          <p className="sales-help">
+            A planilha traz cada venda, pagamento e paciente sem retorno dos
+            dois períodos comparados.
           </p>
         </>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -1841,6 +1871,7 @@ function ReportsPage() {
 
   async function load(from = filter.from, to = filter.to) {
     setLoading(true);
+    setReport(null);
     setError("");
     try {
       setReport(await api.managementReport(from, to));
@@ -1888,18 +1919,15 @@ function ReportsPage() {
       <PageHeader
         eyebrow="Gestão por evidências"
         title="Relatórios gerenciais"
-        description="Acompanhe operação, carteira e conversão com filtros reproduzíveis."
-        action={
-          <button
-            className="secondary-button"
-            disabled={!report || exporting}
-            onClick={() => void exportCsv()}
-          >
-            {exporting ? "Exportando…" : "Exportar CSV"}
-          </button>
-        }
+        description="Veja o resultado do mês e encontre quem precisa de acompanhamento."
       />
       <SalesInsights />
+      <details className="report-disclosure report-advanced">
+        <summary>Ver outros indicadores da clínica</summary>
+        <p>
+          Atendimentos, planos, caixa, estoque e resultados por serviço.
+          Escolha um período para analisar esses dados.
+        </p>
       <section className="report-filter">
         <label>
           De
@@ -1930,11 +1958,18 @@ function ReportsPage() {
         >
           Atualizar
         </button>
+        <button
+          className="secondary-button"
+          disabled={!report || exporting}
+          onClick={() => void exportCsv()}
+        >
+          {exporting ? "Exportando…" : "Exportar CSV"}
+        </button>
       </section>
       {error && <ErrorBanner error={error} />}
-      {loading || !report ? (
+      {loading ? (
         <LoadingBlock />
-      ) : (
+      ) : report ? (
         <>
           <section className="report-metrics">
             <article>
@@ -1986,34 +2021,34 @@ function ReportsPage() {
                 </strong>
               </div>
               <div className="dre-lines">
-                <div><span>Receita de serviÃ§os</span><strong>{currency.format(report.profitability.dre.serviceRevenueInCents / 100)}</strong></div>
+                <div><span>Receita de serviços</span><strong>{currency.format(report.profitability.dre.serviceRevenueInCents / 100)}</strong></div>
                 <div><span>Receita de produtos</span><strong>{currency.format(report.profitability.dre.productRevenueInCents / 100)}</strong></div>
                 <div className="dre-total"><span>Receita bruta</span><strong>{currency.format(report.profitability.dre.grossRevenueInCents / 100)}</strong></div>
-                <div><span>(âˆ’) Custo dos produtos</span><strong>{currency.format(report.profitability.dre.productCostInCents / 100)}</strong></div>
-                <div><span>(âˆ’) Despesas operacionais</span><strong>{currency.format(report.profitability.dre.operatingExpensesInCents / 100)}</strong></div>
-                <div><span>(âˆ’) ComissÃµes</span><strong>{currency.format(report.profitability.dre.commissionsInCents / 100)}</strong></div>
-                <div className="dre-total"><span>Resultado lÃ­quido</span><strong>{currency.format(report.profitability.dre.netResultInCents / 100)} Â· {report.profitability.dre.netMargin}%</strong></div>
+                <div><span>(−) Custo dos produtos</span><strong>{currency.format(report.profitability.dre.productCostInCents / 100)}</strong></div>
+                <div><span>(−) Despesas operacionais</span><strong>{currency.format(report.profitability.dre.operatingExpensesInCents / 100)}</strong></div>
+                <div><span>(−) Comissões</span><strong>{currency.format(report.profitability.dre.commissionsInCents / 100)}</strong></div>
+                <div className="dre-total"><span>Resultado líquido</span><strong>{currency.format(report.profitability.dre.netResultInCents / 100)} · {report.profitability.dre.netMargin}%</strong></div>
               </div>
             </div>
             <div className="panel operation-card">
-              <div className="panel-head"><div><span className="eyebrow">EficiÃªncia</span><h2>Indicadores operacionais</h2></div></div>
+              <div className="panel-head"><div><span className="eyebrow">Eficiência</span><h2>Indicadores operacionais</h2></div></div>
               <div className="operation-metrics">
-                <article><strong>{report.profitability.operational.groupOccupancyRate}%</strong><span>OcupaÃ§Ã£o das turmas</span><small>{report.profitability.operational.activeGroupSeats}/{report.profitability.operational.totalGroupCapacity} vagas</small></article>
+                <article><strong>{report.profitability.operational.groupOccupancyRate}%</strong><span>Ocupação das turmas</span><small>{report.profitability.operational.activeGroupSeats}/{report.profitability.operational.totalGroupCapacity} vagas</small></article>
                 <article><strong>{report.profitability.operational.waitlistCount}</strong><span>Em lista de espera</span></article>
                 <article><strong>{report.profitability.operational.lowStockCount}</strong><span>Produtos com estoque baixo</span></article>
                 <article><strong>{report.profitability.operational.productUnitsSold}</strong><span>Unidades vendidas</span></article>
-                <article><strong>{currency.format(report.profitability.operational.averageReceiptInCents / 100)}</strong><span>Ticket mÃ©dio recebido</span></article>
+                <article><strong>{currency.format(report.profitability.operational.averageReceiptInCents / 100)}</strong><span>Ticket médio recebido</span></article>
               </div>
             </div>
           </section>
           <section className="profit-grid">
             <div className="panel profit-table">
-              <div className="panel-head"><div><span className="eyebrow">Margem</span><h2>Rentabilidade por serviÃ§o</h2></div></div>
-              {report.profitability.byService.length === 0 ? <EmptyState title="Sem dados" copy="NÃ£o houve produÃ§Ã£o ou recebimento de serviÃ§os no perÃ­odo." /> : <div className="profit-rows">{report.profitability.byService.map((item)=><div key={item.id}><span><strong>{item.name}</strong><small>{item.completedAppointments} atendimentos concluÃ­dos</small></span><span>{currency.format(item.revenueInCents/100)} receita</span><span>{currency.format(item.commissionsInCents/100)} comissÃµes</span><b>{currency.format(item.contributionInCents/100)} Â· {item.contributionMargin}%</b></div>)}</div>}
+              <div className="panel-head"><div><span className="eyebrow">Margem</span><h2>Rentabilidade por serviço</h2></div></div>
+              {report.profitability.byService.length === 0 ? <EmptyState title="Sem dados" copy="Não houve produção ou recebimento de serviços no período." /> : <div className="profit-rows">{report.profitability.byService.map((item)=><div key={item.id}><span><strong>{item.name}</strong><small>{item.completedAppointments} atendimentos concluídos</small></span><span>{currency.format(item.revenueInCents/100)} receita</span><span>{currency.format(item.commissionsInCents/100)} comissões</span><b>{currency.format(item.contributionInCents/100)} · {item.contributionMargin}%</b></div>)}</div>}
             </div>
             <div className="panel profit-table">
               <div className="panel-head"><div><span className="eyebrow">Produtos</span><h2>Rentabilidade por produto</h2></div></div>
-              {report.profitability.byProduct.length === 0 ? <EmptyState title="Sem vendas" copy="Nenhuma venda de produto foi recebida no perÃ­odo." /> : <div className="profit-rows">{report.profitability.byProduct.map((item)=><div key={item.id}><span><strong>{item.name}</strong><small>{item.unitsSold} unidades</small></span><span>{currency.format(item.revenueInCents/100)} receita</span><span>{currency.format(item.costInCents/100)} custo</span><b>{currency.format(item.grossProfitInCents/100)} Â· {item.grossMargin}%</b></div>)}</div>}
+              {report.profitability.byProduct.length === 0 ? <EmptyState title="Sem vendas" copy="Nenhuma venda de produto foi recebida no período." /> : <div className="profit-rows">{report.profitability.byProduct.map((item)=><div key={item.id}><span><strong>{item.name}</strong><small>{item.unitsSold} unidades</small></span><span>{currency.format(item.revenueInCents/100)} receita</span><span>{currency.format(item.costInCents/100)} custo</span><b>{currency.format(item.grossProfitInCents/100)} · {item.grossMargin}%</b></div>)}</div>}
             </div>
           </section>
           <div className="report-grid">
@@ -2058,7 +2093,8 @@ function ReportsPage() {
             Conversão = ganhos atuais ÷ leads criados no período selecionado.
           </p>
         </>
-      )}
+      ) : null}
+      </details>
     </>
   );
 }
@@ -5524,7 +5560,7 @@ function ClinicalHistoryModal({
 
 function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState<"day" | "week">("day");
+  const [view, setView] = useState<"day" | "week" | "month">("day");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -5537,14 +5573,27 @@ function AgendaPage() {
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
   const [historyAppointment, setHistoryAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const selectedAppointment = appointments.find((item) => item.id === selectedAppointmentId);
   const date = localIsoDate(selectedDate);
   const weekStart = new Date(selectedDate);
   weekStart.setHours(12, 0, 0, 0);
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  const rangeStart = view === "day" ? new Date(selectedDate) : weekStart;
+  const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12);
+  const monthGridStart = new Date(monthStart);
+  monthGridStart.setDate(monthGridStart.getDate() - ((monthGridStart.getDay() + 6) % 7));
+  const monthGridLength = Math.ceil(
+    (((monthStart.getDay() + 6) % 7) + new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate()) / 7,
+  ) * 7;
+  const monthDays = Array.from({ length: monthGridLength }, (_, index) => {
+    const item = new Date(monthGridStart);
+    item.setDate(item.getDate() + index);
+    return item;
+  });
+  const rangeStart = view === "day" ? new Date(selectedDate) : view === "week" ? weekStart : monthGridStart;
   rangeStart.setHours(0, 0, 0, 0);
   const rangeEnd = new Date(rangeStart);
-  rangeEnd.setDate(rangeEnd.getDate() + (view === "day" ? 1 : 7));
+  rangeEnd.setDate(rangeEnd.getDate() + (view === "day" ? 1 : view === "week" ? 7 : monthGridLength));
   const rangeFrom = rangeStart.toISOString();
   const rangeTo = rangeEnd.toISOString();
   const weekDays = Array.from({ length: 7 }, (_, index) => {
@@ -5596,7 +5645,14 @@ function AgendaPage() {
     setError("");
     setSelectedDate((current) => {
       const next = new Date(current);
-      next.setDate(current.getDate() + amount * (view === "week" ? 7 : 1));
+      if (view === "month") {
+        const day = current.getDate();
+        next.setDate(1);
+        next.setMonth(current.getMonth() + amount);
+        next.setDate(Math.min(day, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()));
+      } else {
+        next.setDate(current.getDate() + amount * (view === "week" ? 7 : 1));
+      }
       return next;
     });
   }
@@ -5629,23 +5685,25 @@ function AgendaPage() {
       <section className="panel agenda-panel">
         <div className="agenda-toolbar">
           <div className="date-navigator">
-            <button className="icon-button" onClick={() => moveDay(-1)}>
+            <button className="icon-button" onClick={() => moveDay(-1)} aria-label={view === "month" ? "Mês anterior" : view === "week" ? "Semana anterior" : "Dia anterior"}>
               <ChevronLeft size={19} />
             </button>
             <button
               className="date-button"
               onClick={() => setSelectedDate(new Date())}
             >
-              <strong>{dateLabel.format(selectedDate)}</strong>
+              <strong>{view === "month" ? selectedDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : dateLabel.format(selectedDate)}</strong>
               <small>
-                {view === "week"
+                {view === "month"
+                  ? "Voltar para hoje"
+                  : view === "week"
                   ? `${shortDate.format(weekStart)} — ${shortDate.format(weekDays[6]!)}`
                   : date === localIsoDate()
                     ? "Hoje"
                     : shortDate.format(selectedDate)}
               </small>
             </button>
-            <button className="icon-button" onClick={() => moveDay(1)}>
+            <button className="icon-button" onClick={() => moveDay(1)} aria-label={view === "month" ? "Próximo mês" : view === "week" ? "Próxima semana" : "Próximo dia"}>
               <ChevronRight size={19} />
             </button>
           </div>
@@ -5663,6 +5721,12 @@ function AgendaPage() {
               >
                 Semana
               </button>
+              <button
+                className={view === "month" ? "active" : ""}
+                onClick={() => setView("month")}
+              >
+                Mês
+              </button>
             </div>
             <div className="legend">
               {professionals.map((professional) => (
@@ -5676,6 +5740,45 @@ function AgendaPage() {
         </div>
         {loading ? (
           <LoadingBlock />
+        ) : view === "month" ? (
+          <div className="month-agenda">
+            <div className="month-weekdays" aria-hidden="true">
+              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((day) => <span key={day}>{day}</span>)}
+            </div>
+            <div className="month-grid">
+              {monthDays.map((day) => {
+                const dayKey = localIsoDate(day);
+                const dayAppointments = appointments.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
+                const dayBlocks = blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey && item.status === "active");
+                return (
+                  <div
+                    className={`month-day ${day.getMonth() !== selectedDate.getMonth() ? "outside" : ""} ${dayKey === localIsoDate() ? "today" : ""} ${dayKey === date ? "selected" : ""}`}
+                    key={dayKey}
+                  >
+                    <button
+                      type="button"
+                      className="month-day-head"
+                      onClick={() => { setSelectedDate(day); setView("day"); }}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayBlocks.length} bloqueios`}
+                    >
+                      <strong>{day.getDate()}</strong>
+                      {dayAppointments.length > 0 && <small>{dayAppointments.length} {dayAppointments.length === 1 ? "atendimento" : "atendimentos"}</small>}
+                    </button>
+                    <span className="month-day-events">
+                      {dayAppointments.slice(0, 2).map((appointment) => (
+                        <button type="button" className="month-event" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} aria-label={`Detalhes de ${appointment.patientName}, ${timeLabel.format(new Date(appointment.startsAt))} a ${timeLabel.format(new Date(appointment.endsAt))}`}>
+                          <span className="month-event-time"><i style={{ background: appointment.professionalColor }} aria-hidden="true" /><time>{timeLabel.format(new Date(appointment.startsAt))}–{timeLabel.format(new Date(appointment.endsAt))}</time></span>
+                          <span className="month-event-name">{appointment.patientName}</span>
+                        </button>
+                      ))}
+                      {dayAppointments.length > 2 && <span className="month-more">+{dayAppointments.length - 2} atendimentos</span>}
+                      {dayBlocks.length > 0 && <span className="month-block">{dayBlocks.length} {dayBlocks.length === 1 ? "bloqueio" : "bloqueios"}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : view === "week" ? (
           <div className="week-agenda">
             {weekDays.map((day) => {
@@ -5707,23 +5810,21 @@ function AgendaPage() {
                       <article
                         className="week-appointment"
                         key={appointment.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Detalhes de ${appointment.patientName}`}
+                        onClick={() => setSelectedAppointmentId(appointment.id)}
+                        onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedAppointmentId(appointment.id); } }}
                       >
-                        <time>
-                          {timeLabel.format(new Date(appointment.startsAt))}
-                        </time>
                         <i
                           style={{ background: appointment.professionalColor }}
+                          aria-hidden="true"
                         />
+                        <time>
+                          {timeLabel.format(new Date(appointment.startsAt))}–{timeLabel.format(new Date(appointment.endsAt))}
+                        </time>
                         <strong>{appointment.patientName}</strong>
                         <span>{appointment.serviceName}</span>
-                        {["scheduled", "confirmed"].includes(appointment.status) && (
-                          <button
-                            className="text-link"
-                            onClick={() => setRescheduling(appointment)}
-                          >
-                            Reagendar
-                          </button>
-                        )}
                       </article>
                     ))}
                     {dayAppointments.length === 0 && dayBlocks.length === 0 && (
@@ -5752,7 +5853,7 @@ function AgendaPage() {
               <AgendaCard
                 appointment={appointment}
                 key={appointment.id}
-                onReschedule={() => setRescheduling(appointment)}
+                onOpen={() => setSelectedAppointmentId(appointment.id)}
                 onHistory={() => setHistoryAppointment(appointment)}
                 onStatus={async (status) => {
                   try {
@@ -5830,6 +5931,19 @@ function AgendaPage() {
           }}
         />
       )}
+      {selectedAppointment && (
+        <AppointmentDetailsModal
+          appointment={selectedAppointment}
+          patient={patients.find((item) => item.id === selectedAppointment.patientId)}
+          service={services.find((item) => item.id === selectedAppointment.serviceId)}
+          onClose={() => setSelectedAppointmentId(null)}
+          onReschedule={() => { setSelectedAppointmentId(null); setRescheduling(selectedAppointment); }}
+          onCancelled={(updated) => {
+            setAppointments((items) => items.map((item) => item.id === updated.id ? updated : item));
+            setSelectedAppointmentId(null);
+          }}
+        />
+      )}
       {historyAppointment && (
         <AppointmentRescheduleHistoryModal
           appointment={historyAppointment}
@@ -5888,28 +6002,34 @@ function ScheduleBlockCard({
 
 function AgendaCard({
   appointment,
+  onOpen,
   onStatus,
-  onReschedule,
   onHistory,
 }: {
   appointment: Appointment;
+  onOpen: () => void;
   onStatus: (status: AppointmentStatus) => void;
-  onReschedule: () => void;
   onHistory: () => void;
 }) {
   return (
-    <article className="agenda-card">
+    <article
+      className="agenda-card"
+      role="button"
+      tabIndex={0}
+      aria-label={`Detalhes de ${appointment.patientName}`}
+      onClick={(event) => { if (!(event.target as HTMLElement).closest("button, select")) onOpen(); }}
+      onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onOpen(); } }}
+    >
       <div className="agenda-time">
         <strong>{timeLabel.format(new Date(appointment.startsAt))}</strong>
         <span>{timeLabel.format(new Date(appointment.endsAt))}</span>
       </div>
-      <span
-        className="agenda-stripe"
-        style={{ background: appointment.professionalColor }}
-      />
       <div className="agenda-main">
         <div>
-          <span className="service-name">{appointment.serviceName}</span>
+          <span className="service-name">
+            <i style={{ background: appointment.professionalColor }} aria-hidden="true" />
+            {appointment.serviceName}
+          </span>
           <h3>{appointment.patientName}</h3>
           <p>
             {appointment.professionalName} · {appointment.roomName}
@@ -5931,11 +6051,6 @@ function AgendaCard({
             <option value="professional_absence">Ausência profissional</option>
             <option value="cancelled">Cancelado</option>
           </select>
-          {["scheduled", "confirmed"].includes(appointment.status) && (
-            <button className="secondary-button" onClick={onReschedule}>
-              Reagendar
-            </button>
-          )}
           <button
             className="ghost-icon"
             aria-label={`Histórico de ${appointment.patientName}`}
@@ -5947,6 +6062,92 @@ function AgendaCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function AppointmentDetailsModal({
+  appointment,
+  patient,
+  service,
+  onClose,
+  onReschedule,
+  onCancelled,
+}: {
+  appointment: Appointment;
+  patient: Patient | undefined;
+  service: Service | undefined;
+  onClose: () => void;
+  onReschedule: () => void;
+  onCancelled: (appointment: Appointment) => void;
+}) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [error, setError] = useState("");
+  const canChange = appointment.status === "scheduled" || appointment.status === "confirmed";
+  async function cancelAppointment() {
+    setCancelling(true);
+    setError("");
+    try {
+      onCancelled(await api.updateAppointmentStatus(appointment.id, "cancelled"));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível cancelar o atendimento.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+  return (
+    <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} onClose={onClose}>
+      <div className="appointment-details">
+        <section className="appointment-detail-section">
+          <h3>Atendimento marcado</h3>
+          <div className="appointment-detail-grid">
+            <div><small>Serviço</small><strong>{appointment.serviceName}</strong></div>
+            <div><small>Status</small><strong>{statusLabel(appointment.status)}</strong></div>
+            <div><small>Data</small><strong>{new Date(appointment.startsAt).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong></div>
+            <div><small>Horário</small><strong>{timeLabel.format(new Date(appointment.startsAt))} – {timeLabel.format(new Date(appointment.endsAt))}</strong></div>
+            <div><small>Profissional</small><strong>{appointment.professionalName}</strong></div>
+            <div><small>Sala</small><strong>{appointment.roomName}</strong></div>
+            {service && <div><small>Duração e valor</small><strong>{service.durationMinutes} min · {currency.format(service.priceInCents / 100)}</strong></div>}
+            {appointment.notes && <div className="detail-wide"><small>Observações do agendamento</small><strong>{appointment.notes}</strong></div>}
+          </div>
+        </section>
+        <section className="appointment-detail-section">
+          <h3>Dados do paciente</h3>
+          {patient ? (
+            <div className="appointment-detail-grid">
+              <div><small>Nome completo</small><strong>{patient.fullName}</strong></div>
+              <div><small>Prontuário</small><strong>{patient.recordNumber || "Não informado"}</strong></div>
+              <div><small>Telefone</small><strong>{patient.phone || "Não informado"}</strong></div>
+              <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
+              <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
+              <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
+              <div><small>Contato de emergência</small><strong>{patient.emergencyContactName || "Não informado"}</strong></div>
+              <div><small>Telefone de emergência</small><strong>{patient.emergencyContactPhone || "Não informado"}</strong></div>
+              <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
+              <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
+              {patient.notes && <div className="detail-wide"><small>Observações do paciente</small><strong>{patient.notes}</strong></div>}
+            </div>
+          ) : <p>Dados cadastrais indisponíveis no momento.</p>}
+        </section>
+        {error && <div className="form-error">{error}</div>}
+        {confirmCancel && (
+          <div className="appointment-cancel-confirm">
+            <strong>Cancelar este atendimento?</strong>
+            <span>O horário será liberado na agenda.</span>
+            <div>
+              <button className="secondary-button" onClick={() => setConfirmCancel(false)} disabled={cancelling}>Voltar</button>
+              <button className="secondary-button danger" onClick={() => void cancelAppointment()} disabled={cancelling}>{cancelling ? "Cancelando…" : "Confirmar cancelamento"}</button>
+            </div>
+          </div>
+        )}
+        {!confirmCancel && canChange && (
+          <div className="appointment-detail-actions">
+            <button className="secondary-button danger" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>
+            <button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -6803,9 +7004,9 @@ function InventoryPage() {
   return (
     <>
       <PageHeader
-        eyebrow="OperaÃ§Ã£o interna"
+        eyebrow="Operação interna"
         title="Estoque e comandas"
-        description="Produtos, saldos, consumo por paciente e fechamento financeiro rastreÃ¡vel."
+        description="Produtos, saldos, consumo por paciente e fechamento financeiro rastreável."
       />
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (
@@ -6929,7 +7130,7 @@ function InventoryPage() {
                   />
                 </label>
                 <label>
-                  Estoque mÃ­nimo
+                  Estoque mínimo
                   <input
                     type="number"
                     min="0"
@@ -6969,7 +7170,7 @@ function InventoryPage() {
                     <option value="">Selecione</option>
                     {workspace?.products.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} Â· {item.currentStock} {item.unit}
+                        {item.name} · {item.currentStock} {item.unit}
                       </option>
                     ))}
                   </select>
@@ -6987,7 +7188,7 @@ function InventoryPage() {
                   >
                     <option value="purchase">Compra</option>
                     <option value="adjustment_in">Ajuste de entrada</option>
-                    <option value="adjustment_out">Ajuste de saÃ­da</option>
+                    <option value="adjustment_out">Ajuste de saída</option>
                     <option value="loss">Perda</option>
                   </select>
                 </label>
@@ -7046,7 +7247,7 @@ function InventoryPage() {
                   </select>
                 </label>
                 <label>
-                  ObservaÃ§Ã£o
+                  Observação
                   <input
                     value={newTab.notes}
                     onChange={(event) =>
@@ -7069,7 +7270,7 @@ function InventoryPage() {
                   <div>
                     <strong>{item.name}</strong>
                     <small>
-                      {item.sku} Â· {item.unit}
+                      {item.sku} · {item.unit}
                     </small>
                   </div>
                   <strong>{item.currentStock}</strong>
@@ -7128,7 +7329,7 @@ function InventoryPage() {
                     .filter((item) => item.currentStock > 0)
                     .map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} Â· saldo {item.currentStock}
+                        {item.name} · saldo {item.currentStock}
                       </option>
                     ))}
                 </select>
@@ -7179,14 +7380,14 @@ function InventoryPage() {
                   <option value="">Selecione</option>
                   {openTabs.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.patientName} Â·{" "}
+                      {item.patientName} ·{" "}
                       {currency.format(item.totalInCents / 100)}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                LiquidaÃ§Ã£o
+                Liquidação
                 <select
                   value={closing.settlement}
                   onChange={(event) =>
@@ -7214,9 +7415,9 @@ function InventoryPage() {
                     }
                   >
                     <option value="pix">Pix</option>
-                    <option value="card">CartÃ£o</option>
+                    <option value="card">Cartão</option>
                     <option value="cash">Dinheiro</option>
-                    <option value="bank_transfer">TransferÃªncia</option>
+                    <option value="bank_transfer">Transferência</option>
                     <option value="boleto">Boleto</option>
                     <option value="other">Outro</option>
                   </select>
@@ -7244,12 +7445,12 @@ function InventoryPage() {
                   <div>
                     <strong>{tab.patientName}</strong>
                     <span className={`status-pill ${tab.status}`}>
-                      {tab.status}
+                      {tabStatusNames[tab.status]}
                     </span>
                   </div>
                   {tab.items.map((item) => (
                     <small key={item.id}>
-                      {item.quantity}Ã— {item.productName} Â·{" "}
+                      {item.quantity}× {item.productName} ·{" "}
                       {currency.format(item.totalInCents / 100)}
                     </small>
                   ))}
@@ -7269,7 +7470,7 @@ function InventoryPage() {
             </div>
           </section>
           <section className="panel inventory-wide">
-            <h2>Ãšltimos movimentos</h2>
+            <h2>Últimos movimentos</h2>
             <div className="movement-list">
               {workspace?.movements.slice(0, 20).map((item) => (
                 <div key={item.id}>
@@ -7294,7 +7495,49 @@ function InventoryPage() {
   );
 }
 
+function Drawer({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; };
+  }, [onClose]);
+  return (
+    <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
+        <header className="drawer-head"><div><span className="eyebrow">Turmas</span><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" onClick={onClose} aria-label="Fechar gaveta" autoFocus><X size={20} /></button></header>
+        <div className="drawer-body">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+function GroupSlotsEditor({ slots, onChange, weekDayNames }: { slots: GroupClass["weeklySlots"]; onChange: (slots: GroupClass["weeklySlots"]) => void; weekDayNames: string[] }) {
+  function addSlot() {
+    const candidate = [["09:00", "10:00"], ["10:00", "11:00"], ["11:00", "12:00"], ["14:00", "15:00"], ["15:00", "16:00"], ["16:00", "17:00"], ["18:00", "19:00"]]
+      .flatMap(([startTime, endTime]) => [1, 2, 3, 4, 5, 6, 0].map((weekday) => ({ weekday, startTime: startTime!, endTime: endTime! })))
+      .find((slot) => !slots.some((item) => item.weekday === slot.weekday && item.startTime < slot.endTime && item.endTime > slot.startTime));
+    if (candidate) onChange([...slots, candidate]);
+  }
+  return (
+    <div className="group-slots-editor">
+      <div className="group-slots-head"><div><h4>Dias e horários fixos</h4><p>Os encontros usam estes horários de início e término toda semana.</p></div><button type="button" className="secondary-button" disabled={slots.length >= 14} onClick={addSlot}>Adicionar horário</button></div>
+      {slots.length === 0 && <p className="group-empty">Adicione ao menos um dia e horário para a turma.</p>}
+      {slots.map((slot, index) => (
+        <div className="group-slot-row" key={index}>
+          <label>Dia<select value={slot.weekday} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, weekday: Number(event.target.value) } : item))}>{weekDayNames.map((name, weekday) => <option key={name} value={weekday}>{name}</option>)}</select></label>
+          <label>Início<input type="time" required value={slot.startTime} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, startTime: event.target.value } : item))} /></label>
+          <label>Término<input type="time" required min={slot.startTime} value={slot.endTime} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, endTime: event.target.value } : item))} /></label>
+          <button type="button" className="ghost-icon" aria-label={`Remover horário ${index + 1}`} onClick={() => onChange(slots.filter((_, position) => position !== index))}><X size={18} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GroupsPage() {
+  const weekDayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -7302,12 +7545,17 @@ function GroupsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [drawer, setDrawer] = useState<"create" | "enroll" | "series" | "replacement" | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [editingCapacity, setEditingCapacity] = useState(1);
+  const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
   const [groupForm, setGroupForm] = useState({
-    name: "",
     serviceId: "",
     professionalId: "",
     roomId: "",
     capacity: 1,
+    weeklySlots: [] as GroupClass["weeklySlots"],
   });
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
@@ -7319,6 +7567,7 @@ function GroupsPage() {
     occurrences: 4,
     intervalWeeks: 1,
   });
+  const [seriesSlotIndex, setSeriesSlotIndex] = useState(0);
   const [replacementForm, setReplacementForm] = useState({
     creditId: "",
     sessionId: "",
@@ -7382,40 +7631,59 @@ function GroupsPage() {
   }
   const activeEnrollments =
     workspace?.enrollments.filter((item) => item.status === "active") ?? [];
+  const selectedGroup = workspace?.groups.find((item) => item.id === selectedGroupId);
+  const newGroupService = services.find((item) => item.id === groupForm.serviceId);
+  const nextGroupSequence = Math.max(0, ...(workspace?.groups ?? []).filter((item) => item.serviceId === groupForm.serviceId).map((item) => item.sequence)) + 1;
+  const groupOptionLabel = (group: GroupClass) => `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
+  const selectedSession = workspace?.sessions.find((item) => item.id === selectedSessionId);
+  function openGroup(group: GroupClass) {
+    setSelectedGroupId(group.id);
+    setEditingCapacity(group.capacity);
+    setEditingSlots(group.weeklySlots ?? []);
+  }
+  function closeDrawers() {
+    setDrawer(null);
+    setSelectedGroupId(null);
+    setSelectedSessionId(null);
+  }
   return (
     <>
       <PageHeader
-        eyebrow="OperaÃ§Ã£o coletiva"
-        title="Turmas e reposiÃ§Ãµes"
-        description="Capacidade, lista de espera, encontros recorrentes e frequÃªncia em um fluxo Ãºnico."
+        eyebrow="Operação coletiva"
+        title="Turmas e reposições"
+        description="Capacidade, lista de espera, encontros recorrentes e frequência em um fluxo único."
+        action={<button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
       />
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (
         <LoadingBlock />
       ) : (
         <div className="groups-layout">
-          <section className="panel group-form-panel">
+          <div className="group-overview">
+            <div><span>Turmas</span><strong>{workspace?.groups.length ?? 0}</strong><small>cadastradas</small></div>
+            <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>pacientes inscritos</small></div>
+            <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
+            <div><span>Reposições</span><strong>{workspace?.replacementCredits.filter((item) => item.status === "available").length ?? 0}</strong><small>créditos disponíveis</small></div>
+          </div>
+          <div className="group-actions-bar">
+            <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular paciente</button>
+            <button className="secondary-button" onClick={() => setDrawer("series")}>Gerar encontros</button>
+            <button className="secondary-button" onClick={() => setDrawer("replacement")}>Agendar reposição</button>
+          </div>
+          {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
+          <section className="group-drawer-content group-form-panel">
+            {error && <ErrorBanner error={error} />}
             <h2>Nova turma</h2>
+            <p className="group-panel-copy">Defina o serviço, o profissional, a sala e o número de vagas. O nome é gerado automaticamente por serviço.</p>
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => api.createGroupClass(groupForm));
+                void run(async () => { await api.createGroupClass(groupForm); setGroupForm({ serviceId: "", professionalId: "", roomId: "", capacity: 1, weeklySlots: [] }); closeDrawers(); });
               }}
             >
               <label>
-                Nome
-                <input
-                  required
-                  minLength={3}
-                  value={groupForm.name}
-                  onChange={(event) =>
-                    setGroupForm({ ...groupForm, name: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                ServiÃ§o
+                Serviço
                 <select
                   required
                   value={groupForm.serviceId}
@@ -7476,7 +7744,7 @@ function GroupsPage() {
                 <input
                   type="number"
                   min={1}
-                  max={100}
+                  max={rooms.find((item) => item.id === groupForm.roomId)?.capacity ?? 100}
                   value={groupForm.capacity}
                   onChange={(event) =>
                     setGroupForm({
@@ -7486,16 +7754,26 @@ function GroupsPage() {
                   }
                 />
               </label>
-              <button className="primary-button">Criar turma</button>
+              <GroupSlotsEditor slots={groupForm.weeklySlots} onChange={(weeklySlots) => setGroupForm({ ...groupForm, weeklySlots })} weekDayNames={weekDayNames} />
+              <div className="group-next-session" aria-live="polite">
+                {newGroupService ? <strong>{groupClassName(newGroupService.name, nextGroupSequence)}</strong> : "Selecione o serviço para ver o nome da turma"}
+                <br />
+                {describeGroupSchedule(groupForm.weeklySlots)}
+              </div>
+              <button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button>
             </form>
           </section>
-          <section className="panel group-form-panel">
-            <h2>MatrÃ­cula</h2>
+          </Drawer>}
+          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o paciente." onClose={closeDrawers}>
+          <section className="group-drawer-content group-form-panel">
+            {error && <ErrorBanner error={error} />}
+            <h2>Matrícula</h2>
+            <p className="group-panel-copy">Inclua um paciente em uma turma com vagas disponíveis.</p>
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => api.createGroupEnrollment(enrollmentForm));
+                void run(async () => { await api.createGroupEnrollment(enrollmentForm); closeDrawers(); });
               }}
             >
               <label>
@@ -7515,7 +7793,7 @@ function GroupsPage() {
                     .filter((item) => item.active)
                     .map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name}
+                        {groupOptionLabel(item)}
                       </option>
                     ))}
                 </select>
@@ -7543,18 +7821,25 @@ function GroupsPage() {
               <button className="primary-button">Matricular</button>
             </form>
           </section>
-          <section className="panel group-form-panel">
+          </Drawer>}
+          {drawer === "series" && <Drawer title="Gerar encontros" subtitle="Escolha um horário fixo e gere uma série por vez." onClose={closeDrawers}>
+          <section className="group-drawer-content group-form-panel">
+            {error && <ErrorBanner error={error} />}
             <h2>Gerar encontros</h2>
+            <p className="group-panel-copy">Escolha um horário fixo e gere a série. Repita para os outros horários da turma.</p>
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() =>
-                  api.createGroupSessionSeries({
+                void run(async () => {
+                  const slot = workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots[seriesSlotIndex];
+                  await api.createGroupSessionSeries({
                     ...seriesForm,
                     startsAt: new Date(seriesForm.startsAt).toISOString(),
-                  }),
-                );
+                    ...(slot ? { endsAt: groupSlotEndsAt(seriesForm.startsAt, slot) } : {}),
+                  });
+                  closeDrawers();
+                });
               }}
             >
               <label>
@@ -7562,37 +7847,36 @@ function GroupsPage() {
                 <select
                   required
                   value={seriesForm.groupId}
-                  onChange={(event) =>
-                    setSeriesForm({
-                      ...seriesForm,
-                      groupId: event.target.value,
-                    })
-                  }
+                  onChange={(event) => {
+                    const group = workspace?.groups.find((item) => item.id === event.target.value);
+                    setSeriesSlotIndex(0);
+                    setSeriesForm({ ...seriesForm, groupId: event.target.value, startsAt: group?.weeklySlots[0] ? nextGroupSlotStart(group.weeklySlots[0]) : "" });
+                  }}
                 >
                   <option value="">Selecione</option>
-                  {workspace?.groups.map((item) => (
+                  {workspace?.groups.filter((item) => item.weeklySlots?.length).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name}
+                      {groupOptionLabel(item)}
                     </option>
                   ))}
                 </select>
               </label>
               <label>
-                Primeiro encontro
-                <input
-                  required
-                  type="datetime-local"
-                  value={seriesForm.startsAt}
-                  onChange={(event) =>
-                    setSeriesForm({
-                      ...seriesForm,
-                      startsAt: event.target.value,
-                    })
-                  }
-                />
+                Horário fixo
+                <select required value={seriesSlotIndex} onChange={(event) => {
+                  const index = Number(event.target.value);
+                  const group = workspace?.groups.find((item) => item.id === seriesForm.groupId);
+                  setSeriesSlotIndex(index);
+                  setSeriesForm({ ...seriesForm, startsAt: group?.weeklySlots[index] ? nextGroupSlotStart(group.weeklySlots[index]) : "" });
+                }}>
+                  {(workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots ?? []).map((slot, index) => (
+                    <option key={`${slot.weekday}-${slot.startTime}`} value={index}>{groupSlotLabel(slot, weekDayNames)}</option>
+                  ))}
+                </select>
               </label>
+              <div className="group-next-session">Primeiro encontro: <strong>{seriesForm.startsAt ? `${new Date(seriesForm.startsAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} às ${workspace?.groups.find((item) => item.id === seriesForm.groupId)?.weeklySlots[seriesSlotIndex]?.endTime ?? ""}` : "Selecione uma turma"}</strong></div>
               <label>
-                OcorrÃªncias
+                Ocorrências
                 <input
                   type="number"
                   min={1}
@@ -7621,127 +7905,128 @@ function GroupsPage() {
                   }
                 />
               </label>
-              <button className="primary-button">Gerar sÃ©rie</button>
+              <button className="primary-button" disabled={!seriesForm.startsAt}>Gerar série</button>
             </form>
           </section>
+          </Drawer>}
 
           <section className="panel groups-wide">
             <h2>Turmas</h2>
+            <p className="group-panel-copy">Acompanhe ocupação, participantes e lista de espera.</p>
+            {workspace?.groups.length === 0 && <p className="group-empty">Nenhuma turma cadastrada. Crie a primeira turma no formulário acima.</p>}
             <div className="group-card-grid">
               {workspace?.groups.map((group) => (
                 <article className="group-card" key={group.id}>
                   <div>
                     <strong>{group.name}</strong>
+                    <span className="group-card-schedule">{describeGroupSchedule(group.weeklySlots ?? [])}</span>
                     <small>
-                      {group.professionalName} Â· {group.roomName}
+                      {group.professionalName} · {group.roomName}
                     </small>
                   </div>
                   <span>
                     {group.activeEnrollments}/{group.capacity} vagas
                   </span>
                   <small>{group.waitlistCount} em espera</small>
-                  <div className="group-members">
-                    {workspace.enrollments
-                      .filter(
-                        (item) =>
-                          item.groupId === group.id &&
-                          item.status !== "cancelled",
-                      )
-                      .map((item) => (
-                        <div key={item.id}>
-                          <span>
-                            {item.patientName} Â·{" "}
-                            {item.status === "active"
-                              ? "Ativo"
-                              : `Espera ${item.queuePosition}`}
-                          </span>
-                          <button
-                            className="text-button"
-                            onClick={() =>
-                              void run(() => api.cancelGroupEnrollment(item.id))
-                            }
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      ))}
+                  <div className="group-slot-summary">
+                    {(group.weeklySlots ?? []).length ? group.weeklySlots.map((slot) => <span key={`${slot.weekday}-${slot.startTime}`}>{groupSlotLabel(slot, weekDayNames)}</span>) : <small>Horários ainda não definidos</small>}
                   </div>
+                  <button className="secondary-button" onClick={() => openGroup(group)}>Abrir turma</button>
                 </article>
               ))}
             </div>
           </section>
 
+          {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} onClose={closeDrawers}>
+            <div className="group-drawer-content">
+              {error && <ErrorBanner error={error} />}
+              <div className="group-drawer-quick-actions">
+                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular paciente</button>
+                <button className="secondary-button" disabled={!selectedGroup.weeklySlots?.length} onClick={() => { setSeriesForm({ ...seriesForm, groupId: selectedGroup.id, startsAt: nextGroupSlotStart(selectedGroup.weeklySlots[0]!) }); setSeriesSlotIndex(0); setSelectedGroupId(null); setDrawer("series"); }}>Gerar encontros</button>
+              </div>
+              <section className="group-drawer-section">
+                <h3>Capacidade e horários</h3>
+                <p>Alterações nos horários não movem encontros já agendados.</p>
+                <form className="form-grid" onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeDrawers(); });
+                }}>
+                  <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
+                  <div className="group-drawer-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
+                  <GroupSlotsEditor slots={editingSlots} onChange={setEditingSlots} weekDayNames={weekDayNames} />
+                  <button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button>
+                </form>
+              </section>
+              <section className="group-drawer-section">
+                <h3>Participantes</h3>
+                <div className="group-members">
+                  {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
+                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span><button className="text-button" onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}>Cancelar matrícula</button></div>
+                  ))}
+                  {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
+                </div>
+              </section>
+            </div>
+          </Drawer>}
+
           <section className="panel groups-wide">
-            <h2>Encontros e frequÃªncia</h2>
+            <h2>Encontros e frequência</h2>
+            <p className="group-panel-copy">Registre a presença dos pacientes em cada encontro.</p>
+            {workspace?.sessions.length === 0 && <p className="group-empty">Nenhum encontro agendado. Gere uma série para começar.</p>}
             <div className="group-session-list">
               {workspace?.sessions.map((session) => (
                 <article className="group-session" key={session.id}>
                   <div>
                     <strong>{session.groupName}</strong>
                     <small>
-                      {shortDate.format(new Date(session.startsAt))} Â·{" "}
-                      {timeLabel.format(new Date(session.startsAt))} Â·{" "}
-                      {session.status}
+                      {shortDate.format(new Date(session.startsAt))} ·{" "}
+                      {timeLabel.format(new Date(session.startsAt))} ·{" "}
+                      {groupSessionStatusNames[session.status]}
                     </small>
                   </div>
                   <div className="attendance-actions">
-                    {activeEnrollments
-                      .filter((item) => item.groupId === session.groupId)
-                      .map((enrollment) => (
-                        <div key={enrollment.id}>
-                          <span>{enrollment.patientName}</span>
-                          {(
-                            [
-                              ["present", "Presente"],
-                              ["absent", "Falta"],
-                              ["excused_absence", "Justificada"],
-                            ] as const
-                          ).map(([status, label]) => (
-                            <button
-                              key={status}
-                              className="secondary-button compact"
-                              onClick={() =>
-                                void run(() =>
-                                  api.recordGroupAttendance(
-                                    session.id,
-                                    enrollment.patientId,
-                                    { status },
-                                  ),
-                                )
-                              }
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
+                    <span>{session.attendanceCount} presenças registradas</span>
                   </div>
-                  {session.status === "scheduled" && (
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        void run(() => api.completeGroupSession(session.id))
-                      }
-                    >
-                      Concluir encontro
-                    </button>
-                  )}
+                  <button className="secondary-button" onClick={() => setSelectedSessionId(session.id)}>Abrir encontro</button>
                 </article>
               ))}
             </div>
           </section>
 
-          <section className="panel groups-wide group-form-panel">
-            <h2>Agendar reposiÃ§Ã£o</h2>
+          {selectedSession && <Drawer title={selectedSession.groupName} subtitle={`${shortDate.format(new Date(selectedSession.startsAt))} · ${timeLabel.format(new Date(selectedSession.startsAt))}`} onClose={closeDrawers}>
+            <div className="group-drawer-content">
+              {error && <ErrorBanner error={error} />}
+              <section className="group-drawer-section">
+                <h3>Frequência</h3>
+                <div className="attendance-actions">
+                  {activeEnrollments.filter((item) => item.groupId === selectedSession.groupId).map((enrollment) => (
+                    <div key={enrollment.id}>
+                      <span>{enrollment.patientName}</span>
+                      {([ ["present", "Presente"], ["absent", "Falta"], ["excused_absence", "Justificada"] ] as const).map(([status, label]) => (
+                        <button key={status} className={`secondary-button compact ${workspace?.attendance.find((item) => item.sessionId === selectedSession.id && item.patientId === enrollment.patientId)?.status === status ? "selected" : ""}`} onClick={() => void run(() => api.recordGroupAttendance(selectedSession.id, enrollment.patientId, { status }))}>{label}</button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+              {selectedSession.status === "scheduled" && <button className="primary-button" onClick={() => void run(async () => { await api.completeGroupSession(selectedSession.id); closeDrawers(); })}>Concluir encontro</button>}
+            </div>
+          </Drawer>}
+
+          {drawer === "replacement" && <Drawer title="Agendar reposição" subtitle="Use um crédito disponível para reservar outro encontro." onClose={closeDrawers}>
+          <section className="group-drawer-content group-form-panel">
+            {error && <ErrorBanner error={error} />}
+            <h2>Agendar reposição</h2>
+            <p className="group-panel-copy">Use um crédito disponível para reservar outro encontro.</p>
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => api.bookReplacement(replacementForm));
+                void run(async () => { await api.bookReplacement(replacementForm); closeDrawers(); });
               }}
             >
               <label>
-                CrÃ©dito
+                Crédito
                 <select
                   required
                   value={replacementForm.creditId}
@@ -7779,16 +8064,17 @@ function GroupsPage() {
                     .filter((item) => item.status === "scheduled")
                     .map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.groupName} Â·{" "}
+                        {item.groupName} ·{" "}
                         {shortDate.format(new Date(item.startsAt))}{" "}
                         {timeLabel.format(new Date(item.startsAt))}
                       </option>
                     ))}
                 </select>
               </label>
-              <button className="primary-button">Reservar reposiÃ§Ã£o</button>
+              <button className="primary-button">Reservar reposição</button>
             </form>
           </section>
+          </Drawer>}
         </div>
       )}
     </>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Appointment, Lead } from "@crm/contracts";
+import { groupClassName } from "@crm/contracts";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { MemoryClinicRepository } from "./memory-repository.js";
@@ -47,6 +48,15 @@ describe("CRM API", () => {
       status: "ok",
       storage: config.STORAGE_MODE,
     });
+    await app.close();
+  });
+
+  it("allows either local frontend address during development", async () => {
+    const app = await buildApp({ repository: new MemoryClinicRepository(), logger: false });
+    const local = await app.inject({ method: "GET", url: "/health", headers: { origin: "http://127.0.0.1:5173" } });
+    expect(local.headers["access-control-allow-origin"]).toBe("http://127.0.0.1:5173");
+    const external = await app.inject({ method: "GET", url: "/health", headers: { origin: "http://example.com" } });
+    expect(external.headers["access-control-allow-origin"]).toBeUndefined();
     await app.close();
   });
 
@@ -1403,21 +1413,24 @@ describe("CRM API", () => {
         .json()
         .find((item: { capacity: number }) => item.capacity >= 4),
     };
-    const createGroup = async (name: string, capacity: number) =>
+    const createGroup = async (capacity: number) =>
       app.inject({
         method: "POST",
         url: "/groups",
         headers,
         payload: {
-          name,
           capacity,
           serviceId: references.service.id,
           professionalId: references.professional.id,
           roomId: references.room.id,
+          weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
         },
       });
-    const group = await createGroup("Pilates terapÃªutico", 1);
+    const group = await createGroup(1);
     expect(group.statusCode).toBe(201);
+    expect(group.json().name).toBe(
+      groupClassName(references.service.name, group.json().sequence),
+    );
     const enroll = (patientId: string) =>
       app.inject({
         method: "POST",
@@ -1432,6 +1445,22 @@ describe("CRM API", () => {
       status: "waitlisted",
       queuePosition: 1,
     });
+    const updatedGroup = await app.inject({
+      method: "PUT",
+      url: `/groups/${group.json().id}`,
+      headers,
+      payload: { capacity: 2, weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }, { weekday: 4, startTime: "18:00", endTime: "19:30" }] },
+    });
+    expect(updatedGroup.statusCode).toBe(200);
+    expect(updatedGroup.json()).toMatchObject({ capacity: 2, activeEnrollments: 2, waitlistCount: 0 });
+    expect(updatedGroup.json().weeklySlots).toHaveLength(2);
+    const tooSmall = await app.inject({
+      method: "PUT",
+      url: `/groups/${group.json().id}`,
+      headers,
+      payload: { capacity: 1, weeklySlots: updatedGroup.json().weeklySlots },
+    });
+    expect(tooSmall.statusCode).toBe(409);
     await app.inject({
       method: "POST",
       url: `/group-enrollments/${first.json().id}/cancel`,
@@ -1446,11 +1475,16 @@ describe("CRM API", () => {
       payload: {
         groupId: group.json().id,
         startsAt: startsAt.toISOString(),
+        endsAt: new Date(startsAt.getTime() + 90 * 60_000).toISOString(),
         occurrences: 2,
         intervalWeeks: 1,
       },
     });
     expect(sessions.json()).toHaveLength(2);
+    expect(
+      new Date(sessions.json()[1].endsAt).getTime() -
+        new Date(sessions.json()[1].startsAt).getTime(),
+    ).toBe(90 * 60_000);
     const attendance = await app.inject({
       method: "PUT",
       url: `/group-sessions/${sessions.json()[0].id}/attendance/${references.patients[1].id}`,
@@ -1472,7 +1506,11 @@ describe("CRM API", () => {
     ).toBe("active");
     const credit = workspace.json().replacementCredits[0];
     expect(credit.status).toBe("available");
-    const targetGroup = await createGroup("Mobilidade em grupo", 4);
+    const targetGroup = await createGroup(4);
+    expect(targetGroup.json()).toMatchObject({
+      sequence: group.json().sequence + 1,
+      name: groupClassName(references.service.name, group.json().sequence + 1),
+    });
     const targetStart = new Date(startsAt.getTime() + 2 * 86_400_000);
     const target = await app.inject({
       method: "POST",
@@ -1514,7 +1552,7 @@ describe("CRM API", () => {
       url: "/inventory/products",
       headers,
       payload: {
-        name: "Faixa elÃ¡stica",
+        name: "Faixa elástica",
         sku: "FX-001",
         unit: "un",
         costInCents: 2000,
