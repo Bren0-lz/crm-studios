@@ -132,6 +132,21 @@ export async function seedDemoData(pool: Pool) {
       ON CONFLICT DO NOTHING`,
       [JSON.stringify(demoPatients)],
     );
+    // Cadastros demo gravados antes com a codificação errada ficaram com "?" no lugar de
+    // letras acentuadas. Restaura só os campos idênticos à versão corrompida, sem tocar em edições.
+    await client.query(
+      String.raw`UPDATE patients p
+      SET notes = CASE WHEN p.notes = regexp_replace(src.notes, '[^\x01-\x7F]', '?', 'g') THEN src.notes ELSE p.notes END,
+        tags = CASE WHEN array_to_string(p.tags, chr(31)) = regexp_replace(array_to_string(src.tags, chr(31)), '[^\x01-\x7F]', '?', 'g') THEN src.tags ELSE p.tags END,
+        updated_at = now()
+      FROM jsonb_to_recordset($1::jsonb) AS src(id uuid, notes text, tags text[])
+      WHERE p.id = src.id
+        AND (
+          (p.notes IS DISTINCT FROM src.notes AND p.notes = regexp_replace(src.notes, '[^\x01-\x7F]', '?', 'g'))
+          OR (p.tags IS DISTINCT FROM src.tags AND array_to_string(p.tags, chr(31)) = regexp_replace(array_to_string(src.tags, chr(31)), '[^\x01-\x7F]', '?', 'g'))
+        )`,
+      [JSON.stringify(demoPatients)],
+    );
     await client.query(`
       INSERT INTO appointments (
       id, clinic_id, patient_id, professional_id, room_id, service_id,
