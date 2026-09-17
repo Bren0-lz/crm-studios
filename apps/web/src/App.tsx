@@ -25,6 +25,7 @@ import {
   Search,
   Settings,
   Stethoscope,
+  UserMinus,
   Users,
   X,
   type LucideIcon,
@@ -7961,7 +7962,7 @@ function GroupsPage() {
                 <h3>Participantes</h3>
                 <div className="group-members">
                   {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
-                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span><button className="text-button" onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}>Cancelar matrícula</button></div>
+                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span><button type="button" className="group-cancel-button" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button></div>
                   ))}
                   {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
                 </div>

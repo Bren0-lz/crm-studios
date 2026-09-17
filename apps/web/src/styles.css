@@ -2504,7 +2504,27 @@ textarea:focus {
 }
 
 .group-members span { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
-.group-members .text-button { flex: 0 0 auto; }
+.group-cancel-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #ecc9c3;
+  border-radius: 999px;
+  background: white;
+  color: var(--red);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.group-cancel-button:hover { border-color: var(--red); background: #f7e4e1; color: #a04e45; }
+.group-cancel-button:active { background: #f0d3ce; }
+.group-cancel-button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.group-cancel-button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .attendance-actions { padding-top: 12px; border-top: 1px solid var(--line); }
 .attendance-actions > div { padding: 9px 0; border-bottom: 1px solid #f0eee8; }
