@@ -8,12 +8,18 @@ const migrationsPath = fileURLToPath(new URL("../migrations", import.meta.url));
 const migrationLockId = 927_410_615;
 
 export function createDatabasePool() {
-  return new Pool({
+  const pool = new Pool({
     connectionString: config.DATABASE_URL,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   });
+  // Sem este handler, uma conexão ociosa encerrada pelo servidor (ex.: Postgres
+  // reiniciado) emite um "error" não tratado e derruba o processo da API.
+  pool.on("error", (error) => {
+    console.error("Conexão ociosa com o PostgreSQL foi encerrada:", error.message);
+  });
+  return pool;
 }
 
 export async function runMigrations(pool: Pool) {
