@@ -3,6 +3,7 @@ import {
   appointmentInputSchema,
   clinicalRecordInputSchema,
   describeGroupSchedule,
+  formatPhone,
   groupClassName,
   groupClassInputSchema,
   groupClassUpdateSchema,
@@ -11,6 +12,7 @@ import {
   leadMoveSchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
+  phoneDigits,
   patientInputSchema,
 } from "./index.js";
 
@@ -66,7 +68,20 @@ describe("shared contracts", () => {
     });
 
     expect(result.fullName).toBe("Maria da Silva");
+    expect(result.phone).toBe("11999999999");
     expect(result.tags).toEqual(["Pilates"]);
+    expect(() => patientInputSchema.parse({ fullName: "Maria da Silva", phone: "9999-9999" })).toThrow();
+    expect(patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11 3333 4444", emergencyContactPhone: "" }).emergencyContactPhone).toBe("");
+  });
+
+  it("formats Brazilian phone numbers while typing", () => {
+    expect(formatPhone("")).toBe("");
+    expect(formatPhone("1")).toBe("(1");
+    expect(formatPhone("1199")).toBe("(11) 99");
+    expect(formatPhone("1133334444")).toBe("(11) 3333-4444");
+    expect(formatPhone("11999998888")).toBe("(11) 99999-8888");
+    expect(formatPhone("(11) 99999-88887")).toBe("(11) 99999-8888");
+    expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
   });
 
   it("rejects an appointment with invalid identifiers", () => {

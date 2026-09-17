@@ -14,6 +14,33 @@ export const appointmentStatusSchema = z.enum([
 ]);
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
 
+export function phoneDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+// Formato brasileiro com DDD: (11) 3333-4444 para fixo e (11) 99999-9999 para celular.
+// Também formata valores parciais, para ser usado enquanto a pessoa digita.
+export function formatPhone(value: string): string {
+  const digits = phoneDigits(value);
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  const area = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (number.length <= 4) return `(${area}) ${number}`;
+  const split = number.length === 9 ? 5 : 4;
+  return `(${area}) ${number.slice(0, split)}-${number.slice(split)}`;
+}
+
+const phoneSchema = z
+  .string()
+  .transform((value) => value.replace(/\D/g, ""))
+  .refine((digits) => digits.length === 10 || digits.length === 11, "Informe o telefone com DDD.");
+const optionalPhoneSchema = z
+  .string()
+  .transform((value) => value.replace(/\D/g, ""))
+  .refine((digits) => digits.length === 0 || digits.length === 10 || digits.length === 11, "Informe o telefone com DDD.")
+  .optional();
+
 export const loginSchema = z.object({
   email: z.email().transform((value) => value.toLowerCase()),
   password: z.string().min(8),
@@ -52,7 +79,7 @@ export const clinicSettingsInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional().or(z.literal("")),
   taxId: z.string().trim().max(20).optional().or(z.literal("")),
-  phone: z.string().trim().max(24).optional().or(z.literal("")),
+  phone: optionalPhoneSchema,
   email: z.email().optional().or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),
   timezone: z.string().trim().min(3).max(80),
@@ -63,10 +90,10 @@ export const patientInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
   cpf: z.string().trim().min(11).max(14).optional().or(z.literal("")),
   email: z.email().optional().or(z.literal("")),
-  phone: z.string().trim().min(8).max(24),
+  phone: phoneSchema,
   birthDate: z.iso.date().optional().or(z.literal("")),
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
-  emergencyContactPhone: z.string().trim().max(24).optional().or(z.literal("")),
+  emergencyContactPhone: optionalPhoneSchema,
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
@@ -499,7 +526,7 @@ export const leadStageSchema = z.enum([
 export type LeadStage = z.infer<typeof leadStageSchema>;
 export const leadInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
-  phone: z.string().trim().min(8).max(24),
+  phone: phoneSchema,
   email: z.email().optional().or(z.literal("")),
   source: z.string().trim().min(2).max(80),
   interest: z.string().trim().min(2).max(120),

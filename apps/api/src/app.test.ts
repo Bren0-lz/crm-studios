@@ -88,6 +88,14 @@ describe("CRM API", () => {
     });
     expect(listed.json()).toHaveLength(1);
     expect(listed.json()[0].fullName).toBe("Joana de Souza");
+    expect(listed.json()[0].phone).toBe("11999990000");
+
+    const byFormattedPhone = await app.inject({
+      method: "GET",
+      url: `/patients?search=${encodeURIComponent("(11) 99999-0000")}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(byFormattedPhone.json().map((item: { fullName: string }) => item.fullName)).toContain("Joana de Souza");
     await app.close();
   });
 

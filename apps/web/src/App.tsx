@@ -91,7 +91,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
-import { describeGroupSchedule, groupClassName } from "@crm/contracts";
+import { describeGroupSchedule, formatPhone, groupClassName, phoneDigits } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -153,6 +153,22 @@ function groupOperationRange() {
   const to = new Date();
   to.setDate(to.getDate() + 120);
   return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function PhoneInput({ value, onChange, required }: { value: string; onChange: (digits: string) => void; required?: boolean }) {
+  return (
+    <input
+      type="tel"
+      inputMode="tel"
+      autoComplete="tel"
+      placeholder="(11) 99999-9999"
+      pattern="\(\d{2}\) \d{4,5}-\d{4}"
+      title="Informe o telefone com DDD, por exemplo (11) 99999-9999."
+      required={required}
+      value={formatPhone(value)}
+      onChange={(event) => onChange(phoneDigits(event.target.value))}
+    />
+  );
 }
 
 function groupSlotLabel(slot: GroupClass["weeklySlots"][number], weekDayNames: string[]) {
@@ -814,7 +830,7 @@ function PatientsPage() {
                   </div>
                 </div>
                 <div className="contact-cell">
-                  <span>{patient.phone}</span>
+                  <span>{formatPhone(patient.phone)}</span>
                   <small>{patient.email || "E-mail não informado"}</small>
                 </div>
                 <div className="tags-cell">
@@ -929,10 +945,10 @@ function PatientModal({
         </label>
         <label>
           Telefone
-          <input
+          <PhoneInput
             required
             value={form.phone}
-            onChange={(e) => field("phone", e.target.value)}
+            onChange={(digits) => field("phone", digits)}
           />
         </label>
         <label>
@@ -967,9 +983,9 @@ function PatientModal({
         </label>
         <label>
           Telefone de emergência
-          <input
-            value={form.emergencyContactPhone}
-            onChange={(e) => field("emergencyContactPhone", e.target.value)}
+          <PhoneInput
+            value={form.emergencyContactPhone ?? ""}
+            onChange={(digits) => field("emergencyContactPhone", digits)}
           />
         </label>
         <label className="span-2">
@@ -2248,7 +2264,7 @@ function CommercialPage() {
                         <span className="lead-source">{lead.source}</span>
                         <h3>{lead.fullName}</h3>
                         <p>{lead.interest}</p>
-                        <small>{lead.phone}</small>
+                        <small>{formatPhone(lead.phone)}</small>
                         {lead.responsibleName && (
                           <span className="lead-owner">
                             {lead.responsibleName}
@@ -2390,10 +2406,10 @@ function LeadModal({
         </label>
         <label>
           Telefone
-          <input
+          <PhoneInput
             required
             value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            onChange={(digits) => setForm({ ...form, phone: digits })}
           />
         </label>
         <label>
@@ -6118,12 +6134,12 @@ function AppointmentDetailsModal({
             <div className="appointment-detail-grid">
               <div><small>Nome completo</small><strong>{patient.fullName}</strong></div>
               <div><small>Prontuário</small><strong>{patient.recordNumber || "Não informado"}</strong></div>
-              <div><small>Telefone</small><strong>{patient.phone || "Não informado"}</strong></div>
+              <div><small>Telefone</small><strong>{patient.phone ? formatPhone(patient.phone) : "Não informado"}</strong></div>
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
               <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
               <div><small>Contato de emergência</small><strong>{patient.emergencyContactName || "Não informado"}</strong></div>
-              <div><small>Telefone de emergência</small><strong>{patient.emergencyContactPhone || "Não informado"}</strong></div>
+              <div><small>Telefone de emergência</small><strong>{patient.emergencyContactPhone ? formatPhone(patient.emergencyContactPhone) : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
               {patient.notes && <div className="detail-wide"><small>Observações do paciente</small><strong>{patient.notes}</strong></div>}
@@ -6814,10 +6830,10 @@ function AdminPage() {
                 </label>
                 <label>
                   Telefone
-                  <input
-                    value={settings.phone}
-                    onChange={(e) =>
-                      setSettings({ ...settings, phone: e.target.value })
+                  <PhoneInput
+                    value={settings.phone ?? ""}
+                    onChange={(digits) =>
+                      setSettings({ ...settings, phone: digits })
                     }
                   />
                 </label>

@@ -213,6 +213,11 @@ interface ScheduleBlockRow {
   updatedAt: Date;
 }
 
+// Permite buscar "(11) 99000" em telefones gravados só com dígitos.
+function phoneSearchDigits(term: string) {
+  return /^[\d\s()+-]+$/.test(term) ? term.replace(/\D/g, "") : "";
+}
+
 interface GroupClassRow {
   id: string;
   clinicId: string;
@@ -1794,11 +1799,12 @@ export class PostgresClinicRepository implements ClinicRepository {
           AND (
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
+            OR ($3 <> '' AND phone LIKE '%' || $3 || '%')
             OR record_number ILIKE '%' || $2 || '%'
           )
         ORDER BY full_name
       `,
-      [clinicId, term],
+      [clinicId, term, phoneSearchDigits(term)],
     );
     return result.rows.map(mapPatient);
   }

@@ -657,6 +657,9 @@ export class MemoryClinicRepository implements ClinicRepository {
 
   async listPatients(clinicId: string, search = "") {
     const normalized = search.trim().toLocaleLowerCase("pt-BR");
+    const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
+      ? normalized.replace(/\D/g, "")
+      : "";
     return this.patients
       .filter((item) => item.clinicId === clinicId)
       .filter((item) =>
@@ -665,7 +668,7 @@ export class MemoryClinicRepository implements ClinicRepository {
               .filter(Boolean)
               .some((value) =>
                 value!.toLocaleLowerCase("pt-BR").includes(normalized),
-              )
+              ) || Boolean(phoneDigits && item.phone.includes(phoneDigits))
           : true,
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
