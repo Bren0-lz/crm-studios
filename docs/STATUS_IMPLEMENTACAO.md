@@ -1,6 +1,6 @@
 # Status da implementação
 
-Atualizado em 15 de setembro de 2026.
+Atualizado em 28 de setembro de 2026.
 
 ## Incremento 1 — Fundação e operação básica
 
@@ -9,7 +9,7 @@ Concluído:
 - monorepo, contratos compartilhados e validação de entrada;
 - autenticação JWT e sessão web;
 - dashboard operacional;
-- cadastro e pesquisa de pacientes;
+- cadastro e pesquisa de clientes;
 - profissionais, salas e serviços;
 - agenda diária, criação de atendimento e mudança de status;
 - interface responsiva;
@@ -22,7 +22,7 @@ Implementado:
 - repositório PostgreSQL com isolamento por `clinic_id`;
 - migrações automáticas e versionadas;
 - seed demonstrativo idempotente;
-- persistência de pacientes, agenda e cadastros auxiliares;
+- persistência de clientes, agenda e cadastros auxiliares;
 - restrições de exclusão no banco contra sobreposição de profissional ou sala;
 - encerramento seguro do pool de conexões;
 - teste de integração opt-in via `TEST_DATABASE_URL`;
@@ -77,8 +77,8 @@ Concluído:
 - funil Kanban com seis etapas;
 - histórico de mudanças de etapa;
 - motivo obrigatório para perdas;
-- conversão idempotente e segura em paciente;
-- reaproveitamento de paciente existente por telefone ou e-mail;
+- conversão idempotente e segura em cliente;
+- reaproveitamento de cliente existente por telefone ou e-mail;
 - acesso restrito a gestão, recepção e financeiro.
 
 ## Incremento 7 — Comunicação transacional
@@ -101,15 +101,15 @@ Para envio real ainda será necessário contratar e configurar provedores oficia
 Concluído:
 
 - modelos versionados com variáveis controladas;
-- contratos vinculados a paciente e plano;
+- contratos vinculados a cliente e plano;
 - snapshot imutável do conteúdo emitido;
 - rascunho, emissão e cancelamento definitivo;
 - histórico das versões antigas do modelo;
-- validação de que o plano pertence ao paciente;
+- validação de que o plano pertence ao cliente;
 - interface para biblioteca, emissão e consulta do conteúdo preservado;
 - persistência equivalente em memória e PostgreSQL.
 
-Assinatura eletrônica externa, evidências técnicas e geração do PDF final permanecem desacopladas até a definição do provedor. Nenhum portal ou aplicativo do paciente foi criado.
+Assinatura eletrônica externa, evidências técnicas e geração do PDF final permanecem desacopladas até a definição do provedor. Nenhum portal ou aplicativo do cliente foi criado.
 
 ## Incremento 9 — Relatórios e indicadores gerenciais
 
@@ -228,7 +228,7 @@ Implementado:
 
 Concluído:
 
-- renegociação atômica de uma ou mais parcelas do mesmo paciente;
+- renegociação atômica de uma ou mais parcelas do mesmo cliente;
 - cancelamento preservado das parcelas originais;
 - redistribuição exata do novo total entre parcelas e vencimentos;
 - regras percentuais de comissão com início de vigência;
@@ -266,7 +266,7 @@ Concluído:
 - movimentos manuais de compra, entrada, saída e perda;
 - bloqueio de movimentos e vendas sem saldo disponível;
 - histórico imutável com saldo posterior, operador, motivo e origem;
-- comandas vinculadas ao paciente e itens com preço preservado;
+- comandas vinculadas ao cliente e itens com preço preservado;
 - baixa de estoque no lançamento do item;
 - fechamento à vista ou como conta a receber;
 - integração das vendas ao fluxo financeiro existente;
@@ -275,11 +275,11 @@ Concluído:
 - interface responsiva e persistência equivalente em memória e PostgreSQL;
 - cobertura integrada do fluxo de venda, pagamento, cancelamento e estorno.
 
-## Incremento 19 — Edição de pacientes e reagendamento individual
+## Incremento 19 — Edição de clientes e reagendamento individual
 
 Concluído:
 
-- edição dos dados cadastrais do paciente sem alterar seu número de prontuário;
+- edição dos dados cadastrais do cliente sem alterar seu número de prontuário;
 - proteção contra CPF duplicado na clínica, inclusive no PostgreSQL;
 - reagendamento individual de atendimentos agendados ou confirmados, com troca de profissional e sala;
 - prevenção de conflitos com atendimentos, bloqueios e encontros de turmas;
@@ -289,7 +289,7 @@ Concluído:
 
 Os relatórios já incluem uma DRE gerencial básica, rentabilidade por serviço/produto e indicadores operacionais. A classificação gerencial detalhada prevista no plano funcional ainda precisa ser conciliada com dados reais da clínica.
 
-## Incremento 20 — Vendas mensais e retorno dos pacientes
+## Incremento 20 — Vendas mensais e retorno dos clientes
 
 Concluído:
 
@@ -297,16 +297,33 @@ Concluído:
 - cancelamento de plano limitado ao valor das parcelas ainda abertas, preservado no registro do plano;
 - pagamentos e estornos apresentados pela data dos eventos financeiros;
 - comparação do mês em andamento com os mesmos dias do mês anterior;
-- pacientes distintos com atendimento concluído no mês anterior e sem atendimento concluído no mês selecionado;
+- clientes distintos com atendimento concluído no mês anterior e sem atendimento concluído no mês selecionado;
 - resumo de vendas, recebimentos e retorno na página inicial de gestão;
-- planilha XLSX com resumo, movimentos de vendas, recebimentos, pacientes sem retorno e definições;
+- planilha XLSX com resumo, movimentos de vendas, recebimentos, clientes sem retorno e definições;
 - leitura do PostgreSQL com snapshot único para o relatório mensal;
 - testes de períodos, estornos, cancelamento parcial, planilha e interface.
 
 Limites atuais: o relatório detalhado cobre vendas, recebimentos e retorno, não todos os módulos do CRM. A migração dos dados anteriores ainda precisa preencher os eventos financeiros de origem. Cancelamentos antigos de planos recebem uma data estimada a partir da última atualização no banco. A exportação Excel de dados clínicos deve seguir permissões próprias e permanece fora deste relatório gerencial.
 
+## Incremento 21 — Clientes, turmas na agenda e cenários de demonstração
+
+Concluído:
+
+- "Paciente" passa a ser "Cliente" na interface, nas mensagens da API e na documentação;
+- número de WhatsApp opcional, separado do telefone de contato; em branco, as mensagens usam o telefone;
+- telefones formatados no padrão brasileiro e contato de emergência agrupado com nome e telefone;
+- filtros de clientes por situação, etiquetas e dados do cadastro;
+- horários fixos semanais nas turmas, com reserva automática na agenda;
+- atendimentos e turmas listados juntos, em ordem cronológica;
+- turmas nomeadas no formato "<Serviço> Turma <X>";
+- cenários de demonstração com planos, parcelas, atendimentos e uma turma de dançaterapia;
+- API resiliente ao encerramento de conexões pelo PostgreSQL e CORS liberado para PUT, PATCH e DELETE;
+- migrações 0021 a 0026 e testes equivalentes em memória, PostgreSQL e interface.
+
+A seção de encontros e frequência saiu da aba Turmas; as aulas passam a ser acompanhadas pela agenda.
+
 ## Próximo incremento de desenvolvimento autônomo
 
 Conciliação dos cálculos financeiros com casos reais da clínica e preparação da importação validada dos dados do sistema anterior, inclusive seu modelo de planilha.
 
-O aplicativo e o portal do paciente permanecem fora do escopo.
+O aplicativo e o portal do cliente permanecem fora do escopo.
