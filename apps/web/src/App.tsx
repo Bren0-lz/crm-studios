@@ -24,6 +24,7 @@ import {
   Printer,
   Search,
   Settings,
+  SlidersHorizontal,
   Stethoscope,
   UserMinus,
   Users,
@@ -65,7 +66,6 @@ import type {
   GroupClass,
   GroupSession,
   GroupWorkspace,
-  InventoryWorkspace,
   IssuedDocument,
   Lead,
   LeadActivity,
@@ -119,11 +119,6 @@ const timeLabel = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
-const tabStatusNames = {
-  open: "Aberta",
-  closed: "Fechada",
-  cancelled: "Cancelada",
-};
 
 function localIsoDate(date = new Date()) {
   const year = date.getFullYear();
@@ -239,7 +234,7 @@ function LoginPage({ onLogin }: { onLogin: (user: UserSummary) => void }) {
             Menos tempo na operação.
           </h1>
           <p>
-            Agenda, pacientes e prontuários conectados em uma experiência
+            Agenda, clientes e prontuários conectados em uma experiência
             simples para toda a equipe.
           </p>
         </div>
@@ -306,13 +301,7 @@ const navItems: Array<{
     icon: Users,
     roles: ["owner", "reception", "physiotherapist"],
   },
-  { to: "/pacientes", label: "Pacientes", icon: Users },
-  {
-    to: "/estoque",
-    label: "Estoque e comandas",
-    icon: PackageOpen,
-    roles: ["owner", "reception", "finance"],
-  },
+  { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/planos", label: "Planos e sessões", icon: PackageOpen },
   {
     to: "/comercial",
@@ -567,7 +556,7 @@ function DashboardPage() {
             </article>
             <article className="metric-card">
               <div>
-                <span>Pacientes ativos</span>
+                <span>Clientes ativos</span>
                 <strong>{data.patientsActive}</strong>
               </div>
               <Users size={23} />
@@ -587,14 +576,14 @@ function DashboardPage() {
                   <span className="eyebrow">
                     Mês até {sales.current.to.split("-").reverse().join("/")}
                   </span>
-                  <h2>Vendas e retorno dos pacientes</h2>
+                  <h2>Vendas e retorno dos clientes</h2>
                 </div>
                 <NavLink to="/relatorios" className="text-link">
                   Ver detalhes <ChevronRight size={16} />
                 </NavLink>
               </div>
               <p className="dashboard-sales-context">
-                {sales.current.attendedPatients} pacientes atendidos neste mês.
+                {sales.current.attendedPatients} clientes atendidos neste mês.
               </p>
               <div className="sales-metrics">
                 <article>
@@ -652,12 +641,12 @@ function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <span className="eyebrow">Acompanhamento</span>
-                    <h2>Pacientes sem retorno</h2>
+                    <h2>Clientes sem retorno</h2>
                   </div>
                 </div>
                 <div className="attention-list">
                   {sales.patientsWithoutReturn.length === 0 ? (
-                    <p>Nenhum paciente nessa situação.</p>
+                    <p>Nenhum cliente nessa situação.</p>
                   ) : (
                     sales.patientsWithoutReturn.slice(0, 4).map((item) => (
                       <div className="attention-item" key={item.patientId}>
@@ -713,8 +702,41 @@ function AppointmentRow({ appointment }: { appointment: Appointment }) {
   );
 }
 
+type PatientStatusFilter = "all" | "active" | "inactive";
+type PatientRecordFilter = "all" | "with_email" | "without_email" | "birthday_month";
+type PatientSort = "name_asc" | "name_desc" | "newest" | "oldest";
+
+const defaultPatientFilters = {
+  status: "all" as PatientStatusFilter,
+  record: "all" as PatientRecordFilter,
+  tags: [] as string[],
+  sort: "name_asc" as PatientSort,
+};
+
+function filterPatients(patients: Patient[], filters: typeof defaultPatientFilters) {
+  const currentMonth = new Date().getMonth() + 1;
+  return patients
+    .filter((patient) => filters.status === "all" || patient.status === filters.status)
+    .filter((patient) => {
+      if (filters.record === "with_email") return Boolean(patient.email);
+      if (filters.record === "without_email") return !patient.email;
+      if (filters.record === "birthday_month")
+        return Boolean(patient.birthDate) && Number(patient.birthDate!.slice(5, 7)) === currentMonth;
+      return true;
+    })
+    .filter((patient) => filters.tags.length === 0 || filters.tags.some((tag) => patient.tags.includes(tag)))
+    .sort((a, b) => {
+      if (filters.sort === "name_desc") return b.fullName.localeCompare(a.fullName, "pt-BR");
+      if (filters.sort === "newest") return b.createdAt.localeCompare(a.createdAt);
+      if (filters.sort === "oldest") return a.createdAt.localeCompare(b.createdAt);
+      return a.fullName.localeCompare(b.fullName, "pt-BR");
+    });
+}
+
 function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [filters, setFilters] = useState(defaultPatientFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -750,16 +772,35 @@ function PatientsPage() {
     };
   }, []);
 
+  const visiblePatients = filterPatients(patients, filters);
+  const tagOptions = Object.entries(
+    patients.flatMap((patient) => patient.tags).reduce<Record<string, number>>((counts, tag) => {
+      counts[tag] = (counts[tag] ?? 0) + 1;
+      return counts;
+    }, {}),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"));
+  const activeFilterCount =
+    (filters.status !== "all" ? 1 : 0) + (filters.record !== "all" ? 1 : 0) + filters.tags.length;
+  function toggleTag(tag: string) {
+    setFilters((current) => ({
+      ...current,
+      tags: current.tags.includes(tag) ? current.tags.filter((item) => item !== tag) : [...current.tags, tag],
+    }));
+  }
+  function clearFilters() {
+    setFilters((current) => ({ ...defaultPatientFilters, sort: current.sort }));
+  }
+
   return (
     <>
       <PageHeader
         eyebrow="Base clínica"
-        title="Pacientes"
+        title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
           <button className="primary-button" onClick={() => setModalOpen(true)}>
             <Plus size={18} />
-            Novo paciente
+            Novo cliente
           </button>
         }
       />
@@ -781,29 +822,133 @@ function PatientsPage() {
             />
             <button>Buscar</button>
           </form>
-          <div className="list-count">
-            <strong>{patients.length}</strong>
-            <span>pacientes encontrados</span>
+          <button
+            type="button"
+            className={`secondary-button filter-toggle ${filtersOpen ? "active" : ""}`}
+            aria-expanded={filtersOpen}
+            aria-controls="patient-filters"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            Filtros
+            {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+          </button>
+          <div className="list-count" aria-live="polite">
+            <strong>{visiblePatients.length}</strong>
+            <span>
+              {visiblePatients.length === patients.length
+                ? "clientes encontrados"
+                : `de ${patients.length} clientes`}
+            </span>
           </div>
         </div>
+        {filtersOpen && (
+          <div className="patient-filters" id="patient-filters">
+            <div className="filter-group">
+              <span className="filter-label" id="patient-status-filter">Situação</span>
+              <div className="segmented" role="group" aria-labelledby="patient-status-filter">
+                {([["all", "Todos"], ["active", "Ativos"], ["inactive", "Inativos"]] as const).map(([value, label]) => (
+                  <button
+                    type="button"
+                    key={value}
+                    aria-pressed={filters.status === value}
+                    onClick={() => setFilters((current) => ({ ...current, status: value }))}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="filter-group">
+              <span className="filter-label">Cadastro</span>
+              <select
+                value={filters.record}
+                onChange={(event) => setFilters((current) => ({ ...current, record: event.target.value as PatientRecordFilter }))}
+              >
+                <option value="all">Todos</option>
+                <option value="with_email">Com e-mail</option>
+                <option value="without_email">Sem e-mail</option>
+                <option value="birthday_month">Aniversariantes do mês</option>
+              </select>
+            </label>
+            <label className="filter-group">
+              <span className="filter-label">Ordenar por</span>
+              <select
+                value={filters.sort}
+                onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value as PatientSort }))}
+              >
+                <option value="name_asc">Nome (A–Z)</option>
+                <option value="name_desc">Nome (Z–A)</option>
+                <option value="newest">Cadastro mais recente</option>
+                <option value="oldest">Cadastro mais antigo</option>
+              </select>
+            </label>
+            {activeFilterCount > 0 && (
+              <button type="button" className="text-link clear-filters" onClick={clearFilters}>
+                Limpar filtros
+              </button>
+            )}
+            {tagOptions.length > 0 && (
+              <div className="filter-group filter-tags">
+                <span className="filter-label" id="patient-tag-filter">Etiquetas</span>
+                <div className="tag-filter-list" role="group" aria-labelledby="patient-tag-filter">
+                  {tagOptions.map(([tag, count]) => (
+                    <button
+                      type="button"
+                      key={tag}
+                      className="tag-filter"
+                      aria-pressed={filters.tags.includes(tag)}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                      <small>{count}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {loading ? (
           <LoadingBlock />
         ) : patients.length === 0 ? (
           <EmptyState
-            title="Nenhum paciente encontrado"
+            title="Nenhum cliente encontrado"
             copy="Tente uma busca diferente ou crie um novo cadastro."
           />
+        ) : visiblePatients.length === 0 ? (
+          <div className="empty-state">
+            <Search size={30} />
+            <strong>Nenhum cliente com esses filtros</strong>
+            <span>Ajuste os filtros para ver mais cadastros.</span>
+            <button type="button" className="secondary-button" onClick={clearFilters}>
+              Limpar filtros
+            </button>
+          </div>
         ) : (
           <div className="patient-table">
             <div className="table-row table-head">
-              <span>Paciente</span>
+              <span>Cliente</span>
               <span>Contato</span>
               <span>Etiquetas</span>
               <span>Situação</span>
               <span />
             </div>
-            {patients.map((patient) => (
-              <div className="table-row" key={patient.id}>
+            {visiblePatients.map((patient) => (
+              <div
+                className="table-row patient-row"
+                key={patient.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Editar ${patient.fullName}`}
+                onClick={() => setEditingPatient(patient)}
+                onKeyDown={(event) => {
+                  if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    setEditingPatient(patient);
+                  }
+                }}
+              >
                 <div className="patient-identity">
                   <span className="avatar patient-avatar">
                     {initials(patient.fullName)}
@@ -815,6 +960,9 @@ function PatientsPage() {
                 </div>
                 <div className="contact-cell">
                   <span>{formatPhone(patient.phone)}</span>
+                  {patient.whatsapp && patient.whatsapp !== patient.phone && (
+                    <small>WhatsApp {formatPhone(patient.whatsapp)}</small>
+                  )}
                   <small>{patient.email || "E-mail não informado"}</small>
                 </div>
                 <div className="tags-cell">
@@ -828,17 +976,11 @@ function PatientsPage() {
                     <small>Sem etiquetas</small>
                   )}
                 </div>
-                <span className="active-label">
+                <span className={`active-label ${patient.status === "inactive" ? "inactive" : ""}`}>
                   <i />
-                  Ativo
+                  {patient.status === "inactive" ? "Inativo" : "Ativo"}
                 </span>
-                <button
-                  className="ghost-icon"
-                  aria-label={`Editar ${patient.fullName}`}
-                  onClick={() => setEditingPatient(patient)}
-                >
-                  <ChevronRight size={18} />
-                </button>
+                <ChevronRight className="row-chevron" size={18} aria-hidden="true" />
               </div>
             ))}
           </div>
@@ -878,6 +1020,7 @@ function PatientModal({
   const [form, setForm] = useState<PatientInput>(() => ({
     fullName: patient?.fullName ?? "",
     phone: patient?.phone ?? "",
+    whatsapp: patient?.whatsapp ?? "",
     cpf: patient?.cpf ?? "",
     email: patient?.email ?? "",
     birthDate: patient?.birthDate ?? "",
@@ -913,7 +1056,7 @@ function PatientModal({
   }
   return (
     <Modal
-      title={patient ? "Editar paciente" : "Novo paciente"}
+      title={patient ? "Editar cliente" : "Novo cliente"}
       subtitle={patient ? `Atualize o cadastro ${patient.recordNumber}.` : "Cadastre as informações essenciais. O restante pode ser completado depois."}
       onClose={onClose}
     >
@@ -927,14 +1070,29 @@ function PatientModal({
             autoFocus
           />
         </label>
-        <label>
-          Telefone
-          <PhoneInput
-            required
-            value={form.phone}
-            onChange={(digits) => field("phone", digits)}
-          />
-        </label>
+        <fieldset className="form-fieldset span-2">
+          <legend>Contato</legend>
+          <div className="form-fieldset-grid">
+            <label>
+              Telefone
+              <PhoneInput
+                required
+                value={form.phone}
+                onChange={(digits) => field("phone", digits)}
+              />
+            </label>
+            <div className="field-with-hint">
+              <label>
+                WhatsApp
+                <PhoneInput
+                  value={form.whatsapp ?? ""}
+                  onChange={(digits) => field("whatsapp", digits)}
+                />
+              </label>
+              <small className="field-hint">Em branco, as mensagens usam o telefone de contato.</small>
+            </div>
+          </div>
+        </fieldset>
         <label>
           E-mail
           <input
@@ -1000,7 +1158,7 @@ function PatientModal({
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
-            {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar paciente"}
+            {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar cliente"}
           </button>
         </div>
       </form>
@@ -1146,7 +1304,7 @@ function CommunicationsPage() {
             <h2>Adicionar à fila</h2>
             <form onSubmit={queueMessage}>
               <label>
-                Paciente
+                Cliente
                 <select
                   value={patientId}
                   onChange={(event) => setPatientId(event.target.value)}
@@ -1522,7 +1680,7 @@ function DocumentsPage() {
                 </select>
               </label>
               <label>
-                Paciente
+                Cliente
                 <select
                   required
                   value={documentForm.patientId}
@@ -1735,7 +1893,7 @@ function SalesInsights() {
     <section className="panel sales-report">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">Vendas e pacientes</span>
+          <span className="eyebrow">Vendas e clientes</span>
           <h2>Comparação mensal</h2>
         </div>
         <div className="sales-report-actions">
@@ -1772,7 +1930,7 @@ function SalesInsights() {
             {formatIsoDate(report.current.from)} a {formatIsoDate(report.current.to)}
             {" · "}Comparado com {formatIsoDate(report.previousComparable.from)}
             {" "}a {formatIsoDate(report.previousComparable.to)}.
-            {" "}{report.current.attendedPatients} pacientes atendidos neste mês.
+            {" "}{report.current.attendedPatients} clientes atendidos neste mês.
           </p>
           <div className="sales-metrics">
             <article>
@@ -1798,7 +1956,7 @@ function SalesInsights() {
               <small>Pagamentos registrados, após estornos</small>
             </article>
             <article>
-              <span>Pacientes sem retorno</span>
+              <span>Clientes sem retorno</span>
               <strong>{report.patientsWithoutReturn.length}</strong>
               <small>
                 Atendidos no mês anterior, sem consulta concluída neste mês
@@ -1806,7 +1964,7 @@ function SalesInsights() {
             </article>
           </div>
           <details className="report-disclosure sales-details">
-            <summary>Ver vendas e pacientes do mês</summary>
+            <summary>Ver vendas e clientes do mês</summary>
             <div className="sales-detail-grid">
             <div>
               <h3>Movimentos deste mês</h3>
@@ -1830,9 +1988,9 @@ function SalesInsights() {
               )}
             </div>
             <div>
-              <h3>Pacientes sem retorno</h3>
+              <h3>Clientes sem retorno</h3>
               {report.patientsWithoutReturn.length === 0 ? (
-                <p>Nenhum paciente nessa situação.</p>
+                <p>Nenhum cliente nessa situação.</p>
               ) : (
                 <div className="sales-detail-list">
                   {report.patientsWithoutReturn.slice(0, 12).map((item) => (
@@ -1857,7 +2015,7 @@ function SalesInsights() {
             </div>
           </details>
           <p className="sales-help">
-            A planilha traz cada venda, pagamento e paciente sem retorno dos
+            A planilha traz cada venda, pagamento e cliente sem retorno dos
             dois períodos comparados.
           </p>
         </>
@@ -2183,7 +2341,7 @@ function CommercialPage() {
     }
   }
   async function convert(lead: Lead) {
-    if (!window.confirm(`Converter ${lead.fullName} em paciente?`)) return;
+    if (!window.confirm(`Converter ${lead.fullName} em cliente?`)) return;
     setError("");
     try {
       const result = await api.convertLead(lead.id);
@@ -2836,7 +2994,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
         <div className="panel-head">
           <div>
             <span className="eyebrow">Carteira</span>
-            <h2>Planos dos pacientes</h2>
+            <h2>Planos dos clientes</h2>
           </div>
         </div>
         {loading ? (
@@ -3003,7 +3161,7 @@ function PlanModal({
     >
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
-          Paciente
+          Cliente
           <select
             required
             value={form.patientId}
@@ -4210,7 +4368,7 @@ function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
           <h2>Acompanhamento terapêutico</h2>
         </div>
         <label>
-          Paciente
+          Cliente
           <select
             value={patientId}
             onChange={(event) => {
@@ -5436,7 +5594,7 @@ function ClinicalRecordModal({
         </label>
         <label>
           S — Subjetivo
-          <small>Relato, sintomas e percepção do paciente.</small>
+          <small>Relato, sintomas e percepção do cliente.</small>
           <textarea
             required
             rows={4}
@@ -5583,6 +5741,7 @@ function AgendaPage() {
   const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
   const [historyAppointment, setHistoryAppointment] = useState<Appointment | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [eventsDay, setEventsDay] = useState<Date | null>(null);
   const selectedAppointment = appointments.find((item) => item.id === selectedAppointmentId);
   const date = localIsoDate(selectedDate);
   const weekStart = new Date(selectedDate);
@@ -5763,29 +5922,40 @@ function AgendaPage() {
                 const dayAppointments = appointments.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
                 const dayBlocks = blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey && item.status === "active");
                 const dayGroups = groupSessions.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
+                const dayEvents = sortAgendaEntries({ appointments: dayAppointments, groupSessions: dayGroups });
                 return (
                   <div
                     className={`month-day ${day.getMonth() !== selectedDate.getMonth() ? "outside" : ""} ${dayKey === localIsoDate() ? "today" : ""} ${dayKey === date ? "selected" : ""}`}
                     key={dayKey}
+                    onClick={(event) => {
+                      // Botões internos (atendimento, "ver todos") têm ação própria.
+                      if (!(event.target as HTMLElement).closest("button")) setEventsDay(day);
+                    }}
                   >
                     <button
                       type="button"
                       className="month-day-head"
-                      onClick={() => { setSelectedDate(day); setView("day"); }}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} turmas, ${dayBlocks.length} bloqueios`}
+                      onClick={() => setEventsDay(day)}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios`}
                     >
                       <strong>{day.getDate()}</strong>
                       {dayAppointments.length > 0 && <small>{dayAppointments.length} {dayAppointments.length === 1 ? "atendimento" : "atendimentos"}</small>}
                     </button>
                     <span className="month-day-events">
-                      {dayAppointments.slice(0, 2).map((appointment) => (
-                        <button type="button" className="month-event" key={appointment.id} onClick={() => setSelectedAppointmentId(appointment.id)} aria-label={`Detalhes de ${appointment.patientName}, ${timeLabel.format(new Date(appointment.startsAt))} a ${timeLabel.format(new Date(appointment.endsAt))}`}>
-                          <span className="month-event-time"><i style={{ background: appointment.professionalColor }} aria-hidden="true" /><time>{timeLabel.format(new Date(appointment.startsAt))}–{timeLabel.format(new Date(appointment.endsAt))}</time></span>
-                          <span className="month-event-name">{appointment.patientName}</span>
-                        </button>
-                      ))}
-                      {dayAppointments.length > 2 && <span className="month-more">+{dayAppointments.length - 2} atendimentos</span>}
-                      {dayGroups.length > 0 && <span className="month-group">{dayGroups.length} {dayGroups.length === 1 ? "turma" : "turmas"}</span>}
+                      {dayEvents.slice(0, 2).map((entry) =>
+                        entry.kind === "appointment" ? (
+                          <button type="button" className="month-event" key={entry.appointment.id} onClick={() => setSelectedAppointmentId(entry.appointment.id)} aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}`}>
+                            <span className="month-event-time"><i style={{ background: entry.appointment.professionalColor }} aria-hidden="true" /><time>{timeLabel.format(new Date(entry.appointment.startsAt))}–{timeLabel.format(new Date(entry.appointment.endsAt))}</time></span>
+                            <span className="month-event-name">{entry.appointment.patientName}</span>
+                          </button>
+                        ) : entry.kind === "group" ? (
+                          <span className="month-group" key={entry.session.id} title={`${entry.session.groupName} · ${entry.session.professionalName} · ${entry.session.roomName}`}>
+                            <span className="month-event-time"><time>{timeLabel.format(new Date(entry.session.startsAt))}–{timeLabel.format(new Date(entry.session.endsAt))}</time></span>
+                            <span className="month-event-name">{entry.session.groupName}</span>
+                          </span>
+                        ) : null,
+                      )}
+                      {dayEvents.length > 2 && <button type="button" className="month-more" onClick={() => setEventsDay(day)}>+{dayEvents.length - 2} {dayEvents.length - 2 === 1 ? "evento" : "eventos"}</button>}
                       {dayBlocks.length > 0 && <span className="month-block">{dayBlocks.length} {dayBlocks.length === 1 ? "bloqueio" : "bloqueios"}</span>}
                     </span>
                   </div>
@@ -5815,38 +5985,38 @@ function AgendaPage() {
                     <strong>{day.getDate()}</strong>
                   </header>
                   <div>
-                    {dayBlocks.map((block) => (
-                      <ScheduleBlockCard
-                        compact
-                        block={block}
-                        key={block.id}
-                        onCancel={() => void cancelBlock(block)}
-                      />
-                    ))}
-                    {dayGroups.map((session) => (
-                      <GroupSessionCard compact session={session} key={session.id} />
-                    ))}
-                    {dayAppointments.map((appointment) => (
-                      <article
-                        className="week-appointment"
-                        key={appointment.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Detalhes de ${appointment.patientName}`}
-                        onClick={() => setSelectedAppointmentId(appointment.id)}
-                        onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedAppointmentId(appointment.id); } }}
-                      >
-                        <i
-                          style={{ background: appointment.professionalColor }}
-                          aria-hidden="true"
+                    {sortAgendaEntries({ appointments: dayAppointments, groupSessions: dayGroups, blocks: dayBlocks }).map((entry) =>
+                      entry.kind === "block" ? (
+                        <ScheduleBlockCard
+                          compact
+                          block={entry.block}
+                          key={entry.block.id}
+                          onCancel={() => void cancelBlock(entry.block)}
                         />
-                        <time>
-                          {timeLabel.format(new Date(appointment.startsAt))}–{timeLabel.format(new Date(appointment.endsAt))}
-                        </time>
-                        <strong>{appointment.patientName}</strong>
-                        <span>{appointment.serviceName}</span>
-                      </article>
-                    ))}
+                      ) : entry.kind === "group" ? (
+                        <GroupSessionCard compact session={entry.session} key={entry.session.id} />
+                      ) : (
+                        <article
+                          className="week-appointment"
+                          key={entry.appointment.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Detalhes de ${entry.appointment.patientName}`}
+                          onClick={() => setSelectedAppointmentId(entry.appointment.id)}
+                          onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedAppointmentId(entry.appointment.id); } }}
+                        >
+                          <i
+                            style={{ background: entry.appointment.professionalColor }}
+                            aria-hidden="true"
+                          />
+                          <time>
+                            {timeLabel.format(new Date(entry.appointment.startsAt))}–{timeLabel.format(new Date(entry.appointment.endsAt))}
+                          </time>
+                          <strong>{entry.appointment.patientName}</strong>
+                          <span>{entry.appointment.serviceName}</span>
+                        </article>
+                      ),
+                    )}
                     {dayAppointments.length === 0 && dayBlocks.length === 0 && dayGroups.length === 0 && (
                       <span className="week-empty">Livre</span>
                     )}
@@ -5862,39 +6032,25 @@ function AgendaPage() {
           />
         ) : (
           <div className="day-agenda">
-            {blocks.map((block) => (
-              <ScheduleBlockCard
-                block={block}
-                key={block.id}
-                onCancel={() => void cancelBlock(block)}
-              />
-            ))}
-            {groupSessions.map((session) => (
-              <GroupSessionCard session={session} key={session.id} />
-            ))}
-            {appointments.map((appointment) => (
-              <AgendaCard
-                appointment={appointment}
-                key={appointment.id}
-                onOpen={() => setSelectedAppointmentId(appointment.id)}
-                onHistory={() => setHistoryAppointment(appointment)}
-                onStatus={async (status) => {
-                  try {
-                    const updated = await api.updateAppointmentStatus(
-                      appointment.id,
-                      status,
-                    );
-                    setAppointments((items) =>
-                      items.map((item) =>
-                        item.id === updated.id ? updated : item,
-                      ),
-                    );
-                  } catch (cause) {
-                    setError((cause as Error).message);
-                  }
-                }}
-              />
-            ))}
+            {sortAgendaEntries({ appointments, groupSessions, blocks }).map((entry) =>
+              entry.kind === "block" ? (
+                <ScheduleBlockCard
+                  block={entry.block}
+                  key={entry.block.id}
+                  onCancel={() => void cancelBlock(entry.block)}
+                />
+              ) : entry.kind === "group" ? (
+                <GroupSessionCard session={entry.session} key={entry.session.id} />
+              ) : (
+                <AgendaCard
+                  appointment={entry.appointment}
+                  key={entry.appointment.id}
+                  onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
+                  onHistory={() => setHistoryAppointment(entry.appointment)}
+                  onStatus={(status) => changeAppointmentStatus(entry.appointment, status)}
+                />
+              ),
+            )}
           </div>
         )}
       </section>
@@ -5967,6 +6123,17 @@ function AgendaPage() {
           }}
         />
       )}
+      {eventsDay && (
+        <DayEventsModal
+          day={eventsDay}
+          appointments={appointments.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay))}
+          groupSessions={groupSessions.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay))}
+          blocks={blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay) && item.status === "active")}
+          onClose={() => setEventsDay(null)}
+          onOpenAppointment={(id) => { setEventsDay(null); setSelectedAppointmentId(id); }}
+          onOpenDay={() => { setSelectedDate(eventsDay); setView("day"); setEventsDay(null); }}
+        />
+      )}
       {historyAppointment && (
         <AppointmentRescheduleHistoryModal
           appointment={historyAppointment}
@@ -5975,6 +6142,17 @@ function AgendaPage() {
       )}
     </>
   );
+
+  async function changeAppointmentStatus(appointment: Appointment, status: AppointmentStatus) {
+    try {
+      const updated = await api.updateAppointmentStatus(appointment.id, status);
+      setAppointments((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
 
   async function cancelBlock(block: ScheduleBlock) {
     if (!window.confirm(`Cancelar o bloqueio “${block.reason}”?`)) return;
@@ -5987,14 +6165,132 @@ function AgendaPage() {
   }
 }
 
-function GroupSessionCard({ session, compact = false }: { session: GroupSession; compact?: boolean }) {
+type AgendaEntry =
+  | { kind: "block"; startsAt: string; block: ScheduleBlock }
+  | { kind: "group"; startsAt: string; session: GroupSession }
+  | { kind: "appointment"; startsAt: string; appointment: Appointment };
+
+const agendaKindOrder: Record<AgendaEntry["kind"], number> = { block: 0, group: 1, appointment: 2 };
+
+// Junta atendimentos, aulas de turma e bloqueios em ordem crescente de início.
+function sortAgendaEntries({
+  appointments = [],
+  groupSessions = [],
+  blocks = [],
+}: {
+  appointments?: Appointment[];
+  groupSessions?: GroupSession[];
+  blocks?: ScheduleBlock[];
+}): AgendaEntry[] {
+  return [
+    ...blocks.map((block) => ({ kind: "block" as const, startsAt: block.startsAt, block })),
+    ...groupSessions.map((session) => ({ kind: "group" as const, startsAt: session.startsAt, session })),
+    ...appointments.map((appointment) => ({ kind: "appointment" as const, startsAt: appointment.startsAt, appointment })),
+  ].sort(
+    (a, b) =>
+      new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime() ||
+      agendaKindOrder[a.kind] - agendaKindOrder[b.kind],
+  );
+}
+
+function DayEventsModal({
+  day,
+  appointments,
+  groupSessions,
+  blocks,
+  onClose,
+  onOpenAppointment,
+  onOpenDay,
+}: {
+  day: Date;
+  appointments: Appointment[];
+  groupSessions: GroupSession[];
+  blocks: ScheduleBlock[];
+  onClose: () => void;
+  onOpenAppointment: (id: string) => void;
+  onOpenDay: () => void;
+}) {
+  const events = sortAgendaEntries({ appointments, groupSessions, blocks }).map((entry) =>
+    entry.kind === "appointment"
+      ? { kind: entry.kind, id: entry.appointment.id, startsAt: entry.startsAt, endsAt: entry.appointment.endsAt, title: entry.appointment.patientName, detail: `${entry.appointment.serviceName} · ${entry.appointment.professionalName} · ${statusLabel(entry.appointment.status)}`, color: entry.appointment.professionalColor }
+      : entry.kind === "group"
+        ? { kind: entry.kind, id: entry.session.id, startsAt: entry.startsAt, endsAt: entry.session.endsAt, title: entry.session.groupName, detail: `${entry.session.professionalName} · ${entry.session.roomName}`, color: undefined }
+        : { kind: entry.kind, id: entry.block.id, startsAt: entry.startsAt, endsAt: entry.block.endsAt, title: entry.block.reason, detail: `Bloqueio · ${[entry.block.professionalName, entry.block.roomName].filter(Boolean).join(" · ")}`, color: undefined },
+  );
+  const count = events.length;
   return (
-    <article className={`group-session-block ${compact ? "compact" : ""}`} aria-label={`Turma ${session.groupName}`}>
-      <strong>{session.groupName}</strong>
-      <span>
-        {timeLabel.format(new Date(session.startsAt))}–{timeLabel.format(new Date(session.endsAt))}
-      </span>
-      {!compact && <small>{session.professionalName} · {session.roomName}</small>}
+    <Modal
+      eyebrow="Agenda do dia"
+      title={day.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+      subtitle={count === 0 ? "Nenhum evento neste dia." : `${count} ${count === 1 ? "evento" : "eventos"} neste dia.`}
+      onClose={onClose}
+    >
+      <div className="day-events">
+        {count > 0 && (
+          <ul className="day-events-list">
+            {events.map((event) => {
+              const content = (
+                <>
+                  <time>{timeLabel.format(new Date(event.startsAt))}–{timeLabel.format(new Date(event.endsAt))}</time>
+                  <span>
+                    <strong>{event.color && <i style={{ background: event.color }} aria-hidden="true" />}{event.title}</strong>
+                    <small>{event.detail}</small>
+                  </span>
+                </>
+              );
+              return (
+                <li key={`${event.kind}-${event.id}`}>
+                  {event.kind === "appointment" ? (
+                    <button type="button" className="day-event appointment" onClick={() => onOpenAppointment(event.id)} aria-label={`Detalhes de ${event.title}`}>
+                      {content}
+                    </button>
+                  ) : (
+                    <div className={`day-event ${event.kind}`}>{content}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onOpenDay}>Abrir dia na agenda</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Mesmo layout do card de atendimento, com fundo próprio para diferenciar as aulas em grupo.
+function GroupSessionCard({ session, compact = false }: { session: GroupSession; compact?: boolean }) {
+  const startsAt = timeLabel.format(new Date(session.startsAt));
+  const endsAt = timeLabel.format(new Date(session.endsAt));
+  if (compact)
+    return (
+      <article className="week-appointment group-class" aria-label={session.groupName}>
+        <Users size={10} aria-hidden="true" />
+        <time>{startsAt}–{endsAt}</time>
+        <strong>{session.groupName}</strong>
+        <span>{session.professionalName} · {session.roomName}</span>
+      </article>
+    );
+  return (
+    <article className="agenda-card group-class" aria-label={session.groupName}>
+      <div className="agenda-time">
+        <strong>{startsAt}</strong>
+        <span>{endsAt}</span>
+      </div>
+      <div className="agenda-main">
+        <div>
+          <span className="service-name">
+            <Users size={13} aria-hidden="true" />
+            Aula em grupo
+          </span>
+          <h3>{session.groupName}</h3>
+          <p>
+            {session.professionalName} · {session.roomName}
+          </p>
+        </div>
+      </div>
     </article>
   );
 }
@@ -6147,19 +6443,20 @@ function AppointmentDetailsModal({
           </div>
         </section>
         <section className="appointment-detail-section">
-          <h3>Dados do paciente</h3>
+          <h3>Dados do cliente</h3>
           {patient ? (
             <div className="appointment-detail-grid">
               <div><small>Nome completo</small><strong>{patient.fullName}</strong></div>
               <div><small>Prontuário</small><strong>{patient.recordNumber || "Não informado"}</strong></div>
               <div><small>Telefone</small><strong>{patient.phone ? formatPhone(patient.phone) : "Não informado"}</strong></div>
+              <div><small>WhatsApp</small><strong>{patient.whatsapp ? formatPhone(patient.whatsapp) : "Mesmo telefone de contato"}</strong></div>
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
               <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
               <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
-              {patient.notes && <div className="detail-wide"><small>Observações do paciente</small><strong>{patient.notes}</strong></div>}
+              {patient.notes && <div className="detail-wide"><small>Observações do cliente</small><strong>{patient.notes}</strong></div>}
             </div>
           ) : <p>Dados cadastrais indisponíveis no momento.</p>}
         </section>
@@ -6400,7 +6697,7 @@ function AppointmentModal({
     >
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
-          Paciente
+          Cliente
           <select
             required
             value={form.patientId}
@@ -6922,11 +7219,13 @@ function AdminPage() {
 function Modal({
   title,
   subtitle,
+  eyebrow = "Cadastro rápido",
   onClose,
   children,
 }: {
   title: string;
   subtitle: string;
+  eyebrow?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -6946,7 +7245,7 @@ function Modal({
       >
         <div className="modal-head">
           <div>
-            <span className="eyebrow">Cadastro rápido</span>
+            <span className="eyebrow">{eyebrow}</span>
             <h2 id="modal-title">{title}</h2>
             <p>{subtitle}</p>
           </div>
@@ -6957,575 +7256,6 @@ function Modal({
         {children}
       </section>
     </div>
-  );
-}
-
-function InventoryPage() {
-  const [workspace, setWorkspace] = useState<InventoryWorkspace | null>(null);
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [product, setProduct] = useState({
-    name: "",
-    sku: "",
-    unit: "un",
-    cost: 0,
-    price: 0,
-    initialStock: 0,
-    minimumStock: 0,
-  });
-  const [movement, setMovement] = useState({
-    productId: "",
-    kind: "purchase" as
-      "purchase" | "adjustment_in" | "adjustment_out" | "loss",
-    quantity: 1,
-    notes: "Entrada de estoque",
-  });
-  const [newTab, setNewTab] = useState({ patientId: "", notes: "" });
-  const [tabItem, setTabItem] = useState({
-    tabId: "",
-    productId: "",
-    quantity: 1,
-  });
-  const [closing, setClosing] = useState({
-    tabId: "",
-    settlement: "paid" as "paid" | "receivable",
-    paymentMethod: "pix" as PaymentMethod,
-    dueDate: localIsoDate(),
-  });
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const [data, patientData] = await Promise.all([
-        api.inventoryWorkspace(),
-        api.patients(),
-      ]);
-      setWorkspace(data);
-      setPatients(patientData);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    let active = true;
-    Promise.all([api.inventoryWorkspace(), api.patients()])
-      .then(([data, patientData]) => {
-        if (active) {
-          setWorkspace(data);
-          setPatients(patientData);
-        }
-      })
-      .catch((cause: Error) => active && setError(cause.message))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, []);
-  async function run(action: () => Promise<unknown>) {
-    setError("");
-    try {
-      await action();
-      await load();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
-  const openTabs =
-    workspace?.tabs.filter((item) => item.status === "open") ?? [];
-  return (
-    <>
-      <PageHeader
-        eyebrow="Operação interna"
-        title="Estoque e comandas"
-        description="Produtos, saldos, consumo por paciente e fechamento financeiro rastreável."
-      />
-      {error && <ErrorBanner error={error} />}
-      {loading && !workspace ? (
-        <LoadingBlock />
-      ) : (
-        <div className="inventory-layout">
-          <section className="metric-grid inventory-metrics">
-            <article className="metric-card">
-              <span>Produtos</span>
-              <strong>{workspace?.products.length ?? 0}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Estoque baixo</span>
-              <strong>{workspace?.lowStockCount ?? 0}</strong>
-            </article>
-            <article className="metric-card">
-              <span>Custo em estoque</span>
-              <strong>
-                {currency.format((workspace?.inventoryCostInCents ?? 0) / 100)}
-              </strong>
-            </article>
-            <article className="metric-card">
-              <span>Comandas abertas</span>
-              <strong>
-                {currency.format((workspace?.openTabsInCents ?? 0) / 100)}
-              </strong>
-            </article>
-          </section>
-          <div className="inventory-form-grid">
-            <section className="panel group-form-panel">
-              <h2>Novo produto</h2>
-              <form
-                className="form-grid"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(() =>
-                    api.createProduct({
-                      name: product.name,
-                      sku: product.sku,
-                      unit: product.unit,
-                      costInCents: Math.round(product.cost * 100),
-                      salePriceInCents: Math.round(product.price * 100),
-                      initialStock: product.initialStock,
-                      minimumStock: product.minimumStock,
-                    }),
-                  );
-                }}
-              >
-                <label>
-                  Nome
-                  <input
-                    required
-                    value={product.name}
-                    onChange={(event) =>
-                      setProduct({ ...product, name: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  SKU
-                  <input
-                    required
-                    value={product.sku}
-                    onChange={(event) =>
-                      setProduct({ ...product, sku: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Unidade
-                  <input
-                    required
-                    value={product.unit}
-                    onChange={(event) =>
-                      setProduct({ ...product, unit: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Custo (R$)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={product.cost}
-                    onChange={(event) =>
-                      setProduct({
-                        ...product,
-                        cost: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Venda (R$)
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={product.price}
-                    onChange={(event) =>
-                      setProduct({
-                        ...product,
-                        price: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Estoque inicial
-                  <input
-                    type="number"
-                    min="0"
-                    value={product.initialStock}
-                    onChange={(event) =>
-                      setProduct({
-                        ...product,
-                        initialStock: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Estoque mínimo
-                  <input
-                    type="number"
-                    min="0"
-                    value={product.minimumStock}
-                    onChange={(event) =>
-                      setProduct({
-                        ...product,
-                        minimumStock: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <button className="primary-button">Cadastrar</button>
-              </form>
-            </section>
-            <section className="panel group-form-panel">
-              <h2>Movimentar estoque</h2>
-              <form
-                className="form-grid"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(() => api.createStockMovement(movement));
-                }}
-              >
-                <label>
-                  Produto
-                  <select
-                    required
-                    value={movement.productId}
-                    onChange={(event) =>
-                      setMovement({
-                        ...movement,
-                        productId: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Selecione</option>
-                    {workspace?.products.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} · {item.currentStock} {item.unit}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Movimento
-                  <select
-                    value={movement.kind}
-                    onChange={(event) =>
-                      setMovement({
-                        ...movement,
-                        kind: event.target.value as typeof movement.kind,
-                      })
-                    }
-                  >
-                    <option value="purchase">Compra</option>
-                    <option value="adjustment_in">Ajuste de entrada</option>
-                    <option value="adjustment_out">Ajuste de saída</option>
-                    <option value="loss">Perda</option>
-                  </select>
-                </label>
-                <label>
-                  Quantidade
-                  <input
-                    type="number"
-                    min="1"
-                    value={movement.quantity}
-                    onChange={(event) =>
-                      setMovement({
-                        ...movement,
-                        quantity: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label className="span-2">
-                  Motivo
-                  <input
-                    required
-                    minLength={3}
-                    value={movement.notes}
-                    onChange={(event) =>
-                      setMovement({ ...movement, notes: event.target.value })
-                    }
-                  />
-                </label>
-                <button className="primary-button">Registrar</button>
-              </form>
-            </section>
-            <section className="panel group-form-panel">
-              <h2>Abrir comanda</h2>
-              <form
-                className="form-grid"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(() => api.openPatientTab(newTab));
-                }}
-              >
-                <label>
-                  Paciente
-                  <select
-                    required
-                    value={newTab.patientId}
-                    onChange={(event) =>
-                      setNewTab({ ...newTab, patientId: event.target.value })
-                    }
-                  >
-                    <option value="">Selecione</option>
-                    {patients.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Observação
-                  <input
-                    value={newTab.notes}
-                    onChange={(event) =>
-                      setNewTab({ ...newTab, notes: event.target.value })
-                    }
-                  />
-                </label>
-                <button className="primary-button">Abrir comanda</button>
-              </form>
-            </section>
-          </div>
-          <section className="panel">
-            <h2>Produtos</h2>
-            <div className="product-grid">
-              {workspace?.products.map((item) => (
-                <article
-                  className={`product-card ${item.lowStock ? "low-stock" : ""}`}
-                  key={item.id}
-                >
-                  <div>
-                    <strong>{item.name}</strong>
-                    <small>
-                      {item.sku} · {item.unit}
-                    </small>
-                  </div>
-                  <strong>{item.currentStock}</strong>
-                  <span>
-                    {item.lowStock ? "Estoque baixo" : "Saldo normal"}
-                  </span>
-                  <small>
-                    {currency.format(item.salePriceInCents / 100)} venda
-                  </small>
-                </article>
-              ))}
-            </div>
-          </section>
-          <section className="panel group-form-panel">
-            <h2>Adicionar item na comanda</h2>
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(() =>
-                  api.addPatientTabItem(tabItem.tabId, {
-                    productId: tabItem.productId,
-                    quantity: tabItem.quantity,
-                  }),
-                );
-              }}
-            >
-              <label>
-                Comanda
-                <select
-                  required
-                  value={tabItem.tabId}
-                  onChange={(event) =>
-                    setTabItem({ ...tabItem, tabId: event.target.value })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {openTabs.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.patientName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Produto
-                <select
-                  required
-                  value={tabItem.productId}
-                  onChange={(event) =>
-                    setTabItem({ ...tabItem, productId: event.target.value })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {workspace?.products
-                    .filter((item) => item.currentStock > 0)
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} · saldo {item.currentStock}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Quantidade
-                <input
-                  type="number"
-                  min="1"
-                  value={tabItem.quantity}
-                  onChange={(event) =>
-                    setTabItem({
-                      ...tabItem,
-                      quantity: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <button className="primary-button">Adicionar</button>
-            </form>
-          </section>
-          <section className="panel group-form-panel">
-            <h2>Fechar comanda</h2>
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(() =>
-                  api.closePatientTab(closing.tabId, {
-                    settlement: closing.settlement,
-                    dueDate: closing.dueDate,
-                    ...(closing.settlement === "paid"
-                      ? { paymentMethod: closing.paymentMethod }
-                      : {}),
-                  }),
-                );
-              }}
-            >
-              <label>
-                Comanda
-                <select
-                  required
-                  value={closing.tabId}
-                  onChange={(event) =>
-                    setClosing({ ...closing, tabId: event.target.value })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {openTabs.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.patientName} ·{" "}
-                      {currency.format(item.totalInCents / 100)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Liquidação
-                <select
-                  value={closing.settlement}
-                  onChange={(event) =>
-                    setClosing({
-                      ...closing,
-                      settlement: event.target
-                        .value as typeof closing.settlement,
-                    })
-                  }
-                >
-                  <option value="paid">Pago agora</option>
-                  <option value="receivable">Conta a receber</option>
-                </select>
-              </label>
-              {closing.settlement === "paid" && (
-                <label>
-                  Forma
-                  <select
-                    value={closing.paymentMethod}
-                    onChange={(event) =>
-                      setClosing({
-                        ...closing,
-                        paymentMethod: event.target.value as PaymentMethod,
-                      })
-                    }
-                  >
-                    <option value="pix">Pix</option>
-                    <option value="card">Cartão</option>
-                    <option value="cash">Dinheiro</option>
-                    <option value="bank_transfer">Transferência</option>
-                    <option value="boleto">Boleto</option>
-                    <option value="other">Outro</option>
-                  </select>
-                </label>
-              )}
-              <label>
-                Vencimento
-                <input
-                  type="date"
-                  required
-                  value={closing.dueDate}
-                  onChange={(event) =>
-                    setClosing({ ...closing, dueDate: event.target.value })
-                  }
-                />
-              </label>
-              <button className="primary-button">Fechar</button>
-            </form>
-          </section>
-          <section className="panel inventory-wide">
-            <h2>Comandas</h2>
-            <div className="tab-card-grid">
-              {workspace?.tabs.map((tab) => (
-                <article className="tab-card" key={tab.id}>
-                  <div>
-                    <strong>{tab.patientName}</strong>
-                    <span className={`status-pill ${tab.status}`}>
-                      {tabStatusNames[tab.status]}
-                    </span>
-                  </div>
-                  {tab.items.map((item) => (
-                    <small key={item.id}>
-                      {item.quantity}× {item.productName} ·{" "}
-                      {currency.format(item.totalInCents / 100)}
-                    </small>
-                  ))}
-                  <strong>{currency.format(tab.totalInCents / 100)}</strong>
-                  {tab.status !== "cancelled" && (
-                    <button
-                      className="text-button danger"
-                      onClick={() =>
-                        void run(() => api.cancelPatientTab(tab.id))
-                      }
-                    >
-                      Cancelar e estornar
-                    </button>
-                  )}
-                </article>
-              ))}
-            </div>
-          </section>
-          <section className="panel inventory-wide">
-            <h2>Últimos movimentos</h2>
-            <div className="movement-list">
-              {workspace?.movements.slice(0, 20).map((item) => (
-                <div key={item.id}>
-                  <span>
-                    <strong>{item.productName}</strong>
-                    <small>{item.notes}</small>
-                  </span>
-                  <strong
-                    className={item.quantity > 0 ? "positive" : "negative"}
-                  >
-                    {item.quantity > 0 ? "+" : ""}
-                    {item.quantity}
-                  </strong>
-                  <small>Saldo {item.balanceAfter}</small>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-    </>
   );
 }
 
@@ -7579,7 +7309,7 @@ function GroupsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [drawer, setDrawer] = useState<"create" | "enroll" | "replacement" | null>(null);
+  const [drawer, setDrawer] = useState<"create" | "enroll" | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
@@ -7593,10 +7323,6 @@ function GroupsPage() {
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
     patientId: "",
-  });
-  const [replacementForm, setReplacementForm] = useState({
-    creditId: "",
-    sessionId: "",
   });
   async function load() {
     setLoading(true);
@@ -7674,8 +7400,8 @@ function GroupsPage() {
     <>
       <PageHeader
         eyebrow="Operação coletiva"
-        title="Turmas e reposições"
-        description="Capacidade, lista de espera, encontros recorrentes e reposições em um fluxo único."
+        title="Turmas"
+        description="Capacidade, lista de espera e horários fixos reservados na agenda."
         action={<button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
       />
       {error && <ErrorBanner error={error} />}
@@ -7685,13 +7411,11 @@ function GroupsPage() {
         <div className="groups-layout">
           <div className="group-overview">
             <div><span>Turmas</span><strong>{workspace?.groups.length ?? 0}</strong><small>cadastradas</small></div>
-            <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>pacientes inscritos</small></div>
+            <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
-            <div><span>Reposições</span><strong>{workspace?.replacementCredits.filter((item) => item.status === "available").length ?? 0}</strong><small>créditos disponíveis</small></div>
           </div>
           <div className="group-actions-bar">
-            <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular paciente</button>
-            <button className="secondary-button" onClick={() => setDrawer("replacement")}>Agendar reposição</button>
+            <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular cliente</button>
           </div>
           {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
@@ -7787,11 +7511,11 @@ function GroupsPage() {
             </form>
           </section>
           </Drawer>}
-          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o paciente." onClose={closeDrawers}>
+          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o cliente." onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
             {error && <ErrorBanner error={error} />}
             <h2>Matrícula</h2>
-            <p className="group-panel-copy">Inclua um paciente em uma turma com vagas disponíveis.</p>
+            <p className="group-panel-copy">Inclua um cliente em uma turma com vagas disponíveis.</p>
             <form
               className="form-grid"
               onSubmit={(event) => {
@@ -7822,7 +7546,7 @@ function GroupsPage() {
                 </select>
               </label>
               <label>
-                Paciente
+                Cliente
                 <select
                   required
                   value={enrollmentForm.patientId}
@@ -7877,7 +7601,7 @@ function GroupsPage() {
             <div className="group-drawer-content">
               {error && <ErrorBanner error={error} />}
               <div className="group-drawer-quick-actions">
-                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular paciente</button>
+                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular cliente</button>
               </div>
               <section className="group-drawer-section">
                 <h3>Capacidade e horários</h3>
@@ -7902,69 +7626,6 @@ function GroupsPage() {
                 </div>
               </section>
             </div>
-          </Drawer>}
-
-          {drawer === "replacement" && <Drawer title="Agendar reposição" subtitle="Use um crédito disponível para reservar outro encontro." onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
-            {error && <ErrorBanner error={error} />}
-            <h2>Agendar reposição</h2>
-            <p className="group-panel-copy">Use um crédito disponível para reservar outro encontro.</p>
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(async () => { await api.bookReplacement(replacementForm); closeDrawers(); });
-              }}
-            >
-              <label>
-                Crédito
-                <select
-                  required
-                  value={replacementForm.creditId}
-                  onChange={(event) =>
-                    setReplacementForm({
-                      ...replacementForm,
-                      creditId: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {workspace?.replacementCredits
-                    .filter((item) => item.status === "available")
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.patientName}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Encontro
-                <select
-                  required
-                  value={replacementForm.sessionId}
-                  onChange={(event) =>
-                    setReplacementForm({
-                      ...replacementForm,
-                      sessionId: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {workspace?.sessions
-                    .filter((item) => item.status === "scheduled")
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.groupName} ·{" "}
-                        {shortDate.format(new Date(item.startsAt))}{" "}
-                        {timeLabel.format(new Date(item.startsAt))}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <button className="primary-button">Reservar reposição</button>
-            </form>
-          </section>
           </Drawer>}
         </div>
       )}
@@ -8013,17 +7674,9 @@ function App() {
                     )
                   }
                 />
-                <Route path="/pacientes" element={<PatientsPage />} />
-                <Route
-                  path="/estoque"
-                  element={
-                    ["owner", "reception", "finance"].includes(user!.role) ? (
-                      <InventoryPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
+                <Route path="/clientes" element={<PatientsPage />} />
+                {/* Endereço antigo, mantido para links e favoritos já salvos. */}
+                <Route path="/pacientes" element={<Navigate to="/clientes" replace />} />
                 <Route
                   path="/planos"
                   element={

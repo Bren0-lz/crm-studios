@@ -545,15 +545,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       { role: "owner", modules: ["Todos os módulos", "Administração"] },
       {
         role: "reception",
-        modules: ["Pacientes", "Agenda", "CRM", "Comunicações", "Documentos"],
+        modules: ["Clientes", "Agenda", "CRM", "Comunicações", "Documentos"],
       },
       {
         role: "physiotherapist",
-        modules: ["Pacientes", "Agenda", "Prontuários", "Planos"],
+        modules: ["Clientes", "Agenda", "Prontuários", "Planos"],
       },
       {
         role: "finance",
-        modules: ["Pacientes", "Planos", "Financeiro", "Relatórios", "CRM"],
+        modules: ["Clientes", "Planos", "Financeiro", "Relatórios", "CRM"],
       },
     ],
   );
@@ -596,7 +596,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!patient)
         return reply.status(404).send({
           code: "PATIENT_NOT_FOUND",
-          message: "Paciente não encontrado.",
+          message: "Cliente não encontrado.",
         });
       return patient;
     },
@@ -1084,7 +1084,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!workspace)
         return reply.status(404).send({
           code: "PATIENT_NOT_FOUND",
-          message: "Paciente não encontrado.",
+          message: "Cliente não encontrado.",
         });
       return workspace;
     },
@@ -1103,7 +1103,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       if (!workspace)
         return reply.status(404).send({
           code: "PATIENT_NOT_FOUND",
-          message: "Paciente não encontrado.",
+          message: "Cliente não encontrado.",
         });
       reply.header(
         "Content-Disposition",

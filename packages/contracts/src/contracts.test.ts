@@ -20,7 +20,7 @@ describe("shared contracts", () => {
     expect(groupLetter(1)).toBe("A");
     expect(groupLetter(26)).toBe("Z");
     expect(groupLetter(27)).toBe("AA");
-    expect(groupClassName("Pilates", 2)).toBe("Pilates · Turma B");
+    expect(groupClassName("Pilates", 2)).toBe("Pilates Turma B");
   });
 
   it("describes group schedules by weekdays and period", () => {
@@ -68,6 +68,8 @@ describe("shared contracts", () => {
 
     expect(result.fullName).toBe("Maria da Silva");
     expect(result.phone).toBe("11999999999");
+    expect(patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11999999999", whatsapp: "(11) 3333-4444" }).whatsapp).toBe("1133334444");
+    expect(() => patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11999999999", whatsapp: "3333-4444" })).toThrow();
     expect(result.tags).toEqual(["Pilates"]);
     expect(() => patientInputSchema.parse({ fullName: "Maria da Silva", phone: "9999-9999" })).toThrow();
     expect(patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11 3333 4444", emergencyContactPhone: "" }).emergencyContactPhone).toBe("");

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
@@ -15,7 +15,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
     const group = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      name: "Pilates · Turma A",
+      name: "Pilates Turma A",
       sequence: 1,
       serviceId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       serviceName: "Pilates",
@@ -41,12 +41,12 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
     expect(screen.queryByLabelText("Nome")).not.toBeInTheDocument();
     fireEvent.change(await screen.findByLabelText("Serviço"), { target: { value: group.serviceId } });
-    expect(screen.getByText("Pilates · Turma B")).toBeInTheDocument();
+    expect(screen.getByText("Pilates Turma B")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fechar gaveta" }));
     expect(screen.getByText("Turma de terça da noite")).toBeInTheDocument();
     expect(screen.getByText("Terça · 18:00–19:00")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
-    expect(screen.getByRole("dialog", { name: "Pilates · Turma A" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Pilates Turma A" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Máximo de pessoas"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
     fireEvent.change(screen.getAllByLabelText("Dia")[1]!, { target: { value: "4" } });
@@ -88,7 +88,7 @@ describe("application shell", () => {
     const groupSession = {
       id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       groupId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      groupName: "Pilates · Turma A",
+      groupName: "Pilates Turma A",
       professionalName: "Dra. Ana Martins",
       roomName: "Estúdio 1",
       startsAt: groupStartsAt.toISOString(),
@@ -104,17 +104,82 @@ describe("application shell", () => {
 
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Mês" }));
-    const day = await screen.findByRole("button", { name: /1 atendimentos, 1 turmas, 0 bloqueios/ });
-    expect(screen.getByText("1 turma")).toBeInTheDocument();
+    const day = await screen.findByRole("button", { name: /1 atendimentos, 1 aulas de turma, 0 bloqueios/ });
+    expect(screen.getByText("Pilates Turma A")).toBeInTheDocument();
+    expect(screen.getByText("18:00–19:00")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ turmas?$/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Detalhes de Helena Almeida/ }));
     expect(screen.getByRole("heading", { name: "Detalhes do atendimento" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     fireEvent.click(day);
+    const dayDialog = screen.getByRole("dialog");
+    expect(dayDialog).toHaveTextContent("2 eventos neste dia.");
+    expect(dayDialog).toHaveTextContent("Pilates Turma ADra. Ana Martins · Estúdio 1");
+    expect(dayDialog.textContent!.indexOf("Helena Almeida")).toBeLessThan(dayDialog.textContent!.indexOf("Pilates Turma A"));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    fireEvent.click(day.closest(".month-day")!);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir dia na agenda" }));
     expect(await screen.findByRole("heading", { name: "Helena Almeida" })).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: "Turma Pilates · Turma A" })).toHaveTextContent("Dra. Ana Martins · Estúdio 1");
+    expect(screen.getByRole("article", { name: "Pilates Turma A" })).toHaveTextContent("Dra. Ana Martins · Estúdio 1");
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
     expect(await screen.findByText("10:00–10:50")).toBeInTheDocument();
     expect(screen.getByText("18:00–19:00")).toBeInTheDocument();
+  });
+
+  it("lists appointments and group classes in chronological order", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const at = (hours: number) => {
+      const value = new Date();
+      value.setHours(hours, 0, 0, 0);
+      return value;
+    };
+    const appointment = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientName: "Helena Almeida",
+      professionalColor: "#5c6f68",
+      startsAt: at(10).toISOString(),
+      endsAt: at(11).toISOString(),
+      serviceName: "Fisioterapia individual",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+      status: "scheduled",
+    };
+    const session = (id: string, groupName: string, hours: number) => ({
+      id,
+      groupId: id,
+      groupName,
+      professionalName: "Dr. Paulo Nunes",
+      roomName: "Estúdio 1",
+      startsAt: at(hours).toISOString(),
+      endsAt: at(hours + 1).toISOString(),
+      status: "scheduled",
+    });
+    const sessions = [session("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "Pilates Turma B", 18), session("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "Dançaterapia Turma A", 8)];
+    vi.mocked(fetch).mockImplementation(async (input) => ({
+      ok: true,
+      status: 200,
+      json: async () => String(input).includes("/appointments?") ? [appointment]
+        : String(input).includes("/group-sessions?") ? sessions : [],
+    }) as Response);
+    const order = (container: Element) => {
+      const text = container.textContent ?? "";
+      return ["Dançaterapia Turma A", "Helena Almeida", "Pilates Turma B"].map((name) => text.indexOf(name));
+    };
+    const isAscending = (positions: number[]) => positions.every((value, index) => value >= 0 && (index === 0 || value > positions[index - 1]!));
+
+    const { container } = render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    await screen.findByText("Helena Almeida");
+    expect(isAscending(order(container.querySelector(".day-agenda")!))).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Semana" }));
+    await screen.findByText("Helena Almeida");
+    expect(isAscending(order(container.querySelector(".week-agenda")!))).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    const today = await screen.findByRole("button", { name: /1 atendimentos, 2 aulas de turma/ });
+    const cell = today.closest(".month-day")!;
+    expect(cell).toHaveTextContent("Dançaterapia Turma A");
+    expect(cell.textContent!.indexOf("Dançaterapia Turma A")).toBeLessThan(cell.textContent!.indexOf("Helena Almeida"));
+    expect(cell).toHaveTextContent("+1 evento");
   });
 
   it("shows patient and booking details before cancelling an appointment", async () => {
@@ -235,11 +300,11 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
     expect(await screen.findByText("Vendido no mês")).toBeInTheDocument();
     expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
-    expect(screen.getAllByText("Pacientes sem retorno")).toHaveLength(2);
-    const details = screen.getByText("Ver vendas e pacientes do mês")
+    expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
+    const details = screen.getByText("Ver vendas e clientes do mês")
       .parentElement as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    fireEvent.click(screen.getByText("Ver vendas e pacientes do mês"));
+    fireEvent.click(screen.getByText("Ver vendas e clientes do mês"));
     expect(details.open).toBe(true);
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(
@@ -271,10 +336,10 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Vendas e retorno dos pacientes" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Vendas e retorno dos clientes" })).toBeInTheDocument();
     expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
     expect(screen.getByText("+20% vs. mês anterior comparável")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pacientes sem retorno" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Clientes sem retorno" })).toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
   });
@@ -393,9 +458,67 @@ describe("application shell", () => {
     expect(
       screen.getByRole("heading", { name: "Novo plano" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Paciente")).toHaveValue(
+    expect(screen.getByLabelText("Cliente")).toHaveValue(
       "99999999-9999-4999-8999-999999999999",
     );
+  });
+
+  it("filters patients by status, tags and record data", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const month = String(new Date().getMonth() + 1).padStart(2, "0");
+    const otherMonth = String((new Date().getMonth() + 1) % 12 + 1).padStart(2, "0");
+    const patient = (id: string, fullName: string, extra: Record<string, unknown>) => ({
+      id,
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      recordNumber: `PAC-${id.slice(-3)}`,
+      fullName,
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      ...extra,
+    });
+    const patients = [
+      patient("a0000000-0000-4000-8000-000000000001", "Ana Lima", { tags: ["Pilates"], email: "ana@example.com", birthDate: `1990-${month}-10`, createdAt: "2026-03-01T00:00:00.000Z" }),
+      patient("a0000000-0000-4000-8000-000000000002", "Bruno Souza", { tags: ["Fisioterapia"], status: "inactive", birthDate: `1985-${otherMonth}-02` }),
+      patient("a0000000-0000-4000-8000-000000000003", "Carla Dias", { tags: ["Pilates", "Frequente"], email: "carla@example.com", createdAt: "2026-02-01T00:00:00.000Z" }),
+    ];
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => patients }) as Response);
+    // O endereço antigo redireciona para /clientes.
+    render(<MemoryRouter initialEntries={["/pacientes"]}><App /></MemoryRouter>);
+    const names = () => screen.queryAllByRole("button", { name: /^Editar / }).map((row) => row.getAttribute("aria-label"));
+    await screen.findByRole("button", { name: "Editar Ana Lima" });
+    expect(names()).toEqual(["Editar Ana Lima", "Editar Bruno Souza", "Editar Carla Dias"]);
+    expect(within(screen.getByRole("button", { name: "Editar Bruno Souza" })).getByText("Inativo")).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: /Filtros/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Inativos" })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Inativos" }));
+    expect(names()).toEqual(["Editar Bruno Souza"]);
+    expect(screen.getByText("de 3 clientes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Todos" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Pilates/ }));
+    expect(names()).toEqual(["Editar Ana Lima", "Editar Carla Dias"]);
+    fireEvent.change(screen.getByLabelText("Ordenar por"), { target: { value: "oldest" } });
+    expect(names()).toEqual(["Editar Carla Dias", "Editar Ana Lima"]);
+    fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "birthday_month" } });
+    expect(names()).toEqual(["Editar Ana Lima"]);
+    expect(screen.getByRole("button", { name: /Filtros/ })).toHaveTextContent("2");
+
+    fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "without_email" } });
+    expect(screen.getByText("Nenhum cliente com esses filtros")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Limpar filtros" })[0]!);
+    // Limpar mantém a ordenação escolhida (cadastro mais antigo primeiro).
+    expect(names()).toEqual(["Editar Bruno Souza", "Editar Carla Dias", "Editar Ana Lima"]);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Editar Carla Dias" }), { key: "Enter" });
+    expect(screen.getByRole("heading", { name: "Editar cliente" })).toBeInTheDocument();
   });
 
   it("opens a patient record for correction and saves the changed name", async () => {
@@ -424,21 +547,23 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/pacientes"]}>
+      <MemoryRouter initialEntries={["/clientes"]}>
         <App />
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
-    expect(screen.getByRole("heading", { name: "Editar paciente" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Editar cliente" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Nome completo"), {
       target: { value: "Helena Pereira" },
     });
+    fireEvent.change(screen.getByLabelText("WhatsApp"), { target: { value: "11 90000-1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(await screen.findByText("Helena Pereira")).toBeInTheDocument();
     const updateCall = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
     expect(updateCall?.[0]).toContain(`/patients/${patient.id}`);
     expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
       fullName: "Helena Pereira",
+      whatsapp: "11900001234",
       tags: ["Retorno"],
     });
   });

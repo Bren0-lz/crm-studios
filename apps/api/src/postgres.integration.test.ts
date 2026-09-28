@@ -56,7 +56,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       testCpf,
     ]);
     const patient = await repository.createPatient(clinicId, {
-      fullName: "Paciente de Integração",
+      fullName: "Cliente de Integração",
       phone: "11999998888",
       cpf: testCpf,
       tags: ["Teste"],
@@ -70,7 +70,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(persisted).toHaveLength(1);
     expect(persisted[0]?.id).toBe(patient.id);
     const updated = await repository.updatePatient(clinicId, patient.id, {
-      fullName: "Paciente Corrigido",
+      fullName: "Cliente Corrigido",
       phone: "11999997777",
       cpf: testCpf,
       tags: ["Retorno"],
@@ -78,11 +78,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(updated).toMatchObject({
       id: patient.id,
       recordNumber: patient.recordNumber,
-      fullName: "Paciente Corrigido",
+      fullName: "Cliente Corrigido",
     });
-    expect((await anotherInstance.listPatients(clinicId, patient.recordNumber))[0]?.fullName).toBe("Paciente Corrigido");
+    expect((await anotherInstance.listPatients(clinicId, patient.recordNumber))[0]?.fullName).toBe("Cliente Corrigido");
     const other = await repository.createPatient(clinicId, {
-      fullName: "Paciente Sem CPF",
+      fullName: "Cliente Sem CPF",
       phone: "11911112222",
       cpf: duplicateCpf,
       tags: [],

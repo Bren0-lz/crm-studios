@@ -42,7 +42,6 @@ import type {
   FinancialCategory,
   FinancialCategoryInput,
   FinancialWorkspace,
-  GroupAttendance,
   GroupClass,
   GroupClassInput,
   GroupClassUpdateInput,
@@ -52,7 +51,6 @@ import type {
   GroupWorkspace,
   IssuedDocument,
   IssuedDocumentInput,
-  InventoryWorkspace,
   Lead,
   LeadActivity,
   LeadContact,
@@ -72,30 +70,20 @@ import type {
   PatientInput,
   PatientPlan,
   PatientPlanInput,
-  PatientTab,
-  PatientTabCloseInput,
-  PatientTabInput,
-  PatientTabItemInput,
   Payable,
   PayableInput,
   PaymentMethod,
   PaymentReceipt,
   PlanStatus,
   Professional,
-  Product,
-  ProductInput,
   RecurringAppointmentInput,
   ReceivableRenegotiation,
   ReceivableRenegotiationInput,
-  ReplacementBookingInput,
-  ReplacementCredit,
   Room,
   ScheduleBlock,
   ScheduleBlockInput,
   Service,
   SessionMovement,
-  StockMovement,
-  StockMovementInput,
   TherapeuticGoal,
   TherapeuticGoalInput,
   TherapeuticGoalStatus,
@@ -296,39 +284,6 @@ export const api = {
     request<GroupEnrollment>(`/group-enrollments/${id}/cancel`, {
       method: "POST",
     }),
-  bookReplacement: (input: ReplacementBookingInput) =>
-    request<{ attendance: GroupAttendance; credit: ReplacementCredit }>(
-      "/group-replacements/book",
-      { method: "POST", body: JSON.stringify(input) },
-    ),
-  inventoryWorkspace: () => request<InventoryWorkspace>("/inventory/workspace"),
-  createProduct: (input: ProductInput) =>
-    request<Product>("/inventory/products", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  createStockMovement: (input: StockMovementInput) =>
-    request<StockMovement>("/inventory/movements", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  openPatientTab: (input: PatientTabInput) =>
-    request<PatientTab>("/patient-tabs", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  addPatientTabItem: (id: string, input: PatientTabItemInput) =>
-    request<PatientTab>(`/patient-tabs/${id}/items`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  closePatientTab: (id: string, input: PatientTabCloseInput) =>
-    request<PatientTab>(`/patient-tabs/${id}/close`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  cancelPatientTab: (id: string) =>
-    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
   updateAppointmentStatus: (id: string, status: AppointmentStatus) =>
     request<Appointment>(`/appointments/${id}/status`, {
       method: "PATCH",

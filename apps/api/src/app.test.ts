@@ -322,7 +322,7 @@ describe("CRM API", () => {
       headers,
       payload: {
         appointmentId: appointments[0].id,
-        subjective: "Paciente relata redução da dor.",
+        subjective: "Cliente relata redução da dor.",
         objective: "Amplitude de movimento em evolução.",
         assessment: "Resposta positiva ao tratamento.",
         plan: "Manter exercícios e progressão de carga.",
@@ -628,6 +628,55 @@ describe("CRM API", () => {
     });
     expect(center.json()).toMatchObject({ deliveryMode: "outbox_only" });
     expect(center.json().messages.length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it("sends WhatsApp messages to the dedicated number", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = await app.inject({ method: "GET", url: "/patients", headers });
+    const patient = patients.json()[0];
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/patients/${patient.id}`,
+      headers,
+      payload: {
+        fullName: patient.fullName,
+        phone: patient.phone,
+        whatsapp: "(11) 90000-1234",
+        email: "contato@example.com",
+        tags: patient.tags,
+      },
+    });
+    expect(updated.json().whatsapp).toBe("11900001234");
+    const sent = await app.inject({
+      method: "POST",
+      url: "/communications/messages",
+      headers,
+      payload: { patientId: patient.id, channel: "whatsapp", body: "Olá" },
+    });
+    expect(sent.json().recipient).toBe("11900001234");
+    const byEmail = await app.inject({
+      method: "POST",
+      url: "/communications/messages",
+      headers,
+      payload: { patientId: patient.id, channel: "email", body: "Olá" },
+    });
+    expect(byEmail.json().recipient).toBe("contato@example.com");
+    const withoutWhatsapp = await app.inject({
+      method: "PUT",
+      url: `/patients/${patient.id}`,
+      headers,
+      payload: { fullName: patient.fullName, phone: patient.phone, whatsapp: "", tags: patient.tags },
+    });
+    expect(withoutWhatsapp.json().whatsapp).toBe("");
+    const fallback = await app.inject({
+      method: "POST",
+      url: "/communications/messages",
+      headers,
+      payload: { patientId: patient.id, channel: "whatsapp", body: "Olá de novo" },
+    });
+    expect(fallback.json().recipient).toBe(patient.phone);
     await app.close();
   });
 
@@ -1178,7 +1227,7 @@ describe("CRM API", () => {
       headers,
       payload: {
         appointmentId: appointment.json().id,
-        subjective: "Paciente relata melhora funcional progressiva.",
+        subjective: "Cliente relata melhora funcional progressiva.",
         objective: "Teste funcional com resposta satisfatória.",
         assessment: "Evolução compatível com os objetivos propostos.",
         plan: "Finalizar ciclo e manter programa domiciliar.",

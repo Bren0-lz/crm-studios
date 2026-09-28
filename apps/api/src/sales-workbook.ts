@@ -56,7 +56,7 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     report.previousComparable.receivedInCents / 100,
   ]);
   summary.addRow([
-    "Pacientes atendidos",
+    "Clientes atendidos",
     report.current.attendedPatients,
     report.previousComparable.attendedPatients,
   ]);
@@ -69,7 +69,7 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     null,
   ]);
   summary.addRow([
-    "Pacientes do mês anterior sem retorno",
+    "Clientes do mês anterior sem retorno",
     report.patientsWithoutReturn.length,
     null,
   ]);
@@ -85,13 +85,13 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     { header: "Data movimento", key: "date", width: 22 },
     { header: "Movimento", key: "kind", width: 18 },
     { header: "Tipo", key: "type", width: 16 },
-    { header: "Paciente", key: "patient", width: 28 },
+    { header: "Cliente", key: "patient", width: 28 },
     { header: "Item", key: "item", width: 36 },
     { header: "Quantidade", key: "quantity", width: 15 },
     { header: "Valor (R$)", key: "amount", width: 20 },
     { header: "ID do movimento", key: "id", width: 45 },
     { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do paciente", key: "patientId", width: 40 },
+    { header: "ID do cliente", key: "patientId", width: 40 },
     { header: "ID da conta", key: "receivableId", width: 40 },
   ];
   heading(sales);
@@ -117,13 +117,13 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
   payments.columns = [
     { header: "Data da baixa", key: "date", width: 22 },
     { header: "Movimento", key: "kind", width: 18 },
-    { header: "Paciente", key: "patient", width: 28 },
+    { header: "Cliente", key: "patient", width: 28 },
     { header: "Descrição", key: "description", width: 36 },
     { header: "Valor (R$)", key: "amount", width: 20 },
     { header: "Forma de pagamento", key: "method", width: 22 },
     { header: "ID da conta", key: "receivableId", width: 40 },
     { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do paciente", key: "patientId", width: 40 },
+    { header: "ID do cliente", key: "patientId", width: 40 },
   ];
   heading(payments);
   for (const item of report.payments) {
@@ -144,10 +144,10 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
 
   const withoutReturn = workbook.addWorksheet("Sem retorno");
   withoutReturn.columns = [
-    { header: "Paciente", key: "patient", width: 30 },
+    { header: "Cliente", key: "patient", width: 30 },
     { header: "Último atendimento concluído", key: "last", width: 29 },
     { header: "Próximo agendamento", key: "next", width: 25 },
-    { header: "ID do paciente", key: "id", width: 40 },
+    { header: "ID do cliente", key: "id", width: 40 },
   ];
   heading(withoutReturn);
   for (const item of report.patientsWithoutReturn) {
@@ -185,8 +185,8 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
       "Soma dos movimentos de pagamento e estorno no período, pela data local do evento. Um estorno posterior aparece no mês em que ocorreu.",
     ],
     [
-      "Pacientes atendidos",
-      "Número de pacientes distintos com pelo menos um atendimento concluído no período.",
+      "Clientes atendidos",
+      "Número de clientes distintos com pelo menos um atendimento concluído no período.",
     ],
     [
       "Mês anterior comparável",
@@ -194,12 +194,12 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     ],
     [
       "Sem retorno",
-      "Pacientes com atendimento concluído em qualquer dia do mês anterior completo e nenhum atendimento concluído no mês selecionado até a data exibida.",
+      "Clientes com atendimento concluído em qualquer dia do mês anterior completo e nenhum atendimento concluído no mês selecionado até a data exibida.",
     ],
     ["Horário", "Datas interpretadas no fuso America/Sao_Paulo."],
     [
       "Fonte",
-      "IDs nas abas de detalhe apontam para plano, comanda, conta e paciente no CRM.",
+      "IDs nas abas de detalhe apontam para plano, comanda, conta e cliente no CRM.",
     ],
   ]);
 

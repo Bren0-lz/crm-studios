@@ -47,10 +47,10 @@ describe("group schedule", () => {
         { startsAt: zonedTimeToUtc("2026-10-08", "09:00", timezone), endsAt: zonedTimeToUtc("2026-10-08", "09:50", timezone), label: "Atendimento de Helena Almeida" },
         { startsAt: zonedTimeToUtc("2026-10-09", "09:00", timezone), endsAt: zonedTimeToUtc("2026-10-09", "09:50", timezone), label: "Atendimento livre" },
       ],
-      [{ slots: [{ weekday: 2, startTime: "18:30", endTime: "20:00" }], label: "Pilates · Turma A" }],
+      [{ slots: [{ weekday: 2, startTime: "18:30", endTime: "20:00" }], label: "Pilates Turma A" }],
     );
     expect(conflicts).toEqual([
-      "toda ter às 18:30 — Pilates · Turma A",
+      "toda ter às 18:30 — Pilates Turma A",
       "qui 08/10 às 09:00 — Atendimento de Helena Almeida",
     ]);
   });

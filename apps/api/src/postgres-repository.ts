@@ -145,6 +145,7 @@ interface PatientRow {
   cpf: string | null;
   email: string | null;
   phone: string;
+  whatsapp: string | null;
   birthDate: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
@@ -705,6 +706,15 @@ interface IssuedDocumentRow {
   updatedAt: Date;
 }
 
+// WhatsApp em branco cai no telefone de contato.
+function communicationRecipient(
+  patient: { email?: string | null; phone: string; whatsapp?: string | null },
+  channel: CommunicationChannel,
+) {
+  if (channel === "email") return patient.email ?? "";
+  return (channel === "whatsapp" && patient.whatsapp) || patient.phone;
+}
+
 const patientColumns = `
   id,
   clinic_id AS "clinicId",
@@ -713,6 +723,7 @@ const patientColumns = `
   cpf,
   email,
   phone,
+  whatsapp,
   birth_date::text AS "birthDate",
   emergency_contact_name AS "emergencyContactName",
   emergency_contact_phone AS "emergencyContactPhone",
@@ -874,6 +885,7 @@ function mapPatient(row: PatientRow): Patient {
     updatedAt: row.updatedAt.toISOString(),
     cpf: present(row.cpf),
     email: present(row.email),
+    whatsapp: present(row.whatsapp),
     birthDate: present(row.birthDate),
     emergencyContactName: present(row.emergencyContactName),
     emergencyContactPhone: present(row.emergencyContactPhone),
@@ -1835,7 +1847,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           AND (
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
-            OR ($3 <> '' AND phone LIKE '%' || $3 || '%')
+            OR ($3 <> '' AND (phone LIKE '%' || $3 || '%' OR coalesce(whatsapp, '') LIKE '%' || $3 || '%'))
             OR record_number ILIKE '%' || $2 || '%'
           )
         ORDER BY full_name
@@ -1851,10 +1863,10 @@ export class PostgresClinicRepository implements ClinicRepository {
       const result = await this.pool.query<PatientRow>(
         `
           INSERT INTO patients (
-            id, clinic_id, record_number, full_name, cpf, email, phone, birth_date,
+            id, clinic_id, record_number, full_name, cpf, email, phone, whatsapp, birth_date,
             emergency_contact_name, emergency_contact_phone, notes, tags
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           RETURNING ${patientColumns}
         `,
         [
@@ -1865,6 +1877,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           input.cpf || null,
           input.email || null,
           input.phone,
+          input.whatsapp || null,
           input.birthDate || null,
           input.emergencyContactName || null,
           input.emergencyContactPhone || null,
@@ -1877,7 +1890,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (hasDatabaseCode(error, "23505")) {
         throw new DomainError(
           "PATIENT_DUPLICATE",
-          "Já existe um paciente com este CPF.",
+          "Já existe um cliente com este CPF.",
           409,
         );
       }
@@ -1889,8 +1902,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     try {
       const result = await this.pool.query<PatientRow>(
         `UPDATE patients SET full_name = $3, cpf = $4, email = $5,
-                phone = $6, birth_date = $7, emergency_contact_name = $8,
-                emergency_contact_phone = $9, notes = $10, tags = $11,
+                phone = $6, whatsapp = $7, birth_date = $8, emergency_contact_name = $9,
+                emergency_contact_phone = $10, notes = $11, tags = $12,
                 updated_at = now()
          WHERE clinic_id = $1 AND id = $2
          RETURNING ${patientColumns}`,
@@ -1901,6 +1914,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           input.cpf || null,
           input.email || null,
           input.phone,
+          input.whatsapp || null,
           input.birthDate || null,
           input.emergencyContactName || null,
           input.emergencyContactPhone || null,
@@ -1913,7 +1927,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (hasDatabaseCode(error, "23505"))
         throw new DomainError(
           "PATIENT_DUPLICATE",
-          "Já existe um paciente com este CPF.",
+          "Já existe um cliente com este CPF.",
           409,
         );
       throw error;
@@ -2051,7 +2065,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!related.rows[0]) {
       throw new DomainError(
         "RELATED_RECORD_NOT_FOUND",
-        "Paciente, profissional, sala ou serviço não encontrado.",
+        "Cliente, profissional, sala ou serviço não encontrado.",
         404,
       );
     }
@@ -2332,7 +2346,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!related.rows[0])
         throw new DomainError(
           "RELATED_RECORD_NOT_FOUND",
-          "Paciente, profissional, sala ou serviço não encontrado.",
+          "Cliente, profissional, sala ou serviço não encontrado.",
           404,
         );
       const seriesId = randomUUID();
@@ -2672,7 +2686,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!group.rows[0] || !patient.rows[0])
         throw new DomainError(
           "GROUP_OR_PATIENT_NOT_FOUND",
-          "Turma ou paciente ativo não encontrado.",
+          "Turma ou cliente ativo não encontrado.",
           404,
         );
       const counts = await client.query<{
@@ -2704,7 +2718,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (hasDatabaseCode(error, "23505"))
         throw new DomainError(
           "GROUP_ENROLLMENT_EXISTS",
-          "O paciente já está matriculado ou na lista de espera.",
+          "O cliente já está matriculado ou na lista de espera.",
           409,
         );
       throw error;
@@ -2993,7 +3007,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         if (hasDatabaseCode(error, "23505"))
           throw new DomainError(
             "REPLACEMENT_DUPLICATE_ATTENDANCE",
-            "O paciente já possui presença registrada nesta sessão.",
+            "O cliente já possui presença registrada nesta sessão.",
             409,
           );
         throw error;
@@ -3170,7 +3184,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!result.rows[0])
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     return (await this.findPatientTab(clinicId, result.rows[0].id))!;
@@ -3875,7 +3889,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!context.rows[0])
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente, modelo, atendimento ou autor não encontrado.",
+        "Cliente, modelo, atendimento ou autor não encontrado.",
         404,
       );
     for (const field of context.rows[0].fields) {
@@ -3969,7 +3983,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!result.rows[0])
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente ou autor não encontrado.",
+        "Cliente ou autor não encontrado.",
         404,
       );
     return mapTherapeuticGoal(result.rows[0]);
@@ -4048,7 +4062,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!result.rows[0])
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente, objetivo ou autor não encontrado.",
+        "Cliente, objetivo ou autor não encontrado.",
         404,
       );
     return mapClinicalMeasurement(result.rows[0]);
@@ -4084,7 +4098,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!result.rows[0])
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente ou autor não encontrado.",
+        "Cliente ou autor não encontrado.",
         404,
       );
     return mapTreatmentClosure(result.rows[0]);
@@ -4128,7 +4142,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!result.rows[0])
         throw new DomainError(
           "CLINICAL_CONTEXT_NOT_FOUND",
-          "Paciente ou autor não encontrado.",
+          "Cliente ou autor não encontrado.",
           404,
         );
       await this.addClinicalAccessEvent(
@@ -4294,7 +4308,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!context.rowCount) {
         throw new DomainError(
           "PLAN_CONTEXT_NOT_FOUND",
-          "Paciente ou serviço não encontrado.",
+          "Cliente ou serviço não encontrado.",
           404,
         );
       }
@@ -4845,7 +4859,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (current.rows.some((item) => item.patientId !== patientId))
         throw new DomainError(
           "RENEGOTIATION_PATIENT_MISMATCH",
-          "As parcelas devem pertencer ao mesmo paciente.",
+          "As parcelas devem pertencer ao mesmo cliente.",
         );
       const originalAmount = current.rows.reduce(
         (sum, item) => sum + item.amountInCents,
@@ -5091,7 +5105,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (current.rows[0].convertedPatientId) {
         throw new DomainError(
           "LEAD_ALREADY_CONVERTED",
-          "Este lead já foi convertido em paciente.",
+          "Este lead já foi convertido em cliente.",
           409,
         );
       }
@@ -5157,7 +5171,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (original.convertedPatientId && !patientResult.rows[0]) {
         throw new DomainError(
           "LEAD_PATIENT_NOT_FOUND",
-          "O paciente vinculado a este lead não foi encontrado.",
+          "O cliente vinculado a este lead não foi encontrado.",
           409,
         );
       }
@@ -5191,7 +5205,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         await client.query(
           `INSERT INTO lead_stage_history
              (clinic_id, lead_id, actor_user_id, from_stage, to_stage, reason)
-           VALUES ($1,$2,$3,$4,'won','Conversão em paciente')`,
+           VALUES ($1,$2,$3,$4,'won','Conversão em cliente')`,
           [clinicId, leadId, actorUserId, original.stage],
         );
       }
@@ -5373,7 +5387,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (!patient.rows[0])
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     const result = await this.pool.query<CommunicationPreferenceRow>(
@@ -5393,16 +5407,17 @@ export class PostgresClinicRepository implements ClinicRepository {
     const patient = await this.pool.query<{
       id: string;
       phone: string;
+      whatsapp: string | null;
       email: string | null;
     }>(
-      `SELECT id, phone, email FROM patients
+      `SELECT id, phone, whatsapp, email FROM patients
        WHERE clinic_id = $1 AND id = $2`,
       [clinicId, input.patientId],
     );
     if (!patient.rows[0])
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     await this.assertCommunicationAllowed(
@@ -5410,12 +5425,11 @@ export class PostgresClinicRepository implements ClinicRepository {
       input.patientId,
       input.channel,
     );
-    const recipient =
-      input.channel === "email" ? patient.rows[0].email : patient.rows[0].phone;
+    const recipient = communicationRecipient(patient.rows[0], input.channel);
     if (!recipient)
       throw new DomainError(
         "COMMUNICATION_RECIPIENT_MISSING",
-        "O paciente não possui contato para o canal selecionado.",
+        "O cliente não possui contato para o canal selecionado.",
       );
     const result = await this.pool.query<OutboundMessageRow>(
       `WITH inserted AS (
@@ -5450,7 +5464,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       body: string;
       preferenceAllowed: boolean;
     }>(
-      `SELECT a.patient_id AS "patientId", p.full_name AS "patientName", p.phone,
+      `SELECT a.patient_id AS "patientId", p.full_name AS "patientName", coalesce(p.whatsapp, p.phone) AS phone,
               'appointment_reminder' AS kind, a.id AS "sourceId",
               'Olá, ' || p.full_name || '. Lembramos do seu atendimento em ' ||
               to_char(a.starts_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY às HH24:MI') || '.' AS body,
@@ -5464,7 +5478,7 @@ export class PostgresClinicRepository implements ClinicRepository {
          AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
          AND a.status IN ('scheduled', 'confirmed')
        UNION ALL
-       SELECT r.patient_id, p.full_name, p.phone, 'payment_reminder', r.id,
+       SELECT r.patient_id, p.full_name, coalesce(p.whatsapp, p.phone), 'payment_reminder', r.id,
               'Olá, ' || p.full_name || '. Identificamos uma parcela com vencimento em ' ||
               to_char(r.due_date, 'DD/MM/YYYY') || '. Fale com a clínica se precisar de ajuda.',
               COALESCE(cp.allowed, true)
@@ -5647,12 +5661,12 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!patient.rows[0])
         throw new DomainError(
           "PATIENT_NOT_FOUND",
-          "Paciente não encontrado.",
+          "Cliente não encontrado.",
           404,
         );
       throw new DomainError(
         "DOCUMENT_PLAN_MISMATCH",
-        "O plano informado não pertence ao paciente.",
+        "O plano informado não pertence ao cliente.",
       );
     }
     const item = context.rows[0];
@@ -6262,7 +6276,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (result.rows[0]?.allowed === false)
       throw new DomainError(
         "COMMUNICATION_OPT_OUT",
-        "O paciente não autorizou mensagens neste canal.",
+        "O cliente não autorizou mensagens neste canal.",
         409,
       );
   }
@@ -6601,7 +6615,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     if (plan.remainingSessions < 1) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
-        "O paciente não possui saldo de sessões para este serviço.",
+        "O cliente não possui saldo de sessões para este serviço.",
         409,
       );
     }

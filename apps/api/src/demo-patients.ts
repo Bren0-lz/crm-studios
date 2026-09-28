@@ -111,7 +111,7 @@ export const demoPatients: Patient[] = Array.from(
       recordNumber: `PAC-${String(number).padStart(5, "0")}`,
       fullName,
       phone: `119${String(90000000 + number).padStart(8, "0")}`,
-      ...(index % 5 !== 0 ? { email: `paciente${number}@example.com` } : {}),
+      ...(index % 5 !== 0 ? { email: `cliente${number}@example.com` } : {}),
       birthDate: `${1950 + ((index * 7) % 55)}-${String((index % 12) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}`,
       ...(index % 3 === 0
         ? {

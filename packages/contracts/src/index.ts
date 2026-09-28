@@ -91,6 +91,7 @@ export const patientInputSchema = z.object({
   cpf: z.string().trim().min(11).max(14).optional().or(z.literal("")),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
+  whatsapp: optionalPhoneSchema,
   birthDate: z.iso.date().optional().or(z.literal("")),
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
   emergencyContactPhone: optionalPhoneSchema,
@@ -195,7 +196,7 @@ export function groupLetter(sequence: number): string {
 }
 
 export function groupClassName(serviceName: string, sequence: number): string {
-  return `${serviceName} · Turma ${groupLetter(sequence)}`;
+  return `${serviceName} Turma ${groupLetter(sequence)}`;
 }
 
 const scheduleWeekdayNames = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

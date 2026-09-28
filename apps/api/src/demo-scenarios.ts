@@ -37,7 +37,7 @@ export const demoServices: Service[] = [
   {
     id: id(1, 1),
     clinicId: demoClinicId,
-    name: "Dançaterapia em grupo",
+    name: "Dançaterapia",
     durationMinutes: 60,
     priceInCents: 7500,
     color: "#9a6bc4",

@@ -678,7 +678,11 @@ export class MemoryClinicRepository implements ClinicRepository {
               .filter(Boolean)
               .some((value) =>
                 value!.toLocaleLowerCase("pt-BR").includes(normalized),
-              ) || Boolean(phoneDigits && item.phone.includes(phoneDigits))
+              ) ||
+            Boolean(
+              phoneDigits &&
+                (item.phone.includes(phoneDigits) || item.whatsapp?.includes(phoneDigits)),
+            )
           : true,
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
@@ -693,7 +697,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (duplicatedCpf)
       throw new DomainError(
         "PATIENT_DUPLICATE",
-        "Já existe um paciente com este CPF.",
+        "Já existe um cliente com este CPF.",
         409,
       );
 
@@ -727,7 +731,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "PATIENT_DUPLICATE",
-        "Já existe um paciente com este CPF.",
+        "Já existe um cliente com este CPF.",
         409,
       );
     Object.assign(patient, input, { updatedAt: now() });
@@ -822,7 +826,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !professional || !room || !service) {
       throw new DomainError(
         "RELATED_RECORD_NOT_FOUND",
-        "Paciente, profissional, sala ou serviço não encontrado.",
+        "Cliente, profissional, sala ou serviço não encontrado.",
         404,
       );
     }
@@ -1288,7 +1292,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!group || !patient)
       throw new DomainError(
         "GROUP_OR_PATIENT_NOT_FOUND",
-        "Turma ou paciente ativo não encontrado.",
+        "Turma ou cliente ativo não encontrado.",
         404,
       );
     if (
@@ -1302,7 +1306,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "GROUP_ENROLLMENT_EXISTS",
-        "O paciente já está matriculado ou na lista de espera.",
+        "O cliente já está matriculado ou na lista de espera.",
         409,
       );
     const activeCount = this.groupEnrollments.filter(
@@ -1595,7 +1599,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "REPLACEMENT_DUPLICATE_ATTENDANCE",
-        "O paciente já possui presença registrada nesta sessão.",
+        "O cliente já possui presença registrada nesta sessão.",
         409,
       );
     const regularSeats = this.groupEnrollments.filter(
@@ -1740,7 +1744,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     const tab: PatientTab = {
@@ -2279,7 +2283,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     )
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente, modelo, atendimento ou autor não encontrado.",
+        "Cliente, modelo, atendimento ou autor não encontrado.",
         404,
       );
     for (const field of template.fields) {
@@ -2337,7 +2341,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !author)
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente ou autor não encontrado.",
+        "Cliente ou autor não encontrado.",
         404,
       );
     const timestamp = now();
@@ -2397,7 +2401,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !author || (input.goalId && !goal))
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente, objetivo ou autor não encontrado.",
+        "Cliente, objetivo ou autor não encontrado.",
         404,
       );
     const measurement: ClinicalMeasurement = {
@@ -2425,7 +2429,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !author)
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente ou autor não encontrado.",
+        "Cliente ou autor não encontrado.",
         404,
       );
     const closure: TreatmentClosure = {
@@ -2453,7 +2457,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !author)
       throw new DomainError(
         "CLINICAL_CONTEXT_NOT_FOUND",
-        "Paciente ou autor não encontrado.",
+        "Cliente ou autor não encontrado.",
         404,
       );
     const { sha256 } = inspectClinicalAttachment(input);
@@ -2610,7 +2614,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient || !service) {
       throw new DomainError(
         "PLAN_CONTEXT_NOT_FOUND",
-        "Paciente ou serviço não encontrado.",
+        "Cliente ou serviço não encontrado.",
         404,
       );
     }
@@ -3042,7 +3046,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (originals.some((item) => item.patientId !== patientId))
       throw new DomainError(
         "RENEGOTIATION_PATIENT_MISMATCH",
-        "As parcelas devem pertencer ao mesmo paciente.",
+        "As parcelas devem pertencer ao mesmo cliente.",
       );
     const timestamp = now();
     originals.forEach((item) => {
@@ -3258,7 +3262,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (plan.remainingSessions < 1) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
-        "O paciente não possui saldo de sessões para este serviço.",
+        "O cliente não possui saldo de sessões para este serviço.",
         409,
       );
     }
@@ -3395,7 +3399,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (lead.convertedPatientId) {
       throw new DomainError(
         "LEAD_ALREADY_CONVERTED",
-        "Este lead já foi convertido em paciente.",
+        "Este lead já foi convertido em cliente.",
         409,
       );
     }
@@ -3589,7 +3593,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     const existing = this.communicationPreferences.find(
@@ -3620,15 +3624,18 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     this.assertChannelAllowed(clinicId, patient.id, input.channel);
-    const recipient = input.channel === "email" ? patient.email : patient.phone;
+    const recipient =
+      input.channel === "email"
+        ? patient.email
+        : (input.channel === "whatsapp" && patient.whatsapp) || patient.phone;
     if (!recipient)
       throw new DomainError(
         "COMMUNICATION_RECIPIENT_MISSING",
-        "O paciente não possui contato para o canal selecionado.",
+        "O cliente não possui contato para o canal selecionado.",
       );
     return this.pushMessage({
       clinicId,
@@ -3671,7 +3678,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           patient,
           channel: "whatsapp",
           kind: "appointment_reminder",
-          recipient: patient.phone,
+          recipient: patient.whatsapp || patient.phone,
           body: `Olá, ${patient.fullName}. Lembramos do seu atendimento em ${referenceDate.split("-").reverse().join("/")} às ${time}.`,
           scheduledFor: now(),
           idempotencyKey: key,
@@ -3699,7 +3706,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           patient,
           channel: "whatsapp",
           kind: "payment_reminder",
-          recipient: patient.phone,
+          recipient: patient.whatsapp || patient.phone,
           body: `Olá, ${patient.fullName}. Identificamos uma parcela com vencimento em ${receivable.dueDate.split("-").reverse().join("/")}. Fale com a clínica se precisar de ajuda.`,
           scheduledFor: now(),
           idempotencyKey: key,
@@ -3801,7 +3808,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
-        "Paciente não encontrado.",
+        "Cliente não encontrado.",
         404,
       );
     const plan = input.planId
@@ -3815,7 +3822,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (input.planId && !plan)
       throw new DomainError(
         "DOCUMENT_PLAN_MISMATCH",
-        "O plano informado não pertence ao paciente.",
+        "O plano informado não pertence ao cliente.",
       );
     const timestamp = now();
     const issuedDocument: IssuedDocument = {
@@ -4340,7 +4347,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!this.channelAllowed(clinicId, patientId, channel))
       throw new DomainError(
         "COMMUNICATION_OPT_OUT",
-        "O paciente não autorizou mensagens neste canal.",
+        "O cliente não autorizou mensagens neste canal.",
         409,
       );
   }
