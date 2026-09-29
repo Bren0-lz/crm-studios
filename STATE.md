@@ -1,6 +1,6 @@
 # Estado do loop
 
-- **Tarefa atual:** — (plano concluído)
+- **Tarefa atual:** D01
 - **Última concluída:** T018
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
@@ -31,3 +31,4 @@
 - 2026-09-29 Dono decidiu: detectar codificação do CSV na API (UTF-8 senão Windows-1252) — incluído no escopo e no gate da T017.
 - 2026-09-29 T017 DONE (verifier PASS, exit codes 0). `PatientImportModal` em Clientes (owner/reception/finance): prévia, CSV modelo (nome;cpf;telefone;whatsapp;email;nascimento;etiquetas;observações, BOM, `;`), importação reenvia o mesmo arquivo. API: `decodeCsvText` (UTF-8 estrito, senão windows-1252). Atenção: Edit/Write/sed transformam `﻿` em BOM literal, que o ESLint reprova (no-irregular-whitespace).
 - 2026-09-29 T018 DONE (verifier PASS, exit codes 0). Incrementos 24–27 no STATUS e README atualizado. PLANO CONCLUÍDO: T001–T018 DONE.
+- 2026-09-29 RODADA 2 iniciada: novo PLAN.md (D01–D04, V1–V3, T019–T041). Auditoria de design: `.panel` não tem padding; `node apps/web/scripts/audit-panels.cjs` aponta 9 filhos sem respiro lateral (D01 zera). Extensão do Chrome instável — celular (390px) não auditado no navegador (D03 cobre por regra). `.secondary-button` sem inline-flex/gap (D02). Tarefas `Tipo: manual` viram BLOCKED e param o loop. Próxima migração livre: 0031.

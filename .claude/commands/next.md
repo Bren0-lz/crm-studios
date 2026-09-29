@@ -7,6 +7,10 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
 1. Leia `STATE.md` e `PLAN.md`. Identifique a próxima tarefa `TODO` cujas dependências estão `DONE`.
 2. Se não houver nenhuma, ou houver bloqueio aberto: **PARE** e diga o motivo.
    Não invente tarefa nova, não "adiante" outra coisa.
+   Se a tarefa elegível tiver `**Tipo:** manual`: **não delegue**. Marque-a `BLOCKED` no
+   `PLAN.md`, registre em `STATE.md` "aguardando revisão manual de <ID>", **PARE** e me chame
+   com o escopo da revisão. (Marcar `BLOCKED` faz o loop headless parar; o dono marca `DONE`
+   depois de aprovar.)
 3. Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
    subagent_type `implementer`) passando: ID, escopo, gate e as descobertas do diário que
    sejam relevantes.
@@ -18,6 +22,8 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
 7. Se `PASS`:
    - marque a tarefa `DONE` no `PLAN.md` e atualize `STATE.md`: última concluída = ID,
      tarefa atual = próxima elegível, tentativas = 0, uma linha no diário
+   - rode `node apps/web/scripts/audit-panels.cjs` (exceto na D01, que é quem o zera); se falhar,
+     trate como `FAIL` do passo 6
    - `git add -A && git commit -m "<ID>: <título da tarefa>"` — mensagem em pt-BR, **sem**
      linhas `Co-Authored-By` nem "Generated with Claude" (regra do dono do repositório).
      O commit inclui código, `PLAN.md` e `STATE.md` juntos; o hash fica no `git log`.

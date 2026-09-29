@@ -13,6 +13,7 @@
       "Bash(npm exec -w @crm/web -- vitest run:*)",
       "Bash(npm exec -w @crm/contracts -- vitest run:*)",
       "Bash(npx vitest run:*)",
+      "Bash(node apps/web/scripts/audit-panels.cjs)",
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
       "Bash(git add:*)",

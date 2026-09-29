@@ -12,7 +12,13 @@ equipe — não existe app nem portal do cliente. Interface e textos em pt-BR; a
 - `npm test` — ~29s (contracts, API em memória, web)
 - `npm run build` — ~30s
 
-Gate completo: `npm run typecheck && npm run lint && npm test && npm run build` (~2 min).
+- `node apps/web/scripts/audit-panels.cjs` — ~2s (layout: filhos de `.panel` sem espaçamento
+  lateral; a partir da D03, também grids de várias colunas sem regra para celular)
+
+Gate completo: `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs` (~2 min).
+Na rodada 2, o `audit-panels` só passa a valer depois da D01 (que zera os apontamentos atuais).
+Nunca edite o `audit-panels.cjs` para esconder um apontamento — corrija o layout ou reporte BLOCKED.
+Limite de tempo dos testes: 20s (máquina lenta com OneDrive); não altere.
 Gate focado num arquivo de teste: `npm exec -w @crm/api -- vitest run src/<arquivo>.test.ts`
 (idem `@crm/web`, `@crm/contracts`). Não use `npm test -w <pacote> -- <filtro>`: o script já
 passa `src` como filtro, roda tudo e retorna 0 mesmo se o arquivo filtrado não existir.

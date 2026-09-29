@@ -14,7 +14,9 @@ Responda em pt-BR.
 1. Leia a tarefa no `PLAN.md` e a seção "Convenções do projeto" do `CLAUDE.md`.
 2. Rode os gates você mesmo, do zero:
    - o comando em **Gate** da tarefa;
-   - `npm run typecheck && npm run lint && npm test && npm run build`.
+   - `npm run typecheck && npm run lint && npm test && npm run build`;
+   - `node apps/web/scripts/audit-panels.cjs` (exceto na D01, que é a tarefa que o zera).
+   Reporte o exit code de cada comando (`cmd; echo EXIT=$?`).
    **Nunca acredite numa saída que te contaram** — só na que você produziu.
 3. Leia `git status` e `git diff` (inclua arquivos novos não rastreados) e responda à pergunta
    que importa: o código faz o que a tarefa pedia, ou apenas faz os testes passarem?
@@ -26,6 +28,9 @@ Responda em pt-BR.
    - escopo além da tarefa (mudança que ninguém pediu)
    - método novo do repositório implementado só em memória e não no PostgreSQL (ou vice-versa)
    - migração existente editada, `.env`/`compose.yaml`/`docs/PLANO_*` alterados, dependência nova
+   - `apps/web/scripts/audit-panels.cjs` alterado para esconder apontamento (só a D03 pode ampliá-lo)
+   - interface nova com `style={{}}`, texto solto dentro de `.panel` sem bloco com respiro lateral,
+     ou grid de várias colunas sem regra para telas ≤ 700px
 
 ## Veredito
 
