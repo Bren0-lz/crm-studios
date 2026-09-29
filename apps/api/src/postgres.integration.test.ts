@@ -504,4 +504,49 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       congratulated: false,
     });
   });
+
+  it("fills professional variables on issued documents and exposes CREFITO on records", async () => {
+    const [patient] = await repository.listPatients(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const template = await repository.createDocumentTemplate(clinicId, {
+      name: "postgres-document-professional-test",
+      kind: "other",
+      body: "Assinado por [{{profissional_nome}}] [{{profissional_crefito}}].",
+    });
+    try {
+      const signed = await repository.createIssuedDocument(clinicId, ownerId, {
+        templateId: template.id,
+        patientId: patient!.id,
+        professionalId: professional!.id,
+        title: "Documento com profissional",
+      });
+      expect(signed.professionalId).toBe(professional!.id);
+      expect(signed.snapshotBody).toContain(
+        `[${professional!.fullName}] [${professional!.crefito}]`,
+      );
+      const unsigned = await repository.createIssuedDocument(clinicId, ownerId, {
+        templateId: template.id,
+        patientId: patient!.id,
+        title: "Documento sem profissional",
+      });
+      expect(unsigned.snapshotBody).toContain("[] []");
+      await expect(
+        repository.createIssuedDocument(clinicId, ownerId, {
+          templateId: template.id,
+          patientId: patient!.id,
+          professionalId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
+          title: "Documento inválido",
+        }),
+      ).rejects.toMatchObject({ code: "PROFESSIONAL_NOT_FOUND", statusCode: 404 });
+      for (const record of await repository.listClinicalRecords(clinicId))
+        expect(record.professionalCrefito).toBeTruthy();
+    } finally {
+      await pool.query("DELETE FROM issued_documents WHERE template_id = $1", [
+        template.id,
+      ]);
+      await pool.query("DELETE FROM document_templates WHERE id = $1", [
+        template.id,
+      ]);
+    }
+  });
 });

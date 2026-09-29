@@ -2135,9 +2135,24 @@ export class MemoryClinicRepository implements ClinicRepository {
           record.clinicId === clinicId &&
           (!patientId || record.patientId === patientId),
       )
+      .map((record) => ({
+        ...record,
+        professionalCrefito: this.professionalCrefito(
+          clinicId,
+          record.professionalId,
+        ),
+      }))
       .sort((a, b) =>
         b.appointmentStartsAt.localeCompare(a.appointmentStartsAt),
       );
+  }
+
+  private professionalCrefito(clinicId: string, professionalId: string) {
+    return (
+      this.professionals.find(
+        (item) => item.clinicId === clinicId && item.id === professionalId,
+      )?.crefito ?? ""
+    );
   }
 
   async saveClinicalRecord(
@@ -2188,6 +2203,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       authorName: author.fullName,
       patientName: appointment.patientName,
       professionalName: appointment.professionalName,
+      professionalCrefito: "",
       appointmentStartsAt: appointment.startsAt,
       subjective: "",
       objective: "",
@@ -2198,6 +2214,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     };
     Object.assign(record, input, {
       authorName: author.fullName,
+      professionalCrefito: this.professionalCrefito(
+        clinicId,
+        record.professionalId,
+      ),
       version: record.version + 1,
       updatedAt: timestamp,
     });
@@ -4084,6 +4104,18 @@ export class MemoryClinicRepository implements ClinicRepository {
         "DOCUMENT_PLAN_MISMATCH",
         "O plano informado não pertence ao cliente.",
       );
+    const professional = input.professionalId
+      ? this.professionals.find(
+          (item) =>
+            item.clinicId === clinicId && item.id === input.professionalId,
+        )
+      : undefined;
+    if (input.professionalId && !professional)
+      throw new DomainError(
+        "PROFESSIONAL_NOT_FOUND",
+        "Profissional não encontrado.",
+        404,
+      );
     const timestamp = now();
     const issuedDocument: IssuedDocument = {
       ...input,
@@ -4097,6 +4129,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         template.body,
         patient.fullName,
         plan?.name,
+        professional,
       ),
       status: "draft",
       createdAt: timestamp,
@@ -4576,10 +4609,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     };
   }
 
-  private renderDocument(body: string, patientName: string, planName?: string) {
+  private renderDocument(
+    body: string,
+    patientName: string,
+    planName?: string,
+    professional?: Professional,
+  ) {
     return body
       .replaceAll("{{paciente_nome}}", patientName)
       .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
+      .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
+      .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
       .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
       .replaceAll("{{clinica_nome}}", "Movimenta");
   }

@@ -985,6 +985,78 @@ describe("application shell", () => {
     expect(screen.queryByRole("heading", { name: "Prazos e mensagens" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/relationship/"))).toBe(false);
   });
+
+  it("shows the professional CREFITO in the clinical list and print summary", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", recordNumber: 12 };
+    const record = {
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: patient.id,
+      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      status: "finalized",
+      version: 2,
+      authorName: "Mariana Costa",
+      patientName: "Helena Almeida",
+      professionalName: "Dra. Ana Martins",
+      professionalCrefito: "CREFITO-3 123456-F",
+      appointmentStartsAt: new Date().toISOString(),
+      subjective: "Relato",
+      objective: "Exame",
+      assessment: "Evolução positiva",
+      plan: "Manter",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/clinical-workspace/")
+        ? { patient, records: [record], templates: [], assessments: [], goals: [], measurements: [], closures: [], attachments: [], addenda: [] }
+        : url.includes("/clinical-records") ? [record]
+          : url.includes("/patients") ? [patient]
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/prontuarios"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("Dra. Ana Martins · CREFITO-3 123456-F · versão 2")).toBeInTheDocument();
+    const summary = (await screen.findByText("Prontuário longitudinal")).closest(".clinical-print-summary")!;
+    expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
+  });
+
+  it("issues a document with an optional professional", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const template = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Declaração", kind: "attendance_declaration", version: 1, body: "Declaração", active: true, createdAt: new Date().toISOString() };
+    const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida" };
+    const professional = { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", fullName: "Dra. Ana Martins", crefito: "CREFITO-3 123456-F", active: true };
+    const posted: Record<string, unknown>[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/documents") && init?.method === "POST") {
+        posted.push(JSON.parse(String(init.body)));
+        return { ok: true, status: 201, json: async () => ({ id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0" }) } as Response;
+      }
+      const body = url.includes("/document-templates") ? [template]
+        : url.includes("/patients") ? [patient]
+          : url.includes("/professionals") ? [professional]
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/documentos"]}><App /></MemoryRouter>);
+    expect(await screen.findByText(/\{\{profissional_nome\}\}/)).toBeInTheDocument();
+    expect(screen.getByText(/\{\{profissional_crefito\}\}/)).toBeInTheDocument();
+    const select = await screen.findByLabelText("Profissional (opcional)");
+    expect(within(select).getByRole("option", { name: "Dra. Ana Martins · CREFITO-3 123456-F" })).toBeInTheDocument();
+    const issue = screen.getByRole("button", { name: "Criar rascunho" });
+    fireEvent.click(issue);
+    await vi.waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).not.toHaveProperty("professionalId");
+    fireEvent.change(select, { target: { value: professional.id } });
+    fireEvent.click(issue);
+    await vi.waitFor(() => expect(posted).toHaveLength(2));
+    expect(posted[1]).toMatchObject({ templateId: template.id, patientId: patient.id, professionalId: professional.id });
+  });
 });
 
 function relationshipSettingsFixture() {

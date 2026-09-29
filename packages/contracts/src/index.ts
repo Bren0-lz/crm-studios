@@ -675,6 +675,7 @@ export const issuedDocumentInputSchema = z.object({
   templateId: z.uuid(),
   patientId: z.uuid(),
   planId: z.uuid().optional(),
+  professionalId: z.uuid().optional(),
   title: z.string().trim().min(3).max(160),
 });
 export type IssuedDocumentInput = z.infer<typeof issuedDocumentInputSchema>;
@@ -1014,6 +1015,7 @@ export interface ClinicalRecord extends ClinicalRecordInput {
   authorName: string;
   patientName: string;
   professionalName: string;
+  professionalCrefito: string;
   appointmentStartsAt: string;
   finalizedAt?: string;
   createdAt: string;

@@ -2018,6 +2018,11 @@ function CommunicationsPage() {
   );
 }
 
+function professionalWithCrefito(name: string, crefito?: string) {
+  if (!crefito) return name;
+  return `${name} · ${/crefito/i.test(crefito) ? crefito : `CREFITO ${crefito}`}`;
+}
+
 const documentKindLabels: Record<DocumentKind, string> = {
   contract: "Contrato",
   attendance_declaration: "Declaração de comparecimento",
@@ -2030,6 +2035,7 @@ function DocumentsPage() {
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [plans, setPlans] = useState<PatientPlan[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -2042,6 +2048,7 @@ function DocumentsPage() {
     templateId: "",
     patientId: "",
     planId: "",
+    professionalId: "",
     title: "Contrato de prestação de serviços",
   });
 
@@ -2074,13 +2081,15 @@ function DocumentsPage() {
       api.documents(),
       api.patients(),
       api.plans(),
+      api.professionals(),
     ])
-      .then(([templateData, documentData, patientData, planData]) => {
+      .then(([templateData, documentData, patientData, planData, professionalData]) => {
         if (!active) return;
         setTemplates(templateData);
         setDocuments(documentData);
         setPatients(patientData);
         setPlans(planData);
+        setProfessionals(professionalData.filter((item) => item.active !== false));
         setDocumentForm((current) => ({
           ...current,
           templateId:
@@ -2135,6 +2144,9 @@ function DocumentsPage() {
         templateId: documentForm.templateId,
         patientId: documentForm.patientId,
         ...(documentForm.planId ? { planId: documentForm.planId } : {}),
+        ...(documentForm.professionalId
+          ? { professionalId: documentForm.professionalId }
+          : {}),
         title: documentForm.title,
       });
       setNotice("Documento criado como rascunho com snapshot preservado.");
@@ -2234,6 +2246,7 @@ function DocumentsPage() {
               </label>
               <small>
                 Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
                 {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
               </small>
               <button className="secondary-button">Criar modelo</button>
@@ -2298,6 +2311,28 @@ function DocumentsPage() {
                   {patientPlans.map((plan) => (
                     <option value={plan.id} key={plan.id}>
                       {plan.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Profissional (opcional)
+                <select
+                  value={documentForm.professionalId}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      professionalId: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Sem profissional</option>
+                  {professionals.map((professional) => (
+                    <option value={professional.id} key={professional.id}>
+                      {professionalWithCrefito(
+                        professional.fullName,
+                        professional.crefito,
+                      )}
                     </option>
                   ))}
                 </select>
@@ -4901,7 +4936,11 @@ function ClinicalRecordsPage() {
                     </span>
                     <h3>{record.patientName}</h3>
                     <p>
-                      {record.professionalName} · versão {record.version}
+                      {professionalWithCrefito(
+                        record.professionalName,
+                        record.professionalCrefito,
+                      )}{" "}
+                      · versão {record.version}
                     </p>
                   </div>
                   <p className="clinical-preview">
@@ -5320,7 +5359,12 @@ function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
                   <strong>P:</strong> {record.plan}
                 </p>
                 <small>
-                  {record.authorName} · versão {record.version}
+                  {professionalWithCrefito(
+                    record.professionalName,
+                    record.professionalCrefito,
+                  )}{" "}
+                  · Registrado por {record.authorName} · versão{" "}
+                  {record.version}
                 </small>
               </article>
             ))}
@@ -6322,6 +6366,15 @@ function ClinicalRecordModal({
             )}
           </select>
         </label>
+        {record && (
+          <p className="muted-copy">
+            Profissional:{" "}
+            {professionalWithCrefito(
+              record.professionalName,
+              record.professionalCrefito,
+            )}
+          </p>
+        )}
         <label>
           S — Subjetivo
           <small>Relato, sintomas e percepção do cliente.</small>

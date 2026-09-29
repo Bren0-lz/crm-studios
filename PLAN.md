@@ -142,7 +142,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   Testes API e web.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### T010 — Pesquisa de satisfação (NPS) na API
 - **Escopo:** migração nova (próximo número livre) `satisfaction_surveys`; contrato

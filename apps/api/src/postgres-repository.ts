@@ -378,6 +378,7 @@ interface ClinicalRecordRow {
   authorName: string;
   patientName: string;
   professionalName: string;
+  professionalCrefito: string;
   appointmentStartsAt: Date;
   finalizedAt: Date | null;
   createdAt: Date;
@@ -710,6 +711,7 @@ interface IssuedDocumentRow {
   templateId: string;
   patientId: string;
   planId: string | null;
+  professionalId: string | null;
   title: string;
   templateName: string;
   templateVersion: number;
@@ -795,6 +797,7 @@ const clinicalRecordColumns = `
   u.full_name AS "authorName",
   p.full_name AS "patientName",
   pr.full_name AS "professionalName",
+  pr.crefito AS "professionalCrefito",
   a.starts_at AS "appointmentStartsAt",
   cr.finalized_at AS "finalizedAt",
   cr.created_at AS "createdAt",
@@ -862,7 +865,8 @@ const documentTemplateColumns = `
 
 const issuedDocumentColumns = `
   d.id, d.clinic_id AS "clinicId", d.template_id AS "templateId",
-  d.patient_id AS "patientId", d.plan_id AS "planId", d.title,
+  d.patient_id AS "patientId", d.plan_id AS "planId",
+  d.professional_id AS "professionalId", d.title,
   d.template_name AS "templateName", d.template_version AS "templateVersion",
   p.full_name AS "patientName", pp.name AS "planName",
   d.snapshot_body AS "snapshotBody", d.status,
@@ -1150,6 +1154,7 @@ function mapClinicalRecord(row: ClinicalRecordRow): ClinicalRecord {
     authorName: row.authorName,
     patientName: row.patientName,
     professionalName: row.professionalName,
+    professionalCrefito: row.professionalCrefito,
     appointmentStartsAt: row.appointmentStartsAt.toISOString(),
     ...(row.finalizedAt ? { finalizedAt: row.finalizedAt.toISOString() } : {}),
     createdAt: row.createdAt.toISOString(),
@@ -1479,6 +1484,7 @@ function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     templateId: row.templateId,
     patientId: row.patientId,
     ...(row.planId ? { planId: row.planId } : {}),
+    ...(row.professionalId ? { professionalId: row.professionalId } : {}),
     title: row.title,
     templateName: row.templateName,
     templateVersion: row.templateVersion,
@@ -6058,18 +6064,31 @@ export class PostgresClinicRepository implements ClinicRepository {
       patientName: string;
       planName: string | null;
       clinicName: string;
+      professionalName: string | null;
+      professionalCrefito: string | null;
     }>(
       `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
               dt.body AS "templateBody", p.full_name AS "patientName",
-              pp.name AS "planName", c.name AS "clinicName"
+              pp.name AS "planName", c.name AS "clinicName",
+              pr.full_name AS "professionalName",
+              pr.crefito AS "professionalCrefito"
        FROM document_templates dt
        JOIN clinics c ON c.id = dt.clinic_id
        JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
        LEFT JOIN patient_plans pp
          ON pp.clinic_id = dt.clinic_id AND pp.id = $4 AND pp.patient_id = p.id
+       LEFT JOIN professionals pr
+         ON pr.clinic_id = dt.clinic_id AND pr.id = $5
        WHERE dt.clinic_id = $1 AND dt.id = $2 AND dt.active
-         AND ($4::uuid IS NULL OR pp.id IS NOT NULL)`,
-      [clinicId, input.templateId, input.patientId, input.planId || null],
+         AND ($4::uuid IS NULL OR pp.id IS NOT NULL)
+         AND ($5::uuid IS NULL OR pr.id IS NOT NULL)`,
+      [
+        clinicId,
+        input.templateId,
+        input.patientId,
+        input.planId || null,
+        input.professionalId || null,
+      ],
     );
     if (!context.rows[0]) {
       const template = await this.pool.query(
@@ -6093,6 +6112,18 @@ export class PostgresClinicRepository implements ClinicRepository {
           "Cliente não encontrado.",
           404,
         );
+      if (input.professionalId) {
+        const professional = await this.pool.query(
+          `SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, input.professionalId],
+        );
+        if (!professional.rows[0])
+          throw new DomainError(
+            "PROFESSIONAL_NOT_FOUND",
+            "Profissional não encontrado.",
+            404,
+          );
+      }
       throw new DomainError(
         "DOCUMENT_PLAN_MISMATCH",
         "O plano informado não pertence ao cliente.",
@@ -6105,14 +6136,16 @@ export class PostgresClinicRepository implements ClinicRepository {
     const snapshot = item.templateBody
       .replaceAll("{{paciente_nome}}", item.patientName)
       .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
+      .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
+      .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
       .replaceAll("{{data_emissao}}", emissionDate)
       .replaceAll("{{clinica_nome}}", item.clinicName);
     const result = await this.pool.query<IssuedDocumentRow>(
       `WITH inserted AS (
          INSERT INTO issued_documents
            (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            template_version, snapshot_body, created_by_user_id, professional_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING *
        )
        SELECT ${issuedDocumentColumns}
@@ -6129,6 +6162,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         item.templateVersion,
         snapshot,
         actorUserId,
+        input.professionalId || null,
       ],
     );
     return mapIssuedDocument(result.rows[0]!);
