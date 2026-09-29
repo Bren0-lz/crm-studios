@@ -108,8 +108,13 @@ import type {
   ReceivableRenegotiationInput,
   ReplacementBookingInput,
   ReplacementCredit,
+  RelationshipSettings,
 } from "@crm/contracts";
-import { groupClassName, nextPlanPeriod } from "@crm/contracts";
+import {
+  defaultRelationshipSettings,
+  groupClassName,
+  nextPlanPeriod,
+} from "@crm/contracts";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -1751,6 +1756,77 @@ export class PostgresClinicRepository implements ClinicRepository {
     } finally {
       client.release();
     }
+  }
+
+  async getRelationshipSettings(clinicId: string) {
+    const result = await this.pool.query<
+      Omit<RelationshipSettings, "messages"> & {
+        messages: Partial<RelationshipSettings["messages"]>;
+      }
+    >(
+      `SELECT birthday_days_ahead AS "birthdayDaysAhead",
+              single_no_return_days AS "singleNoReturnDays",
+              plan_expiring_days AS "planExpiringDays",
+              low_balance_sessions AS "lowBalanceSessions",
+              expired_with_balance_days AS "expiredWithBalanceDays",
+              treatment_paused_days AS "treatmentPausedDays",
+              repeated_no_show_count AS "repeatedNoShowCount",
+              repeated_no_show_window_days AS "repeatedNoShowWindowDays",
+              former_client_min_days AS "formerClientMinDays",
+              former_client_max_days AS "formerClientMaxDays",
+              messages
+       FROM relationship_settings WHERE clinic_id = $1`,
+      [clinicId],
+    );
+    const row = result.rows[0];
+    if (!row) return structuredClone(defaultRelationshipSettings);
+    return {
+      ...row,
+      messages: { ...defaultRelationshipSettings.messages, ...row.messages },
+    };
+  }
+
+  async updateRelationshipSettings(
+    clinicId: string,
+    input: RelationshipSettings,
+  ) {
+    await this.pool.query(
+      `INSERT INTO relationship_settings (
+         clinic_id, birthday_days_ahead, single_no_return_days,
+         plan_expiring_days, low_balance_sessions, expired_with_balance_days,
+         treatment_paused_days, repeated_no_show_count,
+         repeated_no_show_window_days, former_client_min_days,
+         former_client_max_days, messages, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, now())
+       ON CONFLICT (clinic_id) DO UPDATE SET
+         birthday_days_ahead = EXCLUDED.birthday_days_ahead,
+         single_no_return_days = EXCLUDED.single_no_return_days,
+         plan_expiring_days = EXCLUDED.plan_expiring_days,
+         low_balance_sessions = EXCLUDED.low_balance_sessions,
+         expired_with_balance_days = EXCLUDED.expired_with_balance_days,
+         treatment_paused_days = EXCLUDED.treatment_paused_days,
+         repeated_no_show_count = EXCLUDED.repeated_no_show_count,
+         repeated_no_show_window_days = EXCLUDED.repeated_no_show_window_days,
+         former_client_min_days = EXCLUDED.former_client_min_days,
+         former_client_max_days = EXCLUDED.former_client_max_days,
+         messages = EXCLUDED.messages,
+         updated_at = now()`,
+      [
+        clinicId,
+        input.birthdayDaysAhead,
+        input.singleNoReturnDays,
+        input.planExpiringDays,
+        input.lowBalanceSessions,
+        input.expiredWithBalanceDays,
+        input.treatmentPausedDays,
+        input.repeatedNoShowCount,
+        input.repeatedNoShowWindowDays,
+        input.formerClientMinDays,
+        input.formerClientMaxDays,
+        JSON.stringify(input.messages),
+      ],
+    );
+    return this.getRelationshipSettings(clinicId);
   }
 
   async listAdminAuditEvents(clinicId: string) {

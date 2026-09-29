@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { runMigrations, seedDemoData } from "./database.js";
 import { PostgresClinicRepository } from "./postgres-repository.js";
 import { DomainError } from "./repository.js";
+import { defaultRelationshipSettings } from "@crm/contracts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const clinicId = "11111111-1111-4111-8111-111111111111";
@@ -50,6 +51,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[])", [
       clinicId,
       [testCpf, duplicateCpf],
+    ]);
+    await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
+      clinicId,
     ]);
     await pool.end();
   });
@@ -361,5 +365,32 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         firstDueDate: month(0, 1),
       }),
     ).rejects.toMatchObject({ code: "PLAN_ALREADY_RENEWED" });
+  });
+
+  it("returns default relationship settings and upserts changes", async () => {
+    await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
+      clinicId,
+    ]);
+    expect(await repository.getRelationshipSettings(clinicId)).toEqual(
+      defaultRelationshipSettings,
+    );
+    const changed = {
+      ...defaultRelationshipSettings,
+      birthdayDaysAhead: 3,
+      formerClientMinDays: 15,
+      formerClientMaxDays: 45,
+      messages: { ...defaultRelationshipSettings.messages, birthday: "Parabéns, {{nome}}!" },
+    };
+    expect(await repository.updateRelationshipSettings(clinicId, changed)).toEqual(changed);
+    const again = { ...changed, planExpiringDays: 12 };
+    await repository.updateRelationshipSettings(clinicId, again);
+    expect(
+      await new PostgresClinicRepository(pool).getRelationshipSettings(clinicId),
+    ).toEqual(again);
+    const rows = await pool.query(
+      "SELECT count(*)::int AS total FROM relationship_settings WHERE clinic_id = $1",
+      [clinicId],
+    );
+    expect(rows.rows[0].total).toBe(1);
   });
 });

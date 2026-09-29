@@ -83,7 +83,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   teste opt-in em `postgres.integration.test.ts`.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T001
-- **Status:** TODO
+- **Status:** DONE
 
 ### T004 — Sugestões e registro de contatos na API
 - **Escopo:** repositório (interface + memória + PostgreSQL): `listContactSuggestions(clinicId, role)`

@@ -107,8 +107,13 @@ import type {
   ReceivableRenegotiationInput,
   ReplacementBookingInput,
   ReplacementCredit,
+  RelationshipSettings,
 } from "@crm/contracts";
-import { groupClassName, nextPlanPeriod } from "@crm/contracts";
+import {
+  defaultRelationshipSettings,
+  groupClassName,
+  nextPlanPeriod,
+} from "@crm/contracts";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -204,6 +209,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly clinicalAddenda: ClinicalAddendum[] = [];
   private readonly clinicalAccessEvents: ClinicalAccessEvent[] = [];
   private readonly adminAuditEvents: AdminAuditEvent[] = [];
+  private readonly relationshipSettings = new Map<string, RelationshipSettings>();
   private readonly clinicSettings: ClinicSettings = {
     id: CLINIC_ID,
     name: "Clínica Movimenta",
@@ -607,6 +613,20 @@ export class MemoryClinicRepository implements ClinicRepository {
     Object.assign(this.clinicSettings, input, { updatedAt: now() });
     this.addAdminAudit(actorUserId, "clinic.updated", "clinic", clinicId);
     return this.clinicSettings;
+  }
+
+  async getRelationshipSettings(clinicId: string) {
+    return structuredClone(
+      this.relationshipSettings.get(clinicId) ?? defaultRelationshipSettings,
+    );
+  }
+
+  async updateRelationshipSettings(
+    clinicId: string,
+    input: RelationshipSettings,
+  ) {
+    this.relationshipSettings.set(clinicId, structuredClone(input));
+    return structuredClone(input);
   }
 
   async listAdminAuditEvents(clinicId: string) {

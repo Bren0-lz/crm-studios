@@ -13,6 +13,7 @@ import {
   clinicalAssessmentInputSchema,
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
+  relationshipSettingsSchema,
   commissionGenerationInputSchema,
   commissionRuleInputSchema,
   clinicalMeasurementInputSchema,
@@ -533,6 +534,21 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         request.user.sub,
         clinicSettingsInputSchema.parse(request.body),
+      ),
+  );
+  app.get(
+    "/relationship/settings",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request) =>
+      repository.getRelationshipSettings(request.user.clinicId),
+  );
+  app.put(
+    "/relationship/settings",
+    { preHandler: [authenticate, requireOwnerAccess] },
+    async (request) =>
+      repository.updateRelationshipSettings(
+        request.user.clinicId,
+        relationshipSettingsSchema.parse(request.body),
       ),
   );
   app.get(

@@ -104,6 +104,7 @@ import type {
   TreatmentClosure,
   TreatmentClosureInput,
   ReminderGenerationResult,
+  RelationshipSettings,
   ReplacementBookingInput,
   ReplacementCredit,
   UserSummary,
@@ -149,6 +150,12 @@ export interface ClinicRepository {
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
+  /** Devolve os padrões quando a clínica ainda não salvou configurações. */
+  getRelationshipSettings(clinicId: string): Promise<RelationshipSettings>;
+  updateRelationshipSettings(
+    clinicId: string,
+    input: RelationshipSettings,
+  ): Promise<RelationshipSettings>;
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Appointment, Lead } from "@crm/contracts";
-import { groupClassName } from "@crm/contracts";
+import { defaultRelationshipSettings, groupClassName } from "@crm/contracts";
 import { localParts, zonedTimeToUtc } from "./group-schedule.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
@@ -1970,6 +1970,85 @@ describe("CRM API", () => {
       headers,
     });
     expect(duplicateCancellation.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("reads relationship settings with defaults and lets only the owner update them", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const initial = await app.inject({
+      method: "GET",
+      url: "/relationship/settings",
+      headers,
+    });
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toEqual(defaultRelationshipSettings);
+
+    const updatedSettings = {
+      ...defaultRelationshipSettings,
+      birthdayDaysAhead: 3,
+      planExpiringDays: 10,
+      formerClientMinDays: 15,
+      formerClientMaxDays: 45,
+      messages: {
+        ...defaultRelationshipSettings.messages,
+        birthday: "Parabéns, {{nome}}!",
+      },
+    };
+    const updated = await app.inject({
+      method: "PUT",
+      url: "/relationship/settings",
+      headers,
+      payload: updatedSettings,
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toEqual(updatedSettings);
+    const reread = await app.inject({
+      method: "GET",
+      url: "/relationship/settings",
+      headers,
+    });
+    expect(reread.json()).toEqual(updatedSettings);
+
+    const invalid = await app.inject({
+      method: "PUT",
+      url: "/relationship/settings",
+      headers,
+      payload: { ...updatedSettings, formerClientMinDays: 90, formerClientMaxDays: 30 },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    const sub = "22222222-2222-4222-8222-222222222222";
+    const receptionHeaders = {
+      authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "reception" })}`,
+    };
+    const receptionRead = await app.inject({
+      method: "GET",
+      url: "/relationship/settings",
+      headers: receptionHeaders,
+    });
+    expect(receptionRead.statusCode).toBe(200);
+    expect(receptionRead.json()).toEqual(updatedSettings);
+    const receptionWrite = await app.inject({
+      method: "PUT",
+      url: "/relationship/settings",
+      headers: receptionHeaders,
+      payload: defaultRelationshipSettings,
+    });
+    expect(receptionWrite.statusCode).toBe(403);
+    expect(receptionWrite.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+
+    const physiotherapistRead = await app.inject({
+      method: "GET",
+      url: "/relationship/settings",
+      headers: {
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "physiotherapist" })}`,
+      },
+    });
+    expect(physiotherapistRead.statusCode).toBe(403);
+    expect(physiotherapistRead.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
     await app.close();
   });
 });
