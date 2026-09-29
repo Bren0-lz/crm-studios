@@ -365,6 +365,52 @@ Concluído:
 
 Limites atuais: nenhuma mensagem é enviada automaticamente; a recepção abre cada contato no WhatsApp. As regras são recalculadas a cada abertura da página. As consultas no PostgreSQL ainda não passaram por teste de integração executado, pois o ambiente não tem `TEST_DATABASE_URL`.
 
+## Incremento 24 — CREFITO do profissional
+
+Concluído:
+
+- CREFITO do profissional exibido ao lado do nome na lista de prontuários, na evolução e no resumo para impressão;
+- emissão de documento com profissional opcional, validado na clínica e recusado com 404 quando inválido;
+- variáveis `{{profissional_nome}}` e `{{profissional_crefito}}` nos modelos, vazias quando o documento não tem profissional;
+- profissional guardado no documento pela migração 0029, preservando o snapshot imutável;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 25 — Pesquisa de satisfação (NPS)
+
+Concluído:
+
+- pesquisa de satisfação com nota de 0 a 10 e comentário de até 1000 caracteres, guardada pela migração 0030;
+- atendimento opcional, que precisa ser do mesmo cliente e estar concluído, com uma pesquisa por atendimento (409 na repetição);
+- registro e consulta pela API disponíveis para todos os perfis;
+- botão "Registrar satisfação" no atendimento concluído da agenda;
+- cartão "Satisfação (NPS)" em **Relatórios**, acessível a gestão e financeiro, com período padrão do início do mês até hoje;
+- NPS calculado como percentual de promotores (9 e 10) menos percentual de detratores (0 a 6), arredondado, e exibido como "—" sem respostas;
+- detratores dos últimos 30 dias aparecem na Central de relacionamento na situação "Avaliação baixa", uma por cliente, considerando a avaliação mais recente;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 26 — Histórico do cliente
+
+Concluído:
+
+- rota `GET /patients/:id/timeline`, acessível a gestão, recepção e financeiro; o perfil de fisioterapeuta não tem acesso;
+- linha do tempo com atendimentos sem conteúdo clínico, planos criados, renovados e cancelados, pagamentos e estornos, contatos registrados, mensagens e pesquisas de satisfação;
+- seção "Histórico" na ficha do cliente, com filtro por grupo;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 27 — Importação de clientes
+
+Concluído:
+
+- botão "Importar" em **Clientes**, disponível para gestão, recepção e financeiro;
+- leitura de CSV separado por `;` ou `,`, com aspas e BOM, em UTF-8 ou Windows-1252 do Excel detectado automaticamente, ou de XLSX pela primeira aba, com até 2 MB;
+- cabeçalhos reconhecidos sem depender de acentos ou maiúsculas: nome, CPF, telefone, WhatsApp, e-mail, nascimento (dd/mm/aaaa ou aaaa-mm-dd), etiquetas e observações;
+- prévia linha a linha indicando válida, com erro ou duplicada por CPF ou telefone, contra a base ou dentro do próprio arquivo;
+- importação que analisa o arquivo novamente no servidor e grava as linhas válidas numa única transação, ignorando as duplicadas;
+- CSV modelo para download;
+- testes de leitura e validação, API em memória, PostgreSQL (opt-in) e interface.
+
+Limites atuais: a importação cobre apenas o cadastro de clientes; planos, saldos de sessões e lançamentos financeiros do sistema anterior ficam fora. Os testes de integração PostgreSQL dos incrementos 24 a 27 existem, mas não foram executados, pois o ambiente não tem `TEST_DATABASE_URL`.
+
 ## Próximo incremento de desenvolvimento autônomo
 
 Conciliação dos cálculos financeiros com casos reais da clínica e preparação da importação validada dos dados do sistema anterior, inclusive seu modelo de planilha.

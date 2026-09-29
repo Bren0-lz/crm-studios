@@ -7,7 +7,9 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - autenticação com perfis de acesso;
 - painel com indicadores operacionais;
 - cadastro, edição e pesquisa de clientes;
-- profissionais, salas e serviços;
+- importação de clientes por planilha CSV ou XLSX, com prévia, detecção de duplicados e modelo para download;
+- histórico do cliente na ficha, reunindo atendimentos, planos, pagamentos, contatos, mensagens e pesquisas;
+- profissionais, salas e serviços, com o CREFITO do profissional exibido no prontuário, na impressão e nos documentos emitidos;
 - agenda diária e semanal, recorrência, bloqueios e reagendamento individual com histórico e prevenção de conflitos;
 - alteração do status dos atendimentos;
 - prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
@@ -20,6 +22,7 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - CRM comercial com Kanban, tarefas, contatos e conversão segura de leads;
 - central de comunicações com opt-out, outbox e lembretes idempotentes;
 - central de relacionamento com contatos sugeridos por situação, prazos e mensagens configuráveis, registro de contatos e aniversariantes, sem envio automático;
+- pesquisa de satisfação por atendimento, com NPS em Relatórios e alerta de avaliação baixa na central de relacionamento;
 - modelos versionados e documentos com snapshot imutável;
 - relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
 - livro mensal de vendas e cancelamentos, comparação com o mês anterior, clientes sem retorno e exportação Excel detalhada;

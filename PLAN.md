@@ -227,4 +227,4 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   cliente e importação; atualizar a lista de funcionalidades do `README.md`.
 - **Gate:** `npm run build`
 - **Depende de:** T008, T009, T011, T012, T014, T017
-- **Status:** DOING
+- **Status:** DONE

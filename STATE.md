@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T018
-- **Última concluída:** T017
+- **Tarefa atual:** — (plano concluído)
+- **Última concluída:** T018
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -30,3 +30,4 @@
 - 2026-09-29 T016 DONE (verifier PASS, exit codes 0). `POST /patients/import/preview` e `POST /patients/import` (200; comercial) com `patientImportFileSchema {fileName, contentBase64}` → `PatientImportAnalysis` / `PatientImportResult {created, skipped, errors}`. Erros: 400 PATIENT_IMPORT_UNSUPPORTED_FILE, 413 PATIENT_IMPORT_TOO_LARGE, 400 PATIENT_IMPORT_INVALID_FILE. A web deve reenviar o mesmo arquivo na importação. CSV lido só como UTF-8 (Latin-1 do Excel quebra acentos — pendente de decisão). Nº de prontuário PG = `PAC-<8 chars do id>`.
 - 2026-09-29 Dono decidiu: detectar codificação do CSV na API (UTF-8 senão Windows-1252) — incluído no escopo e no gate da T017.
 - 2026-09-29 T017 DONE (verifier PASS, exit codes 0). `PatientImportModal` em Clientes (owner/reception/finance): prévia, CSV modelo (nome;cpf;telefone;whatsapp;email;nascimento;etiquetas;observações, BOM, `;`), importação reenvia o mesmo arquivo. API: `decodeCsvText` (UTF-8 estrito, senão windows-1252). Atenção: Edit/Write/sed transformam `﻿` em BOM literal, que o ESLint reprova (no-irregular-whitespace).
+- 2026-09-29 T018 DONE (verifier PASS, exit codes 0). Incrementos 24–27 no STATUS e README atualizado. PLANO CONCLUÍDO: T001–T018 DONE.
