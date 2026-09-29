@@ -114,7 +114,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   `GET/PUT /relationship/settings`; mostra as variáveis disponíveis (`{{nome}}`). Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T003, T005
-- **Status:** TODO
+- **Status:** DONE
 
 ### T007 — Aniversários
 - **Escopo:** API `GET /relationship/birthdays?month=AAAA-MM` (clientes ativos com aniversário no

@@ -818,4 +818,94 @@ describe("application shell", () => {
     expect(screen.queryByRole("heading", { name: "Contatos sugeridos" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/relationship/"))).toBe(false);
   });
+  it("lets the owner edit relationship deadlines and messages in settings", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const settings = relationshipSettingsFixture();
+    let putBody: Record<string, unknown> | undefined;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/relationship/settings") && init?.method === "PUT") {
+        putBody = JSON.parse(String(init.body));
+        return { ok: true, status: 200, json: async () => putBody } as Response;
+      }
+      const body = url.includes("/relationship/settings") ? settings
+        : url.includes("/admin/clinic-settings") ? null
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = (await screen.findByRole("heading", { name: "Prazos e mensagens" })).closest("section")!;
+    expect(within(section).getByText("{{nome}}")).toBeInTheDocument();
+    expect(section).toHaveTextContent("primeiro nome do cliente");
+    const planDays = await within(section).findByLabelText("Plano acabando: avisar quantos dias antes do fim");
+    expect(planDays).toHaveValue(7);
+    fireEvent.change(planDays, { target: { value: "10" } });
+    fireEvent.change(within(section).getByLabelText("Mensagem: Aniversário"), { target: { value: "Feliz aniversário, {{nome}}!" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Salvar prazos e mensagens" }));
+    await vi.waitFor(() => expect(putBody).toBeDefined());
+    expect(putBody).toEqual({
+      ...settings,
+      planExpiringDays: 10,
+      messages: { ...settings.messages, birthday: "Feliz aniversário, {{nome}}!" },
+    });
+    expect(await within(section).findByText("Prazos e mensagens salvos.")).toBeInTheDocument();
+  });
+
+  it("shows relationship settings read-only to reception", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const settings = relationshipSettingsFixture();
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/relationship/settings") ? settings : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = (await screen.findByRole("heading", { name: "Prazos e mensagens" })).closest("section")!;
+    const planDays = await within(section).findByLabelText("Plano acabando: avisar quantos dias antes do fim");
+    expect(planDays).toHaveValue(7);
+    expect(planDays).toHaveAttribute("readonly");
+    expect(within(section).getByLabelText("Mensagem: Veio uma vez")).toHaveValue("Oi {{nome}}, sentimos sua falta.");
+    expect(within(section).getByLabelText("Mensagem: Veio uma vez")).toHaveAttribute("readonly");
+    expect(within(section).queryByRole("button", { name: "Salvar prazos e mensagens" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Usuários" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/admin/"))).toBe(false);
+  });
+
+  it("does not show relationship settings to physiotherapists", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as unknown as Response);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "Prazos e mensagens" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/relationship/"))).toBe(false);
+  });
 });
+
+function relationshipSettingsFixture() {
+  return {
+    birthdayDaysAhead: 7,
+    singleNoReturnDays: 60,
+    planExpiringDays: 7,
+    lowBalanceSessions: 2,
+    expiredWithBalanceDays: 60,
+    treatmentPausedDays: 30,
+    repeatedNoShowCount: 2,
+    repeatedNoShowWindowDays: 30,
+    formerClientMinDays: 30,
+    formerClientMaxDays: 90,
+    messages: {
+      birthday: "Parabéns, {{nome}}!",
+      single_no_return: "Oi {{nome}}, sentimos sua falta.",
+      plan_expiring: "Oi {{nome}}, seu plano está acabando.",
+      low_balance: "x",
+      expired_with_balance: "x",
+      treatment_paused: "x",
+      repeated_no_show: "x",
+      former_client: "x",
+      overdue_payment: "x",
+      nps_detractor: "x",
+    },
+  };
+}

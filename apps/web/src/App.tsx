@@ -358,7 +358,7 @@ const navItems: Array<{
     to: "/configuracoes",
     label: "Configurações",
     icon: Settings,
-    roles: ["owner"],
+    roles: ["owner", "reception", "finance"],
   },
 ];
 
@@ -7637,6 +7637,7 @@ function AdminPage() {
             </form>
           </section>
         )}
+        <RelationshipSettingsSection canEdit />
         <section className="panel admin-matrix">
           <div className="panel-head">
             <div>
@@ -7674,6 +7675,141 @@ function AdminPage() {
         </section>
       </div>
     </>
+  );
+}
+
+type RelationshipDeadlineKey = Exclude<keyof RelationshipSettings, "messages">;
+
+const relationshipDeadlineFields: Array<{
+  key: RelationshipDeadlineKey;
+  label: string;
+  min: number;
+}> = [
+  { key: "birthdayDaysAhead", label: "Aniversário: avisar quantos dias antes", min: 0 },
+  { key: "singleNoReturnDays", label: "Veio uma vez: dias sem voltar", min: 1 },
+  { key: "planExpiringDays", label: "Plano acabando: avisar quantos dias antes do fim", min: 1 },
+  { key: "lowBalanceSessions", label: "Saldo baixo: sessões restantes", min: 0 },
+  { key: "expiredWithBalanceDays", label: "Vencido com saldo: até quantos dias após vencer", min: 1 },
+  { key: "treatmentPausedDays", label: "Tratamento parado: dias sem atendimento", min: 1 },
+  { key: "repeatedNoShowCount", label: "Faltas seguidas: número de faltas", min: 1 },
+  { key: "repeatedNoShowWindowDays", label: "Faltas seguidas: período em dias", min: 1 },
+  { key: "formerClientMinDays", label: "Ex-cliente: cancelou há pelo menos (dias)", min: 0 },
+  { key: "formerClientMaxDays", label: "Ex-cliente: cancelou há no máximo (dias)", min: 1 },
+];
+
+function RelationshipSettingsPage() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="Controle operacional"
+        title="Configurações"
+        description="Prazos e mensagens usados nos contatos sugeridos."
+      />
+      <RelationshipSettingsSection canEdit={false} />
+    </>
+  );
+}
+
+function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
+  const [settings, setSettings] = useState<RelationshipSettings | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .relationshipSettings()
+      .then((data) => active && setSettings(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!settings) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      setSettings(await api.updateRelationshipSettings(settings));
+      setNotice("Prazos e mensagens salvos.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="panel admin-relationship">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">Relacionamento</span>
+          <h2>Prazos e mensagens</h2>
+        </div>
+      </div>
+      {error && <ErrorBanner error={error} />}
+      {!canEdit && (
+        <p className="muted-copy">
+          Somente a gestora da clínica pode alterar estes valores.
+        </p>
+      )}
+      {!settings ? (
+        !error && <LoadingBlock />
+      ) : (
+        <form className="clinical-form" onSubmit={(event) => void submit(event)}>
+          <div className="form-grid">
+            {relationshipDeadlineFields.map((field) => (
+              <label key={field.key}>
+                {field.label}
+                <input
+                  type="number"
+                  min={field.min}
+                  step={1}
+                  required
+                  readOnly={!canEdit}
+                  value={settings[field.key]}
+                  onChange={(e) =>
+                    setSettings({ ...settings, [field.key]: Number(e.target.value) })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <p className="muted-copy">
+            Variáveis disponíveis nas mensagens: <code>{"{{nome}}"}</code> — é
+            substituída pelo primeiro nome do cliente ao abrir o WhatsApp.
+          </p>
+          {(Object.keys(contactReasonLabels) as ContactReason[]).map((reason) => (
+            <label key={reason}>
+              Mensagem: {contactReasonLabels[reason]}
+              <textarea
+                rows={2}
+                required
+                maxLength={1000}
+                readOnly={!canEdit}
+                value={settings.messages[reason]}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    messages: { ...settings.messages, [reason]: e.target.value },
+                  })
+                }
+              />
+            </label>
+          ))}
+          {notice && <p className="muted-copy">{notice}</p>}
+          {canEdit && (
+            <button className="primary-button" disabled={saving}>
+              {saving ? "Salvando…" : "Salvar prazos e mensagens"}
+            </button>
+          )}
+        </form>
+      )}
+    </section>
   );
 }
 
@@ -8223,6 +8359,8 @@ function App() {
                   element={
                     user!.role === "owner" ? (
                       <AdminPage />
+                    ) : ["reception", "finance"].includes(user!.role) ? (
+                      <RelationshipSettingsPage />
                     ) : (
                       <Navigate to="/" replace />
                     )

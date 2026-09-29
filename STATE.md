@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T006
-- **Última concluída:** T005
+- **Tarefa atual:** T007
+- **Última concluída:** T006
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -15,3 +15,4 @@
 - 2026-09-29 T003 DONE (verifier PASS na 1ª tentativa). Migração 0028 cria relationship_settings e contact_activities (CHECK de reason/outcome; snoozed exige snooze_until `date`; índice (clinic_id, patient_id, reason, reference_key, created_at DESC)). `getRelationshipSettings(clinicId)` / `updateRelationshipSettings(clinicId, input)`; memória usa Map por clinicId (seguir padrão para atividades). PUT só owner (403 OWNER_ACCESS_REQUIRED); GET nega physiotherapist. SQL não executado (sem TEST_DATABASE_URL).
 - 2026-09-29 T004 DONE (verifier PASS na 1ª tentativa). Rotas GET /relationship/suggestions, POST /relationship/activities (201; 404 PATIENT_NOT_FOUND), GET /relationship/activities?patientId= (mais recentes primeiro). Testes que avançam o relógio: `vi.useFakeTimers({ toFake: ["Date"] })` + novo token via `app.jwt.sign` (o login expira). PG carrega todos os atendimentos da clínica sem janela de datas (otimização adiada, fase não funcional).
 - 2026-09-29 T005 DONE (verifier PASS na 1ª tentativa). Página /relacionamento (`RelationshipPage`, `ContactActivityModal`); `{{nome}}` = primeiro nome do cliente (seguir em T006/T007). Reusar em App.tsx: `contactReasonLabels`, `contactOutcomeLabels`, `addDaysToIsoDate`, `suggestionKey`. api.ts: `relationshipSettings()`, `contactSuggestions()`, `createContactActivity()`; `updateRelationshipSettings` (PUT) ainda não existe — criar na T006.
+- 2026-09-29 T006 DONE (verifier PASS na 1ª tentativa). /configuracoes agora abre para reception/finance só com `RelationshipSettingsPage` (leitura); owner edita em `AdminPage` › "Prazos e mensagens". api.ts: `updateRelationshipSettings`. Documentação da Central fica para a T008 (STATUS não atualizado de propósito).

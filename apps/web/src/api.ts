@@ -494,6 +494,11 @@ export const api = {
     }),
   relationshipSettings: () =>
     request<RelationshipSettings>("/relationship/settings"),
+  updateRelationshipSettings: (input: RelationshipSettings) =>
+    request<RelationshipSettings>("/relationship/settings", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   contactSuggestions: () =>
     request<ContactSuggestion[]>("/relationship/suggestions"),
   createContactActivity: (input: ContactActivityInput) =>
