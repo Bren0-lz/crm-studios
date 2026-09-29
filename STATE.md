@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T014
-- **Última concluída:** T013
+- **Tarefa atual:** T015
+- **Última concluída:** T014
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -24,3 +24,5 @@
 - 2026-09-29 T011 DONE (verifier PASS na 1ª tentativa). Web: `SatisfactionSurveyModal` (substitui o modal de detalhes enquanto aberto), cartão "Satisfação (NPS)" em Relatórios (só owner/finance veem a rota). api.ts: `satisfaction(from,to)`, `createSatisfactionSurvey`. Detecção de pesquisa existente via GET /satisfaction no período do atendimento (sem rota por appointmentId — candidata a melhoria).
 - 2026-09-29 T012 DONE (verifier PASS na 1ª tentativa). `nps_detractor`: nota 0–6, janela hoje−30..hoje (fuso clínica), 1 entrada por cliente (pesquisa mais recente). `surveys` tipado como `SatisfactionSurvey[]`; exportados `npsDetractorWindowDays` e `npsDetractorWindowStart(today)`. Sem teste PG da leitura de pesquisas nas sugestões.
 - 2026-09-29 T013 DONE (verifier PASS; gate instável: timeouts de 5s em testes antigos em 2 de 3 execuções do verifier, 2/2 ok no orquestrador — lentidão da máquina/OneDrive). `GET /patients/:id/timeline` (comercial; 404 PATIENT_NOT_FOUND) → `PatientTimelineEntry[]` {id "<kind>:<id>", kind, occurredAt, title/detail pt-BR, amountInCents? com sinal, status? bruto, score?}. Kinds: appointment, plan_created, plan_renewed, plan_cancelled, payment, payment_reversal, contact, message, satisfaction. Ordem: occurredAt desc (agendamentos futuros no topo). `listSatisfactionSurveys` aceita `patientId`.
+- 2026-09-29 testTimeout de 20s em apps/api/vitest.config.ts e apps/web/vite.config.ts (commit à parte, aprovado pelo dono) — timeouts de 5s eram lentidão da máquina.
+- 2026-09-29 T014 DONE (verifier PASS; suíte confirmada pelo orquestrador com exit 0). Seção "Histórico" no `PatientModal` (/clientes, cliente existente, não aparece p/ physiotherapist); filtros por grupo (Atendimentos, Planos, Pagamentos, Contatos, Mensagens, Satisfação); `api.patientTimeline(id)`; kinds desconhecidos são descartados.

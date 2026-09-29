@@ -187,7 +187,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   filtro por tipo e datas no formato do app. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T013
-- **Status:** TODO
+- **Status:** DONE
 
 ### T015 — Leitura e validação da planilha de clientes
 - **Escopo:** `apps/api/src/patient-import.ts`: `parseCsv(text)` (separador `;` ou `,`, aspas,

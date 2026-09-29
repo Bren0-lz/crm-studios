@@ -71,6 +71,7 @@ import type {
   OutboundMessage,
   ReminderGenerationResult,
   Patient,
+  PatientTimelineEntry,
   PatientInput,
   PatientPlan,
   PatientPlanInput,
@@ -229,6 +230,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  patientTimeline: (id: string) =>
+    request<PatientTimelineEntry[]>(`/patients/${id}/timeline`),
   professionals: () => request<Professional[]>("/professionals"),
   rooms: () => request<Room[]>("/rooms"),
   services: () => request<Service[]>("/services"),

@@ -4121,3 +4121,13 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     text-align: right;
   }
 }
+
+.patient-timeline { display: grid; gap: 12px; margin-top: 18px; }
+.patient-timeline h3 { margin: 0; }
+.patient-timeline-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.patient-timeline-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.patient-timeline-item > div { display: grid; gap: 2px; min-width: 0; }
+.patient-timeline-item > div span, .patient-timeline-item small { color: var(--muted); font-size: 12px; }
+.patient-timeline-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--mint); color: var(--green); }
+.patient-timeline-amount { font-weight: 700; white-space: nowrap; }
+.patient-timeline-amount.negative { color: #b42318; }

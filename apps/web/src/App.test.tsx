@@ -643,6 +643,51 @@ describe("application shell", () => {
     });
   });
 
+  it("shows the patient history with values and a filter by type", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    const timeline = [
+      { id: "appointment:1", kind: "appointment", occurredAt: "2026-09-20T13:00:00.000Z", title: "Atendimento de Pilates", detail: "Com Dra. Ana Martins", status: "completed" },
+      { id: "payment_reversal:2", kind: "payment_reversal", occurredAt: "2026-09-12T13:00:00.000Z", title: "Pagamento estornado", amountInCents: -18000 },
+      { id: "payment:3", kind: "payment", occurredAt: "2026-09-10T13:00:00.000Z", title: "Pagamento recebido", detail: "Pix", amountInCents: 18000 },
+      { id: "satisfaction:4", kind: "satisfaction", occurredAt: "2026-09-05T13:00:00.000Z", title: "Avaliação de satisfação", score: 9 },
+    ];
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/timeline") ? timeline : [patient];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
+    const history = await screen.findByRole("region", { name: "Histórico" });
+    expect(await within(history).findByText("Atendimento de Pilates")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes(`/patients/${patient.id}/timeline`))).toBe(true);
+    expect(within(history).getByText("Com Dra. Ana Martins")).toBeInTheDocument();
+    expect(within(history).getByText(/^R\$\s*180,00$/)).toBeInTheDocument();
+    expect(within(history).getByText(/^-\s*R\$\s*180,00$/)).toBeInTheDocument();
+    expect(within(history).getByText("Nota 9")).toBeInTheDocument();
+    expect(within(history).getByText(/20 de set\./)).toBeInTheDocument();
+    fireEvent.click(within(history).getByRole("button", { name: "Pagamentos" }));
+    expect(within(history).getByText("Pagamento recebido")).toBeInTheDocument();
+    expect(within(history).getByText("Pagamento estornado")).toBeInTheDocument();
+    expect(within(history).queryByText("Atendimento de Pilates")).not.toBeInTheDocument();
+    expect(within(history).queryByText("Avaliação de satisfação")).not.toBeInTheDocument();
+    fireEvent.click(within(history).getByRole("button", { name: "Todos" }));
+    expect(within(history).getByText("Atendimento de Pilates")).toBeInTheDocument();
+  });
+
+  it("does not load the patient history for physiotherapists", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
+    expect(screen.getByRole("heading", { name: "Editar cliente" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Histórico" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/timeline"))).toBe(false);
+  });
+
   it("lets reception reschedule a visible appointment", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
