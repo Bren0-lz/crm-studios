@@ -118,7 +118,10 @@ import {
   nextPlanPeriod,
   saoPauloToday,
 } from "@crm/contracts";
-import { buildContactSuggestions } from "./contact-suggestions.js";
+import {
+  buildBirthdayEntries,
+  buildContactSuggestions,
+} from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -690,6 +693,14 @@ export class MemoryClinicRepository implements ClinicRepository {
     };
     this.contactActivities.push(activity);
     return { ...activity };
+  }
+
+  async listBirthdays(clinicId: string, month: string) {
+    return buildBirthdayEntries(
+      this.patients.filter((item) => item.clinicId === clinicId),
+      await this.listContactActivities(clinicId),
+      month,
+    );
   }
 
   async listContactActivities(clinicId: string, patientId?: string) {

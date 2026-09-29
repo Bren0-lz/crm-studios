@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  BirthdayEntry,
   ContactActivity,
   ContactReason,
   ContactSuggestion,
@@ -63,7 +64,7 @@ function isLeapYear(year: number) {
 }
 
 /** Aniversário no ano dado; 29/02 vira 28/02 em ano não bissexto. */
-function birthdayIn(year: number, birthDate: string) {
+export function birthdayIn(year: number, birthDate: string) {
   const month = birthDate.slice(5, 7);
   let day = birthDate.slice(8, 10);
   if (month === "02" && day === "29" && !isLeapYear(year)) day = "28";
@@ -393,4 +394,45 @@ export function buildContactSuggestions(
         a.suggestion.patientName.localeCompare(b.suggestion.patientName, "pt-BR"),
     )
     .map(({ suggestion }) => suggestion);
+}
+
+/**
+ * Aniversariantes ativos do mês `aaaa-mm`, com o mesmo critério de data da
+ * sugestão `birthday` (29/02 vira 28/02 em ano não bissexto).
+ */
+export function buildBirthdayEntries(
+  patients: Patient[],
+  activities: ContactActivity[],
+  month: string,
+): BirthdayEntry[] {
+  const year = Number(month.slice(0, 4));
+  const entries: BirthdayEntry[] = [];
+  for (const patient of patients) {
+    if (patient.status !== "active" || !patient.birthDate) continue;
+    const date = birthdayIn(year, patient.birthDate);
+    if (date.slice(0, 7) !== month) continue;
+    const referenceKey = `${patient.id}:${year}`;
+    entries.push({
+      patientId: patient.id,
+      patientName: patient.fullName,
+      phone: patient.phone,
+      whatsapp: patient.whatsapp ? patient.whatsapp : undefined,
+      birthDate: patient.birthDate,
+      date,
+      day: Number(date.slice(8, 10)),
+      ageTurning: year - Number(patient.birthDate.slice(0, 4)),
+      referenceKey,
+      congratulated: activities.some(
+        (activity) =>
+          activity.patientId === patient.id &&
+          activity.reason === "birthday" &&
+          activity.referenceKey === referenceKey &&
+          activity.outcome === "contacted",
+      ),
+    });
+  }
+  return entries.sort(
+    (a, b) =>
+      a.day - b.day || a.patientName.localeCompare(b.patientName, "pt-BR"),
+  );
 }

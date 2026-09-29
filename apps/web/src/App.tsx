@@ -66,6 +66,7 @@ import type {
   ContactOutcome,
   ContactReason,
   ContactSuggestion,
+  BirthdayEntry,
   DashboardSummary,
   DocumentKind,
   DocumentTemplate,
@@ -520,6 +521,9 @@ function DashboardPage() {
   const canSeeSales = ["owner", "finance"].includes(
     getStoredUser()?.role ?? "",
   );
+  const canSeeRelationship = ["owner", "reception", "finance"].includes(
+    getStoredUser()?.role ?? "",
+  );
 
   useEffect(() => {
     api
@@ -687,7 +691,110 @@ function DashboardPage() {
           </section>
         </>
       )}
+      {canSeeRelationship && <BirthdayDashboardCard />}
     </>
+  );
+}
+
+function BirthdayDashboardCard() {
+  const [birthdays, setBirthdays] = useState<ContactSuggestion[]>([]);
+  const [settings, setSettings] = useState<RelationshipSettings | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.contactSuggestions(), api.relationshipSettings()])
+      .then(([suggestionData, settingsData]) => {
+        if (!active) return;
+        setBirthdays(
+          suggestionData.filter((suggestion) => suggestion.reason === "birthday"),
+        );
+        setSettings(settingsData);
+      })
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function markSent(suggestion: ContactSuggestion) {
+    setError("");
+    setSaving(suggestion.referenceKey);
+    try {
+      await markBirthdaySent(suggestion.patientId, suggestion.referenceKey);
+      setBirthdays((current) =>
+        current.filter((item) => item.referenceKey !== suggestion.referenceKey),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving("");
+    }
+  }
+
+  return (
+    <section className="panel pulse-panel">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">
+            {settings
+              ? `Hoje e próximos ${settings.birthdayDaysAhead} dias`
+              : "Hoje e próximos dias"}
+          </span>
+          <h2>Aniversariantes</h2>
+        </div>
+        <NavLink to="/relacionamento" className="text-link">
+          Ver relacionamento <ChevronRight size={16} />
+        </NavLink>
+      </div>
+      {error && <div className="form-error">{error}</div>}
+      {loading ? (
+        <LoadingBlock />
+      ) : (
+        <div className="attention-list">
+          {birthdays.length === 0 ? (
+            <p>Nenhum aniversário por perto.</p>
+          ) : (
+            birthdays.map((suggestion) => (
+              <div className="attention-item" key={suggestion.referenceKey}>
+                <span className="attention-number">
+                  {initials(suggestion.patientName)}
+                </span>
+                <div>
+                  <strong>{suggestion.patientName}</strong>
+                  <small>{suggestion.detail}</small>
+                </div>
+                <div className="plan-actions">
+                  <a
+                    className="secondary-button"
+                    href={whatsappLink(
+                      suggestion.whatsapp || suggestion.phone,
+                      birthdayMessage(settings, suggestion.patientName),
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle size={15} />
+                    Dar parabéns
+                  </a>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving === suggestion.referenceKey}
+                    onClick={() => void markSent(suggestion)}
+                  >
+                    Marcar como enviado
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1222,7 +1329,28 @@ function addDaysToIsoDate(value: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function birthdayMessage(
+  settings: RelationshipSettings | null,
+  patientName: string,
+) {
+  const firstName = patientName.trim().split(/\s+/)[0] ?? patientName;
+  return fillMessageTemplate(settings?.messages.birthday ?? "", {
+    nome: firstName,
+  });
+}
+
+/** Registra o parabéns do ano (atividade `birthday`/`contacted`). */
+function markBirthdaySent(patientId: string, referenceKey: string) {
+  return api.createContactActivity({
+    patientId,
+    reason: "birthday",
+    referenceKey,
+    outcome: "contacted",
+  });
+}
+
 function RelationshipPage() {
+  const [view, setView] = useState<"suggestions" | "birthdays">("suggestions");
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [reasonFilter, setReasonFilter] = useState<ContactReason | "all">("all");
@@ -1285,6 +1413,25 @@ function RelationshipPage() {
       />
       {error && <ErrorBanner error={error} />}
       {notice && <div className="success-banner">{notice}</div>}
+      <div className="segmented" role="group" aria-label="Visão">
+        <button
+          type="button"
+          aria-pressed={view === "suggestions"}
+          onClick={() => setView("suggestions")}
+        >
+          Contatos sugeridos
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === "birthdays"}
+          onClick={() => setView("birthdays")}
+        >
+          Aniversários do mês
+        </button>
+      </div>
+      {view === "birthdays" ? (
+        <BirthdaysMonthPanel settings={settings} />
+      ) : (
       <section className="panel plans-panel">
         <div className="panel-head">
           <div>
@@ -1384,6 +1531,7 @@ function RelationshipPage() {
           </div>
         )}
       </section>
+      )}
       {recording && (
         <ContactActivityModal
           suggestion={recording}
@@ -1392,6 +1540,127 @@ function RelationshipPage() {
         />
       )}
     </>
+  );
+}
+
+function BirthdaysMonthPanel({
+  settings,
+}: {
+  settings: RelationshipSettings | null;
+}) {
+  const [month, setMonth] = useState(() => saoPauloToday().slice(0, 7));
+  const [entries, setEntries] = useState<BirthdayEntry[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState("");
+
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    let active = true;
+    api
+      .birthdays(month)
+      .then((data) => active && setEntries(data))
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [month]);
+
+  async function markSent(entry: BirthdayEntry) {
+    setError("");
+    setSaving(entry.referenceKey);
+    try {
+      await markBirthdaySent(entry.patientId, entry.referenceKey);
+      setEntries((current) =>
+        current.map((item) =>
+          item.referenceKey === entry.referenceKey
+            ? { ...item, congratulated: true }
+            : item,
+        ),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving("");
+    }
+  }
+
+  return (
+    <section className="panel plans-panel">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">Aniversários do mês</span>
+          <h2>Aniversariantes</h2>
+        </div>
+        <label className="filter-group">
+          <span className="filter-label">Mês</span>
+          <input
+            type="month"
+            value={month}
+            onChange={(event) => {
+              setError("");
+              setLoading(/^\d{4}-\d{2}$/.test(event.target.value));
+              setMonth(event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {error && <div className="form-error">{error}</div>}
+      {loading ? (
+        <LoadingBlock />
+      ) : entries.length === 0 ? (
+        <EmptyState
+          title="Nenhum aniversariante neste mês"
+          copy="Clientes ativos com data de nascimento aparecem aqui."
+        />
+      ) : (
+        <div className="plans-grid">
+          {entries.map((entry) => (
+            <article className="plan-card" key={entry.referenceKey}>
+              <div className="plan-card-head">
+                <span className="status-pill open">
+                  {shortDate.format(new Date(`${entry.date}T12:00:00`))}
+                </span>
+                {entry.congratulated && (
+                  <span className="status-pill completed">Parabéns enviado</span>
+                )}
+              </div>
+              <h3>{entry.patientName}</h3>
+              <p>Completa {entry.ageTurning} anos</p>
+              <div className="plan-meta">
+                <span>Telefone</span>
+                <strong>{formatPhone(entry.phone)}</strong>
+              </div>
+              {!entry.congratulated && (
+                <div className="plan-actions">
+                  <a
+                    className="secondary-button"
+                    href={whatsappLink(
+                      entry.whatsapp || entry.phone,
+                      birthdayMessage(settings, entry.patientName),
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle size={15} />
+                    Dar parabéns
+                  </a>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving === entry.referenceKey}
+                    onClick={() => void markSent(entry)}
+                  >
+                    Marcar como enviado
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

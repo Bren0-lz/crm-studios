@@ -35,6 +35,7 @@ import type {
   ContactActivity,
   ContactActivityInput,
   ContactSuggestion,
+  BirthdayEntry,
   DashboardSummary,
   CostCenter,
   CostCenterInput,
@@ -501,6 +502,10 @@ export const api = {
     }),
   contactSuggestions: () =>
     request<ContactSuggestion[]>("/relationship/suggestions"),
+  birthdays: (month: string) =>
+    request<BirthdayEntry[]>(
+      `/relationship/birthdays?month=${encodeURIComponent(month)}`,
+    ),
   createContactActivity: (input: ContactActivityInput) =>
     request<ContactActivity>("/relationship/activities", {
       method: "POST",

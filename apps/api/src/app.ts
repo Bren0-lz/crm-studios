@@ -16,6 +16,8 @@ import {
   clinicSettingsInputSchema,
   relationshipSettingsSchema,
   contactActivityInputSchema,
+  birthdayMonthSchema,
+  saoPauloToday,
   commissionGenerationInputSchema,
   commissionRuleInputSchema,
   clinicalMeasurementInputSchema,
@@ -561,6 +563,19 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         request.user.role,
       ),
+  );
+  app.get(
+    "/relationship/birthdays",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request) => {
+      const query = z
+        .object({ month: birthdayMonthSchema.optional() })
+        .parse(request.query);
+      return repository.listBirthdays(
+        request.user.clinicId,
+        query.month ?? saoPauloToday().slice(0, 7),
+      );
+    },
   );
   app.get(
     "/relationship/activities",

@@ -1608,6 +1608,28 @@ export interface ContactActivity {
   createdAt: string;
 }
 
+/** Aniversariante do mês (`GET /relationship/birthdays?month=aaaa-mm`). */
+export interface BirthdayEntry {
+  patientId: string;
+  patientName: string;
+  phone: string;
+  whatsapp?: string | undefined;
+  birthDate: string;
+  /** Data do aniversário no ano do mês consultado (29/02 vira 28/02 em ano não bissexto). */
+  date: string;
+  day: number;
+  /** Idade que o cliente completa nesse aniversário. */
+  ageTurning: number;
+  /** Chave de supressão da sugestão `birthday`: `<patientId>:<ano>`. */
+  referenceKey: string;
+  /** Já existe atividade `birthday`/`contacted` com a chave do ano. */
+  congratulated: boolean;
+}
+
+export const birthdayMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês no formato AAAA-MM.");
+
 /** Link wa.me com o DDI 55; não duplica o 55 se o número já vier com ele. */
 export function whatsappLink(phone: string, text: string): string {
   const digits = phone.replace(/\D/g, "");

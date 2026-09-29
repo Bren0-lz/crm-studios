@@ -10,6 +10,7 @@ const clinicId = "11111111-1111-4111-8111-111111111111";
 const testCpf = "98765432100";
 const duplicateCpf = "98765432101";
 const relationshipCpf = "98765432102";
+const birthdayCpf = "98765432103";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
@@ -51,12 +52,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ]);
     await pool.query(
       `DELETE FROM contact_activities WHERE patient_id IN
-       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
-      [clinicId, relationshipCpf],
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[]))`,
+      [clinicId, [relationshipCpf, birthdayCpf]],
     );
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[])", [
       clinicId,
-      [testCpf, duplicateCpf, relationshipCpf],
+      [testCpf, duplicateCpf, relationshipCpf, birthdayCpf],
     ]);
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,
@@ -457,5 +458,50 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         outcome: "contacted",
       }),
     ).rejects.toMatchObject({ code: "PATIENT_NOT_FOUND", statusCode: 404 });
+  });
+
+  it("lists the month's birthdays and marks the congratulated ones", async () => {
+    await pool.query(
+      `DELETE FROM contact_activities WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
+      [clinicId, birthdayCpf],
+    );
+    await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = $2", [
+      clinicId,
+      birthdayCpf,
+    ]);
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "Cliente Aniversário",
+      phone: "11944443333",
+      cpf: birthdayCpf,
+      birthDate: "2000-02-29",
+      tags: [],
+    });
+    const mine = async (month: string) =>
+      (await repository.listBirthdays(clinicId, month)).filter(
+        (item) => item.patientId === patient.id,
+      );
+    expect(await mine("2031-02")).toEqual([
+      expect.objectContaining({
+        patientName: "Cliente Aniversário",
+        date: "2031-02-28",
+        day: 28,
+        ageTurning: 31,
+        referenceKey: `${patient.id}:2031`,
+        congratulated: false,
+      }),
+    ]);
+    expect(await mine("2031-03")).toEqual([]);
+    await repository.createContactActivity(clinicId, ownerId, {
+      patientId: patient.id,
+      reason: "birthday",
+      referenceKey: `${patient.id}:2031`,
+      outcome: "contacted",
+    });
+    expect((await mine("2031-02"))[0]?.congratulated).toBe(true);
+    expect((await mine("2032-02"))[0]).toMatchObject({
+      date: "2032-02-29",
+      congratulated: false,
+    });
   });
 });

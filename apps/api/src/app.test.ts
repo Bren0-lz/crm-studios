@@ -2251,4 +2251,168 @@ describe("CRM API", () => {
       vi.useRealTimers();
     }
   });
+
+  it("lists the month's birthdays with the age turning and whether they were congratulated", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const roleHeaders = (role: UserRole) => ({
+        authorization: `Bearer ${app.jwt.sign({
+          sub: "22222222-2222-4222-8222-222222222222",
+          clinicId: "11111111-1111-4111-8111-111111111111",
+          role,
+        })}`,
+      });
+      const createPatient = async (fullName: string, birthDate?: string) =>
+        (
+          await app.inject({
+            method: "POST",
+            url: "/patients",
+            headers,
+            payload: {
+              fullName,
+              phone: "11955554444",
+              whatsapp: "11966665555",
+              ...(birthDate ? { birthDate } : {}),
+              tags: [],
+            },
+          })
+        ).json() as { id: string };
+      const rita = await createPatient("Rita Aniversário", "1990-10-10");
+      const bruno = await createPatient("Bruno Aniversário", "1985-10-03");
+      const leap = await createPatient("Lia Bissexta", "2000-02-29");
+      const noBirthday = await createPatient("Sem Data Nascimento");
+      const ours = [rita.id, bruno.id, leap.id, noBirthday.id];
+
+      type Entry = {
+        patientId: string;
+        date: string;
+        day: number;
+        ageTurning: number;
+        referenceKey: string;
+        congratulated: boolean;
+        patientName: string;
+        whatsapp?: string;
+      };
+      const birthdays = async (
+        query: string,
+        requestHeaders: Record<string, string> = headers,
+      ) => {
+        const response = await app.inject({
+          method: "GET",
+          url: `/relationship/birthdays${query}`,
+          headers: requestHeaders,
+        });
+        expect(response.statusCode).toBe(200);
+        return response.json() as Entry[];
+      };
+
+      const october = await birthdays("?month=2026-10");
+      const patients = (
+        await app.inject({ method: "GET", url: "/patients", headers })
+      ).json() as { id: string; status: string }[];
+      for (const entry of october) {
+        expect(entry.date.slice(0, 7)).toBe("2026-10");
+        expect(patients.find((item) => item.id === entry.patientId)?.status).toBe(
+          "active",
+        );
+      }
+      const days = october.map((entry) => entry.day);
+      expect(days).toEqual([...days].sort((a, b) => a - b));
+      const ourOctober = october.filter((entry) => ours.includes(entry.patientId));
+      expect(ourOctober).toEqual([
+        expect.objectContaining({
+          patientId: bruno.id,
+          patientName: "Bruno Aniversário",
+          whatsapp: "11966665555",
+          date: "2026-10-03",
+          day: 3,
+          ageTurning: 41,
+          referenceKey: `${bruno.id}:2026`,
+          congratulated: false,
+        }),
+        expect.objectContaining({
+          patientId: rita.id,
+          date: "2026-10-10",
+          day: 10,
+          ageTurning: 36,
+          referenceKey: `${rita.id}:2026`,
+          congratulated: false,
+        }),
+      ]);
+      expect(
+        (await birthdays("", roleHeaders("reception"))).filter((entry) =>
+          ours.includes(entry.patientId),
+        ),
+      ).toEqual(ourOctober);
+
+      // Adiar ou registrar outro ano não conta como parabéns dado.
+      for (const payload of [
+        { referenceKey: `${rita.id}:2025`, outcome: "contacted" },
+        { referenceKey: `${rita.id}:2026`, outcome: "snoozed", snoozeUntil: "2026-10-11" },
+        { referenceKey: `${bruno.id}:2026`, outcome: "contacted" },
+      ]) {
+        const created = await app.inject({
+          method: "POST",
+          url: "/relationship/activities",
+          headers,
+          payload: {
+            patientId: payload.referenceKey.split(":")[0],
+            reason: "birthday",
+            ...payload,
+          },
+        });
+        expect(created.statusCode).toBe(201);
+      }
+      const afterContact = (
+        await birthdays("?month=2026-10", roleHeaders("finance"))
+      ).filter((entry) => ours.includes(entry.patientId));
+      expect(
+        afterContact.map((entry) => [entry.patientId, entry.congratulated]),
+      ).toEqual([
+        [bruno.id, true],
+        [rita.id, false],
+      ]);
+
+      const february2027 = (await birthdays("?month=2027-02")).filter((entry) =>
+        ours.includes(entry.patientId),
+      );
+      expect(february2027).toEqual([
+        expect.objectContaining({
+          patientId: leap.id,
+          date: "2027-02-28",
+          day: 28,
+          ageTurning: 27,
+          referenceKey: `${leap.id}:2027`,
+        }),
+      ]);
+      const february2028 = (await birthdays("?month=2028-02")).filter((entry) =>
+        ours.includes(entry.patientId),
+      );
+      expect(february2028).toEqual([
+        expect.objectContaining({ date: "2028-02-29", day: 29, ageTurning: 28 }),
+      ]);
+
+      for (const month of ["2026-13", "2026-1", "outubro"]) {
+        const invalid = await app.inject({
+          method: "GET",
+          url: `/relationship/birthdays?month=${month}`,
+          headers,
+        });
+        expect(invalid.statusCode).toBe(400);
+      }
+      const denied = await app.inject({
+        method: "GET",
+        url: "/relationship/birthdays?month=2026-10",
+        headers: roleHeaders("physiotherapist"),
+      });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

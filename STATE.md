@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T007
-- **Última concluída:** T006
+- **Tarefa atual:** T008
+- **Última concluída:** T007
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -16,3 +16,4 @@
 - 2026-09-29 T004 DONE (verifier PASS na 1ª tentativa). Rotas GET /relationship/suggestions, POST /relationship/activities (201; 404 PATIENT_NOT_FOUND), GET /relationship/activities?patientId= (mais recentes primeiro). Testes que avançam o relógio: `vi.useFakeTimers({ toFake: ["Date"] })` + novo token via `app.jwt.sign` (o login expira). PG carrega todos os atendimentos da clínica sem janela de datas (otimização adiada, fase não funcional).
 - 2026-09-29 T005 DONE (verifier PASS na 1ª tentativa). Página /relacionamento (`RelationshipPage`, `ContactActivityModal`); `{{nome}}` = primeiro nome do cliente (seguir em T006/T007). Reusar em App.tsx: `contactReasonLabels`, `contactOutcomeLabels`, `addDaysToIsoDate`, `suggestionKey`. api.ts: `relationshipSettings()`, `contactSuggestions()`, `createContactActivity()`; `updateRelationshipSettings` (PUT) ainda não existe — criar na T006.
 - 2026-09-29 T006 DONE (verifier PASS na 1ª tentativa). /configuracoes agora abre para reception/finance só com `RelationshipSettingsPage` (leitura); owner edita em `AdminPage` › "Prazos e mensagens". api.ts: `updateRelationshipSettings`. Documentação da Central fica para a T008 (STATUS não atualizado de propósito).
+- 2026-09-29 T007 DONE (verifier PASS na 1ª tentativa). `GET /relationship/birthdays?month=` (sem mês = mês atual; inválido 400); tipo `BirthdayEntry`; `buildBirthdayEntries` e `birthdayIn` exportados de contact-suggestions.ts; parabéns só conta com birthday/contacted + `<id>:<ano>`. Web: `BirthdayDashboardCard` (painel, só owner/reception/finance) e aba "Aniversários do mês". Textos p/ T008: "Aniversariantes", "Dar parabéns", "Marcar como enviado", "Parabéns enviado", "Completa N anos".

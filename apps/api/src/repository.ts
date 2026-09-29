@@ -105,6 +105,7 @@ import type {
   TreatmentClosureInput,
   ReminderGenerationResult,
   RelationshipSettings,
+  BirthdayEntry,
   ContactActivity,
   ContactActivityInput,
   ContactSuggestion,
@@ -170,6 +171,8 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ContactActivityInput,
   ): Promise<ContactActivity>;
+  /** Aniversariantes ativos do mês `aaaa-mm`, por dia. */
+  listBirthdays(clinicId: string, month: string): Promise<BirthdayEntry[]>;
   /** Mais recentes primeiro. */
   listContactActivities(
     clinicId: string,

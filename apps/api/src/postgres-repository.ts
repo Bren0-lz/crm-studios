@@ -119,7 +119,10 @@ import {
   nextPlanPeriod,
   saoPauloToday,
 } from "@crm/contracts";
-import { buildContactSuggestions } from "./contact-suggestions.js";
+import {
+  buildBirthdayEntries,
+  buildContactSuggestions,
+} from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -1946,6 +1949,28 @@ export class PostgresClinicRepository implements ClinicRepository {
         404,
       );
     return mapContactActivity(row);
+  }
+
+  async listBirthdays(clinicId: string, month: string) {
+    const [patients, activities] = await Promise.all([
+      this.pool.query<PatientRow>(
+        `SELECT ${patientColumns} FROM patients
+         WHERE clinic_id = $1 AND status = 'active' AND birth_date IS NOT NULL`,
+        [clinicId],
+      ),
+      this.pool.query<ContactActivityRow>(
+        `SELECT ${contactActivityColumns}
+         FROM contact_activities
+         WHERE clinic_id = $1 AND reason = 'birthday' AND outcome = 'contacted'
+           AND reference_key LIKE $2`,
+        [clinicId, `%:${month.slice(0, 4)}`],
+      ),
+    ]);
+    return buildBirthdayEntries(
+      patients.rows.map(mapPatient),
+      activities.rows.map(mapContactActivity),
+      month,
+    );
   }
 
   async listContactActivities(clinicId: string, patientId?: string) {

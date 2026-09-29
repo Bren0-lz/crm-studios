@@ -125,7 +125,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   "Aniversários do mês" na página de relacionamento com seletor de mês. Testes API e web.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T005
-- **Status:** TODO
+- **Status:** DONE
 
 ### T008 — Documentação da Central de relacionamento
 - **Escopo:** novo incremento 23 em `docs/STATUS_IMPLEMENTACAO.md` (regras, prazos, supressão,
