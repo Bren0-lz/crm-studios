@@ -80,6 +80,7 @@ import type {
   PayableInput,
   PaymentMethod,
   PaymentReceipt,
+  PlanRenewalInput,
   PlanStatus,
   Professional,
   ProfessionalInput,
@@ -369,6 +370,20 @@ export interface ClinicRepository {
     planId: string,
     status: PlanStatus,
   ): Promise<PatientPlan | null>;
+  renewPatientPlan(
+    clinicId: string,
+    actorUserId: string,
+    planId: string,
+    input: PlanRenewalInput,
+  ): Promise<PatientPlan | null>;
+  updatePatientPlanAutoRenew(
+    clinicId: string,
+    actorUserId: string,
+    planId: string,
+    autoRenew: boolean,
+  ): Promise<PatientPlan | null>;
+  /** Cria o período seguinte dos planos com renovação automática já vencidos. */
+  renewDuePatientPlans(clinicId: string, actorUserId: string): Promise<number>;
   listSessionMovements(
     clinicId: string,
     planId: string,

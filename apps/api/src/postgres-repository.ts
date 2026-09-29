@@ -75,6 +75,7 @@ import type {
   PatientInput,
   PatientPlan,
   PatientPlanInput,
+  PlanRenewalInput,
   PatientTab,
   PatientTabCloseInput,
   PatientTabInput,
@@ -108,7 +109,7 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
 } from "@crm/contracts";
-import { groupClassName } from "@crm/contracts";
+import { groupClassName, nextPlanPeriod } from "@crm/contracts";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -506,6 +507,9 @@ interface PatientPlanRow {
   patientName: string;
   serviceName: string;
   status: PlanStatus;
+  autoRenew: boolean;
+  renewedFromPlanId: string | null;
+  renewedByPlanId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -791,6 +795,8 @@ const patientPlanColumns = `
   pp.valid_from::text AS "validFrom", pp.valid_until::text AS "validUntil",
   pp.total_value_in_cents AS "totalValueInCents", pp.installments,
   pp.first_due_date::text AS "firstDueDate", pp.status,
+  pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
+  (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
   p.full_name AS "patientName", s.name AS "serviceName",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
@@ -1238,6 +1244,11 @@ function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     patientName: row.patientName,
     serviceName: row.serviceName,
     status: row.status,
+    autoRenew: row.autoRenew,
+    ...(row.renewedFromPlanId
+      ? { renewedFromPlanId: row.renewedFromPlanId }
+      : {}),
+    ...(row.renewedByPlanId ? { renewedByPlanId: row.renewedByPlanId } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -4296,87 +4307,274 @@ export class PostgresClinicRepository implements ClinicRepository {
     actorUserId: string,
     input: PatientPlanInput,
   ) {
+    return this.inTransaction(async (client) => {
+      const planId = await this.insertPatientPlan(
+        client,
+        clinicId,
+        actorUserId,
+        input,
+        "Crédito inicial do plano",
+      );
+      return (await this.findPatientPlan(client, clinicId, planId))!;
+    });
+  }
+
+  private async inTransaction<T>(work: (client: PoolClient) => Promise<T>) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const context = await client.query(
-        `SELECT 1 FROM patients p, services s
-         WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
-           AND s.id = $3 AND s.clinic_id = $1 AND s.active = true`,
-        [clinicId, input.patientId, input.serviceId],
-      );
-      if (!context.rowCount) {
-        throw new DomainError(
-          "PLAN_CONTEXT_NOT_FOUND",
-          "Cliente ou serviço não encontrado.",
-          404,
-        );
-      }
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO patient_plans (
-           clinic_id, patient_id, service_id, name, kind, total_sessions,
-           remaining_sessions, valid_from, valid_until, total_value_in_cents,
-           installments, first_due_date
-         ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11) RETURNING id`,
-        [
-          clinicId,
-          input.patientId,
-          input.serviceId,
-          input.name,
-          input.kind,
-          input.totalSessions,
-          input.validFrom,
-          input.validUntil || null,
-          input.totalValueInCents,
-          input.installments,
-          input.firstDueDate,
-        ],
-      );
-      const planId = inserted.rows[0]!.id;
-      await client.query(
-        `INSERT INTO session_movements
-           (clinic_id, plan_id, kind, quantity, reason, actor_user_id)
-         VALUES ($1, $2, 'credit', $3, 'Crédito inicial do plano', $4)`,
-        [clinicId, planId, input.totalSessions, actorUserId],
-      );
-      const baseAmount = Math.floor(
-        input.totalValueInCents / input.installments,
-      );
-      const remainder = input.totalValueInCents % input.installments;
-      for (let index = 0; index < input.installments; index += 1) {
-        const amount = baseAmount + (index < remainder ? 1 : 0);
-        const receivable = await client.query<{ id: string }>(
-          `INSERT INTO receivables (
-             clinic_id, patient_id, plan_id, description, installment_number,
-             installment_count, due_date, amount_in_cents
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-          [
-            clinicId,
-            input.patientId,
-            planId,
-            `${input.name} · ${index + 1}/${input.installments}`,
-            index + 1,
-            input.installments,
-            addMonths(input.firstDueDate, index),
-            amount,
-          ],
-        );
-        await client.query(
-          `INSERT INTO financial_events
-             (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents)
-           VALUES ($1, $2, $3, 'created', $4)`,
-          [clinicId, receivable.rows[0]!.id, actorUserId, amount],
-        );
-      }
-      const plan = await this.findPatientPlan(client, clinicId, planId);
+      const result = await work(client);
       await client.query("COMMIT");
-      return plan!;
+      return result;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  private async insertPatientPlan(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    input: PatientPlanInput,
+    creditReason: string,
+    renewedFromPlanId?: string,
+  ) {
+    const context = await client.query(
+      `SELECT 1 FROM patients p, services s
+       WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
+         AND s.id = $3 AND s.clinic_id = $1 AND s.active = true`,
+      [clinicId, input.patientId, input.serviceId],
+    );
+    if (!context.rowCount) {
+      throw new DomainError(
+        "PLAN_CONTEXT_NOT_FOUND",
+        "Cliente ou serviço não encontrado.",
+        404,
+      );
+    }
+    const autoRenew =
+      Boolean(input.validUntil) &&
+      (input.autoRenew ?? input.kind === "recurring");
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO patient_plans (
+         clinic_id, patient_id, service_id, name, kind, total_sessions,
+         remaining_sessions, valid_from, valid_until, total_value_in_cents,
+         installments, first_due_date, auto_renew, renewed_from_plan_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      [
+        clinicId,
+        input.patientId,
+        input.serviceId,
+        input.name,
+        input.kind,
+        input.totalSessions,
+        input.validFrom,
+        input.validUntil || null,
+        input.totalValueInCents,
+        input.installments,
+        input.firstDueDate,
+        autoRenew,
+        renewedFromPlanId ?? null,
+      ],
+    );
+    const planId = inserted.rows[0]!.id;
+    await client.query(
+      `INSERT INTO session_movements
+         (clinic_id, plan_id, kind, quantity, reason, actor_user_id)
+       VALUES ($1, $2, 'credit', $3, $4, $5)`,
+      [clinicId, planId, input.totalSessions, creditReason, actorUserId],
+    );
+    const baseAmount = Math.floor(input.totalValueInCents / input.installments);
+    const remainder = input.totalValueInCents % input.installments;
+    for (let index = 0; index < input.installments; index += 1) {
+      const amount = baseAmount + (index < remainder ? 1 : 0);
+      const receivable = await client.query<{ id: string }>(
+        `INSERT INTO receivables (
+           clinic_id, patient_id, plan_id, description, installment_number,
+           installment_count, due_date, amount_in_cents
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+        [
+          clinicId,
+          input.patientId,
+          planId,
+          `${input.name} · ${index + 1}/${input.installments}`,
+          index + 1,
+          input.installments,
+          addMonths(input.firstDueDate, index),
+          amount,
+        ],
+      );
+      await client.query(
+        `INSERT INTO financial_events
+           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents)
+         VALUES ($1, $2, $3, 'created', $4)`,
+        [clinicId, receivable.rows[0]!.id, actorUserId, amount],
+      );
+    }
+    return planId;
+  }
+
+  /** Trava o plano e confirma que ele ainda pode ganhar um sucessor. */
+  private async lockRenewablePlan(
+    client: PoolClient,
+    clinicId: string,
+    planId: string,
+  ) {
+    await client.query(
+      "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+      [clinicId, planId],
+    );
+    const plan = await this.findPatientPlan(client, clinicId, planId);
+    if (!plan) return null;
+    if (plan.status === "cancelled") {
+      throw new DomainError(
+        "PLAN_CANCELLED",
+        "Um plano cancelado não pode ser renovado.",
+        409,
+      );
+    }
+    if (plan.renewedByPlanId) {
+      throw new DomainError(
+        "PLAN_ALREADY_RENEWED",
+        "Este plano já foi renovado.",
+        409,
+      );
+    }
+    return plan;
+  }
+
+  async renewPatientPlan(
+    clinicId: string,
+    actorUserId: string,
+    planId: string,
+    input: PlanRenewalInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      const current = await this.lockRenewablePlan(client, clinicId, planId);
+      if (!current) return null;
+      const renewedId = await this.insertPatientPlan(
+        client,
+        clinicId,
+        actorUserId,
+        {
+          ...input,
+          patientId: current.patientId,
+          serviceId: current.serviceId,
+          kind: current.kind,
+        },
+        "Crédito da renovação do plano",
+        current.id,
+      );
+      return this.findPatientPlan(client, clinicId, renewedId);
+    });
+  }
+
+  async updatePatientPlanAutoRenew(
+    clinicId: string,
+    _actorUserId: string,
+    planId: string,
+    autoRenew: boolean,
+  ) {
+    return this.inTransaction(async (client) => {
+      const plan = autoRenew
+        ? await this.lockRenewablePlan(client, clinicId, planId)
+        : await this.findPatientPlan(client, clinicId, planId);
+      if (!plan) return null;
+      if (autoRenew && plan.status === "expired") {
+        throw new DomainError(
+          "PLAN_EXPIRED",
+          "Um plano vencido deve ser renovado manualmente.",
+          409,
+        );
+      }
+      if (autoRenew && !plan.validUntil) {
+        throw new DomainError(
+          "PLAN_WITHOUT_END",
+          "A renovação automática exige o fim da validade.",
+          409,
+        );
+      }
+      if (plan.autoRenew === autoRenew) return plan;
+      await client.query(
+        `UPDATE patient_plans SET auto_renew = $3, updated_at = now()
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, planId, autoRenew],
+      );
+      return this.findPatientPlan(client, clinicId, planId);
+    });
+  }
+
+  async renewDuePatientPlans(clinicId: string, actorUserId: string) {
+    let renewed = 0;
+    // Cada rodada renova um período; sucessores ainda vencidos voltam na próxima,
+    // recuperando períodos perdidos. O limite evita laço infinito por dado inconsistente.
+    for (let round = 0; round < 120; round += 1) {
+      const due = await this.pool.query<{ id: string }>(
+        `SELECT pp.id
+         FROM patient_plans pp JOIN clinics c ON c.id = pp.clinic_id
+         WHERE pp.clinic_id = $1 AND pp.auto_renew
+           AND pp.status IN ('active', 'expired')
+           AND pp.valid_until < (now() AT TIME ZONE c.timezone)::date
+           AND NOT EXISTS (
+             SELECT 1 FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id
+           )
+         ORDER BY pp.valid_until`,
+        [clinicId],
+      );
+      if (!due.rowCount) break;
+      for (const { id } of due.rows) {
+        const created = await this.inTransaction(async (client) => {
+          // Trava primeiro e só depois relê: a nova leitura enxerga o sucessor
+          // criado por uma requisição concorrente que acabou de confirmar.
+          await client.query(
+            "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+            [clinicId, id],
+          );
+          const plan = await this.findPatientPlan(client, clinicId, id);
+          const period = plan && nextPlanPeriod(plan);
+          if (!plan?.autoRenew || plan.renewedByPlanId || !period) return false;
+          const eligible = await client.query(
+            `SELECT 1 FROM patients p, services s
+             WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
+               AND s.id = $3 AND s.clinic_id = $1 AND s.active = true`,
+            [clinicId, plan.patientId, plan.serviceId],
+          );
+          if (!eligible.rowCount) {
+            // Cliente inativo ou serviço desativado: para de tentar renovar.
+            await client.query(
+              `UPDATE patient_plans SET auto_renew = false, updated_at = now()
+               WHERE clinic_id = $1 AND id = $2`,
+              [clinicId, id],
+            );
+            return false;
+          }
+          await this.insertPatientPlan(
+            client,
+            clinicId,
+            actorUserId,
+            {
+              patientId: plan.patientId,
+              serviceId: plan.serviceId,
+              name: plan.name,
+              kind: plan.kind,
+              totalSessions: plan.totalSessions,
+              totalValueInCents: plan.totalValueInCents,
+              installments: plan.installments,
+              autoRenew: true,
+              ...period,
+            },
+            "Crédito da renovação automática",
+            id,
+          );
+          return true;
+        });
+        if (created) renewed += 1;
+      }
+    }
+    return renewed;
   }
 
   async updatePatientPlanStatus(

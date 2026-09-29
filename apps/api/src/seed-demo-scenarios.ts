@@ -32,9 +32,9 @@ export async function seedDemoScenarios(client: PoolClient) {
     [JSON.stringify(demoServices)],
   );
   await client.query(
-    `INSERT INTO patient_plans (id, clinic_id, patient_id, service_id, name, kind, total_sessions, remaining_sessions, valid_from, valid_until, total_value_in_cents, installments, first_due_date, status, cancelled_at, cancelled_value_in_cents, created_at, updated_at)
-    SELECT id, "clinicId", "patientId", "serviceId", name, kind::plan_kind, "totalSessions", "remainingSessions", "validFrom"::date, "validUntil"::date, "totalValueInCents", installments, "firstDueDate"::date, status::plan_status, "cancelledAt"::timestamptz, coalesce("cancelledValueInCents", 0), "createdAt"::timestamptz, "updatedAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "serviceId" uuid, name text, kind text, "totalSessions" integer, "remainingSessions" integer, "validFrom" text, "validUntil" text, "totalValueInCents" integer, installments integer, "firstDueDate" text, status text, "cancelledAt" text, "cancelledValueInCents" integer, "createdAt" text, "updatedAt" text)
+    `INSERT INTO patient_plans (id, clinic_id, patient_id, service_id, name, kind, total_sessions, remaining_sessions, valid_from, valid_until, total_value_in_cents, installments, first_due_date, status, cancelled_at, cancelled_value_in_cents, auto_renew, created_at, updated_at)
+    SELECT id, "clinicId", "patientId", "serviceId", name, kind::plan_kind, "totalSessions", "remainingSessions", "validFrom"::date, "validUntil"::date, "totalValueInCents", installments, "firstDueDate"::date, status::plan_status, "cancelledAt"::timestamptz, coalesce("cancelledValueInCents", 0), "autoRenew", "createdAt"::timestamptz, "updatedAt"::timestamptz
+    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "serviceId" uuid, name text, kind text, "totalSessions" integer, "remainingSessions" integer, "validFrom" text, "validUntil" text, "totalValueInCents" integer, installments integer, "firstDueDate" text, status text, "cancelledAt" text, "cancelledValueInCents" integer, "autoRenew" boolean, "createdAt" text, "updatedAt" text)
     ON CONFLICT DO NOTHING`,
     [JSON.stringify(data.plans)],
   );

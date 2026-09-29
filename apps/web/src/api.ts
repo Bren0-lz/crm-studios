@@ -74,6 +74,7 @@ import type {
   PayableInput,
   PaymentMethod,
   PaymentReceipt,
+  PlanRenewalInput,
   PlanStatus,
   Professional,
   RecurringAppointmentInput,
@@ -365,6 +366,16 @@ export const api = {
     request<PatientPlan>(`/plans/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
+    }),
+  renewPlan: (id: string, input: PlanRenewalInput) =>
+    request<PatientPlan>(`/plans/${id}/renew`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  setPlanAutoRenew: (id: string, autoRenew: boolean) =>
+    request<PatientPlan>(`/plans/${id}/auto-renew`, {
+      method: "PATCH",
+      body: JSON.stringify({ autoRenew }),
     }),
   sessionMovements: (id: string) =>
     request<SessionMovement[]>(`/plans/${id}/movements`),

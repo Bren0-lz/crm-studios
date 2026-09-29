@@ -2860,6 +2860,26 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: 11px;
 }
 
+.plan-renewal {
+  margin-top: 10px;
+}
+
+.plan-auto-renew {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.plan-auto-renew input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
 .plan-actions {
   justify-content: flex-start;
   flex-wrap: wrap;

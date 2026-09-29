@@ -502,6 +502,188 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("renews recurring plans automatically, catching up missed periods once", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const patientId = patients.json()[0].id as string;
+    const serviceId = services.json()[0].id as string;
+    const now = new Date();
+    const monthStart = (offset: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1))
+        .toISOString()
+        .slice(0, 10);
+    const monthEnd = (offset: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset + 1, 0))
+        .toISOString()
+        .slice(0, 10);
+    const created = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: {
+        patientId,
+        serviceId,
+        name: "Mensalidade Pilates",
+        kind: "recurring",
+        totalSessions: 8,
+        validFrom: monthStart(-3),
+        validUntil: monthEnd(-3),
+        totalValueInCents: 40000,
+        installments: 1,
+        firstDueDate: monthStart(-3),
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().autoRenew).toBe(true);
+
+    const listPlans = async () =>
+      (
+        await app.inject({
+          method: "GET",
+          url: `/plans?patientId=${patientId}`,
+          headers,
+        })
+      ).json() as {
+        id: string;
+        status: string;
+        validFrom: string;
+        validUntil: string;
+        remainingSessions: number;
+        renewedFromPlanId?: string;
+        renewedByPlanId?: string;
+      }[];
+    const plans = await listPlans();
+    expect(plans.map((plan) => plan.validFrom).sort()).toEqual([
+      monthStart(-3),
+      monthStart(-2),
+      monthStart(-1),
+      monthStart(0),
+    ]);
+    const current = plans.find((plan) => plan.validFrom === monthStart(0))!;
+    expect(current).toMatchObject({
+      status: "active",
+      validUntil: monthEnd(0),
+      remainingSessions: 8,
+    });
+    expect(
+      plans.filter((plan) => plan.status === "expired").map((plan) => plan.validFrom).sort(),
+    ).toEqual([monthStart(-3), monthStart(-2), monthStart(-1)]);
+    const original = plans.find((plan) => plan.id === created.json().id)!;
+    expect(original.renewedByPlanId).toBeTruthy();
+    expect(
+      plans.find((plan) => plan.id === original.renewedByPlanId)!.renewedFromPlanId,
+    ).toBe(original.id);
+
+    expect(await listPlans()).toHaveLength(4);
+    const receivables = (
+      await app.inject({ method: "GET", url: "/finance/summary", headers })
+    )
+      .json()
+      .receivables.filter((item: { patientId: string }) => item.patientId === patientId);
+    expect(
+      receivables.map((item: { dueDate: string }) => item.dueDate).sort(),
+    ).toEqual([monthStart(-3), monthStart(-2), monthStart(-1), monthStart(0)]);
+
+    const disabled = await app.inject({
+      method: "PATCH",
+      url: `/plans/${current.id}/auto-renew`,
+      headers,
+      payload: { autoRenew: false },
+    });
+    expect(disabled.json().autoRenew).toBe(false);
+    await app.close();
+  });
+
+  it("renews a plan manually with new terms only once", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const payload = {
+      patientId: patients.json()[0].id,
+      serviceId: services.json()[0].id,
+      name: "Pacote fisioterapia",
+      kind: "fixed_package",
+      totalSessions: 10,
+      validFrom: "2026-01-01",
+      totalValueInCents: 150000,
+      installments: 2,
+      firstDueDate: "2026-01-05",
+    };
+    const created = await app.inject({ method: "POST", url: "/plans", headers, payload });
+    expect(created.json().autoRenew).toBe(false);
+    const withoutEnd = await app.inject({
+      method: "PATCH",
+      url: `/plans/${created.json().id}/auto-renew`,
+      headers,
+      payload: { autoRenew: true },
+    });
+    expect(withoutEnd.statusCode).toBe(409);
+
+    const renewal = {
+      name: "Pacote fisioterapia",
+      totalSessions: 12,
+      validFrom: "2026-10-01",
+      validUntil: "2026-12-31",
+      totalValueInCents: 172000,
+      installments: 3,
+      firstDueDate: "2026-10-05",
+    };
+    const renewed = await app.inject({
+      method: "POST",
+      url: `/plans/${created.json().id}/renew`,
+      headers,
+      payload: renewal,
+    });
+    expect(renewed.statusCode).toBe(201);
+    expect(renewed.json()).toMatchObject({
+      kind: "fixed_package",
+      remainingSessions: 12,
+      totalValueInCents: 172000,
+      renewedFromPlanId: created.json().id,
+      autoRenew: false,
+    });
+    const again = await app.inject({
+      method: "POST",
+      url: `/plans/${created.json().id}/renew`,
+      headers,
+      payload: renewal,
+    });
+    expect(again.statusCode).toBe(409);
+    const movements = await app.inject({
+      method: "GET",
+      url: `/plans/${renewed.json().id}/movements`,
+      headers,
+    });
+    expect(movements.json()[0]).toMatchObject({
+      kind: "credit",
+      quantity: 12,
+      reason: "Crédito da renovação do plano",
+    });
+
+    const other = await app.inject({ method: "POST", url: "/plans", headers, payload });
+    await app.inject({
+      method: "PATCH",
+      url: `/plans/${other.json().id}/status`,
+      headers,
+      payload: { status: "cancelled" },
+    });
+    const cancelled = await app.inject({
+      method: "POST",
+      url: `/plans/${other.json().id}/renew`,
+      headers,
+      payload: renewal,
+    });
+    expect(cancelled.statusCode).toBe(409);
+    await app.close();
+  });
+
   it("moves and converts leads without duplicating patients", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

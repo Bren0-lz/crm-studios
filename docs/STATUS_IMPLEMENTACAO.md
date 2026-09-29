@@ -257,6 +257,8 @@ Concluído:
 - interface operacional responsiva e persistência equivalente em memória e PostgreSQL;
 - cobertura integrada do fluxo de capacidade, fila, promoção e reposição.
 
+A partir do incremento 21, a interface não oferece mais o registro de frequência das aulas nem a reserva de reposições; as regras continuam disponíveis na API.
+
 ## Incremento 18 — Produtos, estoque e comandas
 
 Concluído:
@@ -274,6 +276,8 @@ Concluído:
 - indicadores de custo armazenado, estoque baixo e comandas abertas;
 - interface responsiva e persistência equivalente em memória e PostgreSQL;
 - cobertura integrada do fluxo de venda, pagamento, cancelamento e estorno.
+
+A partir do incremento 21, a tela de estoque e comandas foi retirada da interface; as regras continuam disponíveis na API.
 
 ## Incremento 19 — Edição de clientes e reagendamento individual
 
@@ -321,6 +325,20 @@ Concluído:
 - migrações 0021 a 0026 e testes equivalentes em memória, PostgreSQL e interface.
 
 A seção de encontros e frequência saiu da aba Turmas; as aulas passam a ser acompanhadas pela agenda.
+
+## Incremento 22 — Renovação de planos
+
+Concluído:
+
+- renovação manual de qualquer plano não cancelado, com nome, sessões, valor, parcelas e datas ajustáveis;
+- sugestão automática do período seguinte: meses inteiros seguem por meses, os demais repetem a mesma quantidade de dias, e o primeiro vencimento mantém a distância do início;
+- renovação automática, ligada por padrão nos planos recorrentes e configurável em cada plano com fim de validade;
+- geração do período seguinte ao abrir planos, financeiro ou painel, recuperando períodos perdidos;
+- sessões restantes do período anterior não são transferidas e expiram com ele;
+- vínculo entre plano original e renovação, com no máximo uma renovação por plano, garantida no PostgreSQL;
+- crédito de sessões e parcelas da renovação registrados no extrato e no financeiro;
+- clientes inativos ou serviços desativados interrompem a renovação automática;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
 
 ## Próximo incremento de desenvolvimento autônomo
 

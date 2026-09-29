@@ -9,6 +9,7 @@ import {
   groupClassUpdateSchema,
   groupLetter,
   leadMoveSchema,
+  nextPlanPeriod,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
   phoneDigits,
@@ -134,6 +135,65 @@ describe("shared contracts", () => {
         validUntil: "2026-08-31",
       }),
     ).toThrow();
+  });
+
+  it("requires an end date for automatic renewal", () => {
+    const base = {
+      patientId: "99999999-9999-4999-8999-999999999999",
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      name: "Mensalidade",
+      kind: "recurring",
+      totalSessions: 8,
+      validFrom: "2026-09-01",
+      totalValueInCents: 40000,
+      installments: 1,
+      firstDueDate: "2026-09-05",
+      autoRenew: true,
+    };
+    expect(() => patientPlanInputSchema.parse(base)).toThrow();
+    expect(
+      patientPlanInputSchema.parse({ ...base, validUntil: "2026-09-30" })
+        .autoRenew,
+    ).toBe(true);
+  });
+
+  it("computes the next plan period by months or by days", () => {
+    expect(
+      nextPlanPeriod({
+        validFrom: "2026-03-01",
+        validUntil: "2026-05-31",
+        firstDueDate: "2026-03-10",
+      }),
+    ).toEqual({
+      validFrom: "2026-06-01",
+      validUntil: "2026-08-31",
+      firstDueDate: "2026-06-10",
+    });
+    expect(
+      nextPlanPeriod({
+        validFrom: "2026-01-15",
+        validUntil: "2026-02-14",
+        firstDueDate: "2026-01-15",
+      }),
+    ).toEqual({
+      validFrom: "2026-02-15",
+      validUntil: "2026-03-14",
+      firstDueDate: "2026-02-15",
+    });
+    expect(
+      nextPlanPeriod({
+        validFrom: "2026-09-01",
+        validUntil: "2026-10-15",
+        firstDueDate: "2026-09-11",
+      }),
+    ).toEqual({
+      validFrom: "2026-10-16",
+      validUntil: "2026-11-29",
+      firstDueDate: "2026-10-26",
+    });
+    expect(
+      nextPlanPeriod({ validFrom: "2026-09-01", firstDueDate: "2026-09-01" }),
+    ).toBeNull();
   });
 
   it("requires a reason when a lead is lost", () => {

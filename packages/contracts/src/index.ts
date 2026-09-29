@@ -414,24 +414,94 @@ export const planStatusSchema = z.enum([
 ]);
 export const planTransitionSchema = z.enum(["active", "paused", "cancelled"]);
 export type PlanStatus = z.infer<typeof planStatusSchema>;
-export const patientPlanInputSchema = z
-  .object({
+const planTermsSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  totalSessions: z.number().int().min(1).max(1000),
+  validFrom: z.iso.date(),
+  validUntil: z.iso.date().optional().or(z.literal("")),
+  totalValueInCents: z.number().int().min(0),
+  installments: z.number().int().min(1).max(36),
+  firstDueDate: z.iso.date(),
+  autoRenew: z.boolean().optional(),
+});
+type PlanTerms = z.infer<typeof planTermsSchema>;
+const validPlanPeriod = (value: PlanTerms) =>
+  !value.validUntil || value.validUntil >= value.validFrom;
+const renewablePlanPeriod = (value: PlanTerms) =>
+  !value.autoRenew || Boolean(value.validUntil);
+const planPeriodIssue = {
+  message: "A validade final deve ser posterior à inicial.",
+  path: ["validUntil"],
+};
+const autoRenewIssue = {
+  message: "A renovação automática exige o fim da validade.",
+  path: ["autoRenew"],
+};
+
+export const patientPlanInputSchema = planTermsSchema
+  .extend({
     patientId: z.uuid(),
     serviceId: z.uuid(),
-    name: z.string().trim().min(3).max(120),
     kind: planKindSchema,
-    totalSessions: z.number().int().min(1).max(1000),
-    validFrom: z.iso.date(),
-    validUntil: z.iso.date().optional().or(z.literal("")),
-    totalValueInCents: z.number().int().min(0),
-    installments: z.number().int().min(1).max(36),
-    firstDueDate: z.iso.date(),
   })
-  .refine((value) => !value.validUntil || value.validUntil >= value.validFrom, {
-    message: "A validade final deve ser posterior à inicial.",
-    path: ["validUntil"],
-  });
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(renewablePlanPeriod, autoRenewIssue);
 export type PatientPlanInput = z.infer<typeof patientPlanInputSchema>;
+
+export const planRenewalInputSchema = planTermsSchema
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(renewablePlanPeriod, autoRenewIssue);
+export type PlanRenewalInput = z.infer<typeof planRenewalInputSchema>;
+
+export const planAutoRenewInputSchema = z.object({ autoRenew: z.boolean() });
+
+function addDaysToIsoDate(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! + days))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function addMonthsToIsoDate(value: string, months: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year!, month! - 1 + months + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year!, month! - 1 + months, Math.min(day!, lastDay)))
+    .toISOString()
+    .slice(0, 10);
+}
+
+/**
+ * Período seguinte de um plano com fim de validade: começa no dia seguinte ao fim
+ * e repete a duração. Períodos de meses inteiros (ex.: 01/03–31/05) seguem por
+ * meses; os demais repetem a mesma quantidade de dias. O primeiro vencimento
+ * mantém a mesma distância do início do período.
+ */
+export function nextPlanPeriod(plan: {
+  validFrom: string;
+  validUntil?: string | undefined;
+  firstDueDate: string;
+}): { validFrom: string; validUntil: string; firstDueDate: string } | null {
+  if (!plan.validUntil) return null;
+  const validFrom = addDaysToIsoDate(plan.validUntil, 1);
+  for (let months = 1; months <= 120; months += 1) {
+    const end = addDaysToIsoDate(addMonthsToIsoDate(plan.validFrom, months), -1);
+    if (end > plan.validUntil) break;
+    if (end === plan.validUntil) {
+      return {
+        validFrom,
+        validUntil: addDaysToIsoDate(addMonthsToIsoDate(validFrom, months), -1),
+        firstDueDate: addMonthsToIsoDate(plan.firstDueDate, months),
+      };
+    }
+  }
+  const days =
+    (Date.parse(plan.validUntil) - Date.parse(plan.validFrom)) / 86_400_000 + 1;
+  return {
+    validFrom,
+    validUntil: addDaysToIsoDate(validFrom, days - 1),
+    firstDueDate: addDaysToIsoDate(plan.firstDueDate, days),
+  };
+}
 
 export const receivableStatusSchema = z.enum(["open", "paid", "cancelled"]);
 export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
@@ -1057,6 +1127,9 @@ export interface PatientPlan extends PatientPlanInput {
   serviceName: string;
   status: PlanStatus;
   remainingSessions: number;
+  autoRenew: boolean;
+  renewedFromPlanId?: string;
+  renewedByPlanId?: string;
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string;

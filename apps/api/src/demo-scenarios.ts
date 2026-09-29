@@ -287,6 +287,7 @@ export function buildDemoScenarios(): DemoData {
       installments,
       firstDueDate: date(start + 10),
       status: cancelled ? "cancelled" : lapsed ? "expired" : "active",
+      autoRenew: !single && !cancelled && !lapsed && (dance || cohort === 1 || overdue),
       ...(cancelledAt ? { cancelledAt, cancelledValueInCents: 99800 } : {}),
       createdAt,
       updatedAt: cancelledAt ?? createdAt,

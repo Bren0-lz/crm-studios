@@ -11,6 +11,8 @@ const duplicateCpf = "98765432101";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
+const renewalMarker = "postgres-renewal-test";
+const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
@@ -27,18 +29,20 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     if (!pool) return;
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
-       (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name=$1)`,
-      [salesMarker],
+       (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
+      [[salesMarker, renewalMarker]],
     );
     await pool.query(
-      `DELETE FROM session_movements WHERE plan_id IN (SELECT id FROM patient_plans WHERE name=$1)`,
-      [salesMarker],
+      `DELETE FROM session_movements WHERE plan_id IN (SELECT id FROM patient_plans WHERE name = ANY($1::text[]))`,
+      [[salesMarker, renewalMarker]],
     );
     await pool.query(
-      `DELETE FROM receivables WHERE plan_id IN (SELECT id FROM patient_plans WHERE name=$1)`,
-      [salesMarker],
+      `DELETE FROM receivables WHERE plan_id IN (SELECT id FROM patient_plans WHERE name = ANY($1::text[]))`,
+      [[salesMarker, renewalMarker]],
     );
-    await pool.query("DELETE FROM patient_plans WHERE name=$1", [salesMarker]);
+    await pool.query("DELETE FROM patient_plans WHERE name = ANY($1::text[])", [
+      [salesMarker, renewalMarker],
+    ]);
     await pool.query("TRUNCATE appointment_reschedules");
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
       [appointmentMarker, rescheduleMarker],
@@ -307,5 +311,55 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(management.finance.paidInPeriodInCents).toBe(
       partialReport.current.receivedInCents,
     );
+  });
+
+  it("renews due PostgreSQL plans once and blocks a second manual renewal", async () => {
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const now = new Date();
+    const month = (offset: number, day: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, day))
+        .toISOString()
+        .slice(0, 10);
+    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      patientId: patients[0]!.id,
+      serviceId: services[0]!.id,
+      name: renewalMarker,
+      kind: "recurring",
+      totalSessions: 4,
+      validFrom: month(-2, 1),
+      validUntil: month(-1, 0),
+      totalValueInCents: 30000,
+      installments: 1,
+      firstDueDate: month(-2, 1),
+    });
+    expect(plan.autoRenew).toBe(true);
+    await Promise.all([
+      repository.renewDuePatientPlans(clinicId, ownerId),
+      repository.renewDuePatientPlans(clinicId, ownerId),
+    ]);
+    const chain = (await repository.listPatientPlans(clinicId, patients[0]!.id))
+      .filter((item) => item.name === renewalMarker)
+      .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+    expect(chain.map((item) => item.validFrom)).toEqual([
+      month(-2, 1),
+      month(-1, 1),
+      month(0, 1),
+    ]);
+    expect(chain[2]).toMatchObject({ status: "active", remainingSessions: 4 });
+    expect(chain[1]!.renewedFromPlanId).toBe(plan.id);
+
+    await expect(
+      repository.renewPatientPlan(clinicId, ownerId, plan.id, {
+        name: renewalMarker,
+        totalSessions: 4,
+        validFrom: month(0, 1),
+        totalValueInCents: 30000,
+        installments: 1,
+        firstDueDate: month(0, 1),
+      }),
+    ).rejects.toMatchObject({ code: "PLAN_ALREADY_RENEWED" });
   });
 });

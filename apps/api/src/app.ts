@@ -44,6 +44,8 @@ import {
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
+  planAutoRenewInputSchema,
+  planRenewalInputSchema,
   planTransitionSchema,
   patientInputSchema,
   professionalInputSchema,
@@ -565,6 +567,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Sao_Paulo",
       }).format(new Date());
+    await repository.renewDuePatientPlans(request.user.clinicId, request.user.sub);
     return repository.getDashboard(request.user.clinicId, date);
   });
 
@@ -1261,6 +1264,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get("/plans", { preHandler: authenticate }, async (request) => {
     const query = request.query as { patientId?: string };
+    await repository.renewDuePatientPlans(request.user.clinicId, request.user.sub);
     return repository.listPatientPlans(request.user.clinicId, query.patientId);
   });
   app.post(
@@ -1299,6 +1303,44 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return plan;
     },
   );
+  app.post(
+    "/plans/:id/renew",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const plan = await repository.renewPatientPlan(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        planRenewalInputSchema.parse(request.body),
+      );
+      if (!plan)
+        return reply.status(404).send({
+          code: "PLAN_NOT_FOUND",
+          message: "Plano não encontrado.",
+        });
+      return reply.status(201).send(plan);
+    },
+  );
+  app.patch(
+    "/plans/:id/auto-renew",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const plan = await repository.updatePatientPlanAutoRenew(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        planAutoRenewInputSchema.parse(request.body).autoRenew,
+      );
+      if (!plan)
+        return reply.status(404).send({
+          code: "PLAN_NOT_FOUND",
+          message: "Plano não encontrado.",
+        });
+      return plan;
+    },
+  );
   app.get(
     "/plans/:id/movements",
     { preHandler: authenticate },
@@ -1311,7 +1353,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.get(
     "/finance/summary",
     { preHandler: [authenticate, requireFinanceAccess] },
-    async (request) => repository.getFinancialSummary(request.user.clinicId),
+    async (request) => {
+      await repository.renewDuePatientPlans(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      return repository.getFinancialSummary(request.user.clinicId);
+    },
   );
   app.post(
     "/finance/receivables/:id/pay",

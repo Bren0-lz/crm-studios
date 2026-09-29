@@ -22,6 +22,7 @@ import {
   Play,
   Plus,
   Printer,
+  RefreshCw,
   Search,
   Settings,
   SlidersHorizontal,
@@ -92,7 +93,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
-import { describeGroupSchedule, formatPhone, groupClassName, phoneDigits } from "@crm/contracts";
+import { describeGroupSchedule, formatPhone, groupClassName, nextPlanPeriod, phoneDigits } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -2912,6 +2913,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
+  const [renewingPlan, setRenewingPlan] = useState<PatientPlan | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -2944,6 +2946,31 @@ function PlansPage({ canManage }: { canManage: boolean }) {
     } catch (cause) {
       setError((cause as Error).message);
     }
+  }
+
+  async function toggleAutoRenew(plan: PatientPlan) {
+    setError("");
+    try {
+      const updated = await api.setPlanAutoRenew(plan.id, !plan.autoRenew);
+      setPlans((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  function planRenewalLabel(plan: PatientPlan) {
+    if (plan.renewedByPlanId) {
+      const next = plans.find((item) => item.id === plan.renewedByPlanId);
+      return next
+        ? `Renovado a partir de ${shortDate.format(new Date(`${next.validFrom}T12:00:00`))}`
+        : "Renovado";
+    }
+    if (plan.autoRenew && plan.validUntil) {
+      return `Automática em ${shortDate.format(new Date(`${nextPlanPeriod(plan)!.validFrom}T12:00:00`))}`;
+    }
+    return "Manual";
   }
 
   return (
@@ -3046,6 +3073,25 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                         : " · contínuo"}
                     </strong>
                   </div>
+                  {plan.status !== "cancelled" && (
+                    <div className="plan-meta plan-renewal">
+                      <span>Renovação</span>
+                      <strong>{planRenewalLabel(plan)}</strong>
+                      {canManage &&
+                        plan.validUntil &&
+                        !plan.renewedByPlanId &&
+                        plan.status !== "expired" && (
+                          <label className="plan-auto-renew">
+                            <input
+                              type="checkbox"
+                              checked={plan.autoRenew}
+                              onChange={() => void toggleAutoRenew(plan)}
+                            />
+                            Renovar automaticamente
+                          </label>
+                        )}
+                    </div>
+                  )}
                   <div className="plan-actions">
                     <button
                       className="secondary-button"
@@ -3054,6 +3100,17 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                       <FileClock size={15} />
                       Extrato
                     </button>
+                    {canManage &&
+                      plan.status !== "cancelled" &&
+                      !plan.renewedByPlanId && (
+                        <button
+                          className="secondary-button"
+                          onClick={() => setRenewingPlan(plan)}
+                        >
+                          <RefreshCw size={15} />
+                          Renovar
+                        </button>
+                      )}
                     {canManage && plan.status !== "cancelled" && (
                       <>
                         {plan.status === "active" ? (
@@ -3097,9 +3154,29 @@ function PlansPage({ canManage }: { canManage: boolean }) {
           patients={patients}
           services={services}
           onClose={() => setModalOpen(false)}
-          onCreated={(plan) => {
+          onSaved={(plan) => {
             replacePlan(plan);
             setModalOpen(false);
+          }}
+        />
+      )}
+      {renewingPlan && (
+        <PlanModal
+          patients={patients}
+          services={services}
+          renewing={renewingPlan}
+          onClose={() => setRenewingPlan(null)}
+          onSaved={(plan) => {
+            const renewedFrom = renewingPlan.id;
+            setPlans((items) => [
+              plan,
+              ...items.map((item) =>
+                item.id === renewedFrom
+                  ? { ...item, renewedByPlanId: plan.id }
+                  : item,
+              ),
+            ]);
+            setRenewingPlan(null);
           }}
         />
       )}
@@ -3116,28 +3193,51 @@ function PlansPage({ canManage }: { canManage: boolean }) {
 function PlanModal({
   patients,
   services,
+  renewing,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   patients: Patient[];
   services: Service[];
+  renewing?: PatientPlan;
   onClose: () => void;
-  onCreated: (plan: PatientPlan) => void;
+  onSaved: (plan: PatientPlan) => void;
 }) {
   const currentDate = localIsoDate();
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
-  const [form, setForm] = useState<PatientPlanInput>({
-    patientId: patients[0]?.id ?? "",
-    serviceId: services[0]?.id ?? "",
-    name: "Pacote de fisioterapia",
-    kind: "fixed_package",
-    totalSessions: 10,
-    validFrom: currentDate,
-    validUntil: localIsoDate(nextYear),
-    totalValueInCents: 180000,
-    installments: 3,
-    firstDueDate: currentDate,
+  const [form, setForm] = useState<PatientPlanInput>(() => {
+    if (!renewing) {
+      return {
+        patientId: patients[0]?.id ?? "",
+        serviceId: services[0]?.id ?? "",
+        name: "Pacote de fisioterapia",
+        kind: "fixed_package",
+        totalSessions: 10,
+        validFrom: currentDate,
+        validUntil: localIsoDate(nextYear),
+        totalValueInCents: 180000,
+        installments: 3,
+        firstDueDate: currentDate,
+        autoRenew: false,
+      };
+    }
+    const period = nextPlanPeriod(renewing) ?? {
+      validFrom: currentDate,
+      validUntil: "",
+      firstDueDate: currentDate,
+    };
+    return {
+      patientId: renewing.patientId,
+      serviceId: renewing.serviceId,
+      name: renewing.name,
+      kind: renewing.kind,
+      totalSessions: renewing.totalSessions,
+      totalValueInCents: renewing.totalValueInCents,
+      installments: renewing.installments,
+      autoRenew: renewing.autoRenew && Boolean(period.validUntil),
+      ...period,
+    };
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3146,7 +3246,22 @@ function PlanModal({
     setLoading(true);
     setError("");
     try {
-      onCreated(await api.createPlan(form));
+      if (renewing) {
+        onSaved(
+          await api.renewPlan(renewing.id, {
+            name: form.name,
+            totalSessions: form.totalSessions,
+            validFrom: form.validFrom,
+            validUntil: form.validUntil,
+            totalValueInCents: form.totalValueInCents,
+            installments: form.installments,
+            firstDueDate: form.firstDueDate,
+            autoRenew: Boolean(form.autoRenew),
+          }),
+        );
+      } else {
+        onSaved(await api.createPlan(form));
+      }
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -3155,54 +3270,63 @@ function PlanModal({
   }
   return (
     <Modal
-      title="Novo plano"
-      subtitle="O saldo e as contas a receber serão criados na mesma operação."
+      title={renewing ? "Renovar plano" : "Novo plano"}
+      subtitle={
+        renewing
+          ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
+          : "O saldo e as contas a receber serão criados na mesma operação."
+      }
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
-        <label className="span-2">
-          Cliente
-          <select
-            required
-            value={form.patientId}
-            onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-          >
-            {patients.map((patient) => (
-              <option value={patient.id} key={patient.id}>
-                {patient.fullName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Serviço
-          <select
-            required
-            value={form.serviceId}
-            onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-          >
-            {services.map((service) => (
-              <option value={service.id} key={service.id}>
-                {service.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Modelo
-          <select
-            value={form.kind}
-            onChange={(e) =>
-              setForm({ ...form, kind: e.target.value as PatientPlan["kind"] })
-            }
-          >
-            {Object.entries(planKindLabels).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!renewing && (
+          <>
+            <label className="span-2">
+              Cliente
+              <select
+                required
+                value={form.patientId}
+                onChange={(e) => setForm({ ...form, patientId: e.target.value })}
+              >
+                {patients.map((patient) => (
+                  <option value={patient.id} key={patient.id}>
+                    {patient.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Serviço
+              <select
+                required
+                value={form.serviceId}
+                onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+              >
+                {services.map((service) => (
+                  <option value={service.id} key={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Modelo
+              <select
+                value={form.kind}
+                onChange={(e) => {
+                  const kind = e.target.value as PatientPlan["kind"];
+                  setForm({ ...form, kind, autoRenew: kind === "recurring" });
+                }}
+              >
+                {Object.entries(planKindLabels).map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
         <label className="span-2">
           Nome do plano
           <input
@@ -3253,7 +3377,13 @@ function PlanModal({
           <input
             type="date"
             value={form.validUntil}
-            onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                validUntil: e.target.value,
+                autoRenew: Boolean(e.target.value) && form.autoRenew,
+              })
+            }
           />
         </label>
         <label>
@@ -3278,13 +3408,30 @@ function PlanModal({
             onChange={(e) => setForm({ ...form, firstDueDate: e.target.value })}
           />
         </label>
+        <label className="checkbox-field span-2">
+          <input
+            type="checkbox"
+            checked={Boolean(form.autoRenew)}
+            disabled={!form.validUntil}
+            onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
+          />
+          {form.validUntil
+            ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+            : "Renovação automática exige o fim da validade"}
+        </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
-            {loading ? "Criando…" : "Criar plano e parcelas"}
+            {renewing
+              ? loading
+                ? "Renovando…"
+                : "Renovar plano e gerar parcelas"
+              : loading
+                ? "Criando…"
+                : "Criar plano e parcelas"}
           </button>
         </div>
       </form>

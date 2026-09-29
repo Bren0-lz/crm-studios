@@ -13,6 +13,7 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
 - bloqueio de prontuários para perfis sem acesso clínico;
 - planos, pacotes, validade, saldo e extrato de sessões;
+- renovação de planos manual ou automática ao fim do período;
 - consumo automático ao finalizar e estorno ao reabrir atendimentos;
 - financeiro com contas a receber e pagar, categorias, centros de custo, ajustes, formas de pagamento, recibos e fluxo de caixa mensal;
 - renegociação parcelada e comissões profissionais por competência;
@@ -60,7 +61,7 @@ Com `SEED_DEMO_DATA=true`, a demonstração também inclui 56 planos com preços
 | Sem retorno | 8 clientes com pacote vencido e sessões restantes | R$ 1.500 por pacote |
 | Pagamento atrasado | 8 clientes de Pilates com plano ativo e parcela vencida | R$ 1.200 em 2 parcelas |
 
-Os planos recorrentes representam períodos contratados com sessões e parcelas. O CRM ainda não renova automaticamente um plano ao fim do período. As datas são posicionadas em relação ao dia em que a base é carregada pela primeira vez; reiniciar a API preserva os registros e as alterações feitas neles.
+Os planos recorrentes representam períodos contratados com sessões e parcelas. Ao fim da validade, os que têm renovação automática ganham o período seguinte com as mesmas condições; qualquer plano também pode ser renovado manualmente em **Planos**, com valores ajustáveis. As datas são posicionadas em relação ao dia em que a base é carregada pela primeira vez; reiniciar a API preserva os registros e as alterações feitas neles.
 
 ## Verificações
 

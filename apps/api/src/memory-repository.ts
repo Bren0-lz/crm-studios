@@ -73,6 +73,7 @@ import type {
   PatientInput,
   PatientPlan,
   PatientPlanInput,
+  PlanRenewalInput,
   PatientTab,
   PatientTabCloseInput,
   PatientTabInput,
@@ -107,7 +108,7 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
 } from "@crm/contracts";
-import { groupClassName } from "@crm/contracts";
+import { groupClassName, nextPlanPeriod } from "@crm/contracts";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -2618,6 +2619,23 @@ export class MemoryClinicRepository implements ClinicRepository {
         404,
       );
     }
+    return this.insertPatientPlan(
+      clinicId,
+      patient,
+      service,
+      input,
+      "Crédito inicial do plano",
+    );
+  }
+
+  private insertPatientPlan(
+    clinicId: string,
+    patient: Patient,
+    service: Service,
+    input: PatientPlanInput,
+    creditReason: string,
+    renewedFrom?: PatientPlan,
+  ) {
     const timestamp = now();
     const plan: PatientPlan = {
       ...input,
@@ -2627,9 +2645,12 @@ export class MemoryClinicRepository implements ClinicRepository {
       serviceName: service.name,
       status: "active",
       remainingSessions: input.totalSessions,
+      autoRenew: input.autoRenew ?? input.kind === "recurring",
+      ...(renewedFrom ? { renewedFromPlanId: renewedFrom.id } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
     const baseAmount = Math.floor(input.totalValueInCents / input.installments);
     const remainder = input.totalValueInCents % input.installments;
     const installments: Receivable[] = Array.from(
@@ -2651,6 +2672,10 @@ export class MemoryClinicRepository implements ClinicRepository {
         updatedAt: timestamp,
       }),
     );
+    if (renewedFrom) {
+      renewedFrom.renewedByPlanId = plan.id;
+      renewedFrom.updatedAt = timestamp;
+    }
     this.patientPlans.push(plan);
     this.receivables.push(...installments);
     this.sessionMovements.push({
@@ -2658,10 +2683,139 @@ export class MemoryClinicRepository implements ClinicRepository {
       planId: plan.id,
       kind: "credit",
       quantity: input.totalSessions,
-      reason: "Crédito inicial do plano",
+      reason: creditReason,
       createdAt: timestamp,
     });
     return plan;
+  }
+
+  async renewPatientPlan(
+    clinicId: string,
+    _actorUserId: string,
+    planId: string,
+    input: PlanRenewalInput,
+  ) {
+    const current = this.patientPlans.find(
+      (item) => item.clinicId === clinicId && item.id === planId,
+    );
+    if (!current) return null;
+    this.assertRenewable(current);
+    const patient = this.patients.find((item) => item.id === current.patientId);
+    const service = this.services.find((item) => item.id === current.serviceId);
+    if (!patient || !service) {
+      throw new DomainError(
+        "PLAN_CONTEXT_NOT_FOUND",
+        "Cliente ou serviço não encontrado.",
+        404,
+      );
+    }
+    return this.insertPatientPlan(
+      clinicId,
+      patient,
+      service,
+      {
+        ...input,
+        patientId: current.patientId,
+        serviceId: current.serviceId,
+        kind: current.kind,
+      },
+      "Crédito da renovação do plano",
+      current,
+    );
+  }
+
+  private assertRenewable(plan: PatientPlan) {
+    if (plan.status === "cancelled") {
+      throw new DomainError(
+        "PLAN_CANCELLED",
+        "Um plano cancelado não pode ser renovado.",
+        409,
+      );
+    }
+    if (plan.renewedByPlanId) {
+      throw new DomainError(
+        "PLAN_ALREADY_RENEWED",
+        "Este plano já foi renovado.",
+        409,
+      );
+    }
+  }
+
+  async updatePatientPlanAutoRenew(
+    clinicId: string,
+    _actorUserId: string,
+    planId: string,
+    autoRenew: boolean,
+  ) {
+    const plan = this.patientPlans.find(
+      (item) => item.clinicId === clinicId && item.id === planId,
+    );
+    if (!plan) return null;
+    if (autoRenew) {
+      this.assertRenewable(plan);
+      if (plan.status === "expired") {
+        throw new DomainError(
+          "PLAN_EXPIRED",
+          "Um plano vencido deve ser renovado manualmente.",
+          409,
+        );
+      }
+      if (!plan.validUntil) {
+        throw new DomainError(
+          "PLAN_WITHOUT_END",
+          "A renovação automática exige o fim da validade.",
+          409,
+        );
+      }
+    }
+    if (plan.autoRenew !== autoRenew) {
+      plan.autoRenew = autoRenew;
+      plan.updatedAt = now();
+    }
+    return plan;
+  }
+
+  async renewDuePatientPlans(clinicId: string) {
+    const currentDate = today();
+    let renewed = 0;
+    const due = (plan: PatientPlan) =>
+      plan.clinicId === clinicId &&
+      plan.autoRenew &&
+      !plan.renewedByPlanId &&
+      (plan.status === "active" || plan.status === "expired") &&
+      Boolean(plan.validUntil) &&
+      plan.validUntil! < currentDate;
+    // Um sucessor ainda vencido entra na fila de novo, recuperando períodos perdidos.
+    for (let plan = this.patientPlans.find(due); plan; plan = this.patientPlans.find(due)) {
+      const patient = this.patients.find((item) => item.id === plan!.patientId);
+      const service = this.services.find((item) => item.id === plan!.serviceId);
+      const period = nextPlanPeriod(plan);
+      if (patient?.status !== "active" || !service?.active || !period) {
+        plan.autoRenew = false;
+        plan.updatedAt = now();
+        continue;
+      }
+      this.insertPatientPlan(
+        clinicId,
+        patient,
+        service,
+        {
+          patientId: plan.patientId,
+          serviceId: plan.serviceId,
+          name: plan.name,
+          kind: plan.kind,
+          totalSessions: plan.totalSessions,
+          totalValueInCents: plan.totalValueInCents,
+          installments: plan.installments,
+          autoRenew: true,
+          ...period,
+        },
+        "Crédito da renovação automática",
+        plan,
+      );
+      renewed += 1;
+    }
+    return renewed;
   }
 
   async updatePatientPlanStatus(
