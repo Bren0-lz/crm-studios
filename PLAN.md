@@ -199,7 +199,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   | `duplicate`. Testes em `patient-import.test.ts` (inclui um XLSX gerado em memória com exceljs).
 - **Gate:** `npm exec -w @crm/api -- vitest run src/patient-import.test.ts`
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### T016 — Endpoints de importação de clientes
 - **Escopo:** `POST /patients/import/preview` (`{ fileName, contentBase64 }`, CSV ou XLSX, até

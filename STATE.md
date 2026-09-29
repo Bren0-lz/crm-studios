@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T015
-- **Última concluída:** T014
+- **Tarefa atual:** T016
+- **Última concluída:** T015
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -26,3 +26,4 @@
 - 2026-09-29 T013 DONE (verifier PASS; gate instável: timeouts de 5s em testes antigos em 2 de 3 execuções do verifier, 2/2 ok no orquestrador — lentidão da máquina/OneDrive). `GET /patients/:id/timeline` (comercial; 404 PATIENT_NOT_FOUND) → `PatientTimelineEntry[]` {id "<kind>:<id>", kind, occurredAt, title/detail pt-BR, amountInCents? com sinal, status? bruto, score?}. Kinds: appointment, plan_created, plan_renewed, plan_cancelled, payment, payment_reversal, contact, message, satisfaction. Ordem: occurredAt desc (agendamentos futuros no topo). `listSatisfactionSurveys` aceita `patientId`.
 - 2026-09-29 testTimeout de 20s em apps/api/vitest.config.ts e apps/web/vite.config.ts (commit à parte, aprovado pelo dono) — timeouts de 5s eram lentidão da máquina.
 - 2026-09-29 T014 DONE (verifier PASS; suíte confirmada pelo orquestrador com exit 0). Seção "Histórico" no `PatientModal` (/clientes, cliente existente, não aparece p/ physiotherapist); filtros por grupo (Atendimentos, Planos, Pagamentos, Contatos, Mensagens, Satisfação); `api.patientTimeline(id)`; kinds desconhecidos são descartados.
+- 2026-09-29 T015 DONE (verifier PASS, exit codes 0). patient-import.ts: `parseCsv(text)`, `readXlsxRows(buffer): Promise<string[][]>`, `validatePatientImport(rows, existingPatients)`. Contracts: `PatientImportRow {line, status, fullName, phone, input?, errors?, duplicateOf?}`, `PatientImportDuplicate` (existing|row), `PatientImportAnalysis {rows, errors, totals}`. Faltando nome/telefone → errors geral e rows=[]. Duplicate também traz input.

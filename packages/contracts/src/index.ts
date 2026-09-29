@@ -1768,6 +1768,35 @@ export function fillMessageTemplate(
   );
 }
 
+export type PatientImportRowStatus = "valid" | "error" | "duplicate";
+
+/** Com quem a linha importada colide: um cliente já cadastrado ou uma linha anterior do arquivo. */
+export type PatientImportDuplicate =
+  | { kind: "existing"; field: "cpf" | "phone"; patientId: string; fullName: string }
+  | { kind: "row"; field: "cpf" | "phone"; line: number };
+
+export interface PatientImportRow {
+  /** Número da linha na planilha (o cabeçalho é a linha 1 quando está no topo). */
+  line: number;
+  status: PatientImportRowStatus;
+  /** Nome e telefone como vieram no arquivo, para exibir na prévia. */
+  fullName: string;
+  phone: string;
+  /** Presente em linhas `valid` e `duplicate`. */
+  input?: PatientInput;
+  /** Mensagens em pt-BR, presentes em linhas `error`. */
+  errors?: string[];
+  /** Presente em linhas `duplicate`. */
+  duplicateOf?: PatientImportDuplicate;
+}
+
+export interface PatientImportAnalysis {
+  rows: PatientImportRow[];
+  /** Problemas gerais do arquivo (ex.: coluna obrigatória ausente); quando há algum, `rows` fica vazio. */
+  errors: string[];
+  totals: { valid: number; error: number; duplicate: number };
+}
+
 export interface ApiError {
   code: string;
   message: string;
