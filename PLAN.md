@@ -106,7 +106,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   adiamento quando `snoozed`). Ao registrar, o card sai da lista. Teste em `App.test.tsx`.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T004
-- **Status:** TODO
+- **Status:** DONE
 
 ### T006 — Prazos e mensagens em Configurações
 - **Escopo:** seção "Relacionamento" na página de Configurações (edição só para `owner`,

@@ -11,14 +11,17 @@ import {
   Download,
   FileClock,
   FileText,
+  HeartHandshake,
   LockKeyhole,
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageCircle,
   MoreHorizontal,
   PackageOpen,
   Paperclip,
   Pause,
+  PhoneCall,
   Play,
   Plus,
   Printer,
@@ -59,6 +62,10 @@ import type {
   ClinicSettings,
   CommunicationCenter,
   CommunicationChannel,
+  ContactActivityInput,
+  ContactOutcome,
+  ContactReason,
+  ContactSuggestion,
   DashboardSummary,
   DocumentKind,
   DocumentTemplate,
@@ -86,6 +93,7 @@ import type {
   PermissionMatrixItem,
   PlanStatus,
   Professional,
+  RelationshipSettings,
   Room,
   ScheduleBlock,
   Service,
@@ -93,7 +101,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
-import { describeGroupSchedule, formatPhone, groupClassName, nextPlanPeriod, phoneDigits } from "@crm/contracts";
+import { describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -308,6 +316,12 @@ const navItems: Array<{
     to: "/comercial",
     label: "CRM comercial",
     icon: Columns3,
+    roles: ["owner", "reception", "finance"],
+  },
+  {
+    to: "/relacionamento",
+    label: "Contatos sugeridos",
+    icon: HeartHandshake,
     roles: ["owner", "reception", "finance"],
   },
   {
@@ -1175,6 +1189,306 @@ const leadStages: Array<{ value: LeadStage; label: string }> = [
   { value: "won", label: "Ganhos" },
   { value: "lost", label: "Perdidos" },
 ];
+
+const contactReasonLabels: Record<ContactReason, string> = {
+  birthday: "Aniversário",
+  single_no_return: "Veio uma vez",
+  plan_expiring: "Plano acabando",
+  low_balance: "Saldo baixo",
+  expired_with_balance: "Vencido com saldo",
+  treatment_paused: "Tratamento parado",
+  repeated_no_show: "Faltas seguidas",
+  former_client: "Ex-cliente",
+  overdue_payment: "Pagamento atrasado",
+  nps_detractor: "Avaliação baixa",
+};
+
+const contactOutcomeLabels: Record<ContactOutcome, string> = {
+  contacted: "Contato feito",
+  no_answer: "Não atendeu",
+  scheduled: "Agendou horário",
+  not_interested: "Sem interesse",
+  snoozed: "Adiar contato",
+  dismissed: "Descartar sugestão",
+};
+
+function suggestionKey(suggestion: ContactSuggestion) {
+  return `${suggestion.patientId}:${suggestion.reason}:${suggestion.referenceKey}`;
+}
+
+function addDaysToIsoDate(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function RelationshipPage() {
+  const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
+  const [settings, setSettings] = useState<RelationshipSettings | null>(null);
+  const [reasonFilter, setReasonFilter] = useState<ContactReason | "all">("all");
+  const [recording, setRecording] = useState<ContactSuggestion | null>(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.contactSuggestions(), api.relationshipSettings()])
+      .then(([suggestionData, settingsData]) => {
+        if (!active) return;
+        setSuggestions(suggestionData);
+        setSettings(settingsData);
+      })
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const counts = new Map<ContactReason, number>();
+  for (const suggestion of suggestions) {
+    counts.set(suggestion.reason, (counts.get(suggestion.reason) ?? 0) + 1);
+  }
+  const reasonOptions = (Object.keys(contactReasonLabels) as ContactReason[]).filter(
+    (reason) => counts.has(reason),
+  );
+  const visible =
+    reasonFilter === "all"
+      ? suggestions
+      : suggestions.filter((suggestion) => suggestion.reason === reasonFilter);
+
+  function messageFor(suggestion: ContactSuggestion) {
+    const template = settings?.messages[suggestion.reason] ?? "";
+    const firstName =
+      suggestion.patientName.trim().split(/\s+/)[0] ?? suggestion.patientName;
+    return fillMessageTemplate(template, { nome: firstName });
+  }
+
+  function recorded(suggestion: ContactSuggestion) {
+    const key = suggestionKey(suggestion);
+    const remaining = suggestions.filter((item) => suggestionKey(item) !== key);
+    setSuggestions(remaining);
+    if (!remaining.some((item) => item.reason === reasonFilter)) {
+      setReasonFilter("all");
+    }
+    setRecording(null);
+    setNotice(`Contato com ${suggestion.patientName} registrado.`);
+  }
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Central de relacionamento"
+        title="Contatos sugeridos"
+        description="Clientes que merecem um contato agora, com a mensagem pronta para o WhatsApp."
+      />
+      {error && <ErrorBanner error={error} />}
+      {notice && <div className="success-banner">{notice}</div>}
+      <section className="panel plans-panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">Fila de contatos</span>
+            <h2>Quem contatar</h2>
+          </div>
+        </div>
+        {!loading && suggestions.length > 0 && (
+          <div className="filter-group filter-tags">
+            <span className="filter-label" id="relationship-reason-filter">
+              Situação
+            </span>
+            <div
+              className="tag-filter-list"
+              role="group"
+              aria-labelledby="relationship-reason-filter"
+            >
+              <button
+                type="button"
+                className="tag-filter"
+                aria-pressed={reasonFilter === "all"}
+                onClick={() => setReasonFilter("all")}
+              >
+                Todas
+                <small>{suggestions.length}</small>
+              </button>
+              {reasonOptions.map((reason) => (
+                <button
+                  type="button"
+                  key={reason}
+                  className="tag-filter"
+                  aria-pressed={reasonFilter === reason}
+                  onClick={() => setReasonFilter(reason)}
+                >
+                  {contactReasonLabels[reason]}
+                  <small>{counts.get(reason)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {loading ? (
+          <LoadingBlock />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            title="Nenhum contato sugerido"
+            copy="Quando algum cliente precisar de atenção, ele aparece aqui."
+          />
+        ) : (
+          <div className="plans-grid">
+            {visible.map((suggestion) => {
+              const contactPhone = suggestion.whatsapp || suggestion.phone;
+              return (
+                <article className="plan-card" key={suggestionKey(suggestion)}>
+                  <div className="plan-card-head">
+                    <span className="status-pill open">
+                      {contactReasonLabels[suggestion.reason]}
+                    </span>
+                    {suggestion.dueDate && (
+                      <span>
+                        {shortDate.format(
+                          new Date(`${suggestion.dueDate}T12:00:00`),
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <h3>{suggestion.patientName}</h3>
+                  <p>{suggestion.detail}</p>
+                  <div className="plan-meta">
+                    <span>Telefone</span>
+                    <strong>{formatPhone(suggestion.phone)}</strong>
+                  </div>
+                  <div className="plan-actions">
+                    <a
+                      className="secondary-button"
+                      href={whatsappLink(contactPhone, messageFor(suggestion))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle size={15} />
+                      WhatsApp
+                    </a>
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        setNotice("");
+                        setRecording(suggestion);
+                      }}
+                    >
+                      <PhoneCall size={15} />
+                      Registrar contato
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      {recording && (
+        <ContactActivityModal
+          suggestion={recording}
+          onClose={() => setRecording(null)}
+          onSaved={() => recorded(recording)}
+        />
+      )}
+    </>
+  );
+}
+
+function ContactActivityModal({
+  suggestion,
+  onClose,
+  onSaved,
+}: {
+  suggestion: ContactSuggestion;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const today = saoPauloToday();
+  const [outcome, setOutcome] = useState<ContactOutcome>("contacted");
+  const [notes, setNotes] = useState("");
+  const [snoozeUntil, setSnoozeUntil] = useState(() => addDaysToIsoDate(today, 7));
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const trimmedNotes = notes.trim();
+      const input: ContactActivityInput = {
+        patientId: suggestion.patientId,
+        reason: suggestion.reason,
+        referenceKey: suggestion.referenceKey,
+        outcome,
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+        ...(outcome === "snoozed" ? { snoozeUntil } : {}),
+      };
+      await api.createContactActivity(input);
+      onSaved();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal
+      eyebrow={contactReasonLabels[suggestion.reason]}
+      title="Registrar contato"
+      subtitle={`${suggestion.patientName} · ${suggestion.detail}`}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <label className={outcome === "snoozed" ? undefined : "span-2"}>
+          Resultado
+          <select
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value as ContactOutcome)}
+          >
+            {(Object.keys(contactOutcomeLabels) as ContactOutcome[]).map(
+              (value) => (
+                <option value={value} key={value}>
+                  {contactOutcomeLabels[value]}
+                </option>
+              ),
+            )}
+          </select>
+        </label>
+        {outcome === "snoozed" && (
+          <label>
+            Adiar até
+            <input
+              required
+              type="date"
+              min={addDaysToIsoDate(today, 1)}
+              value={snoozeUntil}
+              onChange={(e) => setSnoozeUntil(e.target.value)}
+            />
+          </label>
+        )}
+        <label className="span-2">
+          Observação
+          <textarea
+            maxLength={2000}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={loading}>
+            {loading ? "Salvando…" : "Salvar contato"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 function CommunicationsPage() {
   const [center, setCenter] = useState<CommunicationCenter | null>(null);
@@ -7839,6 +8153,16 @@ function App() {
                   element={
                     ["owner", "reception", "finance"].includes(user!.role) ? (
                       <CommercialPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/relacionamento"
+                  element={
+                    ["owner", "reception", "finance"].includes(user!.role) ? (
+                      <RelationshipPage />
                     ) : (
                       <Navigate to="/" replace />
                     )

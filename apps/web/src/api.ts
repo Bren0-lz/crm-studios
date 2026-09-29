@@ -32,6 +32,9 @@ import type {
   CommunicationCenter,
   CommunicationPreference,
   CommunicationPreferenceInput,
+  ContactActivity,
+  ContactActivityInput,
+  ContactSuggestion,
   DashboardSummary,
   CostCenter,
   CostCenterInput,
@@ -92,6 +95,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
   PermissionMatrixItem,
+  RelationshipSettings,
 } from "@crm/contracts";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
@@ -487,6 +491,15 @@ export const api = {
     request<ReminderGenerationResult>("/communications/reminders/generate", {
       method: "POST",
       body: JSON.stringify({ referenceDate }),
+    }),
+  relationshipSettings: () =>
+    request<RelationshipSettings>("/relationship/settings"),
+  contactSuggestions: () =>
+    request<ContactSuggestion[]>("/relationship/suggestions"),
+  createContactActivity: (input: ContactActivityInput) =>
+    request<ContactActivity>("/relationship/activities", {
+      method: "POST",
+      body: JSON.stringify(input),
     }),
   documentTemplates: () => request<DocumentTemplate[]>("/document-templates"),
   createDocumentTemplate: (input: DocumentTemplateInput) =>

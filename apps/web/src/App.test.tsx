@@ -710,4 +710,112 @@ describe("application shell", () => {
       roomId: appointment.roomId,
     });
   });
+
+  it("lists suggested contacts, opens WhatsApp and records a contact", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const suggestions = [
+      {
+        patientId: "99999999-9999-4999-8999-999999999999",
+        patientName: "Helena Almeida",
+        phone: "11987654321",
+        whatsapp: "11911112222",
+        reason: "plan_expiring",
+        referenceKey: "plan-1:2026-10-05",
+        detail: "Plano termina em 3 dias",
+        dueDate: "2026-10-05",
+        priority: 2,
+      },
+      {
+        patientId: "88888888-8888-4888-8888-888888888888",
+        patientName: "Bruno Souza",
+        phone: "11955556666",
+        reason: "single_no_return",
+        referenceKey: "appt-9",
+        detail: "Veio uma vez há 70 dias e não voltou",
+        priority: 5,
+      },
+    ];
+    const settings = {
+      birthdayDaysAhead: 7,
+      singleNoReturnDays: 60,
+      planExpiringDays: 7,
+      lowBalanceSessions: 2,
+      expiredWithBalanceDays: 60,
+      treatmentPausedDays: 30,
+      repeatedNoShowCount: 2,
+      repeatedNoShowWindowDays: 30,
+      formerClientMinDays: 30,
+      formerClientMaxDays: 90,
+      messages: {
+        birthday: "Parabéns, {{nome}}!",
+        single_no_return: "Oi {{nome}}, sentimos sua falta.",
+        plan_expiring: "Oi {{nome}}, seu plano está acabando.",
+        low_balance: "x",
+        expired_with_balance: "x",
+        treatment_paused: "x",
+        repeated_no_show: "x",
+        former_client: "x",
+        overdue_payment: "x",
+        nps_detractor: "x",
+      },
+    };
+    let activityBody: Record<string, unknown> | undefined;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/relationship/activities") && init?.method === "POST") {
+        activityBody = JSON.parse(String(init.body));
+        return { ok: true, status: 201, json: async () => ({ id: "a1", clinicId: "c1", actorUserId: "u1", createdAt: "2026-09-29T12:00:00.000Z", ...activityBody }) } as Response;
+      }
+      const body = url.includes("/relationship/suggestions") ? suggestions
+        : url.includes("/relationship/settings") ? settings
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: /Contatos sugeridos/ })).toBeInTheDocument();
+    const helenaCard = (await screen.findByText("Helena Almeida")).closest("article")!;
+    expect(within(helenaCard).getByText("Plano termina em 3 dias")).toBeInTheDocument();
+    expect(within(helenaCard).getByText("(11) 98765-4321")).toBeInTheDocument();
+    const whatsapp = within(helenaCard).getByRole("link", { name: /WhatsApp/ });
+    expect(whatsapp).toHaveAttribute("href", `https://wa.me/5511911112222?text=${encodeURIComponent("Oi Helena, seu plano está acabando.")}`);
+    expect(whatsapp).toHaveAttribute("target", "_blank");
+    const brunoCard = screen.getByText("Bruno Souza").closest("article")!;
+    expect(within(brunoCard).getByRole("link", { name: /WhatsApp/ })).toHaveAttribute("href", `https://wa.me/5511955556666?text=${encodeURIComponent("Oi Bruno, sentimos sua falta.")}`);
+
+    const filters = screen.getByRole("group", { name: "Situação" });
+    expect(within(filters).getByRole("button", { name: /Todas\s*2/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(filters).getByRole("button", { name: /Plano acabando\s*1/ }));
+    expect(screen.queryByText("Bruno Souza")).not.toBeInTheDocument();
+    fireEvent.click(within(filters).getByRole("button", { name: /Todas/ }));
+
+    fireEvent.click(within(helenaCard).getByRole("button", { name: "Registrar contato" }));
+    const dialog = screen.getByRole("dialog", { name: "Registrar contato" });
+    expect(within(dialog).queryByLabelText("Adiar até")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Resultado"), { target: { value: "snoozed" } });
+    fireEvent.change(within(dialog).getByLabelText("Adiar até"), { target: { value: "2099-01-10" } });
+    fireEvent.change(within(dialog).getByLabelText("Observação"), { target: { value: "Pediu para ligar depois" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar contato" }));
+    await vi.waitFor(() => expect(screen.queryByText("Helena Almeida")).not.toBeInTheDocument());
+    expect(activityBody).toEqual({
+      patientId: suggestions[0]!.patientId,
+      reason: "plan_expiring",
+      referenceKey: "plan-1:2026-10-05",
+      outcome: "snoozed",
+      notes: "Pediu para ligar depois",
+      snoozeUntil: "2099-01-10",
+    });
+    expect(screen.getByText("Bruno Souza")).toBeInTheDocument();
+    expect(within(filters).getByRole("button", { name: /Todas\s*1/ })).toBeInTheDocument();
+  });
+
+  it("hides suggested contacts from physiotherapists", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as unknown as Response);
+    render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("link", { name: /Contatos sugeridos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Contatos sugeridos" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/relationship/"))).toBe(false);
+  });
 });
