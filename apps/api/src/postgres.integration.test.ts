@@ -11,10 +11,12 @@ const testCpf = "98765432100";
 const duplicateCpf = "98765432101";
 const relationshipCpf = "98765432102";
 const birthdayCpf = "98765432103";
+const satisfactionCpf = "98765432104";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
 const renewalMarker = "postgres-renewal-test";
+const satisfactionMarker = "postgres-satisfaction-test";
 const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -47,8 +49,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       [salesMarker, renewalMarker],
     ]);
     await pool.query("TRUNCATE appointment_reschedules");
+    await pool.query(
+      `DELETE FROM satisfaction_surveys WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
+      [clinicId, satisfactionCpf],
+    );
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
-      [appointmentMarker, rescheduleMarker],
+      [appointmentMarker, rescheduleMarker, satisfactionMarker],
     ]);
     await pool.query(
       `DELETE FROM contact_activities WHERE patient_id IN
@@ -57,7 +64,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[])", [
       clinicId,
-      [testCpf, duplicateCpf, relationshipCpf, birthdayCpf],
+      [testCpf, duplicateCpf, relationshipCpf, birthdayCpf, satisfactionCpf],
     ]);
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,
@@ -503,6 +510,85 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       date: "2032-02-29",
       congratulated: false,
     });
+  });
+
+  it("records one satisfaction survey per completed appointment and filters by clinic date", async () => {
+    await pool.query(
+      `DELETE FROM satisfaction_surveys WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
+      [clinicId, satisfactionCpf],
+    );
+    await pool.query("DELETE FROM appointments WHERE notes = $1", [
+      satisfactionMarker,
+    ]);
+    await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = $2", [
+      clinicId,
+      satisfactionCpf,
+    ]);
+    const [professionals, rooms, services] = await Promise.all([
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "Cliente Satisfação",
+      phone: "11933332222",
+      cpf: satisfactionCpf,
+      tags: [],
+    });
+    const startsAt = new Date(Date.now() + 200 * 24 * 60 * 60 * 1000);
+    startsAt.setUTCHours(13, 0, 0, 0);
+    const appointment = await repository.createAppointment(clinicId, {
+      patientId: patient.id,
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      startsAt: startsAt.toISOString(),
+      notes: satisfactionMarker,
+    });
+    await expect(
+      repository.createSatisfactionSurvey(clinicId, ownerId, {
+        patientId: patient.id,
+        appointmentId: appointment.id,
+        score: 9,
+      }),
+    ).rejects.toMatchObject({ code: "SATISFACTION_APPOINTMENT_NOT_COMPLETED" });
+    await repository.updateAppointmentStatus(clinicId, appointment.id, "completed");
+    const survey = await repository.createSatisfactionSurvey(clinicId, ownerId, {
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      score: 9,
+      comment: "Gostei muito.",
+    });
+    expect(survey).toMatchObject({
+      patientName: "Cliente Satisfação",
+      appointmentId: appointment.id,
+      score: 9,
+      comment: "Gostei muito.",
+      actorUserId: ownerId,
+    });
+    await expect(
+      repository.createSatisfactionSurvey(clinicId, ownerId, {
+        patientId: patient.id,
+        appointmentId: appointment.id,
+        score: 2,
+      }),
+    ).rejects.toMatchObject({ code: "SATISFACTION_DUPLICATE" });
+    const loose = await repository.createSatisfactionSurvey(clinicId, ownerId, {
+      patientId: patient.id,
+      score: 4,
+    });
+    expect(loose).not.toHaveProperty("appointmentId");
+    const today = saoPauloToday();
+    const mine = (await repository.listSatisfactionSurveys(clinicId, {
+      from: today,
+      to: today,
+    })).filter((item) => item.patientId === patient.id);
+    expect(mine.map((item) => item.id)).toEqual([loose.id, survey.id]);
+    expect(
+      (await repository.listSatisfactionSurveys(clinicId, { to: "2000-01-01" }))
+        .filter((item) => item.patientId === patient.id),
+    ).toEqual([]);
   });
 
   it("fills professional variables on issued documents and exposes CREFITO on records", async () => {

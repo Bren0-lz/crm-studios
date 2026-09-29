@@ -2500,4 +2500,267 @@ describe("CRM API", () => {
       vi.useRealTimers();
     }
   });
+
+  it("records satisfaction surveys for completed appointments once and summarizes the NPS", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    const sub = "22222222-2222-4222-8222-222222222222";
+    const roleHeaders = (role: UserRole) => ({
+      authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+    });
+    const helena = "99999999-9999-4999-8999-999999999999";
+    const lucas = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const helenaAppointment = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const post = (payload: object, requestHeaders = headers) =>
+      app.inject({
+        method: "POST",
+        url: "/satisfaction",
+        headers: requestHeaders,
+        payload,
+      });
+
+    const unauthenticated = await app.inject({
+      method: "POST",
+      url: "/satisfaction",
+      payload: { patientId: helena, score: 10 },
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const notCompleted = await post({
+      patientId: helena,
+      appointmentId: helenaAppointment,
+      score: 10,
+    });
+    expect(notCompleted.statusCode).toBe(400);
+    expect(notCompleted.json()).toMatchObject({
+      code: "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
+    });
+
+    const completed = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${helenaAppointment}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    expect(completed.statusCode).toBe(200);
+
+    const otherPatient = await post({
+      patientId: lucas,
+      appointmentId: helenaAppointment,
+      score: 10,
+    });
+    expect(otherPatient.statusCode).toBe(400);
+    expect(otherPatient.json()).toMatchObject({
+      code: "SATISFACTION_APPOINTMENT_MISMATCH",
+    });
+
+    const missingAppointment = await post({
+      patientId: helena,
+      appointmentId: "12121212-1212-4121-8121-121212121212",
+      score: 10,
+    });
+    expect(missingAppointment.statusCode).toBe(404);
+    expect(missingAppointment.json()).toMatchObject({
+      code: "APPOINTMENT_NOT_FOUND",
+    });
+
+    const missingPatient = await post({
+      patientId: "12121212-1212-4121-8121-121212121212",
+      score: 10,
+    });
+    expect(missingPatient.statusCode).toBe(404);
+    expect(missingPatient.json()).toMatchObject({ code: "PATIENT_NOT_FOUND" });
+
+    for (const payload of [
+      { patientId: helena, score: 11 },
+      { patientId: helena, score: -1 },
+      { patientId: helena, score: 7.5 },
+      { patientId: helena },
+      { patientId: helena, score: 8, comment: "x".repeat(1001) },
+      { patientId: "não-é-uuid", score: 8 },
+    ]) {
+      const invalid = await post(payload);
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    }
+
+    const created = await post({
+      patientId: helena,
+      appointmentId: helenaAppointment,
+      score: 10,
+      comment: "  Atendimento excelente.  ",
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toEqual({
+      id: expect.any(String),
+      clinicId,
+      patientId: helena,
+      patientName: "Helena Almeida",
+      appointmentId: helenaAppointment,
+      score: 10,
+      comment: "Atendimento excelente.",
+      actorUserId: sub,
+      createdAt: expect.any(String),
+    });
+
+    const duplicate = await post(
+      { patientId: helena, appointmentId: helenaAppointment, score: 3 },
+      roleHeaders("reception"),
+    );
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: "SATISFACTION_DUPLICATE" });
+
+    const byRole = [
+      ["reception", 8],
+      ["physiotherapist", 5],
+      ["finance", 0],
+    ] as const;
+    for (const [role, score] of byRole) {
+      const response = await post(
+        { patientId: lucas, score },
+        roleHeaders(role),
+      );
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).not.toHaveProperty("appointmentId");
+      expect(response.json()).not.toHaveProperty("comment");
+    }
+
+    for (const role of [
+      "owner",
+      "reception",
+      "physiotherapist",
+      "finance",
+    ] as const) {
+      const report = await app.inject({
+        method: "GET",
+        url: "/satisfaction",
+        headers: roleHeaders(role),
+      });
+      expect(report.statusCode).toBe(200);
+      expect(report.json().summary).toEqual({
+        total: 4,
+        promoters: 1,
+        passives: 1,
+        detractors: 2,
+        nps: -25,
+      });
+    }
+    const report = await app.inject({
+      method: "GET",
+      url: "/satisfaction",
+      headers,
+    });
+    expect(
+      report
+        .json()
+        .surveys.map((item: { score: number; patientName: string }) => [
+          item.patientName,
+          item.score,
+        ]),
+    ).toEqual([
+      ["Lucas Ribeiro", 0],
+      ["Lucas Ribeiro", 5],
+      ["Lucas Ribeiro", 8],
+      ["Helena Almeida", 10],
+    ]);
+    const unauthenticatedList = await app.inject({
+      method: "GET",
+      url: "/satisfaction",
+    });
+    expect(unauthenticatedList.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("filters satisfaction surveys by the clinic date and defaults to the current month", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // 31/10 às 23h30 em São Paulo = 01/11 02h30 UTC: conta em outubro.
+      vi.setSystemTime(new Date("2026-11-01T02:30:00.000Z"));
+      const app = await buildApp({
+        repository: new MemoryClinicRepository(),
+        logger: false,
+      });
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headers = () => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "owner" })}`,
+      });
+      const list = (query = "") =>
+        app.inject({
+          method: "GET",
+          url: `/satisfaction${query}`,
+          headers: headers(),
+        });
+
+      const empty = await list();
+      expect(empty.statusCode).toBe(200);
+      expect(empty.json()).toEqual({
+        from: "2026-10-01",
+        to: "2026-10-31",
+        surveys: [],
+        summary: {
+          total: 0,
+          promoters: 0,
+          passives: 0,
+          detractors: 0,
+          nps: null,
+        },
+      });
+
+      for (const score of [9, 10, 7]) {
+        const created = await app.inject({
+          method: "POST",
+          url: "/satisfaction",
+          headers: headers(),
+          payload: { patientId: "99999999-9999-4999-8999-999999999999", score },
+        });
+        expect(created.statusCode).toBe(201);
+      }
+      const october = await list();
+      expect(october.json()).toMatchObject({
+        from: "2026-10-01",
+        to: "2026-10-31",
+        summary: { total: 3, promoters: 2, passives: 1, detractors: 0, nps: 67 },
+      });
+
+      vi.setSystemTime(new Date("2026-11-01T15:00:00.000Z"));
+      const november = await list();
+      expect(november.json()).toMatchObject({
+        from: "2026-11-01",
+        to: "2026-11-01",
+        surveys: [],
+        summary: { total: 0, nps: null },
+      });
+
+      const explicit = await list("?from=2026-10-31&to=2026-10-31");
+      expect(explicit.statusCode).toBe(200);
+      expect(explicit.json().summary.total).toBe(3);
+      const onlyTo = await list("?to=2026-10-15");
+      expect(onlyTo.json()).toMatchObject({
+        from: "2026-10-01",
+        to: "2026-10-15",
+        summary: { total: 0 },
+      });
+      const onlyFrom = await list("?from=2026-10-01");
+      expect(onlyFrom.json()).toMatchObject({
+        from: "2026-10-01",
+        to: "2026-11-01",
+        summary: { total: 3 },
+      });
+
+      for (const query of [
+        "?from=2026-11-01&to=2026-10-01",
+        "?from=31/10/2026",
+        "?to=2026-13-01",
+      ]) {
+        const invalid = await list(query);
+        expect(invalid.statusCode).toBe(400);
+        expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+      }
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

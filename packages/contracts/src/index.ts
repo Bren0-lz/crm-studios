@@ -1632,6 +1632,85 @@ export const birthdayMonthSchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês no formato AAAA-MM.");
 
+/** Pesquisa de satisfação (NPS): nota 0–10, opcionalmente ligada a um atendimento concluído. */
+export const satisfactionSurveyInputSchema = z.object({
+  patientId: z.uuid(),
+  appointmentId: z.uuid().optional(),
+  score: z.number().int().min(0).max(10),
+  comment: z.string().trim().max(1000).optional(),
+});
+export type SatisfactionSurveyInput = z.infer<
+  typeof satisfactionSurveyInputSchema
+>;
+
+/** `GET /satisfaction?from&to` (aaaa-mm-dd, data da clínica). Padrão: do dia 1º do mês de `to` até `to`; `to` padrão = hoje. */
+export const satisfactionFilterSchema = z.object({
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+});
+export type SatisfactionFilter = z.infer<typeof satisfactionFilterSchema>;
+
+export interface SatisfactionSurvey {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  patientName: string;
+  appointmentId?: string | undefined;
+  score: number;
+  comment?: string | undefined;
+  /** Usuário que registrou a resposta. */
+  actorUserId: string;
+  createdAt: string;
+}
+
+export interface SatisfactionSummary {
+  total: number;
+  /** Notas 9–10. */
+  promoters: number;
+  /** Notas 7–8. */
+  passives: number;
+  /** Notas 0–6. */
+  detractors: number;
+  /** %promotores − %detratores, arredondado (Math.round); `null` sem respostas. */
+  nps: number | null;
+}
+
+export interface SatisfactionReport {
+  from: string;
+  to: string;
+  /** Mais recentes primeiro. */
+  surveys: SatisfactionSurvey[];
+  summary: SatisfactionSummary;
+}
+
+export type SatisfactionCategory = "promoter" | "passive" | "detractor";
+
+export function satisfactionCategory(score: number): SatisfactionCategory {
+  if (score >= 9) return "promoter";
+  if (score >= 7) return "passive";
+  return "detractor";
+}
+
+export function summarizeSatisfaction(
+  surveys: ReadonlyArray<{ score: number }>,
+): SatisfactionSummary {
+  let promoters = 0;
+  let passives = 0;
+  let detractors = 0;
+  for (const survey of surveys) {
+    const category = satisfactionCategory(survey.score);
+    if (category === "promoter") promoters += 1;
+    else if (category === "passive") passives += 1;
+    else detractors += 1;
+  }
+  const total = surveys.length;
+  const nps =
+    total === 0
+      ? null
+      : Math.round(((promoters - detractors) / total) * 100) || 0;
+  return { total, promoters, passives, detractors, nps };
+}
+
 /** Link wa.me com o DDI 55; não duplica o 55 se o número já vier com ele. */
 export function whatsappLink(phone: string, text: string): string {
   const digits = phone.replace(/\D/g, "");

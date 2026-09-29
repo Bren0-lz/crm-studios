@@ -154,7 +154,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   testes em `app.test.ts`.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### T011 — NPS na interface
 - **Escopo:** botão "Registrar satisfação" no detalhe de atendimento concluído da agenda (modal

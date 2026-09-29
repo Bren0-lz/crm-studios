@@ -110,6 +110,8 @@ import type {
   RelationshipSettings,
   ContactActivity,
   ContactActivityInput,
+  SatisfactionSurvey,
+  SatisfactionSurveyInput,
   UserRole,
 } from "@crm/contracts";
 import {
@@ -219,6 +221,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly adminAuditEvents: AdminAuditEvent[] = [];
   private readonly relationshipSettings = new Map<string, RelationshipSettings>();
   private readonly contactActivities: ContactActivity[] = [];
+  private readonly satisfactionSurveys: SatisfactionSurvey[] = [];
   private readonly clinicSettings: ClinicSettings = {
     id: CLINIC_ID,
     name: "Clínica Movimenta",
@@ -713,6 +716,94 @@ export class MemoryClinicRepository implements ClinicRepository {
       .reverse()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((item) => ({ ...item }));
+  }
+
+  async createSatisfactionSurvey(
+    clinicId: string,
+    actorUserId: string,
+    input: SatisfactionSurveyInput,
+  ) {
+    const patient = this.patients.find(
+      (item) => item.clinicId === clinicId && item.id === input.patientId,
+    );
+    if (!patient)
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    if (input.appointmentId) {
+      const appointment = this.appointments.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === input.appointmentId,
+      );
+      if (!appointment)
+        throw new DomainError(
+          "APPOINTMENT_NOT_FOUND",
+          "Atendimento não encontrado.",
+          404,
+        );
+      if (appointment.patientId !== input.patientId)
+        throw new DomainError(
+          "SATISFACTION_APPOINTMENT_MISMATCH",
+          "O atendimento não pertence a este cliente.",
+        );
+      if (appointment.status !== "completed")
+        throw new DomainError(
+          "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
+          "Só é possível avaliar atendimentos concluídos.",
+        );
+      if (
+        this.satisfactionSurveys.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.appointmentId === input.appointmentId,
+        )
+      )
+        throw new DomainError(
+          "SATISFACTION_DUPLICATE",
+          "Este atendimento já possui pesquisa de satisfação.",
+          409,
+        );
+    }
+    const survey: SatisfactionSurvey = {
+      id: uuid(),
+      clinicId,
+      patientId: patient.id,
+      patientName: patient.fullName,
+      ...(input.appointmentId ? { appointmentId: input.appointmentId } : {}),
+      score: input.score,
+      ...(input.comment ? { comment: input.comment } : {}),
+      actorUserId,
+      createdAt: now(),
+    };
+    this.satisfactionSurveys.push(survey);
+    return { ...survey };
+  }
+
+  async listSatisfactionSurveys(
+    clinicId: string,
+    filter: { from?: string | undefined; to?: string | undefined } = {},
+  ) {
+    return this.satisfactionSurveys
+      .filter((item) => {
+        if (item.clinicId !== clinicId) return false;
+        const date = saoPauloToday(new Date(item.createdAt));
+        return (
+          (!filter.from || date >= filter.from) &&
+          (!filter.to || date <= filter.to)
+        );
+      })
+      .reverse()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((item) => ({
+        ...item,
+        patientName:
+          this.patients.find(
+            (patient) =>
+              patient.clinicId === clinicId && patient.id === item.patientId,
+          )?.fullName ?? item.patientName,
+      }));
   }
 
   async listAdminAuditEvents(clinicId: string) {

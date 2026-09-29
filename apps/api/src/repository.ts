@@ -109,6 +109,8 @@ import type {
   ContactActivity,
   ContactActivityInput,
   ContactSuggestion,
+  SatisfactionSurvey,
+  SatisfactionSurveyInput,
   UserRole,
   ReplacementBookingInput,
   ReplacementCredit,
@@ -178,6 +180,23 @@ export interface ClinicRepository {
     clinicId: string,
     patientId?: string,
   ): Promise<ContactActivity[]>;
+  /**
+   * Registra a nota NPS. Com atendimento: precisa ser do cliente e estar
+   * `completed`; no máximo uma pesquisa por atendimento (409).
+   */
+  createSatisfactionSurvey(
+    clinicId: string,
+    actorUserId: string,
+    input: SatisfactionSurveyInput,
+  ): Promise<SatisfactionSurvey>;
+  /**
+   * Mais recentes primeiro. `from`/`to` (aaaa-mm-dd, inclusivos) comparam a
+   * data de registro no fuso da clínica; sem limite quando omitidos.
+   */
+  listSatisfactionSurveys(
+    clinicId: string,
+    filter?: { from?: string | undefined; to?: string | undefined },
+  ): Promise<SatisfactionSurvey[]>;
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;

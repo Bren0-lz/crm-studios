@@ -111,6 +111,8 @@ import type {
   RelationshipSettings,
   ContactActivity,
   ContactActivityInput,
+  SatisfactionSurvey,
+  SatisfactionSurveyInput,
   UserRole,
 } from "@crm/contracts";
 import {
@@ -1116,6 +1118,38 @@ function mapContactActivity(row: ContactActivityRow): ContactActivity {
   };
 }
 
+interface SatisfactionSurveyRow {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  patientName: string;
+  appointmentId: string | null;
+  score: number;
+  comment: string | null;
+  actorUserId: string;
+  createdAt: Date;
+}
+
+const satisfactionSurveyColumns = `
+  s.id, s.clinic_id AS "clinicId", s.patient_id AS "patientId",
+  p.full_name AS "patientName", s.appointment_id AS "appointmentId", s.score,
+  s.comment, s.actor_user_id AS "actorUserId", s.created_at AS "createdAt"
+`;
+
+function mapSatisfactionSurvey(row: SatisfactionSurveyRow): SatisfactionSurvey {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    patientId: row.patientId,
+    patientName: row.patientName,
+    ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
+    score: row.score,
+    ...(row.comment ? { comment: row.comment } : {}),
+    actorUserId: row.actorUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 function mapPatientTab(
   row: PatientTabRow,
   items: PatientTabItem[],
@@ -1988,6 +2022,99 @@ export class PostgresClinicRepository implements ClinicRepository {
       [clinicId, patientId ?? null],
     );
     return result.rows.map(mapContactActivity);
+  }
+
+  async createSatisfactionSurvey(
+    clinicId: string,
+    actorUserId: string,
+    input: SatisfactionSurveyInput,
+  ) {
+    const patient = await this.pool.query<{ fullName: string }>(
+      `SELECT full_name AS "fullName" FROM patients
+       WHERE id = $1 AND clinic_id = $2`,
+      [input.patientId, clinicId],
+    );
+    if (!patient.rows[0])
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    if (input.appointmentId) {
+      const appointment = await this.pool.query<{
+        patientId: string;
+        status: string;
+      }>(
+        `SELECT patient_id AS "patientId", status FROM appointments
+         WHERE id = $1 AND clinic_id = $2`,
+        [input.appointmentId, clinicId],
+      );
+      const found = appointment.rows[0];
+      if (!found)
+        throw new DomainError(
+          "APPOINTMENT_NOT_FOUND",
+          "Atendimento não encontrado.",
+          404,
+        );
+      if (found.patientId !== input.patientId)
+        throw new DomainError(
+          "SATISFACTION_APPOINTMENT_MISMATCH",
+          "O atendimento não pertence a este cliente.",
+        );
+      if (found.status !== "completed")
+        throw new DomainError(
+          "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
+          "Só é possível avaliar atendimentos concluídos.",
+        );
+    }
+    try {
+      const result = await this.pool.query<SatisfactionSurveyRow>(
+        `WITH inserted AS (
+           INSERT INTO satisfaction_surveys (
+             clinic_id, patient_id, appointment_id, score, comment, actor_user_id
+           ) VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING *
+         )
+         SELECT ${satisfactionSurveyColumns}
+         FROM inserted s JOIN patients p ON p.id = s.patient_id`,
+        [
+          clinicId,
+          input.patientId,
+          input.appointmentId ?? null,
+          input.score,
+          input.comment || null,
+          actorUserId,
+        ],
+      );
+      return mapSatisfactionSurvey(result.rows[0]!);
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505"))
+        throw new DomainError(
+          "SATISFACTION_DUPLICATE",
+          "Este atendimento já possui pesquisa de satisfação.",
+          409,
+        );
+      throw error;
+    }
+  }
+
+  async listSatisfactionSurveys(
+    clinicId: string,
+    filter: { from?: string | undefined; to?: string | undefined } = {},
+  ) {
+    const result = await this.pool.query<SatisfactionSurveyRow>(
+      `SELECT ${satisfactionSurveyColumns}
+       FROM satisfaction_surveys s
+       JOIN patients p ON p.id = s.patient_id
+       WHERE s.clinic_id = $1
+         AND ($2::date IS NULL
+           OR (s.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date)
+         AND ($3::date IS NULL
+           OR (s.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date)
+       ORDER BY s.created_at DESC, s.id DESC`,
+      [clinicId, filter.from ?? null, filter.to ?? null],
+    );
+    return result.rows.map(mapSatisfactionSurvey);
   }
 
   async listAdminAuditEvents(clinicId: string) {

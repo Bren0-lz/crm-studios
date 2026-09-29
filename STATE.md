@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T010
-- **Última concluída:** T009
+- **Tarefa atual:** T011
+- **Última concluída:** T010
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -19,3 +19,5 @@
 - 2026-09-29 T007 DONE (verifier PASS na 1ª tentativa). `GET /relationship/birthdays?month=` (sem mês = mês atual; inválido 400); tipo `BirthdayEntry`; `buildBirthdayEntries` e `birthdayIn` exportados de contact-suggestions.ts; parabéns só conta com birthday/contacted + `<id>:<ano>`. Web: `BirthdayDashboardCard` (painel, só owner/reception/finance) e aba "Aniversários do mês". Textos p/ T008: "Aniversariantes", "Dar parabéns", "Marcar como enviado", "Parabéns enviado", "Completa N anos".
 - 2026-09-29 T008 DONE (verifier PASS na 1ª tentativa). Incremento 23 no STATUS e item no README. Bloco da Central de relacionamento (T001–T008) concluído.
 - 2026-09-29 T009 DONE (verifier PASS na 1ª tentativa). Migração 0029 (issued_documents.professional_id); próxima livre: 0030. `ClinicalRecord.professionalCrefito` obrigatório; profissional inválido na emissão → 404 PROFESSIONAL_NOT_FOUND. Web: helper `professionalWithCrefito`.
+- 2026-09-29 T010 FAIL 1/3: implementação correta, mas editou docs/STATUS_IMPLEMENTACAO.md (documentação é da T018). CLAUDE.md ajustado: documentar só quando a tarefa pedir.
+- 2026-09-29 T010 DONE (verifier PASS na 2ª tentativa). Migração 0030 (próxima livre: 0031). Contratos: `satisfactionSurveyInputSchema`, `SatisfactionSurvey`, `SatisfactionSummary`, `SatisfactionReport` {from,to,surveys,summary}, `summarizeSatisfaction`, `satisfactionCategory`. Repo: `createSatisfactionSurvey`, `listSatisfactionSurveys(clinicId, {from?,to?})` (sem filtro = tudo; T013 pode adicionar patientId). GET padrão: 1º do mês até hoje; `nps: null` sem respostas. Guarda `requireSatisfactionAccess` (todos os perfis). 409 SATISFACTION_DUPLICATE.

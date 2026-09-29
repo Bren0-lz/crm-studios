@@ -55,5 +55,6 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   (`apps/web/src/App.test.tsx`); contratos em `packages/contracts/src/contracts.test.ts`.
 - **Dados demo**: `demo-patients.ts`, `demo-scenarios.ts` e `seed-demo-scenarios.ts` — se um
   tipo ganhar campo obrigatório, atualize-os também.
-- **Documentação**: ao concluir uma funcionalidade, registre-a em
-  `docs/STATUS_IMPLEMENTACAO.md` (novo incremento) e, se mudar o que o README promete, no README.
+- **Documentação**: só edite `docs/STATUS_IMPLEMENTACAO.md` e `README.md` quando o escopo da
+  tarefa pedir. O `PLAN.md` tem tarefas dedicadas de documentação; editar esses arquivos em outra
+  tarefa é escopo além do pedido e o verifier reprova.

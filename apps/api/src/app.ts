@@ -16,6 +16,9 @@ import {
   clinicSettingsInputSchema,
   relationshipSettingsSchema,
   contactActivityInputSchema,
+  satisfactionFilterSchema,
+  satisfactionSurveyInputSchema,
+  summarizeSatisfaction,
   birthdayMonthSchema,
   saoPauloToday,
   commissionGenerationInputSchema,
@@ -69,6 +72,7 @@ import {
   treatmentClosureInputSchema,
   type ApiError,
   type ManagementReport,
+  type SatisfactionReport,
   type UserSummary,
 } from "@crm/contracts";
 import { config } from "./config.js";
@@ -341,6 +345,23 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     }
   }
 
+  // Pesquisa de satisfação: união do acesso comercial e do clínico.
+  async function requireSatisfactionAccess(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    if (
+      !["owner", "reception", "finance", "physiotherapist"].includes(
+        request.user.role,
+      )
+    ) {
+      return reply.status(403).send({
+        code: "SATISFACTION_ACCESS_DENIED",
+        message: "Seu perfil não possui acesso às pesquisas de satisfação.",
+      } satisfies ApiError);
+    }
+  }
+
   async function requireGroupAccess(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -603,6 +624,43 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
             contactActivityInputSchema.parse(request.body),
           ),
         ),
+  );
+  app.post(
+    "/satisfaction",
+    { preHandler: [authenticate, requireSatisfactionAccess] },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createSatisfactionSurvey(
+            request.user.clinicId,
+            request.user.sub,
+            satisfactionSurveyInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.get(
+    "/satisfaction",
+    { preHandler: [authenticate, requireSatisfactionAccess] },
+    async (request): Promise<SatisfactionReport> => {
+      const query = satisfactionFilterSchema.parse(request.query);
+      // Padrão: `to` = hoje (data da clínica); `from` = dia 1º do mês de `to`.
+      const to = query.to ?? saoPauloToday();
+      const period = managementReportFilterSchema.parse({
+        from: query.from ?? `${to.slice(0, 7)}-01`,
+        to,
+      });
+      const surveys = await repository.listSatisfactionSurveys(
+        request.user.clinicId,
+        period,
+      );
+      return {
+        from: period.from,
+        to: period.to,
+        surveys,
+        summary: summarizeSatisfaction(surveys),
+      };
+    },
   );
   app.get(
     "/admin/audit-events",
