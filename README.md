@@ -19,6 +19,7 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - renegociação parcelada e comissões profissionais por competência;
 - CRM comercial com Kanban, tarefas, contatos e conversão segura de leads;
 - central de comunicações com opt-out, outbox e lembretes idempotentes;
+- central de relacionamento com contatos sugeridos por situação, prazos e mensagens configuráveis, registro de contatos e aniversariantes, sem envio automático;
 - modelos versionados e documentos com snapshot imutável;
 - relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
 - livro mensal de vendas e cancelamentos, comparação com o mês anterior, clientes sem retorno e exportação Excel detalhada;

@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T008
-- **Última concluída:** T007
+- **Tarefa atual:** T009
+- **Última concluída:** T008
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -17,3 +17,4 @@
 - 2026-09-29 T005 DONE (verifier PASS na 1ª tentativa). Página /relacionamento (`RelationshipPage`, `ContactActivityModal`); `{{nome}}` = primeiro nome do cliente (seguir em T006/T007). Reusar em App.tsx: `contactReasonLabels`, `contactOutcomeLabels`, `addDaysToIsoDate`, `suggestionKey`. api.ts: `relationshipSettings()`, `contactSuggestions()`, `createContactActivity()`; `updateRelationshipSettings` (PUT) ainda não existe — criar na T006.
 - 2026-09-29 T006 DONE (verifier PASS na 1ª tentativa). /configuracoes agora abre para reception/finance só com `RelationshipSettingsPage` (leitura); owner edita em `AdminPage` › "Prazos e mensagens". api.ts: `updateRelationshipSettings`. Documentação da Central fica para a T008 (STATUS não atualizado de propósito).
 - 2026-09-29 T007 DONE (verifier PASS na 1ª tentativa). `GET /relationship/birthdays?month=` (sem mês = mês atual; inválido 400); tipo `BirthdayEntry`; `buildBirthdayEntries` e `birthdayIn` exportados de contact-suggestions.ts; parabéns só conta com birthday/contacted + `<id>:<ano>`. Web: `BirthdayDashboardCard` (painel, só owner/reception/finance) e aba "Aniversários do mês". Textos p/ T008: "Aniversariantes", "Dar parabéns", "Marcar como enviado", "Parabéns enviado", "Completa N anos".
+- 2026-09-29 T008 DONE (verifier PASS na 1ª tentativa). Incremento 23 no STATUS e item no README. Bloco da Central de relacionamento (T001–T008) concluído.

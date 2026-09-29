@@ -132,7 +132,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   aniversários, acesso por perfil, limitação: sem envio automático) e item na lista do `README.md`.
 - **Gate:** `npm run build`
 - **Depende de:** T006, T007
-- **Status:** TODO
+- **Status:** DONE
 
 ### T009 — CREFITO nas evoluções e documentos
 - **Escopo:** `ClinicalRecord` ganha `professionalCrefito` (contratos + memória + PostgreSQL),

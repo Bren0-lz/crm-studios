@@ -1,6 +1,6 @@
 # Status da implementação
 
-Atualizado em 28 de setembro de 2026.
+Atualizado em 29 de setembro de 2026.
 
 ## Incremento 1 — Fundação e operação básica
 
@@ -339,6 +339,31 @@ Concluído:
 - crédito de sessões e parcelas da renovação registrados no extrato e no financeiro;
 - clientes inativos ou serviços desativados interrompem a renovação automática;
 - testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 23 — Central de relacionamento
+
+Concluído:
+
+- página "Contatos sugeridos" em `/relacionamento`, acessível a gestão, recepção e financeiro; o perfil de fisioterapeuta não tem acesso;
+- filtro e contador por situação, considerando apenas clientes ativos;
+- aniversário nos próximos 7 dias; quem nasceu em 29/02 é lembrado em 28/02 nos anos não bissextos;
+- serviço avulso sem retorno há 60 dias;
+- plano acabando nos próximos 7 dias, apenas sem renovação automática e ainda não renovado;
+- saldo baixo, com até 2 sessões restantes, ignorando planos avulsos;
+- plano vencido com saldo, até 60 dias após o vencimento;
+- tratamento interrompido: 30 dias sem atendimento concluído e nada agendado;
+- faltas repetidas: 2 faltas em 30 dias;
+- ex-cliente: plano cancelado entre 30 e 90 dias atrás e sem plano ativo;
+- parcela vencida, com um aviso por cliente, visível apenas para gestão e financeiro;
+- prazos e mensagens-modelo configuráveis em **Configurações** > "Prazos e mensagens": a gestão edita, recepção e financeiro veem em modo leitura;
+- botão WhatsApp que abre o wa.me com a mensagem-modelo, usando o WhatsApp do cadastro ou, na falta dele, o telefone; `{{nome}}` é substituído pelo primeiro nome;
+- "Registrar contato" com resultado (contatado, sem resposta, agendou, sem interesse, adiado ou descartado), observação e "Adiar até";
+- supressão: um contato registrado para a mesma situação e referência esconde a sugestão; o adiamento a esconde até a data escolhida, inclusive;
+- cartão "Aniversariantes" no painel para gestão, recepção e financeiro, com "Dar parabéns" e "Marcar como enviado", uma vez por ano;
+- aba "Aniversários do mês" com seletor de mês, idade que o cliente completa e indicação de parabéns enviado;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+Limites atuais: nenhuma mensagem é enviada automaticamente; a recepção abre cada contato no WhatsApp. As regras são recalculadas a cada abertura da página. As consultas no PostgreSQL ainda não passaram por teste de integração executado, pois o ambiente não tem `TEST_DATABASE_URL`.
 
 ## Próximo incremento de desenvolvimento autônomo
 
