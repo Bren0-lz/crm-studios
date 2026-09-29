@@ -3,12 +3,13 @@ import { Pool } from "pg";
 import { runMigrations, seedDemoData } from "./database.js";
 import { PostgresClinicRepository } from "./postgres-repository.js";
 import { DomainError } from "./repository.js";
-import { defaultRelationshipSettings } from "@crm/contracts";
+import { defaultRelationshipSettings, saoPauloToday } from "@crm/contracts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const testCpf = "98765432100";
 const duplicateCpf = "98765432101";
+const relationshipCpf = "98765432102";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
@@ -48,9 +49,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
       [appointmentMarker, rescheduleMarker],
     ]);
+    await pool.query(
+      `DELETE FROM contact_activities WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
+      [clinicId, relationshipCpf],
+    );
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[])", [
       clinicId,
-      [testCpf, duplicateCpf],
+      [testCpf, duplicateCpf, relationshipCpf],
     ]);
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,
@@ -392,5 +398,64 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       [clinicId],
     );
     expect(rows.rows[0].total).toBe(1);
+  });
+
+  it("lists contact suggestions and hides them after a registered contact", async () => {
+    await pool.query(
+      `DELETE FROM contact_activities WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
+      [clinicId, relationshipCpf],
+    );
+    await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = $2", [
+      clinicId,
+      relationshipCpf,
+    ]);
+    const today = saoPauloToday();
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "Cliente Relacionamento",
+      phone: "11944443333",
+      cpf: relationshipCpf,
+      birthDate: `1992-${today.slice(5)}`,
+      tags: [],
+    });
+    const mine = async () =>
+      (await repository.listContactSuggestions(clinicId, "reception")).filter(
+        (item) => item.patientId === patient.id,
+      );
+    const birthday = (await mine()).find((item) => item.reason === "birthday");
+    expect(birthday).toMatchObject({
+      referenceKey: `${patient.id}:${today.slice(0, 4)}`,
+      detail: "Aniversário hoje",
+    });
+
+    const activity = await repository.createContactActivity(clinicId, ownerId, {
+      patientId: patient.id,
+      reason: "birthday",
+      referenceKey: birthday!.referenceKey,
+      outcome: "contacted",
+      notes: "Parabéns enviado",
+    });
+    expect(activity).toMatchObject({
+      clinicId,
+      patientId: patient.id,
+      outcome: "contacted",
+      notes: "Parabéns enviado",
+      actorUserId: ownerId,
+    });
+    expect((await mine()).some((item) => item.reason === "birthday")).toBe(false);
+    expect(
+      await new PostgresClinicRepository(pool).listContactActivities(
+        clinicId,
+        patient.id,
+      ),
+    ).toEqual([activity]);
+    await expect(
+      repository.createContactActivity(clinicId, ownerId, {
+        patientId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
+        reason: "birthday",
+        referenceKey: "x",
+        outcome: "contacted",
+      }),
+    ).rejects.toMatchObject({ code: "PATIENT_NOT_FOUND", statusCode: 404 });
   });
 });

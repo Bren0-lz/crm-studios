@@ -108,12 +108,17 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
   RelationshipSettings,
+  ContactActivity,
+  ContactActivityInput,
+  UserRole,
 } from "@crm/contracts";
 import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  saoPauloToday,
 } from "@crm/contracts";
+import { buildContactSuggestions } from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -210,6 +215,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly clinicalAccessEvents: ClinicalAccessEvent[] = [];
   private readonly adminAuditEvents: AdminAuditEvent[] = [];
   private readonly relationshipSettings = new Map<string, RelationshipSettings>();
+  private readonly contactActivities: ContactActivity[] = [];
   private readonly clinicSettings: ClinicSettings = {
     id: CLINIC_ID,
     name: "Clínica Movimenta",
@@ -627,6 +633,75 @@ export class MemoryClinicRepository implements ClinicRepository {
   ) {
     this.relationshipSettings.set(clinicId, structuredClone(input));
     return structuredClone(input);
+  }
+
+  async listContactSuggestions(clinicId: string, role: UserRole) {
+    const [settings, plans, activities] = await Promise.all([
+      this.getRelationshipSettings(clinicId),
+      this.listPatientPlans(clinicId),
+      this.listContactActivities(clinicId),
+    ]);
+    return buildContactSuggestions(
+      {
+        patients: this.patients.filter((item) => item.clinicId === clinicId),
+        plans,
+        appointments: this.appointments.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        receivables: this.receivables.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        tabs: this.patientTabs.filter((item) => item.clinicId === clinicId),
+        activities,
+      },
+      settings,
+      saoPauloToday(),
+      role,
+    );
+  }
+
+  async createContactActivity(
+    clinicId: string,
+    actorUserId: string,
+    input: ContactActivityInput,
+  ) {
+    const patient = this.patients.find(
+      (item) => item.clinicId === clinicId && item.id === input.patientId,
+    );
+    if (!patient)
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    const activity: ContactActivity = {
+      id: uuid(),
+      clinicId,
+      patientId: input.patientId,
+      reason: input.reason,
+      referenceKey: input.referenceKey,
+      outcome: input.outcome,
+      ...(input.notes ? { notes: input.notes } : {}),
+      ...(input.outcome === "snoozed" && input.snoozeUntil
+        ? { snoozeUntil: input.snoozeUntil }
+        : {}),
+      actorUserId,
+      createdAt: now(),
+    };
+    this.contactActivities.push(activity);
+    return { ...activity };
+  }
+
+  async listContactActivities(clinicId: string, patientId?: string) {
+    return this.contactActivities
+      .filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          (!patientId || item.patientId === patientId),
+      )
+      .reverse()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((item) => ({ ...item }));
   }
 
   async listAdminAuditEvents(clinicId: string) {

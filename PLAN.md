@@ -95,7 +95,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   recepção não vê `overdue_payment`; fisioterapeuta recebe 403.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T002, T003
-- **Status:** TODO
+- **Status:** DONE
 
 ### T005 — Página "Contatos sugeridos"
 - **Escopo:** rota `/relacionamento` e item "Contatos sugeridos" no menu (perfis com acesso

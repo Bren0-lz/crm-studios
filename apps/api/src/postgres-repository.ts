@@ -109,12 +109,17 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
   RelationshipSettings,
+  ContactActivity,
+  ContactActivityInput,
+  UserRole,
 } from "@crm/contracts";
 import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  saoPauloToday,
 } from "@crm/contracts";
+import { buildContactSuggestions } from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
   findWeeklyScheduleConflicts,
@@ -1069,6 +1074,41 @@ function mapPatientTabItem(row: PatientTabItemRow): PatientTabItem {
   };
 }
 
+interface ContactActivityRow {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  reason: ContactActivity["reason"];
+  referenceKey: string;
+  outcome: ContactActivity["outcome"];
+  notes: string | null;
+  snoozeUntil: string | null;
+  actorUserId: string;
+  createdAt: Date;
+}
+
+const contactActivityColumns = `
+  id, clinic_id AS "clinicId", patient_id AS "patientId", reason,
+  reference_key AS "referenceKey", outcome, notes,
+  to_char(snooze_until, 'YYYY-MM-DD') AS "snoozeUntil",
+  actor_user_id AS "actorUserId", created_at AS "createdAt"
+`;
+
+function mapContactActivity(row: ContactActivityRow): ContactActivity {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    patientId: row.patientId,
+    reason: row.reason,
+    referenceKey: row.referenceKey,
+    outcome: row.outcome,
+    ...(row.notes ? { notes: row.notes } : {}),
+    ...(row.snoozeUntil ? { snoozeUntil: row.snoozeUntil } : {}),
+    actorUserId: row.actorUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 function mapPatientTab(
   row: PatientTabRow,
   items: PatientTabItem[],
@@ -1827,6 +1867,96 @@ export class PostgresClinicRepository implements ClinicRepository {
       ],
     );
     return this.getRelationshipSettings(clinicId);
+  }
+
+  async listContactSuggestions(clinicId: string, role: UserRole) {
+    const [settings, plans, activities, patients, appointments, receivables, tabs] =
+      await Promise.all([
+        this.getRelationshipSettings(clinicId),
+        this.listPatientPlans(clinicId),
+        this.listContactActivities(clinicId),
+        this.pool.query<PatientRow>(
+          `SELECT ${patientColumns} FROM patients
+           WHERE clinic_id = $1 AND status = 'active'`,
+          [clinicId],
+        ),
+        this.pool.query<AppointmentRow>(
+          `SELECT ${appointmentColumns}
+           FROM appointments a
+           ${appointmentJoins}
+           WHERE a.clinic_id = $1`,
+          [clinicId],
+        ),
+        this.pool.query<ReceivableRow>(
+          `SELECT ${receivableColumns}
+           FROM receivables r JOIN patients p ON p.id = r.patient_id
+           WHERE r.clinic_id = $1 AND r.status = 'open'`,
+          [clinicId],
+        ),
+        this.pool.query<PatientTabRow>(
+          `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 AND t.status='closed'`,
+          [clinicId],
+        ),
+      ]);
+    return buildContactSuggestions(
+      {
+        patients: patients.rows.map(mapPatient),
+        plans,
+        appointments: appointments.rows.map(mapAppointment),
+        receivables: receivables.rows.map(mapReceivable),
+        // Os itens da comanda não influenciam as sugestões.
+        tabs: tabs.rows.map((row) => mapPatientTab(row, [])),
+        activities,
+      },
+      settings,
+      saoPauloToday(),
+      role,
+    );
+  }
+
+  async createContactActivity(
+    clinicId: string,
+    actorUserId: string,
+    input: ContactActivityInput,
+  ) {
+    const result = await this.pool.query<ContactActivityRow>(
+      `INSERT INTO contact_activities (
+         clinic_id, patient_id, reason, reference_key, outcome, notes,
+         snooze_until, actor_user_id
+       )
+       SELECT $1, p.id, $3, $4, $5, $6, $7::date, $8
+       FROM patients p WHERE p.id = $2 AND p.clinic_id = $1
+       RETURNING ${contactActivityColumns}`,
+      [
+        clinicId,
+        input.patientId,
+        input.reason,
+        input.referenceKey,
+        input.outcome,
+        input.notes || null,
+        input.outcome === "snoozed" ? (input.snoozeUntil ?? null) : null,
+        actorUserId,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row)
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    return mapContactActivity(row);
+  }
+
+  async listContactActivities(clinicId: string, patientId?: string) {
+    const result = await this.pool.query<ContactActivityRow>(
+      `SELECT ${contactActivityColumns}
+       FROM contact_activities
+       WHERE clinic_id = $1 AND ($2::uuid IS NULL OR patient_id = $2)
+       ORDER BY created_at DESC, id DESC`,
+      [clinicId, patientId ?? null],
+    );
+    return result.rows.map(mapContactActivity);
   }
 
   async listAdminAuditEvents(clinicId: string) {

@@ -105,6 +105,10 @@ import type {
   TreatmentClosureInput,
   ReminderGenerationResult,
   RelationshipSettings,
+  ContactActivity,
+  ContactActivityInput,
+  ContactSuggestion,
+  UserRole,
   ReplacementBookingInput,
   ReplacementCredit,
   UserSummary,
@@ -156,6 +160,21 @@ export interface ClinicRepository {
     clinicId: string,
     input: RelationshipSettings,
   ): Promise<RelationshipSettings>;
+  /** Sugestões de contato do dia (data da clínica), já filtradas pelo perfil. */
+  listContactSuggestions(
+    clinicId: string,
+    role: UserRole,
+  ): Promise<ContactSuggestion[]>;
+  createContactActivity(
+    clinicId: string,
+    actorUserId: string,
+    input: ContactActivityInput,
+  ): Promise<ContactActivity>;
+  /** Mais recentes primeiro. */
+  listContactActivities(
+    clinicId: string,
+    patientId?: string,
+  ): Promise<ContactActivity[]>;
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;

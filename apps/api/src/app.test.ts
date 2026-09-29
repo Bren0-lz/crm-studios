@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { Appointment, Lead } from "@crm/contracts";
+import { describe, expect, it, vi } from "vitest";
+import type { Appointment, Lead, UserRole } from "@crm/contracts";
 import { defaultRelationshipSettings, groupClassName } from "@crm/contracts";
 import { localParts, zonedTimeToUtc } from "./group-schedule.js";
 import { buildApp } from "./app.js";
@@ -2050,5 +2050,205 @@ describe("CRM API", () => {
     expect(physiotherapistRead.statusCode).toBe(403);
     expect(physiotherapistRead.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
     await app.close();
+  });
+
+  it("lists contact suggestions and hides them after a contact or until the snooze date", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const roleHeaders = (role: UserRole) => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const patient = (
+        await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload: {
+            fullName: "Rita Relacionamento",
+            phone: "11955554444",
+            birthDate: "1990-10-10",
+            tags: [],
+          },
+        })
+      ).json() as { id: string };
+      const service = (
+        await app.inject({ method: "GET", url: "/services", headers })
+      ).json()[0] as { id: string };
+      const plan = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          patientId: patient.id,
+          serviceId: service.id,
+          name: "Pacote relacionamento",
+          kind: "fixed_package",
+          totalSessions: 20,
+          validFrom: "2026-09-01",
+          validUntil: "2027-03-01",
+          totalValueInCents: 30000,
+          installments: 1,
+          firstDueDate: "2026-09-05",
+        },
+      });
+      expect(plan.statusCode).toBe(201);
+
+      type Suggestion = { patientId: string; reason: string; referenceKey: string };
+      const suggestionsFor = async (requestHeaders: Record<string, string>) => {
+        const response = await app.inject({
+          method: "GET",
+          url: "/relationship/suggestions",
+          headers: requestHeaders,
+        });
+        expect(response.statusCode).toBe(200);
+        return (response.json() as Suggestion[]).filter(
+          (item) => item.patientId === patient.id,
+        );
+      };
+
+      const ownerSuggestions = await suggestionsFor(headers);
+      expect(ownerSuggestions.map((item) => item.reason).sort()).toEqual([
+        "birthday",
+        "overdue_payment",
+      ]);
+      const birthday = ownerSuggestions.find((item) => item.reason === "birthday")!;
+      expect(birthday.referenceKey).toBe(`${patient.id}:2026`);
+      const overdue = ownerSuggestions.find(
+        (item) => item.reason === "overdue_payment",
+      )!;
+
+      const receptionSuggestions = await suggestionsFor(roleHeaders("reception"));
+      expect(receptionSuggestions.map((item) => item.reason)).toEqual(["birthday"]);
+      const financeSuggestions = await suggestionsFor(roleHeaders("finance"));
+      expect(financeSuggestions.map((item) => item.reason)).toContain(
+        "overdue_payment",
+      );
+
+      const physiotherapist = roleHeaders("physiotherapist");
+      for (const request of [
+        { method: "GET" as const, url: "/relationship/suggestions" },
+        { method: "GET" as const, url: "/relationship/activities" },
+        {
+          method: "POST" as const,
+          url: "/relationship/activities",
+          payload: {
+            patientId: patient.id,
+            reason: "birthday",
+            referenceKey: birthday.referenceKey,
+            outcome: "contacted",
+          },
+        },
+      ]) {
+        const denied = await app.inject({ ...request, headers: physiotherapist });
+        expect(denied.statusCode).toBe(403);
+        expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      }
+
+      const contacted = await app.inject({
+        method: "POST",
+        url: "/relationship/activities",
+        headers: roleHeaders("reception"),
+        payload: {
+          patientId: patient.id,
+          reason: "birthday",
+          referenceKey: birthday.referenceKey,
+          outcome: "contacted",
+          notes: "Mensagem de parabéns enviada",
+        },
+      });
+      expect(contacted.statusCode).toBe(201);
+      expect(contacted.json()).toMatchObject({
+        clinicId,
+        patientId: patient.id,
+        reason: "birthday",
+        outcome: "contacted",
+        notes: "Mensagem de parabéns enviada",
+        actorUserId: sub,
+      });
+      expect(
+        (await suggestionsFor(headers)).map((item) => item.reason),
+      ).toEqual(["overdue_payment"]);
+
+      const pastSnooze = await app.inject({
+        method: "POST",
+        url: "/relationship/activities",
+        headers,
+        payload: {
+          patientId: patient.id,
+          reason: "overdue_payment",
+          referenceKey: overdue.referenceKey,
+          outcome: "snoozed",
+          snoozeUntil: "2026-10-10",
+        },
+      });
+      expect(pastSnooze.statusCode).toBe(400);
+      const unknownPatient = await app.inject({
+        method: "POST",
+        url: "/relationship/activities",
+        headers,
+        payload: {
+          patientId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
+          reason: "birthday",
+          referenceKey: "x",
+          outcome: "contacted",
+        },
+      });
+      expect(unknownPatient.statusCode).toBe(404);
+
+      const snoozed = await app.inject({
+        method: "POST",
+        url: "/relationship/activities",
+        headers,
+        payload: {
+          patientId: patient.id,
+          reason: "overdue_payment",
+          referenceKey: overdue.referenceKey,
+          outcome: "snoozed",
+          snoozeUntil: "2026-10-12",
+        },
+      });
+      expect(snoozed.statusCode).toBe(201);
+      expect(snoozed.json()).toMatchObject({ snoozeUntil: "2026-10-12" });
+      expect(await suggestionsFor(headers)).toEqual([]);
+
+      // O token de login expira com o avanço do relógio: assina um novo a cada data.
+      vi.setSystemTime(new Date("2026-10-12T15:00:00.000Z"));
+      expect(await suggestionsFor(roleHeaders("owner"))).toEqual([]);
+      vi.setSystemTime(new Date("2026-10-13T15:00:00.000Z"));
+      const ownerHeaders = roleHeaders("owner");
+      expect(
+        (await suggestionsFor(ownerHeaders)).map((item) => item.reason),
+      ).toEqual(["overdue_payment"]);
+
+      const activities = await app.inject({
+        method: "GET",
+        url: `/relationship/activities?patientId=${patient.id}`,
+        headers: roleHeaders("finance"),
+      });
+      expect(activities.statusCode).toBe(200);
+      expect(
+        activities.json().map((item: { outcome: string }) => item.outcome),
+      ).toEqual(["snoozed", "contacted"]);
+      const otherPatient = await app.inject({
+        method: "GET",
+        url: "/relationship/activities?patientId=99999999-9999-4999-8999-999999999999",
+        headers: ownerHeaders,
+      });
+      expect(otherPatient.json()).toEqual([]);
+      const all = await app.inject({
+        method: "GET",
+        url: "/relationship/activities",
+        headers: ownerHeaders,
+      });
+      expect(all.json()).toHaveLength(2);
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

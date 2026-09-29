@@ -2,6 +2,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { compare, hash } from "bcryptjs";
+import { z } from "zod";
 import {
   adminUserInputSchema,
   adminUserUpdateSchema,
@@ -14,6 +15,7 @@ import {
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
   relationshipSettingsSchema,
+  contactActivityInputSchema,
   commissionGenerationInputSchema,
   commissionRuleInputSchema,
   clinicalMeasurementInputSchema,
@@ -550,6 +552,42 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         relationshipSettingsSchema.parse(request.body),
       ),
+  );
+  app.get(
+    "/relationship/suggestions",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request) =>
+      repository.listContactSuggestions(
+        request.user.clinicId,
+        request.user.role,
+      ),
+  );
+  app.get(
+    "/relationship/activities",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request) => {
+      const query = z
+        .object({ patientId: z.uuid().optional() })
+        .parse(request.query);
+      return repository.listContactActivities(
+        request.user.clinicId,
+        query.patientId,
+      );
+    },
+  );
+  app.post(
+    "/relationship/activities",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createContactActivity(
+            request.user.clinicId,
+            request.user.sub,
+            contactActivityInputSchema.parse(request.body),
+          ),
+        ),
   );
   app.get(
     "/admin/audit-events",
