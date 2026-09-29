@@ -208,7 +208,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   Interface + memória + PostgreSQL; testes em `app.test.ts`.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T015
-- **Status:** TODO
+- **Status:** DONE
 
 ### T017 — Tela de importação de clientes
 - **Escopo:** botão "Importar" na página de Clientes; modal com envio de arquivo (.csv/.xlsx),

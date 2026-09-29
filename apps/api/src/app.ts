@@ -56,6 +56,7 @@ import {
   planRenewalInputSchema,
   planTransitionSchema,
   patientInputSchema,
+  patientImportFileSchema,
   professionalInputSchema,
   productInputSchema,
   recurringAppointmentInputSchema,
@@ -72,12 +73,15 @@ import {
   treatmentClosureInputSchema,
   type ApiError,
   type ManagementReport,
+  type PatientImportAnalysis,
+  type PatientImportResult,
   type SatisfactionReport,
   type UserSummary,
 } from "@crm/contracts";
 import { config } from "./config.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+import { parseCsv, readXlsxRows, validatePatientImport } from "./patient-import.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -711,6 +715,68 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         patientInputSchema.parse(request.body),
       );
       return reply.status(201).send(patient);
+    },
+  );
+  const patientImportMaxBytes = 2 * 1024 * 1024;
+  async function analyzePatientImport(
+    clinicId: string,
+    body: unknown,
+  ): Promise<PatientImportAnalysis> {
+    const file = patientImportFileSchema.parse(body);
+    const extension = /\.([^.]+)$/.exec(file.fileName)?.[1]?.toLowerCase();
+    if (extension !== "csv" && extension !== "xlsx")
+      throw new DomainError(
+        "PATIENT_IMPORT_UNSUPPORTED_FILE",
+        "Formato não suportado. Envie uma planilha .csv ou .xlsx.",
+        400,
+      );
+    const buffer = Buffer.from(file.contentBase64, "base64");
+    if (buffer.length > patientImportMaxBytes)
+      throw new DomainError(
+        "PATIENT_IMPORT_TOO_LARGE",
+        "O arquivo passa de 2 MB. Divida a planilha em partes menores.",
+        413,
+      );
+    let rows: string[][];
+    try {
+      rows =
+        extension === "csv"
+          ? parseCsv(buffer.toString("utf8"))
+          : await readXlsxRows(buffer);
+    } catch {
+      throw new DomainError(
+        "PATIENT_IMPORT_INVALID_FILE",
+        "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido.",
+        400,
+      );
+    }
+    return validatePatientImport(rows, await repository.listPatients(clinicId));
+  }
+  app.post(
+    "/patients/import/preview",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request) => analyzePatientImport(request.user.clinicId, request.body),
+  );
+  app.post(
+    "/patients/import",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request): Promise<PatientImportResult> => {
+      const analysis = await analyzePatientImport(request.user.clinicId, request.body);
+      const [firstError] = analysis.errors;
+      if (firstError)
+        throw new DomainError("PATIENT_IMPORT_INVALID_FILE", firstError, 400);
+      const inputs = analysis.rows.flatMap((row) =>
+        row.status === "valid" && row.input ? [row.input] : [],
+      );
+      const { created, skipped } = await repository.importPatients(
+        request.user.clinicId,
+        inputs,
+      );
+      return {
+        created,
+        skipped: skipped + analysis.totals.duplicate,
+        errors: analysis.totals.error,
+      };
     },
   );
   app.put(

@@ -745,4 +745,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       ]);
     }
   });
+
+  it("imports patients in one transaction and skips duplicates already in the database", async () => {
+    const phones = ["11955501001", "11955501002", "11955501003"];
+    const importCpf = "98765432106";
+    try {
+      const first = await repository.importPatients(clinicId, [
+        { fullName: "Importada PG Um", phone: phones[0]!, cpf: importCpf, tags: [] },
+        { fullName: "Importada PG Dois", phone: phones[1]!, tags: ["importada"] },
+      ]);
+      expect(first).toEqual({ created: 2, skipped: 0 });
+      const listed = await repository.listPatients(clinicId, "Importada PG");
+      expect(listed.map((patient) => patient.fullName)).toEqual([
+        "Importada PG Dois",
+        "Importada PG Um",
+      ]);
+      expect(new Set(listed.map((patient) => patient.recordNumber)).size).toBe(2);
+
+      const again = await repository.importPatients(clinicId, [
+        { fullName: "Importada PG Um", phone: phones[0]!, tags: [] },
+        { fullName: "Mesmo CPF", phone: phones[2]!, cpf: "987.654.321-06", tags: [] },
+        { fullName: "Importada PG Dois", phone: "11 95550-1002", tags: [] },
+      ]);
+      expect(again).toEqual({ created: 0, skipped: 3 });
+      expect(await repository.importPatients(clinicId, [])).toEqual({ created: 0, skipped: 0 });
+      expect(await repository.listPatients(clinicId, "Importada PG")).toHaveLength(2);
+    } finally {
+      await pool.query(
+        "DELETE FROM patients WHERE clinic_id = $1 AND (phone = ANY($2::text[]) OR cpf = $3)",
+        [clinicId, phones, importCpf],
+      );
+    }
+  });
 });

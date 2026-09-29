@@ -926,6 +926,33 @@ export class MemoryClinicRepository implements ClinicRepository {
     return patient;
   }
 
+  async importPatients(clinicId: string, inputs: PatientInput[]) {
+    const digits = (value: string | undefined) => (value ?? "").replace(/\D/g, "");
+    const cpfs = new Set<string>();
+    const phones = new Set<string>();
+    for (const item of this.patients) {
+      if (item.clinicId !== clinicId) continue;
+      if (digits(item.cpf)) cpfs.add(digits(item.cpf));
+      phones.add(digits(item.phone));
+    }
+    // Decide tudo antes de gravar: a importação é tudo ou nada.
+    const accepted: PatientInput[] = [];
+    let skipped = 0;
+    for (const input of inputs) {
+      const cpf = digits(input.cpf);
+      const phone = digits(input.phone);
+      if ((cpf && cpfs.has(cpf)) || phones.has(phone)) {
+        skipped += 1;
+        continue;
+      }
+      if (cpf) cpfs.add(cpf);
+      phones.add(phone);
+      accepted.push(input);
+    }
+    for (const input of accepted) await this.createPatient(clinicId, input);
+    return { created: accepted.length, skipped };
+  }
+
   async updatePatient(clinicId: string, patientId: string, input: PatientInput) {
     const patient = this.patients.find(
       (item) => item.clinicId === clinicId && item.id === patientId,

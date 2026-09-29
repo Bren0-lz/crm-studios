@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
 import type { Appointment, Lead, UserRole } from "@crm/contracts";
 import { defaultRelationshipSettings, groupClassName } from "@crm/contracts";
@@ -3131,5 +3132,179 @@ describe("CRM API", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("previews and imports patients from CSV and XLSX files", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const existing = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers,
+      payload: { fullName: "Cliente Existente", phone: "21977776666", cpf: "98765432100", tags: [] },
+    });
+    expect(existing.statusCode).toBe(201);
+    const csv = [
+      "Nome;Telefone;CPF;E-mail",
+      "Ana Importada;(21) 98888-1111;;ana@example.com",
+      "Bruno Importado;21988882222;123.456.789-09;",
+      "X;;;",
+      "Outra Existente;21 97777-6666;;",
+      "Ana Repetida;21988881111;;",
+    ].join("\n");
+    const file = { fileName: "clientes.CSV", contentBase64: Buffer.from(csv, "utf8").toString("base64") };
+
+    const preview = await app.inject({ method: "POST", url: "/patients/import/preview", headers, payload: file });
+    expect(preview.statusCode).toBe(200);
+    const analysis = preview.json() as {
+      rows: Array<{ line: number; status: string; duplicateOf?: { kind: string } }>;
+      errors: string[];
+      totals: { valid: number; error: number; duplicate: number };
+    };
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.totals).toEqual({ valid: 2, error: 1, duplicate: 2 });
+    expect(analysis.rows.map((row) => [row.line, row.status])).toEqual([
+      [2, "valid"],
+      [3, "valid"],
+      [4, "error"],
+      [5, "duplicate"],
+      [6, "duplicate"],
+    ]);
+    expect(analysis.rows[3]?.duplicateOf).toMatchObject({ kind: "existing" });
+    expect(analysis.rows[4]?.duplicateOf).toMatchObject({ kind: "row" });
+    // A prévia não grava nada.
+    const beforeImport = await app.inject({ method: "GET", url: "/patients?search=Importad", headers });
+    expect(beforeImport.json()).toEqual([]);
+
+    const imported = await app.inject({ method: "POST", url: "/patients/import", headers, payload: file });
+    expect(imported.statusCode).toBe(200);
+    expect(imported.json()).toEqual({ created: 2, skipped: 2, errors: 1 });
+    const listed = await app.inject({ method: "GET", url: "/patients?search=Importad", headers });
+    expect((listed.json() as Array<{ fullName: string }>).map((item) => item.fullName)).toEqual([
+      "Ana Importada",
+      "Bruno Importado",
+    ]);
+
+    const again = await app.inject({ method: "POST", url: "/patients/import", headers, payload: file });
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual({ created: 0, skipped: 4, errors: 1 });
+    const relisted = await app.inject({ method: "GET", url: "/patients?search=Importad", headers });
+    expect(relisted.json()).toHaveLength(2);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Clientes");
+    sheet.addRow(["Nome completo", "Celular", "Data de nascimento"]);
+    sheet.addRow(["Carla Planilha", "(31) 99999-0001", "05/06/1985"]);
+    sheet.addRow(["Ana Importada", "21988881111", null]);
+    const xlsx = {
+      fileName: "clientes.xlsx",
+      contentBase64: Buffer.from(await workbook.xlsx.writeBuffer()).toString("base64"),
+    };
+    const xlsxPreview = await app.inject({ method: "POST", url: "/patients/import/preview", headers, payload: xlsx });
+    expect(xlsxPreview.statusCode).toBe(200);
+    expect(xlsxPreview.json()).toMatchObject({
+      totals: { valid: 1, error: 0, duplicate: 1 },
+      rows: [
+        { line: 2, status: "valid", fullName: "Carla Planilha", input: { birthDate: "1985-06-05" } },
+        { line: 3, status: "duplicate", duplicateOf: { kind: "existing", field: "phone" } },
+      ],
+    });
+    const xlsxImport = await app.inject({ method: "POST", url: "/patients/import", headers, payload: xlsx });
+    expect(xlsxImport.json()).toEqual({ created: 1, skipped: 1, errors: 0 });
+
+    const onlyErrors = {
+      fileName: "erros.csv",
+      contentBase64: Buffer.from("Nome;Telefone\nX;\n", "utf8").toString("base64"),
+    };
+    const noneValid = await app.inject({ method: "POST", url: "/patients/import", headers, payload: onlyErrors });
+    expect(noneValid.statusCode).toBe(200);
+    expect(noneValid.json()).toEqual({ created: 0, skipped: 0, errors: 1 });
+    await app.close();
+  });
+
+  it("rejects invalid patient import files and non-commercial profiles", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const csv = Buffer.from("Nome;Telefone\nAna Importada;21988881111\n", "utf8").toString("base64");
+    const physiotherapist = {
+      authorization: `Bearer ${app.jwt.sign({
+        sub: "22222222-2222-4222-8222-222222222222",
+        clinicId: "11111111-1111-4111-8111-111111111111",
+        role: "physiotherapist",
+      })}`,
+    };
+    for (const url of ["/patients/import/preview", "/patients/import"]) {
+      const wrongExtension = await app.inject({
+        method: "POST",
+        url,
+        headers,
+        payload: { fileName: "clientes.pdf", contentBase64: csv },
+      });
+      expect(wrongExtension.statusCode).toBe(400);
+      expect(wrongExtension.json()).toMatchObject({ code: "PATIENT_IMPORT_UNSUPPORTED_FILE" });
+
+      const noExtension = await app.inject({
+        method: "POST",
+        url,
+        headers,
+        payload: { fileName: "clientes", contentBase64: csv },
+      });
+      expect(noExtension.statusCode).toBe(400);
+      expect(noExtension.json()).toMatchObject({ code: "PATIENT_IMPORT_UNSUPPORTED_FILE" });
+
+      const tooLarge = await app.inject({
+        method: "POST",
+        url,
+        headers,
+        payload: {
+          fileName: "grande.csv",
+          contentBase64: Buffer.alloc(2 * 1024 * 1024 + 1, "a").toString("base64"),
+        },
+      });
+      expect(tooLarge.statusCode).toBe(413);
+      expect(tooLarge.json()).toMatchObject({ code: "PATIENT_IMPORT_TOO_LARGE" });
+
+      const brokenXlsx = await app.inject({
+        method: "POST",
+        url,
+        headers,
+        payload: { fileName: "quebrada.xlsx", contentBase64: csv },
+      });
+      expect(brokenXlsx.statusCode).toBe(400);
+      expect(brokenXlsx.json()).toMatchObject({ code: "PATIENT_IMPORT_INVALID_FILE" });
+
+      const missingBody = await app.inject({ method: "POST", url, headers, payload: {} });
+      expect(missingBody.statusCode).toBe(400);
+
+      const denied = await app.inject({
+        method: "POST",
+        url,
+        headers: physiotherapist,
+        payload: { fileName: "clientes.csv", contentBase64: csv },
+      });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+
+      const unauthenticated = await app.inject({
+        method: "POST",
+        url,
+        payload: { fileName: "clientes.csv", contentBase64: csv },
+      });
+      expect(unauthenticated.statusCode).toBe(401);
+    }
+    const missingColumn = await app.inject({
+      method: "POST",
+      url: "/patients/import",
+      headers,
+      payload: {
+        fileName: "sem-telefone.csv",
+        contentBase64: Buffer.from("Nome\nAna Importada\n", "utf8").toString("base64"),
+      },
+    });
+    expect(missingColumn.statusCode).toBe(400);
+    expect(missingColumn.json()).toMatchObject({ code: "PATIENT_IMPORT_INVALID_FILE" });
+    const list = await app.inject({ method: "GET", url: "/patients?search=Importad", headers });
+    expect(list.json()).toEqual([]);
+    await app.close();
   });
 });

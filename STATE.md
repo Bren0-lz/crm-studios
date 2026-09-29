@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T016
-- **Última concluída:** T015
+- **Tarefa atual:** T017
+- **Última concluída:** T016
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -27,3 +27,4 @@
 - 2026-09-29 testTimeout de 20s em apps/api/vitest.config.ts e apps/web/vite.config.ts (commit à parte, aprovado pelo dono) — timeouts de 5s eram lentidão da máquina.
 - 2026-09-29 T014 DONE (verifier PASS; suíte confirmada pelo orquestrador com exit 0). Seção "Histórico" no `PatientModal` (/clientes, cliente existente, não aparece p/ physiotherapist); filtros por grupo (Atendimentos, Planos, Pagamentos, Contatos, Mensagens, Satisfação); `api.patientTimeline(id)`; kinds desconhecidos são descartados.
 - 2026-09-29 T015 DONE (verifier PASS, exit codes 0). patient-import.ts: `parseCsv(text)`, `readXlsxRows(buffer): Promise<string[][]>`, `validatePatientImport(rows, existingPatients)`. Contracts: `PatientImportRow {line, status, fullName, phone, input?, errors?, duplicateOf?}`, `PatientImportDuplicate` (existing|row), `PatientImportAnalysis {rows, errors, totals}`. Faltando nome/telefone → errors geral e rows=[]. Duplicate também traz input.
+- 2026-09-29 T016 DONE (verifier PASS, exit codes 0). `POST /patients/import/preview` e `POST /patients/import` (200; comercial) com `patientImportFileSchema {fileName, contentBase64}` → `PatientImportAnalysis` / `PatientImportResult {created, skipped, errors}`. Erros: 400 PATIENT_IMPORT_UNSUPPORTED_FILE, 413 PATIENT_IMPORT_TOO_LARGE, 400 PATIENT_IMPORT_INVALID_FILE. A web deve reenviar o mesmo arquivo na importação. CSV lido só como UTF-8 (Latin-1 do Excel quebra acentos — pendente de decisão). Nº de prontuário PG = `PAC-<8 chars do id>`.

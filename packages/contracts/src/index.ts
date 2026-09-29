@@ -1797,6 +1797,20 @@ export interface PatientImportAnalysis {
   totals: { valid: number; error: number; duplicate: number };
 }
 
+/** Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado). */
+export const patientImportFileSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentBase64: z.string().min(1),
+});
+export type PatientImportFileInput = z.infer<typeof patientImportFileSchema>;
+
+/** Resultado da importação: linhas criadas, ignoradas por duplicidade e linhas com erro. */
+export interface PatientImportResult {
+  created: number;
+  skipped: number;
+  errors: number;
+}
+
 export interface ApiError {
   code: string;
   message: string;

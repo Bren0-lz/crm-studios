@@ -213,6 +213,14 @@ export interface ClinicRepository {
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  /**
+   * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
+   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos).
+   */
+  importPatients(
+    clinicId: string,
+    inputs: PatientInput[],
+  ): Promise<{ created: number; skipped: number }>;
   updatePatient(
     clinicId: string,
     patientId: string,

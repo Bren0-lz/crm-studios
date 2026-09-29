@@ -2329,9 +2329,53 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async createPatient(clinicId: string, input: PatientInput) {
+    return this.insertPatient(this.pool, clinicId, input);
+  }
+
+  async importPatients(clinicId: string, inputs: PatientInput[]) {
+    if (inputs.length === 0) return { created: 0, skipped: 0 };
+    return this.inTransaction(async (client) => {
+      // Serializa importações da mesma clínica para a checagem de duplicados valer até o COMMIT.
+      await client.query("SELECT id FROM clinics WHERE id = $1 FOR UPDATE", [clinicId]);
+      const existing = await client.query<{ cpf: string | null; phone: string }>(
+        `SELECT regexp_replace(coalesce(cpf, ''), '[^0-9]', '', 'g') AS cpf,
+                regexp_replace(phone, '[^0-9]', '', 'g') AS phone
+         FROM patients WHERE clinic_id = $1`,
+        [clinicId],
+      );
+      const cpfs = new Set<string>();
+      const phones = new Set<string>();
+      for (const row of existing.rows) {
+        if (row.cpf) cpfs.add(row.cpf);
+        phones.add(row.phone);
+      }
+      const digits = (value: string | undefined) => (value ?? "").replace(/\D/g, "");
+      let created = 0;
+      let skipped = 0;
+      for (const input of inputs) {
+        const cpf = digits(input.cpf);
+        const phone = digits(input.phone);
+        if ((cpf && cpfs.has(cpf)) || phones.has(phone)) {
+          skipped += 1;
+          continue;
+        }
+        if (cpf) cpfs.add(cpf);
+        phones.add(phone);
+        await this.insertPatient(client, clinicId, input);
+        created += 1;
+      }
+      return { created, skipped };
+    });
+  }
+
+  private async insertPatient(
+    client: Pool | PoolClient,
+    clinicId: string,
+    input: PatientInput,
+  ) {
     const id = randomUUID();
     try {
-      const result = await this.pool.query<PatientRow>(
+      const result = await client.query<PatientRow>(
         `
           INSERT INTO patients (
             id, clinic_id, record_number, full_name, cpf, email, phone, whatsapp, birth_date,
