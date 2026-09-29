@@ -97,6 +97,9 @@ import type {
   UserSummary,
   PermissionMatrixItem,
   RelationshipSettings,
+  SatisfactionReport,
+  SatisfactionSurvey,
+  SatisfactionSurveyInput,
 } from "@crm/contracts";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
@@ -548,4 +551,13 @@ export const api = {
     request<SalesReport>(`/reports/sales?month=${encodeURIComponent(month)}`),
   salesReportXlsx: (month: string) =>
     requestBlob(`/reports/sales.xlsx?month=${encodeURIComponent(month)}`),
+  satisfaction: (from: string, to: string) =>
+    request<SatisfactionReport>(
+      `/satisfaction?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  createSatisfactionSurvey: (input: SatisfactionSurveyInput) =>
+    request<SatisfactionSurvey>("/satisfaction", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

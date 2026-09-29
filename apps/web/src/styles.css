@@ -1834,6 +1834,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-cancel-confirm { display: grid; gap: 8px; padding: 16px; border: 1px solid #e8c8be; border-radius: 12px; background: #fbf2ef; }
 .appointment-cancel-confirm strong { color: #7f5144; }
 .appointment-cancel-confirm span { color: #9b7469; font-size: 12px; }
+.appointment-satisfaction { margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; }
 
 @media (max-width: 560px) {
   .appointment-detail-grid { grid-template-columns: 1fr; }

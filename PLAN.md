@@ -162,7 +162,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   Relatórios para o período filtrado. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T010
-- **Status:** TODO
+- **Status:** DONE
 
 ### T012 — Detratores na Central de relacionamento
 - **Escopo:** regra `nps_detractor` em `buildContactSuggestions` (usa `surveys`) e carga das

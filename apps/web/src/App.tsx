@@ -96,6 +96,8 @@ import type {
   Professional,
   RelationshipSettings,
   Room,
+  SatisfactionReport,
+  SatisfactionSurvey,
   ScheduleBlock,
   Service,
   TherapeuticGoalInput,
@@ -2650,14 +2652,29 @@ function ReportsPage() {
     to: today,
   });
   const [report, setReport] = useState<ManagementReport | null>(null);
+  const [satisfaction, setSatisfaction] = useState<SatisfactionReport | null>(
+    null,
+  );
+  const [satisfactionError, setSatisfactionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+
+  async function loadSatisfaction(from: string, to: string) {
+    setSatisfaction(null);
+    setSatisfactionError("");
+    try {
+      setSatisfaction(await api.satisfaction(from, to));
+    } catch (cause) {
+      setSatisfactionError((cause as Error).message);
+    }
+  }
 
   async function load(from = filter.from, to = filter.to) {
     setLoading(true);
     setReport(null);
     setError("");
+    void loadSatisfaction(from, to);
     try {
       setReport(await api.managementReport(from, to));
     } catch (cause) {
@@ -2676,6 +2693,10 @@ function ReportsPage() {
       .then((data) => active && setReport(data))
       .catch((cause: Error) => active && setError(cause.message))
       .finally(() => active && setLoading(false));
+    api
+      .satisfaction(initialFrom, initialTo)
+      .then((data) => active && setSatisfaction(data))
+      .catch((cause: Error) => active && setSatisfactionError(cause.message));
     return () => {
       active = false;
     };
@@ -2752,6 +2773,30 @@ function ReportsPage() {
         </button>
       </section>
       {error && <ErrorBanner error={error} />}
+      <section className="report-metrics">
+        <article>
+          <span>Satisfação (NPS)</span>
+          {satisfaction ? (
+            <>
+              <strong>
+                {satisfaction.summary.nps === null
+                  ? "—"
+                  : satisfaction.summary.nps}
+              </strong>
+              <small>
+                {satisfaction.summary.total} respostas ·{" "}
+                {satisfaction.summary.promoters} promotores ·{" "}
+                {satisfaction.summary.passives} neutros ·{" "}
+                {satisfaction.summary.detractors} detratores
+              </small>
+            </>
+          ) : (
+            <small>
+              {satisfactionError || "Carregando pesquisas de satisfação…"}
+            </small>
+          )}
+        </article>
+      </section>
       {loading ? (
         <LoadingBlock />
       ) : report ? (
@@ -7198,6 +7243,30 @@ function AppointmentDetailsModal({
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const canChange = appointment.status === "scheduled" || appointment.status === "confirmed";
+  const isCompleted = appointment.status === "completed";
+  const [survey, setSurvey] = useState<SatisfactionSurvey | null>(null);
+  const [surveyChecked, setSurveyChecked] = useState(false);
+  const [alreadyRated, setAlreadyRated] = useState(false);
+  const [rating, setRating] = useState(false);
+  useEffect(() => {
+    if (!isCompleted) return;
+    let active = true;
+    // A pesquisa é filtrada pela data de registro: do dia do atendimento até amanhã.
+    const from = addDaysToIsoDate(localIsoDate(new Date(appointment.startsAt)), -1);
+    const tomorrow = addDaysToIsoDate(localIsoDate(), 1);
+    const to = tomorrow > from ? tomorrow : from;
+    api
+      .satisfaction(from, to)
+      .then((data) => {
+        if (!active) return;
+        setSurvey(data.surveys.find((item) => item.appointmentId === appointment.id) ?? null);
+      })
+      .catch(() => undefined)
+      .finally(() => active && setSurveyChecked(true));
+    return () => {
+      active = false;
+    };
+  }, [appointment.id, appointment.startsAt, isCompleted]);
   async function cancelAppointment() {
     setCancelling(true);
     setError("");
@@ -7208,6 +7277,22 @@ function AppointmentDetailsModal({
     } finally {
       setCancelling(false);
     }
+  }
+  if (rating) {
+    return (
+      <SatisfactionSurveyModal
+        appointment={appointment}
+        onClose={() => setRating(false)}
+        onSaved={(saved) => {
+          setSurvey(saved);
+          setRating(false);
+        }}
+        onDuplicate={() => {
+          setAlreadyRated(true);
+          setRating(false);
+        }}
+      />
+    );
   }
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} onClose={onClose}>
@@ -7260,7 +7345,91 @@ function AppointmentDetailsModal({
             <button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>
           </div>
         )}
+        {isCompleted && survey && (
+          <p className="appointment-satisfaction">Satisfação registrada: nota {survey.score}</p>
+        )}
+        {isCompleted && !survey && alreadyRated && (
+          <p className="appointment-satisfaction">Este atendimento já tem pesquisa de satisfação registrada.</p>
+        )}
+        {isCompleted && surveyChecked && !survey && !alreadyRated && (
+          <div className="appointment-detail-actions">
+            <button className="primary-button" onClick={() => setRating(true)}>Registrar satisfação</button>
+          </div>
+        )}
       </div>
+    </Modal>
+  );
+}
+
+function SatisfactionSurveyModal({
+  appointment,
+  onClose,
+  onSaved,
+  onDuplicate,
+}: {
+  appointment: Appointment;
+  onClose: () => void;
+  onSaved: (survey: SatisfactionSurvey) => void;
+  onDuplicate: () => void;
+}) {
+  const [score, setScore] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (score === null) return;
+    setSaving(true);
+    setError("");
+    try {
+      const trimmed = comment.trim();
+      onSaved(
+        await api.createSatisfactionSurvey({
+          patientId: appointment.patientId,
+          appointmentId: appointment.id,
+          score,
+          ...(trimmed ? { comment: trimmed } : {}),
+        }),
+      );
+    } catch (cause) {
+      if (cause instanceof ApiClientError && cause.code === "SATISFACTION_DUPLICATE") {
+        onDuplicate();
+        return;
+      }
+      setError(cause instanceof Error ? cause.message : "Não foi possível registrar a avaliação.");
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal title="Registrar satisfação" subtitle={appointment.patientName} eyebrow="Pesquisa NPS" onClose={onClose}>
+      <form className="form-grid" onSubmit={(event) => void save(event)}>
+        <fieldset className="span-2 form-fieldset">
+          <legend>De 0 a 10, quanto recomendaria a clínica a um amigo?</legend>
+          <div className="tag-filter-list">
+            {Array.from({ length: 11 }, (_, value) => (
+              <button
+                key={value}
+                type="button"
+                className="tag-filter"
+                aria-label={`Nota ${value}`}
+                aria-pressed={score === value}
+                onClick={() => setScore(value)}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <label className="span-2">
+          Comentário (opcional)
+          <textarea value={comment} maxLength={1000} rows={3} onChange={(event) => setComment(event.target.value)} />
+        </label>
+        {error && <div className="span-2"><ErrorBanner error={error} /></div>}
+        <div className="span-2 appointment-detail-actions">
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>Voltar</button>
+          <button type="submit" className="primary-button" disabled={score === null || saving}>{saving ? "Salvando…" : "Salvar avaliação"}</button>
+        </div>
+      </form>
     </Modal>
   );
 }

@@ -1057,6 +1057,175 @@ describe("application shell", () => {
     await vi.waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1]).toMatchObject({ templateId: template.id, patientId: patient.id, professionalId: professional.id });
   });
+
+  it("records patient satisfaction on a completed appointment and hides the button afterwards", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "reception",
+    }));
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    const appointment = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: "99999999-9999-4999-8999-999999999999",
+      patientName: "Helena Almeida",
+      professionalColor: "#5c6f68",
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      serviceName: "Fisioterapia individual",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+      status: "completed",
+    };
+    vi.mocked(fetch).mockImplementation(async (input, options) => {
+      const url = String(input);
+      if (url.includes("/satisfaction") && options?.method === "POST") {
+        const payload = JSON.parse(String(options.body)) as Record<string, unknown>;
+        return { ok: true, status: 201, json: async () => ({ id: "s-1", clinicId: "c-1", patientName: appointment.patientName, actorUserId: "u-1", createdAt: new Date().toISOString(), ...payload }) } as Response;
+      }
+      const body = url.includes("/satisfaction?")
+        ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientId: appointment.patientId, score: 10 }], summary: { total: 1, promoters: 1, passives: 0, detractors: 0, nps: 100 } }
+        : url.includes("/appointments?") ? [appointment]
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+    expect(screen.queryByRole("button", { name: "Cancelar atendimento" })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Registrar satisfação" }));
+    expect(screen.getByRole("heading", { name: "Registrar satisfação" })).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Salvar avaliação" });
+    expect(save).toBeDisabled();
+    for (let score = 0; score <= 10; score += 1) {
+      expect(screen.getByRole("button", { name: `Nota ${score}` })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Nota 9" }));
+    expect(screen.getByRole("button", { name: "Nota 9" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByLabelText("Comentário (opcional)"), { target: { value: "Ótimo atendimento" } });
+    fireEvent.click(save);
+    await vi.waitFor(() => {
+      const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "POST");
+      expect(call?.[0]).toContain("/satisfaction");
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+        patientId: appointment.patientId,
+        appointmentId: appointment.id,
+        score: 9,
+        comment: "Ótimo atendimento",
+      });
+    });
+    expect(await screen.findByRole("heading", { name: "Detalhes do atendimento" })).toBeInTheDocument();
+    expect(screen.getByText("Satisfação registrada: nota 9")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
+  });
+
+  it("hides the satisfaction button when the appointment already has a survey", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    const appointment = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: "99999999-9999-4999-8999-999999999999",
+      patientName: "Helena Almeida",
+      professionalColor: "#5c6f68",
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+      serviceName: "Fisioterapia individual",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+      status: "completed",
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/satisfaction?")
+        ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: appointment.id, patientId: appointment.patientId, score: 6 }], summary: { total: 1, promoters: 0, passives: 0, detractors: 1, nps: -100 } }
+        : url.includes("/appointments?") ? [appointment]
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+    expect(await screen.findByText("Satisfação registrada: nota 6")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
+    const call = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("/satisfaction?"));
+    expect(String(call?.[0])).toMatch(/from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("does not offer satisfaction on appointments that are not completed", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    const appointment = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: "99999999-9999-4999-8999-999999999999",
+      patientName: "Helena Almeida",
+      professionalColor: "#5c6f68",
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+      serviceName: "Fisioterapia individual",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+      status: "scheduled",
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/appointments?") ? [appointment] : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+    expect(screen.getByRole("button", { name: "Cancelar atendimento" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction"))).toBe(false);
+  });
+
+  it("shows the NPS card on the reports page for the filtered period", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    const today = new Date().toLocaleDateString("sv-SE");
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (!url.includes("/satisfaction?")) {
+        return { ok: false, status: 503, json: async () => ({ message: "Dados indisponíveis" }) } as Response;
+      }
+      const body = url.includes("from=2026-01-01")
+        ? { from: "2026-01-01", to: "2026-01-31", surveys: [], summary: { total: 0, promoters: 0, passives: 0, detractors: 0, nps: null } }
+        : { from: `${today.slice(0, 8)}01`, to: today, surveys: [], summary: { total: 4, promoters: 2, passives: 1, detractors: 1, nps: 25 } };
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("4 respostas · 2 promotores · 1 neutros · 1 detratores")).toBeInTheDocument();
+    const card = screen.getByText("Satisfação (NPS)").closest("article") as HTMLElement;
+    expect(within(card).getByText("25")).toBeInTheDocument();
+    const first = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("/satisfaction?"));
+    expect(String(first?.[0])).toContain(`from=${today.slice(0, 8)}01&to=${today}`);
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-01-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    expect(await screen.findByText("0 respostas · 0 promotores · 0 neutros · 0 detratores")).toBeInTheDocument();
+    const updated = screen.getByText("Satisfação (NPS)").closest("article") as HTMLElement;
+    expect(within(updated).getByText("—")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction?from=2026-01-01&to=2026-01-31"))).toBe(true);
+  });
 });
 
 function relationshipSettingsFixture() {
