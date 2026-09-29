@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appointmentInputSchema,
+  contactActivityInputSchema,
+  contactOutcomeSchema,
+  contactReasonSchema,
+  defaultRelationshipSettings,
+  fillMessageTemplate,
+  relationshipSettingsSchema,
+  saoPauloToday,
+  whatsappLink,
   clinicalRecordInputSchema,
   describeGroupSchedule,
   formatPhone,
@@ -216,5 +224,122 @@ describe("shared contracts", () => {
         dueDate: "2026-09-12",
       }).settlement,
     ).toBe("receivable");
+  });
+});
+
+describe("relationship center contracts", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const patientId = "11111111-1111-4111-8111-111111111111";
+
+  it("lists every contact reason and outcome", () => {
+    expect(contactReasonSchema.options).toEqual([
+      "birthday",
+      "single_no_return",
+      "plan_expiring",
+      "low_balance",
+      "expired_with_balance",
+      "treatment_paused",
+      "repeated_no_show",
+      "former_client",
+      "overdue_payment",
+      "nps_detractor",
+    ]);
+    expect(contactOutcomeSchema.options).toEqual([
+      "contacted",
+      "no_answer",
+      "scheduled",
+      "not_interested",
+      "snoozed",
+      "dismissed",
+    ]);
+  });
+
+  it("ships default deadlines and one message per reason", () => {
+    expect(defaultRelationshipSettings).toMatchObject({
+      birthdayDaysAhead: 7,
+      singleNoReturnDays: 60,
+      planExpiringDays: 7,
+      lowBalanceSessions: 2,
+      expiredWithBalanceDays: 60,
+      treatmentPausedDays: 30,
+      repeatedNoShowCount: 2,
+      repeatedNoShowWindowDays: 30,
+      formerClientMinDays: 30,
+      formerClientMaxDays: 90,
+    });
+    for (const reason of contactReasonSchema.options) {
+      expect(defaultRelationshipSettings.messages[reason]).toContain("{{nome}}");
+    }
+    expect(relationshipSettingsSchema.parse(defaultRelationshipSettings)).toEqual(
+      defaultRelationshipSettings,
+    );
+  });
+
+  it("validates relationship settings", () => {
+    expect(() =>
+      relationshipSettingsSchema.parse({
+        ...defaultRelationshipSettings,
+        formerClientMinDays: 100,
+        formerClientMaxDays: 90,
+      }),
+    ).toThrow();
+    expect(() =>
+      relationshipSettingsSchema.parse({ ...defaultRelationshipSettings, singleNoReturnDays: 0 }),
+    ).toThrow();
+    expect(() =>
+      relationshipSettingsSchema.parse({
+        ...defaultRelationshipSettings,
+        messages: { ...defaultRelationshipSettings.messages, birthday: "  " },
+      }),
+    ).toThrow();
+  });
+
+  it("computes today in the clinic time zone", () => {
+    expect(saoPauloToday(new Date("2026-09-30T02:30:00Z"))).toBe("2026-09-29");
+    expect(saoPauloToday(new Date("2026-09-30T03:30:00Z"))).toBe("2026-09-30");
+  });
+
+  it("requires a future snooze date only when snoozed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-30T02:30:00Z"));
+    const base = { patientId, reason: "plan_expiring", referenceKey: "plan-1" };
+    expect(contactActivityInputSchema.parse({ ...base, outcome: "contacted", notes: "Ligou" }))
+      .toMatchObject({ outcome: "contacted", notes: "Ligou" });
+    expect(() => contactActivityInputSchema.parse({ ...base, outcome: "snoozed" })).toThrow();
+    expect(() =>
+      contactActivityInputSchema.parse({ ...base, outcome: "snoozed", snoozeUntil: "2026-09-29" }),
+    ).toThrow();
+    expect(
+      contactActivityInputSchema.parse({ ...base, outcome: "snoozed", snoozeUntil: "2026-09-30" })
+        .snoozeUntil,
+    ).toBe("2026-09-30");
+    expect(() =>
+      contactActivityInputSchema.parse({ ...base, reason: "unknown", outcome: "contacted" }),
+    ).toThrow();
+    expect(() =>
+      contactActivityInputSchema.parse({ ...base, referenceKey: "", outcome: "contacted" }),
+    ).toThrow();
+  });
+
+  it("builds WhatsApp links without duplicating the country code", () => {
+    expect(whatsappLink("(11) 99999-8888", "Olá, Ana!")).toBe(
+      "https://wa.me/5511999998888?text=Ol%C3%A1%2C%20Ana!",
+    );
+    expect(whatsappLink("+55 11 99999-8888", "Oi")).toBe(
+      "https://wa.me/5511999998888?text=Oi",
+    );
+    expect(whatsappLink("5511333344444", "Oi")).toBe("https://wa.me/5511333344444?text=Oi");
+    expect(whatsappLink("(55) 3333-4444", "Oi")).toBe("https://wa.me/555533334444?text=Oi");
+  });
+
+  it("fills message templates", () => {
+    expect(fillMessageTemplate("Oi, {{nome}}! Até {{ data }}.", { nome: "Ana", data: "01/10" }))
+      .toBe("Oi, Ana! Até 01/10.");
+    expect(fillMessageTemplate("Oi, {{nome}} {{outro}}", { nome: "Ana" })).toBe(
+      "Oi, Ana {{outro}}",
+    );
   });
 });

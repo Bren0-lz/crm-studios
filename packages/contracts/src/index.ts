@@ -1450,6 +1450,184 @@ export interface ManagementReport {
   };
 }
 
+// Central de relacionamento
+
+export const contactReasonSchema = z.enum([
+  "birthday",
+  "single_no_return",
+  "plan_expiring",
+  "low_balance",
+  "expired_with_balance",
+  "treatment_paused",
+  "repeated_no_show",
+  "former_client",
+  "overdue_payment",
+  "nps_detractor",
+]);
+export type ContactReason = z.infer<typeof contactReasonSchema>;
+
+export const contactOutcomeSchema = z.enum([
+  "contacted",
+  "no_answer",
+  "scheduled",
+  "not_interested",
+  "snoozed",
+  "dismissed",
+]);
+export type ContactOutcome = z.infer<typeof contactOutcomeSchema>;
+
+const relationshipDaysSchema = z.number().int().min(1).max(3650);
+const messageTemplateSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe a mensagem.")
+  .max(1000);
+
+export const relationshipSettingsSchema = z
+  .object({
+    birthdayDaysAhead: z.number().int().min(0).max(60),
+    singleNoReturnDays: relationshipDaysSchema,
+    planExpiringDays: relationshipDaysSchema,
+    lowBalanceSessions: z.number().int().min(0).max(100),
+    expiredWithBalanceDays: relationshipDaysSchema,
+    treatmentPausedDays: relationshipDaysSchema,
+    repeatedNoShowCount: z.number().int().min(1).max(50),
+    repeatedNoShowWindowDays: relationshipDaysSchema,
+    formerClientMinDays: z.number().int().min(0).max(3650),
+    formerClientMaxDays: relationshipDaysSchema,
+    messages: z.object({
+      birthday: messageTemplateSchema,
+      single_no_return: messageTemplateSchema,
+      plan_expiring: messageTemplateSchema,
+      low_balance: messageTemplateSchema,
+      expired_with_balance: messageTemplateSchema,
+      treatment_paused: messageTemplateSchema,
+      repeated_no_show: messageTemplateSchema,
+      former_client: messageTemplateSchema,
+      overdue_payment: messageTemplateSchema,
+      nps_detractor: messageTemplateSchema,
+    }),
+  })
+  .refine((value) => value.formerClientMinDays <= value.formerClientMaxDays, {
+    message: "O prazo mínimo deve ser menor ou igual ao máximo.",
+    path: ["formerClientMaxDays"],
+  });
+export type RelationshipSettings = z.infer<typeof relationshipSettingsSchema>;
+
+export const defaultRelationshipSettings: RelationshipSettings = {
+  birthdayDaysAhead: 7,
+  singleNoReturnDays: 60,
+  planExpiringDays: 7,
+  lowBalanceSessions: 2,
+  expiredWithBalanceDays: 60,
+  treatmentPausedDays: 30,
+  repeatedNoShowCount: 2,
+  repeatedNoShowWindowDays: 30,
+  formerClientMinDays: 30,
+  formerClientMaxDays: 90,
+  messages: {
+    birthday:
+      "Olá, {{nome}}! Toda a equipe deseja um feliz aniversário, com muita saúde e movimento. Um abraço!",
+    single_no_return:
+      "Olá, {{nome}}! Tudo bem? Sentimos sua falta por aqui. Quer agendar um novo horário?",
+    plan_expiring:
+      "Olá, {{nome}}! Seu plano está chegando ao fim. Vamos conversar sobre a renovação para você seguir com os atendimentos?",
+    low_balance:
+      "Olá, {{nome}}! Restam poucas sessões no seu plano. Quer que a gente já prepare a renovação?",
+    expired_with_balance:
+      "Olá, {{nome}}! Seu plano venceu com sessões ainda disponíveis. Vamos conversar sobre como aproveitá-las?",
+    treatment_paused:
+      "Olá, {{nome}}! Faz um tempo desde o seu último atendimento. Como você está? Quer agendar um horário?",
+    repeated_no_show:
+      "Olá, {{nome}}! Notamos que você não conseguiu vir nos últimos atendimentos. Está tudo bem? Podemos ajustar seus horários.",
+    former_client:
+      "Olá, {{nome}}! Sentimos sua falta. Temos horários disponíveis e adoraríamos ter você de volta.",
+    overdue_payment:
+      "Olá, {{nome}}! Identificamos uma parcela em aberto. Podemos ajudar com a forma de pagamento?",
+    nps_detractor:
+      "Olá, {{nome}}! Obrigado pela sua avaliação. Queremos entender o que podemos melhorar. Podemos conversar?",
+  },
+};
+
+/** Data de hoje (aaaa-mm-dd) no fuso da clínica (America/Sao_Paulo). */
+export function saoPauloToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+// snoozeUntil é comparado com saoPauloToday() no momento da validação:
+// precisa ser posterior a hoje no fuso da clínica.
+export const contactActivityInputSchema = z
+  .object({
+    patientId: z.uuid(),
+    reason: contactReasonSchema,
+    referenceKey: z.string().trim().min(1).max(200),
+    outcome: contactOutcomeSchema,
+    notes: z.string().trim().max(2000).optional(),
+    snoozeUntil: z.iso.date().optional(),
+  })
+  .refine(
+    (value) =>
+      value.outcome !== "snoozed" ||
+      (value.snoozeUntil !== undefined && value.snoozeUntil > saoPauloToday()),
+    {
+      message: "Informe uma data futura para adiar o contato.",
+      path: ["snoozeUntil"],
+    },
+  );
+export type ContactActivityInput = z.infer<typeof contactActivityInputSchema>;
+
+export interface ContactSuggestion {
+  patientId: string;
+  patientName: string;
+  phone: string;
+  whatsapp?: string | undefined;
+  reason: ContactReason;
+  referenceKey: string;
+  /** Texto legível que explica a situação (ex.: "Plano termina em 3 dias"). */
+  detail: string;
+  dueDate?: string | undefined;
+  /** Menor número = mais urgente. */
+  priority: number;
+}
+
+export interface ContactActivity {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  reason: ContactReason;
+  referenceKey: string;
+  outcome: ContactOutcome;
+  notes?: string | undefined;
+  snoozeUntil?: string | undefined;
+  actorUserId: string;
+  createdAt: string;
+}
+
+/** Link wa.me com o DDI 55; não duplica o 55 se o número já vier com ele. */
+export function whatsappLink(phone: string, text: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const international =
+    digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
+      ? digits
+      : `55${digits}`;
+  return `https://wa.me/${international}?text=${encodeURIComponent(text)}`;
+}
+
+/** Substitui `{{variavel}}` pelos valores informados; variáveis desconhecidas ficam como estão. */
+export function fillMessageTemplate(
+  template: string,
+  vars: Readonly<Record<string, string>>,
+): string {
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? (vars[key] ?? match) : match,
+  );
+}
+
 export interface ApiError {
   code: string;
   message: string;

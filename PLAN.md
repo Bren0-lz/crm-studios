@@ -59,7 +59,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   sem duplicar o 55) e `fillMessageTemplate(template, vars)`. Testes em `contracts.test.ts`.
 - **Gate:** `npm exec -w @crm/contracts -- vitest run src/contracts.test.ts`
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### T002 — Regras de sugestão como função pura
 - **Escopo:** `apps/api/src/contact-suggestions.ts` exportando
