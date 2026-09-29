@@ -7,6 +7,7 @@ import {
   type PatientPlan,
   type PatientTab,
   type Receivable,
+  type SatisfactionSurvey,
 } from "@crm/contracts";
 import {
   buildContactSuggestions,
@@ -129,6 +130,19 @@ function activity(overrides: Partial<ContactActivity>): ContactActivity {
     outcome: "contacted",
     actorUserId: "user",
     createdAt: "2026-09-28T12:00:00Z",
+    ...overrides,
+  };
+}
+
+function survey(overrides: Partial<SatisfactionSurvey> = {}): SatisfactionSurvey {
+  return {
+    id: "survey-1",
+    clinicId: "clinic",
+    patientId: ana,
+    patientName: "Ana Souza",
+    score: 4,
+    actorUserId: "user",
+    createdAt: "2026-09-20T13:00:00Z",
     ...overrides,
   };
 }
@@ -395,6 +409,63 @@ describe("buildContactSuggestions", () => {
     it("ignores installments due today or later and paid ones", () => {
       expect(reasons({ receivables: [receivable({ dueDate: today })] })).toEqual([]);
       expect(reasons({ receivables: [receivable({ status: "paid" })] })).toEqual([]);
+    });
+  });
+
+  describe("nps_detractor", () => {
+    it("suggests the most recent detractor survey of the last 30 days", () => {
+      expect(
+        build({
+          surveys: [
+            survey({ id: "survey-old", score: 2, createdAt: "2026-09-05T13:00:00Z" }),
+            survey({ id: "survey-new", score: 6, createdAt: "2026-09-20T13:00:00Z" }),
+          ],
+        }),
+      ).toMatchObject([
+        {
+          reason: "nps_detractor",
+          referenceKey: "survey-new",
+          dueDate: "2026-09-20",
+          priority: 10,
+        },
+      ]);
+    });
+
+    it("uses the clinic date and a 30-day window", () => {
+      // 30/08 às 23h30 em São Paulo = 31/08 02h30 UTC: 30 dias antes de hoje.
+      expect(
+        reasons({ surveys: [survey({ createdAt: "2026-08-31T02:30:00Z" })] }),
+      ).toEqual(["nps_detractor"]);
+      expect(
+        reasons({ surveys: [survey({ createdAt: "2026-08-30T02:30:00Z" })] }),
+      ).toEqual([]);
+    });
+
+    it("ignores passives, promoters, other clients and inactive clients", () => {
+      expect(reasons({ surveys: [survey({ score: 7 })] })).toEqual([]);
+      expect(reasons({ surveys: [survey({ score: 10 })] })).toEqual([]);
+      expect(reasons({ surveys: [survey({ patientId: bia })] })).toEqual([]);
+      expect(
+        reasons({
+          patients: [patient({ status: "inactive" })],
+          surveys: [survey({ score: 0 })],
+        }),
+      ).toEqual([]);
+    });
+
+    it("is hidden by an activity for the same survey", () => {
+      expect(
+        reasons({
+          surveys: [survey()],
+          activities: [activity({ reason: "nps_detractor", referenceKey: "survey-1" })],
+        }),
+      ).toEqual([]);
+      expect(
+        reasons({
+          surveys: [survey({ id: "survey-2" })],
+          activities: [activity({ reason: "nps_detractor", referenceKey: "survey-1" })],
+        }),
+      ).toEqual(["nps_detractor"]);
     });
   });
 

@@ -124,6 +124,7 @@ import {
 import {
   buildBirthdayEntries,
   buildContactSuggestions,
+  npsDetractorWindowStart,
 } from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
@@ -1913,7 +1914,17 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async listContactSuggestions(clinicId: string, role: UserRole) {
-    const [settings, plans, activities, patients, appointments, receivables, tabs] =
+    const today = saoPauloToday();
+    const [
+      settings,
+      plans,
+      activities,
+      patients,
+      appointments,
+      receivables,
+      tabs,
+      surveys,
+    ] =
       await Promise.all([
         this.getRelationshipSettings(clinicId),
         this.listPatientPlans(clinicId),
@@ -1940,6 +1951,9 @@ export class PostgresClinicRepository implements ClinicRepository {
           `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 AND t.status='closed'`,
           [clinicId],
         ),
+        this.listSatisfactionSurveys(clinicId, {
+          from: npsDetractorWindowStart(today),
+        }),
       ]);
     return buildContactSuggestions(
       {
@@ -1950,9 +1964,10 @@ export class PostgresClinicRepository implements ClinicRepository {
         // Os itens da comanda não influenciam as sugestões.
         tabs: tabs.rows.map((row) => mapPatientTab(row, [])),
         activities,
+        surveys,
       },
       settings,
-      saoPauloToday(),
+      today,
       role,
     );
   }

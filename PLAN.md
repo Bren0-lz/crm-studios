@@ -170,7 +170,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   situação. Testes na função pura e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/contact-suggestions.test.ts src/app.test.ts`
 - **Depende de:** T004, T010
-- **Status:** TODO
+- **Status:** DONE
 
 ### T013 — Linha do tempo do cliente na API
 - **Escopo:** `apps/api/src/patient-timeline.ts` (função pura) juntando, do mais recente ao mais

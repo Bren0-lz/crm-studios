@@ -123,6 +123,7 @@ import {
 import {
   buildBirthdayEntries,
   buildContactSuggestions,
+  npsDetractorWindowStart,
 } from "./contact-suggestions.js";
 import {
   clampGroupSessionUntil,
@@ -642,10 +643,14 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   async listContactSuggestions(clinicId: string, role: UserRole) {
-    const [settings, plans, activities] = await Promise.all([
+    const today = saoPauloToday();
+    const [settings, plans, activities, surveys] = await Promise.all([
       this.getRelationshipSettings(clinicId),
       this.listPatientPlans(clinicId),
       this.listContactActivities(clinicId),
+      this.listSatisfactionSurveys(clinicId, {
+        from: npsDetractorWindowStart(today),
+      }),
     ]);
     return buildContactSuggestions(
       {
@@ -659,9 +664,10 @@ export class MemoryClinicRepository implements ClinicRepository {
         ),
         tabs: this.patientTabs.filter((item) => item.clinicId === clinicId),
         activities,
+        surveys,
       },
       settings,
-      saoPauloToday(),
+      today,
       role,
     );
   }

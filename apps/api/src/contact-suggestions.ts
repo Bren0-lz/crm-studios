@@ -9,6 +9,7 @@ import type {
   PatientTab,
   Receivable,
   RelationshipSettings,
+  SatisfactionSurvey,
   UserRole,
 } from "@crm/contracts";
 
@@ -20,8 +21,8 @@ export interface ContactSuggestionData {
   /** Comandas; só as fechadas contam como compra. */
   tabs: PatientTab[];
   activities: ContactActivity[];
-  /** Pesquisas de satisfação (regra `nps_detractor`, T012). */
-  surveys?: unknown[] | undefined;
+  /** Pesquisas de satisfação (regra `nps_detractor`); basta a janela de 30 dias. */
+  surveys?: SatisfactionSurvey[] | undefined;
 }
 
 /** Ordem geral das situações; menor = mais urgente. */
@@ -40,6 +41,17 @@ const reasonRank: Record<ContactReason, number> = {
 const birthdayTodayRank = 1;
 
 const financeRoles: UserRole[] = ["owner", "finance"];
+
+/** Janela fixa da regra `nps_detractor`, em dias. */
+export const npsDetractorWindowDays = 30;
+const npsDetractorMaxScore = 6;
+
+/** Primeira data (aaaa-mm-dd) que ainda entra na janela `nps_detractor`. */
+export function npsDetractorWindowStart(today: string) {
+  return new Date((dayNumber(today) - npsDetractorWindowDays) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
 
 function clinicDate(value: string) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -349,6 +361,30 @@ export function buildContactSuggestions(
           former.date,
         );
       }
+    }
+
+    // nps_detractor: uma entrada por cliente, referente à pesquisa
+    // detratora mais recente da janela.
+    const detractor = (data.surveys ?? [])
+      .filter(
+        (survey) =>
+          survey.patientId === patient.id &&
+          survey.score <= npsDetractorMaxScore,
+      )
+      .map((survey) => ({ survey, date: clinicDate(survey.createdAt) }))
+      .filter(({ date }) => {
+        const days = daysBetween(date, today);
+        return days >= 0 && days <= npsDetractorWindowDays;
+      })
+      .sort((a, b) => b.survey.createdAt.localeCompare(a.survey.createdAt))[0];
+    if (detractor) {
+      add(
+        "nps_detractor",
+        detractor.survey.id,
+        `Avaliou com nota ${detractor.survey.score} em ${shortDate(detractor.date)}`,
+        detractor.survey.score,
+        detractor.date,
+      );
     }
 
     // overdue_payment

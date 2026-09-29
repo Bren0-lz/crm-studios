@@ -2337,6 +2337,91 @@ describe("CRM API", () => {
     }
   });
 
+  it("suggests contacting detractors from the last 30 days until the survey is handled", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const app = await buildApp({
+        repository: new MemoryClinicRepository(),
+        logger: false,
+      });
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headers = (role: UserRole = "owner") => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const patient = (
+        await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers: headers(),
+          payload: { fullName: "Nair Detratora", phone: "11944443333", tags: [] },
+        })
+      ).json() as { id: string };
+      const survey = async (score: number) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/satisfaction",
+          headers: headers("reception"),
+          payload: { patientId: patient.id, score },
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json() as { id: string };
+      };
+      type Suggestion = {
+        patientId: string;
+        reason: string;
+        referenceKey: string;
+        dueDate?: string;
+      };
+      const detractorSuggestions = async (role: UserRole = "owner") => {
+        const response = await app.inject({
+          method: "GET",
+          url: "/relationship/suggestions",
+          headers: headers(role),
+        });
+        expect(response.statusCode).toBe(200);
+        return (response.json() as Suggestion[]).filter(
+          (item) =>
+            item.patientId === patient.id && item.reason === "nps_detractor",
+        );
+      };
+
+      await survey(8);
+      expect(await detractorSuggestions()).toEqual([]);
+      const first = await survey(3);
+      expect(await detractorSuggestions("reception")).toMatchObject([
+        { referenceKey: first.id, dueDate: "2026-10-10" },
+      ]);
+
+      const contacted = await app.inject({
+        method: "POST",
+        url: "/relationship/activities",
+        headers: headers("reception"),
+        payload: {
+          patientId: patient.id,
+          reason: "nps_detractor",
+          referenceKey: first.id,
+          outcome: "contacted",
+        },
+      });
+      expect(contacted.statusCode).toBe(201);
+      expect(await detractorSuggestions()).toEqual([]);
+
+      const second = await survey(6);
+      expect(await detractorSuggestions()).toMatchObject([
+        { referenceKey: second.id },
+      ]);
+      vi.setSystemTime(new Date("2026-11-09T15:00:00.000Z"));
+      expect(await detractorSuggestions()).toHaveLength(1);
+      vi.setSystemTime(new Date("2026-11-10T15:00:00.000Z"));
+      expect(await detractorSuggestions()).toEqual([]);
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("lists the month's birthdays with the age turning and whether they were congratulated", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
