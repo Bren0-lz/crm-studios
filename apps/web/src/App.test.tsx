@@ -1271,6 +1271,95 @@ describe("application shell", () => {
     expect(within(updated).getByText("—")).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction?from=2026-01-01&to=2026-01-31"))).toBe(true);
   });
+
+  it("previews a patient spreadsheet, imports the same file and reloads the list", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const existing = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    const imported = { ...existing, id: "88888888-8888-4888-8888-888888888888", recordNumber: "PAC-00002", fullName: "Ana Lima", phone: "11999990000" };
+    let patients = [existing];
+    const analysis = {
+      rows: [
+        { line: 2, status: "valid", fullName: "Ana Lima", phone: "11999990000", input: { fullName: "Ana Lima", phone: "11999990000", tags: [], status: "active" } },
+        { line: 3, status: "error", fullName: "", phone: "123", errors: ["Informe o nome.", "Telefone inválido."] },
+        { line: 4, status: "duplicate", fullName: "Helena A.", phone: "11987654321", duplicateOf: { kind: "existing", field: "phone", patientId: existing.id, fullName: "Helena Almeida" } },
+        { line: 5, status: "duplicate", fullName: "Ana Lima", phone: "11999990000", duplicateOf: { kind: "row", field: "phone", line: 2 } },
+      ],
+      errors: [],
+      totals: { valid: 1, error: 1, duplicate: 2 },
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.endsWith("/patients/import/preview") ? analysis
+        : url.endsWith("/patients/import") ? (patients = [existing, imported], { created: 1, skipped: 2, errors: 1 })
+          : patients;
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+    const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
+    const template = within(dialog).getByRole("link", { name: /Baixar modelo/ });
+    expect(template).toHaveAttribute("download", "modelo-clientes.csv");
+    const templateText = decodeURIComponent(template.getAttribute("href")!.split(",").slice(1).join(","));
+    expect(templateText.startsWith("\uFEFFnome;cpf;telefone;whatsapp;email;nascimento;etiquetas;observações")).toBe(true);
+    expect(within(dialog).getByRole("button", { name: /Importar \d+ cliente/ })).toBeDisabled();
+
+    const content = "nome;telefone\nAna Lima;11999990000\n;123\nHelena A.;11987654321\nAna Lima;11999990000\n";
+    fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
+      target: { files: [new File([content], "clientes.csv", { type: "text/csv" })] },
+    });
+    expect(await within(dialog).findByText("1 válido")).toBeInTheDocument();
+    expect(within(dialog).getByText("1 com erro")).toBeInTheDocument();
+    expect(within(dialog).getByText("2 duplicados")).toBeInTheDocument();
+    expect(within(dialog).getByText("Informe o nome. Telefone inválido.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Já cadastrado: Helena Almeida (mesmo telefone)")).toBeInTheDocument();
+    expect(within(dialog).getByText("Repete a linha 2 (mesmo telefone)")).toBeInTheDocument();
+    const previewCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/patients/import/preview"));
+    const expectedFile = { fileName: "clientes.csv", contentBase64: btoa(content) };
+    expect(previewCall?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(previewCall?.[1]?.body))).toEqual(expectedFile);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Importar 1 cliente" }));
+    expect(await screen.findByText("1 cliente importado, 2 ignorados por duplicidade e 1 com erro.")).toBeInTheDocument();
+    const importCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
+    expect(importCall?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual(expectedFile);
+    expect(await screen.findByRole("button", { name: "Editar Ana Lima" })).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/patients?search=")).length).toBe(2);
+  });
+
+  it("shows general spreadsheet errors and keeps import disabled", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).endsWith("/patients/import/preview")
+        ? { rows: [], errors: ["A planilha precisa de uma coluna de nome."], totals: { valid: 0, error: 0, duplicate: 0 } }
+        : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Importar" }));
+    const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
+    fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
+      target: { files: [new File(["telefone\n11999990000\n"], "clientes.csv", { type: "text/csv" })] },
+    });
+    expect(await within(dialog).findByText("A planilha precisa de uma coluna de nome.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Importar 0 clientes" })).toBeDisabled();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/patients/import"))).toBe(false);
+  });
+
+  it("does not offer patient import to physiotherapists", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    expect(screen.getByRole("button", { name: /Novo cliente/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/import"))).toBe(false);
+  });
 });
 
 function relationshipSettingsFixture() {

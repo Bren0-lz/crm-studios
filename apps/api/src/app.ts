@@ -81,7 +81,12 @@ import {
 import { config } from "./config.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
-import { parseCsv, readXlsxRows, validatePatientImport } from "./patient-import.js";
+import {
+  decodeCsvText,
+  parseCsv,
+  readXlsxRows,
+  validatePatientImport,
+} from "./patient-import.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -741,7 +746,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     try {
       rows =
         extension === "csv"
-          ? parseCsv(buffer.toString("utf8"))
+          ? parseCsv(decodeCsvText(buffer))
           : await readXlsxRows(buffer);
     } catch {
       throw new DomainError(

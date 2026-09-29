@@ -1,7 +1,12 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import type { Patient } from "@crm/contracts";
-import { parseCsv, readXlsxRows, validatePatientImport } from "./patient-import.js";
+import {
+  decodeCsvText,
+  parseCsv,
+  readXlsxRows,
+  validatePatientImport,
+} from "./patient-import.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -20,6 +25,28 @@ function existingPatient(overrides: Partial<Patient> = {}): Patient {
     ...overrides,
   };
 }
+
+describe("decodeCsvText", () => {
+  it("lê arquivo em UTF-8 com BOM", () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from("nome;observações\nJoão;Conceição", "utf8"),
+    ]);
+    expect(parseCsv(decodeCsvText(bytes))).toEqual([
+      ["nome", "observações"],
+      ["João", "Conceição"],
+    ]);
+  });
+
+  it("lê arquivo Latin-1 (Windows-1252) do Excel com acentos corretos", () => {
+    const bytes = Buffer.from("nome;observações\r\nJoão;Conceição\r\n", "latin1");
+    expect(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes)).toThrow();
+    expect(parseCsv(decodeCsvText(bytes))).toEqual([
+      ["nome", "observações"],
+      ["João", "Conceição"],
+    ]);
+  });
+});
 
 describe("parseCsv", () => {
   it("lê CSV separado por ponto e vírgula com BOM, aspas e CRLF", () => {

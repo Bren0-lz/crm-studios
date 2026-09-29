@@ -71,6 +71,9 @@ import type {
   OutboundMessage,
   ReminderGenerationResult,
   Patient,
+  PatientImportAnalysis,
+  PatientImportFileInput,
+  PatientImportResult,
   PatientTimelineEntry,
   PatientInput,
   PatientPlan,
@@ -228,6 +231,16 @@ export const api = {
   updatePatient: (id: string, input: PatientInput) =>
     request<Patient>(`/patients/${id}`, {
       method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  previewPatientImport: (input: PatientImportFileInput) =>
+    request<PatientImportAnalysis>("/patients/import/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  importPatients: (input: PatientImportFileInput) =>
+    request<PatientImportResult>("/patients/import", {
+      method: "POST",
       body: JSON.stringify(input),
     }),
   patientTimeline: (id: string) =>

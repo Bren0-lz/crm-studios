@@ -4131,3 +4131,21 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .patient-timeline-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--mint); color: var(--green); }
 .patient-timeline-amount { font-weight: 700; white-space: nowrap; }
 .patient-timeline-amount.negative { color: #b42318; }
+
+.patient-import { display: grid; gap: 16px; }
+.patient-import .modal-actions { margin-top: 4px; }
+.patient-import-file { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.patient-import-file .text-link { display: inline-flex; align-items: center; gap: 6px; }
+.patient-import-totals { display: flex; flex-wrap: wrap; gap: 8px; }
+.patient-import-table { max-height: 320px; overflow: auto; border: 1px solid #ece9e2; border-radius: 12px; }
+.patient-import-table .table-row {
+  grid-template-columns: 48px minmax(120px, 1fr) 120px 86px minmax(150px, 1.4fr);
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+.patient-import-table small { color: var(--muted); }
+.status-pill.import-valid { background: #dceee7; color: #31715e; }
+.status-pill.import-error { background: #f8e1dd; color: #a4483a; }
+.status-pill.import-duplicate { background: #f6ecd4; color: #8a6420; }

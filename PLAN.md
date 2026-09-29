@@ -214,13 +214,17 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
 - **Escopo:** botão "Importar" na página de Clientes; modal com envio de arquivo (.csv/.xlsx),
   prévia em tabela com contagem de válidos/erros/duplicados, confirmação e link para baixar um CSV
   modelo gerado no navegador. Após importar, recarrega a lista. Teste web.
-- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+  Decisão do dono (2026-09-29): a API detecta a codificação do CSV — se o conteúdo não for UTF-8
+  válido, lê como Windows-1252 (Latin-1, padrão do "CSV" do Excel em português), sem dependência
+  nova (`TextDecoder` com `fatal: true`), em `apps/api/src/patient-import.ts`, com teste em
+  `patient-import.test.ts` (arquivo Latin-1 com "João"/"Conceição" chega com acentos corretos).
+- **Gate:** `npm exec -w @crm/api -- vitest run src/patient-import.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T016
-- **Status:** TODO
+- **Status:** DONE
 
 ### T018 — Documentação final
 - **Escopo:** incrementos em `docs/STATUS_IMPLEMENTACAO.md` para CREFITO, NPS, histórico do
   cliente e importação; atualizar a lista de funcionalidades do `README.md`.
 - **Gate:** `npm run build`
 - **Depende de:** T008, T009, T011, T012, T014, T017
-- **Status:** TODO
+- **Status:** DOING

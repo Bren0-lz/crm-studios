@@ -62,6 +62,18 @@ function detectSeparator(text: string): ";" | "," {
   return semicolons >= commas && semicolons > 0 ? ";" : ",";
 }
 
+/**
+ * Decodifica o conteúdo de um CSV: UTF-8 quando válido; senão Windows-1252 (Latin-1),
+ * padrão do "CSV" salvo pelo Excel em português.
+ */
+export function decodeCsvText(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 /** Lê CSV com separador `;` ou `,` (detectado pela primeira linha), aspas duplas e BOM. */
 export function parseCsv(text: string): string[][] {
   const source = text.startsWith("﻿") ? text.slice(1) : text;
