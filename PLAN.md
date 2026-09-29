@@ -70,7 +70,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   regra, supressão, adiamento vencido e filtro de `overdue_payment` por perfil.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/contact-suggestions.test.ts`
 - **Depende de:** T001
-- **Status:** TODO
+- **Status:** DONE
 
 ### T003 — Configurações de relacionamento na API
 - **Escopo:** migração nova `apps/api/migrations/0028_relationship.sql` com
