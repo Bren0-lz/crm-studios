@@ -2848,4 +2848,288 @@ describe("CRM API", () => {
       vi.useRealTimers();
     }
   });
+
+  it("returns the client timeline from the most recent event without clinical content", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      let clock = Date.parse("2026-09-01T12:00:00.000Z");
+      vi.setSystemTime(clock);
+      const tick = () => {
+        clock += 60_000;
+        vi.setSystemTime(clock);
+      };
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const roleHeaders = (role: UserRole, clinic = clinicId) => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId: clinic, role })}`,
+      });
+      const helena = "99999999-9999-4999-8999-999999999999";
+      const helenaAppointment = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+      const services = await app.inject({ method: "GET", url: "/services", headers });
+
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "PATCH",
+            url: `/appointments/${helenaAppointment}/status`,
+            headers,
+            payload: { status: "completed" },
+          })
+        ).statusCode,
+      ).toBe(200);
+      const record = await app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers,
+        payload: {
+          appointmentId: helenaAppointment,
+          subjective: "SEGREDO-CLINICO-SUBJETIVO",
+        },
+      });
+      expect(record.statusCode).toBe(201);
+
+      tick();
+      const plan = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          patientId: helena,
+          serviceId: services.json()[0].id,
+          name: "Pacote linha do tempo",
+          kind: "fixed_package",
+          totalSessions: 4,
+          validFrom: "2026-09-01",
+          validUntil: "2026-09-30",
+          totalValueInCents: 32000,
+          installments: 1,
+          firstDueDate: "2026-09-01",
+        },
+      });
+      expect(plan.statusCode).toBe(201);
+      const summary = await app.inject({ method: "GET", url: "/finance/summary", headers });
+      const receivable = summary
+        .json()
+        .receivables.find((item: { planId?: string }) => item.planId === plan.json().id);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: `/finance/receivables/${receivable.id}/pay`,
+            headers,
+            payload: { paymentMethod: "pix" },
+          })
+        ).statusCode,
+      ).toBe(200);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: `/finance/receivables/${receivable.id}/reverse`,
+            headers,
+          })
+        ).statusCode,
+      ).toBe(200);
+      tick();
+      const renewed = await app.inject({
+        method: "POST",
+        url: `/plans/${plan.json().id}/renew`,
+        headers,
+        payload: {
+          name: "Pacote linha do tempo",
+          totalSessions: 4,
+          validFrom: "2026-10-01",
+          validUntil: "2026-10-31",
+          totalValueInCents: 34000,
+          installments: 1,
+          firstDueDate: "2026-10-01",
+        },
+      });
+      expect(renewed.statusCode).toBe(201);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "PATCH",
+            url: `/plans/${renewed.json().id}/status`,
+            headers,
+            payload: { status: "cancelled" },
+          })
+        ).statusCode,
+      ).toBe(200);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/relationship/activities",
+            headers,
+            payload: {
+              patientId: helena,
+              reason: "plan_expiring",
+              referenceKey: plan.json().id,
+              outcome: "contacted",
+              notes: "Pediu retorno",
+            },
+          })
+        ).statusCode,
+      ).toBe(201);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/communications/messages",
+            headers,
+            payload: { patientId: helena, channel: "whatsapp", body: "Olá, Helena!" },
+          })
+        ).statusCode,
+      ).toBe(201);
+      tick();
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/satisfaction",
+            headers,
+            payload: {
+              patientId: helena,
+              appointmentId: helenaAppointment,
+              score: 6,
+              comment: "Esperou muito",
+            },
+          })
+        ).statusCode,
+      ).toBe(201);
+      await app.inject({
+        method: "POST",
+        url: "/satisfaction",
+        headers,
+        payload: { patientId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", score: 10 },
+      });
+
+      const response = await app.inject({
+        method: "GET",
+        url: `/patients/${helena}/timeline`,
+        headers,
+      });
+      expect(response.statusCode).toBe(200);
+      const timeline = response.json() as Array<{
+        id: string;
+        kind: string;
+        occurredAt: string;
+        title: string;
+        detail?: string;
+        amountInCents?: number;
+        status?: string;
+        score?: number;
+      }>;
+      const times = timeline.map((item) => Date.parse(item.occurredAt));
+      expect(times).toEqual([...times].sort((a, b) => b - a));
+      expect(response.body).not.toContain("SEGREDO-CLINICO");
+      expect(timeline.filter((item) => item.kind === "satisfaction")).toEqual([
+        {
+          id: expect.stringMatching(/^satisfaction:/),
+          kind: "satisfaction",
+          occurredAt: new Date(clock).toISOString(),
+          title: "Pesquisa de satisfação: nota 6",
+          detail: "Esperou muito",
+          score: 6,
+        },
+      ]);
+      expect(timeline).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: `appointment:${helenaAppointment}`,
+            kind: "appointment",
+            status: "completed",
+          }),
+          expect.objectContaining({
+            id: `plan_created:${plan.json().id}`,
+            title: "Plano contratado: Pacote linha do tempo",
+            amountInCents: 32000,
+          }),
+          expect.objectContaining({
+            id: `plan_renewed:${renewed.json().id}`,
+            kind: "plan_renewed",
+            amountInCents: 34000,
+          }),
+          expect.objectContaining({
+            id: `plan_cancelled:${renewed.json().id}`,
+            kind: "plan_cancelled",
+          }),
+          expect.objectContaining({
+            kind: "payment",
+            title: "Pagamento recebido",
+            amountInCents: 32000,
+          }),
+          expect.objectContaining({
+            kind: "payment_reversal",
+            amountInCents: -32000,
+          }),
+          expect.objectContaining({
+            kind: "contact",
+            detail: "Contato feito · Pediu retorno",
+            status: "contacted",
+          }),
+          expect.objectContaining({
+            kind: "message",
+            detail: "Olá, Helena!",
+          }),
+        ]),
+      );
+      const recent = timeline
+        .filter((item) => item.kind !== "appointment")
+        .slice(0, 8)
+        .map((item) => item.kind);
+      expect(recent).toEqual([
+        "satisfaction",
+        "message",
+        "contact",
+        "plan_cancelled",
+        "plan_renewed",
+        "payment_reversal",
+        "payment",
+        "plan_created",
+      ]);
+
+      for (const role of ["reception", "finance"] as const) {
+        const allowed = await app.inject({
+          method: "GET",
+          url: `/patients/${helena}/timeline`,
+          headers: roleHeaders(role),
+        });
+        expect(allowed.statusCode).toBe(200);
+      }
+      const physiotherapist = await app.inject({
+        method: "GET",
+        url: `/patients/${helena}/timeline`,
+        headers: roleHeaders("physiotherapist"),
+      });
+      expect(physiotherapist.statusCode).toBe(403);
+      expect(physiotherapist.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      const unauthenticated = await app.inject({
+        method: "GET",
+        url: `/patients/${helena}/timeline`,
+      });
+      expect(unauthenticated.statusCode).toBe(401);
+      for (const [url, requestHeaders] of [
+        [`/patients/${helena}/timeline`, roleHeaders("owner", "12121212-1212-4121-8121-121212121212")],
+        ["/patients/12121212-1212-4121-8121-121212121212/timeline", headers],
+        ["/patients/nao-e-uuid/timeline", headers],
+      ] as const) {
+        const missing = await app.inject({ method: "GET", url, headers: requestHeaders });
+        expect(missing.statusCode).toBe(404);
+        expect(missing.json()).toMatchObject({ code: "PATIENT_NOT_FOUND" });
+      }
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

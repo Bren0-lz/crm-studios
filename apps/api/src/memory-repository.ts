@@ -139,6 +139,7 @@ import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
+import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
   type AuthenticatedUser,
@@ -789,11 +790,17 @@ export class MemoryClinicRepository implements ClinicRepository {
 
   async listSatisfactionSurveys(
     clinicId: string,
-    filter: { from?: string | undefined; to?: string | undefined } = {},
+    filter: {
+      from?: string | undefined;
+      to?: string | undefined;
+      patientId?: string | undefined;
+    } = {},
   ) {
     return this.satisfactionSurveys
       .filter((item) => {
         if (item.clinicId !== clinicId) return false;
+        if (filter.patientId && item.patientId !== filter.patientId)
+          return false;
         const date = saoPauloToday(new Date(item.createdAt));
         return (
           (!filter.from || date >= filter.from) &&
@@ -4321,7 +4328,16 @@ export class MemoryClinicRepository implements ClinicRepository {
           });
       }
     }
-    const payments: ReceivedPayment[] = this.receiptEvents
+    return buildSalesReport(
+      month,
+      sales,
+      this.receivedPayments(clinicId),
+      this.appointments.filter((item) => item.clinicId === clinicId),
+    );
+  }
+
+  private receivedPayments(clinicId: string): ReceivedPayment[] {
+    return this.receiptEvents
       .map((event) => {
         const item = this.receivables.find((candidate) => candidate.id === event.receivableId);
         if (!item || item.clinicId !== clinicId) return null;
@@ -4340,12 +4356,31 @@ export class MemoryClinicRepository implements ClinicRepository {
         };
       })
       .filter((item): item is ReceivedPayment => item !== null);
-    return buildSalesReport(
-      month,
-      sales,
-      payments,
-      this.appointments.filter((item) => item.clinicId === clinicId),
-    );
+  }
+
+  async getPatientTimeline(clinicId: string, patientId: string) {
+    if (
+      !this.patients.some(
+        (item) => item.clinicId === clinicId && item.id === patientId,
+      )
+    )
+      return null;
+    return buildPatientTimeline(patientId, {
+      appointments: this.appointments.filter(
+        (item) => item.clinicId === clinicId && item.patientId === patientId,
+      ),
+      plans: await this.listPatientPlans(clinicId, patientId),
+      payments: this.receivedPayments(clinicId).filter(
+        (item) => item.patientId === patientId,
+      ),
+      contacts: await this.listContactActivities(clinicId, patientId),
+      messages: this.outboundMessages
+        .filter(
+          (item) => item.clinicId === clinicId && item.patientId === patientId,
+        )
+        .map((message) => this.toOutboundMessage(message)),
+      surveys: await this.listSatisfactionSurveys(clinicId, { patientId }),
+    });
   }
 
   async getManagementReport(

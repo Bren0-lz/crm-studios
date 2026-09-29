@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T013
-- **Última concluída:** T012
+- **Tarefa atual:** T014
+- **Última concluída:** T013
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -23,3 +23,4 @@
 - 2026-09-29 T010 DONE (verifier PASS na 2ª tentativa). Migração 0030 (próxima livre: 0031). Contratos: `satisfactionSurveyInputSchema`, `SatisfactionSurvey`, `SatisfactionSummary`, `SatisfactionReport` {from,to,surveys,summary}, `summarizeSatisfaction`, `satisfactionCategory`. Repo: `createSatisfactionSurvey`, `listSatisfactionSurveys(clinicId, {from?,to?})` (sem filtro = tudo; T013 pode adicionar patientId). GET padrão: 1º do mês até hoje; `nps: null` sem respostas. Guarda `requireSatisfactionAccess` (todos os perfis). 409 SATISFACTION_DUPLICATE.
 - 2026-09-29 T011 DONE (verifier PASS na 1ª tentativa). Web: `SatisfactionSurveyModal` (substitui o modal de detalhes enquanto aberto), cartão "Satisfação (NPS)" em Relatórios (só owner/finance veem a rota). api.ts: `satisfaction(from,to)`, `createSatisfactionSurvey`. Detecção de pesquisa existente via GET /satisfaction no período do atendimento (sem rota por appointmentId — candidata a melhoria).
 - 2026-09-29 T012 DONE (verifier PASS na 1ª tentativa). `nps_detractor`: nota 0–6, janela hoje−30..hoje (fuso clínica), 1 entrada por cliente (pesquisa mais recente). `surveys` tipado como `SatisfactionSurvey[]`; exportados `npsDetractorWindowDays` e `npsDetractorWindowStart(today)`. Sem teste PG da leitura de pesquisas nas sugestões.
+- 2026-09-29 T013 DONE (verifier PASS; gate instável: timeouts de 5s em testes antigos em 2 de 3 execuções do verifier, 2/2 ok no orquestrador — lentidão da máquina/OneDrive). `GET /patients/:id/timeline` (comercial; 404 PATIENT_NOT_FOUND) → `PatientTimelineEntry[]` {id "<kind>:<id>", kind, occurredAt, title/detail pt-BR, amountInCents? com sinal, status? bruto, score?}. Kinds: appointment, plan_created, plan_renewed, plan_cancelled, payment, payment_reversal, contact, message, satisfaction. Ordem: occurredAt desc (agendamentos futuros no topo). `listSatisfactionSurveys` aceita `patientId`.

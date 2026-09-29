@@ -136,6 +136,7 @@ import {
 import type { Pool, PoolClient } from "pg";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
+import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
   type AuthenticatedUser,
@@ -2115,7 +2116,11 @@ export class PostgresClinicRepository implements ClinicRepository {
 
   async listSatisfactionSurveys(
     clinicId: string,
-    filter: { from?: string | undefined; to?: string | undefined } = {},
+    filter: {
+      from?: string | undefined;
+      to?: string | undefined;
+      patientId?: string | undefined;
+    } = {},
   ) {
     const result = await this.pool.query<SatisfactionSurveyRow>(
       `SELECT ${satisfactionSurveyColumns}
@@ -2126,10 +2131,86 @@ export class PostgresClinicRepository implements ClinicRepository {
            OR (s.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date)
          AND ($3::date IS NULL
            OR (s.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= $3::date)
+         AND ($4::uuid IS NULL OR s.patient_id = $4)
        ORDER BY s.created_at DESC, s.id DESC`,
-      [clinicId, filter.from ?? null, filter.to ?? null],
+      [clinicId, filter.from ?? null, filter.to ?? null, filter.patientId ?? null],
     );
     return result.rows.map(mapSatisfactionSurvey);
+  }
+
+  async getPatientTimeline(clinicId: string, patientId: string) {
+    const patient = await this.pool.query(
+      `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
+      [clinicId, patientId],
+    );
+    if (!patient.rows[0]) return null;
+    const [appointments, plans, payments, contacts, messages, surveys] =
+      await Promise.all([
+        this.pool.query<AppointmentRow>(
+          `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
+           WHERE a.clinic_id = $1 AND a.patient_id = $2`,
+          [clinicId, patientId],
+        ),
+        this.listPatientPlans(clinicId, patientId),
+        this.pool.query<{
+          id: string;
+          receivableId: string;
+          kind: "payment" | "payment_reversal";
+          patientId: string;
+          patientName: string;
+          planId: string | null;
+          tabId: string | null;
+          description: string;
+          amountInCents: number;
+          occurredAt: Date;
+          paymentMethod: ReceivedPayment["paymentMethod"] | null;
+        }>(
+          `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+                  r.patient_id AS "patientId", p.full_name AS "patientName",
+                  r.plan_id AS "planId", t.id AS "tabId", r.description,
+                  fe.amount_in_cents AS "amountInCents", fe.created_at AS "occurredAt",
+                  fe.metadata->>'paymentMethod' AS "paymentMethod"
+           FROM financial_events fe
+           JOIN receivables r ON r.id=fe.receivable_id
+           JOIN patients p ON p.id=r.patient_id
+           LEFT JOIN patient_tabs t ON t.receivable_id=r.id
+           WHERE fe.clinic_id=$1 AND r.patient_id=$2
+             AND fe.kind IN ('payment','payment_reversal')`,
+          [clinicId, patientId],
+        ),
+        this.listContactActivities(clinicId, patientId),
+        this.pool.query<OutboundMessageRow>(
+          `SELECT ${outboundMessageColumns}
+           FROM outbound_messages om
+           JOIN patients p ON p.id = om.patient_id
+           WHERE om.clinic_id = $1 AND om.patient_id = $2`,
+          [clinicId, patientId],
+        ),
+        this.listSatisfactionSurveys(clinicId, { patientId }),
+      ]);
+    return buildPatientTimeline(patientId, {
+      appointments: appointments.rows.map(mapAppointment),
+      plans,
+      payments: payments.rows.map(
+        (item): ReceivedPayment => ({
+          id: item.id,
+          receivableId: item.receivableId,
+          kind: item.kind === "payment" ? "payment" : "reversal",
+          ...(item.planId || item.tabId
+            ? { sourceId: item.planId ?? item.tabId! }
+            : {}),
+          occurredAt: item.occurredAt.toISOString(),
+          patientId: item.patientId,
+          patientName: item.patientName,
+          description: item.description,
+          amountInCents: item.amountInCents,
+          ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+        }),
+      ),
+      contacts,
+      messages: messages.rows.map(mapOutboundMessage),
+      surveys,
+    });
   }
 
   async listAdminAuditEvents(clinicId: string) {

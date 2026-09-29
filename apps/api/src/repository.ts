@@ -76,6 +76,7 @@ import type {
   PatientTabCloseInput,
   PatientTabInput,
   PatientTabItemInput,
+  PatientTimelineEntry,
   Payable,
   PayableInput,
   PaymentMethod,
@@ -195,8 +196,20 @@ export interface ClinicRepository {
    */
   listSatisfactionSurveys(
     clinicId: string,
-    filter?: { from?: string | undefined; to?: string | undefined },
+    filter?: {
+      from?: string | undefined;
+      to?: string | undefined;
+      patientId?: string | undefined;
+    },
   ): Promise<SatisfactionSurvey[]>;
+  /**
+   * Histórico do cliente (mais recentes primeiro), sem conteúdo clínico.
+   * `null` quando o cliente não existe na clínica.
+   */
+  getPatientTimeline(
+    clinicId: string,
+    patientId: string,
+  ): Promise<PatientTimelineEntry[] | null>;
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;

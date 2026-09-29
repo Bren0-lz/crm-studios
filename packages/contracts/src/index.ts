@@ -1683,6 +1683,43 @@ export interface SatisfactionReport {
   summary: SatisfactionSummary;
 }
 
+// Linha do tempo do cliente
+
+export type PatientTimelineKind =
+  | "appointment"
+  | "plan_created"
+  | "plan_renewed"
+  | "plan_cancelled"
+  | "payment"
+  | "payment_reversal"
+  | "contact"
+  | "message"
+  | "satisfaction";
+
+/**
+ * Evento do histórico do cliente (`GET /patients/:id/timeline`, mais recentes
+ * primeiro). Nunca traz conteúdo clínico (evoluções, avaliações).
+ */
+export interface PatientTimelineEntry {
+  /** `<kind>:<id da origem>` — único na linha do tempo. */
+  id: string;
+  kind: PatientTimelineKind;
+  /** ISO 8601. */
+  occurredAt: string;
+  /** Texto curto em pt-BR. */
+  title: string;
+  detail?: string;
+  /** Valor com sinal (estornos negativos). */
+  amountInCents?: number;
+  /**
+   * Código bruto da origem: status do atendimento (`AppointmentStatus`),
+   * resultado do contato (`ContactOutcome`) ou status da mensagem.
+   */
+  status?: string;
+  /** Nota 0–10, só em `satisfaction`. */
+  score?: number;
+}
+
 export type SatisfactionCategory = "promoter" | "passive" | "detractor";
 
 export function satisfactionCategory(score: number): SatisfactionCategory {

@@ -12,11 +12,13 @@ const duplicateCpf = "98765432101";
 const relationshipCpf = "98765432102";
 const birthdayCpf = "98765432103";
 const satisfactionCpf = "98765432104";
+const timelineCpf = "98765432105";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
 const renewalMarker = "postgres-renewal-test";
 const satisfactionMarker = "postgres-satisfaction-test";
+const timelineMarker = "postgres-timeline-test";
 const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -35,36 +37,41 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
-      [[salesMarker, renewalMarker]],
+      [[salesMarker, renewalMarker, timelineMarker]],
     );
     await pool.query(
       `DELETE FROM session_movements WHERE plan_id IN (SELECT id FROM patient_plans WHERE name = ANY($1::text[]))`,
-      [[salesMarker, renewalMarker]],
+      [[salesMarker, renewalMarker, timelineMarker]],
     );
     await pool.query(
       `DELETE FROM receivables WHERE plan_id IN (SELECT id FROM patient_plans WHERE name = ANY($1::text[]))`,
-      [[salesMarker, renewalMarker]],
+      [[salesMarker, renewalMarker, timelineMarker]],
     );
     await pool.query("DELETE FROM patient_plans WHERE name = ANY($1::text[])", [
-      [salesMarker, renewalMarker],
+      [salesMarker, renewalMarker, timelineMarker],
     ]);
     await pool.query("TRUNCATE appointment_reschedules");
     await pool.query(
       `DELETE FROM satisfaction_surveys WHERE patient_id IN
+       (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[]))`,
+      [clinicId, [satisfactionCpf, timelineCpf]],
+    );
+    await pool.query(
+      `DELETE FROM outbound_messages WHERE patient_id IN
        (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
-      [clinicId, satisfactionCpf],
+      [clinicId, timelineCpf],
     );
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
-      [appointmentMarker, rescheduleMarker, satisfactionMarker],
+      [appointmentMarker, rescheduleMarker, satisfactionMarker, timelineMarker],
     ]);
     await pool.query(
       `DELETE FROM contact_activities WHERE patient_id IN
        (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[]))`,
-      [clinicId, [relationshipCpf, birthdayCpf]],
+      [clinicId, [relationshipCpf, birthdayCpf, timelineCpf]],
     );
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = ANY($2::text[])", [
       clinicId,
-      [testCpf, duplicateCpf, relationshipCpf, birthdayCpf, satisfactionCpf],
+      [testCpf, duplicateCpf, relationshipCpf, birthdayCpf, satisfactionCpf, timelineCpf],
     ]);
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,
@@ -589,6 +596,109 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       (await repository.listSatisfactionSurveys(clinicId, { to: "2000-01-01" }))
         .filter((item) => item.patientId === patient.id),
     ).toEqual([]);
+  });
+
+  it("builds the PostgreSQL client timeline only from the client's own data", async () => {
+    const [professionals, rooms, services] = await Promise.all([
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "Cliente Linha do Tempo",
+      phone: "11933334444",
+      whatsapp: "11933334444",
+      cpf: timelineCpf,
+      tags: [],
+    });
+    const startsAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    startsAt.setUTCHours(13, 0, 0, 0);
+    const appointment = await repository.createAppointment(clinicId, {
+      patientId: patient.id,
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      startsAt: startsAt.toISOString(),
+      notes: timelineMarker,
+    });
+    await repository.updateAppointmentStatus(clinicId, appointment.id, "completed");
+    const date = saoPauloToday();
+    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      patientId: patient.id,
+      serviceId: services[0]!.id,
+      name: timelineMarker,
+      kind: "fixed_package",
+      totalSessions: 2,
+      validFrom: date,
+      totalValueInCents: 20000,
+      installments: 1,
+      firstDueDate: date,
+    });
+    const receivable = await pool.query<{ id: string }>(
+      "SELECT id FROM receivables WHERE plan_id=$1",
+      [plan.id],
+    );
+    await repository.settleReceivable(clinicId, ownerId, receivable.rows[0]!.id, "pix");
+    await repository.reverseReceivablePayment(clinicId, ownerId, receivable.rows[0]!.id);
+    await repository.updatePatientPlanStatus(clinicId, ownerId, plan.id, "cancelled");
+    await repository.createContactActivity(clinicId, ownerId, {
+      patientId: patient.id,
+      reason: "plan_expiring",
+      referenceKey: plan.id,
+      outcome: "contacted",
+    });
+    await repository.queueManualMessage(clinicId, {
+      patientId: patient.id,
+      channel: "whatsapp",
+      body: "Olá!",
+    });
+    const survey = await repository.createSatisfactionSurvey(clinicId, ownerId, {
+      patientId: patient.id,
+      appointmentId: appointment.id,
+      score: 8,
+    });
+    expect(
+      (await repository.listSatisfactionSurveys(clinicId, { patientId: patient.id })).map(
+        (item) => item.id,
+      ),
+    ).toEqual([survey.id]);
+
+    const timeline = await new PostgresClinicRepository(pool).getPatientTimeline(
+      clinicId,
+      patient.id,
+    );
+    expect(timeline).not.toBeNull();
+    expect(timeline!.map((item) => item.kind).sort()).toEqual([
+      "appointment",
+      "contact",
+      "message",
+      "payment",
+      "payment_reversal",
+      "plan_cancelled",
+      "plan_created",
+      "satisfaction",
+    ]);
+    const times = timeline!.map((item) => Date.parse(item.occurredAt));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(timeline!.find((item) => item.kind === "payment_reversal")).toMatchObject({
+      amountInCents: -20000,
+    });
+    expect(timeline!.find((item) => item.kind === "appointment")).toMatchObject({
+      id: `appointment:${appointment.id}`,
+      status: "completed",
+    });
+    expect(
+      await repository.getPatientTimeline(
+        "12121212-1212-4121-8121-121212121212",
+        patient.id,
+      ),
+    ).toBeNull();
+    expect(
+      await repository.getPatientTimeline(
+        clinicId,
+        "12121212-1212-4121-8121-121212121212",
+      ),
+    ).toBeNull();
   });
 
   it("fills professional variables on issued documents and exposes CREFITO on records", async () => {

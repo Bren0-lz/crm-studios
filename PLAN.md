@@ -180,7 +180,7 @@ Gates que citam um arquivo de teste falham (exit 1) enquanto o arquivo não exis
   `GET /patients/:id/timeline` nos dois repositórios. Testes da função e da rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/patient-timeline.test.ts src/app.test.ts`
 - **Depende de:** T004, T010
-- **Status:** TODO
+- **Status:** DONE
 
 ### T014 — Histórico na ficha do cliente
 - **Escopo:** aba ou seção "Histórico" na ficha do cliente em `App.tsx`, com ícone por tipo,

@@ -731,6 +731,22 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return patient;
     },
   );
+  app.get(
+    "/patients/:id/timeline",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const timeline = z.uuid().safeParse(id).success
+        ? await repository.getPatientTimeline(request.user.clinicId, id)
+        : null;
+      if (!timeline)
+        return reply.status(404).send({
+          code: "PATIENT_NOT_FOUND",
+          message: "Cliente não encontrado.",
+        });
+      return timeline;
+    },
+  );
 
   app.get("/professionals", { preHandler: authenticate }, async (request) =>
     repository.listProfessionals(request.user.clinicId),
