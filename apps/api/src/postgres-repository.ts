@@ -528,6 +528,8 @@ interface PatientPlanRow {
   autoRenew: boolean;
   renewedFromPlanId: string | null;
   renewedByPlanId: string | null;
+  cancelledAt: Date | null;
+  cancelledValueInCents: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -818,6 +820,7 @@ const patientPlanColumns = `
   pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
   (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
   p.full_name AS "patientName", s.name AS "serviceName",
+  pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
 
@@ -1339,6 +1342,12 @@ function mapPatientPlan(row: PatientPlanRow): PatientPlan {
       : {}),
     ...(row.renewedByPlanId ? { renewedByPlanId: row.renewedByPlanId } : {}),
     createdAt: row.createdAt.toISOString(),
+    ...(row.cancelledAt
+      ? {
+          cancelledAt: row.cancelledAt.toISOString(),
+          cancelledValueInCents: row.cancelledValueInCents,
+        }
+      : {}),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
