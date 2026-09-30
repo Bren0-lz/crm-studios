@@ -97,7 +97,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   Só CSS. Sem `style={{}}` novo.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D01
-- **Status:** TODO
+- **Status:** DONE
 
 ### D03 — Celular: grids de várias colunas
 - **Escopo:** acrescentar ao `apps/web/scripts/audit-panels.cjs` uma segunda verificação.
