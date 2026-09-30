@@ -404,6 +404,175 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("reports trial conversion when the client gets a plan within 30 days of a completed trial", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const serviceId = services.json()[0].id as string;
+    const base = {
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId,
+    };
+    const [clientA, clientB] = [
+      patients.json()[0].id as string,
+      patients.json()[1].id as string,
+    ];
+    const createLead = async (fullName: string, phone: string) =>
+      (
+        await app.inject({
+          method: "POST",
+          url: "/leads",
+          headers,
+          payload: { fullName, phone, source: "Instagram", interest: "Pilates" },
+        })
+      ).json().id as string;
+    const convertedLead = await createLead("Fábio Experimental", "11922221111");
+    const openLead = await createLead("Gisele Avaliação", "11922220000");
+    const schedule = async (
+      startsAt: string,
+      visitType: string,
+      owner: { patientId: string } | { leadId: string },
+    ) => {
+      const response =
+        "leadId" in owner
+          ? await app.inject({
+              method: "POST",
+              url: `/leads/${owner.leadId}/appointments`,
+              headers,
+              payload: { ...base, startsAt, visitType },
+            })
+          : await app.inject({
+              method: "POST",
+              url: "/appointments",
+              headers,
+              payload: { ...base, patientId: owner.patientId, startsAt, visitType },
+            });
+      expect(response.statusCode).toBe(201);
+      return response.json().id as string;
+    };
+    const setStatus = async (id: string, status: string) =>
+      expect(
+        (
+          await app.inject({
+            method: "PATCH",
+            url: `/appointments/${id}/status`,
+            headers,
+            payload: { status },
+          })
+        ).statusCode,
+      ).toBe(200);
+
+    // Lead que vira cliente e contrata 8 dias depois: convertida.
+    const leadTrial = await schedule("2032-03-01T13:00:00.000Z", "trial", { leadId: convertedLead });
+    // Lead que nunca vira cliente: concluída, não convertida.
+    const openLeadEvaluation = await schedule("2032-03-02T13:00:00.000Z", "evaluation", { leadId: openLead });
+    // Cliente que contrata só depois de 30 dias: não convertida.
+    const lateTrial = await schedule("2032-03-03T13:00:00.000Z", "trial", { patientId: clientA });
+    // Cliente que contrata no mesmo dia: convertida.
+    const sameDayEvaluation = await schedule("2032-03-04T13:00:00.000Z", "evaluation", { patientId: clientB });
+    // Cancelada: fora de "agendadas".
+    const cancelledTrial = await schedule("2032-03-05T13:00:00.000Z", "trial", { patientId: clientA });
+    // Ainda não concluída: só conta em "agendadas".
+    await schedule("2032-03-08T13:00:00.000Z", "trial", { patientId: clientB });
+    // Atendimento regular concluído: ignorado.
+    const regular = await schedule("2032-03-09T13:00:00.000Z", "regular", { patientId: clientA });
+    // Experimental fora do período: ignorada.
+    await schedule("2032-04-05T13:00:00.000Z", "trial", { patientId: clientA });
+    for (const id of [leadTrial, openLeadEvaluation, lateTrial, sameDayEvaluation, regular])
+      await setStatus(id, "completed");
+    await setStatus(cancelledTrial, "cancelled");
+
+    const createPlan = async (at: string, patientId: string) => {
+      vi.setSystemTime(new Date(at));
+      const plan = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers: {
+          authorization: `Bearer ${app.jwt.sign({
+            sub: "22222222-2222-4222-8222-222222222222",
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            role: "owner",
+          })}`,
+        },
+        payload: {
+          patientId,
+          serviceId,
+          name: "Pacote pós-experimental",
+          kind: "fixed_package",
+          totalSessions: 4,
+          validFrom: at.slice(0, 10),
+          totalValueInCents: 40000,
+          installments: 1,
+          firstDueDate: at.slice(0, 10),
+        },
+      });
+      expect(plan.statusCode).toBe(201);
+    };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2032-03-08T15:00:00.000Z"));
+      const conversion = await app.inject({
+        method: "POST",
+        url: `/leads/${convertedLead}/convert`,
+        headers: {
+          authorization: `Bearer ${app.jwt.sign({
+            sub: "22222222-2222-4222-8222-222222222222",
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            role: "owner",
+          })}`,
+        },
+      });
+      expect(conversion.statusCode).toBe(200);
+      await createPlan("2032-03-09T15:00:00.000Z", conversion.json().patient.id as string);
+      await createPlan("2032-03-04T18:00:00.000Z", clientB);
+      await createPlan("2032-04-10T15:00:00.000Z", clientA);
+      const report = await app.inject({
+        method: "GET",
+        url: "/reports/management?from=2032-03-01&to=2032-03-31",
+        headers: {
+          authorization: `Bearer ${app.jwt.sign({
+            sub: "22222222-2222-4222-8222-222222222222",
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            role: "owner",
+          })}`,
+        },
+      });
+      expect(report.statusCode).toBe(200);
+      expect(report.json().trials).toEqual({
+        scheduled: 5,
+        completed: 4,
+        converted: 2,
+        conversionRate: 50,
+      });
+      const empty = await app.inject({
+        method: "GET",
+        url: "/reports/management?from=2032-06-01&to=2032-06-30",
+        headers: {
+          authorization: `Bearer ${app.jwt.sign({
+            sub: "22222222-2222-4222-8222-222222222222",
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            role: "owner",
+          })}`,
+        },
+      });
+      expect(empty.json().trials).toEqual({
+        scheduled: 0,
+        completed: 0,
+        converted: 0,
+        conversionRate: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    await app.close();
+  });
+
   it("schedules a trial for a lead without converting it and applies the agenda rules", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

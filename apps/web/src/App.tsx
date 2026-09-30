@@ -3151,6 +3151,29 @@ function ReportsPage() {
             </small>
           )}
         </article>
+        <article>
+          <span>Experimentais</span>
+          {report ? (
+            <>
+              <strong>
+                {report.trials.completed
+                  ? `${report.trials.conversionRate}%`
+                  : "—"}
+              </strong>
+              <small>
+                {report.trials.completed
+                  ? `${report.trials.scheduled} agendadas · ${report.trials.completed} concluídas · ${report.trials.converted} viraram plano em até 30 dias`
+                  : `${report.trials.scheduled} agendadas · nenhuma concluída no período`}
+              </small>
+            </>
+          ) : (
+            <small>
+              {loading
+                ? "Carregando experimentais…"
+                : "Não foi possível carregar as experimentais."}
+            </small>
+          )}
+        </article>
       </section>
       {loading ? (
         <LoadingBlock />

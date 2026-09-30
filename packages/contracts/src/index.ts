@@ -1420,6 +1420,18 @@ export interface ManagementReport {
     // Atendimentos do período (inclusive cancelados) por tipo.
     byVisitType: Record<AppointmentVisitType, number>;
   };
+  // Experimentais e avaliações (visitType trial/evaluation) com início no período.
+  trials: {
+    // Não canceladas (agendadas, confirmadas, concluídas ou faltas).
+    scheduled: number;
+    // Com status concluído.
+    completed: number;
+    // Concluídas cujo cliente teve plano criado entre o início do atendimento
+    // e 30 dias depois (contagem por atendimento).
+    converted: number;
+    // converted / completed em % inteiro; 0 sem concluídas.
+    conversionRate: number;
+  };
   plans: {
     active: number;
     availableSessions: number;

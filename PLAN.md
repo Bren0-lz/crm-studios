@@ -251,7 +251,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes na API e na web.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T023
-- **Status:** TODO
+- **Status:** DONE
 
 ### T026 — Declaração de comparecimento pela agenda
 - **Escopo:**

@@ -29,6 +29,11 @@ const leadConversionMarker = "postgres-lead-conversion-test";
 const leadConversionPhones = ["11900001144", "11900001155"];
 const leadConversionDay = new Date(Date.now() + 610 * 24 * 60 * 60 * 1000);
 leadConversionDay.setUTCHours(12, 0, 0, 0);
+const trialConversionMarker = "postgres-trial-conversion-test";
+const trialConversionPhones = ["11900001166", "11900001177", "11900001188"];
+// Dia exclusivo deste teste, para contar as experimentais com valores exatos.
+const trialConversionDay = new Date(Date.now() + 620 * 24 * 60 * 60 * 1000);
+trialConversionDay.setUTCHours(12, 0, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -56,6 +61,43 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query(
       "DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])",
       [clinicId, leadConversionPhones],
+    );
+  }
+
+  async function cleanupTrialConversion() {
+    const planFilter = "SELECT id FROM patient_plans WHERE clinic_id = $1 AND name = $2";
+    await pool.query(
+      `DELETE FROM financial_events WHERE receivable_id IN
+         (SELECT id FROM receivables WHERE plan_id IN (${planFilter}))`,
+      [clinicId, trialConversionMarker],
+    );
+    await pool.query(
+      `DELETE FROM session_movements WHERE plan_id IN (${planFilter})`,
+      [clinicId, trialConversionMarker],
+    );
+    await pool.query(`DELETE FROM receivables WHERE plan_id IN (${planFilter})`, [
+      clinicId,
+      trialConversionMarker,
+    ]);
+    await pool.query("DELETE FROM patient_plans WHERE clinic_id = $1 AND name = $2", [
+      clinicId,
+      trialConversionMarker,
+    ]);
+    await pool.query("DELETE FROM appointments WHERE notes = $1", [
+      trialConversionMarker,
+    ]);
+    await pool.query(
+      `DELETE FROM lead_stage_history WHERE lead_id IN
+         (SELECT id FROM leads WHERE clinic_id = $1 AND phone = ANY($2::text[]))`,
+      [clinicId, trialConversionPhones],
+    );
+    await pool.query(
+      "DELETE FROM leads WHERE clinic_id = $1 AND phone = ANY($2::text[])",
+      [clinicId, trialConversionPhones],
+    );
+    await pool.query(
+      "DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])",
+      [clinicId, trialConversionPhones],
     );
   }
 
@@ -107,6 +149,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     if (!pool) return;
     await cleanupLeadAppointments();
     await cleanupLeadConversion();
+    await cleanupTrialConversion();
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -570,6 +613,112 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       visitType: "trial",
     });
     expect(movedToExisting).not.toHaveProperty("leadId");
+  });
+
+  it("reports trial conversion by plans created within 30 days of the completed trial", async () => {
+    await cleanupTrialConversion();
+    const [professionals, rooms, services] = await Promise.all([
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const at = (hours: number) =>
+      new Date(trialConversionDay.getTime() + hours * 60 * 60 * 1000).toISOString();
+    const input = {
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      notes: trialConversionMarker,
+    };
+    const day = trialConversionDay.toISOString().slice(0, 10);
+    const createPlanAt = async (patientId: string, createdAt: string) => {
+      const plan = await repository.createPatientPlan(clinicId, ownerId, {
+        patientId,
+        serviceId: input.serviceId,
+        name: trialConversionMarker,
+        kind: "fixed_package",
+        totalSessions: 4,
+        validFrom: day,
+        totalValueInCents: 40000,
+        installments: 1,
+        firstDueDate: day,
+      });
+      await pool.query("UPDATE patient_plans SET created_at = $2 WHERE id = $1", [
+        plan.id,
+        createdAt,
+      ]);
+    };
+    const createLead = (fullName: string, phone: string) =>
+      repository.createLead(clinicId, {
+        fullName,
+        phone,
+        source: "Instagram",
+        interest: "Pilates",
+        tags: [],
+      });
+
+    // Lead convertido que contrata 2 dias depois: convertida.
+    const converted = await createLead("Experimental Convertida", trialConversionPhones[0]!);
+    const convertedTrial = await repository.createLeadAppointment(clinicId, converted.id, {
+      ...input,
+      startsAt: at(0),
+      visitType: "trial",
+    });
+    await repository.updateAppointmentStatus(clinicId, convertedTrial!.id, "completed");
+    const conversion = await repository.convertLead(clinicId, ownerId, converted.id);
+    await createPlanAt(
+      conversion!.patient.id,
+      new Date(new Date(at(0)).getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+
+    // Lead que não vira cliente: concluída, não convertida.
+    const open = await createLead("Avaliação Sem Conversão", trialConversionPhones[1]!);
+    const openEvaluation = await repository.createLeadAppointment(clinicId, open.id, {
+      ...input,
+      startsAt: at(2),
+      visitType: "evaluation",
+    });
+    await repository.updateAppointmentStatus(clinicId, openEvaluation!.id, "completed");
+
+    // Cliente que contrata depois de 40 dias: não convertida; cancelada fica de fora.
+    const client = await repository.createPatient(clinicId, {
+      fullName: "Cliente Contrata Tarde",
+      phone: trialConversionPhones[2]!,
+      tags: [],
+    });
+    const lateTrial = await repository.createAppointment(clinicId, {
+      ...input,
+      patientId: client.id,
+      startsAt: at(4),
+      visitType: "trial",
+    });
+    await repository.updateAppointmentStatus(clinicId, lateTrial.id, "completed");
+    const cancelled = await repository.createAppointment(clinicId, {
+      ...input,
+      patientId: client.id,
+      startsAt: at(6),
+      visitType: "trial",
+    });
+    await repository.updateAppointmentStatus(clinicId, cancelled.id, "cancelled");
+    await createPlanAt(
+      client.id,
+      new Date(new Date(at(4)).getTime() + 40 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+
+    const reportDay = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(trialConversionDay);
+    const report = await new PostgresClinicRepository(pool).getManagementReport(
+      clinicId,
+      reportDay,
+      reportDay,
+    );
+    expect(report.trials).toEqual({
+      scheduled: 3,
+      completed: 3,
+      converted: 1,
+      conversionRate: 33,
+    });
   });
 
   it("reconciles PostgreSQL sales, cancellation, payment and reversal movements", async () => {

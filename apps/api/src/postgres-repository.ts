@@ -6854,7 +6854,12 @@ export class PostgresClinicRepository implements ClinicRepository {
       sourceResult,
     ] = await Promise.all([
       this.pool.query<
-        AppointmentAggregate & Record<AppointmentVisitType, number>
+        AppointmentAggregate &
+          Record<AppointmentVisitType, number> & {
+            trialsScheduled: number;
+            trialsCompleted: number;
+            trialsConverted: number;
+          }
       >(
         `SELECT COUNT(*)::int AS total,
                 COUNT(*) FILTER (WHERE a.status = 'completed')::int AS completed,
@@ -6862,7 +6867,19 @@ export class PostgresClinicRepository implements ClinicRepository {
                 COUNT(*) FILTER (WHERE a.status = 'cancelled')::int AS cancelled,
                 COUNT(*) FILTER (WHERE a.visit_type = 'regular')::int AS regular,
                 COUNT(*) FILTER (WHERE a.visit_type = 'trial')::int AS trial,
-                COUNT(*) FILTER (WHERE a.visit_type = 'evaluation')::int AS evaluation
+                COUNT(*) FILTER (WHERE a.visit_type = 'evaluation')::int AS evaluation,
+                COUNT(*) FILTER (WHERE a.visit_type IN ('trial', 'evaluation')
+                  AND a.status <> 'cancelled')::int AS "trialsScheduled",
+                COUNT(*) FILTER (WHERE a.visit_type IN ('trial', 'evaluation')
+                  AND a.status = 'completed')::int AS "trialsCompleted",
+                COALESCE(SUM(CASE WHEN a.visit_type IN ('trial', 'evaluation')
+                  AND a.status = 'completed' AND a.patient_id IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1 FROM patient_plans pp
+                    WHERE pp.clinic_id = a.clinic_id AND pp.patient_id = a.patient_id
+                      AND pp.created_at >= a.starts_at
+                      AND pp.created_at <= a.starts_at + interval '30 days'
+                  ) THEN 1 ELSE 0 END), 0)::int AS "trialsConverted"
          FROM appointments a WHERE a.clinic_id = $1 AND ${dateFilter}`,
         [clinicId, from, to],
       ),
@@ -7094,6 +7111,16 @@ export class PostgresClinicRepository implements ClinicRepository {
           trial: appointment.trial,
           evaluation: appointment.evaluation,
         },
+      },
+      trials: {
+        scheduled: appointment.trialsScheduled,
+        completed: appointment.trialsCompleted,
+        converted: appointment.trialsConverted,
+        conversionRate: appointment.trialsCompleted
+          ? Math.round(
+              (appointment.trialsConverted / appointment.trialsCompleted) * 100,
+            )
+          : 0,
       },
       plans: {
         ...plan,

@@ -4775,6 +4775,25 @@ export class MemoryClinicRepository implements ClinicRepository {
       (sum, item) => sum + item.capacity,
       0,
     );
+    const trialAppointments = appointments.filter(
+      (item) =>
+        (item.visitType === "trial" || item.visitType === "evaluation") &&
+        item.status !== "cancelled",
+    );
+    const completedTrials = trialAppointments.filter(
+      (item) => item.status === "completed",
+    );
+    const convertedTrials = completedTrials.filter((item) => {
+      if (!item.patientId) return false;
+      const start = new Date(item.startsAt).getTime();
+      const limit = start + 30 * 24 * 60 * 60 * 1000;
+      return this.patientPlans.some((plan) => {
+        if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
+          return false;
+        const createdAt = new Date(plan.createdAt).getTime();
+        return createdAt >= start && createdAt <= limit;
+      });
+    }).length;
     return {
       from,
       to,
@@ -4795,6 +4814,14 @@ export class MemoryClinicRepository implements ClinicRepository {
             (item) => item.visitType === "evaluation",
           ).length,
         },
+      },
+      trials: {
+        scheduled: trialAppointments.length,
+        completed: completedTrials.length,
+        converted: convertedTrials,
+        conversionRate: completedTrials.length
+          ? Math.round((convertedTrials / completedTrials.length) * 100)
+          : 0,
       },
       plans: {
         active: activePlans.length,

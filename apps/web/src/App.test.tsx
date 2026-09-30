@@ -1272,6 +1272,76 @@ describe("application shell", () => {
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction?from=2026-01-01&to=2026-01-31"))).toBe(true);
   });
 
+  it("shows the trials card with the conversion of the filtered period", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    const report = (trials: { scheduled: number; completed: number; converted: number; conversionRate: number }) => ({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      generatedAt: "2026-01-31T12:00:00.000Z",
+      appointments: { total: 0, completed: 0, noShows: 0, cancelled: 0, attendanceRate: 0, byVisitType: { regular: 0, trial: 0, evaluation: 0 } },
+      trials,
+      plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
+      finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 0 },
+      commercial: { leadsCreated: 0, won: 0, lost: 0, conversionRate: 0, averageFirstResponseMinutes: 0 },
+      byProfessional: [],
+      byService: [],
+      bySource: [],
+      profitability: {
+        dre: { serviceRevenueInCents: 0, productRevenueInCents: 0, grossRevenueInCents: 0, productCostInCents: 0, grossProfitInCents: 0, operatingExpensesInCents: 0, commissionsInCents: 0, netResultInCents: 0, netMargin: 0 },
+        byService: [],
+        byProduct: [],
+        operational: { groupOccupancyRate: 0, activeGroupSeats: 0, totalGroupCapacity: 0, waitlistCount: 0, lowStockCount: 0, productUnitsSold: 0, averageReceiptInCents: 0 },
+      },
+    });
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/reports/management?from=2026-01-01")) {
+        return { ok: true, status: 200, json: async () => report({ scheduled: 2, completed: 0, converted: 0, conversionRate: 0 }) } as Response;
+      }
+      if (url.includes("/reports/management?")) {
+        return { ok: true, status: 200, json: async () => report({ scheduled: 6, completed: 4, converted: 3, conversionRate: 75 }) } as Response;
+      }
+      return { ok: false, status: 503, json: async () => ({ message: "Dados indisponíveis" }) } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
+    expect(
+      await screen.findByText("6 agendadas · 4 concluídas · 3 viraram plano em até 30 dias"),
+    ).toBeInTheDocument();
+    const card = screen.getByText("Experimentais").closest("article") as HTMLElement;
+    expect(within(card).getByText("75%")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-01-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    expect(
+      await screen.findByText("2 agendadas · nenhuma concluída no período"),
+    ).toBeInTheDocument();
+    const updated = screen.getByText("Experimentais").closest("article") as HTMLElement;
+    expect(within(updated).getByText("—")).toBeInTheDocument();
+  });
+
+  it("tells when the trials card could not be loaded", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Mariana Costa",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    vi.mocked(fetch).mockImplementation(async () =>
+      ({ ok: false, status: 503, json: async () => ({ message: "Dados indisponíveis" }) }) as Response,
+    );
+    render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
+    expect(
+      await screen.findByText("Não foi possível carregar as experimentais."),
+    ).toBeInTheDocument();
+  });
+
   it("previews a patient spreadsheet, imports the same file and reloads the list", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
