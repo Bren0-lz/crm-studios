@@ -1,6 +1,6 @@
 # Estado do loop
 
-- **Tarefa atual:** V1
+- **Tarefa atual:** D05
 - **Última concluída:** D04
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
@@ -36,3 +36,4 @@
 - 2026-09-30 D02 DONE (verifier PASS na 2ª verificação; a 1ª travou por timeout do agente, não conta como tentativa). Tokens `--space-1..8` (4–64px) e `--radius-sm/md/lg` (8/12/18) em :root; valores fora da escala via `calc()` (ex. panel-head 21/23px). `.secondary-button` inline-flex + gap; `.table-row > * { min-width: 0; overflow-wrap: anywhere }` (conferir tabelas na V1).
 - 2026-09-30 D03 DONE (verifier PASS; detecção testada com casos sintéticos). audit-panels agora também reprova grid de 2+ colunas sem regra em @media (max-width ≤ 760px); anotação `/* audit: mobile-ok <motivo> */` isenta (21 usos). 57 apontamentos: 32 corrigidos em novo bloco @media 700px, 25 anotados. Lista de clientes vira cartões em ≤700px. Conferir na V1 (390px): lista de clientes, `.profit-rows`, `.group-overview`, `.patient-timeline-item`. D04 deve documentar a anotação `mobile-ok`.
 - 2026-09-30 D04 DONE (verifier PASS, exit 0). CLAUDE.md ganhou "Design de páginas" (estrutura, tokens, celular ≤700px + mobile-ok, estados, tabelas à direita, reaproveitar classes); verifier.md reprova interface que viole essas regras. Bloco de design D01–D04 concluído; próxima é V1 (manual).
+- 2026-09-30 V1 (revisão no Chrome do notebook, 1536px + iframe 390px): nenhuma tela com rolagem horizontal no celular; lista de clientes vira cartões (ok); ícone do "Importar" ok (flex + gap 8px); textos corrigidos na D01 ok. Problemas → nova tarefa D05: login com texto sobreposto (`.story-note span` vira ponto de 7px), `.dashboard-sales` colado no `.metric-grid`, `.sales-metrics`/`.sales-details` encostando na borda do painel (1px), respiro duplicado no `.panel-head` de `.admin-grid > .panel`. V1 passa a depender da D05. Obs. funcional: "Vendido líquido" negativo (−R$ 7.284,00) no demo por cancelamentos — não é layout.

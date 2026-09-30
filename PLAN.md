@@ -8,7 +8,7 @@ dia, previsão de receitas, exportação da base de clientes, relatórios de ret
 faixa etária, e comunicado segmentado na fila de mensagens.
 
 ## Definição de pronto (global)
-- D01–D04 e T019–T041 `DONE`, cada uma com commit próprio.
+- D01–D05 e T019–T041 `DONE`, cada uma com commit próprio.
 - V1–V3 revisadas pelo dono.
 - `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs`
   retorna 0 na `main`.
@@ -129,13 +129,38 @@ vem primeiro. A próxima migração livre é a **0031**.
 - **Depende de:** D03
 - **Status:** DONE
 
+### D05 — Correções da revisão V1
+- **Escopo:** corrigir em `apps/web/src/styles.css` os problemas encontrados na revisão visual de
+  2026-09-30 (Chrome do notebook, 1536px e iframe de 390px):
+  1. **Login: texto sobreposto.** `.story-note span` transforma cada `<span>` num ponto de 7px,
+     então "Ambiente de demonstração" e "Dados fictícios" vazam e se sobrepõem. O ponto deve vir
+     de um `::before` em cada `span`, e o texto fica legível ao lado.
+  2. **Visão geral: painel colado nas métricas.** O painel "Vendas e retorno dos clientes"
+     (`.dashboard-sales`) encosta no grid de métricas de cima (`.metric-grid`), sem espaço entre
+     os dois. Acrescentar espaçamento coerente com os outros blocos (`--space-5`).
+  3. **Cartões encostando na borda do painel.** `.sales-metrics` (no painel inicial e no
+     relatório de vendas) e `.sales-details`/`.report-disclosure` dentro de `.sales-report`
+     encostam nas bordas esquerda, direita e inferior do painel (distância de 1px). Dar respiro
+     lateral e inferior de ~23px, como nos demais filhos de painel.
+  4. **Configurações (owner): respiro duplicado.** Em `.admin-grid > .panel`, o `.panel-head`
+     recebe o padding de 20px do painel e mais os 23px próprios, e a linha inferior do cabeçalho
+     não chega às bordas. O cabeçalho deve ocupar a largura toda do painel, como nos outros
+     painéis (margem negativa ou padding do painel aplicado só aos demais filhos).
+  5. **Ampliar o `audit-panels.cjs`** para detectar o caso 3: um filho direto de `.panel` que
+     tem borda, fundo ou sombra próprios (cartão ou bloco com caixa) e fica a menos de 8px da
+     borda do painel, sem regra de espaçamento lateral no CSS. A verificação antiga continua
+     idêntica. O script deve apontar o caso 3 antes da correção e passar depois.
+- **Gate:** `node apps/web/scripts/audit-panels.cjs && npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D04
+- **Status:** TODO
+
 ### V1 — Revisão visual do design (manual)
 - **Tipo:** manual
 - **Escopo:** o orquestrador ou o dono abre o app (`npm run dev`) em 1440px e 390px: painel,
   Contatos sugeridos, Clientes, Relatórios e Configurações. Compara com a auditoria e cria tarefas
   de correção se precisar. A revisão só é marcada `DONE` quando o dono aprovar.
 - **Gate:** aprovação do dono no chat.
-- **Depende de:** D04
+- **Depende de:** D05
 - **Status:** TODO
 
 ### T019 — Feriados na API
