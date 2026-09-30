@@ -79,7 +79,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   com o motivo.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### D02 — Escala de espaçamento e botões com ícone
 - **Escopo:** em `apps/web/src/styles.css`:

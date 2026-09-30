@@ -1033,6 +1033,7 @@ textarea:focus {
 .filter-group select { min-width: 190px; min-height: 38px; font-size: 12px; }
 .filter-label { color: #4d5b55; font-size: 11px; font-weight: 800; }
 .filter-tags { flex: 1 1 100%; }
+.plans-panel > .filter-tags { padding: 16px 23px 0; }
 
 .segmented { display: inline-flex; padding: 3px; border: 1px solid #dcd9d0; border-radius: 11px; background: white; }
 .segmented button {
@@ -1522,13 +1523,13 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .sales-period {
-  margin: 0 0 16px;
+  margin: 0 23px 16px;
   color: #63766d;
   font-size: 13px;
 }
 
 .dashboard-sales-context {
-  margin: 0 0 14px;
+  margin: 0 23px 14px;
   color: #63766d;
   font-size: 13px;
 }
@@ -1567,7 +1568,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .sales-help {
-  margin: 14px 0 0;
+  margin: 14px 23px 0;
   color: #63766d;
   font-size: 13px;
   line-height: 1.5;
@@ -2399,6 +2400,23 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 .admin-grid > .panel {
   padding: 20px;
+}
+
+.admin-relationship > .muted-copy,
+.admin-relationship > .clinical-form {
+  margin-right: 23px;
+  margin-left: 23px;
+}
+
+.admin-relationship > .clinical-form {
+  margin-bottom: 23px;
+}
+
+.admin-grid > .admin-relationship > .muted-copy,
+.admin-grid > .admin-relationship > .clinical-form {
+  margin-right: 0;
+  margin-left: 0;
+  margin-bottom: 0;
 }
 
 .groups-layout {
@@ -3715,6 +3733,11 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.dre-card > .dre-lines,
+.profit-table > .profit-rows {
+  padding: 0 23px 18px;
 }
 
 .dre-lines .dre-total {
