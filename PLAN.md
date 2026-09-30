@@ -289,7 +289,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes: idempotência, recuperação de meses perdidos, pausa e encerramento.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DONE
 
 ### T029 — Despesas fixas recorrentes na interface
 - **Escopo:** seção "Despesas fixas" em Financeiro › Contas a pagar, para listar, criar, pausar e

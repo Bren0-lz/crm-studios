@@ -2295,6 +2295,276 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app } = await authenticatedApp();
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headersAs = (role: UserRole = "owner") => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const at = (iso: string) => vi.setSystemTime(new Date(iso));
+      let workspace = await app.inject({
+        method: "GET",
+        url: "/finance/workspace",
+        headers: headersAs(),
+      });
+      const category = workspace
+        .json()
+        .categories.find((item: { kind: string }) => item.kind === "expense");
+      const income = workspace
+        .json()
+        .categories.find((item: { kind: string }) => item.kind === "income");
+      const costCenter = workspace.json().costCenters[0];
+      const base = {
+        description: "Aluguel da sala",
+        supplier: "Imobiliária Centro",
+        categoryId: category.id,
+        costCenterId: costCenter.id,
+        amountInCents: 250_000,
+        dayOfMonth: 5,
+        startMonth: "2026-07",
+      };
+
+      const denied = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers: headersAs("reception"),
+        payload: base,
+      });
+      expect(denied.statusCode).toBe(403);
+      for (const invalid of [
+        { ...base, dayOfMonth: 29 },
+        { ...base, dayOfMonth: 0 },
+        { ...base, startMonth: "2026-13" },
+        { ...base, endMonth: "2026-06" },
+      ]) {
+        const response = await app.inject({
+          method: "POST",
+          url: "/finance/recurring-payables",
+          headers: headersAs(),
+          payload: invalid,
+        });
+        expect(response.statusCode).toBe(400);
+      }
+      if (income) {
+        const wrongKind = await app.inject({
+          method: "POST",
+          url: "/finance/recurring-payables",
+          headers: headersAs(),
+          payload: { ...base, categoryId: income.id },
+        });
+        expect(wrongKind.statusCode).toBe(404);
+        expect(wrongKind.json().code).toBe("FINANCIAL_CLASSIFICATION_NOT_FOUND");
+      }
+
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers: headersAs(),
+        payload: base,
+      });
+      expect(created.statusCode).toBe(201);
+      const model = created.json() as { id: string };
+      expect(created.json()).toMatchObject({
+        description: "Aluguel da sala",
+        supplier: "Imobiliária Centro",
+        categoryName: category.name,
+        costCenterName: costCenter.name,
+        amountInCents: 250_000,
+        dayOfMonth: 5,
+        startMonth: "2026-07",
+        active: true,
+      });
+      expect(created.json().endMonth).toBeUndefined();
+
+      const generated = async () => {
+        workspace = await app.inject({
+          method: "GET",
+          url: "/finance/workspace",
+          headers: headersAs(),
+        });
+        expect(workspace.statusCode).toBe(200);
+        return (
+          workspace.json().payables as {
+            recurringPayableId?: string;
+            competence?: string;
+            dueDate: string;
+            amountInCents: number;
+            status: string;
+          }[]
+        )
+          .filter((item) => item.recurringPayableId === model.id)
+          .sort((a, b) => a.competence!.localeCompare(b.competence!));
+      };
+
+      // Abrir o financeiro gera do mês inicial até o mês atual.
+      let payables = await generated();
+      expect(payables.map((item) => item.competence)).toEqual([
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+      ]);
+      expect(payables.map((item) => item.dueDate)).toEqual([
+        "2026-07-05",
+        "2026-08-05",
+        "2026-09-05",
+        "2026-10-05",
+      ]);
+      expect(payables[0]).toMatchObject({
+        amountInCents: 250_000,
+        status: "open",
+        description: "Aluguel da sala",
+        supplier: "Imobiliária Centro",
+        categoryId: category.id,
+        costCenterId: costCenter.id,
+      });
+
+      // Idempotente: abrir de novo não duplica.
+      expect(await generated()).toHaveLength(4);
+      const listed = await app.inject({
+        method: "GET",
+        url: "/finance/recurring-payables",
+        headers: headersAs(),
+      });
+      expect(listed.statusCode).toBe(200);
+      expect(listed.json()).toEqual([
+        expect.objectContaining({ id: model.id, lastCompetence: "2026-10" }),
+      ]);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/recurring-payables",
+            headers: headersAs("reception"),
+          })
+        ).statusCode,
+      ).toBe(403);
+
+      // Meses sem abrir o financeiro são recuperados uma vez.
+      at("2027-01-15T15:00:00.000Z");
+      payables = await generated();
+      expect(payables.map((item) => item.competence)).toEqual([
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12",
+        "2027-01",
+      ]);
+      expect(payables.at(-1)!.dueDate).toBe("2027-01-05");
+      expect(await generated()).toHaveLength(7);
+
+      // Pausa: nada é gerado; ao reativar, só a partir do mês da reativação.
+      const paused = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers: headersAs(),
+        payload: { ...base, active: false },
+      });
+      expect(paused.statusCode).toBe(200);
+      expect(paused.json().active).toBe(false);
+      at("2027-03-10T15:00:00.000Z");
+      expect(await generated()).toHaveLength(7);
+      at("2027-04-10T15:00:00.000Z");
+      const resumed = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers: headersAs(),
+        payload: { ...base, amountInCents: 260_000, active: true },
+      });
+      expect(resumed.json()).toMatchObject({
+        active: true,
+        resumedFromMonth: "2027-04",
+        amountInCents: 260_000,
+      });
+      payables = await generated();
+      expect(payables.map((item) => item.competence).slice(-2)).toEqual([
+        "2027-01",
+        "2027-04",
+      ]);
+      expect(payables.at(-1)!.amountInCents).toBe(260_000);
+      expect(payables[0]!.amountInCents).toBe(250_000);
+
+      // Encerramento: nada depois do mês final.
+      const ended = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers: headersAs(),
+        payload: { ...base, amountInCents: 260_000, endMonth: "2027-05" },
+      });
+      expect(ended.json()).toMatchObject({
+        endMonth: "2027-05",
+        resumedFromMonth: "2027-04",
+      });
+      at("2027-08-20T15:00:00.000Z");
+      payables = await generated();
+      expect(payables.map((item) => item.competence).slice(-3)).toEqual([
+        "2027-01",
+        "2027-04",
+        "2027-05",
+      ]);
+      expect(payables).toHaveLength(9);
+      expect(await generated()).toHaveLength(9);
+
+      const inUse = await app.inject({
+        method: "DELETE",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers: headersAs(),
+      });
+      expect(inUse.statusCode).toBe(409);
+      expect(inUse.json().code).toBe("RECURRING_PAYABLE_IN_USE");
+
+      // Modelo futuro ainda não gera nada e pode ser excluído.
+      const future = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers: headersAs(),
+        payload: { ...base, description: "Internet", startMonth: "2027-09" },
+      });
+      expect(future.statusCode).toBe(201);
+      await generated();
+      expect(
+        workspace
+          .json()
+          .payables.some(
+            (item: { recurringPayableId?: string }) =>
+              item.recurringPayableId === future.json().id,
+          ),
+      ).toBe(false);
+      const removed = await app.inject({
+        method: "DELETE",
+        url: `/finance/recurring-payables/${future.json().id}`,
+        headers: headersAs(),
+      });
+      expect(removed.statusCode).toBe(204);
+      const missing = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${future.json().id}`,
+        headers: headersAs(),
+        payload: base,
+      });
+      expect(missing.statusCode).toBe(404);
+      expect(missing.json().code).toBe("RECURRING_PAYABLE_NOT_FOUND");
+      expect(
+        (
+          await app.inject({
+            method: "DELETE",
+            url: `/finance/recurring-payables/${future.json().id}`,
+            headers: headersAs(),
+          })
+        ).statusCode,
+      ).toBe(404);
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("builds a protected longitudinal clinical record", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

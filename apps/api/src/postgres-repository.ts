@@ -92,6 +92,8 @@ import type {
   Product,
   ProductInput,
   RecurringAppointmentInput,
+  RecurringPayable,
+  RecurringPayableInput,
   RoomInput,
   ScheduleBlock,
   ScheduleBlockInput,
@@ -123,6 +125,8 @@ import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  recurringPayableCompetences,
+  recurringPayableDueDate,
   saoPauloToday,
 } from "@crm/contracts";
 import {
@@ -605,6 +609,28 @@ interface PayableRow {
   overdue: boolean;
   createdAt: Date;
   updatedAt: Date;
+  recurringPayableId: string | null;
+  competence: string | null;
+}
+
+interface RecurringPayableRow {
+  id: string;
+  clinicId: string;
+  description: string;
+  supplier: string | null;
+  categoryId: string;
+  costCenterId: string;
+  categoryName: string;
+  costCenterName: string;
+  amountInCents: number;
+  dayOfMonth: number;
+  startMonth: string;
+  endMonth: string | null;
+  active: boolean;
+  resumedFromMonth: string | null;
+  lastCompetence: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface CommissionRuleRow {
@@ -858,7 +884,20 @@ const payableColumns = `
   py.notes, py.status, py.payment_method AS "paymentMethod",
   py.paid_at AS "paidAt",
   (py.status = 'open' AND py.due_date < CURRENT_DATE) AS overdue,
-  py.created_at AS "createdAt", py.updated_at AS "updatedAt"
+  py.created_at AS "createdAt", py.updated_at AS "updatedAt",
+  py.recurring_payable_id AS "recurringPayableId", py.competence
+`;
+
+const recurringPayableColumns = `
+  rp.id, rp.clinic_id AS "clinicId", rp.description, rp.supplier,
+  rp.category_id AS "categoryId", rp.cost_center_id AS "costCenterId",
+  fc.name AS "categoryName", cc.name AS "costCenterName",
+  rp.amount_in_cents AS "amountInCents", rp.day_of_month::int AS "dayOfMonth",
+  rp.start_month AS "startMonth", rp.end_month AS "endMonth", rp.active,
+  rp.resumed_from_month AS "resumedFromMonth",
+  (SELECT max(py.competence) FROM payables py
+    WHERE py.clinic_id = rp.clinic_id AND py.recurring_payable_id = rp.id) AS "lastCompetence",
+  rp.created_at AS "createdAt", rp.updated_at AS "updatedAt"
 `;
 
 const leadColumns = `
@@ -1409,6 +1448,32 @@ function mapPayable(row: PayableRow): Payable {
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
     overdue: row.overdue,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    ...(row.recurringPayableId
+      ? { recurringPayableId: row.recurringPayableId }
+      : {}),
+    ...(row.competence ? { competence: row.competence } : {}),
+  };
+}
+
+function mapRecurringPayable(row: RecurringPayableRow): RecurringPayable {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    description: row.description,
+    ...(row.supplier ? { supplier: row.supplier } : {}),
+    categoryId: row.categoryId,
+    costCenterId: row.costCenterId,
+    categoryName: row.categoryName,
+    costCenterName: row.costCenterName,
+    amountInCents: row.amountInCents,
+    dayOfMonth: row.dayOfMonth,
+    startMonth: row.startMonth,
+    ...(row.endMonth ? { endMonth: row.endMonth } : {}),
+    active: row.active,
+    ...(row.resumedFromMonth ? { resumedFromMonth: row.resumedFromMonth } : {}),
+    ...(row.lastCompetence ? { lastCompetence: row.lastCompetence } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -5685,6 +5750,268 @@ export class PostgresClinicRepository implements ClinicRepository {
       payableId,
       "payment_reversal",
     );
+  }
+
+  async listRecurringPayables(clinicId: string) {
+    const result = await this.pool.query<RecurringPayableRow>(
+      `SELECT ${recurringPayableColumns} FROM recurring_payables rp
+       JOIN financial_categories fc ON fc.id = rp.category_id
+       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       WHERE rp.clinic_id = $1 ORDER BY rp.description, rp.created_at`,
+      [clinicId],
+    );
+    return result.rows.map(mapRecurringPayable);
+  }
+
+  async createRecurringPayable(
+    clinicId: string,
+    actorUserId: string,
+    input: RecurringPayableInput,
+  ) {
+    const inserted = await this.pool.query<{ id: string }>(
+      `INSERT INTO recurring_payables
+         (clinic_id, description, supplier, category_id, cost_center_id,
+          amount_in_cents, day_of_month, start_month, end_month, active,
+          created_by_user_id)
+       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11
+       FROM financial_categories fc, cost_centers cc
+       WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
+         AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
+       RETURNING id`,
+      [
+        clinicId,
+        input.description,
+        input.supplier || null,
+        input.categoryId,
+        input.costCenterId,
+        input.amountInCents,
+        input.dayOfMonth,
+        input.startMonth,
+        input.endMonth ?? null,
+        input.active,
+        actorUserId,
+      ],
+    );
+    if (!inserted.rows[0])
+      throw new DomainError(
+        "FINANCIAL_CLASSIFICATION_NOT_FOUND",
+        "Categoria de despesa ou centro de custo não encontrado.",
+        404,
+      );
+    return (await this.findRecurringPayable(
+      this.pool,
+      clinicId,
+      inserted.rows[0].id,
+    ))!;
+  }
+
+  async updateRecurringPayable(
+    clinicId: string,
+    _actorUserId: string,
+    recurringPayableId: string,
+    input: RecurringPayableInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      const current = await client.query<{
+        active: boolean;
+        categoryId: string;
+        costCenterId: string;
+      }>(
+        `SELECT active, category_id AS "categoryId", cost_center_id AS "costCenterId"
+         FROM recurring_payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+        [clinicId, recurringPayableId],
+      );
+      const model = current.rows[0];
+      if (!model) return null;
+      if (
+        model.categoryId !== input.categoryId ||
+        model.costCenterId !== input.costCenterId
+      ) {
+        const valid = await client.query(
+          `SELECT 1 FROM financial_categories fc, cost_centers cc
+           WHERE fc.clinic_id = $1 AND fc.id = $2 AND fc.kind = 'expense' AND fc.active
+             AND cc.clinic_id = $1 AND cc.id = $3 AND cc.active`,
+          [clinicId, input.categoryId, input.costCenterId],
+        );
+        if (!valid.rowCount)
+          throw new DomainError(
+            "FINANCIAL_CLASSIFICATION_NOT_FOUND",
+            "Categoria de despesa ou centro de custo não encontrado.",
+            404,
+          );
+      }
+      await client.query(
+        `UPDATE recurring_payables
+         SET description = $3, supplier = $4, category_id = $5, cost_center_id = $6,
+             amount_in_cents = $7, day_of_month = $8, start_month = $9, end_month = $10,
+             resumed_from_month = CASE WHEN $11 AND NOT active THEN $12 ELSE resumed_from_month END,
+             active = $11, updated_at = now()
+         WHERE clinic_id = $1 AND id = $2`,
+        [
+          clinicId,
+          recurringPayableId,
+          input.description,
+          input.supplier || null,
+          input.categoryId,
+          input.costCenterId,
+          input.amountInCents,
+          input.dayOfMonth,
+          input.startMonth,
+          input.endMonth ?? null,
+          input.active,
+          saoPauloToday().slice(0, 7),
+        ],
+      );
+      return this.findRecurringPayable(client, clinicId, recurringPayableId);
+    });
+  }
+
+  async deleteRecurringPayable(clinicId: string, recurringPayableId: string) {
+    return this.inTransaction(async (client) => {
+      const current = await client.query(
+        "SELECT 1 FROM recurring_payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+        [clinicId, recurringPayableId],
+      );
+      if (!current.rowCount) return false;
+      const used = await client.query(
+        "SELECT 1 FROM payables WHERE clinic_id = $1 AND recurring_payable_id = $2 LIMIT 1",
+        [clinicId, recurringPayableId],
+      );
+      if (used.rowCount)
+        throw new DomainError(
+          "RECURRING_PAYABLE_IN_USE",
+          "Esta despesa fixa já gerou contas a pagar. Pause ou encerre em vez de excluir.",
+          409,
+        );
+      await client.query(
+        "DELETE FROM recurring_payables WHERE clinic_id = $1 AND id = $2",
+        [clinicId, recurringPayableId],
+      );
+      return true;
+    });
+  }
+
+  async generateDueRecurringPayables(clinicId: string, actorUserId: string) {
+    const currentMonth = saoPauloToday().slice(0, 7);
+    // Leitura sem trava para achar só os modelos com competência pendente; a
+    // gravação relê o modelo travado e o índice único impede duplicar a competência.
+    const models = await this.pool.query<{
+      id: string;
+      startMonth: string;
+      endMonth: string | null;
+      resumedFromMonth: string | null;
+      active: boolean;
+      generated: string[];
+    }>(
+      `SELECT rp.id, rp.start_month AS "startMonth", rp.end_month AS "endMonth",
+              rp.resumed_from_month AS "resumedFromMonth", rp.active,
+              COALESCE((SELECT array_agg(py.competence) FROM payables py
+                        WHERE py.clinic_id = rp.clinic_id
+                          AND py.recurring_payable_id = rp.id), '{}') AS generated
+       FROM recurring_payables rp
+       WHERE rp.clinic_id = $1 AND rp.active AND rp.start_month <= $2`,
+      [clinicId, currentMonth],
+    );
+    let created = 0;
+    for (const row of models.rows) {
+      const pending = recurringPayableCompetences(
+        {
+          startMonth: row.startMonth,
+          endMonth: row.endMonth ?? undefined,
+          resumedFromMonth: row.resumedFromMonth ?? undefined,
+          active: row.active,
+        },
+        currentMonth,
+      ).filter((competence) => !row.generated.includes(competence));
+      if (!pending.length) continue;
+      created += await this.inTransaction(async (client) => {
+        const locked = await client.query<{
+          description: string;
+          supplier: string | null;
+          categoryId: string;
+          costCenterId: string;
+          amountInCents: number;
+          dayOfMonth: number;
+          startMonth: string;
+          endMonth: string | null;
+          resumedFromMonth: string | null;
+          active: boolean;
+        }>(
+          `SELECT description, supplier, category_id AS "categoryId",
+                  cost_center_id AS "costCenterId", amount_in_cents AS "amountInCents",
+                  day_of_month::int AS "dayOfMonth", start_month AS "startMonth",
+                  end_month AS "endMonth", resumed_from_month AS "resumedFromMonth", active
+           FROM recurring_payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          [clinicId, row.id],
+        );
+        const model = locked.rows[0];
+        if (!model) return 0;
+        let inserted = 0;
+        for (const competence of recurringPayableCompetences(
+          {
+            startMonth: model.startMonth,
+            endMonth: model.endMonth ?? undefined,
+            resumedFromMonth: model.resumedFromMonth ?? undefined,
+            active: model.active,
+          },
+          currentMonth,
+        )) {
+          const payable = await client.query<{ id: string }>(
+            `INSERT INTO payables
+               (clinic_id, description, supplier, category_id, cost_center_id,
+                due_date, amount_in_cents, created_by_user_id,
+                recurring_payable_id, competence)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             ON CONFLICT (recurring_payable_id, competence)
+               WHERE recurring_payable_id IS NOT NULL DO NOTHING
+             RETURNING id`,
+            [
+              clinicId,
+              model.description,
+              model.supplier,
+              model.categoryId,
+              model.costCenterId,
+              recurringPayableDueDate(competence, model.dayOfMonth),
+              model.amountInCents,
+              actorUserId,
+              row.id,
+              competence,
+            ],
+          );
+          if (!payable.rows[0]) continue;
+          await client.query(
+            `INSERT INTO payable_events
+               (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata)
+             VALUES ($1,$2,$3,'created',$4,$5)`,
+            [
+              clinicId,
+              payable.rows[0].id,
+              actorUserId,
+              model.amountInCents,
+              JSON.stringify({ recurringPayableId: row.id, competence }),
+            ],
+          );
+          inserted += 1;
+        }
+        return inserted;
+      });
+    }
+    return created;
+  }
+
+  private async findRecurringPayable(
+    client: Pool | PoolClient,
+    clinicId: string,
+    recurringPayableId: string,
+  ) {
+    const result = await client.query<RecurringPayableRow>(
+      `SELECT ${recurringPayableColumns} FROM recurring_payables rp
+       JOIN financial_categories fc ON fc.id = rp.category_id
+       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       WHERE rp.clinic_id = $1 AND rp.id = $2`,
+      [clinicId, recurringPayableId],
+    );
+    return result.rows[0] ? mapRecurringPayable(result.rows[0]) : null;
   }
 
   async renegotiateReceivables(

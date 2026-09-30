@@ -84,6 +84,8 @@ import type {
   PaymentReceipt,
   PlanRenewalInput,
   PlanStatus,
+  RecurringPayable,
+  RecurringPayableInput,
   Professional,
   ProfessionalInput,
   Product,
@@ -514,6 +516,29 @@ export interface ClinicRepository {
     actorUserId: string,
     payableId: string,
   ): Promise<Payable | null>;
+  listRecurringPayables(clinicId: string): Promise<RecurringPayable[]>;
+  createRecurringPayable(
+    clinicId: string,
+    actorUserId: string,
+    input: RecurringPayableInput,
+  ): Promise<RecurringPayable>;
+  /** Substitui os dados do modelo; reativar marca o mês atual como retomada. */
+  updateRecurringPayable(
+    clinicId: string,
+    actorUserId: string,
+    recurringPayableId: string,
+    input: RecurringPayableInput,
+  ): Promise<RecurringPayable | null>;
+  /** Exclui um modelo que ainda não gerou contas a pagar. */
+  deleteRecurringPayable(
+    clinicId: string,
+    recurringPayableId: string,
+  ): Promise<boolean>;
+  /** Gera, uma única vez, as contas a pagar das competências devidas até o mês atual. */
+  generateDueRecurringPayables(
+    clinicId: string,
+    actorUserId: string,
+  ): Promise<number>;
   renegotiateReceivables(
     clinicId: string,
     actorUserId: string,

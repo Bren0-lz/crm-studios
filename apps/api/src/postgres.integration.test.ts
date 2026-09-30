@@ -40,10 +40,28 @@ const documentAppointmentCpf = "98765432107";
 const documentAppointmentDay = new Date(Date.now() + 630 * 24 * 60 * 60 * 1000);
 documentAppointmentDay.setUTCHours(13, 30, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
+const recurringPayableMarker = "postgres-recurring-payable-test";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
+
+  async function cleanupRecurringPayables() {
+    const models = `SELECT id FROM recurring_payables WHERE clinic_id = $1 AND description = $2`;
+    await pool.query(
+      `DELETE FROM payable_events WHERE payable_id IN
+       (SELECT id FROM payables WHERE recurring_payable_id IN (${models}))`,
+      [clinicId, recurringPayableMarker],
+    );
+    await pool.query(`DELETE FROM payables WHERE recurring_payable_id IN (${models})`, [
+      clinicId,
+      recurringPayableMarker,
+    ]);
+    await pool.query("DELETE FROM recurring_payables WHERE clinic_id = $1 AND description = $2", [
+      clinicId,
+      recurringPayableMarker,
+    ]);
+  }
 
   async function cleanupLeadConversion() {
     await pool.query(
@@ -180,6 +198,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupLeadConversion();
     await cleanupTrialConversion();
     await cleanupDocumentAppointment();
+    await cleanupRecurringPayables();
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -1413,6 +1432,125 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "DELETE FROM patients WHERE clinic_id = $1 AND (phone = ANY($2::text[]) OR cpf = $3)",
         [clinicId, phones, importCpf],
       );
+    }
+  });
+
+  it("generates fixed expenses once per competence, respecting pause and end month", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await Promise.all([
+        pool.query<{ id: string }>(
+          "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
+          [clinicId],
+        ),
+        pool.query<{ id: string }>(
+          "SELECT id FROM cost_centers WHERE clinic_id = $1 AND active LIMIT 1",
+          [clinicId],
+        ),
+      ]);
+      const current = saoPauloToday().slice(0, 7);
+      const shift = (months: number) => {
+        const [year, month] = current.split("-").map(Number);
+        return new Date(Date.UTC(year!, month! - 1 + months, 1)).toISOString().slice(0, 7);
+      };
+      const base = {
+        description: recurringPayableMarker,
+        supplier: "Fornecedor PG",
+        categoryId: category.rows[0]!.id,
+        costCenterId: costCenter.rows[0]!.id,
+        amountInCents: 12_345,
+        dayOfMonth: 28,
+        startMonth: shift(-2),
+        active: true,
+      };
+      const competences = async (id: string) =>
+        (
+          await pool.query<{ competence: string; dueDate: string }>(
+            `SELECT competence, due_date::text AS "dueDate" FROM payables
+             WHERE clinic_id = $1 AND recurring_payable_id = $2 ORDER BY competence`,
+            [clinicId, id],
+          )
+        ).rows;
+
+      const running = await repository.createRecurringPayable(clinicId, ownerId, base);
+      const paused = await repository.createRecurringPayable(clinicId, ownerId, {
+        ...base,
+        active: false,
+      });
+      const ended = await repository.createRecurringPayable(clinicId, ownerId, {
+        ...base,
+        startMonth: shift(-3),
+        endMonth: shift(-2),
+      });
+      expect(running).toMatchObject({ dayOfMonth: 28, startMonth: shift(-2), active: true });
+      expect(ended.endMonth).toBe(shift(-2));
+
+      // Duas aberturas simultâneas do financeiro não duplicam competências.
+      await Promise.all([
+        repository.generateDueRecurringPayables(clinicId, ownerId),
+        repository.generateDueRecurringPayables(clinicId, ownerId),
+      ]);
+      expect(await competences(running.id)).toEqual([
+        { competence: shift(-2), dueDate: `${shift(-2)}-28` },
+        { competence: shift(-1), dueDate: `${shift(-1)}-28` },
+        { competence: current, dueDate: `${current}-28` },
+      ]);
+      expect(await competences(paused.id)).toEqual([]);
+      expect((await competences(ended.id)).map((row) => row.competence)).toEqual([
+        shift(-3),
+        shift(-2),
+      ]);
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      expect(await competences(running.id)).toHaveLength(3);
+      const generated = (await repository.getFinancialWorkspace(clinicId)).payables.find(
+        (item) => item.recurringPayableId === running.id && item.competence === current,
+      );
+      expect(generated).toMatchObject({
+        description: recurringPayableMarker,
+        supplier: "Fornecedor PG",
+        amountInCents: 12_345,
+        status: "open",
+      });
+
+      // Reativar gera só a partir do mês da reativação.
+      const resumed = await repository.updateRecurringPayable(clinicId, ownerId, paused.id, {
+        ...base,
+        amountInCents: 20_000,
+      });
+      expect(resumed).toMatchObject({ active: true, resumedFromMonth: current, amountInCents: 20_000 });
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      expect((await competences(paused.id)).map((row) => row.competence)).toEqual([current]);
+
+      // Pausar não apaga o que já foi gerado.
+      await repository.updateRecurringPayable(clinicId, ownerId, running.id, {
+        ...base,
+        active: false,
+      });
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      expect(await competences(running.id)).toHaveLength(3);
+
+      const listed = (await repository.listRecurringPayables(clinicId)).filter(
+        (item) => item.description === recurringPayableMarker,
+      );
+      expect(listed).toHaveLength(3);
+      expect(listed.find((item) => item.id === running.id)).toMatchObject({
+        active: false,
+        lastCompetence: current,
+      });
+      await expect(
+        repository.deleteRecurringPayable(clinicId, running.id),
+      ).rejects.toMatchObject({ code: "RECURRING_PAYABLE_IN_USE", statusCode: 409 });
+      const unused = await repository.createRecurringPayable(clinicId, ownerId, {
+        ...base,
+        startMonth: shift(12),
+      });
+      expect(await repository.deleteRecurringPayable(clinicId, unused.id)).toBe(true);
+      expect(await repository.deleteRecurringPayable(clinicId, unused.id)).toBe(false);
+      expect(
+        await repository.updateRecurringPayable(clinicId, ownerId, unused.id, base),
+      ).toBeNull();
+    } finally {
+      await cleanupRecurringPayables();
     }
   });
 });

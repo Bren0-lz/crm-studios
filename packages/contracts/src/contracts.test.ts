@@ -22,9 +22,30 @@ import {
   patientTabCloseInputSchema,
   phoneDigits,
   patientInputSchema,
+  recurringPayableCompetences,
+  recurringPayableDueDate,
 } from "./index.js";
 
 describe("shared contracts", () => {
+  it("lists the due competences of a fixed expense across years", () => {
+    const model = { startMonth: "2026-11", active: true };
+    expect(recurringPayableCompetences(model, "2027-02")).toEqual([
+      "2026-11",
+      "2026-12",
+      "2027-01",
+      "2027-02",
+    ]);
+    expect(recurringPayableCompetences(model, "2026-10")).toEqual([]);
+    expect(
+      recurringPayableCompetences({ ...model, endMonth: "2026-12" }, "2027-02"),
+    ).toEqual(["2026-11", "2026-12"]);
+    expect(
+      recurringPayableCompetences({ ...model, resumedFromMonth: "2027-02" }, "2027-02"),
+    ).toEqual(["2027-02"]);
+    expect(recurringPayableCompetences({ ...model, active: false }, "2027-02")).toEqual([]);
+    expect(recurringPayableDueDate("2027-02", 5)).toBe("2027-02-05");
+  });
+
   it("names groups with a per-service letter", () => {
     expect(groupLetter(1)).toBe("A");
     expect(groupLetter(26)).toBe("Z");

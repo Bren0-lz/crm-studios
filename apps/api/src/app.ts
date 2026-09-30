@@ -46,6 +46,7 @@ import {
   managementReportFilterSchema,
   salesReportFilterSchema,
   payableInputSchema,
+  recurringPayableInputSchema,
   paymentInputSchema,
   passwordResetSchema,
   loginSchema,
@@ -1702,7 +1703,75 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.get(
     "/finance/workspace",
     { preHandler: [authenticate, requireFinanceAccess] },
-    async (request) => repository.getFinancialWorkspace(request.user.clinicId),
+    async (request) => {
+      // Abrir o financeiro gera as competências pendentes das despesas fixas.
+      await repository.generateDueRecurringPayables(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      return repository.getFinancialWorkspace(request.user.clinicId);
+    },
+  );
+  app.get(
+    "/finance/recurring-payables",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request) => {
+      await repository.generateDueRecurringPayables(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      return repository.listRecurringPayables(request.user.clinicId);
+    },
+  );
+  app.post(
+    "/finance/recurring-payables",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createRecurringPayable(
+            request.user.clinicId,
+            request.user.sub,
+            recurringPayableInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.put(
+    "/finance/recurring-payables/:id",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const recurring = await repository.updateRecurringPayable(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        recurringPayableInputSchema.parse(request.body),
+      );
+      if (!recurring)
+        return reply.status(404).send({
+          code: "RECURRING_PAYABLE_NOT_FOUND",
+          message: "Despesa fixa não encontrada.",
+        });
+      return recurring;
+    },
+  );
+  app.delete(
+    "/finance/recurring-payables/:id",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted = await repository.deleteRecurringPayable(
+        request.user.clinicId,
+        id,
+      );
+      if (!deleted)
+        return reply.status(404).send({
+          code: "RECURRING_PAYABLE_NOT_FOUND",
+          message: "Despesa fixa não encontrada.",
+        });
+      return reply.status(204).send();
+    },
   );
   app.post(
     "/finance/renegotiations",

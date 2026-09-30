@@ -593,6 +593,66 @@ export const payableInputSchema = z.object({
 });
 export type PayableInput = z.infer<typeof payableInputSchema>;
 
+/** Competência mensal no formato AAAA-MM. */
+export const competenceMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês no formato AAAA-MM.");
+export const recurringPayableInputSchema = z
+  .object({
+    description: z.string().trim().min(3).max(200),
+    supplier: z.string().trim().max(160).optional().or(z.literal("")),
+    categoryId: z.uuid(),
+    costCenterId: z.uuid(),
+    amountInCents: z.number().int().min(1),
+    dayOfMonth: z.number().int().min(1).max(28),
+    startMonth: competenceMonthSchema,
+    endMonth: competenceMonthSchema.optional(),
+    active: z.boolean().default(true),
+  })
+  .refine((value) => !value.endMonth || value.endMonth >= value.startMonth, {
+    message: "O mês final não pode ser anterior ao mês inicial.",
+    path: ["endMonth"],
+  });
+export type RecurringPayableInput = z.infer<typeof recurringPayableInputSchema>;
+
+function nextCompetence(month: string): string {
+  const [year, value] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, value!, 1));
+  return date.toISOString().slice(0, 7);
+}
+
+/**
+ * Competências (AAAA-MM) que uma despesa fixa deve ter até `currentMonth`,
+ * inclusive: do mês inicial — ou do mês da reativação, se foi pausada — até o
+ * menor entre o mês final e o mês atual. Pausada, não tem nenhuma.
+ */
+export function recurringPayableCompetences(
+  model: {
+    startMonth: string;
+    endMonth?: string | undefined;
+    resumedFromMonth?: string | undefined;
+    active: boolean;
+  },
+  currentMonth: string,
+): string[] {
+  if (!model.active) return [];
+  const from =
+    model.resumedFromMonth && model.resumedFromMonth > model.startMonth
+      ? model.resumedFromMonth
+      : model.startMonth;
+  const until =
+    model.endMonth && model.endMonth < currentMonth ? model.endMonth : currentMonth;
+  const months: string[] = [];
+  for (let month = from; month <= until && months.length < 1200; month = nextCompetence(month))
+    months.push(month);
+  return months;
+}
+
+/** Vencimento de uma competência: o dia fixo (1 a 28) dentro do mês. */
+export function recurringPayableDueDate(competence: string, dayOfMonth: number): string {
+  return `${competence}-${String(dayOfMonth).padStart(2, "0")}`;
+}
+
 export const leadStageSchema = z.enum([
   "new_contact",
   "contacted",
@@ -1226,6 +1286,31 @@ export interface Payable extends PayableInput {
   paymentMethod?: PaymentMethod;
   paidAt?: string;
   overdue: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Despesa fixa que gerou esta conta, com a competência (AAAA-MM). */
+  recurringPayableId?: string;
+  competence?: string;
+}
+
+export interface RecurringPayable {
+  id: string;
+  clinicId: string;
+  description: string;
+  supplier?: string;
+  categoryId: string;
+  costCenterId: string;
+  categoryName: string;
+  costCenterName: string;
+  amountInCents: number;
+  dayOfMonth: number;
+  startMonth: string;
+  endMonth?: string;
+  active: boolean;
+  /** Mês da última reativação: competências pausadas antes dele não são geradas. */
+  resumedFromMonth?: string;
+  /** Última competência já gerada como conta a pagar. */
+  lastCompetence?: string;
   createdAt: string;
   updatedAt: string;
 }

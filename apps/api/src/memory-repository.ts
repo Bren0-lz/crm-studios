@@ -89,6 +89,8 @@ import type {
   Product,
   ProductInput,
   RecurringAppointmentInput,
+  RecurringPayable,
+  RecurringPayableInput,
   Room,
   RoomInput,
   ScheduleBlock,
@@ -121,6 +123,8 @@ import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  recurringPayableCompetences,
+  recurringPayableDueDate,
   saoPauloToday,
 } from "@crm/contracts";
 import {
@@ -152,6 +156,11 @@ import {
 } from "./repository.js";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
+type StoredRecurringPayable = Omit<
+  RecurringPayable,
+  "categoryName" | "costCenterName" | "lastCompetence"
+>;
+
 const now = () => new Date().toISOString();
 const uuid = () => crypto.randomUUID();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -256,6 +265,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly commissionRules: CommissionRule[] = [];
   private readonly commissions: CommissionEntry[] = [];
   private readonly payables: Payable[] = [];
+  private readonly recurringPayables: StoredRecurringPayable[] = [];
   private readonly financialCategories: FinancialCategory[] = [
     {
       id: "f1000000-0000-4000-8000-000000000001",
@@ -3528,6 +3538,183 @@ export class MemoryClinicRepository implements ClinicRepository {
     payableId: string,
   ) {
     return this.changePayable(clinicId, payableId, "payment_reversal");
+  }
+
+  async listRecurringPayables(clinicId: string) {
+    return this.recurringPayables
+      .filter((item) => item.clinicId === clinicId)
+      .map((item) => this.toRecurringPayable(item))
+      .sort((a, b) => a.description.localeCompare(b.description, "pt-BR"));
+  }
+
+  async createRecurringPayable(
+    clinicId: string,
+    _actorUserId: string,
+    input: RecurringPayableInput,
+  ) {
+    this.findExpenseClassification(clinicId, input.categoryId, input.costCenterId);
+    const timestamp = now();
+    const model = {
+      id: uuid(),
+      clinicId,
+      ...this.recurringPayableFields(input),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.recurringPayables.push(model);
+    return this.toRecurringPayable(model);
+  }
+
+  async updateRecurringPayable(
+    clinicId: string,
+    _actorUserId: string,
+    recurringPayableId: string,
+    input: RecurringPayableInput,
+  ) {
+    const index = this.recurringPayables.findIndex(
+      (item) => item.clinicId === clinicId && item.id === recurringPayableId,
+    );
+    const current = this.recurringPayables[index];
+    if (!current) return null;
+    if (
+      current.categoryId !== input.categoryId ||
+      current.costCenterId !== input.costCenterId
+    )
+      this.findExpenseClassification(clinicId, input.categoryId, input.costCenterId);
+    const resumedFromMonth =
+      input.active && !current.active
+        ? saoPauloToday().slice(0, 7)
+        : current.resumedFromMonth;
+    const updated = {
+      id: current.id,
+      clinicId,
+      ...this.recurringPayableFields(input),
+      ...(resumedFromMonth ? { resumedFromMonth } : {}),
+      createdAt: current.createdAt,
+      updatedAt: now(),
+    };
+    this.recurringPayables[index] = updated;
+    return this.toRecurringPayable(updated);
+  }
+
+  async deleteRecurringPayable(clinicId: string, recurringPayableId: string) {
+    const index = this.recurringPayables.findIndex(
+      (item) => item.clinicId === clinicId && item.id === recurringPayableId,
+    );
+    if (index < 0) return false;
+    if (
+      this.payables.some((item) => item.recurringPayableId === recurringPayableId)
+    )
+      throw new DomainError(
+        "RECURRING_PAYABLE_IN_USE",
+        "Esta despesa fixa já gerou contas a pagar. Pause ou encerre em vez de excluir.",
+        409,
+      );
+    this.recurringPayables.splice(index, 1);
+    return true;
+  }
+
+  async generateDueRecurringPayables(clinicId: string) {
+    const currentMonth = saoPauloToday().slice(0, 7);
+    const currentDate = today();
+    let created = 0;
+    for (const model of this.recurringPayables) {
+      if (model.clinicId !== clinicId) continue;
+      const generated = new Set(
+        this.payables
+          .filter((item) => item.recurringPayableId === model.id)
+          .map((item) => item.competence),
+      );
+      const category = this.financialCategories.find(
+        (item) => item.id === model.categoryId,
+      );
+      const costCenter = this.costCenters.find(
+        (item) => item.id === model.costCenterId,
+      );
+      if (!category || !costCenter) continue;
+      for (const competence of recurringPayableCompetences(model, currentMonth)) {
+        if (generated.has(competence)) continue;
+        const timestamp = now();
+        const dueDate = recurringPayableDueDate(competence, model.dayOfMonth);
+        this.payables.push({
+          id: uuid(),
+          clinicId,
+          description: model.description,
+          ...(model.supplier ? { supplier: model.supplier } : {}),
+          categoryId: model.categoryId,
+          costCenterId: model.costCenterId,
+          categoryName: category.name,
+          costCenterName: costCenter.name,
+          dueDate,
+          amountInCents: model.amountInCents,
+          status: "open",
+          overdue: dueDate < currentDate,
+          recurringPayableId: model.id,
+          competence,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        created += 1;
+      }
+    }
+    return created;
+  }
+
+  private findExpenseClassification(
+    clinicId: string,
+    categoryId: string,
+    costCenterId: string,
+  ) {
+    const category = this.financialCategories.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === categoryId &&
+        item.kind === "expense" &&
+        item.active,
+    );
+    const costCenter = this.costCenters.find(
+      (item) =>
+        item.clinicId === clinicId && item.id === costCenterId && item.active,
+    );
+    if (!category || !costCenter)
+      throw new DomainError(
+        "FINANCIAL_CLASSIFICATION_NOT_FOUND",
+        "Categoria de despesa ou centro de custo não encontrado.",
+        404,
+      );
+    return { category, costCenter };
+  }
+
+  private recurringPayableFields(input: RecurringPayableInput) {
+    return {
+      description: input.description,
+      ...(input.supplier ? { supplier: input.supplier } : {}),
+      categoryId: input.categoryId,
+      costCenterId: input.costCenterId,
+      amountInCents: input.amountInCents,
+      dayOfMonth: input.dayOfMonth,
+      startMonth: input.startMonth,
+      ...(input.endMonth ? { endMonth: input.endMonth } : {}),
+      active: input.active,
+    };
+  }
+
+  private toRecurringPayable(model: StoredRecurringPayable): RecurringPayable {
+    const lastCompetence = this.payables
+      .filter((item) => item.recurringPayableId === model.id)
+      .map((item) => item.competence!)
+      .sort()
+      .at(-1);
+    return {
+      ...model,
+      categoryName:
+        this.financialCategories.find((item) => item.id === model.categoryId)
+          ?.name ?? "",
+      costCenterName:
+        this.costCenters.find((item) => item.id === model.costCenterId)?.name ??
+        "",
+      ...(lastCompetence ? { lastCompetence } : {}),
+    };
   }
 
   async renegotiateReceivables(
