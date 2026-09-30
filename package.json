@@ -15,7 +15,8 @@
     "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web",
     "lint": "npm run lint -w @crm/api && npm run lint -w @crm/web",
     "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "engines": {
     "node": ">=22"

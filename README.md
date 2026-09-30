@@ -136,6 +136,27 @@ Depois, `npm run db:setup` aplica as migrações (e o seed demo se `SEED_DEMO_DA
 testes de integração, use um projeto **só de teste** em `TEST_DATABASE_URL` e rode
 `npm run test:postgres`.
 
+## Publicação na Vercel
+
+O projeto publica site e API no mesmo domínio: `npm run vercel-build` gera `.vercel/output`
+(Build Output API) com o site estático e a API Fastify como função em `/api/*`. O
+`vercel.json` já define o comando de build; no painel, deixe **Framework Preset = Other** e não
+preencha Output Directory.
+
+Variáveis de ambiente no painel da Vercel (Settings › Environment Variables):
+
+| Variável | Valor |
+| --- | --- |
+| `STORAGE_MODE` | `postgres` |
+| `DATABASE_URL` | URL do **Transaction pooler** do Supabase (porta **6543**) |
+| `JWT_SECRET` | 32+ caracteres aleatórios (a função não sobe com o valor padrão) |
+| `NODE_ENV` | `production` |
+| `WEB_ORIGIN` | o endereço do site, ex. `https://seu-projeto.vercel.app` |
+
+A função não roda migrações nem seed. Antes de publicar uma versão com migração nova, aplique-as
+da sua máquina com a URL do **Session pooler** (porta 5432) no `.env` e `npm run db:setup`.
+A Vercel publica o que está no GitHub: faça o push dos commits antes.
+
 ## Estrutura
 
 ```text

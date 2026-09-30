@@ -10,14 +10,14 @@ import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 const migrationsPath = fileURLToPath(new URL("../migrations", import.meta.url));
 const migrationLockId = 927_410_615;
 
-export function createDatabasePool() {
+export function createDatabasePool({ max = 10 }: { max?: number } = {}) {
   const pool = new Pool({
     ...databaseConnectionConfig({
       url: config.DATABASE_URL,
       ssl: config.DATABASE_SSL,
       ...(config.DATABASE_SSL_CA ? { caCertPath: config.DATABASE_SSL_CA } : {}),
     }),
-    max: 10,
+    max,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   });
