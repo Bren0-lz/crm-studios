@@ -225,7 +225,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   equivalente em memória. A partir daí eles contam para o cliente. Testes.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T022
-- **Status:** TODO
+- **Status:** DONE
 
 ### T024 — Experimental e avaliação na interface
 - **Escopo:**

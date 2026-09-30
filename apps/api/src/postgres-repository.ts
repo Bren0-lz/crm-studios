@@ -6056,6 +6056,11 @@ export class PostgresClinicRepository implements ClinicRepository {
         );
       }
       const patient = mapPatient(patientResult.rows[0]!);
+      await client.query(
+        `UPDATE appointments SET patient_id = $3, lead_id = NULL, updated_at = now()
+         WHERE clinic_id = $1 AND lead_id = $2`,
+        [clinicId, leadId, patient.id],
+      );
       if (!original.convertedPatientId) {
         await client.query(
           `UPDATE leads SET stage = 'won', converted_patient_id = $3,

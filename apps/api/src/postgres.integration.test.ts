@@ -25,11 +25,39 @@ const leadAppointmentPhone = "11900001133";
 // Mês bem à frente, só com os atendimentos deste teste (comissões e lembretes).
 const leadAppointmentDay = new Date(Date.now() + 600 * 24 * 60 * 60 * 1000);
 leadAppointmentDay.setUTCHours(12, 0, 0, 0);
+const leadConversionMarker = "postgres-lead-conversion-test";
+const leadConversionPhones = ["11900001144", "11900001155"];
+const leadConversionDay = new Date(Date.now() + 610 * 24 * 60 * 60 * 1000);
+leadConversionDay.setUTCHours(12, 0, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
+
+  async function cleanupLeadConversion() {
+    await pool.query(
+      `DELETE FROM satisfaction_surveys WHERE patient_id IN
+         (SELECT id FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[]))`,
+      [clinicId, leadConversionPhones],
+    );
+    await pool.query("DELETE FROM appointments WHERE notes = $1", [
+      leadConversionMarker,
+    ]);
+    await pool.query(
+      `DELETE FROM lead_stage_history WHERE lead_id IN
+         (SELECT id FROM leads WHERE clinic_id = $1 AND phone = ANY($2::text[]))`,
+      [clinicId, leadConversionPhones],
+    );
+    await pool.query(
+      "DELETE FROM leads WHERE clinic_id = $1 AND phone = ANY($2::text[])",
+      [clinicId, leadConversionPhones],
+    );
+    await pool.query(
+      "DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])",
+      [clinicId, leadConversionPhones],
+    );
+  }
 
   async function cleanupLeadAppointments() {
     const effectiveFrom = leadAppointmentDay.toISOString().slice(0, 10);
@@ -78,6 +106,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   afterAll(async () => {
     if (!pool) return;
     await cleanupLeadAppointments();
+    await cleanupLeadConversion();
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -446,6 +475,101 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const report = await repository.getManagementReport(clinicId, referenceDate, referenceDate);
     expect(report.appointments.byVisitType.trial).toBeGreaterThanOrEqual(1);
     expect(report.appointments.byVisitType.evaluation).toBeGreaterThanOrEqual(1);
+  });
+
+  it("moves the lead appointments to the created or reused client on conversion", async () => {
+    await cleanupLeadConversion();
+    const [professionals, rooms, services] = await Promise.all([
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const at = (hours: number) =>
+      new Date(leadConversionDay.getTime() + hours * 60 * 60 * 1000).toISOString();
+    const input = {
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      notes: leadConversionMarker,
+    };
+
+    // Cliente criado na conversão.
+    const lead = await repository.createLead(clinicId, {
+      fullName: "Lead Convertido",
+      phone: leadConversionPhones[0]!,
+      source: "Instagram",
+      interest: "Pilates",
+      tags: [],
+    });
+    const trial = await repository.createLeadAppointment(clinicId, lead.id, {
+      ...input,
+      startsAt: at(0),
+      visitType: "trial",
+    });
+    const evaluation = await repository.createLeadAppointment(clinicId, lead.id, {
+      ...input,
+      startsAt: at(2),
+      visitType: "evaluation",
+    });
+    const conversion = await repository.convertLead(clinicId, ownerId, lead.id);
+    expect(conversion).toMatchObject({ reusedExisting: false, lead: { stage: "won" } });
+    const patientId = conversion!.patient.id;
+    const anotherInstance = new PostgresClinicRepository(pool);
+    const moved = (await anotherInstance.listAppointments(clinicId, at(-1), at(4))).filter(
+      (item) => item.id === trial!.id || item.id === evaluation!.id,
+    );
+    expect(moved).toHaveLength(2);
+    for (const item of moved) {
+      expect(item).toMatchObject({ patientId, patientName: "Lead Convertido" });
+      expect(item).not.toHaveProperty("leadId");
+      expect(item).not.toHaveProperty("leadName");
+    }
+    const stored = await pool.query<{ lead_id: string | null }>(
+      "SELECT lead_id FROM appointments WHERE id = ANY($1::uuid[])",
+      [[trial!.id, evaluation!.id]],
+    );
+    expect(stored.rows.every((row) => row.lead_id === null)).toBe(true);
+    const timeline = await repository.getPatientTimeline(clinicId, patientId);
+    expect(JSON.stringify(timeline)).toContain(trial!.id);
+    expect(JSON.stringify(timeline)).toContain(evaluation!.id);
+    await repository.updateAppointmentStatus(clinicId, trial!.id, "completed");
+    await expect(
+      repository.createSatisfactionSurvey(clinicId, ownerId, {
+        patientId,
+        appointmentId: trial!.id,
+        score: 9,
+      }),
+    ).resolves.toMatchObject({ patientId, appointmentId: trial!.id });
+
+    // Cliente reaproveitado pelo telefone.
+    const existing = await repository.createPatient(clinicId, {
+      fullName: "Cliente Já Cadastrado",
+      phone: leadConversionPhones[1]!,
+      tags: [],
+    });
+    const secondLead = await repository.createLead(clinicId, {
+      fullName: "Outro Nome no Lead",
+      phone: leadConversionPhones[1]!,
+      source: "Indicação",
+      interest: "Fisioterapia",
+      tags: [],
+    });
+    const secondTrial = await repository.createLeadAppointment(clinicId, secondLead.id, {
+      ...input,
+      startsAt: at(5),
+      visitType: "trial",
+    });
+    const reused = await repository.convertLead(clinicId, ownerId, secondLead.id);
+    expect(reused).toMatchObject({ reusedExisting: true, patient: { id: existing.id } });
+    const movedToExisting = (await repository.listAppointments(clinicId, at(4), at(7))).find(
+      (item) => item.id === secondTrial!.id,
+    );
+    expect(movedToExisting).toMatchObject({
+      patientId: existing.id,
+      patientName: "Cliente Já Cadastrado",
+      visitType: "trial",
+    });
+    expect(movedToExisting).not.toHaveProperty("leadId");
   });
 
   it("reconciles PostgreSQL sales, cancellation, payment and reversal movements", async () => {

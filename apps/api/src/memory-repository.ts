@@ -3960,6 +3960,15 @@ export class MemoryClinicRepository implements ClinicRepository {
       notes: lead.notes,
       tags: ["Convertido do CRM"],
     });
+    for (const appointment of this.appointments) {
+      if (appointment.clinicId !== clinicId || appointment.leadId !== lead.id)
+        continue;
+      appointment.patientId = patient.id;
+      appointment.patientName = patient.fullName;
+      delete appointment.leadId;
+      delete appointment.leadName;
+      appointment.updatedAt = now();
+    }
     lead.convertedPatientId = patient.id;
     lead.stage = "won";
     delete lead.lostReason;

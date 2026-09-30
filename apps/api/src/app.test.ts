@@ -756,6 +756,206 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("moves the lead appointments to the new client on conversion", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const lead = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Elisa Conversão",
+        phone: "11933332222",
+        source: "Instagram",
+        interest: "Pilates",
+      },
+    });
+    const leadId = lead.json().id as string;
+    const serviceId = services.json()[0].id as string;
+    const payload = {
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId,
+    };
+    const trial = await app.inject({
+      method: "POST",
+      url: `/leads/${leadId}/appointments`,
+      headers,
+      payload: { ...payload, startsAt: "2031-05-06T13:00:00.000Z", visitType: "trial" },
+    });
+    const evaluation = await app.inject({
+      method: "POST",
+      url: `/leads/${leadId}/appointments`,
+      headers,
+      payload: { ...payload, startsAt: "2031-05-20T13:00:00.000Z", visitType: "evaluation" },
+    });
+    expect(trial.statusCode).toBe(201);
+    expect(evaluation.statusCode).toBe(201);
+    const ids = [trial.json().id as string, evaluation.json().id as string];
+
+    const conversion = await app.inject({
+      method: "POST",
+      url: `/leads/${leadId}/convert`,
+      headers,
+    });
+    expect(conversion.statusCode).toBe(200);
+    expect(conversion.json()).toMatchObject({ reusedExisting: false });
+    const patientId = conversion.json().patient.id as string;
+
+    const agenda = await app.inject({
+      method: "GET",
+      url: "/appointments?from=2031-05-01T00:00:00.000Z&to=2031-05-31T00:00:00.000Z",
+      headers,
+    });
+    const moved = (agenda.json() as Appointment[]).filter((item) => ids.includes(item.id));
+    expect(moved).toHaveLength(2);
+    for (const item of moved) {
+      expect(item).toMatchObject({ patientId, patientName: "Elisa Conversão" });
+      expect(item).not.toHaveProperty("leadId");
+      expect(item).not.toHaveProperty("leadName");
+    }
+    expect(moved.map((item) => item.visitType).sort()).toEqual(["evaluation", "trial"]);
+
+    // Linha do tempo do cliente passa a mostrar os atendimentos.
+    const timeline = await app.inject({
+      method: "GET",
+      url: `/patients/${patientId}/timeline`,
+      headers,
+    });
+    expect(timeline.statusCode).toBe(200);
+    for (const id of ids) expect(JSON.stringify(timeline.json())).toContain(id);
+
+    // Finalizar consome sessão do plano do cliente.
+    const plan = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: {
+        patientId,
+        serviceId,
+        name: "Pacote pós-experimental",
+        kind: "fixed_package",
+        totalSessions: 4,
+        validFrom: "2031-05-01",
+        totalValueInCents: 40000,
+        installments: 1,
+        firstDueDate: "2031-05-01",
+      },
+    });
+    expect(plan.statusCode).toBe(201);
+    const completed = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${ids[0]}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    expect(completed.statusCode).toBe(200);
+    const plans = await app.inject({ method: "GET", url: "/plans", headers });
+    expect(
+      (plans.json() as { id: string; remainingSessions: number }[]).find(
+        (item) => item.id === plan.json().id,
+      )?.remainingSessions,
+    ).toBe(3);
+
+    // Prontuário e NPS passam a ser aceitos.
+    const record = await app.inject({
+      method: "POST",
+      url: "/clinical-records",
+      headers,
+      payload: {
+        appointmentId: ids[0],
+        subjective: "Relato",
+        objective: "Exame",
+        assessment: "Avaliação",
+        plan: "Plano",
+      },
+    });
+    expect(record.statusCode).toBe(201);
+    expect(record.json()).toMatchObject({ patientId });
+    const survey = await app.inject({
+      method: "POST",
+      url: "/satisfaction",
+      headers,
+      payload: { patientId, appointmentId: ids[0], score: 9 },
+    });
+    expect(survey.statusCode).toBe(201);
+    await app.close();
+  });
+
+  it("moves the lead appointments to the reused client on conversion", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const existing = patients.json()[0] as { id: string; fullName: string; phone: string };
+    const lead = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Nome do lead diferente",
+        phone: existing.phone,
+        source: "Indicação",
+        interest: "Fisioterapia",
+      },
+    });
+    const leadId = lead.json().id as string;
+    const appointment = await app.inject({
+      method: "POST",
+      url: `/leads/${leadId}/appointments`,
+      headers,
+      payload: {
+        professionalId: professionals.json()[0].id,
+        roomId: rooms.json()[0].id,
+        serviceId: services.json()[0].id,
+        startsAt: "2031-05-06T13:00:00.000Z",
+        visitType: "evaluation",
+      },
+    });
+    expect(appointment.statusCode).toBe(201);
+
+    const conversion = await app.inject({
+      method: "POST",
+      url: `/leads/${leadId}/convert`,
+      headers,
+    });
+    expect(conversion.json()).toMatchObject({
+      reusedExisting: true,
+      patient: { id: existing.id },
+    });
+    const agenda = await app.inject({
+      method: "GET",
+      url: "/appointments?from=2031-05-06T00:00:00.000Z&to=2031-05-07T00:00:00.000Z",
+      headers,
+    });
+    const moved = (agenda.json() as Appointment[]).find(
+      (item) => item.id === appointment.json().id,
+    );
+    expect(moved).toMatchObject({
+      patientId: existing.id,
+      patientName: existing.fullName,
+      visitType: "evaluation",
+    });
+    expect(moved).not.toHaveProperty("leadId");
+    expect(moved).not.toHaveProperty("leadName");
+    const timeline = await app.inject({
+      method: "GET",
+      url: `/patients/${existing.id}/timeline`,
+      headers,
+    });
+    expect(JSON.stringify(timeline.json())).toContain(appointment.json().id);
+    await app.close();
+  });
+
   it("versions and finalizes a complete clinical record", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
