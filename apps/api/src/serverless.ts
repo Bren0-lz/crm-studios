@@ -1,64 +1,37 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { FastifyInstance } from "fastify";
-import { buildApp } from "./app.js";
-import { config } from "./config.js";
-import { createDatabasePool } from "./database.js";
-import { PostgresClinicRepository } from "./postgres-repository.js";
 
 /**
- * Entrada da API como função serverless (Vercel). A mesma aplicação Fastify do `server.ts`,
- * mas sem `listen`, sem migrações e sem seed: cada instância só atende requisições. As
- * migrações rodam à parte (`npm run db:setup`), porque a função usa o pooler em modo
- * transação, que não suporta a trava de sessão das migrações.
+ * Entrada da função serverless. Carrega a aplicação com `import()` dinâmico para que um
+ * erro na inicialização (variável de ambiente inválida, banco inacessível…) vire uma
+ * resposta JSON com o motivo, em vez da página genérica "A server error has occurred" da
+ * Vercel, que o site não consegue ler. O detalhe completo vai para o log da função.
  */
-
-/** Prefixo público das rotas da API no mesmo domínio do site. */
-export const apiPrefix = "/api";
-
-let appPromise: Promise<FastifyInstance> | undefined;
-
-/** Segredo padrão do `config.ts`: público no repositório, nunca aceito num site publicado. */
-const defaultJwtSecret = "development-secret-change-before-production";
-
-export function assertServerlessConfig(current: {
-  STORAGE_MODE: string;
-  JWT_SECRET: string;
-}) {
-  if (current.STORAGE_MODE !== "postgres") {
-    throw new Error("A função serverless exige STORAGE_MODE=postgres (memória não persiste entre instâncias).");
-  }
-  if (current.JWT_SECRET === defaultJwtSecret) {
-    throw new Error("Defina JWT_SECRET (32+ caracteres aleatórios) nas variáveis de ambiente do site publicado.");
-  }
-}
-
-function getApp() {
-  assertServerlessConfig(config);
-  appPromise ??= (async () => {
-    const pool = createDatabasePool({ max: 3 });
-    const app = await buildApp({ repository: new PostgresClinicRepository(pool) });
-    app.addHook("onClose", () => pool.end());
-    await app.ready();
-    return app;
-  })().catch((error: unknown) => {
-    appPromise = undefined; // permite nova tentativa na próxima requisição
-    throw error;
-  });
-  return appPromise;
-}
-
-/** Remove o prefixo `/api` para casar com as rotas registradas no Fastify. */
-export function stripApiPrefix(url: string) {
-  if (url === apiPrefix) return "/";
-  if (url.startsWith(`${apiPrefix}/`) || url.startsWith(`${apiPrefix}?`)) {
-    const rest = url.slice(apiPrefix.length);
-    return rest.startsWith("?") ? `/${rest}` : rest;
-  }
-  return url;
-}
-
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  const app = await getApp();
-  req.url = stripApiPrefix(req.url ?? "/");
-  app.server.emit("request", req, res);
+  try {
+    const { default: appHandler } = await import("./serverless-app.js");
+    await appHandler(req, res);
+  } catch (error) {
+    console.error("Falha ao iniciar a API:", error);
+    if (res.headersSent) return;
+    res.statusCode = 500;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.end(
+      JSON.stringify({
+        code: "SERVER_START_FAILED",
+        message: `A API não conseguiu iniciar: ${describeStartupError(error)}`,
+      }),
+    );
+  }
+}
+
+/** Mensagem legível sem expor valores: o zod lista só o nome da variável e a regra violada. */
+export function describeStartupError(error: unknown) {
+  if (error && typeof error === "object" && "issues" in error && Array.isArray(error.issues)) {
+    return (error.issues as { path?: unknown[]; message?: string }[])
+      .map((issue) => `${(issue.path ?? []).join(".") || "configuração"}: ${issue.message ?? "inválido"}`)
+      .join("; ");
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  // Mensagens do driver do banco podem trazer a URL de conexão; nunca devolva a senha.
+  return message.replace(/postgres(?:ql)?:\/\/[^\s@]+@/gi, "postgresql://***@");
 }

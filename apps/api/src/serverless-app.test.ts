@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertServerlessConfig, stripApiPrefix } from "./serverless.js";
+import { assertServerlessConfig, stripApiPrefix } from "./serverless-app.js";
 
 describe("serverless entry", () => {
   it("strips the public /api prefix before routing", () => {
@@ -23,5 +23,21 @@ describe("serverless entry", () => {
       }),
     ).toThrow(/JWT_SECRET/);
     expect(() => assertServerlessConfig({ STORAGE_MODE: "postgres", JWT_SECRET: secret })).not.toThrow();
+  });
+});
+
+describe("startup error messages", () => {
+  it("names invalid variables without echoing values and hides database passwords", async () => {
+    const { describeStartupError } = await import("./serverless.js");
+    const { z } = await import("zod");
+    const parsed = z
+      .object({ JWT_SECRET: z.string().min(32) })
+      .safeParse({ JWT_SECRET: "curta-demais-segredo" });
+    const message = describeStartupError(parsed.error);
+    expect(message).toMatch(/^JWT_SECRET: /);
+    expect(message).not.toContain("curta-demais-segredo");
+    expect(
+      describeStartupError(new Error("falhou postgresql://postgres.abc:senha123@host:6543/postgres")),
+    ).toBe("falhou postgresql://***@host:6543/postgres");
   });
 });
