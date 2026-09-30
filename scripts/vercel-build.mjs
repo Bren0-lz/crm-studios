@@ -53,6 +53,8 @@ writeFileSync(
       // Entrega o corpo cru ao Fastify, sem os helpers da Vercel que consomem a requisição.
       shouldAddHelpers: false,
       maxDuration: 30,
+      // Mesma região do banco (Supabase em sa-east-1): cada consulta evita ir e voltar dos EUA.
+      regions: ["gru1"],
     },
     null,
     2,
