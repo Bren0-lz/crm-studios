@@ -113,6 +113,29 @@ TEST_DATABASE_URL=postgresql://crm:crm@localhost:5432/crm_test npm run test:post
 
 Nunca aponte `TEST_DATABASE_URL` para um banco de produção: o teste cria e remove registros próprios.
 
+## Banco no Supabase
+
+O Supabase pode hospedar o PostgreSQL; a API continua a mesma. No painel do projeto, em
+**Connect**, copie a URL do **Session pooler** (porta 5432, usuário `postgres.<ref-do-projeto>`).
+A conexão direta (`db.<ref>.supabase.co`) também funciona, mas no plano gratuito só aceita IPv6.
+Não use o **Transaction pooler** (porta 6543): as migrações usam trava de sessão e a API recusa
+essa porta ao migrar.
+
+```text
+STORAGE_MODE=postgres
+DATABASE_URL=postgresql://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres
+DATABASE_SSL=auto
+```
+
+Com `DATABASE_SSL=auto`, a conexão com hosts do Supabase usa TLS sem verificar a CA. Para
+verificar o certificado, baixe a CA em **Settings › Database › SSL Configuration** e use
+`DATABASE_SSL=verify` com `DATABASE_SSL_CA=<caminho do .crt>`. As extensões `pgcrypto` e
+`btree_gist` usadas pelas migrações já estão disponíveis no Supabase.
+
+Depois, `npm run db:setup` aplica as migrações (e o seed demo se `SEED_DEMO_DATA=true`). Para os
+testes de integração, use um projeto **só de teste** em `TEST_DATABASE_URL` e rode
+`npm run test:postgres`.
+
 ## Estrutura
 
 ```text

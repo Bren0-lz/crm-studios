@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { runMigrations, seedDemoData } from "./database.js";
+import { databaseConnectionConfig } from "./database-connection.js";
 import { PostgresClinicRepository } from "./postgres-repository.js";
 import { DomainError } from "./repository.js";
 import { defaultRelationshipSettings, saoPauloToday } from "@crm/contracts";
@@ -26,7 +27,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let repository: PostgresClinicRepository;
 
   beforeAll(async () => {
-    pool = new Pool({ connectionString: databaseUrl });
+    pool = new Pool(
+      databaseConnectionConfig({
+        url: databaseUrl!,
+        ssl: (process.env.DATABASE_SSL as "auto" | "disable" | "require" | "verify" | undefined) ?? "auto",
+        ...(process.env.DATABASE_SSL_CA ? { caCertPath: process.env.DATABASE_SSL_CA } : {}),
+      }),
+    );
     await runMigrations(pool);
     await seedDemoData(pool);
     repository = new PostgresClinicRepository(pool);

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { hash } from "bcryptjs";
 import { Pool } from "pg";
 import { config } from "./config.js";
+import { databaseConnectionConfig, usesTransactionPooler } from "./database-connection.js";
 import { demoPatients } from "./demo-patients.js";
 import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 
@@ -11,7 +12,11 @@ const migrationLockId = 927_410_615;
 
 export function createDatabasePool() {
   const pool = new Pool({
-    connectionString: config.DATABASE_URL,
+    ...databaseConnectionConfig({
+      url: config.DATABASE_URL,
+      ssl: config.DATABASE_SSL,
+      ...(config.DATABASE_SSL_CA ? { caCertPath: config.DATABASE_SSL_CA } : {}),
+    }),
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
@@ -25,6 +30,14 @@ export function createDatabasePool() {
 }
 
 export async function runMigrations(pool: Pool) {
+  // Confere a URL do próprio pool (os testes de integração usam TEST_DATABASE_URL).
+  const url = pool.options.connectionString ?? config.DATABASE_URL;
+  if (usesTransactionPooler(url)) {
+    throw new Error(
+      "As migrações usam trava de sessão e não funcionam no pooler em modo transação (porta 6543). " +
+        "Use a conexão direta ou o pooler em modo sessão (porta 5432) na DATABASE_URL.",
+    );
+  }
   const client = await pool.connect();
   try {
     await client.query("SELECT pg_advisory_lock($1)", [migrationLockId]);
