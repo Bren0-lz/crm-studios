@@ -144,6 +144,8 @@ import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "
 import { buildSalesReport } from "./sales-report.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
+  appointmentDocumentVariables,
+  assertDocumentAppointment,
   DomainError,
   type AuthenticatedUser,
   type ClinicRepository,
@@ -4350,13 +4352,22 @@ export class MemoryClinicRepository implements ClinicRepository {
         "DOCUMENT_PLAN_MISMATCH",
         "O plano informado não pertence ao cliente.",
       );
-    const professional = input.professionalId
-      ? this.professionals.find(
+    const appointment = input.appointmentId
+      ? this.appointments.find(
           (item) =>
-            item.clinicId === clinicId && item.id === input.professionalId,
+            item.clinicId === clinicId && item.id === input.appointmentId,
         )
       : undefined;
-    if (input.professionalId && !professional)
+    if (input.appointmentId)
+      assertDocumentAppointment(appointment, patient.id);
+    // O profissional do atendimento prevalece sobre `professionalId`.
+    const professionalId = appointment?.professionalId ?? input.professionalId;
+    const professional = professionalId
+      ? this.professionals.find(
+          (item) => item.clinicId === clinicId && item.id === professionalId,
+        )
+      : undefined;
+    if (professionalId && !professional)
       throw new DomainError(
         "PROFESSIONAL_NOT_FOUND",
         "Profissional não encontrado.",
@@ -4365,6 +4376,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     const timestamp = now();
     const issuedDocument: IssuedDocument = {
       ...input,
+      ...(professionalId ? { professionalId } : {}),
       id: uuid(),
       clinicId,
       templateName: template.name,
@@ -4376,6 +4388,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         patient.fullName,
         plan?.name,
         professional,
+        appointment,
       ),
       status: "draft",
       createdAt: timestamp,
@@ -4924,12 +4937,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     patientName: string,
     planName?: string,
     professional?: Professional,
+    appointment?: Appointment,
   ) {
+    const visit = appointmentDocumentVariables(appointment);
     return body
       .replaceAll("{{paciente_nome}}", patientName)
       .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
       .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
       .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
+      .replaceAll("{{atendimento_data}}", visit.date)
+      .replaceAll("{{atendimento_horario}}", visit.time)
+      .replaceAll("{{servico_nome}}", visit.serviceName)
       .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
       .replaceAll("{{clinica_nome}}", "Movimenta");
   }

@@ -1842,6 +1842,141 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("issues an attendance declaration from a completed client appointment", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const [patient, otherPatient] = patients.json();
+    const [otherProfessional, professional] = professionals.json();
+    const service = services.json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Declaração de comparecimento",
+        kind: "attendance_declaration",
+        body: "{{paciente_nome}} compareceu em [{{atendimento_data}}] às [{{atendimento_horario}}] para [{{servico_nome}}] com [{{profissional_nome}}] [{{profissional_crefito}}].",
+      },
+    });
+    expect(template.statusCode).toBe(201);
+    const slot = {
+      professionalId: professional.id,
+      roomId: rooms.json()[0].id,
+      serviceId: service.id,
+    };
+    const appointment = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...slot, patientId: patient.id, startsAt: "2031-06-10T13:30:00.000Z" },
+    });
+    expect(appointment.statusCode).toBe(201);
+    const appointmentId = appointment.json().id as string;
+    const issue = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: "POST",
+        url: "/documents",
+        headers,
+        payload: {
+          templateId: template.json().id,
+          patientId: patient.id,
+          title: "Declaração de comparecimento",
+          ...payload,
+        },
+      });
+
+    const notCompleted = await issue({ appointmentId });
+    expect(notCompleted.statusCode).toBe(409);
+    expect(notCompleted.json()).toMatchObject({
+      code: "DOCUMENT_APPOINTMENT_NOT_COMPLETED",
+    });
+
+    const completed = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${appointmentId}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    expect(completed.statusCode).toBe(200);
+
+    // O profissional do atendimento prevalece sobre o `professionalId` enviado.
+    const declaration = await issue({
+      appointmentId,
+      professionalId: otherProfessional.id,
+    });
+    expect(declaration.statusCode).toBe(201);
+    expect(declaration.json()).toMatchObject({
+      appointmentId,
+      professionalId: professional.id,
+    });
+    expect(declaration.json().snapshotBody).toBe(
+      `${patient.fullName} compareceu em [10/06/2031] às [10:30] para [${service.name}] com [${professional.fullName}] [${professional.crefito}].`,
+    );
+    const listed = await app.inject({ method: "GET", url: "/documents", headers });
+    expect(
+      (listed.json() as { id: string; appointmentId?: string }[]).find(
+        (item) => item.id === declaration.json().id,
+      ),
+    ).toMatchObject({ appointmentId });
+
+    // Sem atendimento, as variáveis do atendimento ficam vazias.
+    const withoutAppointment = await issue({});
+    expect(withoutAppointment.statusCode).toBe(201);
+    expect(withoutAppointment.json().snapshotBody).toContain(
+      "em [] às [] para [] com [] []",
+    );
+
+    const otherClient = await issue({ appointmentId, patientId: otherPatient.id });
+    expect(otherClient.statusCode).toBe(400);
+    expect(otherClient.json()).toMatchObject({
+      code: "DOCUMENT_APPOINTMENT_MISMATCH",
+    });
+
+    const unknown = await issue({
+      appointmentId: "99999999-9999-4999-8999-999999999999",
+    });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json()).toMatchObject({ code: "APPOINTMENT_NOT_FOUND" });
+
+    // Atendimento de lead não é "do mesmo cliente".
+    const lead = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Lara Declaração",
+        phone: "11944442222",
+        source: "Site",
+        interest: "Fisioterapia",
+      },
+    });
+    const leadAppointment = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.json().id}/appointments`,
+      headers,
+      payload: { ...slot, visitType: "evaluation", startsAt: "2031-06-11T13:30:00.000Z" },
+    });
+    expect(leadAppointment.statusCode).toBe(201);
+    await app.inject({
+      method: "PATCH",
+      url: `/appointments/${leadAppointment.json().id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    const fromLead = await issue({ appointmentId: leadAppointment.json().id });
+    expect(fromLead.statusCode).toBe(400);
+    expect(fromLead.json()).toMatchObject({
+      code: "DOCUMENT_APPOINTMENT_MISMATCH",
+    });
+    await app.close();
+  });
+
   it("returns reproducible management metrics and an authenticated CSV", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

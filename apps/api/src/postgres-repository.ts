@@ -142,6 +142,8 @@ import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
+  appointmentDocumentVariables,
+  assertDocumentAppointment,
   DomainError,
   type AuthenticatedUser,
   type ClinicRepository,
@@ -725,6 +727,7 @@ interface IssuedDocumentRow {
   patientId: string;
   planId: string | null;
   professionalId: string | null;
+  appointmentId: string | null;
   title: string;
   templateName: string;
   templateVersion: number;
@@ -885,7 +888,8 @@ const documentTemplateColumns = `
 const issuedDocumentColumns = `
   d.id, d.clinic_id AS "clinicId", d.template_id AS "templateId",
   d.patient_id AS "patientId", d.plan_id AS "planId",
-  d.professional_id AS "professionalId", d.title,
+  d.professional_id AS "professionalId",
+  d.appointment_id AS "appointmentId", d.title,
   d.template_name AS "templateName", d.template_version AS "templateVersion",
   p.full_name AS "patientName", pp.name AS "planName",
   d.snapshot_body AS "snapshotBody", d.status,
@@ -1545,6 +1549,7 @@ function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     patientId: row.patientId,
     ...(row.planId ? { planId: row.planId } : {}),
     ...(row.professionalId ? { professionalId: row.professionalId } : {}),
+    ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
     title: row.title,
     templateName: row.templateName,
     templateVersion: row.templateVersion,
@@ -6489,6 +6494,29 @@ export class PostgresClinicRepository implements ClinicRepository {
     actorUserId: string,
     input: IssuedDocumentInput,
   ) {
+    let appointment:
+      | {
+          patientId: string | null;
+          status: AppointmentStatus;
+          startsAt: Date;
+          professionalId: string;
+          serviceName: string;
+        }
+      | undefined;
+    if (input.appointmentId) {
+      const found = await this.pool.query<NonNullable<typeof appointment>>(
+        `SELECT a.patient_id AS "patientId", a.status, a.starts_at AS "startsAt",
+                a.professional_id AS "professionalId", s.name AS "serviceName"
+         FROM appointments a
+         JOIN services s ON s.id = a.service_id AND s.clinic_id = a.clinic_id
+         WHERE a.clinic_id = $1 AND a.id = $2`,
+        [clinicId, input.appointmentId],
+      );
+      appointment = found.rows[0];
+      assertDocumentAppointment(appointment, input.patientId);
+    }
+    // O profissional do atendimento prevalece sobre `professionalId`.
+    const professionalId = appointment?.professionalId ?? input.professionalId;
     const context = await this.pool.query<{
       templateName: string;
       templateVersion: number;
@@ -6519,7 +6547,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         input.templateId,
         input.patientId,
         input.planId || null,
-        input.professionalId || null,
+        professionalId || null,
       ],
     );
     if (!context.rows[0]) {
@@ -6544,10 +6572,10 @@ export class PostgresClinicRepository implements ClinicRepository {
           "Cliente não encontrado.",
           404,
         );
-      if (input.professionalId) {
+      if (professionalId) {
         const professional = await this.pool.query(
           `SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, input.professionalId],
+          [clinicId, professionalId],
         );
         if (!professional.rows[0])
           throw new DomainError(
@@ -6565,19 +6593,24 @@ export class PostgresClinicRepository implements ClinicRepository {
     const emissionDate = new Intl.DateTimeFormat("pt-BR", {
       timeZone: "America/Sao_Paulo",
     }).format(new Date());
+    const visit = appointmentDocumentVariables(appointment);
     const snapshot = item.templateBody
       .replaceAll("{{paciente_nome}}", item.patientName)
       .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
       .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
       .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
+      .replaceAll("{{atendimento_data}}", visit.date)
+      .replaceAll("{{atendimento_horario}}", visit.time)
+      .replaceAll("{{servico_nome}}", visit.serviceName)
       .replaceAll("{{data_emissao}}", emissionDate)
       .replaceAll("{{clinica_nome}}", item.clinicName);
     const result = await this.pool.query<IssuedDocumentRow>(
       `WITH inserted AS (
          INSERT INTO issued_documents
            (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id, professional_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            template_version, snapshot_body, created_by_user_id, professional_id,
+            appointment_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING *
        )
        SELECT ${issuedDocumentColumns}
@@ -6594,7 +6627,8 @@ export class PostgresClinicRepository implements ClinicRepository {
         item.templateVersion,
         snapshot,
         actorUserId,
-        input.professionalId || null,
+        professionalId || null,
+        input.appointmentId || null,
       ],
     );
     return mapIssuedDocument(result.rows[0]!);

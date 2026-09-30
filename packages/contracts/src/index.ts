@@ -696,6 +696,9 @@ export const issuedDocumentInputSchema = z.object({
   patientId: z.uuid(),
   planId: z.uuid().optional(),
   professionalId: z.uuid().optional(),
+  // Atendimento concluído do mesmo cliente; quando vem, o profissional do
+  // atendimento assina o documento (prevalece sobre `professionalId`).
+  appointmentId: z.uuid().optional(),
   title: z.string().trim().min(3).max(160),
 });
 export type IssuedDocumentInput = z.infer<typeof issuedDocumentInputSchema>;

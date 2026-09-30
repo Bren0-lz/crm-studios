@@ -2604,7 +2604,9 @@ function DocumentsPage() {
               <small>
                 Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
                 {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
-                {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
+                {"{{atendimento_data}}"}, {"{{atendimento_horario}}"},{" "}
+                {"{{servico_nome}}"}, {"{{data_emissao}}"} e{" "}
+                {"{{clinica_nome}}"}.
               </small>
               <button className="secondary-button">Criar modelo</button>
             </form>
@@ -7868,6 +7870,9 @@ function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
+  const [declaring, setDeclaring] = useState(false);
+  // Documentos exigem acesso comercial (a API recusa o perfil de fisioterapeuta).
+  const canIssueDocuments = ["owner", "reception", "finance"].includes(getStoredUser()?.role ?? "");
   useEffect(() => {
     if (!isCompleted) return;
     let active = true;
@@ -7913,6 +7918,9 @@ function AppointmentDetailsModal({
         }}
       />
     );
+  }
+  if (declaring) {
+    return <AttendanceDeclarationModal appointment={appointment} onClose={() => setDeclaring(false)} />;
   }
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} onClose={onClose}>
@@ -7987,7 +7995,118 @@ function AppointmentDetailsModal({
             <button className="primary-button" onClick={() => setRating(true)}>Registrar satisfação</button>
           </div>
         )}
+        {isCompleted && canIssueDocuments && (
+          <div className="appointment-detail-actions">
+            <button className="secondary-button" onClick={() => setDeclaring(true)}>
+              <FileText size={15} /> Declaração de comparecimento
+            </button>
+          </div>
+        )}
       </div>
+    </Modal>
+  );
+}
+
+// Emite a declaração de comparecimento de um atendimento concluído de cliente:
+// escolhe o modelo, cria o documento vinculado ao atendimento, emite e abre a impressão.
+function AttendanceDeclarationModal({
+  appointment,
+  onClose,
+}: {
+  appointment: Appointment;
+  onClose: () => void;
+}) {
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [issued, setIssued] = useState<IssuedDocument | null>(null);
+  useEffect(() => {
+    let active = true;
+    api
+      .documentTemplates()
+      .then((data) => {
+        if (!active) return;
+        const available = data.filter((item) => item.active && item.kind === "attendance_declaration");
+        setTemplates(available);
+        setTemplateId(available[0]?.id ?? "");
+      })
+      .catch((cause: Error) => active && setLoadError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function issue(event: FormEvent) {
+    event.preventDefault();
+    const patientId = appointment.patientId;
+    if (!patientId || !templateId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const draft = await api.createDocument({
+        templateId,
+        patientId,
+        appointmentId: appointment.id,
+        title: "Declaração de comparecimento",
+      });
+      setIssued(await api.updateDocumentStatus(draft.id, "issued"));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível emitir a declaração.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (issued) {
+    return (
+      <Modal title="Declaração de comparecimento" subtitle={issued.patientName} eyebrow="Documento emitido" onClose={onClose}>
+        <div className="receipt-content">
+          <Logo />
+          <p className="declaration-body">{issued.snapshotBody}</p>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>Fechar</button>
+            <button type="button" className="primary-button" onClick={() => window.print()}>
+              <Printer size={15} /> Imprimir declaração
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+  return (
+    <Modal title="Declaração de comparecimento" subtitle={appointment.patientName} eyebrow="Documentos" onClose={onClose}>
+      {loading ? (
+        <LoadingBlock />
+      ) : loadError ? (
+        <ErrorBanner error={loadError} />
+      ) : templates.length === 0 ? (
+        <EmptyState
+          title="Nenhum modelo de declaração"
+          copy="Cadastre um modelo do tipo Declaração de comparecimento em Documentos."
+        />
+      ) : (
+        <form className="form-grid" onSubmit={(event) => void issue(event)}>
+          <label className="span-2">
+            Modelo
+            <select required value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              {templates.map((template) => (
+                <option value={template.id} key={template.id}>
+                  {template.name} · v{template.version}
+                </option>
+              ))}
+            </select>
+          </label>
+          {error && <div className="span-2 form-error">{error}</div>}
+          <div className="span-2 modal-actions">
+            <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>Voltar</button>
+            <button type="submit" className="primary-button" disabled={!templateId || saving}>
+              {saving ? "Emitindo…" : "Emitir declaração"}
+            </button>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }

@@ -3212,6 +3212,10 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   line-height: 1.8;
 }
 
+.receipt-content > .declaration-body {
+  white-space: pre-wrap;
+}
+
 .receipt-content dl {
   display: grid;
   grid-template-columns: 1fr 1fr;
