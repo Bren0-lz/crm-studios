@@ -111,7 +111,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Nenhuma coluna pode ficar mais estreita que o conteúdo em 390px.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D02
-- **Status:** TODO
+- **Status:** DONE
 
 ### D04 — Regras de design no processo
 - **Escopo:**

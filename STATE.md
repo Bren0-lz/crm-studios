@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** D03
-- **Última concluída:** D02
+- **Tarefa atual:** D04
+- **Última concluída:** D03
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -34,3 +34,4 @@
 - 2026-09-29 RODADA 2 iniciada: novo PLAN.md (D01–D04, V1–V3, T019–T041). Auditoria de design: `.panel` não tem padding; `node apps/web/scripts/audit-panels.cjs` aponta 9 filhos sem respiro lateral (D01 zera). Extensão do Chrome instável — celular (390px) não auditado no navegador (D03 cobre por regra). `.secondary-button` sem inline-flex/gap (D02). Tarefas `Tipo: manual` viram BLOCKED e param o loop. Próxima migração livre: 0031.
 - 2026-09-29 D01 DONE (verifier PASS, exit 0). audit-panels zerado com regras específicas de 23px; `.admin-grid > .admin-relationship > *` zera margens (admin-grid já dá 20px). A partir daqui o audit-panels vale em toda tarefa. Pendências observadas: `.panel-head` dentro de `.admin-grid > .panel` tem padding duplicado (20+23px); `.sales-metrics`/`.sales-detail-grid` podem encostar nas laterais (não detectado pelo audit) — conferir na V1.
 - 2026-09-30 D02 DONE (verifier PASS na 2ª verificação; a 1ª travou por timeout do agente, não conta como tentativa). Tokens `--space-1..8` (4–64px) e `--radius-sm/md/lg` (8/12/18) em :root; valores fora da escala via `calc()` (ex. panel-head 21/23px). `.secondary-button` inline-flex + gap; `.table-row > * { min-width: 0; overflow-wrap: anywhere }` (conferir tabelas na V1).
+- 2026-09-30 D03 DONE (verifier PASS; detecção testada com casos sintéticos). audit-panels agora também reprova grid de 2+ colunas sem regra em @media (max-width ≤ 760px); anotação `/* audit: mobile-ok <motivo> */` isenta (21 usos). 57 apontamentos: 32 corrigidos em novo bloco @media 700px, 25 anotados. Lista de clientes vira cartões em ≤700px. Conferir na V1 (390px): lista de clientes, `.profit-rows`, `.group-overview`, `.patient-timeline-item`. D04 deve documentar a anotação `mobile-ok`.

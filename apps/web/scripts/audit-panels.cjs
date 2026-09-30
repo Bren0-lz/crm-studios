@@ -110,8 +110,156 @@ const visit = (node) => {
 };
 visit(sf);
 
+let failed = false;
 if (problems.length) {
   console.error(`${problems.length} problema(s) de espaçamento em painéis:\n` + problems.join("\n"));
-  process.exit(1);
+  failed = true;
+} else {
+  console.log("Nenhum filho de .panel sem espaçamento lateral.");
 }
-console.log("Nenhum filho de .panel sem espaçamento lateral.");
+
+// Segunda verificação (celular): toda regra com `grid-template-columns` de 2 ou mais trilhas fixas
+// precisa de uma regra para o mesmo seletor dentro de `@media (max-width: X)` com X ≤ 760px que
+// reduza para 1 trilha, `none` ou use `auto-fit`/`auto-fill`. Grids `repeat(auto-fit|auto-fill, …)`
+// já são responsivos. Regras em `@media print` ficam de fora. Exceção explícita: comentário
+// `/* audit: mobile-ok <motivo> */` logo acima da regra (as colunas cabem em 390px).
+const MOBILE_MAX = 760;
+const lineAt = (index) => css.slice(0, index).split("\n").length;
+const cssRules = [];
+{
+  const stack = [];
+  let buf = "";
+  let bufStart = -1;
+  let annotated = false;
+  let i = 0;
+  while (i < css.length) {
+    if (css.startsWith("/*", i)) {
+      const end = css.indexOf("*/", i + 2);
+      const text = css.slice(i + 2, end === -1 ? css.length : end);
+      if (/audit:\s*mobile-ok\s+\S/.test(text)) annotated = true;
+      i = end === -1 ? css.length : end + 2;
+      continue;
+    }
+    const ch = css[i];
+    if (ch === "{") {
+      const prelude = buf.trim();
+      if (prelude.startsWith("@")) {
+        stack.push(prelude);
+      } else {
+        let depth = 1;
+        let j = i + 1;
+        let body = "";
+        while (j < css.length && depth > 0) {
+          if (css.startsWith("/*", j)) {
+            const end = css.indexOf("*/", j + 2);
+            j = end === -1 ? css.length : end + 2;
+            continue;
+          }
+          if (css[j] === "{") depth += 1;
+          else if (css[j] === "}") depth -= 1;
+          if (depth > 0) body += css[j];
+          j += 1;
+        }
+        cssRules.push({ prelude, body, line: lineAt(bufStart), media: [...stack], annotated });
+        annotated = false;
+        i = j;
+        buf = "";
+        bufStart = -1;
+        continue;
+      }
+      buf = "";
+      bufStart = -1;
+    } else if (ch === "}") {
+      stack.pop();
+      buf = "";
+      bufStart = -1;
+    } else if (ch === ";") {
+      buf = "";
+      bufStart = -1;
+    } else {
+      if (bufStart === -1 && !/\s/.test(ch)) bufStart = i;
+      buf += ch;
+    }
+    i += 1;
+  }
+}
+
+const normalizeSelector = (s) => s.trim().replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ");
+const splitTopLevel = (value, sep) => {
+  const out = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of value) {
+    if (ch === "(" || ch === "[") depth += 1;
+    if (ch === ")" || ch === "]") depth -= 1;
+    if (depth === 0 && (sep === "," ? ch === "," : /\s/.test(ch))) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+};
+const gridColumnsOf = (body) => {
+  let value;
+  for (const decl of body.split(";")) {
+    const idx = decl.indexOf(":");
+    if (idx === -1) continue;
+    if (decl.slice(0, idx).trim() === "grid-template-columns") value = decl.slice(idx + 1).replace(/!important/, "").trim();
+  }
+  return value;
+};
+// Retorna "responsive" para auto-fit/auto-fill, ou o número de trilhas.
+const trackCount = (value) => {
+  if (/auto-fit|auto-fill/.test(value)) return "responsive";
+  if (value === "none" || value === "subgrid") return 1;
+  let count = 0;
+  for (const token of splitTopLevel(value, " ")) {
+    if (token.startsWith("[")) continue; // nome de linha
+    const rep = token.match(/^repeat\(\s*(\d+)\s*,(.*)\)$/s);
+    if (rep) count += Number(rep[1]) * Math.max(1, splitTopLevel(rep[2], " ").filter((t) => !t.startsWith("[")).length);
+    else count += 1;
+  }
+  return count;
+};
+const maxWidthOf = (media) => {
+  let width = Infinity;
+  for (const at of media) {
+    const mw = at.match(/max-width\s*:\s*(\d+(?:\.\d+)?)px/);
+    if (mw) width = Math.min(width, Number(mw[1]));
+  }
+  return width;
+};
+const isPrint = (media) => media.some((at) => /^@media\s+print\b/.test(at));
+
+const gridRules = cssRules
+  .filter((r) => !isPrint(r.media))
+  .map((r) => ({ ...r, columns: gridColumnsOf(r.body), selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector) }))
+  .filter((r) => r.columns !== undefined);
+
+const gridProblems = [];
+for (const rule of gridRules) {
+  const tracks = trackCount(rule.columns);
+  if (tracks === "responsive" || tracks < 2 || rule.annotated) continue;
+  const limit = Math.min(MOBILE_MAX, maxWidthOf(rule.media));
+  for (const selector of rule.selectors) {
+    const covered = gridRules.some((other) => {
+      if (other === rule || !other.selectors.includes(selector)) return false;
+      if (maxWidthOf(other.media) > limit) return false;
+      // A regra de celular pode manter várias colunas se estiver anotada com `mobile-ok`.
+      const t = trackCount(other.columns);
+      return t === "responsive" || t <= 1 || other.annotated;
+    });
+    if (!covered) gridProblems.push(`styles.css:${rule.line} ${selector} { grid-template-columns: ${rule.columns.replace(/\s+/g, " ")} } sem regra de celular (≤ ${MOBILE_MAX}px)`);
+  }
+}
+
+if (gridProblems.length) {
+  console.error(`${gridProblems.length} grid(s) de várias colunas sem regra para celular:\n` + gridProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum grid de várias colunas sem regra para celular.");
+}
+if (failed) process.exit(1);
