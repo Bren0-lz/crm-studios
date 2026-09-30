@@ -497,6 +497,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       endsAt,
       status,
       notes: "",
+      visitType: "regular",
       patientName: patient.fullName,
       professionalName: professional.fullName,
       professionalColor: professional.color,
@@ -1310,6 +1311,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           serviceId: input.serviceId,
           startsAt: startsAt.toISOString(),
           notes: input.notes,
+          visitType: input.visitType,
         });
         appointment.seriesId = seriesId;
         appointments.push(appointment);
@@ -4707,6 +4709,15 @@ export class MemoryClinicRepository implements ClinicRepository {
         cancelled: appointments.filter((item) => item.status === "cancelled")
           .length,
         attendanceRate: attendance(completed, noShows),
+        byVisitType: {
+          regular: appointments.filter((item) => item.visitType === "regular")
+            .length,
+          trial: appointments.filter((item) => item.visitType === "trial")
+            .length,
+          evaluation: appointments.filter(
+            (item) => item.visitType === "evaluation",
+          ).length,
+        },
       },
       plans: {
         active: activePlans.length,

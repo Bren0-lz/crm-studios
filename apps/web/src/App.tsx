@@ -7982,6 +7982,7 @@ function AppointmentModal({
         serviceId: form.serviceId,
         startsAt: new Date(form.startsAt).toISOString(),
         notes: form.notes,
+        visitType: "regular",
       };
       onCreated(
         form.recurring

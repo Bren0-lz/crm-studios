@@ -153,6 +153,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       serviceId: services[0]!.id,
       startsAt: startsAt.toISOString(),
       notes: appointmentMarker,
+      visitType: "regular" as const,
     };
 
     const results = await Promise.allSettled([
@@ -191,10 +192,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const first = await repository.createAppointment(clinicId, {
       ...input,
       startsAt: at(0),
+      visitType: "evaluation",
     });
+    expect(first.visitType).toBe("evaluation");
     await repository.createAppointment(clinicId, {
       ...input,
       startsAt: at(2),
+      visitType: "regular",
     });
     const move = {
       professionalId: input.professionalId,
@@ -208,6 +212,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       move,
     );
     expect(moved?.startsAt).toBe(at(1));
+    expect(moved?.visitType).toBe("evaluation");
     const anotherInstance = new PostgresClinicRepository(pool);
     expect(await anotherInstance.listAppointmentReschedules(clinicId, first.id)).toMatchObject([
       { previousStartsAt: at(0), startsAt: at(1), actorName: "Mariana Costa" },
@@ -220,7 +225,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         { ...move, startsAt: at(2) },
       ),
     ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
-    expect((await anotherInstance.listAppointments(clinicId, at(0), at(3))).find((item) => item.id === first.id)?.startsAt).toBe(at(1));
+    expect((await anotherInstance.listAppointments(clinicId, at(0), at(3))).find((item) => item.id === first.id)).toMatchObject({
+      startsAt: at(1),
+      visitType: "evaluation",
+    });
     expect(await anotherInstance.listAppointmentReschedules(clinicId, first.id)).toHaveLength(1);
     await repository.updateAppointmentStatus(clinicId, first.id, "cancelled");
     await expect(
@@ -231,6 +239,44 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         move,
       ),
     ).rejects.toMatchObject({ code: "APPOINTMENT_RESCHEDULE_FORBIDDEN" });
+  });
+
+  it("keeps the visit type in a recurring series and counts it in the report", async () => {
+    const [patients, professionals, rooms, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const startsAt = new Date(Date.now() + 300 * 24 * 60 * 60 * 1000);
+    startsAt.setUTCHours(23, 0, 0, 0);
+    const series = await repository.createRecurringAppointments(clinicId, {
+      patientId: patients[0]!.id,
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      startsAt: startsAt.toISOString(),
+      notes: appointmentMarker,
+      visitType: "trial",
+      occurrences: 2,
+      intervalWeeks: 1,
+    });
+    expect(series.map((item) => item.visitType)).toEqual(["trial", "trial"]);
+    const day = (value: string) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
+        new Date(value),
+      );
+    const report = await repository.getManagementReport(
+      clinicId,
+      day(series[0]!.startsAt),
+      day(series[1]!.startsAt),
+    );
+    expect(report.appointments.byVisitType.trial).toBeGreaterThanOrEqual(2);
+    expect(
+      report.appointments.byVisitType.regular +
+        report.appointments.byVisitType.trial +
+        report.appointments.byVisitType.evaluation,
+    ).toBe(report.appointments.total);
   });
 
   it("reconciles PostgreSQL sales, cancellation, payment and reversal movements", async () => {
@@ -593,6 +639,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       serviceId: services[0]!.id,
       startsAt: startsAt.toISOString(),
       notes: satisfactionMarker,
+      visitType: "regular",
     });
     await expect(
       repository.createSatisfactionSurvey(clinicId, ownerId, {
@@ -661,6 +708,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       serviceId: services[0]!.id,
       startsAt: startsAt.toISOString(),
       notes: timelineMarker,
+      visitType: "regular",
     });
     await repository.updateAppointmentStatus(clinicId, appointment.id, "completed");
     const date = saoPauloToday();

@@ -302,6 +302,108 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("keeps the visit type on create, series, listing and reschedule and counts it in the report", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const base = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    base.setUTCHours(13, 0, 0, 0);
+    const at = (hours: number, weeks = 0) =>
+      new Date(
+        base.getTime() + (weeks * 7 * 24 + hours) * 60 * 60 * 1000,
+      ).toISOString();
+    const payload = {
+      patientId: patients.json()[0].id,
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId: services.json()[0].id,
+    };
+    const regular = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: at(0) },
+    });
+    expect(regular.statusCode).toBe(201);
+    expect(regular.json().visitType).toBe("regular");
+    const evaluation = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: at(2), visitType: "evaluation" },
+    });
+    expect(evaluation.statusCode).toBe(201);
+    expect(evaluation.json().visitType).toBe("evaluation");
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: at(4), visitType: "vip" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    const series = await app.inject({
+      method: "POST",
+      url: "/appointments/recurring",
+      headers,
+      payload: {
+        ...payload,
+        startsAt: at(4),
+        visitType: "trial",
+        occurrences: 2,
+        intervalWeeks: 1,
+      },
+    });
+    expect(series.statusCode).toBe(201);
+    expect(series.json().map((item: Appointment) => item.visitType)).toEqual([
+      "trial",
+      "trial",
+    ]);
+    const moved = await app.inject({
+      method: "PUT",
+      url: `/appointments/${evaluation.json().id}/schedule`,
+      headers,
+      payload: {
+        professionalId: payload.professionalId,
+        roomId: payload.roomId,
+        startsAt: at(6),
+      },
+    });
+    expect(moved.statusCode).toBe(200);
+    expect(moved.json().visitType).toBe("evaluation");
+    const listed = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${encodeURIComponent(at(-1))}&to=${encodeURIComponent(at(8, 1))}`,
+      headers,
+    });
+    const byId = new Map(
+      listed.json().map((item: Appointment) => [item.id, item.visitType]),
+    );
+    expect(byId.get(regular.json().id)).toBe("regular");
+    expect(byId.get(evaluation.json().id)).toBe("evaluation");
+    for (const item of series.json() as Appointment[])
+      expect(byId.get(item.id)).toBe("trial");
+    const day = (value: string) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
+        new Date(value),
+      );
+    const report = await app.inject({
+      method: "GET",
+      url: `/reports/management?from=${day(at(0))}&to=${day(at(4, 1))}`,
+      headers,
+    });
+    expect(report.statusCode).toBe(200);
+    expect(report.json().appointments).toMatchObject({
+      total: 4,
+      byVisitType: { regular: 1, trial: 2, evaluation: 1 },
+    });
+    await app.close();
+  });
+
   it("versions and finalizes a complete clinical record", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

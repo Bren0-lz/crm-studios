@@ -9,6 +9,7 @@ import type {
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
+  AppointmentVisitType,
   AssessmentField,
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -223,6 +224,7 @@ interface AppointmentRow {
   createdAt: Date;
   updatedAt: Date;
   seriesId: string | null;
+  visitType: AppointmentVisitType;
 }
 
 interface ScheduleBlockRow {
@@ -779,7 +781,8 @@ const appointmentColumns = `
   s.name AS "serviceName",
   a.created_at AS "createdAt",
   a.updated_at AS "updatedAt",
-  a.series_id AS "seriesId"
+  a.series_id AS "seriesId",
+  a.visit_type AS "visitType"
 `;
 
 const appointmentJoins = `
@@ -940,6 +943,7 @@ function mapAppointment(row: AppointmentRow): Appointment {
     roomName: row.roomName,
     serviceName: row.serviceName,
     notes: present(row.notes),
+    visitType: row.visitType,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
@@ -2675,9 +2679,9 @@ export class PostgresClinicRepository implements ClinicRepository {
         `
           INSERT INTO appointments (
             clinic_id, patient_id, professional_id, room_id, service_id,
-            starts_at, ends_at, notes
+            starts_at, ends_at, notes, visit_type
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           RETURNING id
         `,
         [
@@ -2689,6 +2693,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           startsAt,
           endsAt,
           input.notes || null,
+          input.visitType,
         ],
       );
       return (await this.findAppointment(clinicId, inserted.rows[0]!.id))!;
@@ -2958,8 +2963,8 @@ export class PostgresClinicRepository implements ClinicRepository {
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO appointments
              (clinic_id, patient_id, professional_id, room_id, service_id,
-              starts_at, ends_at, notes, series_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+              starts_at, ends_at, notes, series_id, visit_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [
             clinicId,
             input.patientId,
@@ -2970,6 +2975,7 @@ export class PostgresClinicRepository implements ClinicRepository {
             endsAt,
             input.notes || null,
             seriesId,
+            input.visitType,
           ],
         );
         ids.push(inserted.rows[0]!.id);
@@ -6754,11 +6760,16 @@ export class PostgresClinicRepository implements ClinicRepository {
       commercialResult,
       sourceResult,
     ] = await Promise.all([
-      this.pool.query<AppointmentAggregate>(
+      this.pool.query<
+        AppointmentAggregate & Record<AppointmentVisitType, number>
+      >(
         `SELECT COUNT(*)::int AS total,
                 COUNT(*) FILTER (WHERE a.status = 'completed')::int AS completed,
                 COUNT(*) FILTER (WHERE a.status = 'no_show')::int AS "noShows",
-                COUNT(*) FILTER (WHERE a.status = 'cancelled')::int AS cancelled
+                COUNT(*) FILTER (WHERE a.status = 'cancelled')::int AS cancelled,
+                COUNT(*) FILTER (WHERE a.visit_type = 'regular')::int AS regular,
+                COUNT(*) FILTER (WHERE a.visit_type = 'trial')::int AS trial,
+                COUNT(*) FILTER (WHERE a.visit_type = 'evaluation')::int AS evaluation
          FROM appointments a WHERE a.clinic_id = $1 AND ${dateFilter}`,
         [clinicId, from, to],
       ),
@@ -6977,11 +6988,19 @@ export class PostgresClinicRepository implements ClinicRepository {
       to,
       generatedAt: new Date().toISOString(),
       appointments: {
-        ...appointment,
+        total: appointment.total,
+        completed: appointment.completed,
+        noShows: appointment.noShows,
+        cancelled: appointment.cancelled,
         attendanceRate: attendanceRate(
           appointment.completed,
           appointment.noShows,
         ),
+        byVisitType: {
+          regular: appointment.regular,
+          trial: appointment.trial,
+          evaluation: appointment.evaluation,
+        },
       },
       plans: {
         ...plan,

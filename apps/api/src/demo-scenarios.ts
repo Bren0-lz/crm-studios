@@ -453,6 +453,7 @@ export function buildDemoScenarios(): DemoData {
             visit === consumed - 1 && index % 11 === 0
               ? "no_show"
               : "completed",
+          visitType: "regular",
           createdAt: stamp(dayOffset - 7),
           updatedAt: stamp(dayOffset, hour + 1),
         });
@@ -486,6 +487,7 @@ export function buildDemoScenarios(): DemoData {
           startsAt: stamp(dayOffset, hour),
           endsAt: `${date(dayOffset)}T${String(hour).padStart(2, "0")}:50:00-03:00`,
           status: "confirmed",
+          visitType: "regular",
           createdAt: stamp(-2),
           updatedAt: stamp(-2),
         });

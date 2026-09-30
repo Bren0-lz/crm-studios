@@ -122,6 +122,14 @@ export const serviceInputSchema = z.object({
 });
 export type ServiceInput = z.infer<typeof serviceInputSchema>;
 
+// Tipo do atendimento: normal, aula experimental ou avaliação.
+export const appointmentVisitTypeSchema = z.enum([
+  "regular",
+  "trial",
+  "evaluation",
+]);
+export type AppointmentVisitType = z.infer<typeof appointmentVisitTypeSchema>;
+
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
   professionalId: z.uuid(),
@@ -129,6 +137,7 @@ export const appointmentInputSchema = z.object({
   serviceId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  visitType: appointmentVisitTypeSchema.default("regular"),
 });
 export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
 
@@ -1389,6 +1398,8 @@ export interface ManagementReport {
     noShows: number;
     cancelled: number;
     attendanceRate: number;
+    // Atendimentos do período (inclusive cancelados) por tipo.
+    byVisitType: Record<AppointmentVisitType, number>;
   };
   plans: {
     active: number;
