@@ -109,6 +109,8 @@ import type {
   PermissionMatrixItem,
   PlanStatus,
   Professional,
+  RecurringPayable,
+  RecurringPayableInput,
   RelationshipSettings,
   Room,
   SatisfactionReport,
@@ -119,7 +121,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
-import { describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -5225,6 +5227,12 @@ function FinancePage() {
               </div>
             )}
           </section>
+          {tab === "payables" && (
+            <RecurringPayablesSection
+              workspace={data}
+              onGenerated={reload}
+            />
+          )}
         </>
       )}
       {payableModal && data && (
@@ -5241,6 +5249,446 @@ function FinancePage() {
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
       )}
     </>
+  );
+}
+
+/** Competência AAAA-MM exibida como MM/AAAA. */
+function formatCompetence(month: string) {
+  const [year, value] = month.split("-");
+  return `${value}/${year}`;
+}
+
+function recurringPayableStatus(
+  item: RecurringPayable,
+  currentMonth: string,
+): "active" | "paused" | "ended" {
+  // No mês final a despesa ainda gera conta: só depois dele fica encerrada.
+  if (item.endMonth && item.endMonth < currentMonth) return "ended";
+  return item.active ? "active" : "paused";
+}
+
+/** Corpo completo do PUT: a rota substitui o modelo inteiro. */
+function recurringPayableInput(
+  item: RecurringPayable,
+  changes: Partial<RecurringPayableInput> = {},
+): RecurringPayableInput {
+  return {
+    description: item.description,
+    ...(item.supplier ? { supplier: item.supplier } : {}),
+    categoryId: item.categoryId,
+    costCenterId: item.costCenterId,
+    amountInCents: item.amountInCents,
+    dayOfMonth: item.dayOfMonth,
+    startMonth: item.startMonth,
+    ...(item.endMonth ? { endMonth: item.endMonth } : {}),
+    active: item.active,
+    ...changes,
+  };
+}
+
+function RecurringPayablesSection({
+  workspace,
+  onGenerated,
+}: {
+  workspace: FinancialWorkspace;
+  onGenerated: () => Promise<void>;
+}) {
+  const [items, setItems] = useState<RecurringPayable[] | null>(null);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState("");
+  const [modal, setModal] = useState(false);
+  const [ending, setEnding] = useState<RecurringPayable | null>(null);
+  const currentMonth = saoPauloToday().slice(0, 7);
+  useEffect(() => {
+    let active = true;
+    api
+      .recurringPayables()
+      .then((data) => active && setItems(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function refresh() {
+    // O workspace gera as contas do mês; a lista vem depois, já com a última competência.
+    await onGenerated();
+    setItems(await api.recurringPayables());
+  }
+  async function update(
+    item: RecurringPayable,
+    changes: Partial<RecurringPayableInput>,
+  ) {
+    setError("");
+    setBusyId(item.id);
+    try {
+      await api.updateRecurringPayable(
+        item.id,
+        recurringPayableInput(item, changes),
+      );
+      await refresh();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusyId("");
+    }
+  }
+  return (
+    <div className="recurring-payables">
+      {error && <ErrorBanner error={error} />}
+      <section className="panel finance-panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">Recorrentes</span>
+            <h2>Despesas fixas</h2>
+          </div>
+          <button className="primary-button" onClick={() => setModal(true)}>
+            <Plus size={18} /> Nova despesa fixa
+          </button>
+        </div>
+        {!items ? (
+          !error && <LoadingBlock />
+        ) : items.length === 0 ? (
+          <EmptyState
+            title="Nenhuma despesa fixa"
+            copy="Cadastre aluguel, internet e outras contas mensais para gerá-las automaticamente."
+          />
+        ) : (
+          <div className="finance-table advanced">
+            {items.map((item) => {
+              const status = recurringPayableStatus(item, currentMonth);
+              const period = [
+                `Desde ${formatCompetence(item.startMonth)}`,
+                item.endMonth && `até ${formatCompetence(item.endMonth)}`,
+                item.resumedFromMonth &&
+                  `Reativada em ${formatCompetence(item.resumedFromMonth)}`,
+                item.lastCompetence
+                  ? `Última gerada: ${formatCompetence(item.lastCompetence)}`
+                  : "Nenhuma conta gerada",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <div className="finance-row" key={item.id}>
+                  <div>
+                    <strong>{item.description}</strong>
+                    <span>
+                      {item.supplier || item.categoryName} ·{" "}
+                      {item.costCenterName}
+                    </span>
+                    <span>{period}</span>
+                  </div>
+                  <div>
+                    <span>Vencimento</span>
+                    <strong>Dia {item.dayOfMonth}</strong>
+                  </div>
+                  <strong className="finance-amount">
+                    {currency.format(item.amountInCents / 100)}
+                  </strong>
+                  <span className={`status-pill ${status}`}>
+                    {status === "ended"
+                      ? "Encerrada"
+                      : status === "paused"
+                        ? "Pausada"
+                        : "Ativa"}
+                  </span>
+                  <div className="finance-actions">
+                    {status !== "ended" && (
+                      <>
+                        <button
+                          className="secondary-button"
+                          aria-label={`${item.active ? "Pausar" : "Reativar"} ${item.description}`}
+                          disabled={busyId === item.id}
+                          onClick={() =>
+                            void update(item, { active: !item.active })
+                          }
+                        >
+                          {item.active ? "Pausar" : "Reativar"}
+                        </button>
+                        <button
+                          className="secondary-button"
+                          aria-label={`Encerrar ${item.description}`}
+                          disabled={busyId === item.id}
+                          onClick={() => setEnding(item)}
+                        >
+                          Encerrar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      {modal && (
+        <RecurringPayableModal
+          workspace={workspace}
+          currentMonth={currentMonth}
+          onClose={() => setModal(false)}
+          onCreated={() => {
+            setModal(false);
+            void refresh().catch((cause: Error) => setError(cause.message));
+          }}
+        />
+      )}
+      {ending && (
+        <RecurringPayableEndModal
+          item={ending}
+          currentMonth={currentMonth}
+          onClose={() => setEnding(null)}
+          onEnded={() => {
+            setEnding(null);
+            void refresh().catch((cause: Error) => setError(cause.message));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecurringPayableEndModal({
+  item,
+  currentMonth,
+  onClose,
+  onEnded,
+}: {
+  item: RecurringPayable;
+  currentMonth: string;
+  onClose: () => void;
+  onEnded: () => void;
+}) {
+  const [endMonth, setEndMonth] = useState(item.endMonth ?? currentMonth);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    const month = competenceMonthSchema.safeParse(endMonth);
+    if (!month.success) {
+      setError("Informe o último mês da despesa.");
+      return;
+    }
+    if (month.data < item.startMonth) {
+      setError("O mês final não pode ser anterior ao mês inicial.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.updateRecurringPayable(
+        item.id,
+        recurringPayableInput(item, { endMonth: month.data }),
+      );
+      onEnded();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Modal
+      title="Encerrar despesa fixa"
+      subtitle={`${item.description}: nenhuma conta é gerada depois do último mês.`}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Último mês
+          <input
+            required
+            type="month"
+            min={item.startMonth}
+            value={endMonth}
+            onChange={(event) => setEndMonth(event.target.value)}
+          />
+        </label>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Voltar
+          </button>
+          <button className="primary-button" disabled={loading}>
+            {loading ? "Salvando…" : "Encerrar despesa fixa"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function RecurringPayableModal({
+  workspace,
+  currentMonth,
+  onClose,
+  onCreated,
+}: {
+  workspace: FinancialWorkspace;
+  currentMonth: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const expenseCategories = workspace.categories.filter(
+    (item) => item.kind === "expense" && item.active,
+  );
+  const costCenters = workspace.costCenters.filter((item) => item.active);
+  const [form, setForm] = useState({
+    description: "",
+    supplier: "",
+    categoryId: expenseCategories[0]?.id ?? "",
+    costCenterId: costCenters[0]?.id ?? "",
+    amountInCents: 0,
+    dayOfMonth: Math.min(new Date().getDate(), 28),
+    startMonth: currentMonth,
+    endMonth: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    const { supplier, endMonth, ...rest } = form;
+    try {
+      await api.createRecurringPayable({
+        ...rest,
+        description: rest.description.trim(),
+        ...(supplier.trim() ? { supplier: supplier.trim() } : {}),
+        ...(endMonth ? { endMonth } : {}),
+        active: true,
+      });
+      onCreated();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Modal
+      title="Nova despesa fixa"
+      subtitle="A conta a pagar é gerada todo mês, do mês inicial até o final."
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Descrição
+          <input
+            required
+            minLength={3}
+            value={form.description}
+            onChange={(event) =>
+              setForm({ ...form, description: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Fornecedor
+          <input
+            value={form.supplier}
+            onChange={(event) =>
+              setForm({ ...form, supplier: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Valor mensal
+          <input
+            required
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={form.amountInCents / 100}
+            onChange={(event) =>
+              setForm({
+                ...form,
+                amountInCents: Math.round(Number(event.target.value) * 100),
+              })
+            }
+          />
+        </label>
+        <label>
+          Categoria
+          <select
+            required
+            value={form.categoryId}
+            onChange={(event) =>
+              setForm({ ...form, categoryId: event.target.value })
+            }
+          >
+            {expenseCategories.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Centro de custo
+          <select
+            required
+            value={form.costCenterId}
+            onChange={(event) =>
+              setForm({ ...form, costCenterId: event.target.value })
+            }
+          >
+            {costCenters.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Dia do vencimento
+          <input
+            required
+            type="number"
+            min="1"
+            max="28"
+            step="1"
+            value={form.dayOfMonth}
+            onChange={(event) =>
+              setForm({ ...form, dayOfMonth: Number(event.target.value) })
+            }
+          />
+        </label>
+        <label>
+          Mês inicial
+          <input
+            required
+            type="month"
+            value={form.startMonth}
+            onChange={(event) =>
+              setForm({ ...form, startMonth: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Mês final (opcional)
+          <input
+            type="month"
+            min={form.startMonth}
+            value={form.endMonth}
+            onChange={(event) =>
+              setForm({ ...form, endMonth: event.target.value })
+            }
+          />
+        </label>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Voltar
+          </button>
+          <button
+            className="primary-button"
+            disabled={loading || !form.categoryId || !form.costCenterId}
+          >
+            {loading ? "Salvando…" : "Cadastrar despesa fixa"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

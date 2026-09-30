@@ -296,7 +296,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   encerrar. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T028
-- **Status:** TODO
+- **Status:** DONE
 
 ### T030 — Caixa do dia na API
 - **Escopo:**
@@ -308,7 +308,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes em `daily-cash.test.ts` e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/daily-cash.test.ts src/app.test.ts`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DOING
 
 ### T031 — Caixa do dia na interface
 - **Escopo:** aba "Caixa do dia" em Financeiro, com seletor de data, totais por forma de pagamento

@@ -3213,6 +3213,21 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: 8px;
 }
 
+.finance-row > .finance-amount {
+  text-align: right;
+}
+
+.recurring-payables {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.status-pill.ended {
+  background: #ecebe8;
+  color: #696d69;
+}
+
 .receipt-content {
   display: grid;
   gap: 22px;

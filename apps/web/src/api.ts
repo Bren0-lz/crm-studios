@@ -89,6 +89,8 @@ import type {
   PlanStatus,
   Professional,
   RecurringAppointmentInput,
+  RecurringPayable,
+  RecurringPayableInput,
   ReceivableRenegotiation,
   ReceivableRenegotiationInput,
   Room,
@@ -491,6 +493,18 @@ export const api = {
     }),
   reversePayable: (id: string) =>
     request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),
+  recurringPayables: () =>
+    request<RecurringPayable[]>("/finance/recurring-payables"),
+  createRecurringPayable: (input: RecurringPayableInput) =>
+    request<RecurringPayable>("/finance/recurring-payables", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateRecurringPayable: (id: string, input: RecurringPayableInput) =>
+    request<RecurringPayable>(`/finance/recurring-payables/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   leads: () => request<Lead[]>("/leads"),
   createLead: (input: LeadInput) =>
     request<Lead>("/leads", { method: "POST", body: JSON.stringify(input) }),

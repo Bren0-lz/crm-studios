@@ -1879,6 +1879,225 @@ describe("application shell", () => {
     expect(await screen.findByText(/Avaliação agendada para Bruna Lead/)).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Agendar experimental" })).not.toBeInTheDocument();
   });
+
+  it("lists, creates, pauses, reactivates and ends fixed expenses in accounts payable", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    const category = { id: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", clinicId, name: "Aluguel e condomínio", kind: "expense", active: true };
+    const center = { id: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", clinicId, name: "Administrativo", active: true };
+    const base = { clinicId, categoryId: category.id, costCenterId: center.id, categoryName: category.name, costCenterName: center.name, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
+    let recurring: Record<string, unknown>[] = [
+      { ...base, id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1", description: "Aluguel da sala", supplier: "Imobiliária Centro", amountInCents: 250000, dayOfMonth: 10, startMonth: "2026-01", active: true, lastCompetence: "2026-09" },
+      { ...base, id: "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2", description: "Internet", amountInCents: 12990, dayOfMonth: 5, startMonth: "2026-02", active: false, resumedFromMonth: "2026-05", lastCompetence: "2026-07" },
+      { ...base, id: "e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3", description: "Software antigo", amountInCents: 9900, dayOfMonth: 15, startMonth: "2019-01", endMonth: "2020-01", active: true, lastCompetence: "2020-01" },
+      { ...base, id: "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5", description: "Seguro do estúdio", amountInCents: 8000, dayOfMonth: 20, startMonth: "2019-01", endMonth: currentMonth, active: true },
+    ];
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [category, { ...category, id: "c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2", name: "Mensalidades", kind: "income" }],
+      costCenters: [center],
+      payables: [],
+      payableOpenInCents: 0,
+      payableOverdueInCents: 0,
+      paidExpensesThisMonthInCents: 0,
+      cashBalanceThisMonthInCents: 0,
+      commissionRules: [],
+      commissions: [],
+      commissionOpenInCents: 0,
+      paidCommissionsThisMonthInCents: 0,
+    };
+    const bodies: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.includes("/finance/recurring-payables") && method === "POST") {
+        const body = JSON.parse(String(init!.body)) as Record<string, unknown>;
+        bodies.push({ method, url, body });
+        const created = { ...base, ...body, id: "e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4" };
+        recurring = [...recurring, created];
+        return { ok: true, status: 201, json: async () => created } as Response;
+      }
+      if (url.includes("/finance/recurring-payables/") && method === "PUT") {
+        const body = JSON.parse(String(init!.body)) as Record<string, unknown>;
+        bodies.push({ method, url, body });
+        const id = url.split("/").pop();
+        const current = recurring.find((item) => item.id === id)!;
+        const updated = { ...base, id, lastCompetence: current.lastCompetence, ...body };
+        recurring = recurring.map((item) => (item.id === id ? updated : item));
+        return { ok: true, status: 200, json: async () => updated } as Response;
+      }
+      const body = url.includes("/finance/recurring-payables") ? recurring
+        : url.includes("/finance/workspace") ? workspace
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const workspaceLoads = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/finance/workspace")).length;
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (0)" }));
+    const section = (await screen.findByRole("heading", { name: "Despesas fixas" })).closest("section")!;
+    expect(await within(section).findByText("Aluguel da sala")).toBeInTheDocument();
+    expect(within(section).getByText("Imobiliária Centro · Administrativo")).toBeInTheDocument();
+    expect(within(section).getByText("R$ 2.500,00")).toBeInTheDocument();
+    expect(within(section).getByText("Dia 10")).toBeInTheDocument();
+    expect(within(section).getByText("Desde 01/2026 · Última gerada: 09/2026")).toBeInTheDocument();
+    expect(within(section).getByText("Desde 02/2026 · Reativada em 05/2026 · Última gerada: 07/2026")).toBeInTheDocument();
+    expect(within(section).getAllByText("Ativa")).toHaveLength(2);
+    expect(within(section).getByText("Pausada")).toBeInTheDocument();
+    expect(within(section).getAllByText("Encerrada")).toHaveLength(1);
+    // Encerrada (mês final já passou) não oferece mais pausar nem encerrar.
+    expect(within(section).queryByRole("button", { name: "Pausar Software antigo" })).not.toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: "Encerrar Software antigo" })).not.toBeInTheDocument();
+    // No próprio mês final ela ainda gera conta: continua ativa, com as ações.
+    const lastMonthRow = within(section).getByText("Seguro do estúdio").closest(".finance-row") as HTMLElement;
+    expect(within(lastMonthRow).getByText("Ativa")).toBeInTheDocument();
+    expect(within(lastMonthRow).getByRole("button", { name: "Pausar Seguro do estúdio" })).toBeInTheDocument();
+    expect(within(lastMonthRow).getByRole("button", { name: "Encerrar Seguro do estúdio" })).toBeInTheDocument();
+
+    // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
+    fireEvent.click(within(section).getByRole("button", { name: "Nova despesa fixa" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nova despesa fixa" });
+    expect(within(dialog).queryByRole("option", { name: "Mensalidades" })).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Contador" } });
+    fireEvent.change(within(dialog).getByLabelText("Fornecedor"), { target: { value: "Escritório Silva" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor mensal"), { target: { value: "450" } });
+    fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), { target: { value: "20" } });
+    fireEvent.change(within(dialog).getByLabelText("Mês inicial"), { target: { value: "2026-10" } });
+    fireEvent.change(within(dialog).getByLabelText("Mês final (opcional)"), { target: { value: "2027-09" } });
+    const loadsBeforeCreate = workspaceLoads();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }));
+    expect(await within(section).findByText("Contador")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Nova despesa fixa" })).not.toBeInTheDocument();
+    expect(bodies[0]).toMatchObject({ method: "POST" });
+    expect(bodies[0]!.body).toEqual({
+      description: "Contador",
+      supplier: "Escritório Silva",
+      categoryId: category.id,
+      costCenterId: center.id,
+      amountInCents: 45000,
+      dayOfMonth: 20,
+      startMonth: "2026-10",
+      endMonth: "2027-09",
+      active: true,
+    });
+    expect(workspaceLoads()).toBeGreaterThan(loadsBeforeCreate);
+
+    // Pausar envia o corpo completo com active:false.
+    fireEvent.click(within(section).getByRole("button", { name: "Pausar Aluguel da sala" }));
+    expect(await within(section).findByRole("button", { name: "Reativar Aluguel da sala" })).toBeInTheDocument();
+    expect(bodies[1]!.url).toContain("/finance/recurring-payables/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1");
+    expect(bodies[1]!.body).toEqual({
+      description: "Aluguel da sala",
+      supplier: "Imobiliária Centro",
+      categoryId: category.id,
+      costCenterId: center.id,
+      amountInCents: 250000,
+      dayOfMonth: 10,
+      startMonth: "2026-01",
+      active: false,
+    });
+
+    // Reativar envia active:true explicitamente e recarrega o workspace.
+    const loadsBeforeResume = workspaceLoads();
+    fireEvent.click(within(section).getByRole("button", { name: "Reativar Internet" }));
+    expect(await within(section).findByRole("button", { name: "Pausar Internet" })).toBeInTheDocument();
+    expect(bodies[2]!.body).toMatchObject({ description: "Internet", active: true });
+    expect(bodies[2]!.body).not.toHaveProperty("resumedFromMonth");
+    expect(workspaceLoads()).toBeGreaterThan(loadsBeforeResume);
+
+    // Encerrar abre um modal com o último mês e mantém a situação atual.
+    fireEvent.click(within(section).getByRole("button", { name: "Encerrar Internet" }));
+    const endDialog = await screen.findByRole("dialog", { name: "Encerrar despesa fixa" });
+    const lastMonth = within(endDialog).getByLabelText("Último mês");
+    expect(lastMonth).toHaveAttribute("type", "month");
+    expect(lastMonth).toHaveAttribute("min", "2026-02");
+    expect(lastMonth).toHaveValue(currentMonth);
+    fireEvent.change(lastMonth, { target: { value: "2026-01" } });
+    // O `min` do campo barra o envio no navegador; a validação própria cobre campos sem suporte a `month`.
+    expect((lastMonth as HTMLInputElement).validity.rangeUnderflow).toBe(true);
+    fireEvent.submit(lastMonth.closest("form")!);
+    expect(await within(endDialog).findByText("O mês final não pode ser anterior ao mês inicial.")).toBeInTheDocument();
+    expect(bodies).toHaveLength(3);
+    fireEvent.change(lastMonth, { target: { value: "2026-12" } });
+    fireEvent.click(within(endDialog).getByRole("button", { name: "Encerrar despesa fixa" }));
+    await vi.waitFor(() => expect(bodies[3]?.body).toEqual({
+      description: "Internet",
+      categoryId: category.id,
+      costCenterId: center.id,
+      amountInCents: 12990,
+      dayOfMonth: 5,
+      startMonth: "2026-02",
+      endMonth: "2026-12",
+      active: true,
+    }));
+    expect(bodies[3]!.url).toContain("/finance/recurring-payables/e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2");
+    expect(await within(section).findByText("Desde 02/2026 · até 12/2026 · Última gerada: 07/2026")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Encerrar despesa fixa" })).not.toBeInTheDocument();
+  });
+
+  it("shows the API error inside the end fixed expense modal", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const item = { id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1", clinicId: "11111111-1111-4111-8111-111111111111", description: "Aluguel da sala", categoryId: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", costCenterId: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", categoryName: "Aluguel", costCenterName: "Administrativo", amountInCents: 250000, dayOfMonth: 10, startMonth: "2026-01", endMonth: "2099-12", active: false, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "PUT") {
+        return { ok: false, status: 404, json: async () => ({ code: "RECURRING_PAYABLE_NOT_FOUND", message: "Despesa fixa não encontrada." }) } as Response;
+      }
+      const body = url.includes("/finance/recurring-payables") ? [item] : url.includes("/finance/workspace") ? workspace : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (0)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Encerrar Aluguel da sala" }));
+    const dialog = await screen.findByRole("dialog", { name: "Encerrar despesa fixa" });
+    // Sugere o mês final já cadastrado.
+    expect(within(dialog).getByLabelText("Último mês")).toHaveValue("2099-12");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Encerrar despesa fixa" }));
+    expect(await within(dialog).findByText("Despesa fixa não encontrada.")).toBeInTheDocument();
+    const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
+    // Pausada continua pausada: `active` vai explícito como false.
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ endMonth: "2099-12", active: false });
+  });
+
+  it("shows empty and error states for fixed expenses", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    let failing = false;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/finance/recurring-payables") && failing) {
+        return { ok: false, status: 500, json: async () => ({ code: "INTERNAL", message: "Falha ao carregar despesas fixas." }) } as Response;
+      }
+      const body = url.includes("/finance/workspace") ? workspace : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const { unmount } = render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (0)" }));
+    const section = (await screen.findByRole("heading", { name: "Despesas fixas" })).closest("section")!;
+    expect(await within(section).findByText("Nenhuma despesa fixa")).toBeInTheDocument();
+    unmount();
+
+    failing = true;
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (0)" }));
+    await screen.findByRole("heading", { name: "Despesas fixas" });
+    expect(await screen.findByText("Falha ao carregar despesas fixas.")).toBeInTheDocument();
+    expect(screen.queryByText("Nenhuma despesa fixa")).not.toBeInTheDocument();
+  });
 });
 
 function relationshipSettingsFixture() {
