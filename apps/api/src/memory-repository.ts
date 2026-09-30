@@ -33,6 +33,7 @@ import type {
   CommunicationPreferenceInput,
   CostCenter,
   CostCenterInput,
+  DailyCash,
   DashboardSummary,
   DocumentStatus,
   DocumentTemplate,
@@ -146,6 +147,7 @@ import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
+import { buildDailyCash } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   appointmentDocumentVariables,
@@ -4675,6 +4677,21 @@ export class MemoryClinicRepository implements ClinicRepository {
       sales,
       this.receivedPayments(clinicId),
       this.appointments.filter((item) => item.clinicId === clinicId),
+    );
+  }
+
+  async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
+    // A função pura filtra pela data do evento no fuso da clínica.
+    return buildDailyCash(
+      date,
+      {
+        receipts: this.receivedPayments(clinicId),
+        payables: this.payables.filter((item) => item.clinicId === clinicId),
+        commissions: this.commissions.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+      },
+      this.clinicSettings.timezone,
     );
   }
 

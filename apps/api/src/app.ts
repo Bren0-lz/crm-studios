@@ -14,6 +14,7 @@ import {
   clinicalAssessmentInputSchema,
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
+  dailyCashFilterSchema,
   relationshipSettingsSchema,
   holidayInputSchema,
   contactActivityInputSchema,
@@ -1710,6 +1711,17 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.sub,
       );
       return repository.getFinancialWorkspace(request.user.clinicId);
+    },
+  );
+  app.get(
+    "/finance/daily-cash",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request) => {
+      const { date } = dailyCashFilterSchema.parse(request.query);
+      return repository.getDailyCash(
+        request.user.clinicId,
+        date ?? saoPauloToday(),
+      );
     },
   );
   app.get(

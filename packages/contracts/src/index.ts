@@ -1365,6 +1365,63 @@ export interface CommissionEntry {
   createdAt: string;
 }
 
+// Caixa do dia (`GET /finance/daily-cash?date=`)
+
+export const dailyCashFilterSchema = z.object({
+  date: z.iso.date("Informe uma data válida.").optional(),
+});
+export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
+
+/**
+ * Forma de pagamento do caixa. `unspecified` agrupa o que não tem forma
+ * registrada (comissões pagas e estornos sem pagamento de origem).
+ */
+export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
+
+export type DailyCashMovementKind =
+  | "receipt"
+  | "receipt_reversal"
+  | "payable"
+  | "commission";
+
+export interface DailyCashMovement {
+  /** `<kind>:<id da origem>`. */
+  id: string;
+  kind: DailyCashMovementKind;
+  direction: "in" | "out";
+  /** ISO 8601 do evento (pagamento, estorno ou baixa). */
+  occurredAt: string;
+  description: string;
+  /** Cliente, fornecedor ou profissional. */
+  counterpart?: string;
+  paymentMethod: DailyCashPaymentMethod;
+  /**
+   * Valor com sinal dentro da sua direção: entradas positivas e estornos
+   * negativos; saídas positivas (valor pago).
+   */
+  amountInCents: number;
+}
+
+export interface DailyCashMethodTotal {
+  paymentMethod: DailyCashPaymentMethod;
+  inflowInCents: number;
+  outflowInCents: number;
+  balanceInCents: number;
+}
+
+export interface DailyCash {
+  /** Data (aaaa-mm-dd) no fuso da clínica. */
+  date: string;
+  generatedAt: string;
+  /** Só as formas com movimento, na ordem de `paymentMethodSchema` + `unspecified`. */
+  byPaymentMethod: DailyCashMethodTotal[];
+  totalInflowInCents: number;
+  totalOutflowInCents: number;
+  balanceInCents: number;
+  /** Movimentos em ordem cronológica. */
+  movements: DailyCashMovement[];
+}
+
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;

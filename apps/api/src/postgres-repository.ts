@@ -36,6 +36,7 @@ import type {
   CommunicationPreference,
   CommunicationPreferenceInput,
   CostCenterInput,
+  DailyCash,
   DashboardSummary,
   DocumentStatus,
   DocumentTemplate,
@@ -144,6 +145,7 @@ import {
 import type { Pool, PoolClient } from "pg";
 import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
+import { buildDailyCash, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   appointmentDocumentVariables,
@@ -7179,6 +7181,97 @@ export class PostgresClinicRepository implements ClinicRepository {
         payments,
         appointmentResult.rows.map(mapAppointment),
         asOf,
+      );
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const clinic = await client.query<{ timezone: string }>(
+        `SELECT timezone FROM clinics WHERE id=$1`,
+        [clinicId],
+      );
+      // Estorno não registra forma: herda a do pagamento mais recente do
+      // mesmo recebível até o estorno.
+      const receiptResult = await client.query<{
+        id: string;
+        receivableId: string;
+        kind: "payment" | "payment_reversal";
+        patientId: string;
+        patientName: string;
+        description: string;
+        amountInCents: number;
+        occurredAt: Date;
+        paymentMethod: ReceivedPayment["paymentMethod"] | null;
+      }>(
+        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+                r.patient_id AS "patientId", p.full_name AS "patientName",
+                r.description, fe.amount_in_cents AS "amountInCents",
+                fe.created_at AS "occurredAt",
+                COALESCE(fe.metadata->>'paymentMethod', (
+                  SELECT prev.metadata->>'paymentMethod' FROM financial_events prev
+                  WHERE prev.clinic_id=fe.clinic_id AND prev.receivable_id=fe.receivable_id
+                    AND prev.kind='payment' AND prev.created_at<=fe.created_at
+                    AND prev.metadata->>'paymentMethod' IS NOT NULL
+                  ORDER BY prev.created_at DESC LIMIT 1
+                )) AS "paymentMethod"
+         FROM financial_events fe
+         JOIN clinics c ON c.id=fe.clinic_id
+         JOIN receivables r ON r.id=fe.receivable_id
+         JOIN patients p ON p.id=r.patient_id
+         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+           AND (fe.created_at AT TIME ZONE c.timezone)::date=$2::date`,
+        [clinicId, date],
+      );
+      const payableResult = await client.query<PayableRow>(
+        `SELECT ${payableColumns} FROM payables py
+         JOIN financial_categories fc ON fc.id = py.category_id
+         JOIN cost_centers cc ON cc.id = py.cost_center_id
+         JOIN clinics c ON c.id = py.clinic_id
+         WHERE py.clinic_id=$1 AND py.status='paid'
+           AND (py.paid_at AT TIME ZONE c.timezone)::date=$2::date`,
+        [clinicId, date],
+      );
+      const commissionResult = await client.query<CommissionEntryRow>(
+        `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
+                p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",
+                ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
+                ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
+                ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
+         FROM commission_entries ce
+         JOIN professionals p ON p.id = ce.professional_id
+         JOIN clinics c ON c.id = ce.clinic_id
+         WHERE ce.clinic_id=$1 AND ce.status='paid'
+           AND (ce.paid_at AT TIME ZONE c.timezone)::date=$2::date`,
+        [clinicId, date],
+      );
+      await client.query("COMMIT");
+      const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
+        id: item.id,
+        receivableId: item.receivableId,
+        kind: item.kind === "payment" ? "payment" : "reversal",
+        occurredAt: item.occurredAt.toISOString(),
+        patientId: item.patientId,
+        patientName: item.patientName,
+        description: item.description,
+        amountInCents: item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      }));
+      return buildDailyCash(
+        date,
+        {
+          receipts,
+          payables: payableResult.rows.map(mapPayable),
+          commissions: commissionResult.rows.map(mapCommissionEntry),
+        },
+        clinic.rows[0]?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
       );
     } catch (error) {
       await client.query("ROLLBACK");

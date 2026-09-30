@@ -41,6 +41,11 @@ const documentAppointmentDay = new Date(Date.now() + 630 * 24 * 60 * 60 * 1000);
 documentAppointmentDay.setUTCHours(13, 30, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 const recurringPayableMarker = "postgres-recurring-payable-test";
+const dailyCashMarker = "postgres-daily-cash-test";
+// Dia exclusivo deste teste (aaaa-mm-dd), bem à frente de qualquer movimento real.
+const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
@@ -60,6 +65,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query("DELETE FROM recurring_payables WHERE clinic_id = $1 AND description = $2", [
       clinicId,
       recurringPayableMarker,
+    ]);
+  }
+
+  async function cleanupDailyCash() {
+    const plans = "SELECT id FROM patient_plans WHERE clinic_id = $1 AND name = $2";
+    await pool.query(
+      `DELETE FROM financial_events WHERE receivable_id IN
+         (SELECT id FROM receivables WHERE plan_id IN (${plans}))`,
+      [clinicId, dailyCashMarker],
+    );
+    await pool.query(`DELETE FROM session_movements WHERE plan_id IN (${plans})`, [
+      clinicId,
+      dailyCashMarker,
+    ]);
+    await pool.query(`DELETE FROM receivables WHERE plan_id IN (${plans})`, [
+      clinicId,
+      dailyCashMarker,
+    ]);
+    await pool.query("DELETE FROM patient_plans WHERE clinic_id = $1 AND name = $2", [
+      clinicId,
+      dailyCashMarker,
+    ]);
+    const payables = "SELECT id FROM payables WHERE clinic_id = $1 AND description = $2";
+    await pool.query(`DELETE FROM payable_events WHERE payable_id IN (${payables})`, [
+      clinicId,
+      dailyCashMarker,
+    ]);
+    await pool.query("DELETE FROM payables WHERE clinic_id = $1 AND description = $2", [
+      clinicId,
+      dailyCashMarker,
     ]);
   }
 
@@ -199,6 +234,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupTrialConversion();
     await cleanupDocumentAppointment();
     await cleanupRecurringPayables();
+    await cleanupDailyCash();
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -880,6 +916,98 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(management.finance.paidInPeriodInCents).toBe(
       partialReport.current.receivedInCents,
     );
+  });
+
+  it("builds the PostgreSQL daily cash by event date in the clinic time zone", async () => {
+    await cleanupDailyCash();
+    const [patients, services, category, costCenter] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+      pool.query<{ id: string }>(
+        "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
+        [clinicId],
+      ),
+      pool.query<{ id: string }>(
+        "SELECT id FROM cost_centers WHERE clinic_id = $1 AND active LIMIT 1",
+        [clinicId],
+      ),
+    ]);
+    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      patientId: patients[0]!.id,
+      serviceId: services[0]!.id,
+      name: dailyCashMarker,
+      kind: "fixed_package",
+      totalSessions: 1,
+      validFrom: dailyCashDay,
+      totalValueInCents: 12_000,
+      installments: 1,
+      firstDueDate: dailyCashDay,
+    });
+    const receivable = await pool.query<{ id: string }>(
+      "SELECT id FROM receivables WHERE plan_id = $1",
+      [plan.id],
+    );
+    const receivableId = receivable.rows[0]!.id;
+    await repository.settleReceivable(clinicId, ownerId, receivableId, "cash");
+    await repository.reverseReceivablePayment(clinicId, ownerId, receivableId);
+    const payable = await repository.createPayable(clinicId, ownerId, {
+      description: dailyCashMarker,
+      supplier: "Fornecedor PG",
+      categoryId: category.rows[0]!.id,
+      costCenterId: costCenter.rows[0]!.id,
+      dueDate: dailyCashDay,
+      amountInCents: 4_000,
+    });
+    await repository.settlePayable(clinicId, ownerId, payable.id, "pix");
+
+    // Leva os eventos para o dia exclusivo: 23h30/23h40 de São Paulo (dia
+    // seguinte em UTC) e a conta paga às 12h.
+    const nextDay = new Date(`${dailyCashDay}T12:00:00.000Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    const nextDate = nextDay.toISOString().slice(0, 10);
+    await pool.query(
+      `UPDATE financial_events SET created_at = $2::timestamptz
+       WHERE receivable_id = $1 AND kind = 'payment'`,
+      [receivableId, `${nextDate}T02:30:00.000Z`],
+    );
+    await pool.query(
+      `UPDATE financial_events SET created_at = $2::timestamptz
+       WHERE receivable_id = $1 AND kind = 'payment_reversal'`,
+      [receivableId, `${nextDate}T02:40:00.000Z`],
+    );
+    await pool.query("UPDATE payables SET paid_at = $2::timestamptz WHERE id = $1", [
+      payable.id,
+      `${dailyCashDay}T15:00:00.000Z`,
+    ]);
+
+    const events = await pool.query<{ id: string }>(
+      `SELECT id FROM financial_events
+       WHERE receivable_id = $1 AND kind IN ('payment','payment_reversal')`,
+      [receivableId],
+    );
+    const ownIds = new Set([
+      `payable:${payable.id}`,
+      ...events.rows.flatMap((item) => [
+        `receipt:${item.id}`,
+        `receipt_reversal:${item.id}`,
+      ]),
+    ]);
+    const anotherInstance = new PostgresClinicRepository(pool);
+    const cash = await anotherInstance.getDailyCash(clinicId, dailyCashDay);
+    const ours = cash.movements.filter((item) => ownIds.has(item.id));
+    expect(
+      ours.map((item) => [item.kind, item.paymentMethod, item.amountInCents]),
+    ).toEqual([
+      ["payable", "pix", 4_000],
+      ["receipt", "cash", 12_000],
+      ["receipt_reversal", "cash", -12_000],
+    ]);
+    expect(cash.date).toBe(dailyCashDay);
+    const following = await anotherInstance.getDailyCash(clinicId, nextDate);
+    expect(
+      following.movements.filter((item) => ownIds.has(item.id)),
+    ).toEqual([]);
+    await cleanupDailyCash();
   });
 
   it("renews due PostgreSQL plans once and blocks a second manual renewal", async () => {

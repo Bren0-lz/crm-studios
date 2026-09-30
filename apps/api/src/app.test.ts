@@ -2295,6 +2295,228 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("reports the daily cash by payment method on the clinic day", async () => {
+    const { app, token } = await authenticatedApp();
+    const setupHeaders = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms, workspace] =
+      await Promise.all([
+        app.inject({ method: "GET", url: "/patients", headers: setupHeaders }),
+        app.inject({ method: "GET", url: "/services", headers: setupHeaders }),
+        app.inject({ method: "GET", url: "/professionals", headers: setupHeaders }),
+        app.inject({ method: "GET", url: "/rooms", headers: setupHeaders }),
+        app.inject({ method: "GET", url: "/finance/workspace", headers: setupHeaders }),
+      ]);
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    const sub = "22222222-2222-4222-8222-222222222222";
+    const headersAs = (role: UserRole = "owner") => ({
+      authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+    });
+    const at = (iso: string) => vi.setSystemTime(new Date(iso));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // 12h de São Paulo em 10/03/2031.
+      at("2031-03-10T15:00:00.000Z");
+      const headers = headersAs();
+      const plan = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          serviceId: services.json()[0].id,
+          name: "Plano do caixa",
+          kind: "fixed_package",
+          totalSessions: 1,
+          validFrom: "2031-03-10",
+          totalValueInCents: 12_000,
+          installments: 1,
+          firstDueDate: "2031-03-10",
+        },
+      });
+      expect(plan.statusCode).toBe(201);
+      const receivable = (
+        await app.inject({ method: "GET", url: "/finance/workspace", headers })
+      )
+        .json()
+        .summary.receivables.find(
+          (item: { planId?: string }) => item.planId === plan.json().id,
+        );
+      const paid = await app.inject({
+        method: "POST",
+        url: `/finance/receivables/${receivable.id}/pay`,
+        headers,
+        payload: { paymentMethod: "card" },
+      });
+      expect(paid.statusCode).toBe(200);
+
+      at("2031-03-10T16:00:00.000Z");
+      const payable = await app.inject({
+        method: "POST",
+        url: "/finance/payables",
+        headers,
+        payload: {
+          description: "Material de limpeza",
+          supplier: "Mercado Central",
+          categoryId: workspace
+            .json()
+            .categories.find((item: { kind: string }) => item.kind === "expense").id,
+          costCenterId: workspace.json().costCenters[0].id,
+          dueDate: "2031-03-10",
+          amountInCents: 4_000,
+        },
+      });
+      expect(payable.statusCode).toBe(201);
+      await app.inject({
+        method: "POST",
+        url: `/finance/payables/${payable.json().id}/pay`,
+        headers,
+        payload: { paymentMethod: "pix" },
+      });
+
+      const appointment = await app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          professionalId: professionals.json()[0].id,
+          roomId: rooms.json()[0].id,
+          serviceId: services.json()[0].id,
+          startsAt: "2031-03-10T13:00:00.000Z",
+        },
+      });
+      expect(appointment.statusCode).toBe(201);
+      await app.inject({
+        method: "PATCH",
+        url: `/appointments/${appointment.json().id}/status`,
+        headers,
+        payload: { status: "completed" },
+      });
+      await app.inject({
+        method: "POST",
+        url: "/finance/commission-rules",
+        headers,
+        payload: {
+          professionalId: professionals.json()[0].id,
+          percentage: 30,
+          effectiveFrom: "2031-03-01",
+        },
+      });
+      const commissions = await app.inject({
+        method: "POST",
+        url: "/finance/commissions/generate",
+        headers,
+        payload: { competence: "2031-03" },
+      });
+      expect(commissions.json()).toHaveLength(1);
+      const commission = commissions.json()[0];
+
+      // 23h30 de São Paulo, ainda 10/03 (já 11/03 em UTC): estorno e comissão.
+      at("2031-03-11T02:30:00.000Z");
+      const reversed = await app.inject({
+        method: "POST",
+        url: `/finance/receivables/${receivable.id}/reverse`,
+        headers,
+      });
+      expect(reversed.statusCode).toBe(200);
+      at("2031-03-11T02:40:00.000Z");
+      const commissionPaid = await app.inject({
+        method: "POST",
+        url: `/finance/commissions/${commission.id}/pay`,
+        headers,
+      });
+      expect(commissionPaid.statusCode).toBe(200);
+
+      // Sem data: vale o dia de hoje na clínica (ainda 10/03).
+      const today = await app.inject({
+        method: "GET",
+        url: "/finance/daily-cash",
+        headers,
+      });
+      expect(today.statusCode).toBe(200);
+      const explicit = await app.inject({
+        method: "GET",
+        url: "/finance/daily-cash?date=2031-03-10",
+        headers: headersAs("finance"),
+      });
+      expect(explicit.statusCode).toBe(200);
+      expect(explicit.json()).toEqual(today.json());
+      const cash = today.json();
+      expect(cash).toMatchObject({
+        date: "2031-03-10",
+        totalInflowInCents: 0,
+        totalOutflowInCents: 4_000 + commission.amountInCents,
+        balanceInCents: -(4_000 + commission.amountInCents),
+      });
+      expect(cash.byPaymentMethod).toEqual([
+        {
+          paymentMethod: "pix",
+          inflowInCents: 0,
+          outflowInCents: 4_000,
+          balanceInCents: -4_000,
+        },
+        {
+          paymentMethod: "card",
+          inflowInCents: 0,
+          outflowInCents: 0,
+          balanceInCents: 0,
+        },
+        {
+          paymentMethod: "unspecified",
+          inflowInCents: 0,
+          outflowInCents: commission.amountInCents,
+          balanceInCents: -commission.amountInCents,
+        },
+      ]);
+      expect(
+        cash.movements.map((item: { kind: string; amountInCents: number }) => [
+          item.kind,
+          item.amountInCents,
+        ]),
+      ).toEqual([
+        ["receipt", 12_000],
+        ["payable", 4_000],
+        ["receipt_reversal", -12_000],
+        ["commission", commission.amountInCents],
+      ]);
+      expect(cash.movements[2]).toMatchObject({
+        occurredAt: "2031-03-11T02:30:00.000Z",
+        paymentMethod: "card",
+        direction: "in",
+      });
+
+      const nextDay = await app.inject({
+        method: "GET",
+        url: "/finance/daily-cash?date=2031-03-11",
+        headers,
+      });
+      expect(nextDay.json()).toMatchObject({
+        date: "2031-03-11",
+        byPaymentMethod: [],
+        totalInflowInCents: 0,
+        totalOutflowInCents: 0,
+        balanceInCents: 0,
+        movements: [],
+      });
+
+      const invalid = await app.inject({
+        method: "GET",
+        url: "/finance/daily-cash?date=2031-02-30",
+        headers,
+      });
+      expect(invalid.statusCode).toBe(400);
+      const denied = await app.inject({
+        method: "GET",
+        url: "/finance/daily-cash",
+        headers: headersAs("reception"),
+      });
+      expect(denied.statusCode).toBe(403);
+    } finally {
+      vi.useRealTimers();
+    }
+    await app.close();
+  });
+
   it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
