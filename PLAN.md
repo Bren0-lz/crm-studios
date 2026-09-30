@@ -127,7 +127,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Acrescentar esses itens ao checklist de `.claude/agents/verifier.md`.
 - **Gate:** `npm run build && node apps/web/scripts/audit-panels.cjs`
 - **Depende de:** D03
-- **Status:** TODO
+- **Status:** DONE
 
 ### V1 — Revisão visual do design (manual)
 - **Tipo:** manual

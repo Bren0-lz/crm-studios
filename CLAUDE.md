@@ -64,3 +64,22 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 - **Documentação**: só edite `docs/STATUS_IMPLEMENTACAO.md` e `README.md` quando o escopo da
   tarefa pedir. O `PLAN.md` tem tarefas dedicadas de documentação; editar esses arquivos em outra
   tarefa é escopo além do pedido e o verifier reprova.
+
+### Design de páginas
+- **Estrutura**: página nova começa com `PageHeader`; conteúdo fica dentro de `.panel`. O
+  `.panel` não tem padding: cada filho direto usa `panel-head` (`padding: 21px 23px`) ou um
+  bloco com respiro lateral próprio (padrão 23px). Exceções: `.admin-grid > .panel` e
+  `.groups-layout > .panel`, que já recebem padding.
+- **Tokens**: CSS novo usa `--space-1`…`--space-8` (4, 8, 12, 16, 24, 32, 48, 64px) e
+  `--radius-sm/md/lg` (8, 12, 18px); valor fora da escala via `calc(var(--space-N) ± Xpx)`.
+  Nada de px soltos para espaçamento e nada de `style={{}}` no JSX.
+- **Celular**: toda regra com `grid-template-columns` de 2+ trilhas precisa de regra no bloco
+  `@media (max-width: 700px)` que reduza a 1 coluna (ou usar `auto-fit`/`auto-fill`). Exceção só
+  com `/* audit: mobile-ok <motivo real> */` logo acima da regra.
+- **Estados**: toda tela/lista com dados remotos trata carregando (`LoadingBlock`), vazio
+  (`EmptyState`) e erro (`ErrorBanner`/`error-banner`; em formulário, `form-error`).
+- **Tabelas**: valores numéricos e monetários alinhados à direita (`text-align: right`).
+- **Reaproveitar** antes de criar: `panel`, `panel-head`, `list-toolbar`, `form-grid`,
+  `clinical-form`, `plan-card`, `plans-grid`, `status-pill`, `success-banner`, `Modal`,
+  `modal-actions`, `page-actions`, `tag-filter`, `table-row`, `primary-button`/`secondary-button`
+  (já são `inline-flex` com `gap`: ícone + texto sem CSS extra).

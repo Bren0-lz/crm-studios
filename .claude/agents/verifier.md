@@ -29,8 +29,16 @@ Responda em pt-BR.
    - método novo do repositório implementado só em memória e não no PostgreSQL (ou vice-versa)
    - migração existente editada, `.env`/`compose.yaml`/`docs/PLANO_*` alterados, dependência nova
    - `apps/web/scripts/audit-panels.cjs` alterado para esconder apontamento (só a D03 pode ampliá-lo)
-   - interface nova com `style={{}}`, texto solto dentro de `.panel` sem bloco com respiro lateral,
-     ou grid de várias colunas sem regra para telas ≤ 700px
+   - interface nova que viola a seção "Design de páginas" do `CLAUDE.md`:
+     - conteúdo fora de `PageHeader` + `.panel`, ou filho de `.panel` sem `panel-head`/bloco com
+       respiro lateral;
+     - `style={{}}` no JSX, ou CSS novo com px soltos para espaçamento/raio em vez de
+       `--space-*`/`--radius-*`;
+     - grid de várias colunas sem regra para telas ≤ 700px (ou `mobile-ok` sem motivo real);
+     - lista/tela com dados remotos sem estado de vazio, carregando ou erro;
+     - valores numéricos/monetários de tabela não alinhados à direita;
+     - classe ou componente novo que duplica um existente (`panel`, `form-grid`, `status-pill`,
+       `EmptyState`, `LoadingBlock`, `ErrorBanner`…)
 
 ## Veredito
 
