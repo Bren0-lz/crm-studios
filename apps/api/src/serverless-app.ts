@@ -42,7 +42,9 @@ function getApp() {
     } catch (error) {
       await pool.end().catch(() => undefined);
       const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`não foi possível conectar ao banco (${reason}). Confira a DATABASE_URL.`);
+      throw new Error(`não foi possível conectar ao banco (${reason}). Confira a DATABASE_URL.`, {
+        cause: error,
+      });
     }
     const app = await buildApp({ repository: new PostgresClinicRepository(pool) });
     app.addHook("onClose", () => pool.end());
