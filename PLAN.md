@@ -217,7 +217,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes para cada exclusão, nos dois repositórios quando couber.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts src/contact-suggestions.test.ts src/patient-timeline.test.ts`
 - **Depende de:** T021
-- **Status:** TODO
+- **Status:** DONE
 
 ### T023 — A conversão do lead leva os atendimentos
 - **Escopo:** `POST /leads/:id/convert` passa todos os atendimentos do lead para o cliente criado

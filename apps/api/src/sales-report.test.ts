@@ -144,4 +144,33 @@ describe("monthly sales report", () => {
       "Ana",
     );
   });
+
+  it("ignores lead appointments in attended clients and in clients without return", () => {
+    const leadAppointment = (startsAt: string) =>
+      ({
+        leadId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        leadName: "Lead Experimental",
+        patientName: "Lead Experimental",
+        startsAt,
+        status: "completed",
+      }) as Appointment;
+    const asOf = new Date("2026-09-15T15:00:00Z");
+    const current = buildSalesReport(
+      "2026-09",
+      [],
+      [],
+      [leadAppointment("2026-09-05T15:00:00Z")],
+      asOf,
+    );
+    expect(current.current.attendedPatients).toBe(0);
+    const previous = buildSalesReport(
+      "2026-09",
+      [],
+      [],
+      [leadAppointment("2026-08-10T15:00:00Z")],
+      asOf,
+    );
+    expect(previous.previousComparable.attendedPatients).toBe(0);
+    expect(previous.patientsWithoutReturn).toEqual([]);
+  });
 });

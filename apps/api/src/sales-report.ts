@@ -52,9 +52,14 @@ export function buildSalesReport(
   month: string,
   sales: SaleMovement[],
   payments: ReceivedPayment[],
-  appointments: Appointment[],
+  allAppointments: Appointment[],
   asOf = new Date(),
 ): SalesReport {
+  // Atendimentos de lead (sem cliente) ficam fora de vendas e de retorno.
+  const appointments = allAppointments.filter(
+    (item): item is Appointment & { patientId: string } =>
+      item.patientId !== undefined,
+  );
   const bounds = salesReportBounds(month, asOf);
   const inRange = (occurredAt: string, from: string, to: string) => {
     const date = clinicDate(occurredAt);
@@ -109,7 +114,7 @@ export function buildSalesReport(
       )
       .map((item) => item.patientId),
   );
-  const lastByPatient = new Map<string, Appointment>();
+  const lastByPatient = new Map<string, (typeof appointments)[number]>();
   for (const item of previousAppointments) {
     const last = lastByPatient.get(item.patientId);
     if (!last || item.startsAt > last.startsAt)

@@ -523,4 +523,37 @@ describe("buildContactSuggestions", () => {
       ["low_balance", bia],
     ]);
   });
+
+  it("ignores lead appointments (sem cliente) in every rule", () => {
+    const base: Partial<Appointment> = appointment();
+    delete base.patientId;
+    const leadAppointment = (overrides: Partial<Appointment>) =>
+      ({
+        ...base,
+        leadId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        leadName: "Ana Souza",
+        visitType: "trial",
+        ...overrides,
+      }) as Appointment;
+    // Faltas seguidas e tratamento parado só com atendimentos de lead: nada.
+    expect(
+      reasons({
+        appointments: [
+          leadAppointment({ id: "l1", status: "no_show", startsAt: "2026-09-10T13:00:00Z" }),
+          leadAppointment({ id: "l2", status: "no_show", startsAt: "2026-09-17T13:00:00Z" }),
+          leadAppointment({ id: "l3", status: "no_show", startsAt: "2026-09-24T13:00:00Z" }),
+          leadAppointment({ id: "l4", status: "completed", startsAt: "2026-06-01T13:00:00Z" }),
+        ],
+      }),
+    ).toEqual([]);
+    // Atendimento de lead depois da última compra não conta como retorno.
+    expect(
+      reasons({
+        tabs: [tab()],
+        appointments: [
+          leadAppointment({ id: "l5", status: "scheduled", startsAt: "2026-10-05T13:00:00Z" }),
+        ],
+      }),
+    ).toEqual(["single_no_return"]);
+  });
 });

@@ -86,7 +86,8 @@ export function buildPatientTimeline(
   sources: PatientTimelineSources,
 ): PatientTimelineEntry[] {
   const entries: PatientTimelineEntry[] = [];
-  const own = <T extends { patientId: string }>(items: T[]) =>
+  // Atendimentos de lead (sem `patientId`) nunca entram no histórico do cliente.
+  const own = <T extends { patientId?: string | undefined }>(items: T[]) =>
     items.filter((item) => item.patientId === patientId);
 
   for (const item of own(sources.appointments))

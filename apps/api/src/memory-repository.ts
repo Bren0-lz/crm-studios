@@ -53,6 +53,7 @@ import type {
   Lead,
   LeadActivity,
   LeadContact,
+  LeadAppointmentInput,
   LeadContactInput,
   LeadConversion,
   LeadInput,
@@ -787,6 +788,12 @@ export class MemoryClinicRepository implements ClinicRepository {
           "Atendimento não encontrado.",
           404,
         );
+      if (!appointment.patientId)
+        throw new DomainError(
+          "LEAD_APPOINTMENT_NOT_ALLOWED",
+          "Atendimento de lead não tem pesquisa de satisfação. Converta o lead em cliente primeiro.",
+          409,
+        );
       if (appointment.patientId !== input.patientId)
         throw new DomainError(
           "SATISFACTION_APPOINTMENT_MISMATCH",
@@ -1082,6 +1089,47 @@ export class MemoryClinicRepository implements ClinicRepository {
     const patient = this.patients.find(
       (item) => item.id === input.patientId && item.clinicId === clinicId,
     );
+    if (!patient)
+      throw new DomainError(
+        "RELATED_RECORD_NOT_FOUND",
+        "Cliente, profissional, sala ou serviço não encontrado.",
+        404,
+      );
+    return this.insertAppointment(clinicId, input, {
+      patientId: patient.id,
+      patientName: patient.fullName,
+    });
+  }
+
+  async createLeadAppointment(
+    clinicId: string,
+    leadId: string,
+    input: LeadAppointmentInput,
+  ) {
+    const lead = this.leads.find(
+      (item) => item.clinicId === clinicId && item.id === leadId,
+    );
+    if (!lead) return null;
+    if (lead.convertedPatientId)
+      throw new DomainError(
+        "LEAD_ALREADY_CONVERTED",
+        "Este lead já foi convertido em cliente. Agende pelo cliente.",
+        409,
+      );
+    return this.insertAppointment(clinicId, input, {
+      leadId: lead.id,
+      leadName: lead.fullName,
+      patientName: lead.fullName,
+    });
+  }
+
+  private insertAppointment(
+    clinicId: string,
+    input: Omit<AppointmentInput, "patientId">,
+    owner:
+      | { patientId: string; patientName: string }
+      | { leadId: string; leadName: string; patientName: string },
+  ) {
     const professional = this.professionals.find(
       (item) =>
         item.id === input.professionalId &&
@@ -1098,7 +1146,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         item.clinicId === clinicId &&
         item.active,
     );
-    if (!patient || !professional || !room || !service) {
+    if (!professional || !room || !service) {
       throw new DomainError(
         "RELATED_RECORD_NOT_FOUND",
         "Cliente, profissional, sala ou serviço não encontrado.",
@@ -1150,12 +1198,17 @@ export class MemoryClinicRepository implements ClinicRepository {
 
     const timestamp = now();
     const appointment: Appointment = {
-      ...input,
+      professionalId: input.professionalId,
+      roomId: input.roomId,
+      serviceId: input.serviceId,
+      startsAt: input.startsAt,
+      ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      visitType: input.visitType,
+      ...owner,
       id: uuid(),
       clinicId,
       endsAt: endsAt.toISOString(),
       status: "scheduled",
-      patientName: patient.fullName,
       professionalName: professional.fullName,
       professionalColor: professional.color,
       roomName: room.name,
@@ -2342,6 +2395,13 @@ export class MemoryClinicRepository implements ClinicRepository {
         404,
       );
     }
+    const patientId = appointment.patientId;
+    if (!patientId)
+      throw new DomainError(
+        "LEAD_APPOINTMENT_NOT_ALLOWED",
+        "Atendimento de lead não tem prontuário. Converta o lead em cliente primeiro.",
+        409,
+      );
     if (appointment.status === "cancelled") {
       throw new DomainError(
         "CANCELLED_APPOINTMENT",
@@ -2365,7 +2425,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       id: uuid(),
       clinicId,
       appointmentId: appointment.id,
-      patientId: appointment.patientId,
+      patientId,
       professionalId: appointment.professionalId,
       status: "draft",
       version: 0,
@@ -3578,9 +3638,11 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   async generateCommissions(clinicId: string, competence: string) {
+    // Atendimento de lead (experimental/avaliação sem cliente) não gera comissão.
     for (const appointment of this.appointments.filter(
       (item) =>
         item.clinicId === clinicId &&
+        item.patientId !== undefined &&
         item.status === "completed" &&
         item.startsAt.slice(0, 7) === competence,
     )) {
@@ -3690,6 +3752,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   private consumeSession(appointment: Appointment) {
+    // Atendimento de lead não tem plano: nunca consome sessão.
+    if (!appointment.patientId) return;
     const appointmentDate = appointment.startsAt.slice(0, 10);
     const plans = this.patientPlans
       .filter(
@@ -4108,9 +4172,13 @@ export class MemoryClinicRepository implements ClinicRepository {
         ["scheduled", "confirmed"].includes(item.status) &&
         localDate(new Date(item.startsAt)) === referenceDate,
     )) {
+      // Atendimento de lead não tem cliente para receber lembrete.
       const patient = this.patients.find(
-        (item) => item.id === appointment.patientId,
-      )!;
+        (item) =>
+          appointment.patientId !== undefined &&
+          item.id === appointment.patientId,
+      );
+      if (!patient) continue;
       const key = `appointment:${appointment.id}:whatsapp`;
       if (this.outboundMessages.some((item) => item.idempotencyKey === key)) {
         alreadyQueued += 1;

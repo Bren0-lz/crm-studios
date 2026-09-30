@@ -7740,13 +7740,18 @@ function SatisfactionSurveyModal({
   async function save(event: FormEvent) {
     event.preventDefault();
     if (score === null) return;
+    const patientId = appointment.patientId;
+    if (!patientId) {
+      setError("Atendimento de lead não tem pesquisa de satisfação.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const trimmed = comment.trim();
       onSaved(
         await api.createSatisfactionSurvey({
-          patientId: appointment.patientId,
+          patientId,
           appointmentId: appointment.id,
           score,
           ...(trimmed ? { comment: trimmed } : {}),

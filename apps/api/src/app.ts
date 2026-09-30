@@ -37,6 +37,7 @@ import {
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   leadInputSchema,
+  leadAppointmentInputSchema,
   leadContactInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
@@ -1981,6 +1982,26 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
           message: "Lead não encontrado.",
         });
       return reply.status(201).send(task);
+    },
+  );
+  app.post(
+    "/leads/:id/appointments",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = leadAppointmentInputSchema.parse(request.body);
+      await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      const appointment = await repository.createLeadAppointment(
+        request.user.clinicId,
+        id,
+        input,
+      );
+      if (!appointment)
+        return reply.status(404).send({
+          code: "LEAD_NOT_FOUND",
+          message: "Lead não encontrado.",
+        });
+      return reply.status(201).send(appointment);
     },
   );
   app.patch(

@@ -158,6 +158,17 @@ export type RecurringAppointmentInput = z.infer<
   typeof recurringAppointmentInputSchema
 >;
 
+// Atendimento de lead ainda não convertido: só experimental ou avaliação.
+export const leadAppointmentInputSchema = z.object({
+  professionalId: z.uuid(),
+  roomId: z.uuid(),
+  serviceId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  visitType: z.enum(["trial", "evaluation"]),
+});
+export type LeadAppointmentInput = z.infer<typeof leadAppointmentInputSchema>;
+
 export const scheduleBlockInputSchema = z
   .object({
     professionalId: z.uuid().optional(),
@@ -827,9 +838,17 @@ export interface Service extends ServiceInput {
   active: boolean;
 }
 
-export interface Appointment extends AppointmentInput {
+/**
+ * Atendimento da agenda. É de um cliente (`patientId`) ou de um lead ainda não
+ * convertido (`leadId`), nunca dos dois. Em atendimento de lead, `patientName`
+ * repete o nome do lead (`leadName`) para a agenda exibir o nome sem ramificar.
+ */
+export interface Appointment extends Omit<AppointmentInput, "patientId"> {
   id: string;
   clinicId: string;
+  patientId?: string;
+  leadId?: string;
+  leadName?: string;
   endsAt: string;
   status: AppointmentStatus;
   patientName: string;

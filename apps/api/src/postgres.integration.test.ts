@@ -20,11 +20,47 @@ const salesMarker = "postgres-sales-test";
 const renewalMarker = "postgres-renewal-test";
 const satisfactionMarker = "postgres-satisfaction-test";
 const timelineMarker = "postgres-timeline-test";
+const leadAppointmentMarker = "postgres-lead-appointment-test";
+const leadAppointmentPhone = "11900001133";
+// Mês bem à frente, só com os atendimentos deste teste (comissões e lembretes).
+const leadAppointmentDay = new Date(Date.now() + 600 * 24 * 60 * 60 * 1000);
+leadAppointmentDay.setUTCHours(12, 0, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
+
+  async function cleanupLeadAppointments() {
+    const effectiveFrom = leadAppointmentDay.toISOString().slice(0, 10);
+    await pool.query(
+      `DELETE FROM commission_entries WHERE appointment_id IN
+         (SELECT id FROM appointments WHERE notes = $1)
+       OR rule_id IN (SELECT id FROM commission_rules WHERE clinic_id = $2 AND effective_from = $3::date)`,
+      [leadAppointmentMarker, clinicId, effectiveFrom],
+    );
+    await pool.query(
+      "DELETE FROM commission_rules WHERE clinic_id = $1 AND effective_from = $2::date",
+      [clinicId, effectiveFrom],
+    );
+    await pool.query("DELETE FROM appointments WHERE notes = $1", [
+      leadAppointmentMarker,
+    ]);
+    await pool.query(
+      `DELETE FROM appointments WHERE lead_id IN
+         (SELECT id FROM leads WHERE clinic_id = $1 AND phone = $2)`,
+      [clinicId, leadAppointmentPhone],
+    );
+    await pool.query(
+      `DELETE FROM lead_stage_history WHERE lead_id IN
+         (SELECT id FROM leads WHERE clinic_id = $1 AND phone = $2)`,
+      [clinicId, leadAppointmentPhone],
+    );
+    await pool.query("DELETE FROM leads WHERE clinic_id = $1 AND phone = $2", [
+      clinicId,
+      leadAppointmentPhone,
+    ]);
+  }
 
   beforeAll(async () => {
     pool = new Pool(
@@ -41,6 +77,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
   afterAll(async () => {
     if (!pool) return;
+    await cleanupLeadAppointments();
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -277,6 +314,138 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         report.appointments.byVisitType.trial +
         report.appointments.byVisitType.evaluation,
     ).toBe(report.appointments.total);
+  });
+
+  it("schedules a lead appointment and keeps it out of sessions, records, NPS and commissions", async () => {
+    await cleanupLeadAppointments();
+    const [patients, professionals, rooms, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const lead = await repository.createLead(clinicId, {
+      fullName: "Lead de Integração",
+      phone: leadAppointmentPhone,
+      source: "Instagram",
+      interest: "Pilates",
+      tags: [],
+    });
+    const at = (hours: number) =>
+      new Date(leadAppointmentDay.getTime() + hours * 60 * 60 * 1000).toISOString();
+    const input = {
+      professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id,
+      serviceId: services[0]!.id,
+      startsAt: at(0),
+      notes: leadAppointmentMarker,
+      visitType: "trial" as const,
+    };
+    expect(
+      await repository.createLeadAppointment(
+        clinicId,
+        "99999999-9999-4999-8999-000000000000",
+        input,
+      ),
+    ).toBeNull();
+    const trial = await repository.createLeadAppointment(clinicId, lead.id, input);
+    expect(trial).toMatchObject({
+      leadId: lead.id,
+      leadName: "Lead de Integração",
+      patientName: "Lead de Integração",
+      visitType: "trial",
+      status: "scheduled",
+    });
+    expect(trial).not.toHaveProperty("patientId");
+    const anotherInstance = new PostgresClinicRepository(pool);
+    expect(
+      (await anotherInstance.listAppointments(clinicId, at(-1), at(1))).find(
+        (item) => item.id === trial!.id,
+      ),
+    ).toMatchObject({ leadId: lead.id, leadName: "Lead de Integração" });
+
+    // Conflito com cliente no mesmo profissional/horário vale normalmente.
+    await expect(
+      repository.createAppointment(clinicId, {
+        ...input,
+        patientId: patients[0]!.id,
+        roomId: rooms[1]!.id,
+        visitType: "regular",
+      }),
+    ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
+    // O banco exige exatamente um dono: cliente ou lead.
+    await expect(
+      pool.query(
+        `INSERT INTO appointments (clinic_id, professional_id, room_id, service_id, starts_at, ends_at, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [clinicId, input.professionalId, input.roomId, input.serviceId, at(5), at(6), leadAppointmentMarker],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      pool.query(
+        `INSERT INTO appointments (clinic_id, patient_id, lead_id, professional_id, room_id, service_id, starts_at, ends_at, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [clinicId, patients[0]!.id, lead.id, input.professionalId, input.roomId, input.serviceId, at(5), at(6), leadAppointmentMarker],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+
+    // Finalizar não consome sessão de plano algum.
+    const plansBefore = await repository.listPatientPlans(clinicId);
+    const completed = await repository.updateAppointmentStatus(clinicId, trial!.id, "completed");
+    expect(completed).toMatchObject({ status: "completed", leadId: lead.id });
+    expect(await repository.listPatientPlans(clinicId)).toEqual(plansBefore);
+
+    await expect(
+      repository.saveClinicalRecord(clinicId, ownerId, {
+        appointmentId: trial!.id,
+        subjective: "Relato",
+        objective: "Exame",
+        assessment: "Avaliação",
+        plan: "Plano",
+      }),
+    ).rejects.toMatchObject({ code: "LEAD_APPOINTMENT_NOT_ALLOWED" });
+    await expect(
+      repository.createSatisfactionSurvey(clinicId, ownerId, {
+        patientId: patients[0]!.id,
+        appointmentId: trial!.id,
+        score: 9,
+      }),
+    ).rejects.toMatchObject({ code: "LEAD_APPOINTMENT_NOT_ALLOWED" });
+
+    // Lembretes ficam só no teste em memória: gerar aqui enfileiraria
+    // cobranças reais da base compartilhada (vencidas até a data futura).
+    const upcoming = await repository.createLeadAppointment(clinicId, lead.id, {
+      ...input,
+      startsAt: at(3),
+      visitType: "evaluation",
+    });
+    expect(upcoming).toMatchObject({ leadId: lead.id, visitType: "evaluation" });
+    const referenceDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date(at(3)));
+
+    // Comissão: atendimento de lead finalizado não gera lançamento.
+    await repository.createCommissionRule(clinicId, {
+      professionalId: input.professionalId,
+      percentage: 30,
+      effectiveFrom: leadAppointmentDay.toISOString().slice(0, 10),
+    });
+    const commissions = await repository.generateCommissions(
+      clinicId,
+      referenceDate.slice(0, 7),
+    );
+    expect(commissions.find((item) => item.appointmentId === trial!.id)).toBeUndefined();
+
+    // Sugestões e linha do tempo leem a agenda sem quebrar e sem o lead.
+    const suggestions = await repository.listContactSuggestions(clinicId, "owner");
+    expect(JSON.stringify(suggestions)).not.toContain(trial!.id);
+    const timeline = await repository.getPatientTimeline(clinicId, patients[0]!.id);
+    expect(JSON.stringify(timeline)).not.toContain(trial!.id);
+
+    // Relatório gerencial (agenda) conta pelo tipo.
+    const report = await repository.getManagementReport(clinicId, referenceDate, referenceDate);
+    expect(report.appointments.byVisitType.trial).toBeGreaterThanOrEqual(1);
+    expect(report.appointments.byVisitType.evaluation).toBeGreaterThanOrEqual(1);
   });
 
   it("reconciles PostgreSQL sales, cancellation, payment and reversal movements", async () => {

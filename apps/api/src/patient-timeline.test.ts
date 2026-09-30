@@ -290,4 +290,30 @@ describe("patient timeline", () => {
       amountInCents: -40000,
     });
   });
+
+  it("leaves lead appointments (sem cliente) out of the client history", () => {
+    const leadAppointment: Partial<Appointment> = appointment(
+      "lead-appt",
+      "2026-08-20T12:00:00.000Z",
+      "completed",
+    );
+    delete leadAppointment.patientId;
+    Object.assign(leadAppointment, {
+      leadId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      leadName: "Ana",
+      visitType: "trial",
+    });
+    const timeline = buildPatientTimeline(patientId, {
+      appointments: [
+        leadAppointment as Appointment,
+        appointment("own", "2026-08-21T12:00:00.000Z", "completed"),
+      ],
+      plans: [],
+      payments: [],
+      contacts: [],
+      messages: [],
+      surveys: [],
+    });
+    expect(timeline.map((entry) => entry.id)).toEqual(["appointment:own"]);
+  });
 });

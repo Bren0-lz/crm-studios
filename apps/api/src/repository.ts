@@ -54,6 +54,7 @@ import type {
   Lead,
   LeadActivity,
   LeadContact,
+  LeadAppointmentInput,
   LeadContactInput,
   LeadConversion,
   LeadInput,
@@ -565,6 +566,16 @@ export interface ClinicRepository {
     leadId: string,
     input: LeadTaskInput,
   ): Promise<LeadTask | null>;
+  /**
+   * Agenda experimental/avaliação para lead ainda não convertido. Mesmas
+   * checagens de conflito da agenda (feriado fica na rota). `null` = lead
+   * não encontrado; lead convertido dá `LEAD_ALREADY_CONVERTED` (409).
+   */
+  createLeadAppointment(
+    clinicId: string,
+    leadId: string,
+    input: LeadAppointmentInput,
+  ): Promise<Appointment | null>;
   updateLeadTaskStatus(
     clinicId: string,
     taskId: string,

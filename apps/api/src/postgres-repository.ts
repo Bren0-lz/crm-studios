@@ -56,6 +56,7 @@ import type {
   Lead,
   LeadActivity,
   LeadContact,
+  LeadAppointmentInput,
   LeadContactInput,
   LeadConversion,
   LeadInput,
@@ -208,7 +209,9 @@ interface ServiceRow {
 interface AppointmentRow {
   id: string;
   clinicId: string;
-  patientId: string;
+  patientId: string | null;
+  leadId: string | null;
+  leadName: string | null;
   professionalId: string;
   roomId: string;
   serviceId: string;
@@ -767,6 +770,8 @@ const appointmentColumns = `
   a.id,
   a.clinic_id AS "clinicId",
   a.patient_id AS "patientId",
+  a.lead_id AS "leadId",
+  l.full_name AS "leadName",
   a.professional_id AS "professionalId",
   a.room_id AS "roomId",
   a.service_id AS "serviceId",
@@ -774,7 +779,7 @@ const appointmentColumns = `
   a.ends_at AS "endsAt",
   a.status,
   a.notes,
-  p.full_name AS "patientName",
+  coalesce(p.full_name, l.full_name) AS "patientName",
   pr.full_name AS "professionalName",
   pr.color AS "professionalColor",
   r.name AS "roomName",
@@ -785,8 +790,10 @@ const appointmentColumns = `
   a.visit_type AS "visitType"
 `;
 
+// Atendimento é de cliente (patient_id) ou de lead (lead_id): os dois LEFT JOIN.
 const appointmentJoins = `
-  JOIN patients p ON p.id = a.patient_id
+  LEFT JOIN patients p ON p.id = a.patient_id
+  LEFT JOIN leads l ON l.id = a.lead_id
   JOIN professionals pr ON pr.id = a.professional_id
   JOIN rooms r ON r.id = a.room_id
   JOIN services s ON s.id = a.service_id
@@ -932,7 +939,9 @@ function mapAppointment(row: AppointmentRow): Appointment {
   return {
     id: row.id,
     clinicId: row.clinicId,
-    patientId: row.patientId,
+    ...(row.patientId ? { patientId: row.patientId } : {}),
+    ...(row.leadId ? { leadId: row.leadId } : {}),
+    ...(row.leadName ? { leadName: row.leadName } : {}),
     professionalId: row.professionalId,
     roomId: row.roomId,
     serviceId: row.serviceId,
@@ -2009,7 +2018,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           `SELECT ${appointmentColumns}
            FROM appointments a
            ${appointmentJoins}
-           WHERE a.clinic_id = $1`,
+           WHERE a.clinic_id = $1 AND a.patient_id IS NOT NULL`,
           [clinicId],
         ),
         this.pool.query<ReceivableRow>(
@@ -2128,7 +2137,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       );
     if (input.appointmentId) {
       const appointment = await this.pool.query<{
-        patientId: string;
+        patientId: string | null;
         status: string;
       }>(
         `SELECT patient_id AS "patientId", status FROM appointments
@@ -2141,6 +2150,12 @@ export class PostgresClinicRepository implements ClinicRepository {
           "APPOINTMENT_NOT_FOUND",
           "Atendimento não encontrado.",
           404,
+        );
+      if (!found.patientId)
+        throw new DomainError(
+          "LEAD_APPOINTMENT_NOT_ALLOWED",
+          "Atendimento de lead não tem pesquisa de satisfação. Converta o lead em cliente primeiro.",
+          409,
         );
       if (found.patientId !== input.patientId)
         throw new DomainError(
@@ -2654,11 +2669,64 @@ export class PostgresClinicRepository implements ClinicRepository {
         404,
       );
     }
-
-    const startsAt = new Date(input.startsAt);
-    const endsAt = new Date(
-      startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
+    return this.insertAppointment(
+      clinicId,
+      input,
+      related.rows[0].durationMinutes,
+      { patientId: input.patientId, leadId: null },
     );
+  }
+
+  async createLeadAppointment(
+    clinicId: string,
+    leadId: string,
+    input: LeadAppointmentInput,
+  ) {
+    const lead = await this.pool.query<{ convertedPatientId: string | null }>(
+      `SELECT converted_patient_id AS "convertedPatientId"
+       FROM leads WHERE clinic_id = $1 AND id = $2`,
+      [clinicId, leadId],
+    );
+    if (!lead.rows[0]) return null;
+    if (lead.rows[0].convertedPatientId)
+      throw new DomainError(
+        "LEAD_ALREADY_CONVERTED",
+        "Este lead já foi convertido em cliente. Agende pelo cliente.",
+        409,
+      );
+    const related = await this.pool.query<{ durationMinutes: number }>(
+      `
+        SELECT s.duration_minutes AS "durationMinutes"
+        FROM professionals pr, rooms r, services s
+        WHERE pr.id = $2 AND pr.clinic_id = $1 AND pr.active = true
+          AND r.id = $3 AND r.clinic_id = $1 AND r.active = true
+          AND s.id = $4 AND s.clinic_id = $1 AND s.active = true
+      `,
+      [clinicId, input.professionalId, input.roomId, input.serviceId],
+    );
+    if (!related.rows[0])
+      throw new DomainError(
+        "RELATED_RECORD_NOT_FOUND",
+        "Profissional, sala ou serviço não encontrado.",
+        404,
+      );
+    return this.insertAppointment(
+      clinicId,
+      input,
+      related.rows[0].durationMinutes,
+      { patientId: null, leadId },
+    );
+  }
+
+  /** Grava o atendimento (de cliente ou de lead) já validado. */
+  private async insertAppointment(
+    clinicId: string,
+    input: Omit<AppointmentInput, "patientId">,
+    durationMinutes: number,
+    owner: { patientId: string; leadId: null } | { patientId: null; leadId: string },
+  ) {
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     if (
       await hasGroupSessionConflict(
         this.pool,
@@ -2678,15 +2746,16 @@ export class PostgresClinicRepository implements ClinicRepository {
       const inserted = await this.pool.query<{ id: string }>(
         `
           INSERT INTO appointments (
-            clinic_id, patient_id, professional_id, room_id, service_id,
-            starts_at, ends_at, notes, visit_type
+            clinic_id, patient_id, lead_id, professional_id, room_id,
+            service_id, starts_at, ends_at, notes, visit_type
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING id
         `,
         [
           clinicId,
-          input.patientId,
+          owner.patientId,
+          owner.leadId,
           input.professionalId,
           input.roomId,
           input.serviceId,
@@ -3431,7 +3500,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   ) {
     const clinic = await client.query<{ timezone: string }>(`SELECT timezone FROM clinics WHERE id=$1`, [clinicId]);
     const busy = await client.query<{ startsAt: Date; endsAt: Date; label: string }>(
-      `SELECT a.starts_at AS "startsAt",a.ends_at AS "endsAt",'Atendimento de ' || pt.full_name AS label FROM appointments a JOIN patients pt ON pt.id=a.patient_id WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND a.ends_at>now() AND (a.professional_id=$2 OR a.room_id=$3)
+      `SELECT a.starts_at AS "startsAt",a.ends_at AS "endsAt",'Atendimento de ' || coalesce(pt.full_name, ld.full_name) AS label FROM appointments a LEFT JOIN patients pt ON pt.id=a.patient_id LEFT JOIN leads ld ON ld.id=a.lead_id WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND a.ends_at>now() AND (a.professional_id=$2 OR a.room_id=$3)
        UNION ALL
        SELECT gs.starts_at,gs.ends_at,g.name FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.ends_at>now() AND ($4::uuid IS NULL OR gs.group_id<>$4) AND (g.professional_id=$2 OR g.room_id=$3)`,
       [clinicId, group.professionalId, group.roomId, group.id ?? null],
@@ -4046,7 +4115,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       await client.query("BEGIN");
       const current = await client.query<{
         status: AppointmentStatus;
-        patientId: string;
+        patientId: string | null;
         serviceId: string;
         professionalId: string;
         roomId: string;
@@ -4082,12 +4151,18 @@ export class PostgresClinicRepository implements ClinicRepository {
           "Este atendimento conflita com uma turma no mesmo horário.",
           409,
         );
-      if (current.rows[0].status !== "completed" && status === "completed") {
+      const patientId = current.rows[0].patientId;
+      // Atendimento de lead (sem cliente) não consome sessão de plano.
+      if (
+        patientId &&
+        current.rows[0].status !== "completed" &&
+        status === "completed"
+      ) {
         await this.consumeSessionInDatabase(
           client,
           clinicId,
           appointmentId,
-          current.rows[0].patientId,
+          patientId,
           current.rows[0].serviceId,
           current.rows[0].startsAt,
         );
@@ -4149,6 +4224,17 @@ export class PostgresClinicRepository implements ClinicRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const leadAppointment = await client.query(
+        `SELECT 1 FROM appointments
+         WHERE clinic_id = $1 AND id = $2 AND lead_id IS NOT NULL`,
+        [clinicId, input.appointmentId],
+      );
+      if (leadAppointment.rows[0])
+        throw new DomainError(
+          "LEAD_APPOINTMENT_NOT_ALLOWED",
+          "Atendimento de lead não tem prontuário. Converta o lead em cliente primeiro.",
+          409,
+        );
       const saved = await client.query<{ id: string }>(
         `
           INSERT INTO clinical_records (
@@ -5745,7 +5831,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       `INSERT INTO commission_entries
         (clinic_id, professional_id, appointment_id, rule_id, competence,
          base_amount_in_cents, percentage, amount_in_cents)
-       SELECT a.clinic_id, a.professional_id, a.id, rule.id, $2,
+       SELECT a.clinic_id, a.professional_id, a.id, rule.id, $2::text,
               s.price_in_cents, rule.percentage,
               round(s.price_in_cents * rule.percentage / 100.0)::int
        FROM appointments a JOIN services s ON s.id = a.service_id
@@ -5754,7 +5840,8 @@ export class PostgresClinicRepository implements ClinicRepository {
            AND cr.active AND cr.effective_from <= a.starts_at::date
          ORDER BY cr.effective_from DESC LIMIT 1) rule ON true
        WHERE a.clinic_id = $1 AND a.status = 'completed'
-         AND to_char(a.starts_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') = $2
+         AND a.patient_id IS NOT NULL -- atendimento de lead não gera comissão
+         AND to_char(a.starts_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') = $2::text
        ON CONFLICT (clinic_id, appointment_id) DO NOTHING`,
       [clinicId, competence],
     );
@@ -6249,6 +6336,7 @@ export class PostgresClinicRepository implements ClinicRepository {
          ON cp.clinic_id = a.clinic_id AND cp.patient_id = a.patient_id
         AND cp.channel = 'whatsapp'
        WHERE a.clinic_id = $1
+         AND a.patient_id IS NOT NULL -- atendimento de lead não tem lembrete
          AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date = $2::date
          AND a.status IN ('scheduled', 'confirmed')
        UNION ALL
@@ -6646,7 +6734,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       );
       const appointmentResult = await client.query<AppointmentRow>(
         `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-         WHERE a.clinic_id=$1 AND (
+         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND (
            (a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)
            OR (a.status IN ('scheduled','confirmed') AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date)
          )`,
