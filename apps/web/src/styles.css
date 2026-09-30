@@ -2759,6 +2759,86 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: 12px;
 }
 
+/* Feriados (Configurações): o painel recebe o mesmo respiro dos demais de `.admin-grid`. */
+.admin-grid > .admin-holidays {
+  padding: var(--space-5);
+}
+
+.admin-holidays > .muted-copy {
+  margin: 0 0 var(--space-4);
+}
+
+.holiday-form {
+  margin-bottom: var(--space-4);
+}
+
+/* audit: mobile-ok nome flexível + botão "Excluir" cabem em 390px */
+.holiday-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.holiday-list strong {
+  overflow-wrap: anywhere;
+}
+
+.holiday-list small {
+  display: block;
+  margin-top: calc(var(--space-1) - 1px);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* Feriado na agenda: aviso no dia e no resumo do dia, etiqueta na semana e no mês. */
+.holiday-notice,
+.week-holiday,
+.month-holiday {
+  background: #fbf3df;
+  color: #7a5a14;
+  font-weight: 700;
+}
+
+.holiday-notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.week-holiday {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.month-holiday {
+  display: block;
+  overflow: hidden;
+  padding: calc(var(--space-1) + 1px) calc(var(--space-2) - 2px);
+  border-radius: calc(var(--radius-sm) - 3px);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  /* No celular o mês mostra só pontos; o nome do feriado continua no resumo do dia. */
+  .month-holiday {
+    width: calc(var(--space-2) - 2px);
+    height: calc(var(--space-2) - 2px);
+    padding: 0;
+    border-radius: 50%;
+    background: var(--amber);
+    font-size: 0;
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,

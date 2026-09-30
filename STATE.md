@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T020
-- **Última concluída:** T019
+- **Tarefa atual:** T021
+- **Última concluída:** T020
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -44,3 +44,4 @@
 - 2026-09-30 V1 DONE (aprovada pelo dono no chat). Revisão em 1440px e 390px confirmou as correções da D05. Pendência levada para a V2: `.sales-help` encosta na borda inferior do `.sales-report` (1px) em Relatórios. O apontamento do audit-panels nos `<summary>` de `details.report-disclosure` é falso positivo (18px de respiro interno). Próxima: T019.
 - 2026-09-30 T019 BLOCKED (implementada, não verificada nem commitada; código na árvore de trabalho). Gate da tarefa ok (app.test.ts 37/37), typecheck/lint/build/audit-panels ok, mas `npm test` falha: 3 testes de integração antigos (vendas, sugestões de contato, histórico do cliente) dão `EMAXCONNSESSION max clients reached in session mode - pool_size: 15` em 5 execuções seguidas; o teste novo de feriados no PG passa. Com `TEST_DATABASE_URL=` vazio, `npm test` passa. Causa provável, não confirmada: a API do dono em :3333 segura conexões do mesmo Session pooler. Migração 0031_holidays já aplicada no Supabase de teste; próxima livre: 0032. Criados: `holidayInputSchema`/`Holiday`, `listHolidays`/`createHoliday`/`deleteHoliday`, GET/POST/DELETE /holidays (DELETE = 204 sem corpo), erros 409 `HOLIDAY`, 409 `HOLIDAY_DUPLICATE`, 404 `HOLIDAY_NOT_FOUND`; checagem em `assertNoHoliday` no app.ts (rotas, não repositório — T022 precisa chamá-la em POST /leads/:id/appointments).
 - 2026-09-30 T019 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; API 103 testes). Bloqueio resolvido: o EMAXCONNSESSION vinha da API local do dono (:3333) e de watchers `tsx watch` órfãos segurando conexões do Session pooler — encerrados com autorização do dono; não subir a API local durante o gate. P/ T020: `api.ts` não deve ler JSON no DELETE /holidays/:id (204); GET /holidays aceita `from`/`to` (aaaa-mm-dd) e `Holiday.date` já é a data da clínica; a mensagem do 409 `HOLIDAY` vem pronta em pt-BR. Reagendar p/ feriado com id inexistente dá 409 (checagem antes da busca). Próxima migração livre: 0032.
+- 2026-09-30 T020 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 36 testes). `HolidaysSection` em `AdminPage` (só owner); `AgendaPage` busca `api.holidays(from, to)` no mesmo `Promise.all` dos atendimentos — mocks de teste da agenda precisam devolver array para `/holidays`. api.ts: `holidays`, `createHoliday`, `deleteHoliday`; `request()` devolve `undefined` em 204. `DayEventsModal` tem prop obrigatória `holidayName: string | undefined` (web usa `exactOptionalPropertyTypes`). Painel novo em `.admin-grid` precisa de regra própria de padding (`.admin-grid > .admin-holidays`) para o audit-panels. Erro 409 `HOLIDAY` já aparece nos modais de agendar/reagendar sem código novo (só a criação tem teste). `formatIsoDate` produz dd/mm/aaaa.

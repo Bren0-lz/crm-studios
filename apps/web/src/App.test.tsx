@@ -1360,6 +1360,132 @@ describe("application shell", () => {
     expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/import"))).toBe(false);
   });
+
+  it("lets the owner list, create and delete holidays in settings", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const existing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clinicId: "11111111-1111-4111-8111-111111111111", date: "2026-12-25", name: "Natal", createdAt: "2026-09-01T12:00:00.000Z" };
+    const created = { ...existing, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", date: "2026-11-15", name: "Proclamação da República" };
+    let postBody: Record<string, unknown> | undefined;
+    let duplicate = false;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/holidays") && init?.method === "POST") {
+        if (duplicate) {
+          return { ok: false, status: 409, json: async () => ({ code: "HOLIDAY_DUPLICATE", message: "Já existe um feriado cadastrado nesta data." }) } as Response;
+        }
+        postBody = JSON.parse(String(init.body));
+        return { ok: true, status: 201, json: async () => created } as Response;
+      }
+      if (url.includes("/holidays/") && init?.method === "DELETE") {
+        // 204 sem corpo: ler JSON aqui falharia, como no navegador.
+        return { ok: true, status: 204, json: async () => { throw new SyntaxError("Unexpected end of JSON input"); } } as unknown as Response;
+      }
+      const body = url.includes("/holidays") ? [existing]
+        : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+          : url.includes("/admin/clinic-settings") ? null
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = (await screen.findByRole("heading", { name: "Feriados" })).closest("section")!;
+    expect(await within(section).findByText("Natal")).toBeInTheDocument();
+    expect(within(section).getByText("25/12/2026")).toBeInTheDocument();
+
+    fireEvent.change(within(section).getByLabelText("Data"), { target: { value: "2026-11-15" } });
+    fireEvent.change(within(section).getByLabelText("Nome do feriado"), { target: { value: "Proclamação da República" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Adicionar feriado" }));
+    expect(await within(section).findByText("Proclamação da República")).toBeInTheDocument();
+    expect(postBody).toEqual({ date: "2026-11-15", name: "Proclamação da República" });
+    // Lista em ordem crescente de data e formulário limpo para o próximo cadastro.
+    expect(section.textContent!.indexOf("15/11/2026")).toBeLessThan(section.textContent!.indexOf("25/12/2026"));
+    expect(within(section).getByLabelText("Nome do feriado")).toHaveValue("");
+
+    duplicate = true;
+    fireEvent.change(within(section).getByLabelText("Data"), { target: { value: "2026-12-25" } });
+    fireEvent.change(within(section).getByLabelText("Nome do feriado"), { target: { value: "Natal de novo" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Adicionar feriado" }));
+    expect(await within(section).findByText("Já existe um feriado cadastrado nesta data.")).toBeInTheDocument();
+
+    fireEvent.click(within(section).getByRole("button", { name: "Excluir feriado Natal" }));
+    expect(confirm).toHaveBeenCalled();
+    await vi.waitFor(() => expect(within(section).queryByText("Natal")).not.toBeInTheDocument());
+    const deleteCall = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "DELETE");
+    expect(deleteCall?.[0]).toContain(`/holidays/${existing.id}`);
+    expect(within(section).getByText("Proclamação da República")).toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it("shows an empty state when there are no holidays", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/relationship/settings") ? relationshipSettingsFixture()
+        : url.includes("/admin/clinic-settings") ? null
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = (await screen.findByRole("heading", { name: "Feriados" })).closest("section")!;
+    expect(await within(section).findByText("Nenhum feriado cadastrado")).toBeInTheDocument();
+  });
+
+  it("does not show the holidays section to reception", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/relationship/settings") ? relationshipSettingsFixture() : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Prazos e mensagens" });
+    expect(screen.queryByRole("heading", { name: "Feriados" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/holidays"))).toBe(false);
+  });
+
+  it("marks holidays in the day, week and month agenda and shows the API error when booking on one", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const holiday = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clinicId: "11111111-1111-4111-8111-111111111111", date: today, name: "Aniversário da cidade", createdAt: "2026-09-01T12:00:00.000Z" };
+    const message = "Não é possível agendar em 01/01/2027: é feriado (Aniversário da cidade).";
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST") {
+        return { ok: false, status: 409, json: async () => ({ code: "HOLIDAY", message }) } as Response;
+      }
+      const body = url.includes("/holidays") ? [holiday]
+        : url.includes("/professionals") ? [{ id: "33333333-3333-4333-8333-333333333333", fullName: "Dra. Ana Martins", color: "#5c6f68" }]
+          : url.includes("/rooms") ? [{ id: "55555555-5555-4555-8555-555555555555", name: "Sala Movimento" }]
+            : url.includes("/services") ? [{ id: "77777777-7777-4777-8777-777777777777", name: "Fisioterapia individual", priceInCents: 12000 }]
+              : url.includes("/patients") ? [{ id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida" }]
+                : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const { container } = render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+
+    // Dia: aviso com o nome, mesmo sem atendimentos.
+    expect(await screen.findByText("Feriado: Aniversário da cidade")).toBeInTheDocument();
+    const holidayCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/holidays"));
+    expect(String(holidayCall?.[0])).toContain(`/holidays?from=${today}&to=${today}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "Semana" }));
+    await vi.waitFor(() => expect(container.querySelector(".week-agenda")).toHaveTextContent("Feriado: Aniversário da cidade"));
+    expect(container.querySelectorAll(".week-agenda .week-holiday")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    const day = await screen.findByRole("button", { name: /feriado: Aniversário da cidade/ });
+    expect(day.closest(".month-day")).toHaveTextContent("Aniversário da cidade");
+    expect(container.querySelectorAll(".month-grid .month-holiday")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Novo atendimento" })).toBeInTheDocument();
+  });
 });
 
 function relationshipSettingsFixture() {

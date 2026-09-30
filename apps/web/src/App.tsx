@@ -78,6 +78,7 @@ import type {
   GroupClass,
   GroupSession,
   GroupWorkspace,
+  Holiday,
   IssuedDocument,
   Lead,
   LeadActivity,
@@ -6888,6 +6889,7 @@ function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -6922,6 +6924,13 @@ function AgendaPage() {
   rangeEnd.setDate(rangeEnd.getDate() + (view === "day" ? 1 : view === "week" ? 7 : monthGridLength));
   const rangeFrom = rangeStart.toISOString();
   const rangeTo = rangeEnd.toISOString();
+  // Feriados usam a data da clínica (aaaa-mm-dd), com início e fim inclusivos.
+  const lastRangeDay = new Date(rangeEnd);
+  lastRangeDay.setDate(lastRangeDay.getDate() - 1);
+  const holidayFrom = localIsoDate(rangeStart);
+  const holidayTo = localIsoDate(lastRangeDay);
+  const holidayNames = new Map(holidays.map((item) => [item.date, item.name]));
+  const selectedHoliday = holidayNames.get(date);
   const weekDays = Array.from({ length: 7 }, (_, index) => {
     const item = new Date(weekStart);
     item.setDate(item.getDate() + index);
@@ -6934,6 +6943,7 @@ function AgendaPage() {
       api.appointments(rangeFrom, rangeTo),
       api.scheduleBlocks(rangeFrom, rangeTo),
       api.groupSessions(rangeFrom, rangeTo),
+      api.holidays(holidayFrom, holidayTo),
       api.professionals(),
       api.rooms(),
       api.services(),
@@ -6944,6 +6954,7 @@ function AgendaPage() {
           appointmentData,
           blockData,
           groupSessionData,
+          holidayData,
           professionalData,
           roomData,
           serviceData,
@@ -6953,6 +6964,7 @@ function AgendaPage() {
           setAppointments(appointmentData);
           setBlocks(blockData);
           setGroupSessions(groupSessionData);
+          setHolidays(holidayData);
           setProfessionals(professionalData);
           setRooms(roomData);
           setServices(serviceData);
@@ -6968,7 +6980,7 @@ function AgendaPage() {
     return () => {
       active = false;
     };
-  }, [rangeFrom, rangeTo]);
+  }, [rangeFrom, rangeTo, holidayFrom, holidayTo]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -7081,6 +7093,7 @@ function AgendaPage() {
                 const dayBlocks = blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey && item.status === "active");
                 const dayGroups = groupSessions.filter((item) => localIsoDate(new Date(item.startsAt)) === dayKey);
                 const dayEvents = sortAgendaEntries({ appointments: dayAppointments, groupSessions: dayGroups });
+                const dayHoliday = holidayNames.get(dayKey);
                 return (
                   <div
                     className={`month-day ${day.getMonth() !== selectedDate.getMonth() ? "outside" : ""} ${dayKey === localIsoDate() ? "today" : ""} ${dayKey === date ? "selected" : ""}`}
@@ -7094,12 +7107,13 @@ function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => setEventsDay(day)}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
                     >
                       <strong>{day.getDate()}</strong>
                       {dayAppointments.length > 0 && <small>{dayAppointments.length} {dayAppointments.length === 1 ? "atendimento" : "atendimentos"}</small>}
                     </button>
                     <span className="month-day-events">
+                      {dayHoliday && <span className="month-holiday" title={`Feriado: ${dayHoliday}`}>{dayHoliday}</span>}
                       {dayEvents.slice(0, 2).map((entry) =>
                         entry.kind === "appointment" ? (
                           <button type="button" className="month-event" key={entry.appointment.id} onClick={() => setSelectedAppointmentId(entry.appointment.id)} aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}`}>
@@ -7134,6 +7148,7 @@ function AgendaPage() {
               const dayGroups = groupSessions.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
+              const dayHoliday = holidayNames.get(dayKey);
               return (
                 <section key={dayKey}>
                   <header className={dayKey === localIsoDate() ? "today" : ""}>
@@ -7143,6 +7158,7 @@ function AgendaPage() {
                     <strong>{day.getDate()}</strong>
                   </header>
                   <div>
+                    {dayHoliday && <span className="week-holiday">Feriado: {dayHoliday}</span>}
                     {sortAgendaEntries({ appointments: dayAppointments, groupSessions: dayGroups, blocks: dayBlocks }).map((entry) =>
                       entry.kind === "block" ? (
                         <ScheduleBlockCard
@@ -7175,7 +7191,7 @@ function AgendaPage() {
                         </article>
                       ),
                     )}
-                    {dayAppointments.length === 0 && dayBlocks.length === 0 && dayGroups.length === 0 && (
+                    {!dayHoliday && dayAppointments.length === 0 && dayBlocks.length === 0 && dayGroups.length === 0 && (
                       <span className="week-empty">Livre</span>
                     )}
                   </div>
@@ -7184,12 +7200,23 @@ function AgendaPage() {
             })}
           </div>
         ) : appointments.length === 0 && blocks.length === 0 && groupSessions.length === 0 ? (
-          <EmptyState
-            title="Dia disponível"
-            copy="Não há atendimentos agendados para esta data."
-          />
+          selectedHoliday ? (
+            <div className="day-agenda">
+              <p className="holiday-notice">Feriado: {selectedHoliday}</p>
+              <EmptyState
+                title="Sem atendimentos"
+                copy="A agenda não aceita novos atendimentos nesta data."
+              />
+            </div>
+          ) : (
+            <EmptyState
+              title="Dia disponível"
+              copy="Não há atendimentos agendados para esta data."
+            />
+          )
         ) : (
           <div className="day-agenda">
+            {selectedHoliday && <p className="holiday-notice">Feriado: {selectedHoliday}</p>}
             {sortAgendaEntries({ appointments, groupSessions, blocks }).map((entry) =>
               entry.kind === "block" ? (
                 <ScheduleBlockCard
@@ -7284,6 +7311,7 @@ function AgendaPage() {
       {eventsDay && (
         <DayEventsModal
           day={eventsDay}
+          holidayName={holidayNames.get(localIsoDate(eventsDay))}
           appointments={appointments.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay))}
           groupSessions={groupSessions.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay))}
           blocks={blocks.filter((item) => localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay) && item.status === "active")}
@@ -7353,6 +7381,7 @@ function sortAgendaEntries({
 
 function DayEventsModal({
   day,
+  holidayName,
   appointments,
   groupSessions,
   blocks,
@@ -7361,6 +7390,7 @@ function DayEventsModal({
   onOpenDay,
 }: {
   day: Date;
+  holidayName: string | undefined;
   appointments: Appointment[];
   groupSessions: GroupSession[];
   blocks: ScheduleBlock[];
@@ -7384,6 +7414,7 @@ function DayEventsModal({
       onClose={onClose}
     >
       <div className="day-events">
+        {holidayName && <p className="holiday-notice">Feriado: {holidayName}</p>}
         {count > 0 && (
           <ul className="day-events-list">
             {events.map((event) => {
@@ -8459,6 +8490,7 @@ function AdminPage() {
           </section>
         )}
         <RelationshipSettingsSection canEdit />
+        <HolidaysSection />
         <section className="panel admin-matrix">
           <div className="panel-head">
             <div>
@@ -8496,6 +8528,140 @@ function AdminPage() {
         </section>
       </div>
     </>
+  );
+}
+
+function HolidaysSection() {
+  const [holidays, setHolidays] = useState<Holiday[] | null>(null);
+  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [form, setForm] = useState({ date: "", name: "" });
+  const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .holidays()
+      .then((data) => active && setHolidays(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setFormError("");
+    try {
+      const created = await api.createHoliday({ date: form.date, name: form.name.trim() });
+      setHolidays((items) =>
+        [...(items ?? []), created].sort((a, b) => a.date.localeCompare(b.date)),
+      );
+      setForm({ date: "", name: "" });
+    } catch (cause) {
+      setFormError(
+        cause instanceof ApiClientError
+          ? cause.message
+          : "Não foi possível adicionar o feriado.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(holiday: Holiday) {
+    if (!window.confirm(`Excluir o feriado “${holiday.name}” de ${formatIsoDate(holiday.date)}?`)) return;
+    setRemovingId(holiday.id);
+    setFormError("");
+    try {
+      await api.deleteHoliday(holiday.id);
+      setHolidays((items) => (items ?? []).filter((item) => item.id !== holiday.id));
+    } catch (cause) {
+      setFormError(
+        cause instanceof ApiClientError
+          ? cause.message
+          : "Não foi possível excluir o feriado.",
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  return (
+    <section className="panel admin-holidays">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">Agenda</span>
+          <h2>Feriados</h2>
+        </div>
+      </div>
+      <p className="muted-copy">
+        Nos feriados a agenda não aceita novos atendimentos.
+      </p>
+      {error && <ErrorBanner error={error} />}
+      {!holidays ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          <form className="form-grid holiday-form" onSubmit={(event) => void submit(event)}>
+            <label>
+              Data
+              <input
+                type="date"
+                required
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+              />
+            </label>
+            <label>
+              Nome do feriado
+              <input
+                required
+                minLength={2}
+                maxLength={120}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            {formError && <div className="form-error span-2">{formError}</div>}
+            <div className="modal-actions span-2">
+              <button className="primary-button" disabled={saving}>
+                <Plus size={17} />
+                {saving ? "Adicionando…" : "Adicionar feriado"}
+              </button>
+            </div>
+          </form>
+          {holidays.length === 0 ? (
+            <EmptyState
+              title="Nenhum feriado cadastrado"
+              copy="Adicione as datas em que a clínica não atende."
+            />
+          ) : (
+            <div className="holiday-list">
+              {holidays.map((holiday) => (
+                <article key={holiday.id}>
+                  <div>
+                    <strong>{holiday.name}</strong>
+                    <small>{formatIsoDate(holiday.date)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={removingId === holiday.id}
+                    aria-label={`Excluir feriado ${holiday.name}`}
+                    onClick={() => void remove(holiday)}
+                  >
+                    Excluir
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

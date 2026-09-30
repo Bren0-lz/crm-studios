@@ -186,7 +186,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T019
-- **Status:** TODO
+- **Status:** DONE
 
 ### T021 — Tipo de atendimento na API
 - **Escopo:**

@@ -53,6 +53,8 @@ import type {
   GroupEnrollmentInput,
   GroupSession,
   GroupWorkspace,
+  Holiday,
+  HolidayInput,
   IssuedDocument,
   IssuedDocumentInput,
   Lead,
@@ -130,6 +132,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   });
+  // 204 não tem corpo (ex.: exclusão de feriado): não há JSON para ler.
+  if (response.status === 204) return undefined as T;
   const body = await response.json();
   if (!response.ok) {
     if (response.status === 401 && path !== "/auth/login") clearSession();
@@ -286,6 +290,22 @@ export const api = {
     request<ScheduleBlock>(`/schedule-blocks/${id}/cancel`, {
       method: "POST",
     }),
+  holidays: (from = "", to = "") => {
+    const query = [
+      from && `from=${encodeURIComponent(from)}`,
+      to && `to=${encodeURIComponent(to)}`,
+    ]
+      .filter(Boolean)
+      .join("&");
+    return request<Holiday[]>(`/holidays${query ? `?${query}` : ""}`);
+  },
+  createHoliday: (input: HolidayInput) =>
+    request<Holiday>("/holidays", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteHoliday: (id: string) =>
+    request<void>(`/holidays/${id}`, { method: "DELETE" }),
   groupWorkspace: (from: string, to: string) =>
     request<GroupWorkspace>(
       `/groups/workspace?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
