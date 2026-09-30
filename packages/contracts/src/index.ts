@@ -1561,6 +1561,19 @@ export function saoPauloToday(now: Date = new Date()): string {
   }).format(now);
 }
 
+export const holidayInputSchema = z.object({
+  date: z.iso.date("Informe uma data válida."),
+  name: z.string().trim().min(2, "Informe o nome do feriado.").max(120),
+});
+export type HolidayInput = z.infer<typeof holidayInputSchema>;
+
+/** Dia sem atendimento; `date` (aaaa-mm-dd) é a data no fuso da clínica. */
+export interface Holiday extends HolidayInput {
+  id: string;
+  clinicId: string;
+  createdAt: string;
+}
+
 // snoozeUntil é comparado com saoPauloToday() no momento da validação:
 // precisa ser posterior a hoje no fuso da clínica.
 export const contactActivityInputSchema = z

@@ -108,6 +108,8 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
   RelationshipSettings,
+  Holiday,
+  HolidayInput,
   ContactActivity,
   ContactActivityInput,
   SatisfactionSurvey,
@@ -222,6 +224,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly clinicalAccessEvents: ClinicalAccessEvent[] = [];
   private readonly adminAuditEvents: AdminAuditEvent[] = [];
   private readonly relationshipSettings = new Map<string, RelationshipSettings>();
+  private readonly holidays = new Map<string, Holiday[]>();
   private readonly contactActivities: ContactActivity[] = [];
   private readonly satisfactionSurveys: SatisfactionSurvey[] = [];
   private readonly clinicSettings: ClinicSettings = {
@@ -641,6 +644,39 @@ export class MemoryClinicRepository implements ClinicRepository {
   ) {
     this.relationshipSettings.set(clinicId, structuredClone(input));
     return structuredClone(input);
+  }
+
+  async listHolidays(clinicId: string, from?: string, to?: string) {
+    return (this.holidays.get(clinicId) ?? [])
+      .filter((item) => (!from || item.date >= from) && (!to || item.date <= to))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((item) => ({ ...item }));
+  }
+
+  async createHoliday(clinicId: string, input: HolidayInput) {
+    const holidays = this.holidays.get(clinicId) ?? [];
+    if (holidays.some((item) => item.date === input.date))
+      throw new DomainError(
+        "HOLIDAY_DUPLICATE",
+        "Já existe um feriado nesta data.",
+        409,
+      );
+    const holiday: Holiday = {
+      ...input,
+      id: uuid(),
+      clinicId,
+      createdAt: now(),
+    };
+    this.holidays.set(clinicId, [...holidays, holiday]);
+    return { ...holiday };
+  }
+
+  async deleteHoliday(clinicId: string, holidayId: string) {
+    const holidays = this.holidays.get(clinicId) ?? [];
+    const remaining = holidays.filter((item) => item.id !== holidayId);
+    if (remaining.length === holidays.length) return false;
+    this.holidays.set(clinicId, remaining);
+    return true;
   }
 
   async listContactSuggestions(clinicId: string, role: UserRole) {

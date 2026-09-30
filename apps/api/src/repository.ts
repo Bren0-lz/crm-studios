@@ -106,6 +106,8 @@ import type {
   TreatmentClosureInput,
   ReminderGenerationResult,
   RelationshipSettings,
+  Holiday,
+  HolidayInput,
   BirthdayEntry,
   ContactActivity,
   ContactActivityInput,
@@ -164,6 +166,12 @@ export interface ClinicRepository {
     clinicId: string,
     input: RelationshipSettings,
   ): Promise<RelationshipSettings>;
+  /** Por data crescente. `from`/`to` (aaaa-mm-dd) são inclusivos e opcionais. */
+  listHolidays(clinicId: string, from?: string, to?: string): Promise<Holiday[]>;
+  /** Uma data só pode ter um feriado por clínica (409 `HOLIDAY_DUPLICATE`). */
+  createHoliday(clinicId: string, input: HolidayInput): Promise<Holiday>;
+  /** `false` quando o feriado não existe na clínica. */
+  deleteHoliday(clinicId: string, holidayId: string): Promise<boolean>;
   /** Sugestões de contato do dia (data da clínica), já filtradas pelo perfil. */
   listContactSuggestions(
     clinicId: string,

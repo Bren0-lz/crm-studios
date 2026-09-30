@@ -15,6 +15,7 @@ import {
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
   relationshipSettingsSchema,
+  holidayInputSchema,
   contactActivityInputSchema,
   satisfactionFilterSchema,
   satisfactionSurveyInputSchema,
@@ -420,6 +421,25 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       } satisfies ApiError);
   }
 
+  /** Recusa (409 `HOLIDAY`) horários cuja data, no fuso da clínica, é feriado. */
+  async function assertNoHoliday(clinicId: string, startsAtList: string[]) {
+    const dates = startsAtList.map((value) => saoPauloToday(new Date(value)));
+    const sorted = [...dates].sort();
+    const holidays = await repository.listHolidays(
+      clinicId,
+      sorted[0],
+      sorted[sorted.length - 1],
+    );
+    const holiday = holidays.find((item) => dates.includes(item.date));
+    if (!holiday) return;
+    const [year, month, day] = holiday.date.split("-");
+    throw new DomainError(
+      "HOLIDAY",
+      `Não é possível agendar em ${day}/${month}/${year}: é feriado (${holiday.name}).`,
+      409,
+    );
+  }
+
   app.get("/health", async () => ({
     status: "ok",
     storage: config.STORAGE_MODE,
@@ -584,6 +604,41 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         relationshipSettingsSchema.parse(request.body),
       ),
+  );
+  app.get("/holidays", { preHandler: authenticate }, async (request) => {
+    const query = z
+      .object({ from: z.iso.date().optional(), to: z.iso.date().optional() })
+      .parse(request.query);
+    return repository.listHolidays(request.user.clinicId, query.from, query.to);
+  });
+  app.post(
+    "/holidays",
+    { preHandler: [authenticate, requireOwnerAccess] },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createHoliday(
+            request.user.clinicId,
+            holidayInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.delete(
+    "/holidays/:id",
+    { preHandler: [authenticate, requireOwnerAccess] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted =
+        z.uuid().safeParse(id).success &&
+        (await repository.deleteHoliday(request.user.clinicId, id));
+      if (!deleted)
+        return reply.status(404).send({
+          code: "HOLIDAY_NOT_FOUND",
+          message: "Feriado não encontrado.",
+        } satisfies ApiError);
+      return reply.status(204).send();
+    },
   );
   app.get(
     "/relationship/suggestions",
@@ -878,39 +933,50 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.post(
     "/appointments",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = appointmentInputSchema.parse(request.body);
+      await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      return reply
         .status(201)
-        .send(
-          await repository.createAppointment(
-            request.user.clinicId,
-            appointmentInputSchema.parse(request.body),
-          ),
-        ),
+        .send(await repository.createAppointment(request.user.clinicId, input));
+    },
   );
   app.post(
     "/appointments/recurring",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = recurringAppointmentInputSchema.parse(request.body);
+      // Mesmas datas que os repositórios geram para cada ocorrência.
+      const occurrences = Array.from({ length: input.occurrences }, (_, index) => {
+        const startsAt = new Date(input.startsAt);
+        startsAt.setUTCDate(
+          startsAt.getUTCDate() + index * input.intervalWeeks * 7,
+        );
+        return startsAt.toISOString();
+      });
+      await assertNoHoliday(request.user.clinicId, occurrences);
+      return reply
         .status(201)
         .send(
           await repository.createRecurringAppointments(
             request.user.clinicId,
-            recurringAppointmentInputSchema.parse(request.body),
+            input,
           ),
-        ),
+        );
+    },
   );
   app.put(
     "/appointments/:id/schedule",
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = appointmentRescheduleInputSchema.parse(request.body);
+      await assertNoHoliday(request.user.clinicId, [input.startsAt]);
       const appointment = await repository.rescheduleAppointment(
         request.user.clinicId,
         request.user.sub,
         id,
-        appointmentRescheduleInputSchema.parse(request.body),
+        input,
       );
       if (!appointment)
         return reply.status(404).send({

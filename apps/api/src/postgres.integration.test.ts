@@ -395,6 +395,40 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).rejects.toMatchObject({ code: "PLAN_ALREADY_RENEWED" });
   });
 
+  it("creates, lists by range and deletes holidays, one per date", async () => {
+    const dates = ["2099-04-21", "2099-05-01"];
+    await pool.query(
+      "DELETE FROM holidays WHERE clinic_id = $1 AND date = ANY($2::date[])",
+      [clinicId, dates],
+    );
+    const labor = await repository.createHoliday(clinicId, {
+      date: dates[1]!,
+      name: "Dia do Trabalho",
+    });
+    const tiradentes = await repository.createHoliday(clinicId, {
+      date: dates[0]!,
+      name: "Tiradentes",
+    });
+    expect(tiradentes).toMatchObject({ clinicId, date: dates[0], name: "Tiradentes" });
+    await expect(
+      repository.createHoliday(clinicId, { date: dates[0]!, name: "Outro" }),
+    ).rejects.toMatchObject({ code: "HOLIDAY_DUPLICATE" });
+    expect(
+      (await repository.listHolidays(clinicId, "2099-01-01", "2099-12-31")).map(
+        (item) => item.id,
+      ),
+    ).toEqual([tiradentes.id, labor.id]);
+    expect(await repository.listHolidays(clinicId, "2099-04-22", "2099-05-01")).toEqual([
+      labor,
+    ]);
+    expect((await repository.listHolidays(clinicId)).map((item) => item.id)).toEqual(
+      expect.arrayContaining([tiradentes.id, labor.id]),
+    );
+    expect(await repository.deleteHoliday(clinicId, tiradentes.id)).toBe(true);
+    expect(await repository.deleteHoliday(clinicId, tiradentes.id)).toBe(false);
+    expect(await repository.deleteHoliday(clinicId, labor.id)).toBe(true);
+  });
+
   it("returns default relationship settings and upserts changes", async () => {
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,

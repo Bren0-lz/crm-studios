@@ -109,6 +109,8 @@ import type {
   ReplacementBookingInput,
   ReplacementCredit,
   RelationshipSettings,
+  Holiday,
+  HolidayInput,
   ContactActivity,
   ContactActivityInput,
   SatisfactionSurvey,
@@ -1605,6 +1607,21 @@ async function hasGroupSessionConflict(
 
 const groupSessionColumns = `gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",g.professional_id AS "professionalId",p.full_name AS "professionalName",g.room_id AS "roomId",r.name AS "roomName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,gs.created_at AS "createdAt"`;
 
+interface HolidayRow {
+  id: string;
+  clinicId: string;
+  date: string;
+  name: string;
+  createdAt: Date;
+}
+
+const holidayColumns = `id, clinic_id AS "clinicId", to_char(date, 'YYYY-MM-DD') AS date,
+  name, created_at AS "createdAt"`;
+
+function mapHoliday(row: HolidayRow): Holiday {
+  return { ...row, createdAt: row.createdAt.toISOString() };
+}
+
 export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -1921,6 +1938,46 @@ export class PostgresClinicRepository implements ClinicRepository {
       ],
     );
     return this.getRelationshipSettings(clinicId);
+  }
+
+  async listHolidays(clinicId: string, from?: string, to?: string) {
+    const result = await this.pool.query<HolidayRow>(
+      `SELECT ${holidayColumns} FROM holidays
+       WHERE clinic_id = $1
+         AND ($2::date IS NULL OR date >= $2::date)
+         AND ($3::date IS NULL OR date <= $3::date)
+       ORDER BY date`,
+      [clinicId, from ?? null, to ?? null],
+    );
+    return result.rows.map(mapHoliday);
+  }
+
+  async createHoliday(clinicId: string, input: HolidayInput) {
+    try {
+      const result = await this.pool.query<HolidayRow>(
+        `INSERT INTO holidays (clinic_id, date, name)
+         VALUES ($1, $2::date, $3)
+         RETURNING ${holidayColumns}`,
+        [clinicId, input.date, input.name],
+      );
+      return mapHoliday(result.rows[0]!);
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505"))
+        throw new DomainError(
+          "HOLIDAY_DUPLICATE",
+          "Já existe um feriado nesta data.",
+          409,
+        );
+      throw error;
+    }
+  }
+
+  async deleteHoliday(clinicId: string, holidayId: string) {
+    const result = await this.pool.query(
+      "DELETE FROM holidays WHERE clinic_id = $1 AND id = $2",
+      [clinicId, holidayId],
+    );
+    return Boolean(result.rowCount);
   }
 
   async listContactSuggestions(clinicId: string, role: UserRole) {

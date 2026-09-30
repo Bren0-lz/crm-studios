@@ -2059,6 +2059,176 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("manages holidays as owner and refuses appointments, reschedules and series on them", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    const sub = "22222222-2222-4222-8222-222222222222";
+    const receptionHeaders = {
+      authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "reception" })}`,
+    };
+    const day = (offset: number) =>
+      new Date(Date.UTC(2031, 3, 21 + offset)).toISOString().slice(0, 10);
+    const holidayDate = day(0);
+
+    expect((await app.inject({ method: "GET", url: "/holidays", headers })).json()).toEqual([]);
+    const forbidden = await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers: receptionHeaders,
+      payload: { date: holidayDate, name: "Tiradentes" },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers,
+      payload: { date: "21/04/2031", name: "Tiradentes" },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers,
+      payload: { date: holidayDate, name: "  Tiradentes " },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ clinicId, date: holidayDate, name: "Tiradentes" });
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers,
+      payload: { date: holidayDate, name: "Outro" },
+    });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: "HOLIDAY_DUPLICATE" });
+    const earlier = await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers,
+      payload: { date: day(-20), name: "Aniversário da clínica" },
+    });
+    expect(earlier.statusCode).toBe(201);
+
+    const listed = await app.inject({ method: "GET", url: "/holidays", headers: receptionHeaders });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().map((item: { date: string }) => item.date)).toEqual([day(-20), holidayDate]);
+    const ranged = await app.inject({
+      method: "GET",
+      url: `/holidays?from=${day(-1)}&to=${day(1)}`,
+      headers,
+    });
+    expect(ranged.json()).toHaveLength(1);
+    expect(ranged.json()[0]).toMatchObject({ name: "Tiradentes" });
+
+    const [patients, professionals, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const payload = {
+      patientId: patients.json()[0].id,
+      professionalId: professionals.json()[0].id,
+      roomId: rooms.json()[0].id,
+      serviceId: services.json()[0].id,
+    };
+    const onHoliday = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: `${holidayDate}T15:00:00.000Z` },
+    });
+    expect(onHoliday.statusCode).toBe(409);
+    expect(onHoliday.json()).toMatchObject({ code: "HOLIDAY" });
+    expect(onHoliday.json().message).toContain("Tiradentes");
+    // 22h30 do feriado em São Paulo já é o dia seguinte em UTC.
+    const lateOnHoliday = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: `${day(1)}T01:30:00.000Z` },
+    });
+    expect(lateOnHoliday.statusCode).toBe(409);
+    expect(lateOnHoliday.json()).toMatchObject({ code: "HOLIDAY" });
+    // 23h da véspera em São Paulo já é o feriado em UTC, mas não na clínica.
+    const eve = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: { ...payload, startsAt: `${holidayDate}T02:00:00.000Z` },
+    });
+    expect(eve.statusCode).toBe(201);
+
+    const moved = await app.inject({
+      method: "PUT",
+      url: `/appointments/${eve.json().id}/schedule`,
+      headers,
+      payload: {
+        professionalId: payload.professionalId,
+        roomId: payload.roomId,
+        startsAt: `${holidayDate}T15:00:00.000Z`,
+      },
+    });
+    expect(moved.statusCode).toBe(409);
+    expect(moved.json()).toMatchObject({ code: "HOLIDAY" });
+    expect(moved.json().message).toContain("Tiradentes");
+
+    const series = {
+      ...payload,
+      startsAt: `${day(-7)}T15:00:00.000Z`,
+      occurrences: 3,
+      intervalWeeks: 1,
+    };
+    const recurring = await app.inject({
+      method: "POST",
+      url: "/appointments/recurring",
+      headers,
+      payload: series,
+    });
+    expect(recurring.statusCode).toBe(409);
+    expect(recurring.json()).toMatchObject({ code: "HOLIDAY" });
+    expect(recurring.json().message).toContain("Tiradentes");
+    const agenda = await app.inject({
+      method: "GET",
+      url: `/appointments?from=${day(-8)}T00:00:00.000Z&to=${day(15)}T00:00:00.000Z`,
+      headers,
+    });
+    expect(agenda.json().map((item: Appointment) => item.id)).toEqual([eve.json().id]);
+
+    const receptionDelete = await app.inject({
+      method: "DELETE",
+      url: `/holidays/${created.json().id}`,
+      headers: receptionHeaders,
+    });
+    expect(receptionDelete.statusCode).toBe(403);
+    expect(receptionDelete.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+    const removed = await app.inject({
+      method: "DELETE",
+      url: `/holidays/${created.json().id}`,
+      headers,
+    });
+    expect(removed.statusCode).toBe(204);
+    const removedAgain = await app.inject({
+      method: "DELETE",
+      url: `/holidays/${created.json().id}`,
+      headers,
+    });
+    expect(removedAgain.statusCode).toBe(404);
+    expect(removedAgain.json()).toMatchObject({ code: "HOLIDAY_NOT_FOUND" });
+    const afterRemoval = await app.inject({
+      method: "POST",
+      url: "/appointments/recurring",
+      headers,
+      payload: series,
+    });
+    expect(afterRemoval.statusCode).toBe(201);
+    expect(afterRemoval.json()).toHaveLength(3);
+    await app.close();
+  });
+
   it("reads relationship settings with defaults and lets only the owner update them", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
