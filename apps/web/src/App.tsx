@@ -52,6 +52,7 @@ import type {
   AppointmentInput,
   AppointmentRescheduleEvent,
   AppointmentStatus,
+  AppointmentVisitType,
   AssessmentTemplate,
   AssessmentTemplateInput,
   ClinicalAddendumInput,
@@ -82,6 +83,7 @@ import type {
   IssuedDocument,
   Lead,
   LeadActivity,
+  LeadAppointmentInput,
   LeadContactInput,
   LeadInput,
   LeadStage,
@@ -208,6 +210,28 @@ function statusLabel(status: AppointmentStatus) {
     professional_absence: "Ausência profissional",
     cancelled: "Cancelado",
   }[status];
+}
+
+const visitTypeLabels: Record<AppointmentVisitType, string> = {
+  regular: "Atendimento",
+  trial: "Experimental",
+  evaluation: "Avaliação",
+};
+
+const appointmentVisitTypes: AppointmentVisitType[] = ["regular", "trial", "evaluation"];
+const leadVisitTypes: LeadAppointmentInput["visitType"][] = ["trial", "evaluation"];
+
+// Selo de experimental/avaliação; atendimento comum não leva selo. Enquanto o
+// atendimento é de lead, o selo avisa que a pessoa ainda não é cliente.
+function visitTypeBadgeText(appointment: Appointment) {
+  if (appointment.visitType !== "trial" && appointment.visitType !== "evaluation") return null;
+  return `${visitTypeLabels[appointment.visitType]}${appointment.leadId ? " · lead" : ""}`;
+}
+
+function VisitTypeBadge({ appointment }: { appointment: Appointment }) {
+  const text = visitTypeBadgeText(appointment);
+  if (!text) return null;
+  return <span className={`status-pill visit-${appointment.visitType}`}>{text}</span>;
 }
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -3301,6 +3325,8 @@ function CommercialPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
+  const [trialLead, setTrialLead] = useState<Lead | null>(null);
+  const [notice, setNotice] = useState("");
   useEffect(() => {
     let active = true;
     api
@@ -3362,6 +3388,7 @@ function CommercialPage() {
         }
       />
       {error && <ErrorBanner error={error} />}
+      {notice && <div className="success-banner" role="status">{notice}</div>}
       {loading ? (
         <LoadingBlock />
       ) : (
@@ -3457,6 +3484,18 @@ function CommercialPage() {
                             >
                               Converter
                             </button>
+                            {!lead.convertedPatientId && (
+                              <button
+                                className="secondary-button lead-trial-button"
+                                onClick={() => {
+                                  setNotice("");
+                                  setTrialLead(lead);
+                                }}
+                              >
+                                <CalendarDays size={14} />
+                                Agendar experimental
+                              </button>
+                            )}
                           </div>
                         )}
                       </article>
@@ -3476,6 +3515,19 @@ function CommercialPage() {
           }}
         />
       )}
+      {trialLead && (
+        <LeadAppointmentModal
+          lead={trialLead}
+          onClose={() => setTrialLead(null)}
+          onCreated={(appointment) => {
+            const startsAt = new Date(appointment.startsAt);
+            setNotice(
+              `${visitTypeLabels[appointment.visitType]} agendada para ${trialLead.fullName} em ${shortDate.format(startsAt)} às ${timeLabel.format(startsAt)}.`,
+            );
+            setTrialLead(null);
+          }}
+        />
+      )}
       {activityLead && (
         <LeadActivityModal
           lead={activityLead}
@@ -3489,6 +3541,185 @@ function CommercialPage() {
         />
       )}
     </>
+  );
+}
+
+// Agenda experimental/avaliação para o lead sem criar cadastro de cliente.
+function LeadAppointmentModal({
+  lead,
+  onClose,
+  onCreated,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onCreated: (appointment: Appointment) => void;
+}) {
+  const initialTime = new Date();
+  initialTime.setDate(initialTime.getDate() + 1);
+  initialTime.setHours(9, 0, 0, 0);
+  const [options, setOptions] = useState<{
+    services: Service[];
+    professionals: Professional[];
+    rooms: Room[];
+  } | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [form, setForm] = useState({
+    visitType: "trial" as LeadAppointmentInput["visitType"],
+    serviceId: "",
+    professionalId: "",
+    roomId: "",
+    startsAt: toLocalDateTimeInput(initialTime),
+    notes: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.services(), api.professionals(), api.rooms()])
+      .then(([services, professionals, rooms]) => {
+        if (!active) return;
+        setOptions({ services, professionals, rooms });
+        setForm((current) => ({
+          ...current,
+          serviceId: current.serviceId || (services[0]?.id ?? ""),
+          professionalId: current.professionalId || (professionals[0]?.id ?? ""),
+          roomId: current.roomId || (rooms[0]?.id ?? ""),
+        }));
+      })
+      .catch((cause: Error) => {
+        if (active) setLoadError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      onCreated(
+        await api.createLeadAppointment(lead.id, {
+          professionalId: form.professionalId,
+          roomId: form.roomId,
+          serviceId: form.serviceId,
+          startsAt: new Date(form.startsAt).toISOString(),
+          notes: form.notes,
+          visitType: form.visitType,
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível agendar.");
+      setSaving(false);
+    }
+  }
+  const missingOptions =
+    options !== null &&
+    (options.services.length === 0 || options.professionals.length === 0 || options.rooms.length === 0);
+  return (
+    <Modal
+      eyebrow="Lead"
+      title="Agendar experimental"
+      subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
+      onClose={onClose}
+    >
+      {loadError ? (
+        <ErrorBanner error={loadError} />
+      ) : options === null ? (
+        <LoadingBlock />
+      ) : missingOptions ? (
+        <EmptyState
+          title="Agenda incompleta"
+          copy="Cadastre serviço, profissional e sala antes de agendar a experimental."
+        />
+      ) : (
+        <form className="form-grid" onSubmit={(event) => void submit(event)}>
+          <label>
+            Tipo
+            <select
+              value={form.visitType}
+              onChange={(e) =>
+                setForm({ ...form, visitType: e.target.value as LeadAppointmentInput["visitType"] })
+              }
+            >
+              {leadVisitTypes.map((item) => (
+                <option value={item} key={item}>
+                  {visitTypeLabels[item]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Serviço
+            <select
+              required
+              value={form.serviceId}
+              onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+            >
+              {options.services.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Profissional
+            <select
+              required
+              value={form.professionalId}
+              onChange={(e) => setForm({ ...form, professionalId: e.target.value })}
+            >
+              {options.professionals.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Sala
+            <select
+              required
+              value={form.roomId}
+              onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+            >
+              {options.rooms.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="span-2">
+            Data e horário
+            <input
+              required
+              type="datetime-local"
+              value={form.startsAt}
+              onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+            />
+          </label>
+          <label className="span-2">
+            Observação
+            <textarea
+              rows={3}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </label>
+          {error && <div className="form-error span-2">{error}</div>}
+          <div className="modal-actions span-2">
+            <button type="button" className="secondary-button" onClick={onClose}>
+              Cancelar
+            </button>
+            <button className="primary-button" disabled={saving}>
+              {saving ? "Agendando…" : "Confirmar agendamento"}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
   );
 }
 
@@ -7116,7 +7347,7 @@ function AgendaPage() {
                       {dayHoliday && <span className="month-holiday" title={`Feriado: ${dayHoliday}`}>{dayHoliday}</span>}
                       {dayEvents.slice(0, 2).map((entry) =>
                         entry.kind === "appointment" ? (
-                          <button type="button" className="month-event" key={entry.appointment.id} onClick={() => setSelectedAppointmentId(entry.appointment.id)} aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}`}>
+                          <button type="button" className="month-event" key={entry.appointment.id} onClick={() => setSelectedAppointmentId(entry.appointment.id)} aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}`}>
                             <span className="month-event-time"><i style={{ background: entry.appointment.professionalColor }} aria-hidden="true" /><time>{timeLabel.format(new Date(entry.appointment.startsAt))}–{timeLabel.format(new Date(entry.appointment.endsAt))}</time></span>
                             <span className="month-event-name">{entry.appointment.patientName}</span>
                           </button>
@@ -7188,6 +7419,7 @@ function AgendaPage() {
                           </time>
                           <strong>{entry.appointment.patientName}</strong>
                           <span>{entry.appointment.serviceName}</span>
+                          <VisitTypeBadge appointment={entry.appointment} />
                         </article>
                       ),
                     )}
@@ -7400,10 +7632,10 @@ function DayEventsModal({
 }) {
   const events = sortAgendaEntries({ appointments, groupSessions, blocks }).map((entry) =>
     entry.kind === "appointment"
-      ? { kind: entry.kind, id: entry.appointment.id, startsAt: entry.startsAt, endsAt: entry.appointment.endsAt, title: entry.appointment.patientName, detail: `${entry.appointment.serviceName} · ${entry.appointment.professionalName} · ${statusLabel(entry.appointment.status)}`, color: entry.appointment.professionalColor }
+      ? { kind: entry.kind, id: entry.appointment.id, startsAt: entry.startsAt, endsAt: entry.appointment.endsAt, title: entry.appointment.patientName, detail: `${entry.appointment.serviceName} · ${entry.appointment.professionalName} · ${statusLabel(entry.appointment.status)}`, color: entry.appointment.professionalColor, appointment: entry.appointment }
       : entry.kind === "group"
-        ? { kind: entry.kind, id: entry.session.id, startsAt: entry.startsAt, endsAt: entry.session.endsAt, title: entry.session.groupName, detail: `${entry.session.professionalName} · ${entry.session.roomName}`, color: undefined }
-        : { kind: entry.kind, id: entry.block.id, startsAt: entry.startsAt, endsAt: entry.block.endsAt, title: entry.block.reason, detail: `Bloqueio · ${[entry.block.professionalName, entry.block.roomName].filter(Boolean).join(" · ")}`, color: undefined },
+        ? { kind: entry.kind, id: entry.session.id, startsAt: entry.startsAt, endsAt: entry.session.endsAt, title: entry.session.groupName, detail: `${entry.session.professionalName} · ${entry.session.roomName}`, color: undefined, appointment: undefined }
+        : { kind: entry.kind, id: entry.block.id, startsAt: entry.startsAt, endsAt: entry.block.endsAt, title: entry.block.reason, detail: `Bloqueio · ${[entry.block.professionalName, entry.block.roomName].filter(Boolean).join(" · ")}`, color: undefined, appointment: undefined },
   );
   const count = events.length;
   return (
@@ -7424,6 +7656,7 @@ function DayEventsModal({
                   <span>
                     <strong>{event.color && <i style={{ background: event.color }} aria-hidden="true" />}{event.title}</strong>
                     <small>{event.detail}</small>
+                    {event.appointment && <VisitTypeBadge appointment={event.appointment} />}
                   </span>
                 </>
               );
@@ -7554,6 +7787,7 @@ function AgendaCard({
           <p>
             {appointment.professionalName} · {appointment.roomName}
           </p>
+          <VisitTypeBadge appointment={appointment} />
         </div>
         <div className="agenda-actions">
           <select
@@ -7604,7 +7838,9 @@ function AppointmentDetailsModal({
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const canChange = appointment.status === "scheduled" || appointment.status === "confirmed";
-  const isCompleted = appointment.status === "completed";
+  // Atendimento de lead não tem prontuário, NPS nem histórico de cliente.
+  const isLead = Boolean(appointment.leadId);
+  const isCompleted = appointment.status === "completed" && !isLead;
   const [survey, setSurvey] = useState<SatisfactionSurvey | null>(null);
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
@@ -7669,8 +7905,18 @@ function AppointmentDetailsModal({
             <div><small>Sala</small><strong>{appointment.roomName}</strong></div>
             {service && <div><small>Duração e valor</small><strong>{service.durationMinutes} min · {currency.format(service.priceInCents / 100)}</strong></div>}
             {appointment.notes && <div className="detail-wide"><small>Observações do agendamento</small><strong>{appointment.notes}</strong></div>}
+            {visitTypeBadgeText(appointment) && <div><small>Tipo</small><strong><VisitTypeBadge appointment={appointment} /></strong></div>}
           </div>
         </section>
+        {isLead ? (
+        <section className="appointment-detail-section">
+          <h3>Lead</h3>
+          <div className="appointment-detail-grid">
+            <div className="detail-wide"><small>Nome</small><strong>{appointment.leadName ?? appointment.patientName}</strong></div>
+          </div>
+          <p className="appointment-lead-note">Prontuário, pesquisa de satisfação e histórico ficam disponíveis depois que o lead for convertido em cliente.</p>
+        </section>
+        ) : (
         <section className="appointment-detail-section">
           <h3>Dados do cliente</h3>
           {patient ? (
@@ -7689,6 +7935,7 @@ function AppointmentDetailsModal({
             </div>
           ) : <p>Dados cadastrais indisponíveis no momento.</p>}
         </section>
+        )}
         {error && <div className="form-error">{error}</div>}
         {confirmCancel && (
           <div className="appointment-cancel-confirm">
@@ -7964,6 +8211,7 @@ function AppointmentModal({
   initialTime.setHours(9, 0, 0, 0);
   const [form, setForm] = useState({
     patientId: patients[0]?.id ?? "",
+    visitType: "regular" as AppointmentVisitType,
     professionalId: professionals[0]?.id ?? "",
     roomId: rooms[0]?.id ?? "",
     serviceId: services[0]?.id ?? "",
@@ -7987,7 +8235,7 @@ function AppointmentModal({
         serviceId: form.serviceId,
         startsAt: new Date(form.startsAt).toISOString(),
         notes: form.notes,
-        visitType: "regular",
+        visitType: form.visitType,
       };
       onCreated(
         form.recurring
@@ -8015,7 +8263,7 @@ function AppointmentModal({
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
-        <label className="span-2">
+        <label>
           Cliente
           <select
             required
@@ -8025,6 +8273,19 @@ function AppointmentModal({
             {patients.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.fullName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Tipo
+          <select
+            value={form.visitType}
+            onChange={(e) => setForm({ ...form, visitType: e.target.value as AppointmentVisitType })}
+          >
+            {appointmentVisitTypes.map((item) => (
+              <option value={item} key={item}>
+                {visitTypeLabels[item]}
               </option>
             ))}
           </select>

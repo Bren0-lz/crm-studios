@@ -60,6 +60,7 @@ import type {
   Lead,
   LeadActivity,
   LeadContact,
+  LeadAppointmentInput,
   LeadContactInput,
   LeadConversion,
   LeadInput,
@@ -497,6 +498,11 @@ export const api = {
     request<Lead>(`/leads/${id}/stage`, {
       method: "PATCH",
       body: JSON.stringify({ stage, lostReason }),
+    }),
+  createLeadAppointment: (id: string, input: LeadAppointmentInput) =>
+    request<Appointment>(`/leads/${id}/appointments`, {
+      method: "POST",
+      body: JSON.stringify(input),
     }),
   convertLead: (id: string) =>
     request<LeadConversion>(`/leads/${id}/convert`, { method: "POST" }),

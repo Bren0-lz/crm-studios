@@ -1878,6 +1878,11 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-cancel-confirm strong { color: #7f5144; }
 .appointment-cancel-confirm span { color: #9b7469; font-size: 12px; }
 .appointment-satisfaction { margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; }
+.appointment-detail-section .appointment-lead-note { margin-top: var(--space-4); }
+.agenda-main .status-pill,
+.day-event .status-pill { margin-top: var(--space-1); }
+.status-pill.visit-trial { background: #e6eef8; color: #3f5f86; }
+.status-pill.visit-evaluation { background: #f6ecd4; color: #8a6420; }
 
 @media (max-width: 560px) {
   .appointment-detail-grid { grid-template-columns: 1fr; }
@@ -3435,6 +3440,11 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 .lead-actions select {
   padding: 0 7px;
+}
+
+.lead-actions .lead-trial-button {
+  grid-column: 1 / -1;
+  justify-content: center;
 }
 
 .lost-reason {

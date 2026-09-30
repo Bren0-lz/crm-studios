@@ -238,7 +238,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T022, T023
-- **Status:** TODO
+- **Status:** DONE
 
 ### T025 — Conversão das experimentais
 - **Escopo:**
