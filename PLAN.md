@@ -152,7 +152,7 @@ vem primeiro. A próxima migração livre é a **0031**.
      idêntica. O script deve apontar o caso 3 antes da correção e passar depois.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DONE
 
 ### V1 — Revisão visual do design (manual)
 - **Tipo:** manual

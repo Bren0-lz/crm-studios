@@ -262,4 +262,138 @@ if (gridProblems.length) {
 } else {
   console.log("Nenhum grid de várias colunas sem regra para celular.");
 }
+
+// Terceira verificação (cartões na borda): filho direto de `.panel` (sem padding próprio) que tem
+// caixa visível — borda, fundo ou sombra no próprio elemento, ou filhos imediatos que são cartões
+// com borda/fundo/sombra — precisa ficar a pelo menos 8px das bordas laterais do painel. Conta só
+// regra cujo último seletor composto contém a classe: `margin` lateral no próprio bloco ou, no caso
+// de cartões internos, `margin`/`padding` lateral no contêiner. Tokens `var(--x)` e `calc()` simples
+// são resolvidos a partir do `:root`.
+const MIN_GAP = 8;
+const tokens = {};
+for (const rule of cssRules) {
+  if (rule.prelude !== ":root") continue;
+  for (const decl of rule.body.split(";")) {
+    const idx = decl.indexOf(":");
+    if (idx !== -1 && decl.slice(0, idx).trim().startsWith("--")) tokens[decl.slice(0, idx).trim()] = decl.slice(idx + 1).trim();
+  }
+}
+const toPx = (raw) => {
+  let value = raw.replace(/!important/, "").trim();
+  for (let n = 0; n < 5 && /var\(/.test(value); n += 1) {
+    value = value.replace(/var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, name) => tokens[name] ?? "NaN");
+  }
+  if (value === "0") return 0;
+  const expr = value.replace(/^calc/, "").replace(/(-?\d*\.?\d+)px/g, "$1");
+  if (!/^[\d\s.+\-*/()]+$/.test(expr)) return NaN;
+  try {
+    return Number(Function(`"use strict"; return (${expr});`)());
+  } catch {
+    return NaN;
+  }
+};
+const declsOf = (body) =>
+  body
+    .split(";")
+    .map((decl) => {
+      const idx = decl.indexOf(":");
+      return idx === -1 ? null : [decl.slice(0, idx).trim(), decl.slice(idx + 1).trim()];
+    })
+    .filter(Boolean);
+// Lados esquerdo e direito de um shorthand margin/padding (1 a 4 valores).
+const sidesOf = (value) => {
+  const parts = splitTopLevel(value.replace(/!important/, ""), " ");
+  if (parts.length === 1) return [parts[0], parts[0]];
+  if (parts.length === 2 || parts.length === 3) return [parts[1], parts[1]];
+  return [parts[3], parts[1]];
+};
+const lateralOf = (body, props) => {
+  let left;
+  let right;
+  for (const [prop, value] of declsOf(body)) {
+    if (props.includes(prop)) [left, right] = sidesOf(value).map(toPx);
+    else if (props.some((p) => prop === `${p}-inline`)) {
+      const parts = splitTopLevel(value, " ");
+      [left, right] = [parts[0], parts[1] ?? parts[0]].map(toPx);
+    } else if (props.some((p) => prop === `${p}-left` || prop === `${p}-inline-start`)) left = toPx(value);
+    else if (props.some((p) => prop === `${p}-right` || prop === `${p}-inline-end`)) right = toPx(value);
+  }
+  return { left, right };
+};
+// Caixa = borda completa, sombra, ou fundo com cantos arredondados. Faixas de largura total
+// (fundo sem raio, como barras de filtro) e divisórias de um lado só não contam.
+const hasBox = (rules) => {
+  const decls = rules.flatMap((r) => declsOf(r.body)).map(([prop, value]) => [prop, value.replace(/!important/, "").trim()]);
+  const rounded = decls.some(([prop, v]) => prop === "border-radius" && !/^0(px)?$/.test(v));
+  return decls.some(([prop, v]) => {
+    if (prop === "border" || prop === "border-inline" || prop === "outline") return !/^(none|0(px)?)\b/.test(v);
+    if (prop === "box-shadow") return v !== "none";
+    if (prop === "background" || prop === "background-color") return rounded && !/^(none|transparent|inherit|unset|initial)$/.test(v);
+    return false;
+  });
+};
+const compounds = (selector) => selector.split(/[\s>+~]+/).filter(Boolean);
+const hasClass = (compound, cls) => new RegExp(`\\.${cls}(?![\\w-])`).test(compound);
+const screenRules = cssRules
+  .filter((r) => !isPrint(r.media) && !r.prelude.startsWith(":root"))
+  .map((r) => ({ ...r, selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector) }));
+// Regras cujo último composto é o próprio elemento (a classe está nele).
+const ownRules = (cls) => screenRules.filter((r) => r.selectors.some((s) => { const c = compounds(s); return c.length && hasClass(c[c.length - 1], cls) && !/:{1,2}(before|after|hover|focus|active|disabled)/.test(c[c.length - 1]); }));
+// Regras que miram filhos imediatos genéricos do elemento (`.x article`, `.x > div`).
+const childCardRules = (cls) => screenRules.filter((r) => r.selectors.some((s) => { const c = compounds(s); return c.length >= 2 && hasClass(c[c.length - 2], cls) && /^[a-z]+$/.test(c[c.length - 1]); }));
+const lateralOk = (rules, props) => {
+  let left = 0;
+  let right = 0;
+  for (const r of rules) {
+    const side = lateralOf(r.body, props);
+    if (side.left !== undefined && side.left > left) left = side.left;
+    if (side.right !== undefined && side.right > right) right = side.right;
+  }
+  return left >= MIN_GAP && right >= MIN_GAP;
+};
+
+const cardProblems = [];
+const inspectCard = (panelClasses, child) => {
+  if (ts.isJsxExpression(child)) {
+    const visitExpr = (n) => {
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) return inspectCard(panelClasses, n);
+      if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
+      ts.forEachChild(n, visitExpr);
+    };
+    if (child.expression) visitExpr(child.expression);
+    return;
+  }
+  if (!ts.isJsxElement(child) && !ts.isJsxSelfClosingElement(child)) return;
+  const tag = tagOf(child);
+  if (/^[A-Z]/.test(tag) || tag.includes(".")) return;
+  const cls = classesOf(child);
+  if (!cls.length || cls.some((c) => fullBleed.has(c))) return;
+  const own = cls.flatMap(ownRules);
+  if (hasBox(own)) {
+    if (!lateralOk(own, ["margin"])) cardProblems.push(`App.tsx:${lineOf(child)} <${tag} .${cls.join(".")}> tem borda/fundo/sombra e fica a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`);
+    return;
+  }
+  if (hasBox(cls.flatMap(childCardRules)) &&!lateralOk(own, ["margin", "padding"])) {
+    cardProblems.push(`App.tsx:${lineOf(child)} <${tag} .${cls.join(".")}> tem cartões com borda/fundo a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`);
+  }
+};
+const visitCards = (node) => {
+  if (ts.isJsxElement(node)) {
+    const cls = classesOf(node);
+    if (cls.includes("panel")) {
+      const own = cls.filter((c) => c !== "panel");
+      const padded = own.some((c) => lateralOk(ownRules(c), ["padding"]) || paddedByParent.has(c));
+      if (!padded) for (const child of node.children) inspectCard(cls, child);
+    }
+  }
+  ts.forEachChild(node, visitCards);
+};
+visitCards(sf);
+
+if (cardProblems.length) {
+  console.error(`${cardProblems.length} cartão(ões) encostado(s) na borda do painel:\n` + cardProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum cartão encostado na borda lateral de .panel.");
+}
 if (failed) process.exit(1);

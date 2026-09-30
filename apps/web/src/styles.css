@@ -190,12 +190,19 @@ button {
 }
 
 .story-note span {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.story-note span::before {
+  flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #87bead;
   box-shadow: 0 0 0 5px rgba(135, 190, 173, 0.12);
+  content: "";
 }
 
 .login-panel {
@@ -357,6 +364,11 @@ textarea:focus {
   background: #f9e9e6;
   color: #9b433c;
   font-size: 12px;
+}
+
+.pulse-panel > .form-error,
+.plans-panel > .form-error {
+  margin: var(--space-4) calc(var(--space-5) - 1px);
 }
 
 .full {
@@ -593,6 +605,10 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 15px;
+}
+
+.metric-grid + .dashboard-sales {
+  margin-top: var(--space-5);
 }
 
 .metric-card,
@@ -1562,6 +1578,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  margin: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
 }
 
 .sales-metrics article {
@@ -1621,7 +1638,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .report-disclosure[open] > summary::after { content: "−"; }
 .report-disclosure > summary:focus-visible { outline: 2px solid #347461; outline-offset: 2px; }
 
-.sales-details { margin-top: 20px; }
+.sales-details { margin: var(--space-5) calc(var(--space-5) - 1px) calc(var(--space-5) - 1px); }
 .sales-details .sales-detail-grid { margin: 0; padding: 0 18px 18px; }
 
 .report-advanced {
@@ -2426,7 +2443,11 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .admin-grid > .panel {
-  padding: 20px;
+  padding: var(--space-5);
+}
+
+.admin-grid > .panel > .panel-head {
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);
 }
 
 .admin-relationship > .muted-copy,
@@ -3772,6 +3793,10 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .dre-card > .dre-lines,
 .profit-table > .profit-rows {
   padding: 0 23px 18px;
+}
+
+.operation-card > .operation-metrics {
+  padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
 }
 
 .dre-lines .dre-total {

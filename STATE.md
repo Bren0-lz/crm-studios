@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** D05
-- **Última concluída:** D04
+- **Tarefa atual:** V1
+- **Última concluída:** D05
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -37,3 +37,4 @@
 - 2026-09-30 D03 DONE (verifier PASS; detecção testada com casos sintéticos). audit-panels agora também reprova grid de 2+ colunas sem regra em @media (max-width ≤ 760px); anotação `/* audit: mobile-ok <motivo> */` isenta (21 usos). 57 apontamentos: 32 corrigidos em novo bloco @media 700px, 25 anotados. Lista de clientes vira cartões em ≤700px. Conferir na V1 (390px): lista de clientes, `.profit-rows`, `.group-overview`, `.patient-timeline-item`. D04 deve documentar a anotação `mobile-ok`.
 - 2026-09-30 D04 DONE (verifier PASS, exit 0). CLAUDE.md ganhou "Design de páginas" (estrutura, tokens, celular ≤700px + mobile-ok, estados, tabelas à direita, reaproveitar classes); verifier.md reprova interface que viole essas regras. Bloco de design D01–D04 concluído; próxima é V1 (manual).
 - 2026-09-30 V1 (revisão no Chrome do notebook, 1536px + iframe 390px): nenhuma tela com rolagem horizontal no celular; lista de clientes vira cartões (ok); ícone do "Importar" ok (flex + gap 8px); textos corrigidos na D01 ok. Problemas → nova tarefa D05: login com texto sobreposto (`.story-note span` vira ponto de 7px), `.dashboard-sales` colado no `.metric-grid`, `.sales-metrics`/`.sales-details` encostando na borda do painel (1px), respiro duplicado no `.panel-head` de `.admin-grid > .panel`. V1 passa a depender da D05. Obs. funcional: "Vendido líquido" negativo (−R$ 7.284,00) no demo por cancelamentos — não é layout.
+- 2026-09-30 D05 DONE (verifier PASS; nova verificação reprova a HEAD com 6 apontamentos e passa depois). audit-panels ganhou 3ª checagem (cartão/caixa a <8px da borda lateral de .panel). Corrigidos: login (.story-note span::before), espaço .metric-grid → .dashboard-sales, .sales-metrics/.sales-details com 23px, .admin-grid > .panel com padding --space-5 e panel-head em largura total, .form-error em pulse/plans-panel, .operation-metrics. Pendente: `.sales-help` colado na borda inferior do .sales-report (conferir na V1).
