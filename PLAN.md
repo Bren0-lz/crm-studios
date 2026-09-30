@@ -276,7 +276,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Só web, com teste.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DONE
 
 ### T028 — Despesas fixas recorrentes na API
 - **Escopo:**

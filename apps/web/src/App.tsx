@@ -22,6 +22,7 @@ import {
   PackageOpen,
   Paperclip,
   Pause,
+  Phone,
   PhoneCall,
   Play,
   Plus,
@@ -30,6 +31,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Siren,
   SlidersHorizontal,
   Star,
   Stethoscope,
@@ -1393,6 +1395,7 @@ function PatientModal({
   const [tagsText, setTagsText] = useState(() => (patient?.tags ?? []).join(", "));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && getStoredUser()?.role !== "physiotherapist";
+  const [sosOpen, setSosOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
@@ -1423,6 +1426,12 @@ function PatientModal({
       subtitle={patient ? `Atualize o cadastro ${patient.recordNumber}.` : "Cadastre as informações essenciais. O restante pode ser completado depois."}
       onClose={onClose}
     >
+      {patient && (
+        <div className="sos-area">
+          <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
+          {sosOpen && <SosPanel patient={patient} />}
+        </div>
+      )}
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nome completo
@@ -7871,6 +7880,7 @@ function AppointmentDetailsModal({
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
   const [declaring, setDeclaring] = useState(false);
+  const [sosOpen, setSosOpen] = useState(false);
   // Documentos exigem acesso comercial (a API recusa o perfil de fisioterapeuta).
   const canIssueDocuments = ["owner", "reception", "finance"].includes(getStoredUser()?.role ?? "");
   useEffect(() => {
@@ -7925,6 +7935,12 @@ function AppointmentDetailsModal({
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} onClose={onClose}>
       <div className="appointment-details">
+        {!isLead && appointment.patientId && (
+          <div className="sos-area">
+            <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
+            {sosOpen && <SosPanel patient={patient} />}
+          </div>
+        )}
         <section className="appointment-detail-section">
           <h3>Atendimento marcado</h3>
           <div className="appointment-detail-grid">
@@ -8004,6 +8020,60 @@ function AppointmentDetailsModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+function SosButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className="secondary-button sos-button" aria-expanded={open} onClick={onToggle}>
+      <Siren size={16} aria-hidden="true" /> SOS
+    </button>
+  );
+}
+
+const emergencyShortcuts: Array<[string, string]> = [
+  ["190", "Polícia"],
+  ["192", "SAMU"],
+  ["193", "Bombeiros"],
+];
+
+// Painel de emergência: contato cadastrado do cliente e atalhos para os serviços públicos.
+function SosPanel({ patient }: { patient: Patient | undefined }) {
+  const name = patient?.emergencyContactName?.trim() ?? "";
+  const phone = phoneDigits(patient?.emergencyContactPhone ?? "");
+  return (
+    <section className="sos-panel" aria-label="SOS">
+      <div className="sos-contact">
+        <small>Contato de emergência</small>
+        {!patient ? (
+          <p>Dados do cliente indisponíveis no momento.</p>
+        ) : name || phone ? (
+          <>
+            <strong>{name || "Nome não informado"}</strong>
+            {phone ? <span>{formatPhone(phone)}</span> : <p>Telefone não cadastrado.</p>}
+            {phone && (
+              <div className="sos-actions">
+                <a className="secondary-button" href={`tel:${phone}`}>
+                  <Phone size={15} aria-hidden="true" /> Ligar
+                </a>
+                <a className="secondary-button" href={whatsappLink(phone, "")} target="_blank" rel="noreferrer">
+                  <MessageCircle size={15} aria-hidden="true" /> WhatsApp
+                </a>
+              </div>
+            )}
+          </>
+        ) : (
+          <p>Contato de emergência não cadastrado</p>
+        )}
+      </div>
+      <div className="sos-actions">
+        {emergencyShortcuts.map(([number, label]) => (
+          <a key={number} className="secondary-button sos-shortcut" href={`tel:${number}`}>
+            <PhoneCall size={15} aria-hidden="true" /> {number} · {label}
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }
 

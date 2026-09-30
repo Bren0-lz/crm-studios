@@ -1879,6 +1879,20 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-cancel-confirm span { color: #9b7469; font-size: 12px; }
 .appointment-satisfaction { margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; }
 .appointment-detail-section .appointment-lead-note { margin-top: var(--space-4); }
+.sos-area { display: grid; gap: var(--space-3); justify-items: start; }
+.modal > .sos-area { margin-bottom: var(--space-4); }
+.secondary-button.sos-button { border-color: var(--red); color: var(--red); }
+.secondary-button.sos-button[aria-expanded="true"] { background: #fbf2ef; }
+.sos-panel { display: grid; gap: var(--space-4); justify-self: stretch; padding: var(--space-4); border: 1px solid #e8c8be; border-radius: var(--radius-md); background: #fbf2ef; }
+.sos-contact { display: grid; gap: var(--space-1); min-width: 0; }
+.sos-contact small { color: var(--muted); font-size: 11px; }
+.sos-contact strong { overflow-wrap: anywhere; color: #7f5144; }
+.sos-contact span { font-size: 13px; }
+.sos-contact p { margin: 0; color: #9b7469; font-size: 13px; }
+.sos-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.sos-contact .sos-actions { margin-top: var(--space-2); }
+.sos-actions .secondary-button { text-decoration: none; }
+.secondary-button.sos-shortcut { border-color: #e8c8be; color: #a04e45; }
 .agenda-main .status-pill,
 .day-event .status-pill { margin-top: var(--space-1); }
 .status-pill.visit-trial { background: #e6eef8; color: #3f5f86; }

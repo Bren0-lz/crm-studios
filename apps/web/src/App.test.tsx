@@ -1707,6 +1707,94 @@ describe("application shell", () => {
     expect(within(dialog).queryByRole("button", { name: "Declaração de comparecimento" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Histórico/ })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction"))).toBe(false);
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+  });
+
+  it("opens the SOS panel with the emergency contact from a client appointment", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    const appointment = {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: "99999999-9999-4999-8999-999999999999",
+      patientName: "Helena Almeida",
+      professionalColor: "#5c6f68",
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      serviceName: "Pilates",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+      status: "scheduled",
+    };
+    const patient = {
+      id: appointment.patientId,
+      fullName: "Helena Almeida",
+      recordNumber: "PAC-00001",
+      phone: "11987654321",
+      emergencyContactName: "Maria Souza (mãe)",
+      emergencyContactPhone: "11955556666",
+      status: "active",
+      tags: [],
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/appointments?") ? [appointment] : url.includes("/patients") ? [patient] : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+    const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
+    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
+    const sosButton = within(dialog).getByRole("button", { name: "SOS" });
+    expect(sosButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(sosButton);
+    expect(sosButton).toHaveAttribute("aria-expanded", "true");
+    const sos = within(dialog).getByRole("region", { name: "SOS" });
+    expect(within(sos).getByText("Maria Souza (mãe)")).toBeInTheDocument();
+    expect(within(sos).getByText("(11) 95555-6666")).toBeInTheDocument();
+    expect(within(sos).getByRole("link", { name: /Ligar/ })).toHaveAttribute("href", "tel:11955556666");
+    const whatsapp = within(sos).getByRole("link", { name: /WhatsApp/ });
+    expect(whatsapp.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5511955556666/);
+    expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
+    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
+    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
+    expect(within(sos).queryByText("Contato de emergência não cadastrado")).not.toBeInTheDocument();
+    fireEvent.click(sosButton);
+    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
+  });
+
+  it("shows the SOS shortcuts in the client record even without an emergency contact", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", emergencyContactName: "", tags: [], status: "active" };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/timeline") ? [] : [patient];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "SOS" }));
+    const sos = within(dialog).getByRole("region", { name: "SOS" });
+    expect(within(sos).getByText("Contato de emergência não cadastrado")).toBeInTheDocument();
+    expect(within(sos).queryByRole("link", { name: /Ligar/ })).not.toBeInTheDocument();
+    expect(within(sos).queryByRole("link", { name: /WhatsApp/ })).not.toBeInTheDocument();
+    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
+    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
+    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
+  });
+
+  it("does not show the SOS button when creating a new client", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /Novo cliente/ }));
+    const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
   });
 
   it("sends the chosen visit type when booking a new appointment", async () => {
