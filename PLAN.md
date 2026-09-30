@@ -161,7 +161,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   de correção se precisar. A revisão só é marcada `DONE` quando o dono aprovar.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** D05
-- **Status:** TODO
+- **Status:** DONE
 
 ### T019 — Feriados na API
 - **Escopo:**
@@ -341,6 +341,8 @@ vem primeiro. A próxima migração livre é a **0031**.
 - **Tipo:** manual
 - **Escopo:** revisar em 1440px e 390px a agenda (feriado, experimental, declaração, SOS), o CRM
   e o Financeiro (despesas fixas, caixa do dia, previsão). Criar correções se precisar.
+  Pendência herdada da V1: em Relatórios, o texto `.sales-help` encosta na borda inferior do
+  painel `.sales-report` (1px) — falta margem inferior.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033
 - **Status:** TODO

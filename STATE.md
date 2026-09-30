@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** V1
-- **Última concluída:** D05
+- **Tarefa atual:** T019
+- **Última concluída:** V1
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -41,3 +41,4 @@
 - 2026-09-30 Supabase (pedido do dono, fora do plano): `database-connection.ts` monta a conexão do pg com TLS (DATABASE_SSL auto|disable|require|verify + DATABASE_SSL_CA), remove sslmode da URL e recusa migrar pelo pooler em modo transação (porta 6543). Testes de integração usam o mesmo helper. Usar Session pooler (5432). Projeto Supabase só de teste; TEST_DATABASE_URL ainda não configurado.
 - 2026-09-30 Supabase de teste configurado (.env: DATABASE_URL = TEST_DATABASE_URL, Session pooler 5432). `db:setup` aplicou 0001–0030 + seed. `test:postgres` rodou pela 1ª vez: 11/12 → bug real no PG (planos sem cancelled_at/cancelled_value_in_cents na leitura: histórico sem "Plano cancelado" e sugestão "Ex-cliente" nunca aparecia) → corrigido, 12/12. ATENÇÃO: com TEST_DATABASE_URL no .env, `npm test` agora roda os testes de integração contra o Supabase em todo gate (API: 98 testes, ~11s).
 - 2026-09-30 Vercel (pedido do dono, fora do plano): `npm run vercel-build` (scripts/vercel-build.mjs) gera .vercel/output — site com VITE_API_URL=/api + função `api.func` (apps/api/src/serverless.ts empacotado com esbuild, sem migrações/seed, pool max 3) + rotas /api/* e SPA. vercel.json define o build. Testado localmente contra o Supabase via session e transaction pooler (health, login, clientes, sugestões, rota SPA). Função recusa STORAGE_MODE≠postgres e JWT_SECRET padrão. Na Vercel: DATABASE_URL = Transaction pooler (6543).
+- 2026-09-30 V1 DONE (aprovada pelo dono no chat). Revisão em 1440px e 390px confirmou as correções da D05. Pendência levada para a V2: `.sales-help` encosta na borda inferior do `.sales-report` (1px) em Relatórios. O apontamento do audit-panels nos `<summary>` de `details.report-disclosure` é falso positivo (18px de respiro interno). Próxima: T019.
