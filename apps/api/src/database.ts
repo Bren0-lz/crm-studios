@@ -87,13 +87,13 @@ export async function seedDemoData(pool: Pool) {
     await client.query("BEGIN");
     await client.query(`
       INSERT INTO clinics (id, name, legal_name, timezone)
-      VALUES ('11111111-1111-4111-8111-111111111111', 'Clínica Movimenta', 'Clínica Movimenta Ltda.', 'America/Sao_Paulo')
+      VALUES ('11111111-1111-4111-8111-111111111111', 'Studios Aryana', 'Studios Aryana Ltda.', 'America/Sao_Paulo')
       ON CONFLICT (id) DO NOTHING
     `);
     await client.query(
       `
       INSERT INTO users (id, clinic_id, full_name, email, password_hash, role)
-      VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Mariana Costa', 'admin@movimenta.local', $1, 'owner')
+      VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Aryana Dutra', 'admin@movimenta.local', $1, 'owner')
       ON CONFLICT (clinic_id, email) DO NOTHING
       `,
       [passwordHash],

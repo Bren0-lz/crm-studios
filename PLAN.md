@@ -352,7 +352,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes que esperavam "Movimenta"/"Mariana Costa" passam a esperar os nomes novos.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DONE
 
 ### T043 — Contratos na API
 - **Escopo:**
@@ -370,7 +370,7 @@ vem primeiro. A próxima migração livre é a **0031**.
     documents tables".
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T042
-- **Status:** TODO
+- **Status:** DOING
 
 ### T044 — Contratos na interface
 - **Escopo:** item de menu "Contratos" em `/contratos` com a página de modelos e emissão

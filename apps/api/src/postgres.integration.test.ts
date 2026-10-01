@@ -405,7 +405,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(moved?.visitType).toBe("evaluation");
     const anotherInstance = new PostgresClinicRepository(pool);
     expect(await anotherInstance.listAppointmentReschedules(clinicId, first.id)).toMatchObject([
-      { previousStartsAt: at(0), startsAt: at(1), actorName: "Mariana Costa" },
+      { previousStartsAt: at(0), startsAt: at(1), actorName: "Aryana Dutra" },
     ]);
     await expect(
       repository.rescheduleAppointment(

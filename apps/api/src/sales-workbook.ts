@@ -20,7 +20,7 @@ function heading(sheet: ExcelJS.Worksheet) {
 
 export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Movimenta CRM";
+  workbook.creator = "Studios Aryana";
   workbook.created = new Date(report.generatedAt);
 
   const summary = workbook.addWorksheet("Resumo");

@@ -287,7 +287,7 @@ describe("CRM API", () => {
       headers,
     });
     expect(history.json()).toHaveLength(1);
-    expect(history.json()[0]).toMatchObject({ previousStartsAt: at(0), startsAt: at(1), actorName: "Mariana Costa" });
+    expect(history.json()[0]).toMatchObject({ previousStartsAt: at(0), startsAt: at(1), actorName: "Aryana Dutra" });
     expect(
       (await app.inject({ method: "PUT", url: `/appointments/${first.id}/schedule`, headers, payload: move })).statusCode,
     ).toBe(200);
@@ -1766,6 +1766,9 @@ describe("CRM API", () => {
     expect(xlsx.statusCode).toBe(200);
     expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
     expect(xlsx.headers["content-disposition"]).toContain(`vendas-${month}.xlsx`);
+    const salesWorkbook = new ExcelJS.Workbook();
+    await salesWorkbook.xlsx.load(xlsx.rawPayload as unknown as ExcelJS.Buffer);
+    expect(salesWorkbook.creator).toBe("Studios Aryana");
     const deniedSales = await app.inject({
       method: "GET",
       url: `/reports/sales?month=${month}`,
@@ -1865,7 +1868,7 @@ describe("CRM API", () => {
     });
     expect(lead.statusCode).toBe(201);
     expect(lead.json()).toMatchObject({
-      responsibleName: "Mariana Costa",
+      responsibleName: "Aryana Dutra",
       tags: ["Prioridade", "Pilates"],
     });
     const contact = await app.inject({
@@ -1879,7 +1882,7 @@ describe("CRM API", () => {
       },
     });
     expect(contact.statusCode).toBe(201);
-    expect(contact.json()).toMatchObject({ actorName: "Mariana Costa" });
+    expect(contact.json()).toMatchObject({ actorName: "Aryana Dutra" });
     const task = await app.inject({
       method: "POST",
       url: `/leads/${lead.json().id}/tasks`,

@@ -237,8 +237,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly satisfactionSurveys: SatisfactionSurvey[] = [];
   private readonly clinicSettings: ClinicSettings = {
     id: CLINIC_ID,
-    name: "Clínica Movimenta",
-    legalName: "Clínica Movimenta Ltda.",
+    name: "Studios Aryana",
+    legalName: "Studios Aryana Ltda.",
     taxId: "",
     phone: "",
     email: "",
@@ -303,7 +303,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     {
       id: "22222222-2222-4222-8222-222222222222",
       clinicId: CLINIC_ID,
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
       passwordHash: hashSync("Admin@123", 10),

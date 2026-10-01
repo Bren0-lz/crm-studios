@@ -12,7 +12,7 @@ afterEach(() => {
 describe("application shell", () => {
   it("edits group capacity and weekly hours in a drawer", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const group = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       name: "Pilates Turma A",
@@ -65,7 +65,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -128,7 +128,7 @@ describe("application shell", () => {
 
   it("lists appointments and group classes in chronological order", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const at = (hours: number) => {
       const value = new Date();
       value.setHours(hours, 0, 0, 0);
@@ -186,7 +186,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -247,7 +247,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -319,7 +319,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -342,6 +342,9 @@ describe("application shell", () => {
     expect(screen.getByRole("heading", { name: "Clientes sem retorno" })).toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
+    expect(screen.getByText("Studios Aryana", { selector: ".clinic-label" })).toBeInTheDocument();
+    expect(screen.getByText("Aryana Dutra")).toBeInTheDocument();
+    expect(screen.queryByText(/Movimenta/i)).not.toBeInTheDocument();
   });
 
   it("shows the login when there is no session", () => {
@@ -354,6 +357,10 @@ describe("application shell", () => {
     expect(
       screen.getByRole("heading", { name: "Acesse sua clínica" }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Studios Aryana")).toBeInTheDocument();
+    expect(screen.getByText("Studios Aryana", { selector: ".brand-name" })).toBeInTheDocument();
+    expect(screen.getByText("admin@movimenta.local · Admin@123")).toBeInTheDocument();
+    expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
   });
 
   it("opens the SOAP editor for an authenticated clinical user", async () => {
@@ -362,7 +369,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -424,7 +431,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -469,7 +476,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -540,7 +547,7 @@ describe("application shell", () => {
 
   it("filters patients by status, tags and record data", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const month = String(new Date().getMonth() + 1).padStart(2, "0");
     const otherMonth = String((new Date().getMonth() + 1) % 12 + 1).padStart(2, "0");
     const patient = (id: string, fullName: string, extra: Record<string, unknown>) => ({
@@ -602,7 +609,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "owner",
       }),
@@ -694,7 +701,7 @@ describe("application shell", () => {
       "crm.auth.user",
       JSON.stringify({
         id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Mariana Costa",
+        fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
         role: "reception",
       }),
@@ -913,7 +920,7 @@ describe("application shell", () => {
 
   it("lists the month's birthdays in the relationship page with a month picker", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).slice(0, 7);
     const entries = [
       { patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida", phone: "11987654321", whatsapp: "11911112222", birthDate: "1990-02-03", date: "2027-02-03", day: 3, ageTurning: 37, referenceKey: "99999999-9999-4999-8999-999999999999:2027", congratulated: false },
@@ -969,7 +976,7 @@ describe("application shell", () => {
   });
   it("lets the owner edit relationship deadlines and messages in settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const settings = relationshipSettingsFixture();
     let putBody: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
@@ -1033,7 +1040,7 @@ describe("application shell", () => {
 
   it("shows the professional CREFITO in the clinical list and print summary", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", recordNumber: 12 };
     const record = {
       id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -1042,7 +1049,7 @@ describe("application shell", () => {
       professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
       status: "finalized",
       version: 2,
-      authorName: "Mariana Costa",
+      authorName: "Aryana Dutra",
       patientName: "Helena Almeida",
       professionalName: "Dra. Ana Martins",
       professionalCrefito: "CREFITO-3 123456-F",
@@ -1071,7 +1078,7 @@ describe("application shell", () => {
 
   it("no longer offers the documents page", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("link", { name: "Comunicações" })).toBeInTheDocument();
@@ -1083,7 +1090,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "reception",
     }));
@@ -1147,7 +1154,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -1185,7 +1192,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -1218,7 +1225,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -1252,7 +1259,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -1305,7 +1312,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({
       id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
+      fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
     }));
@@ -1377,7 +1384,7 @@ describe("application shell", () => {
 
   it("shows general spreadsheet errors and keeps import disabled", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/patients/import/preview")
         ? { rows: [], errors: ["A planilha precisa de uma coluna de nome."], totals: { valid: 0, error: 0, duplicate: 0 } }
@@ -1409,7 +1416,7 @@ describe("application shell", () => {
 
   it("lets the owner list, create and delete holidays in settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const existing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clinicId: "11111111-1111-4111-8111-111111111111", date: "2026-12-25", name: "Natal", createdAt: "2026-09-01T12:00:00.000Z" };
     const created = { ...existing, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", date: "2026-11-15", name: "Proclamação da República" };
     let postBody: Record<string, unknown> | undefined;
@@ -1465,7 +1472,7 @@ describe("application shell", () => {
 
   it("shows an empty state when there are no holidays", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
       const body = url.includes("/relationship/settings") ? relationshipSettingsFixture()
@@ -1750,7 +1757,7 @@ describe("application shell", () => {
 
   it("lists, creates, pauses, reactivates and ends fixed expenses in accounts payable", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const clinicId = "11111111-1111-4111-8111-111111111111";
     const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
     const category = { id: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", clinicId, name: "Aluguel e condomínio", kind: "expense", active: true };
@@ -1906,7 +1913,7 @@ describe("application shell", () => {
 
   it("shows the API error inside the end fixed expense modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const item = { id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1", clinicId: "11111111-1111-4111-8111-111111111111", description: "Aluguel da sala", categoryId: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", costCenterId: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", categoryName: "Aluguel", costCenterName: "Administrativo", amountInCents: 250000, dayOfMonth: 10, startMonth: "2026-01", endMonth: "2099-12", active: false, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
@@ -1937,7 +1944,7 @@ describe("application shell", () => {
 
   it("shows empty and error states for fixed expenses", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -1969,7 +1976,7 @@ describe("application shell", () => {
 
   it("shows the daily cash with totals by payment method and movements", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "finance" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
@@ -2057,7 +2064,7 @@ describe("application shell", () => {
 
   it("shows the finance forecast by month with confirmed and projected values", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "finance" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2135,7 +2142,7 @@ describe("application shell", () => {
 
   it("shows empty and error states for the finance forecast", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2172,7 +2179,7 @@ describe("application shell", () => {
 
   it("shows the API error for the daily cash", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],

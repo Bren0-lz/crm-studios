@@ -242,11 +242,11 @@ function VisitTypeBadge({ appointment }: { appointment: Appointment }) {
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="brand" aria-label="Movimenta">
+    <div className="brand" aria-label="Studios Aryana">
       <span className="brand-mark">
         <Activity size={compact ? 20 : 24} strokeWidth={2.3} />
       </span>
-      {!compact && <span className="brand-name">movimenta</span>}
+      {!compact && <span className="brand-name">Studios Aryana</span>}
     </div>
   );
 }
@@ -482,7 +482,7 @@ function Shell({
             <Menu size={21} />
           </button>
           <div>
-            <span className="clinic-label">Clínica Movimenta</span>
+            <span className="clinic-label">Studios Aryana</span>
             <span className="environment-dot">Demonstração</span>
           </div>
           <div className="top-actions">
