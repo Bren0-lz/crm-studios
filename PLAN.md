@@ -335,7 +335,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   projetado e um seletor de 3, 6 ou 12 meses. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T032
-- **Status:** DOING
+- **Status:** DONE
 
 ### V2 — Revisão visual do financeiro (manual)
 - **Tipo:** manual
@@ -345,7 +345,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   painel `.sales-report` (1px) — falta margem inferior.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033
-- **Status:** TODO
+- **Status:** BLOCKED
 
 ### T034 — Exportação da base de clientes na API
 - **Escopo:**

@@ -37,6 +37,7 @@ import type {
   ContactSuggestion,
   BirthdayEntry,
   DailyCash,
+  FinanceForecast,
   DashboardSummary,
   CostCenter,
   CostCenterInput,
@@ -498,6 +499,8 @@ export const api = {
     request<DailyCash>(
       `/finance/daily-cash?date=${encodeURIComponent(date)}`,
     ),
+  financeForecast: (months: number) =>
+    request<FinanceForecast>(`/finance/forecast?months=${months}`),
   recurringPayables: () =>
     request<RecurringPayable[]>("/finance/recurring-payables"),
   createRecurringPayable: (input: RecurringPayableInput) =>

@@ -2187,6 +2187,121 @@ describe("application shell", () => {
     expect(within(section).queryByRole("table", { name: "Totais por forma de pagamento" })).not.toBeInTheDocument();
   });
 
+  it("shows the finance forecast by month with confirmed and projected values", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "finance" }));
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    const flow = (inflowInCents: number, outflowInCents: number) => ({ inflowInCents, outflowInCents, balanceInCents: inflowInCents - outflowInCents });
+    const monthKey = (index: number) => {
+      const total = 2026 * 12 + 8 + index;
+      return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+    };
+    const forecast = (count: number) => {
+      const months = Array.from({ length: count }, (_, index) => {
+        const confirmed = index === 0 ? flow(50000, 250000) : index === 1 ? flow(30000, 0) : flow(0, 0);
+        const projected = index === 0 ? flow(0, 0) : flow(45000, 250000);
+        return { month: monthKey(index), confirmed, projected, balanceInCents: confirmed.balanceInCents + projected.balanceInCents };
+      });
+      const sum = (key: "confirmed" | "projected") => flow(months.reduce((t, m) => t + m[key].inflowInCents, 0), months.reduce((t, m) => t + m[key].outflowInCents, 0));
+      return {
+        generatedAt: "2026-09-30T12:00:00.000Z",
+        startMonth: months[0]!.month,
+        endMonth: months[months.length - 1]!.month,
+        months,
+        overdue: flow(12000, 3000),
+        totals: { confirmed: sum("confirmed"), projected: sum("projected"), balanceInCents: months.reduce((t, m) => t + m.balanceInCents, 0) },
+      };
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/finance/forecast") ? forecast(Number(/months=(\d+)/.exec(url)?.[1] ?? 6))
+        : url.includes("/finance/workspace") ? workspace
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Previsão" }));
+    const section = (await screen.findByRole("heading", { name: "Previsão" })).closest("section")!;
+    // A forma usada na baixa não se aplica à previsão.
+    expect(screen.queryByLabelText("Forma usada na baixa")).not.toBeInTheDocument();
+    const select = within(section).getByLabelText("Horizonte");
+    expect(select).toHaveValue("6");
+    expect([...(select as HTMLSelectElement).options].map((option) => option.textContent)).toEqual(["3 meses", "6 meses", "12 meses"]);
+    const table = await within(section).findByRole("table", { name: "Previsão por mês" });
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/finance/forecast?months=6"))).toBe(true);
+
+    // Os cabeçalhos distinguem confirmado de projetado.
+    expect(within(table).getByRole("columnheader", { name: "Confirmado" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Projetado" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Saldo do mês" })).toBeInTheDocument();
+
+    const bodyRows = () => within(table).getAllByRole("row").filter((row) => row.closest("tbody"));
+    expect(bodyRows().map((row) => row.querySelector("th")?.textContent)).toEqual(["09/2026", "10/2026", "11/2026", "12/2026", "01/2027", "02/2027"]);
+    const cells = (row: HTMLElement) => within(row).getAllByRole("cell").map((cell) => cell.textContent?.replace(/\s/g, " "));
+    expect(cells(bodyRows()[0]!)).toEqual(["R$ 500,00", "R$ 2.500,00", "-R$ 2.000,00", "R$ 0,00", "R$ 0,00", "R$ 0,00", "-R$ 2.000,00"]);
+    expect(cells(bodyRows()[1]!)).toEqual(["R$ 300,00", "R$ 0,00", "R$ 300,00", "R$ 450,00", "R$ 2.500,00", "-R$ 2.050,00", "-R$ 1.750,00"]);
+    const footer = within(table).getAllByRole("row").find((row) => row.closest("tfoot"))!;
+    expect(footer.querySelector("th")?.textContent).toBe("Total");
+    expect(cells(footer)).toEqual(["R$ 800,00", "R$ 2.500,00", "-R$ 1.700,00", "R$ 2.250,00", "R$ 12.500,00", "-R$ 10.250,00", "-R$ 11.950,00"]);
+
+    // Em atraso aparece à parte, fora dos saldos.
+    const overdue = section.querySelector(".forecast-overdue")!;
+    expect(overdue.textContent?.replace(/\s/g, " ")).toContain("Em atraso");
+    expect(overdue.textContent?.replace(/\s/g, " ")).toContain("R$ 120,00 a receber");
+    expect(overdue.textContent?.replace(/\s/g, " ")).toContain("R$ 30,00 a pagar");
+    expect(overdue).toHaveTextContent("fora dos saldos");
+
+    // Trocar o horizonte refaz a busca.
+    fireEvent.change(select, { target: { value: "3" } });
+    await vi.waitFor(() => expect(within(section).getAllByRole("row").filter((row) => row.closest("tbody"))).toHaveLength(3));
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/finance/forecast?months=3"))).toBe(true);
+    fireEvent.change(select, { target: { value: "12" } });
+    await vi.waitFor(() => expect(within(section).getAllByRole("row").filter((row) => row.closest("tbody"))).toHaveLength(12));
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/finance/forecast?months=12"))).toBe(true);
+  });
+
+  it("shows empty and error states for the finance forecast", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    const zero = { inflowInCents: 0, outflowInCents: 0, balanceInCents: 0 };
+    const emptyForecast = {
+      generatedAt: "2026-09-30T12:00:00.000Z", startMonth: "2026-09", endMonth: "2027-02",
+      months: ["2026-09", "2026-10", "2026-11", "2026-12", "2027-01", "2027-02"].map((month) => ({ month, confirmed: zero, projected: zero, balanceInCents: 0 })),
+      overdue: zero, totals: { confirmed: zero, projected: zero, balanceInCents: 0 },
+    };
+    let failing = false;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/finance/forecast") && failing) {
+        return { ok: false, status: 500, json: async () => ({ code: "INTERNAL", message: "Falha ao carregar a previsão." }) } as Response;
+      }
+      const body = url.includes("/finance/forecast") ? emptyForecast : url.includes("/finance/workspace") ? workspace : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const { unmount } = render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Previsão" }));
+    expect(await screen.findByText("Nada previsto no período")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Previsão por mês" })).not.toBeInTheDocument();
+    unmount();
+
+    failing = true;
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Previsão" }));
+    expect(await screen.findByText("Falha ao carregar a previsão.")).toBeInTheDocument();
+    expect(screen.queryByText("Nada previsto no período")).not.toBeInTheDocument();
+  });
+
   it("shows the API error for the daily cash", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));

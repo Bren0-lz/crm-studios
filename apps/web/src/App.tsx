@@ -74,6 +74,8 @@ import type {
   ContactSuggestion,
   BirthdayEntry,
   DailyCash,
+  FinanceForecast,
+  FinanceForecastFlow,
   DailyCashMovement,
   DailyCashMovementKind,
   DailyCashPaymentMethod,
@@ -4760,7 +4762,7 @@ function SessionMovementsModal({
 function FinancePage() {
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
-    "receivables" | "payables" | "commissions" | "dailyCash"
+    "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -4979,8 +4981,14 @@ function FinancePage() {
               >
                 Caixa do dia
               </button>
+              <button
+                className={tab === "forecast" ? "active" : ""}
+                onClick={() => setTab("forecast")}
+              >
+                Previsão
+              </button>
             </div>
-            {tab !== "dailyCash" && (
+            {tab !== "dailyCash" && tab !== "forecast" && (
             <label>
               Forma usada na baixa
               <select
@@ -5001,6 +5009,8 @@ function FinancePage() {
           </section>
           {tab === "dailyCash" ? (
             <DailyCashSection />
+          ) : tab === "forecast" ? (
+            <FinanceForecastSection />
           ) : (
           <section className="panel finance-panel">
             <div className="panel-head">
@@ -5436,6 +5446,164 @@ function DailyCashSection() {
               })}
             </div>
           </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const forecastHorizons = [3, 6, 12] as const;
+
+function forecastFlowCells(flow: FinanceForecastFlow) {
+  return (
+    <>
+      <td>{currency.format(flow.inflowInCents / 100)}</td>
+      <td>{currency.format(flow.outflowInCents / 100)}</td>
+      <td className={flow.balanceInCents < 0 ? "negative" : undefined}>
+        {currency.format(flow.balanceInCents / 100)}
+      </td>
+    </>
+  );
+}
+
+function forecastIsEmpty(forecast: FinanceForecast) {
+  const flows = [
+    forecast.totals.confirmed,
+    forecast.totals.projected,
+    forecast.overdue,
+  ];
+  return flows.every(
+    (flow) => flow.inflowInCents === 0 && flow.outflowInCents === 0,
+  );
+}
+
+function FinanceForecastSection() {
+  const [months, setMonths] = useState(6);
+  const [forecast, setForecast] = useState<FinanceForecast | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api
+      .financeForecast(months)
+      .then((data) => active && setForecast(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [months]);
+  const overdue = forecast?.overdue;
+  const hasOverdue =
+    !!overdue && (overdue.inflowInCents !== 0 || overdue.outflowInCents !== 0);
+  return (
+    <div className="daily-cash">
+      {error && <ErrorBanner error={error} />}
+      <section className="panel finance-panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">
+              {forecast
+                ? `${formatCompetence(forecast.startMonth)} a ${formatCompetence(forecast.endMonth)}`
+                : "Próximos meses"}
+            </span>
+            <h2>Previsão</h2>
+          </div>
+          <label className="daily-cash-date">
+            Horizonte
+            <select
+              value={months}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (value === months) return;
+                setForecast(null);
+                setError("");
+                setMonths(value);
+              }}
+            >
+              {forecastHorizons.map((value) => (
+                <option key={value} value={value}>
+                  {value} meses
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {!forecast ? (
+          !error && <LoadingBlock />
+        ) : forecastIsEmpty(forecast) ? (
+          <EmptyState
+            title="Nada previsto no período"
+            copy="Parcelas a receber, contas a pagar, renovações automáticas e despesas fixas aparecem aqui."
+          />
+        ) : (
+          <div className="forecast-body">
+            <p className="forecast-help">
+              Confirmado: parcelas e contas já lançadas e em aberto, pelo
+              vencimento. Projetado: renovações automáticas e despesas fixas
+              que ainda serão lançadas.
+            </p>
+            {hasOverdue && overdue && (
+              <p className="forecast-overdue">
+                <strong>Em atraso</strong> (vencidos antes de{" "}
+                {formatCompetence(forecast.startMonth)}, fora dos saldos):{" "}
+                {currency.format(overdue.inflowInCents / 100)} a receber ·{" "}
+                {currency.format(overdue.outflowInCents / 100)} a pagar
+              </p>
+            )}
+            <div className="forecast-scroll">
+              <table className="forecast-table" aria-label="Previsão por mês">
+                <thead>
+                  <tr>
+                    <th scope="col" rowSpan={2}>
+                      Mês
+                    </th>
+                    <th scope="colgroup" colSpan={3}>
+                      Confirmado
+                    </th>
+                    <th scope="colgroup" colSpan={3}>
+                      Projetado
+                    </th>
+                    <th scope="col" rowSpan={2}>
+                      Saldo do mês
+                    </th>
+                  </tr>
+                  <tr>
+                    <th scope="col">Entradas</th>
+                    <th scope="col">Saídas</th>
+                    <th scope="col">Saldo</th>
+                    <th scope="col">Entradas</th>
+                    <th scope="col">Saídas</th>
+                    <th scope="col">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forecast.months.map((item) => (
+                    <tr key={item.month}>
+                      <th scope="row">{formatCompetence(item.month)}</th>
+                      {forecastFlowCells(item.confirmed)}
+                      {forecastFlowCells(item.projected)}
+                      <td
+                        className={`forecast-balance${item.balanceInCents < 0 ? " negative" : ""}`}
+                      >
+                        {currency.format(item.balanceInCents / 100)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {forecastFlowCells(forecast.totals.confirmed)}
+                    {forecastFlowCells(forecast.totals.projected)}
+                    <td
+                      className={`forecast-balance${forecast.totals.balanceInCents < 0 ? " negative" : ""}`}
+                    >
+                      {currency.format(forecast.totals.balanceInCents / 100)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </div>

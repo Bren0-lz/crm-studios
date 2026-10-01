@@ -3308,6 +3308,74 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: 11px;
 }
 
+.forecast-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) calc(var(--space-5) - 1px);
+}
+
+.forecast-help,
+.forecast-overdue {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.forecast-overdue {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #f4f2eb;
+}
+
+.forecast-overdue strong {
+  color: var(--red);
+}
+
+.forecast-scroll {
+  overflow-x: auto;
+}
+
+.forecast-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.forecast-table th,
+.forecast-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.forecast-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.forecast-table thead th[scope="colgroup"] {
+  text-align: center;
+}
+
+.forecast-table thead tr:first-child th:first-child,
+.forecast-table tbody th,
+.forecast-table tfoot th {
+  text-align: left;
+}
+
+.forecast-table .forecast-balance,
+.forecast-table tfoot th,
+.forecast-table tfoot td {
+  font-weight: 800;
+}
+
+.forecast-table td.negative {
+  color: var(--red);
+}
+
 /* audit: mobile-ok tabela com min-width 820px; .finance-panel rola na horizontal em ≤ 820px */
 .daily-cash-table .finance-row {
   grid-template-columns: 60px 120px minmax(220px, 1fr) 120px 130px;
