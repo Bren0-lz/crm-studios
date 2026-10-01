@@ -2098,6 +2098,117 @@ describe("application shell", () => {
     expect(await screen.findByText("Falha ao carregar despesas fixas.")).toBeInTheDocument();
     expect(screen.queryByText("Nenhuma despesa fixa")).not.toBeInTheDocument();
   });
+
+  it("shows the daily cash with totals by payment method and movements", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "finance" }));
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    const cash = {
+      date: today,
+      generatedAt: "2026-09-30T21:00:00.000Z",
+      byPaymentMethod: [
+        { paymentMethod: "pix", inflowInCents: 25000, outflowInCents: 0, balanceInCents: 25000 },
+        { paymentMethod: "bank_transfer", inflowInCents: 0, outflowInCents: 250000, balanceInCents: -250000 },
+        { paymentMethod: "unspecified", inflowInCents: -8000, outflowInCents: 5000, balanceInCents: -13000 },
+      ],
+      totalInflowInCents: 17000,
+      totalOutflowInCents: 255000,
+      balanceInCents: -238000,
+      movements: [
+        { id: "receipt:1", kind: "receipt", direction: "in", occurredAt: "2026-09-30T12:15:00.000Z", description: "Pilates 2x · parcela 1/3", counterpart: "Ana Souza", paymentMethod: "pix", amountInCents: 25000 },
+        { id: "receipt_reversal:2", kind: "receipt_reversal", direction: "in", occurredAt: "2026-09-30T14:00:00.000Z", description: "Avaliação postural", counterpart: "Bruno Lima", paymentMethod: "unspecified", amountInCents: -8000 },
+        { id: "payable:3", kind: "payable", direction: "out", occurredAt: "2026-09-30T17:30:00.000Z", description: "Aluguel da sala", counterpart: "Imobiliária Centro", paymentMethod: "bank_transfer", amountInCents: 250000 },
+        { id: "commission:4", kind: "commission", direction: "out", occurredAt: "2026-09-30T20:00:00.000Z", description: "Comissão 09/2026", paymentMethod: "unspecified", amountInCents: 5000 },
+      ],
+    };
+    const emptyCash = { ...cash, date: "2026-09-01", byPaymentMethod: [], totalInflowInCents: 0, totalOutflowInCents: 0, balanceInCents: 0, movements: [] };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/finance/daily-cash") ? (url.includes(`date=${today}`) ? cash : emptyCash)
+        : url.includes("/finance/workspace") ? workspace
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Caixa do dia" }));
+    const section = (await screen.findByRole("heading", { name: "Caixa do dia" })).closest("section")!;
+    const dateInput = within(section).getByLabelText("Data");
+    expect(dateInput).toHaveAttribute("type", "date");
+    expect(dateInput).toHaveValue(today);
+    expect(await within(section).findByText("Ana Souza")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes(`/finance/daily-cash?date=${today}`))).toBe(true);
+    // A forma usada na baixa não se aplica ao caixa.
+    expect(screen.queryByLabelText("Forma usada na baixa")).not.toBeInTheDocument();
+
+    // Totais do dia.
+    const totals = within(section).getByRole("list", { name: "Totais do dia" });
+    expect(within(totals).getByText("Entradas").nextElementSibling).toHaveTextContent("R$ 170,00");
+    expect(within(totals).getByText("Saídas").nextElementSibling).toHaveTextContent("R$ 2.550,00");
+    expect(within(totals).getByText("Saldo").nextElementSibling).toHaveTextContent("-R$ 2.380,00");
+
+    // Totais por forma de pagamento, na ordem da API, com rótulo para "sem forma".
+    const methods = within(section).getByRole("table", { name: "Totais por forma de pagamento" });
+    const methodRows = within(methods).getAllByRole("row").slice(1);
+    expect(methodRows.map((row) => row.querySelector("th")?.textContent)).toEqual(["Pix", "Transferência", "Não informada"]);
+    const cells = (row: HTMLElement) => within(row).getAllByRole("cell").map((cell) => cell.textContent?.replace(/\s/g, " "));
+    expect(cells(methodRows[0]!)).toEqual(["R$ 250,00", "R$ 0,00", "R$ 250,00"]);
+    expect(cells(methodRows[1]!)).toEqual(["R$ 0,00", "R$ 2.500,00", "-R$ 2.500,00"]);
+    expect(cells(methodRows[2]!)).toEqual(["-R$ 80,00", "R$ 50,00", "-R$ 130,00"]);
+
+    // Movimentos em ordem, com tipo, hora (São Paulo), forma e valor com sinal.
+    const rows = [...section.querySelectorAll(".daily-cash-table .finance-row")] as HTMLElement[];
+    expect(rows).toHaveLength(4);
+    expect(within(rows[0]!).getByText("Recebimento")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("09:15")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Pix")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("+ R$ 250,00")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Estorno")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Bruno Lima")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Não informada")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("- R$ 80,00")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Conta paga")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("14:30")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Transferência")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("- R$ 2.500,00")).toBeInTheDocument();
+    expect(within(rows[3]!).getByText("Comissão")).toBeInTheDocument();
+    expect(within(rows[3]!).getByText("- R$ 50,00")).toBeInTheDocument();
+
+    // Outro dia sem movimento: busca a data escolhida e mostra o estado vazio.
+    fireEvent.change(dateInput, { target: { value: "2026-09-01" } });
+    expect(await within(section).findByText("Nenhum movimento neste dia")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/finance/daily-cash?date=2026-09-01"))).toBe(true);
+    expect(within(section).queryByText("Ana Souza")).not.toBeInTheDocument();
+    expect(within(section).queryByRole("table", { name: "Totais por forma de pagamento" })).not.toBeInTheDocument();
+  });
+
+  it("shows the API error for the daily cash", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
+    const workspace = {
+      summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+      categories: [], costCenters: [], payables: [],
+      payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 0,
+      commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/finance/daily-cash")) {
+        return { ok: false, status: 400, json: async () => ({ code: "VALIDATION_ERROR", message: "Informe uma data válida." }) } as Response;
+      }
+      const body = url.includes("/finance/workspace") ? workspace : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Caixa do dia" }));
+    expect(await screen.findByText("Informe uma data válida.")).toBeInTheDocument();
+    expect(screen.queryByText("Nenhum movimento neste dia")).not.toBeInTheDocument();
+  });
 });
 
 function relationshipSettingsFixture() {

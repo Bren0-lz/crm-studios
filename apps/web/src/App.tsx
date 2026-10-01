@@ -73,6 +73,10 @@ import type {
   ContactReason,
   ContactSuggestion,
   BirthdayEntry,
+  DailyCash,
+  DailyCashMovement,
+  DailyCashMovementKind,
+  DailyCashPaymentMethod,
   DashboardSummary,
   DocumentKind,
   DocumentTemplate,
@@ -4755,9 +4759,9 @@ function SessionMovementsModal({
 
 function FinancePage() {
   const [data, setData] = useState<FinancialWorkspace | null>(null);
-  const [tab, setTab] = useState<"receivables" | "payables" | "commissions">(
-    "receivables",
-  );
+  const [tab, setTab] = useState<
+    "receivables" | "payables" | "commissions" | "dailyCash"
+  >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
@@ -4969,7 +4973,14 @@ function FinancePage() {
               >
                 Comissões ({data.commissions.length})
               </button>
+              <button
+                className={tab === "dailyCash" ? "active" : ""}
+                onClick={() => setTab("dailyCash")}
+              >
+                Caixa do dia
+              </button>
             </div>
+            {tab !== "dailyCash" && (
             <label>
               Forma usada na baixa
               <select
@@ -4986,7 +4997,11 @@ function FinancePage() {
                 <option value="other">Outro</option>
               </select>
             </label>
+            )}
           </section>
+          {tab === "dailyCash" ? (
+            <DailyCashSection />
+          ) : (
           <section className="panel finance-panel">
             <div className="panel-head">
               <div>
@@ -5227,6 +5242,7 @@ function FinancePage() {
               </div>
             )}
           </section>
+          )}
           {tab === "payables" && (
             <RecurringPayablesSection
               workspace={data}
@@ -5249,6 +5265,180 @@ function FinancePage() {
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
       )}
     </>
+  );
+}
+
+const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> = {
+  pix: "Pix",
+  card: "Cartão",
+  cash: "Dinheiro",
+  bank_transfer: "Transferência",
+  boleto: "Boleto",
+  other: "Outro",
+  unspecified: "Não informada",
+};
+
+const dailyCashKinds: Record<
+  DailyCashMovementKind,
+  { label: string; pill: string }
+> = {
+  receipt: { label: "Recebimento", pill: "paid" },
+  receipt_reversal: { label: "Estorno", pill: "cancelled" },
+  payable: { label: "Conta paga", pill: "open" },
+  commission: { label: "Comissão", pill: "open" },
+};
+
+const saoPauloTime = new Intl.DateTimeFormat("pt-BR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Sao_Paulo",
+});
+
+/** Efeito do movimento no caixa, com sinal explícito (não depende só da cor). */
+function dailyCashMovementAmount(movement: DailyCashMovement) {
+  const effect =
+    movement.direction === "in"
+      ? movement.amountInCents
+      : -movement.amountInCents;
+  return {
+    effect,
+    text: `${effect < 0 ? "-" : "+"} ${currency.format(Math.abs(effect) / 100)}`,
+  };
+}
+
+function DailyCashSection() {
+  const [date, setDate] = useState(() => saoPauloToday());
+  const [cash, setCash] = useState<DailyCash | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api
+      .dailyCash(date)
+      .then((data) => active && setCash(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [date]);
+  return (
+    <div className="daily-cash">
+      {error && <ErrorBanner error={error} />}
+      <section className="panel finance-panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">
+              {cash ? `Movimentos de ${formatIsoDate(cash.date)}` : "Movimentos"}
+            </span>
+            <h2>Caixa do dia</h2>
+          </div>
+          <label className="daily-cash-date">
+            Data
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => {
+                // Campo limpo mantém o dia anterior: a rota sem data usaria hoje.
+                if (!event.target.value || event.target.value === date) return;
+                setCash(null);
+                setError("");
+                setDate(event.target.value);
+              }}
+            />
+          </label>
+        </div>
+        {!cash ? (
+          !error && <LoadingBlock />
+        ) : cash.movements.length === 0 ? (
+          <EmptyState
+            title="Nenhum movimento neste dia"
+            copy="Recebimentos, estornos, contas pagas e comissões pagas aparecem aqui."
+          />
+        ) : (
+          <>
+            <div className="daily-cash-summary">
+              <ul className="daily-cash-totals" aria-label="Totais do dia">
+                <li>
+                  <span>Entradas</span>
+                  <strong>
+                    {currency.format(cash.totalInflowInCents / 100)}
+                  </strong>
+                </li>
+                <li>
+                  <span>Saídas</span>
+                  <strong>
+                    {currency.format(cash.totalOutflowInCents / 100)}
+                  </strong>
+                </li>
+                <li
+                  className={cash.balanceInCents < 0 ? "negative" : "positive"}
+                >
+                  <span>Saldo</span>
+                  <strong>{currency.format(cash.balanceInCents / 100)}</strong>
+                </li>
+              </ul>
+              <table
+                className="daily-cash-methods"
+                aria-label="Totais por forma de pagamento"
+              >
+                <thead>
+                  <tr>
+                    <th scope="col">Forma</th>
+                    <th scope="col">Entradas</th>
+                    <th scope="col">Saídas</th>
+                    <th scope="col">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cash.byPaymentMethod.map((item) => (
+                    <tr key={item.paymentMethod}>
+                      <th scope="row">
+                        {dailyCashMethodLabels[item.paymentMethod]}
+                      </th>
+                      <td>{currency.format(item.inflowInCents / 100)}</td>
+                      <td>{currency.format(item.outflowInCents / 100)}</td>
+                      <td>{currency.format(item.balanceInCents / 100)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="finance-table daily-cash-table">
+              {cash.movements.map((movement) => {
+                const kind = dailyCashKinds[movement.kind];
+                const amount = dailyCashMovementAmount(movement);
+                return (
+                  <div className="finance-row" key={movement.id}>
+                    <strong>
+                      {saoPauloTime.format(new Date(movement.occurredAt))}
+                    </strong>
+                    <span className={`status-pill ${kind.pill}`}>
+                      {kind.label}
+                    </span>
+                    <div>
+                      <strong>{movement.description}</strong>
+                      {movement.counterpart && (
+                        <span>{movement.counterpart}</span>
+                      )}
+                    </div>
+                    <div>
+                      <span>Forma</span>
+                      <strong>
+                        {dailyCashMethodLabels[movement.paymentMethod]}
+                      </strong>
+                    </div>
+                    <strong
+                      className={`finance-amount ${amount.effect < 0 ? "cash-out" : "cash-in"}`}
+                    >
+                      {amount.text}
+                    </strong>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+    </div>
   );
 }
 

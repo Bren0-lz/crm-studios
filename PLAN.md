@@ -315,7 +315,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   e a lista de movimentos. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T030
-- **Status:** TODO
+- **Status:** DONE
 
 ### T032 — Previsão de receitas na API
 - **Escopo:**
@@ -328,7 +328,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes em `finance-forecast.test.ts` e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/finance-forecast.test.ts src/app.test.ts`
 - **Depende de:** T028
-- **Status:** TODO
+- **Status:** DOING
 
 ### T033 — Previsão de receitas na interface
 - **Escopo:** bloco "Previsão" em Financeiro, com uma tabela por mês que distingue confirmado de

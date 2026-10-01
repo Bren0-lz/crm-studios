@@ -36,6 +36,7 @@ import type {
   ContactActivityInput,
   ContactSuggestion,
   BirthdayEntry,
+  DailyCash,
   DashboardSummary,
   CostCenter,
   CostCenterInput,
@@ -493,6 +494,10 @@ export const api = {
     }),
   reversePayable: (id: string) =>
     request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),
+  dailyCash: (date: string) =>
+    request<DailyCash>(
+      `/finance/daily-cash?date=${encodeURIComponent(date)}`,
+    ),
   recurringPayables: () =>
     request<RecurringPayable[]>("/finance/recurring-payables"),
   createRecurringPayable: (input: RecurringPayableInput) =>
