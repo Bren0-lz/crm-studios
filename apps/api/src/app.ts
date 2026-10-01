@@ -83,6 +83,14 @@ import { config } from "./config.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+
+// A interface manda `patientId=` vazio para listar tudo; o PostgreSQL não aceita "" como uuid.
+const optionalPatientFilterSchema = z.object({
+  patientId: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.uuid().optional(),
+  ),
+});
 import {
   decodeCsvText,
   parseCsv,
@@ -1308,7 +1316,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     "/clinical-records",
     { preHandler: [authenticate, requireClinicalAccess] },
     async (request) => {
-      const query = request.query as { patientId?: string };
+      const query = optionalPatientFilterSchema.parse(request.query);
       return repository.listClinicalRecords(
         request.user.clinicId,
         query.patientId,
@@ -1544,7 +1552,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
 
   app.get("/plans", { preHandler: authenticate }, async (request) => {
-    const query = request.query as { patientId?: string };
+    const query = optionalPatientFilterSchema.parse(request.query);
     await repository.renewDuePatientPlans(request.user.clinicId, request.user.sub);
     return repository.listPatientPlans(request.user.clinicId, query.patientId);
   });

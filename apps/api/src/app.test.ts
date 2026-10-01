@@ -68,6 +68,20 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("treats an empty client filter as every client in plans and clinical records", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    for (const path of ["/plans", "/clinical-records"]) {
+      const all = await app.inject({ method: "GET", url: path, headers });
+      const empty = await app.inject({ method: "GET", url: `${path}?patientId=`, headers });
+      expect(empty.statusCode).toBe(200);
+      expect(empty.json()).toEqual(all.json());
+      const invalid = await app.inject({ method: "GET", url: `${path}?patientId=abc`, headers });
+      expect(invalid.statusCode).toBe(400);
+    }
+    await app.close();
+  });
+
   it("creates and searches a patient", async () => {
     const { app, token } = await authenticatedApp();
     const created = await app.inject({
