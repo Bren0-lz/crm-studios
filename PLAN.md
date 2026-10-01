@@ -379,7 +379,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   de declaração na agenda. Teste web (substitui "no longer offers the documents page").
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T043
-- **Status:** DOING
+- **Status:** DONE
 
 ### T034 — Exportação da base de clientes na API
 - **Escopo:**
@@ -391,7 +391,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DOING
 
 ### T035 — Exportação da base de clientes na interface
 - **Escopo:** botão "Exportar" em Clientes (só owner), com modal de formato e colunas, usando os

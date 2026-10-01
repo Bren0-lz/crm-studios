@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   Activity,
   Bell,
@@ -80,11 +80,15 @@ import type {
   DailyCashMovementKind,
   DailyCashPaymentMethod,
   DashboardSummary,
+  DocumentKind,
+  DocumentTemplate,
+  DocumentTemplateInput,
   FinancialWorkspace,
   GroupClass,
   GroupSession,
   GroupWorkspace,
   Holiday,
+  IssuedDocument,
   Lead,
   LeadActivity,
   LeadAppointmentInput,
@@ -372,6 +376,12 @@ const navItems: Array<{
     to: "/comunicacoes",
     label: "Comunicações",
     icon: Bell,
+    roles: ["owner", "reception", "finance"],
+  },
+  {
+    to: "/contratos",
+    label: "Contratos",
+    icon: FileText,
     roles: ["owner", "reception", "finance"],
   },
   {
@@ -2387,6 +2397,630 @@ function professionalWithCrefito(name: string, crefito?: string) {
   return `${name} · ${/crefito/i.test(crefito) ? crefito : `CREFITO ${crefito}`}`;
 }
 
+
+const documentKindLabels: Record<DocumentKind, string> = {
+  contract: "Contrato",
+  attendance_declaration: "Declaração de comparecimento",
+  consent: "Termo de consentimento",
+  other: "Outro",
+};
+
+function fetchContractsPageData() {
+  return Promise.all([
+    api.documentTemplates(),
+    api.documents(),
+    api.patients(),
+    api.plans(),
+    api.professionals(),
+  ]);
+}
+
+function DocumentsPage() {
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [documents, setDocuments] = useState<IssuedDocument[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [plans, setPlans] = useState<PatientPlan[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [printing, setPrinting] = useState<IssuedDocument | null>(null);
+  const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
+  const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
+  const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
+    name: "Contrato de prestação de serviços",
+    kind: "contract",
+    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.",
+  });
+  const [documentForm, setDocumentForm] = useState({
+    templateId: "",
+    patientId: "",
+    planId: "",
+    professionalId: "",
+    title: "Contrato de prestação de serviços",
+  });
+
+  // Carga única da página: usada na abertura e depois de criar modelos ou documentos.
+  // Só usa setters de estado (estáveis), por isso o useCallback não tem dependências.
+  const applyPageData = useCallback(
+    ([
+      templateData,
+      documentData,
+      patientData,
+      planData,
+      professionalData,
+    ]: Awaited<ReturnType<typeof fetchContractsPageData>>) => {
+      setTemplates(templateData);
+      setDocuments(documentData);
+      setPatients(patientData);
+      setPlans(planData);
+      setProfessionals(
+        professionalData.filter((item) => item.active !== false),
+      );
+      setDocumentForm((current) => ({
+        ...current,
+        templateId:
+          current.templateId ||
+          templateData.find((item) => item.active)?.id ||
+          "",
+        patientId: current.patientId || patientData[0]?.id || "",
+      }));
+    },
+    [],
+  );
+
+  async function load() {
+    applyPageData(await fetchContractsPageData());
+  }
+
+  useEffect(() => {
+    let active = true;
+    fetchContractsPageData()
+      .then((data) => {
+        if (active) applyPageData(data);
+      })
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [applyPageData]);
+
+  async function createTemplate(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await api.createDocumentTemplate(templateForm);
+      setNotice("Modelo criado com a versão 1.");
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  async function templateVersioned(template: DocumentTemplate) {
+    setVersioning(null);
+    setError("");
+    setNotice(`Nova versão de “${template.name}” criada.`);
+    try {
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  async function createDocument(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await api.createDocument({
+        templateId: documentForm.templateId,
+        patientId: documentForm.patientId,
+        ...(documentForm.planId ? { planId: documentForm.planId } : {}),
+        ...(documentForm.professionalId
+          ? { professionalId: documentForm.professionalId }
+          : {}),
+        title: documentForm.title,
+      });
+      setNotice("Documento criado como rascunho com snapshot preservado.");
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  function replaceDocument(updated: IssuedDocument) {
+    setDocuments((current) =>
+      current.map((document) =>
+        document.id === updated.id ? updated : document,
+      ),
+    );
+  }
+
+  async function issueDocument(item: IssuedDocument) {
+    setError("");
+    try {
+      replaceDocument(await api.updateDocumentStatus(item.id, "issued"));
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  const patientPlans = plans.filter(
+    (plan) => plan.patientId === documentForm.patientId,
+  );
+  const activeTemplates = templates.filter((template) => template.active);
+  return (
+    <>
+      <PageHeader
+        eyebrow="Formalização"
+        title="Contratos"
+        description="Emita contratos e documentos administrativos com conteúdo e versão preservados."
+      />
+      {error && <ErrorBanner error={error} />}
+      {notice && <div className="success-banner">{notice}</div>}
+      {loading ? (
+        <LoadingBlock />
+      ) : (
+        <div className="documents-layout">
+          <section className="panel document-form-panel">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Biblioteca</span>
+                <h2>Novo modelo</h2>
+              </div>
+            </div>
+            <form className="document-form" onSubmit={createTemplate}>
+              <label>
+                Nome
+                <input
+                  required
+                  value={templateForm.name}
+                  onChange={(event) =>
+                    setTemplateForm({
+                      ...templateForm,
+                      name: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Tipo
+                <select
+                  value={templateForm.kind}
+                  onChange={(event) =>
+                    setTemplateForm({
+                      ...templateForm,
+                      kind: event.target.value as DocumentKind,
+                    })
+                  }
+                >
+                  {Object.entries(documentKindLabels).map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Conteúdo
+                <textarea
+                  required
+                  rows={8}
+                  value={templateForm.body}
+                  onChange={(event) =>
+                    setTemplateForm({
+                      ...templateForm,
+                      body: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <small>
+                Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
+                {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
+              </small>
+              <button className="secondary-button">Criar modelo</button>
+            </form>
+          </section>
+          <section className="panel document-form-panel">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Emissão</span>
+                <h2>Novo documento</h2>
+              </div>
+            </div>
+            <form className="document-form" onSubmit={createDocument}>
+              <label>
+                Modelo ativo
+                <select
+                  required
+                  value={documentForm.templateId}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      templateId: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Selecione</option>
+                  {activeTemplates.map((template) => (
+                    <option value={template.id} key={template.id}>
+                      {template.name} · v{template.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cliente
+                <select
+                  required
+                  value={documentForm.patientId}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      patientId: event.target.value,
+                      planId: "",
+                    })
+                  }
+                >
+                  {patients.map((patient) => (
+                    <option value={patient.id} key={patient.id}>
+                      {patient.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Plano vinculado
+                <select
+                  value={documentForm.planId}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      planId: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Sem plano</option>
+                  {patientPlans.map((plan) => (
+                    <option value={plan.id} key={plan.id}>
+                      {plan.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Profissional (opcional)
+                <select
+                  value={documentForm.professionalId}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      professionalId: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Sem profissional</option>
+                  {professionals.map((professional) => (
+                    <option value={professional.id} key={professional.id}>
+                      {professionalWithCrefito(
+                        professional.fullName,
+                        professional.crefito,
+                      )}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Título
+                <input
+                  required
+                  value={documentForm.title}
+                  onChange={(event) =>
+                    setDocumentForm({
+                      ...documentForm,
+                      title: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <button
+                className="primary-button"
+                disabled={!documentForm.templateId || !documentForm.patientId}
+              >
+                Criar rascunho
+              </button>
+            </form>
+          </section>
+          <section className="panel template-library">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Versões</span>
+                <h2>Modelos cadastrados</h2>
+              </div>
+              <span className="list-count">{templates.length}</span>
+            </div>
+            {templates.length === 0 ? (
+              <EmptyState
+                title="Nenhum modelo"
+                copy="Crie o primeiro modelo acima."
+              />
+            ) : (
+              <div className="template-list">
+                {templates.map((template) => (
+                  <article key={template.id}>
+                    <div>
+                      <strong>{template.name}</strong>
+                      <span>
+                        {documentKindLabels[template.kind]} · versão{" "}
+                        {template.version}
+                      </span>
+                    </div>
+                    <span
+                      className={`status-pill ${template.active ? "active" : "cancelled"}`}
+                    >
+                      {template.active ? "Ativa" : "Histórica"}
+                    </span>
+                    {template.active && (
+                      <button
+                        className="secondary-button"
+                        onClick={() => setVersioning(template)}
+                      >
+                        Nova versão
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="panel issued-documents">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Documentos</span>
+                <h2>Emissões e rascunhos</h2>
+              </div>
+              <span className="list-count">{documents.length}</span>
+            </div>
+            {documents.length === 0 ? (
+              <EmptyState
+                title="Nenhum documento"
+                copy="Crie um rascunho a partir de um modelo."
+              />
+            ) : (
+              <div className="issued-document-list">
+                {documents.map((item) => (
+                  <article key={item.id}>
+                    <div className="document-summary">
+                      <strong>{item.title}</strong>
+                      <span>
+                        {item.patientName} · {item.templateName} v
+                        {item.templateVersion}
+                      </span>
+                      <details>
+                        <summary>Ver conteúdo preservado</summary>
+                        <pre>{item.snapshotBody}</pre>
+                      </details>
+                    </div>
+                    <span className={`status-pill ${item.status}`}>
+                      {item.status === "draft"
+                        ? "Rascunho"
+                        : item.status === "issued"
+                          ? "Emitido"
+                          : "Cancelado"}
+                    </span>
+                    <div className="document-actions">
+                      {item.status === "issued" && (
+                        <button
+                          className="secondary-button"
+                          onClick={() => setPrinting(item)}
+                        >
+                          <Printer size={15} /> Imprimir
+                        </button>
+                      )}
+                      {item.status === "draft" && (
+                        <button
+                          className="primary-button"
+                          onClick={() => void issueDocument(item)}
+                        >
+                          Emitir
+                        </button>
+                      )}
+                      {item.status !== "cancelled" && (
+                        <button
+                          className="secondary-button danger"
+                          onClick={() => setCancelling(item)}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+      {versioning && (
+        <TemplateVersionModal
+          template={versioning}
+          onClose={() => setVersioning(null)}
+          onCreated={() => void templateVersioned(versioning)}
+        />
+      )}
+      {cancelling && (
+        <CancelDocumentModal
+          document={cancelling}
+          onClose={() => setCancelling(null)}
+          onCancelled={(updated) => {
+            replaceDocument(updated);
+            setCancelling(null);
+          }}
+        />
+      )}
+      {printing && (
+        <Modal
+          title={printing.title}
+          subtitle={printing.patientName}
+          eyebrow="Documento emitido"
+          onClose={() => setPrinting(null)}
+        >
+          <div className="receipt-content">
+            <Logo />
+            <p className="document-print-body">{printing.snapshotBody}</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setPrinting(null)}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} /> Imprimir documento
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+ 
+
+function TemplateVersionModal({
+  template,
+  onClose,
+  onCreated,
+}: {
+  template: DocumentTemplate;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [body, setBody] = useState(template.body);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (body.trim() === template.body.trim()) {
+      setError("Altere o conteúdo para criar uma nova versão.");
+      return;
+    }
+    if (body.trim().length < 20) {
+      setError("O conteúdo precisa ter pelo menos 20 caracteres.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await api.createDocumentTemplateVersion(template.id, body);
+      onCreated();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title="Nova versão"
+      subtitle={`${template.name} · versão ${template.version + 1}`}
+      eyebrow="Modelos"
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Conteúdo
+          <textarea
+            required
+            rows={12}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+          />
+        </label>
+        {error && <div className="span-2 form-error">{error}</div>}
+        <div className="span-2 modal-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Voltar
+          </button>
+          <button type="submit" className="primary-button" disabled={saving}>
+            {saving ? "Criando…" : "Criar versão"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CancelDocumentModal({
+  document,
+  onClose,
+  onCancelled,
+}: {
+  document: IssuedDocument;
+  onClose: () => void;
+  onCancelled: (updated: IssuedDocument) => void;
+}) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function confirmCancel() {
+    setSaving(true);
+    setError("");
+    try {
+      onCancelled(await api.updateDocumentStatus(document.id, "cancelled"));
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title="Cancelar documento"
+      subtitle={document.title}
+      eyebrow="Documentos"
+      onClose={onClose}
+    >
+      <div className="form-grid">
+        <p className="span-2">
+          “{document.title}” de {document.patientName} será cancelado
+          definitivamente. Esta ação não pode ser desfeita.
+        </p>
+        {error && <div className="span-2 form-error">{error}</div>}
+        <div className="span-2 modal-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Voltar
+          </button>
+          <button
+            type="button"
+            className="secondary-button danger"
+            onClick={() => void confirmCancel()}
+            disabled={saving}
+          >
+            {saving ? "Cancelando…" : "Cancelar documento"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 function SalesInsights() {
   const [month, setMonth] = useState(localIsoDate().slice(0, 7));
@@ -10016,6 +10650,20 @@ function App() {
                       <Navigate to="/" replace />
                     )
                   }
+                />
+                <Route
+                  path="/contratos"
+                  element={
+                    ["owner", "reception", "finance"].includes(user!.role) ? (
+                      <DocumentsPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/documentos"
+                  element={<Navigate to="/contratos" replace />}
                 />
                 <Route
                   path="/prontuarios"
