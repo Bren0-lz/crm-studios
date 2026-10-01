@@ -30,9 +30,6 @@ import {
   clinicalRecordInputSchema,
   costCenterInputSchema,
   communicationPreferenceInputSchema,
-  documentTemplateInputSchema,
-  documentTemplateVersionInputSchema,
-  documentTransitionSchema,
   financialCategoryInputSchema,
   groupAttendanceInputSchema,
   groupClassInputSchema,
@@ -44,7 +41,6 @@ import {
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
-  issuedDocumentInputSchema,
   managementReportFilterSchema,
   salesReportFilterSchema,
   payableInputSchema,
@@ -743,7 +739,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       { role: "owner", modules: ["Todos os módulos", "Administração"] },
       {
         role: "reception",
-        modules: ["Clientes", "Agenda", "CRM", "Comunicações", "Documentos"],
+        modules: ["Clientes", "Agenda", "CRM", "Comunicações"],
       },
       {
         role: "physiotherapist",
@@ -2167,84 +2163,6 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         input.referenceDate,
       );
-    },
-  );
-
-  app.get(
-    "/document-templates",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request) => repository.listDocumentTemplates(request.user.clinicId),
-  );
-  app.post(
-    "/document-templates",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createDocumentTemplate(
-            request.user.clinicId,
-            documentTemplateInputSchema.parse(request.body),
-          ),
-        ),
-  );
-  app.post(
-    "/document-templates/:id/versions",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const input = documentTemplateVersionInputSchema.parse(request.body);
-      const template = await repository.createDocumentTemplateVersion(
-        request.user.clinicId,
-        id,
-        input.body,
-      );
-      if (!template)
-        return reply.status(404).send({
-          code: "DOCUMENT_TEMPLATE_NOT_FOUND",
-          message: "Modelo não encontrado.",
-        });
-      return reply.status(201).send(template);
-    },
-  );
-  app.get(
-    "/documents",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request) => repository.listIssuedDocuments(request.user.clinicId),
-  );
-  app.post(
-    "/documents",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createIssuedDocument(
-            request.user.clinicId,
-            request.user.sub,
-            issuedDocumentInputSchema.parse(request.body),
-          ),
-        ),
-  );
-  app.patch(
-    "/documents/:id/status",
-    { preHandler: [authenticate, requireCommercialAccess] },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const status = documentTransitionSchema.parse(
-        (request.body as { status?: unknown }).status,
-      );
-      const document = await repository.updateIssuedDocumentStatus(
-        request.user.clinicId,
-        id,
-        status,
-      );
-      if (!document)
-        return reply.status(404).send({
-          code: "DOCUMENT_NOT_FOUND",
-          message: "Documento não encontrado.",
-        });
-      return document;
     },
   );
 

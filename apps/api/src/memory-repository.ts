@@ -35,9 +35,6 @@ import type {
   CostCenterInput,
   DailyCash,
   DashboardSummary,
-  DocumentStatus,
-  DocumentTemplate,
-  DocumentTemplateInput,
   FinancialSummary,
   FinancialCategory,
   FinancialCategoryInput,
@@ -62,8 +59,6 @@ import type {
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
-  IssuedDocument,
-  IssuedDocumentInput,
   InventoryWorkspace,
   ManualMessageInput,
   ManagementReport,
@@ -151,8 +146,6 @@ import { buildSalesReport } from "./sales-report.js";
 import { buildDailyCash } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
-  appointmentDocumentVariables,
-  assertDocumentAppointment,
   DomainError,
   type AuthenticatedUser,
   type ClinicRepository,
@@ -306,8 +299,6 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly outboundMessages: Array<
     OutboundMessage & { idempotencyKey: string }
   > = [];
-  private readonly documentTemplates: DocumentTemplate[] = [];
-  private readonly issuedDocuments: IssuedDocument[] = [];
   private readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -4432,187 +4423,6 @@ export class MemoryClinicRepository implements ClinicRepository {
     return { queued, skippedByPreference, alreadyQueued };
   }
 
-  async listDocumentTemplates(clinicId: string) {
-    return this.documentTemplates
-      .filter((item) => item.clinicId === clinicId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }
-
-  async createDocumentTemplate(clinicId: string, input: DocumentTemplateInput) {
-    if (
-      this.documentTemplates.some(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.active &&
-          item.name.toLocaleLowerCase() === input.name.toLocaleLowerCase(),
-      )
-    )
-      throw new DomainError(
-        "DOCUMENT_TEMPLATE_DUPLICATE",
-        "Já existe um modelo ativo com este nome.",
-        409,
-      );
-    const template: DocumentTemplate = {
-      ...input,
-      id: uuid(),
-      clinicId,
-      version: 1,
-      active: true,
-      createdAt: now(),
-    };
-    this.documentTemplates.push(template);
-    return template;
-  }
-
-  async createDocumentTemplateVersion(
-    clinicId: string,
-    templateId: string,
-    body: string,
-  ) {
-    const template = this.documentTemplates.find(
-      (item) => item.clinicId === clinicId && item.id === templateId,
-    );
-    if (!template) return null;
-    const versions = this.documentTemplates.filter(
-      (item) =>
-        item.clinicId === clinicId &&
-        item.name.toLocaleLowerCase() === template.name.toLocaleLowerCase(),
-    );
-    for (const item of versions) item.active = false;
-    const next: DocumentTemplate = {
-      id: uuid(),
-      clinicId,
-      name: template.name,
-      kind: template.kind,
-      body,
-      version: Math.max(...versions.map((item) => item.version)) + 1,
-      active: true,
-      previousVersionId: template.id,
-      createdAt: now(),
-    };
-    this.documentTemplates.push(next);
-    return next;
-  }
-
-  async listIssuedDocuments(clinicId: string) {
-    return this.issuedDocuments
-      .filter((item) => item.clinicId === clinicId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }
-
-  async createIssuedDocument(
-    clinicId: string,
-    _actorUserId: string,
-    input: IssuedDocumentInput,
-  ) {
-    const template = this.documentTemplates.find(
-      (item) =>
-        item.clinicId === clinicId &&
-        item.id === input.templateId &&
-        item.active,
-    );
-    if (!template)
-      throw new DomainError(
-        "DOCUMENT_TEMPLATE_NOT_FOUND",
-        "Modelo ativo não encontrado.",
-        404,
-      );
-    const patient = this.patients.find(
-      (item) => item.clinicId === clinicId && item.id === input.patientId,
-    );
-    if (!patient)
-      throw new DomainError(
-        "PATIENT_NOT_FOUND",
-        "Cliente não encontrado.",
-        404,
-      );
-    const plan = input.planId
-      ? this.patientPlans.find(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === input.planId &&
-            item.patientId === patient.id,
-        )
-      : undefined;
-    if (input.planId && !plan)
-      throw new DomainError(
-        "DOCUMENT_PLAN_MISMATCH",
-        "O plano informado não pertence ao cliente.",
-      );
-    const appointment = input.appointmentId
-      ? this.appointments.find(
-          (item) =>
-            item.clinicId === clinicId && item.id === input.appointmentId,
-        )
-      : undefined;
-    if (input.appointmentId)
-      assertDocumentAppointment(appointment, patient.id);
-    // O profissional do atendimento prevalece sobre `professionalId`.
-    const professionalId = appointment?.professionalId ?? input.professionalId;
-    const professional = professionalId
-      ? this.professionals.find(
-          (item) => item.clinicId === clinicId && item.id === professionalId,
-        )
-      : undefined;
-    if (professionalId && !professional)
-      throw new DomainError(
-        "PROFESSIONAL_NOT_FOUND",
-        "Profissional não encontrado.",
-        404,
-      );
-    const timestamp = now();
-    const issuedDocument: IssuedDocument = {
-      ...input,
-      ...(professionalId ? { professionalId } : {}),
-      id: uuid(),
-      clinicId,
-      templateName: template.name,
-      templateVersion: template.version,
-      patientName: patient.fullName,
-      ...(plan ? { planName: plan.name } : {}),
-      snapshotBody: this.renderDocument(
-        template.body,
-        patient.fullName,
-        plan?.name,
-        professional,
-        appointment,
-      ),
-      status: "draft",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-    this.issuedDocuments.push(issuedDocument);
-    return issuedDocument;
-  }
-
-  async updateIssuedDocumentStatus(
-    clinicId: string,
-    documentId: string,
-    status: Exclude<DocumentStatus, "draft">,
-  ) {
-    const document = this.issuedDocuments.find(
-      (item) => item.clinicId === clinicId && item.id === documentId,
-    );
-    if (!document) return null;
-    if (document.status === "cancelled")
-      throw new DomainError(
-        "DOCUMENT_ALREADY_CANCELLED",
-        "Um documento cancelado não pode ser alterado.",
-        409,
-      );
-    if (status === "issued" && document.status !== "draft")
-      throw new DomainError(
-        "DOCUMENT_ALREADY_ISSUED",
-        "Este documento já foi emitido.",
-        409,
-      );
-    document.status = status;
-    document.updatedAt = now();
-    if (status === "issued") document.issuedAt = now();
-    if (status === "cancelled") document.cancelledAt = now();
-    return document;
-  }
-
   async getSalesReport(clinicId: string, month: string): Promise<SalesReport> {
     const sales: SaleMovement[] = [];
     for (const plan of this.patientPlans.filter((item) => item.clinicId === clinicId)) {
@@ -5132,26 +4942,6 @@ export class MemoryClinicRepository implements ClinicRepository {
         },
       },
     };
-  }
-
-  private renderDocument(
-    body: string,
-    patientName: string,
-    planName?: string,
-    professional?: Professional,
-    appointment?: Appointment,
-  ) {
-    const visit = appointmentDocumentVariables(appointment);
-    return body
-      .replaceAll("{{paciente_nome}}", patientName)
-      .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
-      .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
-      .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
-      .replaceAll("{{atendimento_data}}", visit.date)
-      .replaceAll("{{atendimento_horario}}", visit.time)
-      .replaceAll("{{servico_nome}}", visit.serviceName)
-      .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
-      .replaceAll("{{clinica_nome}}", "Movimenta");
   }
 
   private channelAllowed(

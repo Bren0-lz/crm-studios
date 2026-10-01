@@ -3394,10 +3394,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   line-height: 1.8;
 }
 
-.receipt-content > .declaration-body {
-  white-space: pre-wrap;
-}
-
 .receipt-content dl {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3869,116 +3865,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: 10px;
 }
 
-.documents-layout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(300px, 1fr));
-  gap: 18px;
-}
-
-.document-form-panel {
-  padding: 23px;
-}
-
-.document-form-panel h2 {
-  margin: 4px 0 17px;
-  font-family: "Manrope", sans-serif;
-  font-size: 18px;
-}
-
-.document-form-panel form {
-  display: grid;
-  gap: 13px;
-}
-
-.document-form-panel label {
-  display: grid;
-  gap: 7px;
-  color: #4d5b55;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.document-form-panel form > small {
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.5;
-}
-
-.template-library,
-.issued-documents {
-  grid-column: 1 / -1;
-}
-
-.template-list article,
-.issued-document-list article {
-  display: grid;
-  grid-template-columns: minmax(250px, 1fr) auto auto;
-  gap: 16px;
-  align-items: center;
-  padding: 14px 22px;
-  border-bottom: 1px solid var(--line);
-}
-
-.template-list article:last-child,
-.issued-document-list article:last-child {
-  border-bottom: 0;
-}
-
-.template-list article > div > strong,
-.template-list article > div > span,
-.document-summary > strong,
-.document-summary > span {
-  display: block;
-}
-
-.template-list article > div > strong,
-.document-summary > strong {
-  font-size: 11px;
-}
-
-.template-list article > div > span,
-.document-summary > span {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 9px;
-}
-
-.template-list button,
-.document-actions button {
-  min-height: 34px;
-  font-size: 9px;
-}
-
-.document-summary details {
-  margin-top: 9px;
-}
-
-.document-summary summary {
-  cursor: pointer;
-  color: var(--green-2);
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.document-summary pre {
-  max-width: 760px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  margin: 9px 0 0;
-  padding: 12px;
-  border-radius: 9px;
-  background: #f5f3ed;
-  color: #48534f;
-  font-family: inherit;
-  font-size: 10px;
-  line-height: 1.55;
-}
-
-.document-actions {
-  display: flex;
-  gap: 7px;
-}
-
 .report-filter {
   display: flex;
   align-items: end;
@@ -4263,10 +4149,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     grid-template-columns: 1fr;
   }
 
-  .documents-layout {
-    grid-template-columns: 1fr;
-  }
-
   .report-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -4308,7 +4190,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .commercial-metrics,
   .activity-form,
   .communications-layout,
-  .documents-layout,
   .report-grid,
   .dre-section,
   .profit-grid,
@@ -4492,18 +4373,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .message-list article p {
     grid-column: 1 / -1;
     grid-row: 2;
-  }
-
-  /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */
-  .template-list article,
-  .issued-document-list article {
-    grid-template-columns: 1fr auto;
-    padding: 14px 16px;
-  }
-
-  .template-list article > button,
-  .document-actions {
-    grid-column: 1 / -1;
   }
 
   .report-filter {

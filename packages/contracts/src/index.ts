@@ -753,37 +753,6 @@ export const reminderGenerationInputSchema = z.object({
   referenceDate: z.iso.date(),
 });
 
-export const documentKindSchema = z.enum([
-  "contract",
-  "attendance_declaration",
-  "consent",
-  "other",
-]);
-export type DocumentKind = z.infer<typeof documentKindSchema>;
-export const documentTemplateInputSchema = z.object({
-  name: z.string().trim().min(3).max(120),
-  kind: documentKindSchema,
-  body: z.string().trim().min(20).max(20_000),
-});
-export type DocumentTemplateInput = z.infer<typeof documentTemplateInputSchema>;
-export const documentTemplateVersionInputSchema = z.object({
-  body: z.string().trim().min(20).max(20_000),
-});
-export const issuedDocumentInputSchema = z.object({
-  templateId: z.uuid(),
-  patientId: z.uuid(),
-  planId: z.uuid().optional(),
-  professionalId: z.uuid().optional(),
-  // Atendimento concluído do mesmo cliente; quando vem, o profissional do
-  // atendimento assina o documento (prevalece sobre `professionalId`).
-  appointmentId: z.uuid().optional(),
-  title: z.string().trim().min(3).max(160),
-});
-export type IssuedDocumentInput = z.infer<typeof issuedDocumentInputSchema>;
-export const documentStatusSchema = z.enum(["draft", "issued", "cancelled"]);
-export type DocumentStatus = z.infer<typeof documentStatusSchema>;
-export const documentTransitionSchema = z.enum(["issued", "cancelled"]);
-
 export const managementReportFilterSchema = z
   .object({
     from: z.iso.date(),
@@ -1579,30 +1548,6 @@ export interface ReminderGenerationResult {
   queued: number;
   skippedByPreference: number;
   alreadyQueued: number;
-}
-
-export interface DocumentTemplate extends DocumentTemplateInput {
-  id: string;
-  clinicId: string;
-  version: number;
-  active: boolean;
-  previousVersionId?: string;
-  createdAt: string;
-}
-
-export interface IssuedDocument extends IssuedDocumentInput {
-  id: string;
-  clinicId: string;
-  templateName: string;
-  templateVersion: number;
-  patientName: string;
-  planName?: string;
-  snapshotBody: string;
-  status: DocumentStatus;
-  issuedAt?: string;
-  cancelledAt?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface AppointmentReportBreakdown {

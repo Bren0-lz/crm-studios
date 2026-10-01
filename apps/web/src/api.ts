@@ -41,9 +41,6 @@ import type {
   DashboardSummary,
   CostCenter,
   CostCenterInput,
-  DocumentStatus,
-  DocumentTemplate,
-  DocumentTemplateInput,
   FinancialSummary,
   FinancialCategory,
   FinancialCategoryInput,
@@ -57,8 +54,6 @@ import type {
   GroupWorkspace,
   Holiday,
   HolidayInput,
-  IssuedDocument,
-  IssuedDocumentInput,
   Lead,
   LeadActivity,
   LeadContact,
@@ -577,31 +572,6 @@ export const api = {
     request<ContactActivity>("/relationship/activities", {
       method: "POST",
       body: JSON.stringify(input),
-    }),
-  documentTemplates: () => request<DocumentTemplate[]>("/document-templates"),
-  createDocumentTemplate: (input: DocumentTemplateInput) =>
-    request<DocumentTemplate>("/document-templates", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  createDocumentTemplateVersion: (id: string, body: string) =>
-    request<DocumentTemplate>(`/document-templates/${id}/versions`, {
-      method: "POST",
-      body: JSON.stringify({ body }),
-    }),
-  documents: () => request<IssuedDocument[]>("/documents"),
-  createDocument: (input: IssuedDocumentInput) =>
-    request<IssuedDocument>("/documents", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  updateDocumentStatus: (
-    id: string,
-    status: Exclude<DocumentStatus, "draft">,
-  ) =>
-    request<IssuedDocument>(`/documents/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
     }),
   managementReport: (from: string, to: string) =>
     request<ManagementReport>(

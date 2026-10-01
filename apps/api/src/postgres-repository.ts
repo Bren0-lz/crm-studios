@@ -38,9 +38,6 @@ import type {
   CostCenterInput,
   DailyCash,
   DashboardSummary,
-  DocumentStatus,
-  DocumentTemplate,
-  DocumentTemplateInput,
   FinancialSummary,
   FinancialCategory,
   FinancialCategoryInput,
@@ -65,8 +62,6 @@ import type {
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
-  IssuedDocument,
-  IssuedDocumentInput,
   InventoryWorkspace,
   ManualMessageInput,
   ManagementReport,
@@ -149,8 +144,6 @@ import { buildSalesReport, salesReportBounds } from "./sales-report.js";
 import { buildDailyCash, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
-  appointmentDocumentVariables,
-  assertDocumentAppointment,
   DomainError,
   type AuthenticatedUser,
   type ClinicRepository,
@@ -737,39 +730,6 @@ interface OutboundMessageRow {
   createdAt: Date;
 }
 
-interface DocumentTemplateRow {
-  id: string;
-  clinicId: string;
-  name: string;
-  kind: DocumentTemplate["kind"];
-  version: number;
-  body: string;
-  active: boolean;
-  previousVersionId: string | null;
-  createdAt: Date;
-}
-
-interface IssuedDocumentRow {
-  id: string;
-  clinicId: string;
-  templateId: string;
-  patientId: string;
-  planId: string | null;
-  professionalId: string | null;
-  appointmentId: string | null;
-  title: string;
-  templateName: string;
-  templateVersion: number;
-  patientName: string;
-  planName: string | null;
-  snapshotBody: string;
-  status: DocumentStatus;
-  issuedAt: Date | null;
-  cancelledAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 // WhatsApp em branco cai no telefone de contato.
 function communicationRecipient(
   patient: { email?: string | null; phone: string; whatsapp?: string | null },
@@ -920,23 +880,6 @@ const outboundMessageColumns = `
   p.full_name AS "patientName", om.channel, om.kind, om.recipient, om.body,
   om.status, om.scheduled_for AS "scheduledFor", om.sent_at AS "sentAt",
   om.attempts, om.last_error AS "lastError", om.created_at AS "createdAt"
-`;
-
-const documentTemplateColumns = `
-  id, clinic_id AS "clinicId", name, kind, version, body, active,
-  previous_version_id AS "previousVersionId", created_at AS "createdAt"
-`;
-
-const issuedDocumentColumns = `
-  d.id, d.clinic_id AS "clinicId", d.template_id AS "templateId",
-  d.patient_id AS "patientId", d.plan_id AS "planId",
-  d.professional_id AS "professionalId",
-  d.appointment_id AS "appointmentId", d.title,
-  d.template_name AS "templateName", d.template_version AS "templateVersion",
-  p.full_name AS "patientName", pp.name AS "planName",
-  d.snapshot_body AS "snapshotBody", d.status,
-  d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
-  d.created_at AS "createdAt", d.updated_at AS "updatedAt"
 `;
 
 function present(value: string | null) {
@@ -1590,45 +1533,6 @@ function mapOutboundMessage(row: OutboundMessageRow): OutboundMessage {
     createdAt: row.createdAt.toISOString(),
     ...(row.sentAt ? { sentAt: row.sentAt.toISOString() } : {}),
     ...(row.lastError ? { lastError: row.lastError } : {}),
-  };
-}
-
-function mapDocumentTemplate(row: DocumentTemplateRow): DocumentTemplate {
-  return {
-    id: row.id,
-    clinicId: row.clinicId,
-    name: row.name,
-    kind: row.kind,
-    version: row.version,
-    body: row.body,
-    active: row.active,
-    ...(row.previousVersionId
-      ? { previousVersionId: row.previousVersionId }
-      : {}),
-    createdAt: row.createdAt.toISOString(),
-  };
-}
-
-function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
-  return {
-    id: row.id,
-    clinicId: row.clinicId,
-    templateId: row.templateId,
-    patientId: row.patientId,
-    ...(row.planId ? { planId: row.planId } : {}),
-    ...(row.professionalId ? { professionalId: row.professionalId } : {}),
-    ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
-    title: row.title,
-    templateName: row.templateName,
-    templateVersion: row.templateVersion,
-    patientName: row.patientName,
-    ...(row.planName ? { planName: row.planName } : {}),
-    snapshotBody: row.snapshotBody,
-    status: row.status,
-    ...(row.issuedAt ? { issuedAt: row.issuedAt.toISOString() } : {}),
-    ...(row.cancelledAt ? { cancelledAt: row.cancelledAt.toISOString() } : {}),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -6713,298 +6617,6 @@ export class PostgresClinicRepository implements ClinicRepository {
     return { queued, skippedByPreference, alreadyQueued };
   }
 
-  async listDocumentTemplates(clinicId: string) {
-    const result = await this.pool.query<DocumentTemplateRow>(
-      `SELECT ${documentTemplateColumns} FROM document_templates
-       WHERE clinic_id = $1 ORDER BY name, version DESC`,
-      [clinicId],
-    );
-    return result.rows.map(mapDocumentTemplate);
-  }
-
-  async createDocumentTemplate(clinicId: string, input: DocumentTemplateInput) {
-    try {
-      const result = await this.pool.query<DocumentTemplateRow>(
-        `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body)
-         VALUES ($1,$2,$3,1,$4)
-         RETURNING ${documentTemplateColumns}`,
-        [clinicId, input.name, input.kind, input.body],
-      );
-      return mapDocumentTemplate(result.rows[0]!);
-    } catch (error) {
-      if (hasDatabaseCode(error, "23505"))
-        throw new DomainError(
-          "DOCUMENT_TEMPLATE_DUPLICATE",
-          "Já existe um modelo ativo com este nome.",
-          409,
-        );
-      throw error;
-    }
-  }
-
-  async createDocumentTemplateVersion(
-    clinicId: string,
-    templateId: string,
-    body: string,
-  ) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      const current = await client.query<DocumentTemplateRow>(
-        `SELECT ${documentTemplateColumns} FROM document_templates
-         WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
-        [clinicId, templateId],
-      );
-      if (!current.rows[0]) {
-        await client.query("COMMIT");
-        return null;
-      }
-      const template = current.rows[0];
-      const versionResult = await client.query<{ nextVersion: number }>(
-        `SELECT COALESCE(MAX(version), 0) + 1 AS "nextVersion"
-         FROM document_templates WHERE clinic_id = $1 AND name = $2`,
-        [clinicId, template.name],
-      );
-      await client.query(
-        `UPDATE document_templates SET active = false
-         WHERE clinic_id = $1 AND name = $2 AND active`,
-        [clinicId, template.name],
-      );
-      const result = await client.query<DocumentTemplateRow>(
-        `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body, previous_version_id)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         RETURNING ${documentTemplateColumns}`,
-        [
-          clinicId,
-          template.name,
-          template.kind,
-          versionResult.rows[0]!.nextVersion,
-          body,
-          template.id,
-        ],
-      );
-      await client.query("COMMIT");
-      return mapDocumentTemplate(result.rows[0]!);
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async listIssuedDocuments(clinicId: string) {
-    const result = await this.pool.query<IssuedDocumentRow>(
-      `SELECT ${issuedDocumentColumns}
-       FROM issued_documents d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id
-       WHERE d.clinic_id = $1 ORDER BY d.created_at DESC`,
-      [clinicId],
-    );
-    return result.rows.map(mapIssuedDocument);
-  }
-
-  async createIssuedDocument(
-    clinicId: string,
-    actorUserId: string,
-    input: IssuedDocumentInput,
-  ) {
-    let appointment:
-      | {
-          patientId: string | null;
-          status: AppointmentStatus;
-          startsAt: Date;
-          professionalId: string;
-          serviceName: string;
-        }
-      | undefined;
-    if (input.appointmentId) {
-      const found = await this.pool.query<NonNullable<typeof appointment>>(
-        `SELECT a.patient_id AS "patientId", a.status, a.starts_at AS "startsAt",
-                a.professional_id AS "professionalId", s.name AS "serviceName"
-         FROM appointments a
-         JOIN services s ON s.id = a.service_id AND s.clinic_id = a.clinic_id
-         WHERE a.clinic_id = $1 AND a.id = $2`,
-        [clinicId, input.appointmentId],
-      );
-      appointment = found.rows[0];
-      assertDocumentAppointment(appointment, input.patientId);
-    }
-    // O profissional do atendimento prevalece sobre `professionalId`.
-    const professionalId = appointment?.professionalId ?? input.professionalId;
-    const context = await this.pool.query<{
-      templateName: string;
-      templateVersion: number;
-      templateBody: string;
-      patientName: string;
-      planName: string | null;
-      clinicName: string;
-      professionalName: string | null;
-      professionalCrefito: string | null;
-    }>(
-      `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
-              dt.body AS "templateBody", p.full_name AS "patientName",
-              pp.name AS "planName", c.name AS "clinicName",
-              pr.full_name AS "professionalName",
-              pr.crefito AS "professionalCrefito"
-       FROM document_templates dt
-       JOIN clinics c ON c.id = dt.clinic_id
-       JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
-       LEFT JOIN patient_plans pp
-         ON pp.clinic_id = dt.clinic_id AND pp.id = $4 AND pp.patient_id = p.id
-       LEFT JOIN professionals pr
-         ON pr.clinic_id = dt.clinic_id AND pr.id = $5
-       WHERE dt.clinic_id = $1 AND dt.id = $2 AND dt.active
-         AND ($4::uuid IS NULL OR pp.id IS NOT NULL)
-         AND ($5::uuid IS NULL OR pr.id IS NOT NULL)`,
-      [
-        clinicId,
-        input.templateId,
-        input.patientId,
-        input.planId || null,
-        professionalId || null,
-      ],
-    );
-    if (!context.rows[0]) {
-      const template = await this.pool.query(
-        `SELECT 1 FROM document_templates
-         WHERE clinic_id = $1 AND id = $2 AND active`,
-        [clinicId, input.templateId],
-      );
-      if (!template.rows[0])
-        throw new DomainError(
-          "DOCUMENT_TEMPLATE_NOT_FOUND",
-          "Modelo ativo não encontrado.",
-          404,
-        );
-      const patient = await this.pool.query(
-        `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
-        [clinicId, input.patientId],
-      );
-      if (!patient.rows[0])
-        throw new DomainError(
-          "PATIENT_NOT_FOUND",
-          "Cliente não encontrado.",
-          404,
-        );
-      if (professionalId) {
-        const professional = await this.pool.query(
-          `SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, professionalId],
-        );
-        if (!professional.rows[0])
-          throw new DomainError(
-            "PROFESSIONAL_NOT_FOUND",
-            "Profissional não encontrado.",
-            404,
-          );
-      }
-      throw new DomainError(
-        "DOCUMENT_PLAN_MISMATCH",
-        "O plano informado não pertence ao cliente.",
-      );
-    }
-    const item = context.rows[0];
-    const emissionDate = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-    }).format(new Date());
-    const visit = appointmentDocumentVariables(appointment);
-    const snapshot = item.templateBody
-      .replaceAll("{{paciente_nome}}", item.patientName)
-      .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
-      .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
-      .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
-      .replaceAll("{{atendimento_data}}", visit.date)
-      .replaceAll("{{atendimento_horario}}", visit.time)
-      .replaceAll("{{servico_nome}}", visit.serviceName)
-      .replaceAll("{{data_emissao}}", emissionDate)
-      .replaceAll("{{clinica_nome}}", item.clinicName);
-    const result = await this.pool.query<IssuedDocumentRow>(
-      `WITH inserted AS (
-         INSERT INTO issued_documents
-           (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id, professional_id,
-            appointment_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         RETURNING *
-       )
-       SELECT ${issuedDocumentColumns}
-       FROM inserted d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
-      [
-        clinicId,
-        input.templateId,
-        input.patientId,
-        input.planId || null,
-        input.title,
-        item.templateName,
-        item.templateVersion,
-        snapshot,
-        actorUserId,
-        professionalId || null,
-        input.appointmentId || null,
-      ],
-    );
-    return mapIssuedDocument(result.rows[0]!);
-  }
-
-  async updateIssuedDocumentStatus(
-    clinicId: string,
-    documentId: string,
-    status: Exclude<DocumentStatus, "draft">,
-  ) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      const current = await client.query<{ status: DocumentStatus }>(
-        `SELECT status FROM issued_documents
-         WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
-        [clinicId, documentId],
-      );
-      if (!current.rows[0]) {
-        await client.query("COMMIT");
-        return null;
-      }
-      if (current.rows[0].status === "cancelled")
-        throw new DomainError(
-          "DOCUMENT_ALREADY_CANCELLED",
-          "Um documento cancelado não pode ser alterado.",
-          409,
-        );
-      if (status === "issued" && current.rows[0].status !== "draft")
-        throw new DomainError(
-          "DOCUMENT_ALREADY_ISSUED",
-          "Este documento já foi emitido.",
-          409,
-        );
-      await client.query(
-        `UPDATE issued_documents
-         SET status = $3,
-             issued_at = CASE WHEN $3 = 'issued' THEN now() ELSE issued_at END,
-             cancelled_at = CASE WHEN $3 = 'cancelled' THEN now() ELSE cancelled_at END,
-             updated_at = now()
-         WHERE clinic_id = $1 AND id = $2`,
-        [clinicId, documentId, status],
-      );
-      const document = await this.findIssuedDocument(
-        client,
-        clinicId,
-        documentId,
-      );
-      await client.query("COMMIT");
-      return document;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
   async getSalesReport(clinicId: string, month: string): Promise<SalesReport> {
     const asOf = new Date();
     const bounds = salesReportBounds(month, asOf);
@@ -7657,22 +7269,6 @@ export class PostgresClinicRepository implements ClinicRepository {
         "O cliente não autorizou mensagens neste canal.",
         409,
       );
-  }
-
-  private async findIssuedDocument(
-    client: Pool | PoolClient,
-    clinicId: string,
-    documentId: string,
-  ) {
-    const result = await client.query<IssuedDocumentRow>(
-      `SELECT ${issuedDocumentColumns}
-       FROM issued_documents d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id
-       WHERE d.clinic_id = $1 AND d.id = $2`,
-      [clinicId, documentId],
-    );
-    return result.rows[0] ? mapIssuedDocument(result.rows[0]) : null;
   }
 
   private async findLead(

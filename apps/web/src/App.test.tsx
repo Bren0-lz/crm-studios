@@ -1069,38 +1069,14 @@ describe("application shell", () => {
     expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
   });
 
-  it("issues a document with an optional professional", async () => {
+  it("no longer offers the documents page", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Mariana Costa", email: "admin@movimenta.local", role: "owner" }));
-    const template = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Declaração", kind: "attendance_declaration", version: 1, body: "Declaração", active: true, createdAt: new Date().toISOString() };
-    const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida" };
-    const professional = { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", fullName: "Dra. Ana Martins", crefito: "CREFITO-3 123456-F", active: true };
-    const posted: Record<string, unknown>[] = [];
-    vi.mocked(fetch).mockImplementation(async (input, init) => {
-      const url = String(input);
-      if (url.endsWith("/documents") && init?.method === "POST") {
-        posted.push(JSON.parse(String(init.body)));
-        return { ok: true, status: 201, json: async () => ({ id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0" }) } as Response;
-      }
-      const body = url.includes("/document-templates") ? [template]
-        : url.includes("/patients") ? [patient]
-          : url.includes("/professionals") ? [professional]
-            : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(<MemoryRouter initialEntries={["/documentos"]}><App /></MemoryRouter>);
-    expect(await screen.findByText(/\{\{profissional_nome\}\}/)).toBeInTheDocument();
-    expect(screen.getByText(/\{\{profissional_crefito\}\}/)).toBeInTheDocument();
-    const select = await screen.findByLabelText("Profissional (opcional)");
-    expect(within(select).getByRole("option", { name: "Dra. Ana Martins · CREFITO-3 123456-F" })).toBeInTheDocument();
-    const issue = screen.getByRole("button", { name: "Criar rascunho" });
-    fireEvent.click(issue);
-    await vi.waitFor(() => expect(posted).toHaveLength(1));
-    expect(posted[0]).not.toHaveProperty("professionalId");
-    fireEvent.change(select, { target: { value: professional.id } });
-    fireEvent.click(issue);
-    await vi.waitFor(() => expect(posted).toHaveLength(2));
-    expect(posted[1]).toMatchObject({ templateId: template.id, patientId: patient.id, professionalId: professional.id });
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("link", { name: "Comunicações" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Documentos" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/document"))).toBe(false);
   });
 
   it("records patient satisfaction on a completed appointment and hides the button afterwards", async () => {
@@ -1165,113 +1141,6 @@ describe("application shell", () => {
     expect(await screen.findByRole("heading", { name: "Detalhes do atendimento" })).toBeInTheDocument();
     expect(screen.getByText("Satisfação registrada: nota 9")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
-  });
-
-  it("issues an attendance declaration from a completed client appointment and opens the print", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Joana Recepção",
-      email: "recepcao@movimenta.local",
-      role: "reception",
-    }));
-    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
-    const startsAt = new Date();
-    startsAt.setHours(10, 0, 0, 0);
-    const appointment = {
-      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: "99999999-9999-4999-8999-999999999999",
-      patientName: "Helena Almeida",
-      professionalColor: "#5c6f68",
-      startsAt: startsAt.toISOString(),
-      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
-      serviceName: "Fisioterapia individual",
-      professionalName: "Dra. Ana Martins",
-      roomName: "Sala Movimento",
-      status: "completed",
-    };
-    const contract = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Contrato padrão", kind: "contract", version: 1, body: "Contrato", active: true, createdAt: new Date().toISOString() };
-    const declaration = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Declaração padrão", kind: "attendance_declaration", version: 2, body: "Declaração", active: true, createdAt: new Date().toISOString() };
-    const snapshot = "Declaro que Helena Almeida compareceu em 30/09/2026 às 10:00.";
-    const document = { id: "d-1", clinicId: "c-1", templateId: declaration.id, patientId: appointment.patientId, appointmentId: appointment.id, title: "Declaração de comparecimento", templateName: declaration.name, templateVersion: 2, patientName: appointment.patientName, snapshotBody: snapshot, status: "draft", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    const posted: Record<string, unknown>[] = [];
-    const patched: string[] = [];
-    vi.mocked(fetch).mockImplementation(async (input, options) => {
-      const url = String(input);
-      if (url.endsWith("/documents") && options?.method === "POST") {
-        posted.push(JSON.parse(String(options.body)) as Record<string, unknown>);
-        return { ok: true, status: 201, json: async () => document } as Response;
-      }
-      if (url.includes("/documents/d-1/status") && options?.method === "PATCH") {
-        patched.push(url);
-        return { ok: true, status: 200, json: async () => ({ ...document, status: "issued" }) } as Response;
-      }
-      const body = url.includes("/document-templates") ? [contract, declaration]
-        : url.includes("/satisfaction?") ? { from: "2026-09-01", to: "2026-09-30", surveys: [], summary: { total: 0, promoters: 0, passives: 0, detractors: 0, nps: 0 } }
-          : url.includes("/appointments?") ? [appointment]
-            : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Declaração de comparecimento" }));
-    const select = await screen.findByLabelText("Modelo");
-    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual(["Declaração padrão · v2"]);
-    fireEvent.click(screen.getByRole("button", { name: "Emitir declaração" }));
-    expect(await screen.findByText(snapshot)).toBeInTheDocument();
-    expect(posted).toEqual([{ templateId: declaration.id, patientId: appointment.patientId, appointmentId: appointment.id, title: "Declaração de comparecimento" }]);
-    expect(patched).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir declaração" }));
-    expect(print).toHaveBeenCalledTimes(1);
-    print.mockRestore();
-  });
-
-  it("explains when there is no attendance declaration template and hides the button for physiotherapists", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Mariana Costa",
-      email: "admin@movimenta.local",
-      role: "owner",
-    }));
-    const startsAt = new Date();
-    startsAt.setHours(10, 0, 0, 0);
-    const appointment = {
-      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: "99999999-9999-4999-8999-999999999999",
-      patientName: "Helena Almeida",
-      professionalColor: "#5c6f68",
-      startsAt: startsAt.toISOString(),
-      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
-      serviceName: "Fisioterapia individual",
-      professionalName: "Dra. Ana Martins",
-      roomName: "Sala Movimento",
-      status: "completed",
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/satisfaction?") ? { from: "2026-09-01", to: "2026-09-30", surveys: [], summary: { total: 0, promoters: 0, passives: 0, detractors: 0, nps: 0 } }
-        : url.includes("/appointments?") ? [appointment]
-          : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    const { unmount } = render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Declaração de comparecimento" }));
-    expect(await screen.findByText("Nenhum modelo de declaração")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Emitir declaração" })).not.toBeInTheDocument();
-    unmount();
-
-    localStorage.setItem("crm.auth.user", JSON.stringify({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Ana Fisio",
-      email: "fisio@movimenta.local",
-      role: "physiotherapist",
-    }));
-    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
-    expect(await screen.findByRole("heading", { name: "Detalhes do atendimento" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Declaração de comparecimento" })).not.toBeInTheDocument();
   });
 
   it("hides the satisfaction button when the appointment already has a survey", async () => {
@@ -1704,7 +1573,6 @@ describe("application shell", () => {
     expect(within(dialog).queryByRole("heading", { name: "Dados do cliente" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Prontuário")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Declaração de comparecimento" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Histórico/ })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/satisfaction"))).toBe(false);
     expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();

@@ -36,9 +36,6 @@ import type {
   CommunicationPreference,
   CommunicationPreferenceInput,
   DashboardSummary,
-  DocumentStatus,
-  DocumentTemplate,
-  DocumentTemplateInput,
   FinancialSummary,
   FinancialCategory,
   FinancialCategoryInput,
@@ -66,9 +63,7 @@ import type {
   ManualMessageInput,
   ManagementReport,
   SalesReport,
-  IssuedDocument,
   InventoryWorkspace,
-  IssuedDocumentInput,
   OutboundMessage,
   Patient,
   PatientInput,
@@ -620,27 +615,6 @@ export interface ClinicRepository {
     clinicId: string,
     referenceDate: string,
   ): Promise<ReminderGenerationResult>;
-  listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
-  createDocumentTemplate(
-    clinicId: string,
-    input: DocumentTemplateInput,
-  ): Promise<DocumentTemplate>;
-  createDocumentTemplateVersion(
-    clinicId: string,
-    templateId: string,
-    body: string,
-  ): Promise<DocumentTemplate | null>;
-  listIssuedDocuments(clinicId: string): Promise<IssuedDocument[]>;
-  createIssuedDocument(
-    clinicId: string,
-    actorUserId: string,
-    input: IssuedDocumentInput,
-  ): Promise<IssuedDocument>;
-  updateIssuedDocumentStatus(
-    clinicId: string,
-    documentId: string,
-    status: Exclude<DocumentStatus, "draft">,
-  ): Promise<IssuedDocument | null>;
   getManagementReport(
     clinicId: string,
     from: string,
@@ -659,50 +633,4 @@ export class DomainError extends Error {
   ) {
     super(message);
   }
-}
-
-// Regras do atendimento vinculado a um documento emitido (ex.: declaração de
-// comparecimento): existir na clínica, ser do mesmo cliente e estar concluído.
-export function assertDocumentAppointment(
-  appointment:
-    | { patientId?: string | null; status: AppointmentStatus }
-    | undefined,
-  patientId: string,
-): void {
-  if (!appointment)
-    throw new DomainError(
-      "APPOINTMENT_NOT_FOUND",
-      "Atendimento não encontrado.",
-      404,
-    );
-  if (appointment.patientId !== patientId)
-    throw new DomainError(
-      "DOCUMENT_APPOINTMENT_MISMATCH",
-      "O atendimento informado não pertence ao cliente.",
-    );
-  if (appointment.status !== "completed")
-    throw new DomainError(
-      "DOCUMENT_APPOINTMENT_NOT_COMPLETED",
-      "Só é possível emitir o documento de um atendimento concluído.",
-      409,
-    );
-}
-
-// Variáveis do atendimento nos modelos, no fuso da clínica (São Paulo).
-export function appointmentDocumentVariables(
-  appointment?: { startsAt: string | Date; serviceName: string },
-): { date: string; time: string; serviceName: string } {
-  if (!appointment) return { date: "", time: "", serviceName: "" };
-  const startsAt = new Date(appointment.startsAt);
-  return {
-    date: new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-    }).format(startsAt),
-    time: new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(startsAt),
-    serviceName: appointment.serviceName,
-  };
 }

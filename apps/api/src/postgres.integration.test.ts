@@ -34,11 +34,6 @@ const trialConversionPhones = ["11900001166", "11900001177", "11900001188"];
 // Dia exclusivo deste teste, para contar as experimentais com valores exatos.
 const trialConversionDay = new Date(Date.now() + 620 * 24 * 60 * 60 * 1000);
 trialConversionDay.setUTCHours(12, 0, 0, 0);
-const documentAppointmentMarker = "postgres-document-appointment-test";
-const documentAppointmentCpf = "98765432107";
-// 13:30 UTC = 10:30 em São Paulo, num dia exclusivo deste teste.
-const documentAppointmentDay = new Date(Date.now() + 630 * 24 * 60 * 60 * 1000);
-documentAppointmentDay.setUTCHours(13, 30, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 const recurringPayableMarker = "postgres-recurring-payable-test";
 const dailyCashMarker = "postgres-daily-cash-test";
@@ -208,30 +203,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ]);
   }
 
-  async function cleanupDocumentAppointment() {
-    await pool.query(
-      `DELETE FROM issued_documents WHERE appointment_id IN
-         (SELECT id FROM appointments WHERE notes = $1)`,
-      [documentAppointmentMarker],
-    );
-    await pool.query(
-      "DELETE FROM document_templates WHERE clinic_id = $1 AND name = $2",
-      [clinicId, documentAppointmentMarker],
-    );
-    await pool.query(
-      `DELETE FROM satisfaction_surveys WHERE patient_id IN
-         (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
-      [clinicId, documentAppointmentCpf],
-    );
-    await pool.query("DELETE FROM appointments WHERE notes = $1", [
-      documentAppointmentMarker,
-    ]);
-    await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = $2", [
-      clinicId,
-      documentAppointmentCpf,
-    ]);
-  }
-
   beforeAll(async () => {
     pool = new Pool(
       databaseConnectionConfig({
@@ -250,7 +221,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupLeadAppointments();
     await cleanupLeadConversion();
     await cleanupTrialConversion();
-    await cleanupDocumentAppointment();
     await cleanupRecurringPayables();
     await cleanupDailyCash();
     await pool.query("DELETE FROM financial_categories WHERE clinic_id = $1 AND name = $2", [
@@ -1428,126 +1398,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).toBeNull();
   });
 
-  it("fills professional variables on issued documents and exposes CREFITO on records", async () => {
-    const [patient] = await repository.listPatients(clinicId);
-    const [professional] = await repository.listProfessionals(clinicId);
-    const template = await repository.createDocumentTemplate(clinicId, {
-      name: "postgres-document-professional-test",
-      kind: "other",
-      body: "Assinado por [{{profissional_nome}}] [{{profissional_crefito}}].",
-    });
-    try {
-      const signed = await repository.createIssuedDocument(clinicId, ownerId, {
-        templateId: template.id,
-        patientId: patient!.id,
-        professionalId: professional!.id,
-        title: "Documento com profissional",
-      });
-      expect(signed.professionalId).toBe(professional!.id);
-      expect(signed.snapshotBody).toContain(
-        `[${professional!.fullName}] [${professional!.crefito}]`,
-      );
-      const unsigned = await repository.createIssuedDocument(clinicId, ownerId, {
-        templateId: template.id,
-        patientId: patient!.id,
-        title: "Documento sem profissional",
-      });
-      expect(unsigned.snapshotBody).toContain("[] []");
-      await expect(
-        repository.createIssuedDocument(clinicId, ownerId, {
-          templateId: template.id,
-          patientId: patient!.id,
-          professionalId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
-          title: "Documento inválido",
-        }),
-      ).rejects.toMatchObject({ code: "PROFESSIONAL_NOT_FOUND", statusCode: 404 });
-      for (const record of await repository.listClinicalRecords(clinicId))
-        expect(record.professionalCrefito).toBeTruthy();
-    } finally {
-      await pool.query("DELETE FROM issued_documents WHERE template_id = $1", [
-        template.id,
-      ]);
-      await pool.query("DELETE FROM document_templates WHERE id = $1", [
-        template.id,
-      ]);
-    }
+  it("exposes the professional CREFITO on clinical records", async () => {
+    for (const record of await repository.listClinicalRecords(clinicId))
+      expect(record.professionalCrefito).toBeTruthy();
   });
 
-  it("issues an attendance declaration linked to a completed client appointment", async () => {
-    await cleanupDocumentAppointment();
-    const [patients, professionals, rooms, services] = await Promise.all([
-      repository.listPatients(clinicId),
-      repository.listProfessionals(clinicId),
-      repository.listRooms(clinicId),
-      repository.listServices(clinicId),
-    ]);
-    const [otherProfessional, professional] = professionals;
-    const service = services[0]!;
-    const patient = await repository.createPatient(clinicId, {
-      fullName: "Cliente Declaração",
-      phone: "11900001199",
-      cpf: documentAppointmentCpf,
-      tags: [],
-    });
-    const appointment = await repository.createAppointment(clinicId, {
-      patientId: patient.id,
-      professionalId: professional!.id,
-      roomId: rooms[0]!.id,
-      serviceId: service.id,
-      startsAt: documentAppointmentDay.toISOString(),
-      notes: documentAppointmentMarker,
-      visitType: "regular",
-    });
-    const template = await repository.createDocumentTemplate(clinicId, {
-      name: documentAppointmentMarker,
-      kind: "attendance_declaration",
-      body: "Compareceu em [{{atendimento_data}}] às [{{atendimento_horario}}] para [{{servico_nome}}] com [{{profissional_nome}}] [{{profissional_crefito}}].",
-    });
-    const input = {
-      templateId: template.id,
-      patientId: patient.id,
-      appointmentId: appointment.id,
-      title: "Declaração de comparecimento",
-    };
-    await expect(
-      repository.createIssuedDocument(clinicId, ownerId, input),
-    ).rejects.toMatchObject({
-      code: "DOCUMENT_APPOINTMENT_NOT_COMPLETED",
-      statusCode: 409,
-    });
-    await repository.updateAppointmentStatus(clinicId, appointment.id, "completed");
-    const declaration = await repository.createIssuedDocument(clinicId, ownerId, {
-      ...input,
-      professionalId: otherProfessional!.id,
-    });
-    const expectedDate = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-    }).format(documentAppointmentDay);
-    expect(declaration).toMatchObject({
-      appointmentId: appointment.id,
-      professionalId: professional!.id,
-    });
-    expect(declaration.snapshotBody).toBe(
-      `Compareceu em [${expectedDate}] às [10:30] para [${service.name}] com [${professional!.fullName}] [${professional!.crefito}].`,
+  it("drops the removed documents tables", async () => {
+    const result = await pool.query<{ issued: string | null; templates: string | null }>(
+      `SELECT to_regclass('issued_documents')::text AS issued,
+              to_regclass('document_templates')::text AS templates`,
     );
-    expect(
-      (await repository.listIssuedDocuments(clinicId)).find(
-        (item) => item.id === declaration.id,
-      ),
-    ).toMatchObject({ appointmentId: appointment.id });
-    const otherPatient = patients.find((item) => item.id !== patient.id)!;
-    await expect(
-      repository.createIssuedDocument(clinicId, ownerId, {
-        ...input,
-        patientId: otherPatient.id,
-      }),
-    ).rejects.toMatchObject({ code: "DOCUMENT_APPOINTMENT_MISMATCH", statusCode: 400 });
-    await expect(
-      repository.createIssuedDocument(clinicId, ownerId, {
-        ...input,
-        appointmentId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
-      }),
-    ).rejects.toMatchObject({ code: "APPOINTMENT_NOT_FOUND", statusCode: 404 });
+    expect(result.rows[0]).toEqual({ issued: null, templates: null });
   });
 
   it("imports patients in one transaction and skips duplicates already in the database", async () => {
