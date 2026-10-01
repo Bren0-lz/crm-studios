@@ -523,6 +523,24 @@ export function nextPlanPeriod(plan: {
   };
 }
 
+/**
+ * Parcelas de um plano: uma por mês a partir do primeiro vencimento (dia
+ * limitado ao fim do mês), com o resto da divisão nos primeiros centavos.
+ */
+export function planInstallmentSchedule(plan: {
+  totalValueInCents: number;
+  installments: number;
+  firstDueDate: string;
+}): { installmentNumber: number; dueDate: string; amountInCents: number }[] {
+  const baseAmount = Math.floor(plan.totalValueInCents / plan.installments);
+  const remainder = plan.totalValueInCents % plan.installments;
+  return Array.from({ length: plan.installments }, (_, index) => ({
+    installmentNumber: index + 1,
+    dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
+    amountInCents: baseAmount + (index < remainder ? 1 : 0),
+  }));
+}
+
 export const receivableStatusSchema = z.enum(["open", "paid", "cancelled"]);
 export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
 export const paymentMethodSchema = z.enum([
@@ -1420,6 +1438,58 @@ export interface DailyCash {
   balanceInCents: number;
   /** Movimentos em ordem cronológica. */
   movements: DailyCashMovement[];
+}
+
+// Previsão financeira (`GET /finance/forecast?months=`)
+
+export const financeForecastFilterSchema = z.object({
+  months: z.coerce
+    .number("Informe a quantidade de meses.")
+    .int("Informe a quantidade de meses.")
+    .min(1, "A previsão vai de 1 a 12 meses.")
+    .max(12, "A previsão vai de 1 a 12 meses.")
+    .default(6),
+});
+export type FinanceForecastFilter = z.infer<typeof financeForecastFilterSchema>;
+
+/** Entradas, saídas e saldo (entradas − saídas), em centavos. */
+export interface FinanceForecastFlow {
+  inflowInCents: number;
+  outflowInCents: number;
+  balanceInCents: number;
+}
+
+export interface FinanceForecastMonth {
+  /** Mês (AAAA-MM). */
+  month: string;
+  /** Parcelas a receber e contas a pagar já lançadas e em aberto, pelo vencimento. */
+  confirmed: FinanceForecastFlow;
+  /**
+   * Ainda não lançado: parcelas das renovações automáticas futuras e
+   * competências futuras das despesas fixas.
+   */
+  projected: FinanceForecastFlow;
+  /** Saldo confirmado + projetado do mês. */
+  balanceInCents: number;
+}
+
+export interface FinanceForecast {
+  generatedAt: string;
+  /** Primeiro mês (o atual, no fuso da clínica) e último mês do horizonte. */
+  startMonth: string;
+  endMonth: string;
+  months: FinanceForecastMonth[];
+  /**
+   * Em atraso: parcelas e contas em aberto com vencimento antes do primeiro
+   * mês. Ficam fora dos meses e dos totais.
+   */
+  overdue: FinanceForecastFlow;
+  /** Soma dos meses do horizonte. */
+  totals: {
+    confirmed: FinanceForecastFlow;
+    projected: FinanceForecastFlow;
+    balanceInCents: number;
+  };
 }
 
 export interface PaymentReceipt {

@@ -2517,6 +2517,173 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("forecasts confirmed and projected cash flow by month", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 12h de São Paulo em 10/12/2031: o horizonte de 3 meses vira o ano.
+    vi.setSystemTime(new Date("2031-12-10T15:00:00.000Z"));
+    try {
+      const { app } = await authenticatedApp();
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headersAs = (role: UserRole = "owner") => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const headers = headersAs();
+      const forecast = async (query = "?months=3") => {
+        const response = await app.inject({
+          method: "GET",
+          url: `/finance/forecast${query}`,
+          headers,
+        });
+        expect(response.statusCode).toBe(200);
+        return response.json();
+      };
+      // Os dados demo também entram: compara-se a diferença.
+      const before = await forecast();
+      expect(before).toMatchObject({ startMonth: "2031-12", endMonth: "2032-02" });
+      expect(before.months.map((item: { month: string }) => item.month)).toEqual([
+        "2031-12",
+        "2032-01",
+        "2032-02",
+      ]);
+
+      const [patients, services, workspace] = await Promise.all([
+        app.inject({ method: "GET", url: "/patients", headers }),
+        app.inject({ method: "GET", url: "/services", headers }),
+        app.inject({ method: "GET", url: "/finance/workspace", headers }),
+      ]);
+      const planBase = {
+        patientId: patients.json()[0].id,
+        serviceId: services.json()[0].id,
+        kind: "fixed_package",
+        totalSessions: 4,
+        validFrom: "2031-12-01",
+        validUntil: "2031-12-31",
+        totalValueInCents: 12_000,
+        installments: 2,
+        firstDueDate: "2031-12-15",
+      };
+      const created = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: { ...planBase, name: "Plano mensal renovável", autoRenew: true },
+      });
+      expect(created.statusCode).toBe(201);
+      const withoutRenewal = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: { ...planBase, name: "Plano sem renovação", autoRenew: false },
+      });
+      expect(withoutRenewal.statusCode).toBe(201);
+      const cancelled = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: { ...planBase, name: "Plano cancelado", autoRenew: true },
+      });
+      await app.inject({
+        method: "PATCH",
+        url: `/plans/${cancelled.json().id}/status`,
+        headers,
+        payload: { status: "cancelled" },
+      });
+      const expense = {
+        description: "Aluguel da sala",
+        categoryId: workspace
+          .json()
+          .categories.find((item: { kind: string }) => item.kind === "expense").id,
+        costCenterId: workspace.json().costCenters[0].id,
+        amountInCents: 1_000,
+        dayOfMonth: 5,
+        startMonth: "2031-11",
+      };
+      for (const payload of [
+        expense,
+        { ...expense, amountInCents: 9_000, active: false },
+        { ...expense, amountInCents: 500, endMonth: "2031-12" },
+      ]) {
+        const response = await app.inject({
+          method: "POST",
+          url: "/finance/recurring-payables",
+          headers,
+          payload,
+        });
+        expect(response.statusCode).toBe(201);
+      }
+
+      const after = await forecast();
+      const delta = (
+        month: number,
+        part: "confirmed" | "projected",
+        field: "inflowInCents" | "outflowInCents",
+      ) => after.months[month][part][field] - before.months[month][part][field];
+      // Plano em 2 parcelas: dez e jan confirmados; renovações em jan e fev projetadas.
+      expect([0, 1, 2].map((m) => delta(m, "confirmed", "inflowInCents"))).toEqual([
+        6_000 + 6_000,
+        6_000 + 6_000,
+        0,
+      ]);
+      expect([0, 1, 2].map((m) => delta(m, "projected", "inflowInCents"))).toEqual([
+        0,
+        6_000,
+        12_000,
+      ]);
+      // Despesas: nov (atrasada) e dez lançadas; jan e fev projetadas.
+      expect([0, 1, 2].map((m) => delta(m, "confirmed", "outflowInCents"))).toEqual([
+        1_000 + 500,
+        0,
+        0,
+      ]);
+      expect([0, 1, 2].map((m) => delta(m, "projected", "outflowInCents"))).toEqual([
+        0,
+        1_000,
+        1_000,
+      ]);
+      expect(after.overdue.outflowInCents - before.overdue.outflowInCents).toBe(
+        1_000 + 500,
+      );
+      expect(after.totals.balanceInCents - before.totals.balanceInCents).toBe(
+        24_000 + 18_000 - 1_500 - 2_000,
+      );
+      for (const month of after.months)
+        expect(month.balanceInCents).toBe(
+          month.confirmed.balanceInCents + month.projected.balanceInCents,
+        );
+
+      // Consultar de novo não duplica nada (renovação e competências já lançadas).
+      expect(await forecast()).toEqual({ ...after, generatedAt: expect.any(String) });
+
+      const standard = await forecast("");
+      expect(standard.months).toHaveLength(6);
+      expect(standard.endMonth).toBe("2032-05");
+      for (const query of ["?months=0", "?months=13", "?months=abc", "?months=2.5"]) {
+        const invalid = await app.inject({
+          method: "GET",
+          url: `/finance/forecast${query}`,
+          headers,
+        });
+        expect(invalid.statusCode).toBe(400);
+      }
+      const finance = await app.inject({
+        method: "GET",
+        url: "/finance/forecast",
+        headers: headersAs("finance"),
+      });
+      expect(finance.statusCode).toBe(200);
+      const denied = await app.inject({
+        method: "GET",
+        url: "/finance/forecast",
+        headers: headersAs("reception"),
+      });
+      expect(denied.statusCode).toBe(403);
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));

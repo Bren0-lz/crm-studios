@@ -124,6 +124,7 @@ import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  planInstallmentSchedule,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
@@ -3020,21 +3021,18 @@ export class MemoryClinicRepository implements ClinicRepository {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const baseAmount = Math.floor(input.totalValueInCents / input.installments);
-    const remainder = input.totalValueInCents % input.installments;
-    const installments: Receivable[] = Array.from(
-      { length: input.installments },
-      (_, index) => ({
+    const installments: Receivable[] = planInstallmentSchedule(input).map(
+      (installment) => ({
         id: uuid(),
         clinicId,
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
-        description: `${plan.name} · ${index + 1}/${input.installments}`,
-        installmentNumber: index + 1,
+        description: `${plan.name} · ${installment.installmentNumber}/${input.installments}`,
+        installmentNumber: installment.installmentNumber,
         installmentCount: input.installments,
-        dueDate: addMonths(input.firstDueDate, index),
-        amountInCents: baseAmount + (index < remainder ? 1 : 0),
+        dueDate: installment.dueDate,
+        amountInCents: installment.amountInCents,
         status: "open",
         overdue: false,
         createdAt: timestamp,

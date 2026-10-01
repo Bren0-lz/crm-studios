@@ -126,6 +126,7 @@ import {
   defaultRelationshipSettings,
   groupClassName,
   nextPlanPeriod,
+  planInstallmentSchedule,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
@@ -1629,16 +1630,6 @@ function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
-}
-
-function addMonths(dateValue: string, months: number) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  const date = new Date(Date.UTC(year!, month! - 1 + months, 1));
-  const lastDay = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  date.setUTCDate(Math.min(day!, lastDay));
-  return date.toISOString().slice(0, 10);
 }
 
 function hasDatabaseCode(error: unknown, code: string) {
@@ -5121,10 +5112,8 @@ export class PostgresClinicRepository implements ClinicRepository {
        VALUES ($1, $2, 'credit', $3, $4, $5)`,
       [clinicId, planId, input.totalSessions, creditReason, actorUserId],
     );
-    const baseAmount = Math.floor(input.totalValueInCents / input.installments);
-    const remainder = input.totalValueInCents % input.installments;
-    for (let index = 0; index < input.installments; index += 1) {
-      const amount = baseAmount + (index < remainder ? 1 : 0);
+    for (const installment of planInstallmentSchedule(input)) {
+      const amount = installment.amountInCents;
       const receivable = await client.query<{ id: string }>(
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
@@ -5134,10 +5123,10 @@ export class PostgresClinicRepository implements ClinicRepository {
           clinicId,
           input.patientId,
           planId,
-          `${input.name} · ${index + 1}/${input.installments}`,
-          index + 1,
+          `${input.name} · ${installment.installmentNumber}/${input.installments}`,
+          installment.installmentNumber,
           input.installments,
-          addMonths(input.firstDueDate, index),
+          installment.dueDate,
           amount,
         ],
       );

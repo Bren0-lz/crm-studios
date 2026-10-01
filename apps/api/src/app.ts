@@ -15,6 +15,7 @@ import {
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
   dailyCashFilterSchema,
+  financeForecastFilterSchema,
   relationshipSettingsSchema,
   holidayInputSchema,
   contactActivityInputSchema,
@@ -83,6 +84,7 @@ import {
   type UserSummary,
 } from "@crm/contracts";
 import { config } from "./config.js";
+import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
 import {
@@ -1722,6 +1724,28 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         request.user.clinicId,
         date ?? saoPauloToday(),
       );
+    },
+  );
+  app.get(
+    "/finance/forecast",
+    { preHandler: [authenticate, requireFinanceAccess] },
+    async (request) => {
+      const { months } = financeForecastFilterSchema.parse(request.query);
+      const { clinicId, sub } = request.user;
+      // Lança o que já é devido para que só o futuro fique como projetado.
+      await repository.renewDuePatientPlans(clinicId, sub);
+      await repository.generateDueRecurringPayables(clinicId, sub);
+      const [workspace, plans, recurringPayables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPatientPlans(clinicId),
+        repository.listRecurringPayables(clinicId),
+      ]);
+      return buildFinanceForecast(saoPauloToday().slice(0, 7), months, {
+        receivables: workspace.summary.receivables,
+        payables: workspace.payables,
+        plans,
+        recurringPayables,
+      });
     },
   );
   app.get(

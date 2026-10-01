@@ -328,14 +328,14 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes em `finance-forecast.test.ts` e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/finance-forecast.test.ts src/app.test.ts`
 - **Depende de:** T028
-- **Status:** DOING
+- **Status:** DONE
 
 ### T033 — Previsão de receitas na interface
 - **Escopo:** bloco "Previsão" em Financeiro, com uma tabela por mês que distingue confirmado de
   projetado e um seletor de 3, 6 ou 12 meses. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T032
-- **Status:** TODO
+- **Status:** DOING
 
 ### V2 — Revisão visual do financeiro (manual)
 - **Tipo:** manual
