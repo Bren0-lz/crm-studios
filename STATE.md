@@ -1,9 +1,9 @@
 # Estado do loop
 
-- **Tarefa atual:** V2
+- **Tarefa atual:** T042
 - **Última concluída:** T033
 - **Tentativas na atual:** 0/3
-- **Bloqueios:** aguardando revisão manual de V2
+- **Bloqueios:** nenhum
 
 ## Diário
 
@@ -64,3 +64,4 @@
 - 2026-10-01 Pendências da rede pública resolvidas (rede liberada): `npm run db:setup` aplicou a migração 0035 no Supabase; `npm run test:postgres` achou 2 falhas nos testes nunca executados (T028 e T030): o banco não tem nenhuma categoria financeira nem centro de custo, e os testes supunham que existiam. Corrigido só no teste (helper `testFinanceClassification()` cria categoria de despesa e centro de custo próprios com a marca `postgres-finance-classification-test`, apagados no afterAll). Integração 20/20; gate completo com o banco exit 0 (API 130, web 53, contratos 20). Código de produção do PG da T028/T030/T032 confirmado sem mudança. Nada pendente para o push além da V2.
 - 2026-10-01 Fora do plano, pedido do dono: Documentos removido por completo (verifier PASS; gate exit 0 com integração PG 20/20 sem skip). Saíram aba/rota /documentos, `DocumentsPage`, botão e modal "Declaração de comparecimento" (T026), rotas /document-templates* e /documents*, métodos dos repositórios, helpers `assertDocumentAppointment`/`appointmentDocumentVariables`, contratos e testes; "Documentos" saiu da matriz de permissões. Migração 0036_drop_documents apaga issued_documents e document_templates (já aplicada no Supabase; próxima livre: 0037). CREFITO de profissionais/prontuário mantido. Docs desatualizados p/ T041: README.md:12 e :26; STATUS Incremento 8 e linhas do Incremento 24 sobre documentos. V2 deixa de revisar a declaração de comparecimento. Observação: o painel do perfil dono quebra no teste web quando todos os endpoints devolvem [] (não investigado).
 - 2026-10-01 Bug no site (fora do plano): Planos e Prontuários mostravam erro porque a web manda `patientId=` vazio para listar tudo e o PostgreSQL rejeita "" como uuid (500). As rotas GET /plans e /clinical-records agora usam `optionalPatientFilterSchema` em app.ts (vazio = todos; id inválido = 400). Varredura das 12 páginas numa cópia local ligada ao Supabase: eram as únicas rotas com erro. O banco em memória não pega esse tipo de bug — filtros opcionais de uuid devem tratar string vazia na rota. Gate completo com o banco exit 0 (API 128, web 51, integração 20/20).
+- 2026-10-01 RODADA 3 (pedido do dono, execução automática): T042 marca "Studios Aryana" (interface + nome da clínica) e gestora "Aryana Dutra" (só o nome; login admin@movimenta.local mantido); T043/T044 Contratos de volta (modelos versionados + emissão com impressão, sem declaração de comparecimento; tabelas recriadas por migração nova 0038, vazias); T034/T035 exportação antecipada (deixa de depender da V2); T045 paginação em Clientes (20 por página); T046 modais sem desfoque e sem rolar o fundo. V2 voltou a TODO e passou a depender da rodada 3. Próximas migrações: 0037 (marca) e 0038 (contratos).

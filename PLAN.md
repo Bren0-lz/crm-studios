@@ -337,15 +337,49 @@ vem primeiro. A próxima migração livre é a **0031**.
 - **Depende de:** T032
 - **Status:** DONE
 
-### V2 — Revisão visual do financeiro (manual)
-- **Tipo:** manual
-- **Escopo:** revisar em 1440px e 390px a agenda (feriado, experimental, declaração, SOS), o CRM
-  e o Financeiro (despesas fixas, caixa do dia, previsão). Criar correções se precisar.
-  Pendência herdada da V1: em Relatórios, o texto `.sales-help` encosta na borda inferior do
-  painel `.sales-report` (1px) — falta margem inferior.
-- **Gate:** aprovação do dono no chat.
-- **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033
-- **Status:** BLOCKED
+### T042 — Marca "Studios Aryana" e conta da gestora "Aryana Dutra"
+- **Escopo:**
+  - O nome do CRM passa a ser "Studios Aryana" em tudo que o usuário vê: logo (`brand`
+    aria-label e `brand-name` em `App.tsx`), rótulo da clínica no topo, tela de login, título da
+    aba em `apps/web/index.html` ("Studios Aryana — Gestão clínica") e `creator` da planilha de
+    vendas (`sales-workbook.ts`).
+  - Nome da clínica: "Studios Aryana" (razão social "Studios Aryana Ltda.") no seed
+    (`database.ts`), no repositório em memória e nos dados demo que citarem o nome antigo.
+  - A conta de gestora (owner) passa a se chamar "Aryana Dutra" no seed e na memória. E-mail
+    (`admin@movimenta.local`) e senha **não** mudam.
+  - Migração nova `0037_rebrand_studios_aryana.sql` atualizando o nome/razão social da clínica e o
+    `full_name` da gestora pelos ids fixos do seed (sem efeito se não existirem).
+  - Testes que esperavam "Movimenta"/"Mariana Costa" passam a esperar os nomes novos.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts && npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D04
+- **Status:** TODO
+
+### T043 — Contratos na API
+- **Escopo:**
+  - Trazer de volta modelos versionados e documentos emitidos (removidos no commit `756aaaf`;
+    restaurar a partir de `git show 756aaaf^:<arquivo>`): schemas e tipos nos contratos, métodos
+    na interface `ClinicRepository` e nos dois repositórios, rotas `/document-templates`,
+    `/document-templates/:id/versions`, `/documents` e `/documents/:id/status`, variáveis de
+    profissional (`professionalId`, nome e CREFITO).
+  - **Sem** a declaração de comparecimento: nada de `appointmentId`, `{{atendimento_*}}` ou
+    `{{servico_nome}}`.
+  - Migração nova `0038_contracts.sql` recriando `document_templates` e `issued_documents`
+    (estrutura da 0007 + `professional_id` da 0029, sem `appointment_id`). Migrações antigas
+    intactas.
+  - Testes de API e de integração PG dos modelos e da emissão; sai o teste "drops the removed
+    documents tables".
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T042
+- **Status:** TODO
+
+### T044 — Contratos na interface
+- **Escopo:** item de menu "Contratos" em `/contratos` com a página de modelos e emissão
+  restaurada da antiga `DocumentsPage` (título "Contratos", impressão do documento emitido),
+  métodos em `api.ts`, CSS da página e "Contratos" na matriz de permissões da recepção. Sem botão
+  de declaração na agenda. Teste web (substitui "no longer offers the documents page").
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T043
+- **Status:** TODO
 
 ### T034 — Exportação da base de clientes na API
 - **Escopo:**
@@ -356,7 +390,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - O CSV sai em UTF-8 com BOM e separador `;`. O XLSX é gerado com `exceljs`.
   - Testes.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
-- **Depende de:** V2
+- **Depende de:** D04
 - **Status:** TODO
 
 ### T035 — Exportação da base de clientes na interface
@@ -364,6 +398,38 @@ vem primeiro. A próxima migração livre é a **0031**.
   filtros da tela e baixando o arquivo. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T034
+- **Status:** TODO
+
+### T045 — Paginação na lista de clientes
+- **Escopo:** só web, na página Clientes: 20 clientes por página, botões "Anterior" e "Próxima" e
+  o texto "Página X de Y · N clientes"; busca e filtros voltam para a página 1; os controles somem
+  quando tudo cabe numa página; funciona também no layout de cartões (≤700px). A exportação
+  continua usando todos os clientes filtrados, não só a página. Teste web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T035
+- **Status:** TODO
+
+### T046 — Modais sem desfoque e sem rolar a página de fundo
+- **Escopo:**
+  - Remover o desfoque (`backdrop-filter: blur(...)`) do fundo dos modais em `styles.css`; o
+    escurecimento continua. A barra superior não é modal e fica como está.
+  - Enquanto houver modal aberto, a página de trás não rola: o componente `Modal` trava a
+    rolagem do `body` e restaura ao fechar/desmontar, com contador para modais empilhados (só
+    libera quando o último fecha). Conferir overlays que não usam `Modal`.
+  - Teste web: abrir trava, fechar restaura, dois modais empilhados só liberam no último.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D04
+- **Status:** TODO
+
+### V2 — Revisão visual do financeiro (manual)
+- **Tipo:** manual
+- **Escopo:** revisar em 1440px e 390px a agenda (feriado, experimental, SOS), o CRM
+  e o Financeiro (despesas fixas, caixa do dia, previsão). Conferir também a marca "Studios Aryana", a página Contratos, a exportação e a paginação de
+  clientes e os modais (sem desfoque, sem rolar o fundo). Criar correções se precisar.
+  Pendência herdada da V1: em Relatórios, o texto `.sales-help` encosta na borda inferior do
+  painel `.sales-report` (1px) — falta margem inferior.
+- **Gate:** aprovação do dono no chat.
+- **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033, T042, T044, T035, T045, T046
 - **Status:** TODO
 
 ### T036 — Retenção e cancelamentos na API
