@@ -42,6 +42,7 @@ documentAppointmentDay.setUTCHours(13, 30, 0, 0);
 const ownerId = "22222222-2222-4222-8222-222222222222";
 const recurringPayableMarker = "postgres-recurring-payable-test";
 const dailyCashMarker = "postgres-daily-cash-test";
+const financeClassificationMarker = "postgres-finance-classification-test";
 // Dia exclusivo deste teste (aaaa-mm-dd), bem à frente de qualquer movimento real.
 const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -66,6 +67,23 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       clinicId,
       recurringPayableMarker,
     ]);
+  }
+
+  // O banco não traz categorias nem centros de custo prontos: os testes criam os seus.
+  async function testFinanceClassification() {
+    const category = await pool.query<{ id: string }>(
+      `INSERT INTO financial_categories (clinic_id, name, kind) VALUES ($1, $2, 'expense')
+       ON CONFLICT (clinic_id, name, kind) DO UPDATE SET active = true
+       RETURNING id`,
+      [clinicId, financeClassificationMarker],
+    );
+    const costCenter = await pool.query<{ id: string }>(
+      `INSERT INTO cost_centers (clinic_id, name) VALUES ($1, $2)
+       ON CONFLICT (clinic_id, name) DO UPDATE SET active = true
+       RETURNING id`,
+      [clinicId, financeClassificationMarker],
+    );
+    return [category, costCenter] as const;
   }
 
   async function cleanupDailyCash() {
@@ -235,6 +253,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupDocumentAppointment();
     await cleanupRecurringPayables();
     await cleanupDailyCash();
+    await pool.query("DELETE FROM financial_categories WHERE clinic_id = $1 AND name = $2", [
+      clinicId,
+      financeClassificationMarker,
+    ]);
+    await pool.query("DELETE FROM cost_centers WHERE clinic_id = $1 AND name = $2", [
+      clinicId,
+      financeClassificationMarker,
+    ]);
     await pool.query(
       `DELETE FROM financial_events WHERE receivable_id IN
        (SELECT r.id FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE pp.name = ANY($1::text[]))`,
@@ -920,18 +946,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
   it("builds the PostgreSQL daily cash by event date in the clinic time zone", async () => {
     await cleanupDailyCash();
-    const [patients, services, category, costCenter] = await Promise.all([
+    const [patients, services] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listServices(clinicId),
-      pool.query<{ id: string }>(
-        "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
-        [clinicId],
-      ),
-      pool.query<{ id: string }>(
-        "SELECT id FROM cost_centers WHERE clinic_id = $1 AND active LIMIT 1",
-        [clinicId],
-      ),
     ]);
+    const [category, costCenter] = await testFinanceClassification();
     const plan = await repository.createPatientPlan(clinicId, ownerId, {
       patientId: patients[0]!.id,
       serviceId: services[0]!.id,
@@ -1566,16 +1585,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   it("generates fixed expenses once per competence, respecting pause and end month", async () => {
     await cleanupRecurringPayables();
     try {
-      const [category, costCenter] = await Promise.all([
-        pool.query<{ id: string }>(
-          "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
-          [clinicId],
-        ),
-        pool.query<{ id: string }>(
-          "SELECT id FROM cost_centers WHERE clinic_id = $1 AND active LIMIT 1",
-          [clinicId],
-        ),
-      ]);
+      const [category, costCenter] = await testFinanceClassification();
       const current = saoPauloToday().slice(0, 7);
       const shift = (months: number) => {
         const [year, month] = current.split("-").map(Number);
