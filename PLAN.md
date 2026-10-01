@@ -370,7 +370,7 @@ vem primeiro. A próxima migração livre é a **0031**.
     documents tables".
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T042
-- **Status:** DOING
+- **Status:** DONE
 
 ### T044 — Contratos na interface
 - **Escopo:** item de menu "Contratos" em `/contratos` com a página de modelos e emissão
@@ -379,7 +379,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   de declaração na agenda. Teste web (substitui "no longer offers the documents page").
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T043
-- **Status:** TODO
+- **Status:** DOING
 
 ### T034 — Exportação da base de clientes na API
 - **Escopo:**

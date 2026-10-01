@@ -1716,6 +1716,146 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("versions templates without changing issued document snapshots", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patients = await app.inject({
+      method: "GET",
+      url: "/patients",
+      headers,
+    });
+    const patient = patients.json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Contrato de teste",
+        kind: "contract",
+        body: "Versão original para {{paciente_nome}} em {{data_emissao}}.",
+      },
+    });
+    expect(template.statusCode).toBe(201);
+    expect(template.json()).toMatchObject({ version: 1, active: true });
+    const document = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        title: "Contrato preservado",
+      },
+    });
+    expect(document.statusCode).toBe(201);
+    expect(document.json().snapshotBody).toContain("Versão original");
+    expect(document.json().snapshotBody).toContain(patient.fullName);
+    const nextVersion = await app.inject({
+      method: "POST",
+      url: `/document-templates/${template.json().id}/versions`,
+      headers,
+      payload: { body: "Nova versão do contrato para {{paciente_nome}}." },
+    });
+    expect(nextVersion.json()).toMatchObject({ version: 2, active: true });
+    const documents = await app.inject({
+      method: "GET",
+      url: "/documents",
+      headers,
+    });
+    expect(documents.json()[0].snapshotBody).toContain("Versão original");
+    const issued = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "issued" },
+    });
+    expect(issued.json()).toMatchObject({ status: "issued" });
+    const cancelled = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "cancelled" },
+    });
+    expect(cancelled.json()).toMatchObject({ status: "cancelled" });
+    const invalidTransition = await app.inject({
+      method: "PATCH",
+      url: `/documents/${document.json().id}/status`,
+      headers,
+      payload: { status: "issued" },
+    });
+    expect(invalidTransition.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("fills professional variables when issuing a document", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/professionals", headers }),
+    ]);
+    const patient = patients.json()[0];
+    const professional = professionals.json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Declaração assinada",
+        kind: "attendance_declaration",
+        body: "Declaro que {{paciente_nome}} foi atendido por [{{profissional_nome}}] [{{profissional_crefito}}].",
+      },
+    });
+    expect(template.statusCode).toBe(201);
+    const withProfessional = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        professionalId: professional.id,
+        title: "Declaração com profissional",
+      },
+    });
+    expect(withProfessional.statusCode).toBe(201);
+    expect(withProfessional.json()).toMatchObject({
+      professionalId: professional.id,
+    });
+    expect(withProfessional.json().snapshotBody).toContain(
+      `[${professional.fullName}] [${professional.crefito}]`,
+    );
+    const withoutProfessional = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        title: "Declaração sem profissional",
+      },
+    });
+    expect(withoutProfessional.statusCode).toBe(201);
+    expect(withoutProfessional.json().snapshotBody).toContain("[] []");
+    expect(withoutProfessional.json().snapshotBody).not.toContain("{{");
+    const unknownProfessional = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        professionalId: "99999999-9999-4999-8999-999999999999",
+        title: "Declaração inválida",
+      },
+    });
+    expect(unknownProfessional.statusCode).toBe(404);
+    expect(unknownProfessional.json()).toMatchObject({
+      code: "PROFESSIONAL_NOT_FOUND",
+    });
+    await app.close();
+  });
+
   it("returns reproducible management metrics and an authenticated CSV", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

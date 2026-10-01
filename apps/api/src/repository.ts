@@ -36,6 +36,9 @@ import type {
   CommunicationPreference,
   CommunicationPreferenceInput,
   DashboardSummary,
+  DocumentStatus,
+  DocumentTemplate,
+  DocumentTemplateInput,
   FinancialSummary,
   FinancialCategory,
   FinancialCategoryInput,
@@ -63,7 +66,9 @@ import type {
   ManualMessageInput,
   ManagementReport,
   SalesReport,
+  IssuedDocument,
   InventoryWorkspace,
+  IssuedDocumentInput,
   OutboundMessage,
   Patient,
   PatientInput,
@@ -615,6 +620,27 @@ export interface ClinicRepository {
     clinicId: string,
     referenceDate: string,
   ): Promise<ReminderGenerationResult>;
+  listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
+  createDocumentTemplate(
+    clinicId: string,
+    input: DocumentTemplateInput,
+  ): Promise<DocumentTemplate>;
+  createDocumentTemplateVersion(
+    clinicId: string,
+    templateId: string,
+    body: string,
+  ): Promise<DocumentTemplate | null>;
+  listIssuedDocuments(clinicId: string): Promise<IssuedDocument[]>;
+  createIssuedDocument(
+    clinicId: string,
+    actorUserId: string,
+    input: IssuedDocumentInput,
+  ): Promise<IssuedDocument>;
+  updateIssuedDocumentStatus(
+    clinicId: string,
+    documentId: string,
+    status: Exclude<DocumentStatus, "draft">,
+  ): Promise<IssuedDocument | null>;
   getManagementReport(
     clinicId: string,
     from: string,

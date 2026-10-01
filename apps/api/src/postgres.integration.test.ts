@@ -1398,17 +1398,148 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).toBeNull();
   });
 
-  it("exposes the professional CREFITO on clinical records", async () => {
-    for (const record of await repository.listClinicalRecords(clinicId))
-      expect(record.professionalCrefito).toBeTruthy();
+  it("fills professional variables on issued documents and exposes CREFITO on records", async () => {
+    const [patient] = await repository.listPatients(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const template = await repository.createDocumentTemplate(clinicId, {
+      name: "postgres-document-professional-test",
+      kind: "other",
+      body: "Assinado por [{{profissional_nome}}] [{{profissional_crefito}}].",
+    });
+    try {
+      const signed = await repository.createIssuedDocument(clinicId, ownerId, {
+        templateId: template.id,
+        patientId: patient!.id,
+        professionalId: professional!.id,
+        title: "Documento com profissional",
+      });
+      expect(signed.professionalId).toBe(professional!.id);
+      expect(signed.snapshotBody).toContain(
+        `[${professional!.fullName}] [${professional!.crefito}]`,
+      );
+      const unsigned = await repository.createIssuedDocument(clinicId, ownerId, {
+        templateId: template.id,
+        patientId: patient!.id,
+        title: "Documento sem profissional",
+      });
+      expect(unsigned.snapshotBody).toContain("[] []");
+      await expect(
+        repository.createIssuedDocument(clinicId, ownerId, {
+          templateId: template.id,
+          patientId: patient!.id,
+          professionalId: "fafafafa-fafa-4afa-8afa-fafafafafafa",
+          title: "Documento inválido",
+        }),
+      ).rejects.toMatchObject({ code: "PROFESSIONAL_NOT_FOUND", statusCode: 404 });
+      for (const record of await repository.listClinicalRecords(clinicId))
+        expect(record.professionalCrefito).toBeTruthy();
+    } finally {
+      await pool.query("DELETE FROM issued_documents WHERE template_id = $1", [
+        template.id,
+      ]);
+      await pool.query("DELETE FROM document_templates WHERE id = $1", [
+        template.id,
+      ]);
+    }
   });
 
-  it("drops the removed documents tables", async () => {
-    const result = await pool.query<{ issued: string | null; templates: string | null }>(
-      `SELECT to_regclass('issued_documents')::text AS issued,
-              to_regclass('document_templates')::text AS templates`,
-    );
-    expect(result.rows[0]).toEqual({ issued: null, templates: null });
+  it("versions contract templates without changing issued snapshots", async () => {
+    const name = "postgres-document-version-test";
+    const cleanup = async () => {
+      await pool.query(
+        `DELETE FROM issued_documents WHERE template_id IN
+           (SELECT id FROM document_templates WHERE clinic_id = $1 AND name = $2)`,
+        [clinicId, name],
+      );
+      await pool.query(
+        "DELETE FROM document_templates WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    };
+    await cleanup();
+    try {
+      const columns = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'issued_documents'`,
+      );
+      const columnNames = columns.rows.map((row) => row.column_name);
+      expect(columnNames).toContain("professional_id");
+      expect(columnNames).not.toContain("appointment_id");
+
+      const [patient] = await repository.listPatients(clinicId);
+      const template = await repository.createDocumentTemplate(clinicId, {
+        name,
+        kind: "contract",
+        body: "Versão original para {{paciente_nome}} em {{clinica_nome}}.",
+      });
+      expect(template).toMatchObject({ version: 1, active: true });
+      await expect(
+        repository.createDocumentTemplate(clinicId, {
+          name,
+          kind: "contract",
+          body: "Outro modelo ativo com o mesmo nome.",
+        }),
+      ).rejects.toMatchObject({ code: "DOCUMENT_TEMPLATE_DUPLICATE", statusCode: 409 });
+      const document = await repository.createIssuedDocument(clinicId, ownerId, {
+        templateId: template.id,
+        patientId: patient!.id,
+        title: "Contrato preservado",
+      });
+      expect(document).toMatchObject({ status: "draft", templateVersion: 1 });
+      expect(document.snapshotBody).toBe(
+        `Versão original para ${patient!.fullName} em Studios Aryana.`,
+      );
+
+      const next = await repository.createDocumentTemplateVersion(
+        clinicId,
+        template.id,
+        "Nova versão do contrato para {{paciente_nome}}.",
+      );
+      expect(next).toMatchObject({
+        version: 2,
+        active: true,
+        previousVersionId: template.id,
+      });
+      const versions = (await repository.listDocumentTemplates(clinicId)).filter(
+        (item) => item.name === name,
+      );
+      expect(versions.map((item) => [item.version, item.active])).toEqual([
+        [2, true],
+        [1, false],
+      ]);
+      await expect(
+        repository.createIssuedDocument(clinicId, ownerId, {
+          templateId: template.id,
+          patientId: patient!.id,
+          title: "Versão inativa",
+        }),
+      ).rejects.toMatchObject({ code: "DOCUMENT_TEMPLATE_NOT_FOUND", statusCode: 404 });
+      expect(
+        (await repository.listIssuedDocuments(clinicId)).find(
+          (item) => item.id === document.id,
+        )?.snapshotBody,
+      ).toContain("Versão original");
+
+      const issued = await repository.updateIssuedDocumentStatus(
+        clinicId,
+        document.id,
+        "issued",
+      );
+      expect(issued).toMatchObject({ status: "issued" });
+      expect(issued?.issuedAt).toBeTruthy();
+      const cancelled = await repository.updateIssuedDocumentStatus(
+        clinicId,
+        document.id,
+        "cancelled",
+      );
+      expect(cancelled).toMatchObject({ status: "cancelled" });
+      expect(cancelled?.cancelledAt).toBeTruthy();
+      await expect(
+        repository.updateIssuedDocumentStatus(clinicId, document.id, "issued"),
+      ).rejects.toMatchObject({ code: "DOCUMENT_ALREADY_CANCELLED", statusCode: 409 });
+    } finally {
+      await cleanup();
+    }
   });
 
   it("imports patients in one transaction and skips duplicates already in the database", async () => {
