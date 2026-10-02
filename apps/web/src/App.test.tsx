@@ -414,7 +414,8 @@ describe("application shell", () => {
       screen.getByRole("heading", { name: "Acesse sua clínica" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Studios Aryana")).toBeInTheDocument();
-    expect(screen.getByText("Studios Aryana", { selector: ".brand-name" })).toBeInTheDocument();
+    expect(document.querySelector(".brand-name")).toHaveTextContent(/^Studios Aryana$/);
+    expect(screen.getByText("Aryana", { selector: ".brand-word" })).toBeInTheDocument();
     expect(screen.getByText("admin@movimenta.local · Admin@123")).toBeInTheDocument();
     expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
   });

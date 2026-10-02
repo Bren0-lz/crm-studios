@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
-  Activity,
   Bell,
   BarChart3,
   CalendarDays,
@@ -249,10 +248,15 @@ function VisitTypeBadge({ appointment }: { appointment: Appointment }) {
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="brand" aria-label="Studios Aryana">
-      <span className="brand-mark">
-        <Activity size={compact ? 20 : 24} strokeWidth={2.3} />
+      <span className="brand-mark" aria-hidden="true">
+        A
       </span>
-      {!compact && <span className="brand-name">Studios Aryana</span>}
+      {!compact && (
+        <span className="brand-name">
+          <span className="brand-kicker">Studios</span>{" "}
+          <span className="brand-word">Aryana</span>
+        </span>
+      )}
     </div>
   );
 }
