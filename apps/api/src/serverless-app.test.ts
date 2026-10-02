@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { serverlessDatabaseUrl } from "./database-connection.js";
 import { assertServerlessConfig, stripApiPrefix } from "./serverless-app.js";
 
 describe("serverless entry", () => {
@@ -23,6 +24,23 @@ describe("serverless entry", () => {
       }),
     ).toThrow(/JWT_SECRET/);
     expect(() => assertServerlessConfig({ STORAGE_MODE: "postgres", JWT_SECRET: secret })).not.toThrow();
+  });
+
+  it("moves the Supabase session pooler to transaction mode and keeps other URLs", () => {
+    const pooler = "aws-0-sa-east-1.pooler.supabase.com";
+    expect(serverlessDatabaseUrl(`postgresql://postgres.abc:senha@${pooler}:5432/postgres`)).toBe(
+      `postgresql://postgres.abc:senha@${pooler}:6543/postgres`,
+    );
+    expect(serverlessDatabaseUrl(`postgresql://postgres.abc:senha@${pooler}/postgres?sslmode=require`)).toBe(
+      `postgresql://postgres.abc:senha@${pooler}:6543/postgres?sslmode=require`,
+    );
+    for (const unchanged of [
+      `postgresql://postgres.abc:senha@${pooler}:6543/postgres`,
+      "postgresql://postgres:senha@db.abc.supabase.co:5432/postgres",
+      "postgresql://crm:crm@localhost:5432/crm",
+    ]) {
+      expect(serverlessDatabaseUrl(unchanged)).toBe(unchanged);
+    }
   });
 });
 

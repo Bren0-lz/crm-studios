@@ -36,6 +36,21 @@ export function usesTransactionPooler(url: string): boolean {
 }
 
 /**
+ * Funções serverless abrem muitas instâncias curtas: no pooler do Supabase em modo sessão
+ * (porta 5432) cada uma prende uma vaga do limite de clientes e o site para com
+ * EMAXCONNSESSION. O mesmo host e as mesmas credenciais atendem em modo transação na 6543,
+ * então a URL do pooler em modo sessão é trocada por ela. Outras URLs ficam como estão.
+ */
+export function serverlessDatabaseUrl(url: string): string {
+  const parsed = new URL(url);
+  const isSupabasePooler = /\.pooler\.supabase\.com$/i.test(parsed.hostname);
+  if (!isSupabasePooler || usesTransactionPooler(url)) return url;
+  if (parsed.port !== "" && parsed.port !== "5432") return url;
+  parsed.port = transactionPoolerPort;
+  return parsed.toString();
+}
+
+/**
  * Monta a configuração do `pg.Pool`. Parâmetros de TLS da URL (`sslmode`, `sslrootcert`…)
  * são removidos, porque o `pg` daria preferência a eles sobre a opção `ssl` e trataria
  * `sslmode=require` como verificação completa, o que falha com a CA própria do Supabase.

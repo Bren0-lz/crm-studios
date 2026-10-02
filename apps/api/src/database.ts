@@ -10,15 +10,19 @@ import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 const migrationsPath = fileURLToPath(new URL("../migrations", import.meta.url));
 const migrationLockId = 927_410_615;
 
-export function createDatabasePool({ max = 10 }: { max?: number } = {}) {
+export function createDatabasePool({
+  max = 10,
+  url = config.DATABASE_URL,
+  idleTimeoutMillis = 30_000,
+}: { max?: number; url?: string; idleTimeoutMillis?: number } = {}) {
   const pool = new Pool({
     ...databaseConnectionConfig({
-      url: config.DATABASE_URL,
+      url,
       ssl: config.DATABASE_SSL,
       ...(config.DATABASE_SSL_CA ? { caCertPath: config.DATABASE_SSL_CA } : {}),
     }),
     max,
-    idleTimeoutMillis: 30_000,
+    idleTimeoutMillis,
     connectionTimeoutMillis: 5_000,
   });
   // Sem este handler, uma conexão ociosa encerrada pelo servidor (ex.: Postgres

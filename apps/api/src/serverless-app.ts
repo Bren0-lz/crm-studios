@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { createDatabasePool } from "./database.js";
+import { serverlessDatabaseUrl } from "./database-connection.js";
 import { PostgresClinicRepository } from "./postgres-repository.js";
 
 /**
@@ -35,7 +36,13 @@ export function assertServerlessConfig(current: {
 function getApp() {
   assertServerlessConfig(config);
   appPromise ??= (async () => {
-    const pool = createDatabasePool({ max: 3 });
+    // Uma conexão por instância, devolvida logo depois de ociosa: são muitas instâncias
+    // curtas dividindo o limite de clientes do pooler.
+    const pool = createDatabasePool({
+      max: 1,
+      url: serverlessDatabaseUrl(config.DATABASE_URL),
+      idleTimeoutMillis: 5_000,
+    });
     // Falha cedo e com motivo claro se a DATABASE_URL estiver errada ou o banco inacessível.
     try {
       await pool.query("SELECT 1");
