@@ -1581,6 +1581,66 @@ export interface FinanceForecast {
   };
 }
 
+/**
+ * Query de `GET /reports/retention`. Parâmetros vazios contam como ausentes:
+ * `to` ausente = hoje (fuso da clínica); `from` ausente = 1º dia do mês cinco
+ * meses antes do mês de `to` (seis meses no total).
+ */
+export const retentionReportFilterSchema = z
+  .object({
+    from: z.preprocess(
+      emptyQueryToUndefined,
+      z.iso.date("Informe uma data válida.").optional(),
+    ),
+    to: z.preprocess(
+      emptyQueryToUndefined,
+      z.iso.date("Informe uma data válida.").optional(),
+    ),
+  })
+  .refine((value) => !value.from || !value.to || value.from <= value.to, {
+    message: "A data inicial deve ser anterior à data final.",
+    path: ["from"],
+  });
+export type RetentionReportFilter = z.infer<typeof retentionReportFilterSchema>;
+
+/** Retenção de clientes num mês. Atendimentos de lead ficam de fora. */
+export interface RetentionMonth {
+  /** Mês (AAAA-MM). */
+  month: string;
+  /** Clientes com atendimento concluído no mês ou plano vigente em algum dia do mês. */
+  activeClients: number;
+  /** Clientes cuja primeira atividade (atendimento concluído ou plano) caiu no mês. */
+  newClients: number;
+  /** Ativos no mês anterior que não estão ativos no mês. */
+  lostClients: number;
+  /**
+   * (ativos do mês anterior − perdidos) ÷ ativos do mês anterior, entre 0 e 1;
+   * `null` quando o mês anterior não teve ativos.
+   */
+  retentionRate: number | null;
+  /** Planos cancelados no mês (pela data do cancelamento). */
+  cancelledPlans: number;
+  /** Soma do valor em aberto cancelado junto com esses planos. */
+  cancelledValueInCents: number;
+}
+
+export interface RetentionReport {
+  generatedAt: string;
+  /** Período pedido (aaaa-mm-dd), já com os padrões aplicados. */
+  from: string;
+  to: string;
+  /** Mês de `from` e mês de `to` limitado ao mês atual da clínica. */
+  startMonth: string;
+  endMonth: string;
+  months: RetentionMonth[];
+  totals: {
+    newClients: number;
+    lostClients: number;
+    cancelledPlans: number;
+    cancelledValueInCents: number;
+  };
+}
+
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;

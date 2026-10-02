@@ -2566,6 +2566,170 @@ describe("CRM API", () => {
     }
   });
 
+  it("reports client retention and plan cancellations by month", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 12h de São Paulo em 15/03/2033.
+    vi.setSystemTime(new Date("2033-03-15T15:00:00.000Z"));
+    try {
+      const { app } = await authenticatedApp();
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headersAs = (role: UserRole = "owner") => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const headers = headersAs();
+      type Month = {
+        month: string;
+        activeClients: number;
+        newClients: number;
+        lostClients: number;
+        cancelledPlans: number;
+        cancelledValueInCents: number;
+      };
+      const retention = async (query = "?from=2033-01-01&to=2033-03-31") => {
+        const response = await app.inject({
+          method: "GET",
+          url: `/reports/retention${query}`,
+          headers,
+        });
+        expect(response.statusCode).toBe(200);
+        return response.json() as {
+          from: string;
+          to: string;
+          startMonth: string;
+          endMonth: string;
+          months: Month[];
+        };
+      };
+      // Os dados demo também entram: compara-se a diferença.
+      const before = await retention();
+      expect(before).toMatchObject({
+        from: "2033-01-01",
+        to: "2033-03-31",
+        startMonth: "2033-01",
+        endMonth: "2033-03",
+      });
+      expect(before.months.map((item) => item.month)).toEqual([
+        "2033-01",
+        "2033-02",
+        "2033-03",
+      ]);
+
+      const services = await app.inject({ method: "GET", url: "/services", headers });
+      const createPatient = async (fullName: string, phone: string) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload: { fullName, phone, tags: [] },
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json().id as string;
+      };
+      const createPlan = async (
+        patientId: string,
+        validFrom: string,
+        validUntil?: string,
+      ) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/plans",
+          headers,
+          payload: {
+            patientId,
+            serviceId: services.json()[0].id,
+            kind: "fixed_package",
+            name: "Plano de retenção",
+            totalSessions: 4,
+            validFrom,
+            ...(validUntil ? { validUntil } : {}),
+            totalValueInCents: 12_000,
+            installments: 2,
+            firstDueDate: validFrom,
+          },
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json().id as string;
+      };
+      // Plano só em fevereiro: novo e ativo em fevereiro, perdido em março.
+      await createPlan(
+        await createPatient("Retenção Fevereiro", "11955550001"),
+        "2033-02-01",
+        "2033-02-28",
+      );
+      // Plano de março cancelado em março, com as duas parcelas em aberto.
+      const cancelledPlan = await createPlan(
+        await createPatient("Retenção Março", "11955550002"),
+        "2033-03-01",
+      );
+      const cancellation = await app.inject({
+        method: "PATCH",
+        url: `/plans/${cancelledPlan}/status`,
+        headers,
+        payload: { status: "cancelled" },
+      });
+      expect(cancellation.statusCode).toBe(200);
+
+      const after = await retention();
+      const delta = (month: string, key: keyof Omit<Month, "month">) =>
+        after.months.find((item) => item.month === month)![key] -
+        before.months.find((item) => item.month === month)![key];
+      expect(delta("2033-01", "activeClients")).toBe(0);
+      expect(delta("2033-02", "activeClients")).toBe(1);
+      expect(delta("2033-02", "newClients")).toBe(1);
+      expect(delta("2033-02", "lostClients")).toBe(0);
+      expect(delta("2033-03", "activeClients")).toBe(1);
+      expect(delta("2033-03", "newClients")).toBe(1);
+      expect(delta("2033-03", "lostClients")).toBe(1);
+      expect(delta("2033-03", "cancelledPlans")).toBe(1);
+      expect(delta("2033-03", "cancelledValueInCents")).toBe(12_000);
+
+      // Parâmetros vazios: até hoje, seis meses; meses futuros não entram.
+      const defaults = await retention("?from=&to=");
+      expect(defaults).toMatchObject({
+        from: "2032-10-01",
+        to: "2033-03-15",
+        startMonth: "2032-10",
+        endMonth: "2033-03",
+      });
+      expect(defaults.months).toHaveLength(6);
+      const future = await retention("?from=2033-02-01&to=2033-08-31");
+      expect(future.endMonth).toBe("2033-03");
+      expect(future.months).toHaveLength(2);
+
+      for (const query of [
+        "?from=abc",
+        "?from=2033-03-01&to=2033-02-01",
+        "?from=2033-04-01",
+        "?from=2031-01-01&to=2033-03-01",
+      ]) {
+        const invalid = await app.inject({
+          method: "GET",
+          url: `/reports/retention${query}`,
+          headers,
+        });
+        expect(invalid.statusCode).toBe(400);
+      }
+      const finance = await app.inject({
+        method: "GET",
+        url: "/reports/retention",
+        headers: headersAs("finance"),
+      });
+      expect(finance.statusCode).toBe(200);
+      for (const role of ["reception", "physiotherapist"] as const) {
+        const denied = await app.inject({
+          method: "GET",
+          url: "/reports/retention",
+          headers: headersAs(role),
+        });
+        expect(denied.statusCode).toBe(403);
+      }
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));

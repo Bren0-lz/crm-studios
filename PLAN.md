@@ -430,7 +430,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   painel `.sales-report` (1px) — falta margem inferior.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033, T042, T044, T035, T045, T046
-- **Status:** BLOCKED
+- **Status:** DONE
 
 ### T036 — Retenção e cancelamentos na API
 - **Escopo:**
@@ -446,7 +446,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes em `retention-report.test.ts` e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/retention-report.test.ts src/app.test.ts`
 - **Depende de:** V2
-- **Status:** TODO
+- **Status:** DONE
 
 ### T037 — Rankings e faixa etária na API
 - **Escopo:**

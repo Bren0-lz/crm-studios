@@ -1,9 +1,9 @@
 # Estado do loop
 
-- **Tarefa atual:** V2
-- **Última concluída:** T046
+- **Tarefa atual:** T037
+- **Última concluída:** T036
 - **Tentativas na atual:** 0/3
-- **Bloqueios:** aguardando revisão manual de V2
+- **Bloqueios:** nenhum
 
 ## Diário
 
@@ -75,3 +75,5 @@
 - 2026-10-02 T046 DONE (verifier PASS na 1ª; web 66). Sem `backdrop-filter` no `.modal-backdrop` (só o da topbar ficou). `useBodyScrollLock()` (contador de módulo `bodyScrollLocks`, classe `body.modal-open { overflow: hidden }`, compensa a largura da barra com padding-right e restaura o original) usado por `Modal` (agora exportado) e `Drawer`. Diálogo novo de tela cheia deve usar o hook, não mexer em body.style.overflow. `.sidebar-scrim` (menu no celular) não trava — é navegação.
 - 2026-10-02 RODADA 3 concluída (T042–T046, T034, T035). aguardando revisão manual de V2. Nada pushado desde c553022; migrações 0037 e 0038 já aplicadas no Supabase pelos testes.
 - 2026-10-02 Site fora do ar (fora do plano): SERVER_START_FAILED por EMAXCONNSESSION — a DATABASE_URL da Vercel aponta para o pooler em modo SESSÃO (5432), não transação; cada instância prendia até 3 das 15 vagas. Correção: `serverlessDatabaseUrl()` (database-connection.ts) troca *.pooler.supabase.com:5432 por :6543 só na função serverless; pool da função com max 1 e idleTimeoutMillis 5s; `createDatabasePool` aceita `url` e `idleTimeoutMillis`. Conferido rodando a função empacotada localmente com a URL 5432 (200 em todas as rotas com o modo sessão saturado). Recomendado ao dono trocar a DATABASE_URL da Vercel pela do Transaction pooler mesmo assim.
+- 2026-10-02 V2 DONE: aprovada pelo dono no chat, sem pedir correções (inclusive a margem do `.sales-help` em Relatórios, que ficou como está). Loop segue com T036.
+- 2026-10-02 T036 DONE (verifier PASS na 1ª; API 148, integração PG sem skip). `GET /reports/retention?from&to` (owner/finance, `requireManagementAccess`): datas aaaa-mm-dd, vazio = ausente; padrão to=hoje, from=1º do mês 5 meses antes (6 meses); 400 INVALID_PERIOD (from>to) e RETENTION_PERIOD_TOO_LONG (>24 meses); meses futuros cortados. Contratos: `retentionReportFilterSchema`, `RetentionMonth` {month, activeClients, newClients, lostClients, retentionRate (fração 0–1 ou null), cancelledPlans, cancelledValueInCents}, `RetentionReport` {generatedAt, from, to, startMonth, endMonth, months, totals}. `resolveRetentionPeriod` reutilizável na T037. Plano pausado conta como vigente; lead = atendimento sem patientId. Rota lê todos os atendimentos/planos da clínica (otimizar se a base crescer).

@@ -71,6 +71,7 @@ import {
   receivableRenegotiationInputSchema,
   roomInputSchema,
   replacementBookingInputSchema,
+  retentionReportFilterSchema,
   scheduleBlockInputSchema,
   serviceInputSchema,
   stockMovementInputSchema,
@@ -87,6 +88,10 @@ import {
 import { config } from "./config.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
+import {
+  buildRetentionReport,
+  resolveRetentionPeriod,
+} from "./retention-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
 import {
   filterPatientsForExport,
@@ -2317,6 +2322,27 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         filter.from,
         filter.to,
       );
+    },
+  );
+  app.get(
+    "/reports/retention",
+    { preHandler: [authenticate, requireManagementAccess] },
+    async (request) => {
+      const filter = retentionReportFilterSchema.parse(request.query);
+      const today = saoPauloToday();
+      const period = resolveRetentionPeriod(filter, today);
+      const { clinicId } = request.user;
+      // Toda a história: "novo" depende da primeira atividade do cliente; o
+      // relatório descarta o que cai fora dos meses pedidos.
+      const [appointments, plans] = await Promise.all([
+        repository.listAppointments(
+          clinicId,
+          "1900-01-01T00:00:00.000Z",
+          "9999-12-31T00:00:00.000Z",
+        ),
+        repository.listPatientPlans(clinicId),
+      ]);
+      return buildRetentionReport(period, { appointments, plans }, today);
     },
   );
   app.get(
