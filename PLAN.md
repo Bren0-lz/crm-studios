@@ -391,14 +391,14 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** D04
-- **Status:** DOING
+- **Status:** DONE
 
 ### T035 — Exportação da base de clientes na interface
 - **Escopo:** botão "Exportar" em Clientes (só owner), com modal de formato e colunas, usando os
   filtros da tela e baixando o arquivo. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T034
-- **Status:** TODO
+- **Status:** DOING
 
 ### T045 — Paginação na lista de clientes
 - **Escopo:** só web, na página Clientes: 20 clientes por página, botões "Anterior" e "Próxima" e

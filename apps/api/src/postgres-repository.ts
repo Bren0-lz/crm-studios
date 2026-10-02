@@ -2356,6 +2356,24 @@ export class PostgresClinicRepository implements ClinicRepository {
     });
   }
 
+  async recordAdminAuditEvent(
+    clinicId: string,
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    metadata: Record<string, unknown> = {},
+  ) {
+    await this.addAdminAudit(
+      this.pool,
+      clinicId,
+      actorUserId,
+      action,
+      entityType,
+      undefined,
+      metadata,
+    );
+  }
+
   async listAdminAuditEvents(clinicId: string) {
     const result = await this.pool.query<{
       id: string;

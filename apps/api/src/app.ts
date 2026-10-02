@@ -60,6 +60,7 @@ import {
   planAutoRenewInputSchema,
   planRenewalInputSchema,
   planTransitionSchema,
+  patientExportFilterSchema,
   patientInputSchema,
   patientImportFileSchema,
   professionalInputSchema,
@@ -87,6 +88,11 @@ import { config } from "./config.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+import {
+  filterPatientsForExport,
+  patientsToCsv,
+  patientsToXlsx,
+} from "./patient-export.js";
 
 // A interface manda `patientId=` vazio para listar tudo; o PostgreSQL não aceita "" como uuid.
 const optionalPatientFilterSchema = z.object({
@@ -779,6 +785,51 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     const query = request.query as { search?: string };
     return repository.listPatients(request.user.clinicId, query.search);
   });
+  app.get(
+    "/patients/export",
+    { preHandler: [authenticate, requireOwnerAccess] },
+    async (request, reply) => {
+      const { format, columns, ...filters } = patientExportFilterSchema.parse(
+        request.query,
+      );
+      const clinicId = request.user.clinicId;
+      const today = saoPauloToday();
+      const [patients, plans] = await Promise.all([
+        repository.listPatients(clinicId, filters.search),
+        filters.activePlan === undefined
+          ? Promise.resolve([])
+          : repository.listPatientPlans(clinicId),
+      ]);
+      const rows = filterPatientsForExport(
+        patients,
+        plans,
+        { format, columns, ...filters },
+        today,
+      );
+      await repository.recordAdminAuditEvent(
+        clinicId,
+        request.user.sub,
+        "patients.exported",
+        "patient",
+        { format, columns, filters, count: rows.length },
+      );
+      const fileName = `clientes-${today}.${format}`;
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="${fileName}"`,
+      );
+      if (format === "xlsx")
+        return reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .send(await patientsToXlsx(rows, columns));
+      return reply
+        .header("Content-Type", "text/csv; charset=utf-8")
+        .send(patientsToCsv(rows, columns));
+    },
+  );
   app.post(
     "/patients",
     { preHandler: authenticate },

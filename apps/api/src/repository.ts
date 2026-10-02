@@ -164,6 +164,14 @@ export interface ClinicRepository {
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
+  /** Registra um evento na auditoria administrativa (ex.: `patients.exported`). */
+  recordAdminAuditEvent(
+    clinicId: string,
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void>;
   /** Devolve os padrões quando a clínica ainda não salvou configurações. */
   getRelationshipSettings(clinicId: string): Promise<RelationshipSettings>;
   updateRelationshipSettings(

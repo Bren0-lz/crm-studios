@@ -38,6 +38,7 @@ const ownerId = "22222222-2222-4222-8222-222222222222";
 const recurringPayableMarker = "postgres-recurring-payable-test";
 const dailyCashMarker = "postgres-daily-cash-test";
 const financeClassificationMarker = "postgres-finance-classification-test";
+const exportAuditMarker = "postgres-export-audit-test";
 // Dia exclusivo deste teste (aaaa-mm-dd), bem à frente de qualquer movimento real.
 const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -216,8 +217,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     repository = new PostgresClinicRepository(pool);
   });
 
+  async function cleanupExportAudit() {
+    await pool.query(
+      "DELETE FROM audit_events WHERE clinic_id = $1 AND action = 'patients.exported' AND metadata->>'marker' = $2",
+      [clinicId, exportAuditMarker],
+    );
+  }
+
   afterAll(async () => {
     if (!pool) return;
+    await cleanupExportAudit();
     await cleanupLeadAppointments();
     await cleanupLeadConversion();
     await cleanupTrialConversion();
@@ -1681,6 +1690,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       ).toBeNull();
     } finally {
       await cleanupRecurringPayables();
+    }
+  });
+
+  it("records a patient export in the administrative audit", async () => {
+    await cleanupExportAudit();
+    try {
+      await repository.recordAdminAuditEvent(clinicId, ownerId, "patients.exported", "patient", {
+        marker: exportAuditMarker,
+        format: "csv",
+        columns: ["fullName"],
+        filters: { tags: ["vip"] },
+        count: 3,
+      });
+      const events = await repository.listAdminAuditEvents(clinicId);
+      const event = events.find(
+        (item) => item.action === "patients.exported" && item.metadata.marker === exportAuditMarker,
+      );
+      expect(event).toMatchObject({
+        entityType: "patient",
+        actorName: expect.any(String),
+        metadata: { format: "csv", columns: ["fullName"], filters: { tags: ["vip"] }, count: 3 },
+      });
+      expect(event?.entityId).toBeUndefined();
+      expect(
+        (await repository.listAdminAuditEvents("99999999-9999-4999-8999-999999999999")).some(
+          (item) => item.metadata.marker === exportAuditMarker,
+        ),
+      ).toBe(false);
+    } finally {
+      await cleanupExportAudit();
     }
   });
 });

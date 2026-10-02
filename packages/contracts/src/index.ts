@@ -100,6 +100,98 @@ export const patientInputSchema = z.object({
 });
 export type PatientInput = z.infer<typeof patientInputSchema>;
 
+/** Colunas aceitas em `GET /patients/export?columns=` (na ordem em que saem no arquivo). */
+export const patientExportColumnSchema = z.enum(
+  [
+    "fullName",
+    "recordNumber",
+    "cpf",
+    "phone",
+    "whatsapp",
+    "email",
+    "birthDate",
+    "tags",
+    "status",
+    "emergencyContactName",
+    "emergencyContactPhone",
+    "notes",
+    "createdAt",
+  ],
+  "Coluna de exportação desconhecida.",
+);
+export type PatientExportColumn = z.infer<typeof patientExportColumnSchema>;
+export const patientExportColumns = patientExportColumnSchema.options;
+/** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
+export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
+  fullName: "nome",
+  recordNumber: "prontuário",
+  cpf: "cpf",
+  phone: "telefone",
+  whatsapp: "whatsapp",
+  email: "email",
+  birthDate: "nascimento",
+  tags: "etiquetas",
+  status: "situação",
+  emergencyContactName: "contato de emergência",
+  emergencyContactPhone: "telefone de emergência",
+  notes: "observações",
+  createdAt: "cadastrado em",
+};
+
+/** Parâmetro de query vazio (`param=`) conta como ausente. */
+const emptyQueryToUndefined = (value: unknown) =>
+  value === "" || value === null ? undefined : value;
+/** Lista separada por vírgula (ou parâmetro repetido); itens vazios são ignorados. */
+const queryList = (value: unknown) => {
+  const parts = (Array.isArray(value) ? value : [value])
+    .filter((item): item is string => typeof item === "string")
+    .flatMap((item) => item.split(","))
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return parts.length > 0 ? parts : undefined;
+};
+const queryBoolean = z.preprocess(
+  emptyQueryToUndefined,
+  z
+    .enum(["true", "false"], "Use true ou false.")
+    .transform((value) => value === "true")
+    .optional(),
+);
+
+/**
+ * Query de `GET /patients/export`. Parâmetros vazios são ignorados.
+ * - `format`: `csv` (padrão) ou `xlsx`;
+ * - `status`: `active` | `inactive` (ausente = todas as situações);
+ * - `tags=a,b`: cliente com **qualquer uma** das etiquetas;
+ * - `birthdayMonth=true`: nascimento no mês atual da clínica (`false`/ausente = sem filtro);
+ * - `activePlan=true|false`: com / sem plano com status `active` (ausente = sem filtro);
+ * - `search`: mesma busca da lista de clientes;
+ * - `columns=a,b`: colunas de `patientExportColumns` (ausente = todas, na ordem padrão).
+ */
+export const patientExportFilterSchema = z.object({
+  format: z.preprocess(
+    emptyQueryToUndefined,
+    z.enum(["csv", "xlsx"], "Formato inválido. Use csv ou xlsx.").default("csv"),
+  ),
+  status: z.preprocess(emptyQueryToUndefined, patientStatusSchema.optional()),
+  tags: z.preprocess(queryList, z.array(z.string().max(40)).max(50).optional()),
+  birthdayMonth: queryBoolean,
+  activePlan: queryBoolean,
+  search: z.preprocess(emptyQueryToUndefined, z.string().trim().max(160).optional()),
+  columns: z.preprocess(
+    queryList,
+    z
+      .array(patientExportColumnSchema)
+      .optional()
+      .transform((value) =>
+        value
+          ? patientExportColumns.filter((column) => value.includes(column))
+          : [...patientExportColumns],
+      ),
+  ),
+});
+export type PatientExportFilter = z.infer<typeof patientExportFilterSchema>;
+
 export const professionalInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
   crefito: z.string().trim().min(4).max(40),

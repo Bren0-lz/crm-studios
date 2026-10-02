@@ -880,6 +880,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     return clinicId === CLINIC_ID ? [...this.adminAuditEvents].reverse() : [];
   }
 
+  async recordAdminAuditEvent(
+    clinicId: string,
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    metadata: Record<string, unknown> = {},
+  ) {
+    if (clinicId !== CLINIC_ID) return;
+    this.addAdminAudit(actorUserId, action, entityType, undefined, metadata);
+  }
+
   private addAdminAudit(
     actorUserId: string,
     action: string,

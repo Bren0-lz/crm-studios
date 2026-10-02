@@ -21,6 +21,8 @@ import {
   patientPlanInputSchema,
   patientTabCloseInputSchema,
   phoneDigits,
+  patientExportColumns,
+  patientExportFilterSchema,
   patientInputSchema,
   recurringPayableCompetences,
   recurringPayableDueDate,
@@ -362,5 +364,51 @@ describe("relationship center contracts", () => {
     expect(fillMessageTemplate("Oi, {{nome}} {{outro}}", { nome: "Ana" })).toBe(
       "Oi, Ana {{outro}}",
     );
+  });
+});
+
+describe("patient export filter", () => {
+  it("defaults to CSV with every column and ignores empty parameters", () => {
+    const empty = patientExportFilterSchema.parse({
+      format: "",
+      status: "",
+      tags: "",
+      birthdayMonth: "",
+      activePlan: "",
+      search: "",
+      columns: "",
+    });
+    expect(empty).toEqual({ format: "csv", columns: [...patientExportColumns] });
+    expect(patientExportFilterSchema.parse({})).toEqual(empty);
+  });
+
+  it("parses lists, booleans and keeps columns in the canonical order", () => {
+    expect(
+      patientExportFilterSchema.parse({
+        format: "xlsx",
+        status: "inactive",
+        tags: ["vip, pilates", "dança"],
+        birthdayMonth: "true",
+        activePlan: "false",
+        columns: "phone,fullName,phone",
+      }),
+    ).toEqual({
+      format: "xlsx",
+      status: "inactive",
+      tags: ["vip", "pilates", "dança"],
+      birthdayMonth: true,
+      activePlan: false,
+      columns: ["fullName", "phone"],
+    });
+  });
+
+  it("rejects unknown formats, columns and booleans", () => {
+    for (const query of [
+      { format: "pdf" },
+      { columns: "fullName,senha" },
+      { status: "archived" },
+      { activePlan: "sim" },
+    ])
+      expect(patientExportFilterSchema.safeParse(query).success).toBe(false);
   });
 });

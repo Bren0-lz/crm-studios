@@ -4976,4 +4976,261 @@ describe("CRM API", () => {
     expect(list.json()).toEqual([]);
     await app.close();
   });
+  describe("patient export", () => {
+    const tag = "exporta-t034";
+    async function setup() {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const create = async (payload: Record<string, unknown>) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload,
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json() as { id: string; recordNumber: string };
+      };
+      const ana = await create({
+        fullName: 'Ana; "Exportada"',
+        phone: "11911110001",
+        email: "ana.exporta@example.com",
+        birthDate: "1990-03-20",
+        notes: "Linha 1\nLinha 2",
+        tags: [tag, "vip"],
+      });
+      const bruno = await create({
+        fullName: "Bruno Exportado",
+        phone: "11911110002",
+        birthDate: "1988-07-02",
+        tags: [tag],
+      });
+      const carla = await create({
+        fullName: "Carla Exportada",
+        phone: "11911110003",
+        tags: ["outra-t034"],
+      });
+      return { app, headers, ana, bruno, carla };
+    }
+    const bom = String.fromCharCode(0xfeff);
+    const csvLines = (body: string) => {
+      expect(body.startsWith(bom)).toBe(true);
+      return body.slice(1).replace(/\r\n$/, "").split("\r\n");
+    };
+    const tokenHeaders = (app: Awaited<ReturnType<typeof setup>>["app"], role: UserRole) => ({
+      authorization: `Bearer ${app.jwt.sign({
+        sub: "22222222-2222-4222-8222-222222222222",
+        clinicId: "11111111-1111-4111-8111-111111111111",
+        role,
+      })}`,
+    });
+
+    it("exports CSV with BOM, semicolons, escaping and chosen columns", async () => {
+      const { app, headers, ana } = await setup();
+      const all = await app.inject({
+        method: "GET",
+        url: `/patients/export?format=csv&tags=${tag}`,
+        headers,
+      });
+      expect(all.statusCode).toBe(200);
+      expect(all.headers["content-type"]).toBe("text/csv; charset=utf-8");
+      expect(all.headers["content-disposition"]).toMatch(
+        /^attachment; filename="clientes-\d{4}-\d{2}-\d{2}\.csv"$/,
+      );
+      expect(csvLines(all.body)[0]).toBe(
+        "nome;prontuário;cpf;telefone;whatsapp;email;nascimento;etiquetas;situação;contato de emergência;telefone de emergência;observações;cadastrado em",
+      );
+      expect(all.body).toContain(
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};;11911110001;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;"Linha 1\nLinha 2";`,
+      );
+
+      const chosen = await app.inject({
+        method: "GET",
+        url: `/patients/export?columns=phone,fullName&tags=${tag}`,
+        headers,
+      });
+      expect(chosen.statusCode).toBe(200);
+      expect(csvLines(chosen.body)).toEqual([
+        "nome;telefone",
+        '"Ana; ""Exportada""";11911110001',
+        "Bruno Exportado;11911110002",
+      ]);
+      await app.close();
+    });
+
+    it("exports XLSX readable by ExcelJS", async () => {
+      const { app, headers } = await setup();
+      const response = await app.inject({
+        method: "GET",
+        url: `/patients/export?format=xlsx&columns=fullName,tags,birthDate&tags=${tag}`,
+        headers,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-type"]).toBe(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      expect(response.headers["content-disposition"]).toMatch(/clientes-.*\.xlsx"$/);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(response.rawPayload as unknown as ArrayBuffer);
+      const sheet = workbook.getWorksheet("Clientes")!;
+      const values = (sheet.getSheetValues() as unknown[][])
+        .slice(1)
+        .map((row) => row.slice(1));
+      expect(values).toEqual([
+        ["nome", "nascimento", "etiquetas"],
+        ['Ana; "Exportada"', "20/03/1990", `${tag}, vip`],
+        ["Bruno Exportado", "02/07/1988", tag],
+      ]);
+      await app.close();
+    });
+
+    it("applies status, tags, birthday month, active plan and search filters", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date("2032-03-15T15:00:00.000Z"));
+        const { app, headers, bruno } = await setup();
+        const names = async (query: string) => {
+          const response = await app.inject({
+            method: "GET",
+            url: `/patients/export?columns=fullName&${query}`,
+            headers,
+          });
+          expect(response.statusCode).toBe(200);
+          return csvLines(response.body).slice(1);
+        };
+        expect(await names(`tags=${tag},outra-t034`)).toEqual([
+          '"Ana; ""Exportada"""',
+          "Bruno Exportado",
+          "Carla Exportada",
+        ]);
+        expect(await names(`tags=${tag}&birthdayMonth=true`)).toEqual([
+          '"Ana; ""Exportada"""',
+        ]);
+        expect(await names(`tags=${tag}&birthdayMonth=false`)).toHaveLength(2);
+        expect(await names("search=Bruno%20Exportado")).toEqual(["Bruno Exportado"]);
+
+        const services = await app.inject({ method: "GET", url: "/services", headers });
+        const plan = await app.inject({
+          method: "POST",
+          url: "/plans",
+          headers,
+          payload: {
+            patientId: bruno.id,
+            serviceId: services.json()[0].id,
+            name: "Pacote exportação",
+            kind: "fixed_package",
+            totalSessions: 4,
+            validFrom: "2032-03-15",
+            totalValueInCents: 40000,
+            installments: 1,
+            firstDueDate: "2032-03-15",
+          },
+        });
+        expect(plan.statusCode).toBe(201);
+        expect(await names(`tags=${tag}&activePlan=true`)).toEqual(["Bruno Exportado"]);
+        expect(await names(`tags=${tag}&activePlan=false`)).toEqual([
+          '"Ana; ""Exportada"""',
+        ]);
+
+        const patients = (
+          await app.inject({ method: "GET", url: "/patients", headers })
+        ).json() as Array<{ status: string }>;
+        const inactiveCount = patients.filter((item) => item.status === "inactive").length;
+        expect(inactiveCount).toBeGreaterThan(0);
+        const inactive = await app.inject({
+          method: "GET",
+          url: "/patients/export?columns=fullName,status&status=inactive",
+          headers,
+        });
+        const inactiveRows = csvLines(inactive.body).slice(1);
+        expect(inactiveRows).toHaveLength(inactiveCount);
+        expect(inactiveRows.every((row) => row.endsWith(";inativo"))).toBe(true);
+
+        const empty = await app.inject({
+          method: "GET",
+          url: "/patients/export?format=&status=&tags=&birthdayMonth=&activePlan=&search=&columns=",
+          headers,
+        });
+        expect(empty.statusCode).toBe(200);
+        expect(empty.headers["content-type"]).toBe("text/csv; charset=utf-8");
+        const emptyLines = csvLines(empty.body);
+        expect(emptyLines[0]?.split(";")).toHaveLength(13);
+        expect(emptyLines).toHaveLength(patients.length + 1);
+        await app.close();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("rejects invalid format, column and filters", async () => {
+      const { app, headers } = await setup();
+      for (const query of [
+        "format=pdf",
+        "columns=fullName,senha",
+        "status=archived",
+        "activePlan=sim",
+        "birthdayMonth=1",
+      ]) {
+        const response = await app.inject({
+          method: "GET",
+          url: `/patients/export?${query}`,
+          headers,
+        });
+        expect(response.statusCode, query).toBe(400);
+        expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+      }
+      await app.close();
+    });
+
+    it("is restricted to the owner", async () => {
+      const { app } = await setup();
+      for (const role of ["reception", "finance", "physiotherapist"] as UserRole[]) {
+        const response = await app.inject({
+          method: "GET",
+          url: "/patients/export",
+          headers: tokenHeaders(app, role),
+        });
+        expect(response.statusCode, role).toBe(403);
+        expect(response.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+      }
+      const anonymous = await app.inject({ method: "GET", url: "/patients/export" });
+      expect(anonymous.statusCode).toBe(401);
+      const audit = await app.inject({
+        method: "GET",
+        url: "/admin/audit-events",
+        headers: tokenHeaders(app, "owner"),
+      });
+      expect(
+        (audit.json() as Array<{ action: string }>).some(
+          (event) => event.action === "patients.exported",
+        ),
+      ).toBe(false);
+      await app.close();
+    });
+
+    it("records each export in the administrative audit", async () => {
+      const { app, headers } = await setup();
+      const response = await app.inject({
+        method: "GET",
+        url: `/patients/export?format=xlsx&tags=${tag}&birthdayMonth=false&columns=fullName,phone`,
+        headers,
+      });
+      expect(response.statusCode).toBe(200);
+      const audit = await app.inject({ method: "GET", url: "/admin/audit-events", headers });
+      expect(audit.statusCode).toBe(200);
+      const [latest] = audit.json() as Array<Record<string, unknown>>;
+      expect(latest).toMatchObject({
+        action: "patients.exported",
+        entityType: "patient",
+        actorName: expect.any(String),
+        metadata: {
+          format: "xlsx",
+          columns: ["fullName", "phone"],
+          filters: { tags: [tag], birthdayMonth: false },
+          count: 2,
+        },
+      });
+      await app.close();
+    });
+  });
 });
