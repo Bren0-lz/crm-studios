@@ -22,7 +22,9 @@ console.log("› Compilando o site com VITE_API_URL=/api");
 execSync("npm run build -w @crm/web", {
   cwd: root,
   stdio: "inherit",
-  env: { ...process.env, VITE_API_URL: "/api" },
+  // NODE_ENV fixo: se o ambiente de build trouxer outro valor (ex.: development), o Vite
+  // gera o React de desenvolvimento, mais pesado e com nomes de arquivo e linhas embutidos.
+  env: { ...process.env, NODE_ENV: "production", VITE_API_URL: "/api" },
 });
 cpSync(join(root, "apps", "web", "dist"), join(output, "static"), { recursive: true });
 
