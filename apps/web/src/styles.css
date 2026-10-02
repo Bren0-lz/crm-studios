@@ -80,6 +80,11 @@ body {
   min-height: 100vh;
 }
 
+/* Modal ou gaveta aberta: a página de trás não rola. */
+body.modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -1969,7 +1974,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   place-items: center;
   padding: calc(var(--space-5) - 4px);
   background: rgba(18, 35, 30, 0.52);
-  backdrop-filter: blur(4px);
 }
 
 .modal {

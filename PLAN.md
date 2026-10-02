@@ -419,7 +419,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Teste web: abrir trava, fechar restaura, dois modais empilhados só liberam no último.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D04
-- **Status:** DOING
+- **Status:** DONE
 
 ### V2 — Revisão visual do financeiro (manual)
 - **Tipo:** manual
@@ -430,7 +430,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   painel `.sales-report` (1px) — falta margem inferior.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T020, T024, T025, T026, T027, T029, T031, T033, T042, T044, T035, T045, T046
-- **Status:** TODO
+- **Status:** BLOCKED
 
 ### T036 — Retenção e cancelamentos na API
 - **Escopo:**

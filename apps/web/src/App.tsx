@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   Activity,
   Bell,
@@ -10369,7 +10369,34 @@ function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-function Modal({
+// Trava a rolagem do body enquanto houver modal/gaveta aberta. O contador cobre diálogos
+// empilhados: só libera quando o último fecha.
+let bodyScrollLocks = 0;
+let bodyPaddingRightBeforeLock = "";
+
+function useBodyScrollLock() {
+  useLayoutEffect(() => {
+    const body = document.body;
+    if (bodyScrollLocks === 0) {
+      bodyPaddingRightBeforeLock = body.style.paddingRight;
+      const viewportWidth = document.documentElement.clientWidth;
+      const scrollbarWidth = window.innerWidth - viewportWidth;
+      // Compensa a barra de rolagem que some, para o layout não "pular" no desktop.
+      if (viewportWidth > 0 && scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+      body.classList.add("modal-open");
+    }
+    bodyScrollLocks += 1;
+    return () => {
+      bodyScrollLocks -= 1;
+      if (bodyScrollLocks === 0) {
+        body.classList.remove("modal-open");
+        body.style.paddingRight = bodyPaddingRightBeforeLock;
+      }
+    };
+  }, []);
+}
+
+export function Modal({
   title,
   subtitle,
   eyebrow = "Cadastro rápido",
@@ -10382,6 +10409,7 @@ function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useBodyScrollLock();
   return (
     <div
       className="modal-backdrop"
@@ -10413,12 +10441,11 @@ function Modal({
 }
 
 function Drawer({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
+  useBodyScrollLock();
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; };
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
   return (
     <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

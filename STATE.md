@@ -1,9 +1,9 @@
 # Estado do loop
 
-- **Tarefa atual:** T046
-- **Última concluída:** T045
+- **Tarefa atual:** V2
+- **Última concluída:** T046
 - **Tentativas na atual:** 0/3
-- **Bloqueios:** nenhum
+- **Bloqueios:** aguardando revisão manual de V2
 
 ## Diário
 
@@ -72,3 +72,5 @@
 - 2026-10-02 T034 DONE (verifier PASS na 1ª; API 137, integração PG 21/21). GET /patients/export (só owner): `patientExportFilterSchema` — format csv|xlsx (padrão csv), columns (chaves de `patientExportColumns`, sempre na ordem fixa; rótulos em `patientExportColumnLabels`), status active|inactive, tags (qualquer uma; vírgula ou repetido), birthdayMonth=true, activePlan=true|false, search; `param=` vazio = ausente. `patient-export.ts` (`filterPatientsForExport`, CSV com BOM \uFEFF + ; + \r\n, XLSX aba "Clientes"). Arquivo `clientes-AAAA-MM-DD.<ext>`. Auditoria `patients.exported` via novo `recordAdminAuditEvent` nos dois repositórios. Pendência de segurança (não pedida): CSV não neutraliza fórmulas (=, +, -, @). P/ T035: montar a query com os filtros da tela e baixar como blob; filtros "com/sem e-mail" e ordenação da tela não existem na API.
 - 2026-10-02 T035 DONE (verifier PASS na 1ª; web 61). Botão "Exportar" em Clientes (só owner) → `PatientExportModal` (CSV/Excel, 13 colunas com Marcar/Desmarcar todas, resumo dos filtros, avisos para "Com/Sem e-mail" e ordenação que não se aplicam). api.ts: `exportPatients(params)`/`patientExportQuery`; download via createObjectURL, nome `clientes-${saoPauloToday()}.<ext>`. Busca exportada = `appliedSearch` (última busca carregada). P/ T045: paginar `visiblePatients = filterPatients(patients, filters)` na PatientsPage; voltar à página 1 nos setters de busca/filtros (sem useEffect); não passar a página ao modal de exportação; nos testes, botão "Exportar" do modal via `within(dialog)`.
 - 2026-10-02 T045 DONE (verifier PASS na 1ª; web 63). Paginação em Clientes: `patientsPerPage = 20`, estado `page`, `currentPage = Math.min(page, pageCount)` (clamp no cálculo), `pagePatients` fatia `visiblePatients`; `updateFilters` e `load()` voltam à página 1. `<nav className="list-pagination" aria-label="Paginação de clientes">` abaixo de `.patient-table` com "Anterior"/"Próxima" e "Página X de Y · N clientes" (aria-live). Não há teste de viewport ≤700px (jsdom não aplica media queries) — conferir na V2.
+- 2026-10-02 T046 DONE (verifier PASS na 1ª; web 66). Sem `backdrop-filter` no `.modal-backdrop` (só o da topbar ficou). `useBodyScrollLock()` (contador de módulo `bodyScrollLocks`, classe `body.modal-open { overflow: hidden }`, compensa a largura da barra com padding-right e restaura o original) usado por `Modal` (agora exportado) e `Drawer`. Diálogo novo de tela cheia deve usar o hook, não mexer em body.style.overflow. `.sidebar-scrim` (menu no celular) não trava — é navegação.
+- 2026-10-02 RODADA 3 concluída (T042–T046, T034, T035). aguardando revisão manual de V2. Nada pushado desde c553022; migrações 0037 e 0038 já aplicadas no Supabase pelos testes.
