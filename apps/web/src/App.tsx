@@ -99,6 +99,7 @@ import type {
   ManagementReport,
   SalesReport,
   Patient,
+  PatientExportColumn,
   PatientImportAnalysis,
   PatientImportDuplicate,
   PatientImportFileInput,
@@ -127,7 +128,7 @@ import type {
   TreatmentClosureInput,
   UserSummary,
 } from "@crm/contracts";
-import { competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -135,6 +136,7 @@ import {
   getStoredUser,
   hasSession,
   login,
+  type PatientExportParams,
 } from "./api";
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -912,13 +914,18 @@ function PatientsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
+  const [appliedSearch, setAppliedSearch] = useState("");
   const canImport = ["owner", "reception", "finance"].includes(getStoredUser()?.role ?? "");
+  const canExport = getStoredUser()?.role === "owner";
 
   async function load(query = search) {
     setLoading(true);
     setError("");
     try {
       setPatients(await api.patients(query));
+      setAppliedSearch(query);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -974,6 +981,12 @@ function PatientsPage() {
               <button className="secondary-button" onClick={() => setImportOpen(true)}>
                 <FileSpreadsheet size={18} aria-hidden="true" />
                 Importar
+              </button>
+            )}
+            {canExport && (
+              <button className="secondary-button" onClick={() => setExportOpen(true)}>
+                <Download size={18} aria-hidden="true" />
+                Exportar
               </button>
             )}
             <button className="primary-button" onClick={() => setModalOpen(true)}>
@@ -1189,7 +1202,171 @@ function PatientsPage() {
           onImported={() => void load()}
         />
       )}
+      {exportOpen && (
+        <PatientExportModal filters={filters} search={appliedSearch} onClose={() => setExportOpen(false)} />
+      )}
     </>
+  );
+}
+
+const patientExportColumnNames: Record<PatientExportColumn, string> = {
+  fullName: "Nome",
+  recordNumber: "Prontuário",
+  cpf: "CPF",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  birthDate: "Nascimento",
+  tags: "Etiquetas",
+  status: "Situação",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  createdAt: "Cadastrado em",
+};
+
+const patientRecordFilterLabels: Record<PatientRecordFilter, string> = {
+  all: "Todos",
+  with_email: "Com e-mail",
+  without_email: "Sem e-mail",
+  birthday_month: "Aniversariantes do mês",
+};
+
+/**
+ * Exporta a base com os filtros da tela que a API conhece (busca aplicada, situação,
+ * aniversariantes, etiquetas). Com/sem e-mail e a ordenação existem só na tela.
+ */
+function PatientExportModal({
+  filters,
+  search,
+  onClose,
+}: {
+  filters: typeof defaultPatientFilters;
+  search: string;
+  onClose: () => void;
+}) {
+  const [format, setFormat] = useState<PatientExportParams["format"]>("csv");
+  const [columns, setColumns] = useState<PatientExportColumn[]>([...patientExportColumns]);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+
+  const params: PatientExportParams = { format, columns, tags: filters.tags };
+  if (search.trim()) params.search = search.trim();
+  if (filters.status !== "all") params.status = filters.status;
+  if (filters.record === "birthday_month") params.birthdayMonth = true;
+  const scope = [
+    params.search ? `Busca: “${params.search}”` : "",
+    params.status ? `Situação: ${params.status === "active" ? "ativos" : "inativos"}` : "",
+    params.birthdayMonth ? "Aniversariantes do mês" : "",
+    filters.tags.length ? `Etiquetas: ${filters.tags.join(", ")}` : "",
+  ].filter(Boolean);
+  const unsupportedRecord = filters.record === "with_email" || filters.record === "without_email";
+
+  function toggleColumn(column: PatientExportColumn) {
+    setColumns((current) =>
+      current.includes(column)
+        ? current.filter((item) => item !== column)
+        : patientExportColumns.filter((item) => item === column || current.includes(item)),
+    );
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (columns.length === 0) {
+      setError("Selecione pelo menos uma coluna.");
+      return;
+    }
+    setExporting(true);
+    setError("");
+    try {
+      const blob = await api.exportPatients(params);
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = `clientes-${saoPauloToday()}.${format}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setExporting(false);
+    }
+  }
+
+  return (
+    <Modal
+      eyebrow="Exportação"
+      title="Exportar clientes"
+      subtitle="Baixe a base de clientes em planilha, com os filtros aplicados na tela."
+      onClose={onClose}
+    >
+      <form className="patient-export" onSubmit={(event) => void submit(event)} noValidate>
+        <div className="patient-export-scope">
+          <span className="filter-label">Clientes exportados</span>
+          <p>{scope.length ? scope.join(" · ") : "Nenhum filtro: todos os clientes serão exportados."}</p>
+          {unsupportedRecord && (
+            <small>{`O filtro de cadastro “${patientRecordFilterLabels[filters.record]}” não se aplica à exportação.`}</small>
+          )}
+          {filters.sort !== "name_asc" && (
+            <small>A ordenação da tela não se aplica: o arquivo sai em ordem alfabética.</small>
+          )}
+        </div>
+        <fieldset className="form-fieldset">
+          <legend>Formato</legend>
+          <div className="form-fieldset-grid">
+            {([["csv", "CSV (.csv)"], ["xlsx", "Excel (.xlsx)"]] as const).map(([value, label]) => (
+              <label className="checkbox-field" key={value}>
+                <input
+                  type="radio"
+                  name="patient-export-format"
+                  value={value}
+                  checked={format === value}
+                  onChange={() => setFormat(value)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="form-fieldset">
+          <legend>Colunas</legend>
+          <div className="patient-export-bulk">
+            <button type="button" onClick={() => setColumns([...patientExportColumns])}>
+              Marcar todas
+            </button>
+            <button type="button" onClick={() => setColumns([])}>
+              Desmarcar todas
+            </button>
+          </div>
+          <div className="form-fieldset-grid">
+            {patientExportColumns.map((column) => (
+              <label className="checkbox-field" key={column}>
+                <input
+                  type="checkbox"
+                  checked={columns.includes(column)}
+                  onChange={() => toggleColumn(column)}
+                />
+                {patientExportColumnNames[column]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {error && (
+          <div className="form-error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Voltar
+          </button>
+          <button type="submit" className="primary-button" disabled={exporting}>
+            <Download size={18} aria-hidden="true" />
+            {exporting ? "Exportando..." : "Exportar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

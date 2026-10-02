@@ -4551,3 +4551,19 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .status-pill.import-valid { background: #dceee7; color: #31715e; }
 .status-pill.import-error { background: #f8e1dd; color: #a4483a; }
 .status-pill.import-duplicate { background: #f6ecd4; color: #8a6420; }
+
+.patient-export { display: grid; gap: var(--space-4); }
+.patient-export .modal-actions { margin-top: var(--space-1); }
+.patient-export-scope {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f7f8f5;
+}
+.patient-export-scope p { margin: 0; color: #24302b; font-size: 13px; font-weight: 700; }
+.patient-export-scope small { color: var(--muted); font-size: 12px; }
+.patient-export-bulk { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-3); }
+.patient-export-bulk button { border: 0; background: transparent; color: var(--green-2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.patient-export-bulk button:hover { text-decoration: underline; }

@@ -76,6 +76,7 @@ import type {
   OutboundMessage,
   ReminderGenerationResult,
   Patient,
+  PatientExportColumn,
   PatientImportAnalysis,
   PatientImportFileInput,
   PatientImportResult,
@@ -167,6 +168,25 @@ async function requestBlob(path: string) {
   return response.blob();
 }
 
+/** Filtros e opções da exportação de clientes (`GET /patients/export`). */
+export interface PatientExportParams {
+  format: "csv" | "xlsx";
+  columns: PatientExportColumn[];
+  search?: string;
+  status?: "active" | "inactive";
+  tags?: string[];
+  birthdayMonth?: boolean;
+}
+
+function patientExportQuery(params: PatientExportParams) {
+  const query = new URLSearchParams({ format: params.format, columns: params.columns.join(",") });
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.status) query.set("status", params.status);
+  if (params.tags?.length) query.set("tags", params.tags.join(","));
+  if (params.birthdayMonth) query.set("birthdayMonth", "true");
+  return query.toString();
+}
+
 export interface Session {
   token: string;
   user: UserSummary;
@@ -232,6 +252,8 @@ export const api = {
     request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>
     request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
+  exportPatients: (params: PatientExportParams) =>
+    requestBlob(`/patients/export?${patientExportQuery(params)}`),
   createPatient: (input: PatientInput) =>
     request<Patient>("/patients", {
       method: "POST",

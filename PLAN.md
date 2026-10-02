@@ -398,7 +398,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   filtros da tela e baixando o arquivo. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T034
-- **Status:** DOING
+- **Status:** DONE
 
 ### T045 — Paginação na lista de clientes
 - **Escopo:** só web, na página Clientes: 20 clientes por página, botões "Anterior" e "Próxima" e
@@ -407,7 +407,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   continua usando todos os clientes filtrados, não só a página. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T035
-- **Status:** TODO
+- **Status:** DOING
 
 ### T046 — Modais sem desfoque e sem rolar a página de fundo
 - **Escopo:**

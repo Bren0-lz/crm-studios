@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { saoPauloToday } from "@crm/contracts";
 import App from "./App";
 
 vi.stubGlobal("fetch", vi.fn());
@@ -1559,6 +1560,115 @@ describe("application shell", () => {
     expect(screen.getByRole("button", { name: /Novo cliente/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/import"))).toBe(false);
+  });
+
+  it("exports the patient base with the screen filters, chosen format and columns", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: ["pilates"], status: "active", createdAt: "2026-01-10T12:00:00.000Z" };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).includes("/patients/export")) {
+        return { ok: true, status: 200, blob: async () => new Blob(["nome\nHelena"]) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => [patient] } as Response;
+    });
+    const createObjectURL = vi.fn(() => "blob:clientes");
+    const revokeObjectURL = vi.fn();
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    const downloads: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+    try {
+      render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+      await screen.findByRole("button", { name: "Editar Helena Almeida" });
+      fireEvent.change(screen.getByPlaceholderText("Buscar por nome, CPF ou telefone"), { target: { value: "Hel" } });
+      fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+      await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients?search=Hel"))).toBe(true));
+      await screen.findByRole("button", { name: "Editar Helena Almeida" });
+      fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Ativos" }));
+      fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "birthday_month" } });
+      fireEvent.click(screen.getByRole("button", { name: /^pilates/ }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
+      expect(within(dialog).getByText("Busca: “Hel” · Situação: ativos · Aniversariantes do mês · Etiquetas: pilates")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("CSV (.csv)")).toBeChecked();
+      expect(within(dialog).getByLabelText("Observações")).toBeChecked();
+      fireEvent.click(within(dialog).getByLabelText("Excel (.xlsx)"));
+      fireEvent.click(within(dialog).getByLabelText("Observações"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
+
+      await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+      const exportCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/patients/export"));
+      const query = new URL(String(exportCall?.[0]), "http://localhost").searchParams;
+      expect(query.get("format")).toBe("xlsx");
+      expect(query.get("columns")).toBe("fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt");
+      expect(query.get("search")).toBe("Hel");
+      expect(query.get("status")).toBe("active");
+      expect(query.get("tags")).toBe("pilates");
+      expect(query.get("birthdayMonth")).toBe("true");
+      expect(query.has("activePlan")).toBe(false);
+      expect(downloads).toEqual([`clientes-${saoPauloToday()}.xlsx`]);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:clientes");
+      await vi.waitFor(() => expect(screen.queryByRole("dialog", { name: "Exportar clientes" })).not.toBeInTheDocument());
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+
+  it("requires a column, explains filters without export support and shows API errors", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", email: "helena@exemplo.com", tags: [], status: "active", createdAt: "2026-01-10T12:00:00.000Z" };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).includes("/patients/export")) {
+        return { ok: false, status: 500, json: async () => ({ code: "EXPORT_FAILED", message: "Não foi possível gerar o arquivo." }) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => [patient] } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+    fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "with_email" } });
+    fireEvent.change(screen.getByLabelText("Ordenar por"), { target: { value: "newest" } });
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
+    expect(within(dialog).getByText("Nenhum filtro: todos os clientes serão exportados.")).toBeInTheDocument();
+    expect(within(dialog).getByText(/“Com e-mail” não se aplica/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/ordem alfabética/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Desmarcar todas" }));
+    expect(within(dialog).getByLabelText("Nome")).not.toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
+    expect(await within(dialog).findByText("Selecione pelo menos uma coluna.")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/export"))).toBe(false);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar todas" }));
+    expect(within(dialog).getByLabelText("Nome")).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
+    expect(await within(dialog).findByText("Não foi possível gerar o arquivo.")).toBeInTheDocument();
+    const exportUrl = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/patients/export"))?.[0];
+    const query = new URL(String(exportUrl), "http://localhost").searchParams;
+    expect(query.get("format")).toBe("csv");
+    expect([...query.keys()].sort()).toEqual(["columns", "format"]);
+    expect(within(dialog).getByRole("button", { name: "Exportar" })).toBeEnabled();
+  });
+
+  it.each(["reception", "finance", "physiotherapist"])("does not offer patient export to %s", async (role) => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Silva", email: "equipe@movimenta.local", role }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    expect(screen.queryByRole("button", { name: "Exportar" })).not.toBeInTheDocument();
   });
 
   it("lets the owner list, create and delete holidays in settings", async () => {
