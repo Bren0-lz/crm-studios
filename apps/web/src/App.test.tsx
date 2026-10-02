@@ -1671,6 +1671,120 @@ describe("application shell", () => {
     expect(screen.queryByRole("button", { name: "Exportar" })).not.toBeInTheDocument();
   });
 
+  it("paginates the patient list 20 at a time and resets to page 1 on search and filters", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    const patients = Array.from({ length: 45 }, (_, index) => {
+      const number = String(index + 1).padStart(2, "0");
+      return {
+        id: `99999999-9999-4999-8999-9999999999${number}`,
+        recordNumber: `PAC-000${number}`,
+        fullName: `Cliente ${number}`,
+        phone: "11987654321",
+        tags: index < 10 ? ["pilates"] : [],
+        status: index % 2 === 0 ? "active" : "inactive",
+        createdAt: "2026-01-10T12:00:00.000Z",
+      };
+    });
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).includes("/patients/export")) {
+        return { ok: true, status: 200, blob: async () => new Blob(["nome"]) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => patients } as Response;
+    });
+    const createObjectURL = vi.fn(() => "blob:clientes");
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const rows = () => screen.getAllByRole("button", { name: /^Editar Cliente/ });
+    try {
+      render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+      await screen.findByRole("button", { name: "Editar Cliente 01" });
+      const pagination = screen.getByRole("navigation", { name: "Paginação de clientes" });
+      expect(rows()).toHaveLength(20);
+      expect(within(pagination).getByText("Página 1 de 3 · 45 clientes")).toBeInTheDocument();
+      expect(within(pagination).getByRole("button", { name: /Anterior/ })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Editar Cliente 21" })).not.toBeInTheDocument();
+
+      fireEvent.click(within(pagination).getByRole("button", { name: /Próxima/ }));
+      expect(screen.getByText("Página 2 de 3 · 45 clientes")).toBeInTheDocument();
+      expect(rows()).toHaveLength(20);
+      expect(screen.getByRole("button", { name: "Editar Cliente 21" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Editar Cliente 01" })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Próxima/ }));
+      expect(screen.getByText("Página 3 de 3 · 45 clientes")).toBeInTheDocument();
+      expect(rows()).toHaveLength(5);
+      expect(screen.getByRole("button", { name: /Próxima/ })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: /Anterior/ }));
+      expect(screen.getByText("Página 2 de 3 · 45 clientes")).toBeInTheDocument();
+
+      // A exportação ignora a página: segue só com os filtros da tela.
+      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
+      expect(within(dialog).getByText("Nenhum filtro: todos os clientes serão exportados.")).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
+      await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+      const exportUrl = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/patients/export"))?.[0];
+      expect([...new URL(String(exportUrl), "http://localhost").searchParams.keys()].sort()).toEqual(["columns", "format"]);
+      await vi.waitFor(() => expect(screen.queryByRole("dialog", { name: "Exportar clientes" })).not.toBeInTheDocument());
+      expect(screen.getByText("Página 2 de 3 · 45 clientes")).toBeInTheDocument();
+
+      // Busca volta para a página 1.
+      fireEvent.change(screen.getByPlaceholderText("Buscar por nome, CPF ou telefone"), { target: { value: "Cliente" } });
+      fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+      expect(await screen.findByText("Página 1 de 3 · 45 clientes")).toBeInTheDocument();
+
+      // Filtro de situação volta para a página 1.
+      fireEvent.click(screen.getByRole("button", { name: /Próxima/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Próxima/ }));
+      expect(screen.getByText("Página 3 de 3 · 45 clientes")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Inativos" }));
+      expect(screen.getByText("Página 1 de 2 · 22 clientes")).toBeInTheDocument();
+      expect(rows()).toHaveLength(20);
+      expect(screen.getByRole("button", { name: "Editar Cliente 02" })).toBeInTheDocument();
+
+      // Ordenação também volta para a página 1.
+      fireEvent.click(screen.getByRole("button", { name: /Próxima/ }));
+      expect(screen.getByText("Página 2 de 2 · 22 clientes")).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Ordenar por"), { target: { value: "name_desc" } });
+      expect(screen.getByText("Página 1 de 2 · 22 clientes")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Editar Cliente 44" })).toBeInTheDocument();
+
+      // Tudo numa página: os controles somem.
+      fireEvent.click(screen.getByRole("button", { name: /^pilates/ }));
+      expect(rows()).toHaveLength(5);
+      expect(screen.queryByRole("navigation", { name: "Paginação de clientes" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Próxima/ })).not.toBeInTheDocument();
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+
+  it("hides the patient pagination when every patient fits on one page", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    const patients = Array.from({ length: 20 }, (_, index) => ({
+      id: `99999999-9999-4999-8999-9999999999${String(index + 10)}`,
+      recordNumber: `PAC-000${index + 10}`,
+      fullName: `Cliente ${index + 10}`,
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+    }));
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => patients }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Editar Cliente 10" });
+    expect(screen.getAllByRole("button", { name: /^Editar Cliente/ })).toHaveLength(20);
+    expect(screen.queryByRole("navigation", { name: "Paginação de clientes" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Página \d/)).not.toBeInTheDocument();
+  });
+
   it("lets the owner list, create and delete holidays in settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));

@@ -941,6 +941,21 @@ textarea:focus {
   min-width: 720px;
 }
 
+.list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) calc(var(--space-5) - 1px);
+}
+
+.list-pagination-status {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .table-row {
   display: grid;
   grid-template-columns:
@@ -4314,6 +4329,15 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
   .patient-table .table-head {
     display: none;
+  }
+
+  .list-pagination {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .list-pagination-status {
+    flex: 1 0 100%;
+    order: -1;
   }
 
   .table-row {

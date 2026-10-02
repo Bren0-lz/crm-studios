@@ -904,6 +904,8 @@ function filterPatients(patients: Patient[], filters: typeof defaultPatientFilte
     });
 }
 
+const patientsPerPage = 20;
+
 function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
@@ -917,6 +919,7 @@ function PatientsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [page, setPage] = useState(1);
   const canImport = ["owner", "reception", "finance"].includes(getStoredUser()?.role ?? "");
   const canExport = getStoredUser()?.role === "owner";
 
@@ -926,6 +929,7 @@ function PatientsPage() {
     try {
       setPatients(await api.patients(query));
       setAppliedSearch(query);
+      setPage(1);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -951,6 +955,10 @@ function PatientsPage() {
   }, []);
 
   const visiblePatients = filterPatients(patients, filters);
+  const pageCount = Math.max(1, Math.ceil(visiblePatients.length / patientsPerPage));
+  // A página guardada pode ficar além do total (ex.: depois de remover cadastros): limita no cálculo.
+  const currentPage = Math.min(page, pageCount);
+  const pagePatients = visiblePatients.slice((currentPage - 1) * patientsPerPage, currentPage * patientsPerPage);
   const tagOptions = Object.entries(
     patients.flatMap((patient) => patient.tags).reduce<Record<string, number>>((counts, tag) => {
       counts[tag] = (counts[tag] ?? 0) + 1;
@@ -959,14 +967,19 @@ function PatientsPage() {
   ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"));
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) + (filters.record !== "all" ? 1 : 0) + filters.tags.length;
+  // Toda mudança de filtro ou ordenação volta para a primeira página.
+  function updateFilters(update: (current: typeof filters) => typeof filters) {
+    setFilters(update);
+    setPage(1);
+  }
   function toggleTag(tag: string) {
-    setFilters((current) => ({
+    updateFilters((current) => ({
       ...current,
       tags: current.tags.includes(tag) ? current.tags.filter((item) => item !== tag) : [...current.tags, tag],
     }));
   }
   function clearFilters() {
-    setFilters((current) => ({ ...defaultPatientFilters, sort: current.sort }));
+    updateFilters((current) => ({ ...defaultPatientFilters, sort: current.sort }));
   }
 
   return (
@@ -1044,7 +1057,7 @@ function PatientsPage() {
                     type="button"
                     key={value}
                     aria-pressed={filters.status === value}
-                    onClick={() => setFilters((current) => ({ ...current, status: value }))}
+                    onClick={() => updateFilters((current) => ({ ...current, status: value }))}
                   >
                     {label}
                   </button>
@@ -1055,7 +1068,7 @@ function PatientsPage() {
               <span className="filter-label">Cadastro</span>
               <select
                 value={filters.record}
-                onChange={(event) => setFilters((current) => ({ ...current, record: event.target.value as PatientRecordFilter }))}
+                onChange={(event) => updateFilters((current) => ({ ...current, record: event.target.value as PatientRecordFilter }))}
               >
                 <option value="all">Todos</option>
                 <option value="with_email">Com e-mail</option>
@@ -1067,7 +1080,7 @@ function PatientsPage() {
               <span className="filter-label">Ordenar por</span>
               <select
                 value={filters.sort}
-                onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value as PatientSort }))}
+                onChange={(event) => updateFilters((current) => ({ ...current, sort: event.target.value as PatientSort }))}
               >
                 <option value="name_asc">Nome (A–Z)</option>
                 <option value="name_desc">Nome (Z–A)</option>
@@ -1118,6 +1131,7 @@ function PatientsPage() {
             </button>
           </div>
         ) : (
+          <>
           <div className="patient-table">
             <div className="table-row table-head">
               <span>Cliente</span>
@@ -1126,7 +1140,7 @@ function PatientsPage() {
               <span>Situação</span>
               <span />
             </div>
-            {visiblePatients.map((patient) => (
+            {pagePatients.map((patient) => (
               <div
                 className="table-row patient-row"
                 key={patient.id}
@@ -1176,6 +1190,34 @@ function PatientsPage() {
               </div>
             ))}
           </div>
+          {pageCount > 1 && (
+            <nav className="list-pagination" aria-label="Paginação de clientes">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={currentPage === 1}
+                onClick={() => setPage(currentPage - 1)}
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+                Anterior
+              </button>
+              <span className="list-pagination-status" aria-live="polite">
+                {`Página ${currentPage} de ${pageCount} · ${visiblePatients.length} ${
+                  visiblePatients.length === 1 ? "cliente" : "clientes"
+                }`}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={currentPage === pageCount}
+                onClick={() => setPage(currentPage + 1)}
+              >
+                Próxima
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </nav>
+          )}
+          </>
         )}
       </section>
       {(modalOpen || editingPatient) && (

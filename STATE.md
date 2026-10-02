@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T045
-- **Última concluída:** T035
+- **Tarefa atual:** T046
+- **Última concluída:** T045
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -71,3 +71,4 @@
 - 2026-10-01 T044 DONE (verifier PASS na 2ª tentativa; web 56). Menu "Contratos" em /contratos (owner/reception/finance; /documentos redireciona), `DocumentsPage` restaurada com título "Contratos", `TemplateVersionModal` (textarea, preserva quebras de linha), `CancelDocumentModal`, impressão do emitido num Modal com window.print; carga via `fetchContractsPageData()` + `applyPageData` (useCallback). Lint: chamar no useEffect função async do componente que faz setState reprova — usar fetch em função de módulo + setters no `.then`. Outras telas antigas ainda usam window.prompt/confirm (leads, financeiro, usuários, feriados, bloqueios) — fora do escopo.
 - 2026-10-02 T034 DONE (verifier PASS na 1ª; API 137, integração PG 21/21). GET /patients/export (só owner): `patientExportFilterSchema` — format csv|xlsx (padrão csv), columns (chaves de `patientExportColumns`, sempre na ordem fixa; rótulos em `patientExportColumnLabels`), status active|inactive, tags (qualquer uma; vírgula ou repetido), birthdayMonth=true, activePlan=true|false, search; `param=` vazio = ausente. `patient-export.ts` (`filterPatientsForExport`, CSV com BOM \uFEFF + ; + \r\n, XLSX aba "Clientes"). Arquivo `clientes-AAAA-MM-DD.<ext>`. Auditoria `patients.exported` via novo `recordAdminAuditEvent` nos dois repositórios. Pendência de segurança (não pedida): CSV não neutraliza fórmulas (=, +, -, @). P/ T035: montar a query com os filtros da tela e baixar como blob; filtros "com/sem e-mail" e ordenação da tela não existem na API.
 - 2026-10-02 T035 DONE (verifier PASS na 1ª; web 61). Botão "Exportar" em Clientes (só owner) → `PatientExportModal` (CSV/Excel, 13 colunas com Marcar/Desmarcar todas, resumo dos filtros, avisos para "Com/Sem e-mail" e ordenação que não se aplicam). api.ts: `exportPatients(params)`/`patientExportQuery`; download via createObjectURL, nome `clientes-${saoPauloToday()}.<ext>`. Busca exportada = `appliedSearch` (última busca carregada). P/ T045: paginar `visiblePatients = filterPatients(patients, filters)` na PatientsPage; voltar à página 1 nos setters de busca/filtros (sem useEffect); não passar a página ao modal de exportação; nos testes, botão "Exportar" do modal via `within(dialog)`.
+- 2026-10-02 T045 DONE (verifier PASS na 1ª; web 63). Paginação em Clientes: `patientsPerPage = 20`, estado `page`, `currentPage = Math.min(page, pageCount)` (clamp no cálculo), `pagePatients` fatia `visiblePatients`; `updateFilters` e `load()` voltam à página 1. `<nav className="list-pagination" aria-label="Paginação de clientes">` abaixo de `.patient-table` com "Anterior"/"Próxima" e "Página X de Y · N clientes" (aria-live). Não há teste de viewport ≤700px (jsdom não aplica media queries) — conferir na V2.

@@ -407,7 +407,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   continua usando todos os clientes filtrados, não só a página. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T035
-- **Status:** DOING
+- **Status:** DONE
 
 ### T046 — Modais sem desfoque e sem rolar a página de fundo
 - **Escopo:**
@@ -419,7 +419,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Teste web: abrir trava, fechar restaura, dois modais empilhados só liberam no último.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D04
-- **Status:** TODO
+- **Status:** DOING
 
 ### V2 — Revisão visual do financeiro (manual)
 - **Tipo:** manual
