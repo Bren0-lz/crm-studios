@@ -246,18 +246,10 @@ function VisitTypeBadge({ appointment }: { appointment: Appointment }) {
   return <span className={`status-pill visit-${appointment.visitType}`}>{text}</span>;
 }
 
-function Logo({ compact = false }: { compact?: boolean }) {
+function Logo() {
   return (
     <div className="brand" aria-label="Studios Aryana">
-      <span className="brand-mark" aria-hidden="true">
-        A
-      </span>
-      {!compact && (
-        <span className="brand-name">
-          <span className="brand-kicker">Studios</span>{" "}
-          <span className="brand-word">Aryana</span>
-        </span>
-      )}
+      <span className="brand-name">Studios Aryana</span>
     </div>
   );
 }
