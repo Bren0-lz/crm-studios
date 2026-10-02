@@ -9,7 +9,8 @@ import {
   Columns3,
   Download,
   FileClock,
-  FileSpreadsheet,
+  FileDown,
+  FileUp,
   FileText,
   HeartHandshake,
   LockKeyhole,
@@ -996,13 +997,13 @@ function PatientsPage() {
           <div className="page-actions">
             {canImport && (
               <button className="secondary-button" onClick={() => setImportOpen(true)}>
-                <FileSpreadsheet size={18} aria-hidden="true" />
+                <FileUp size={18} aria-hidden="true" />
                 Importar
               </button>
             )}
             {canExport && (
               <button className="secondary-button" onClick={() => setExportOpen(true)}>
-                <Download size={18} aria-hidden="true" />
+                <FileDown size={18} aria-hidden="true" />
                 Exportar
               </button>
             )}
@@ -1407,7 +1408,7 @@ function PatientExportModal({
             Voltar
           </button>
           <button type="submit" className="primary-button" disabled={exporting}>
-            <Download size={18} aria-hidden="true" />
+            <FileDown size={18} aria-hidden="true" />
             {exporting ? "Exportando..." : "Exportar"}
           </button>
         </div>
@@ -1593,6 +1594,7 @@ function PatientImportModal({
               disabled={loading || !file || validCount === 0}
               onClick={() => void confirmImport()}
             >
+              <FileUp size={18} aria-hidden="true" />
               {`Importar ${countLabel(validCount, "cliente", "clientes")}`}
             </button>
           )}
