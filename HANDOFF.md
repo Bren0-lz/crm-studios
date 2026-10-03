@@ -1,15 +1,16 @@
 # HANDOFF — Studios Aryana (continuar em nova sessão do Claude Code)
 
-Atualizado em 02/10/2026. Este arquivo só passa o bastão entre sessões. O estado vivo do trabalho
+Atualizado em 03/10/2026. Este arquivo só passa o bastão entre sessões. O estado vivo do trabalho
 está em `PLAN.md` e `STATE.md` (o diário no fim do `STATE.md` tem os detalhes técnicos de cada
 tarefa), e as regras permanentes em `CLAUDE.md`.
 
 ## Primeira coisa a fazer na nova sessão
 
 1. Ler `CLAUDE.md`, o cabeçalho e as últimas ~15 linhas do diário de `STATE.md`, e o `PLAN.md`.
-2. `git status` e `git log --oneline -3`: a árvore deve estar limpa e a `main` igual à do GitHub
-   (último commit enviado: o que adicionou este HANDOFF; antes dele, `2b76f48`).
-3. Resolver a **V2** com o dono (abaixo) antes de chamar `/next`.
+2. `git status` e `git log --oneline -3`: a árvore deve estar limpa. Último commit local: o que
+   atualizou este HANDOFF; antes dele, `a0aae71` (T036). Até o dono rodar `! git push`, a `main`
+   local fica à frente da `origin/main` (o último commit publicado é o `846d659`).
+3. Chamar `/next`: a próxima tarefa é a **T037**.
 
 ## O que é o projeto
 
@@ -64,12 +65,15 @@ saturado e os testes de integração falhavam com `EMAXCONNSESSION`. Integraçã
     (`serverlessDatabaseUrl` em `apps/api/src/database-connection.ts`).
   - O site era compilado com o React de desenvolvimento (929 KB): `scripts/vercel-build.mjs` força
     `NODE_ENV=production` no build da web (agora 588 KB).
-- **Próximo passo: V2 (revisão visual manual)**, status `BLOCKED` no `PLAN.md`. O dono revisa no
-  site, em tela cheia e no celular: marca, Contratos, Exportar e paginação em Clientes, modais,
-  agenda (feriado, selo Experimental, SOS), CRM (Agendar experimental), Financeiro (despesas fixas,
-  caixa do dia, previsão) e o `.sales-help` colado na borda inferior em Relatórios (pendência da
-  V1). Se aprovar: marcar V2 `DONE`, `Bloqueios: nenhum`, e o loop segue com T036–T040, V3 e T041.
-  Se pedir correções: criar tarefas novas antes de T036.
+- **V2 (revisão visual manual): aprovada pelo dono em 02/10/2026**, sem correções. A margem do
+  `.sales-help` em Relatórios ficou como está.
+- **T036 DONE** (commit `a0aae71`, ainda não publicado): `GET /reports/retention?from&to`
+  (gestora e financeiro). Ativos, novos, perdidos, retenção (fração 0–1 ou `null`) e cancelamentos
+  por mês; padrão de 6 meses, máximo de 24. Plano pausado conta como ativo (não há histórico de
+  pausas); lead = atendimento sem `patientId`; lead convertido passa a contar. Essas duas regras
+  foram comunicadas ao dono, sem resposta ainda. `resolveRetentionPeriod` serve de modelo para a T037.
+- **Próximo passo: T037** (rankings e faixa etária na API), depois T038 (interface dos
+  relatórios), T039/T040 (comunicado segmentado), V3 (revisão manual) e T041 (documentação).
 - **Próxima migração livre: 0039.**
 
 ## Infraestrutura
