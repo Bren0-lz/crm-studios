@@ -493,7 +493,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   comunicado. Criar correções se precisar.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T035, T038, T040
-- **Status:** BLOCKED
+- **Status:** DONE
 
 ### T041 — Documentação da rodada 2
 - **Escopo:** novos incrementos em `docs/STATUS_IMPLEMENTACAO.md`: design, feriados, experimental
@@ -501,4 +501,114 @@ vem primeiro. A próxima migração livre é a **0031**.
   e faixa etária, e comunicado. Atualizar também a lista do `README.md`.
 - **Gate:** `npm run build`
 - **Depende de:** V3
+- **Status:** DONE
+
+## Rodada 4 — Usuários, permissões e comissão (pedido do dono, 03/10/2026)
+
+Decisões do dono:
+- **Permissões:** o perfil (owner, reception, physiotherapist, finance) continua sendo o ponto de
+  partida; a gestora liga/desliga módulos por usuário e a API passa a respeitar isso.
+- **Função:** cargo em texto livre (ex.: "Instrutora de Pilates"), só informativo — não dá acesso.
+- **Comissão:** percentual por usuário sobre **atendimentos concluídos** (regra atual). O usuário é
+  ligado ao cadastro de profissional da agenda (`professionals.user_id`, que já existe) e o
+  percentual reaproveita `commission_rules`.
+- Entra **depois** da V3 e da T041.
+
+Regras gerais da rodada:
+- Módulos (chaves estáveis): `agenda`, `groups` (Turmas), `patients` (Clientes), `plans`, `crm`,
+  `relationship` (Contatos sugeridos), `communications`, `contracts`, `clinical` (Prontuários),
+  `finance`, `reports`, `settings`. "Visão geral" é sempre visível; "Administração" (usuários,
+  feriados, prazos) é sempre só da gestora (owner) e não é um módulo configurável.
+- Usuário sem ajuste (`modules` nulo) usa o padrão do perfil. O padrão de cada perfil reproduz
+  **exatamente** o acesso de hoje (menu em `App.tsx` e guardas `require*Access` em `app.ts`).
+- Owner tem sempre todos os módulos (não editável) — evita a gestora se trancar para fora.
+
+### T047 — Cargo e módulos por usuário na API
+- **Escopo:**
+  - Migração nova `0039_user_permissions.sql`: `users.job_title text NULL` e `users.modules text[] NULL`.
+  - Contratos: `appModuleSchema` (enum acima), `appModuleLabels` (pt-BR), `roleDefaultModules`
+    (padrão por perfil = acesso de hoje) e helper puro `effectiveModules(role, modules?)` (owner →
+    todos; nulo → padrão do perfil; senão a lista, sem duplicatas e na ordem do enum).
+  - `adminUserInputSchema`/`adminUserUpdateSchema` ganham `jobTitle` (opcional, até 80) e
+    `modules` (opcional; `null` = voltar ao padrão do perfil). `AdminUser` e `UserSummary` ganham
+    `jobTitle?` e `modules` (efetivos). Login e `/me` (ou equivalente) devolvem `modules` efetivos.
+  - Dois repositórios + auditoria `users.permissions_updated` quando módulos mudarem.
+  - `GET /admin/permission-matrix` passa a sair de `roleDefaultModules` (rótulos pt-BR).
+  - Testes: `effectiveModules` em contracts.test.ts; rotas de criar/editar usuário com cargo e
+    módulos em app.test.ts; teste PG opt-in.
+- **Gate:** `npm exec -w @crm/contracts -- vitest run src/contracts.test.ts` e
+  `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T041
+- **Status:** TODO
+
+### T048 — A API respeita os módulos de cada usuário
+- **Escopo:**
+  - Trocar as guardas por perfil (`requireClinicalAccess`, `requireCommercialAccess`,
+    `requireFinanceAccess`, `requireManagementAccess`, `requireGroupAccess`,
+    `requireSatisfactionAccess`…) por `requireModule(...modules)`, lendo os módulos efetivos do
+    usuário **no banco a cada requisição** (mudança vale sem novo login; usuário desativado → 401).
+    `requireOwnerAccess` continua para Administração.
+  - Mapear cada rota a um ou mais módulos; documentar o mapa num comentário/constante única.
+  - Testes: todos os testes de 403 existentes continuam passando com os módulos padrão; novos
+    testes mostram um usuário recepção **com** `finance` acessando `/finance/*` e um sem `patients`
+    recebendo 403 em `/patients`.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T047
+- **Status:** TODO
+
+### T049 — Usuários com cargo e permissões na interface
+- **Escopo:**
+  - Em Configurações › Usuários (só owner): formulário de criar/editar com Cargo e uma lista de
+    módulos em `checkbox-field`, já marcada com o padrão do perfil; trocar o perfil sugere o novo
+    padrão; botão "Restaurar padrão do perfil" (envia `modules: null`). Owner mostra "Acesso total"
+    sem checkboxes. Lista de usuários mostra cargo e um selo "Permissões personalizadas".
+  - O menu lateral e as rotas da web passam a usar os `modules` do usuário logado (não mais
+    `roles` fixos).
+  - A matriz de permissões vira referência do padrão de cada perfil.
+  - Usar `Modal` (não `window.prompt/confirm`) nos fluxos tocados. Teste web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T048
+- **Status:** TODO
+
+### T050 — Comissão por usuário na API
+- **Escopo:**
+  - `AdminUser` ganha `professionalId?`, `professionalName?` e `commissionPercentage?` (regra
+    vigente hoje) e `commissionEffectiveFrom?`.
+  - `PUT /admin/users/:id/professional` {professionalId | null}: liga/desliga o usuário a um
+    profissional da agenda (`professionals.user_id`); 404 PROFESSIONAL_NOT_FOUND; 409
+    PROFESSIONAL_ALREADY_LINKED se o profissional já for de outro usuário.
+  - `PUT /admin/users/:id/commission` {percentage 0–100, effectiveFrom}: cria nova regra em
+    `commission_rules` para o profissional ligado (mesma lógica de `/finance/commission-rules`);
+    409 USER_NOT_PROFESSIONAL se não houver profissional ligado. Só owner.
+  - A geração de comissões não muda (continua por profissional e regra vigente).
+  - Sem migração (coluna `user_id` já existe); se precisar de índice único parcial em
+    `professionals(clinic_id, user_id)`, migração nova 0040.
+  - Dois repositórios, auditoria e testes (rota + PG opt-in).
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T047
+- **Status:** TODO
+
+### T051 — Comissão por usuário na interface
+- **Escopo:** no formulário de usuário (só owner), seção "Comissão": profissional da agenda
+  ligado (seleção dos profissionais livres + "Nenhum"), percentual e "Vale a partir de"; lista de
+  usuários mostra o percentual vigente. Sem profissional ligado, o percentual fica desabilitado
+  com explicação. Estados de carregando/erro. Teste web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T049, T050
+- **Status:** TODO
+
+### V4 — Revisão de usuários e permissões (manual)
+- **Tipo:** manual
+- **Escopo:** em 1440px e 390px, criar usuário com cargo, personalizar módulos, entrar com ele e
+  conferir menu e bloqueios; ligar a um profissional e definir comissão; gerar comissões no
+  Financeiro e conferir o percentual.
+- **Gate:** aprovação do dono no chat.
+- **Depende de:** T049, T051
+- **Status:** TODO
+
+### T052 — Documentação da rodada 4
+- **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (cargo, permissões por usuário,
+  comissão por usuário) e item no `README.md`.
+- **Gate:** `npm run build`
+- **Depende de:** V4
 - **Status:** TODO

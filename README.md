@@ -1,16 +1,20 @@
-# Movimenta CRM
+# Studios Aryana
 
-Primeira versão executável de um CRM web para clínicas de fisioterapia, inspirada no fluxo operacional estudado no SeuFisio e construída sem aplicativo ou portal do cliente.
+CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). Primeira versão executável de um CRM web para clínicas de fisioterapia, inspirada no fluxo operacional estudado no SeuFisio e construída sem aplicativo ou portal do cliente.
 
 ## O que já funciona
 
 - autenticação com perfis de acesso;
 - painel com indicadores operacionais;
-- cadastro, edição e pesquisa de clientes;
+- cadastro, edição e pesquisa de clientes, com lista paginada (20 por página);
 - importação de clientes por planilha CSV ou XLSX, com prévia, detecção de duplicados e modelo para download;
+- exportação da base de clientes em CSV ou Excel pela gestão, com escolha de colunas e os filtros da tela;
 - histórico do cliente na ficha, reunindo atendimentos, planos, pagamentos, contatos, mensagens e pesquisas;
-- profissionais, salas e serviços, com o CREFITO do profissional exibido no prontuário, na impressão e nos documentos emitidos;
+- botão SOS na ficha e no atendimento, com o contato de emergência do cliente para ligar ou chamar no WhatsApp;
+- profissionais, salas e serviços, com o CREFITO do profissional exibido no prontuário, na impressão e nos contratos emitidos;
 - agenda diária e semanal, recorrência, bloqueios e reagendamento individual com histórico e prevenção de conflitos;
+- feriados da clínica cadastrados em Configurações, marcados na agenda e bloqueando novos agendamentos;
+- aulas experimentais e avaliações agendadas para leads sem convertê-los, com taxa de conversão em Relatórios;
 - alteração do status dos atendimentos;
 - prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
 - bloqueio de prontuários para perfis sem acesso clínico;
@@ -18,16 +22,20 @@ Primeira versão executável de um CRM web para clínicas de fisioterapia, inspi
 - renovação de planos manual ou automática ao fim do período;
 - consumo automático ao finalizar e estorno ao reabrir atendimentos;
 - financeiro com contas a receber e pagar, categorias, centros de custo, ajustes, formas de pagamento, recibos e fluxo de caixa mensal;
+- despesas fixas recorrentes, que lançam a conta a pagar de cada mês automaticamente;
+- caixa do dia com entradas e saídas por forma de pagamento e previsão de receitas e despesas para 3, 6 ou 12 meses;
 - renegociação parcelada e comissões profissionais por competência;
 - CRM comercial com Kanban, tarefas, contatos e conversão segura de leads;
 - central de comunicações com opt-out, outbox e lembretes idempotentes;
+- comunicado segmentado por etiquetas, situação, plano ou aniversariantes, com prévia e enfileiramento na outbox (sem envio real);
 - central de relacionamento com contatos sugeridos por situação, prazos e mensagens configuráveis, registro de contatos e aniversariantes, sem envio automático;
 - pesquisa de satisfação por atendimento, com NPS em Relatórios e alerta de avaliação baixa na central de relacionamento;
-- modelos versionados e documentos com snapshot imutável;
+- contratos em `/contratos`: modelos versionados, emissão com snapshot imutável e impressão;
 - relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
+- retenção e cancelamentos mês a mês, rankings de clientes por sessões e por recebimentos e distribuição por faixa etária;
 - livro mensal de vendas e cancelamentos, comparação com o mês anterior, clientes sem retorno e exportação Excel detalhada;
 - trilha inicial de auditoria no modelo de dados;
-- interface responsiva para desktop, tablet e celular.
+- interface responsiva para desktop, tablet e celular, com escala de espaçamento padronizada e modais que não desfocam nem rolam a página de fundo.
 
 O repositório inclui dois modos de armazenamento: memória, para avaliação imediata, e PostgreSQL, para manter os dados entre reinicializações. No modo PostgreSQL, as migrações são executadas automaticamente e o banco impede conflitos simultâneos de profissional ou sala.
 
@@ -42,7 +50,7 @@ npm run dev
 
 A interface ficará em `http://localhost:5173` e a API em `http://localhost:3333`.
 
-Credenciais de demonstração:
+Credenciais de demonstração (conta da gestora Aryana Dutra; o e-mail mantém o domínio antigo):
 
 ```text
 admin@movimenta.local

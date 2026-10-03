@@ -1,6 +1,6 @@
-# Status da implementação
+# Status da implementação — Studios Aryana
 
-Atualizado em 29 de setembro de 2026.
+Atualizado em 3 de outubro de 2026.
 
 ## Incremento 1 — Fundação e operação básica
 
@@ -110,6 +110,8 @@ Concluído:
 - persistência equivalente em memória e PostgreSQL.
 
 Assinatura eletrônica externa, evidências técnicas e geração do PDF final permanecem desacopladas até a definição do provedor. Nenhum portal ou aplicativo do cliente foi criado.
+
+Em 1º de outubro de 2026 o módulo Documentos foi removido por completo (migração 0036). Ele voltou como **Contratos** no incremento 37, com as mesmas regras de modelos e emissão, sem a emissão da declaração pela agenda.
 
 ## Incremento 9 — Relatórios e indicadores gerenciais
 
@@ -370,9 +372,9 @@ Limites atuais: nenhuma mensagem é enviada automaticamente; a recepção abre c
 Concluído:
 
 - CREFITO do profissional exibido ao lado do nome na lista de prontuários, na evolução e no resumo para impressão;
-- emissão de documento com profissional opcional, validado na clínica e recusado com 404 quando inválido;
-- variáveis `{{profissional_nome}}` e `{{profissional_crefito}}` nos modelos, vazias quando o documento não tem profissional;
-- profissional guardado no documento pela migração 0029, preservando o snapshot imutável;
+- emissão de contrato com profissional opcional, validado na clínica e recusado com 404 quando inválido;
+- variáveis `{{profissional_nome}}` e `{{profissional_crefito}}` nos modelos, vazias quando o contrato não tem profissional;
+- profissional guardado no documento emitido, preservando o snapshot imutável (coluna criada pela migração 0029 e recriada pela 0038, depois da remoção e da volta do módulo como Contratos);
 - testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
 
 ## Incremento 25 — Pesquisa de satisfação (NPS)
@@ -410,6 +412,152 @@ Concluído:
 - testes de leitura e validação, API em memória, PostgreSQL (opt-in) e interface.
 
 Limites atuais: a importação cobre apenas o cadastro de clientes; planos, saldos de sessões e lançamentos financeiros do sistema anterior ficam fora. Os testes de integração PostgreSQL dos incrementos 24 a 27 existem, mas não foram executados, pois o ambiente não tem `TEST_DATABASE_URL`.
+
+## Incremento 28 — Padrões de design
+
+Concluído:
+
+- respiro lateral padrão de 23px em todos os filhos diretos de `.panel`, que não tem padding próprio;
+- escala de espaçamento `--space-1` a `--space-8` (4 a 64px) e raios `--radius-sm/md/lg` (8, 12 e 18px);
+- `.secondary-button` com ícone e texto alinhados, como o `.primary-button`;
+- grids de várias colunas reduzidos a uma coluna até 700px; lista de clientes em cartões no celular;
+- correções da revisão visual: tela de login, espaçamento do painel de vendas, métricas de vendas e painéis de Configurações;
+- verificação automática `node apps/web/scripts/audit-panels.cjs` (filhos de painel sem respiro, cartões colados na borda e grids sem regra para celular; exceções só com `/* audit: mobile-ok <motivo> */`);
+- regras de design registradas no processo de desenvolvimento.
+
+## Incremento 29 — Feriados
+
+Concluído:
+
+- feriados por clínica e data, únicos por dia, guardados pela migração 0031;
+- consulta para todos os perfis; cadastro e exclusão só pela gestão, na seção "Feriados" de **Configurações**;
+- criar atendimento, criar série recorrente ou reagendar para um feriado é recusado com 409 e o nome do feriado; na série, nenhuma ocorrência é criada;
+- agenda diária, semanal e mensal marca o feriado com o nome e mostra o erro em linguagem clara;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 30 — Experimental e avaliação de leads
+
+Concluído:
+
+- tipo de atendimento regular, experimental ou avaliação (migração 0032), preservado na criação, recorrência e reagendamento;
+- agendamento de experimental ou avaliação para lead sem convertê-lo, com "Agendar experimental" no detalhe do lead aberto (migração 0033: atendimento é de cliente ou de lead);
+- prontuário e pesquisa de satisfação recusados em atendimento de lead;
+- a conversão do lead leva os atendimentos para o cliente criado ou reaproveitado;
+- selo "Experimental" ou "Avaliação" (com "· lead" antes da conversão) na agenda e no detalhe do atendimento;
+- relatório gerencial com atendimentos por tipo e cartão "Experimentais": agendadas, concluídas, convertidas (plano criado em até 30 dias após a aula) e taxa de conversão;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 31 — Declaração de comparecimento pela agenda (removida)
+
+Implementada a emissão da declaração de comparecimento a partir de um atendimento concluído na agenda (migração 0034). Em 1º de outubro de 2026 foi removida junto com o módulo Documentos (migração 0036). A emissão da declaração pela agenda não voltou; em Contratos, "Declaração de comparecimento" segue disponível como tipo de modelo.
+
+## Incremento 32 — Botão SOS
+
+Concluído:
+
+- botão SOS no detalhe do atendimento de cliente e na ficha do cliente;
+- painel com o nome e o telefone do contato de emergência do cadastro, com ligação e WhatsApp, e atalhos para SAMU (192) e Bombeiros (193);
+- teste de interface.
+
+## Incremento 33 — Despesas fixas recorrentes
+
+Concluído:
+
+- despesas fixas com descrição, valor, dia de vencimento, categoria, centro de custo e meses de início e fim (migração 0035);
+- conta a pagar gerada uma vez por competência, garantida por índice único, ao abrir o financeiro ou a previsão;
+- pausa sem gerar contas; a reativação retoma no mês atual, sem lançar os meses pausados;
+- seção na aba de contas a pagar do **Financeiro** para cadastrar, pausar, reativar e encerrar;
+- exclusão recusada com 409 quando a despesa já gerou contas;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 34 — Caixa do dia
+
+Concluído:
+
+- aba "Caixa do dia" no **Financeiro**, para gestão e financeiro, com seletor de data;
+- totais por forma de pagamento ("Não informada" quando não há), entradas, saídas e saldo do dia;
+- movimentos em ordem cronológica: recebimentos, estornos, contas pagas e comissões pagas, pela data da clínica;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 35 — Previsão de receitas e despesas
+
+Concluído:
+
+- aba "Previsão" no **Financeiro** com horizonte de 3, 6 ou 12 meses a partir do mês atual;
+- valores confirmados (parcelas e contas a pagar em aberto) e projetados (renovações automáticas de planos e despesas fixas ainda não lançadas), com saldo por mês e total;
+- valores vencidos antes do mês atual mostrados à parte, fora dos saldos;
+- comissões fora da previsão;
+- divisão das parcelas de plano unificada num helper compartilhado;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 36 — Marca Studios Aryana
+
+Concluído:
+
+- o produto passa a se chamar "Studios Aryana" no logo, no topo, na tela de login, no título da aba e na planilha de vendas;
+- clínica "Studios Aryana" (razão social "Studios Aryana Ltda.") e gestora "Aryana Dutra" no seed e no modo memória; o login de demonstração continua `admin@movimenta.local`;
+- migração 0037 atualiza os nomes nos bancos já existentes.
+
+## Incremento 37 — Contratos
+
+Concluído:
+
+- volta do módulo de modelos versionados e documentos emitidos como **Contratos**, em `/contratos` (gestão, recepção e financeiro; `/documentos` redireciona);
+- tabelas recriadas vazias pela migração 0038, com profissional opcional e variáveis de nome e CREFITO;
+- nova versão do modelo em janela própria, preservando quebras de linha; cancelamento com confirmação;
+- impressão do contrato emitido;
+- sem a emissão da declaração pela agenda;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 38 — Exportação da base de clientes
+
+Concluído:
+
+- botão "Exportar" em **Clientes**, só para a gestão, com CSV (UTF-8 com BOM, separado por `;`) ou Excel;
+- escolha entre 13 colunas, sempre na mesma ordem;
+- filtros da tela aplicados: busca, situação, etiquetas, aniversariantes do mês e plano ativo; filtros de e-mail e ordenação avisados como não aplicados;
+- arquivo `clientes-AAAA-MM-DD` e registro da exportação na auditoria administrativa;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+Limite atual: o CSV não neutraliza células iniciadas por `=`, `+`, `-` ou `@`.
+
+## Incremento 39 — Paginação de clientes e modais
+
+Concluído:
+
+- lista de **Clientes** paginada em 20 por página, com "Anterior", "Próxima" e contagem; busca e filtros voltam à primeira página;
+- modais sem desfoque do fundo e sem rolar a página de trás enquanto estão abertos;
+- testes de interface.
+
+## Incremento 40 — Retenção e cancelamentos
+
+Concluído:
+
+- relatório mês a mês, para gestão e financeiro, com clientes ativos, novos e perdidos, taxa de retenção, planos cancelados e valor cancelado;
+- período padrão dos últimos 6 meses, limitado a 24 meses;
+- tabela com totais no bloco de indicadores de **Relatórios**;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 41 — Rankings e faixa etária
+
+Concluído:
+
+- os 20 clientes com mais sessões concluídas e os 20 com mais recebimentos no período (pagamentos menos estornos);
+- distribuição dos clientes ativos por faixa etária: 0–17, 18–29, 30–44, 45–59, 60+ e sem data de nascimento;
+- cartões em **Relatórios**, cada um com carregamento, vazio e erro próprios;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 42 — Comunicado segmentado
+
+Concluído:
+
+- painel "Comunicado segmentado" em **Comunicações** para gestão, recepção e financeiro;
+- segmento por etiquetas, situação, plano ativo e aniversariantes do mês, por WhatsApp ou e-mail, com texto de até 500 caracteres;
+- prévia com clientes do segmento, enfileirados e pulados por opt-out, falta de destino ou mensagem longa, além de um exemplo;
+- enfileiramento com confirmação na outbox: as mensagens **não são enviadas**, ficam aguardando um provedor (modo `outbox_only`);
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+Limite atual: os testes de integração PostgreSQL dos incrementos 41 e 42 existem, mas não foram executados nesta máquina, que não tem `TEST_DATABASE_URL`.
 
 ## Próximo incremento de desenvolvimento autônomo
 
