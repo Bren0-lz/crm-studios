@@ -581,7 +581,7 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
     `patients` liberada consegue criar.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T048
-- **Status:** TODO
+- **Status:** DONE
 
 ### T049 — Usuários com cargo e permissões na interface
 - **Escopo:**

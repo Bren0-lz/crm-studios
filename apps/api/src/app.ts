@@ -89,6 +89,7 @@ import {
   type UserSummary,
   type PermissionMatrixItem,
   appModuleLabels,
+  type AppModule,
   roleDefaultEditModules,
   roleDefaultModules,
   userRoleSchema,
@@ -102,6 +103,11 @@ import { config } from "./config.js";
 import { clinicDateOf, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
+import {
+  moduleDeniedCodes,
+  ROUTE_ACCESS,
+  type ModuleRequirement,
+} from "./route-access.js";
 import {
   buildRetentionReport,
   resolveRetentionPeriod,
@@ -371,6 +377,16 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     };
   }
 
+  /** Módulos e edição efetivos do usuário da requisição (lidos do repositório no `authenticate`). */
+  const requestAccess = new WeakMap<
+    FastifyRequest,
+    { modules: readonly AppModule[]; editModules: readonly AppModule[] }
+  >();
+
+  /**
+   * Valida o token e relê o usuário no repositório a cada requisição: usuário inexistente ou
+   * desativado recebe 401, e perfil/módulos alterados valem sem novo login.
+   */
   async function authenticate(request: FastifyRequest, reply: FastifyReply) {
     try {
       await request.jwtVerify();
@@ -380,85 +396,40 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         message: "Sua sessão expirou. Entre novamente.",
       } satisfies ApiError);
     }
+    const user = await repository.findUserById(
+      request.user.clinicId,
+      request.user.sub,
+    );
+    if (!user)
+      return reply.status(401).send({
+        code: "UNAUTHORIZED",
+        message: "Sua sessão não é mais válida. Entre novamente.",
+      } satisfies ApiError);
+    request.user.role = user.role;
+    requestAccess.set(request, {
+      modules: user.modules,
+      editModules: user.editModules,
+    });
   }
 
-  async function requireClinicalAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (!["owner", "physiotherapist"].includes(request.user.role)) {
-      return reply.status(403).send({
-        code: "CLINICAL_ACCESS_DENIED",
-        message: "Seu perfil não possui acesso a prontuários clínicos.",
-      } satisfies ApiError);
-    }
-  }
-
-  async function requireCommercialAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (!["owner", "reception", "finance"].includes(request.user.role)) {
-      return reply.status(403).send({
-        code: "COMMERCIAL_ACCESS_DENIED",
-        message: "Seu perfil não possui permissão para operações comerciais.",
-      } satisfies ApiError);
-    }
-  }
-
-  // Pesquisa de satisfação: união do acesso comercial e do clínico.
-  async function requireSatisfactionAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (
-      !["owner", "reception", "finance", "physiotherapist"].includes(
-        request.user.role,
-      )
-    ) {
-      return reply.status(403).send({
-        code: "SATISFACTION_ACCESS_DENIED",
-        message: "Seu perfil não possui acesso às pesquisas de satisfação.",
-      } satisfies ApiError);
-    }
-  }
-
-  async function requireGroupAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (
-      !["owner", "reception", "physiotherapist"].includes(request.user.role)
-    ) {
-      return reply.status(403).send({
-        code: "GROUP_ACCESS_DENIED",
-        message: "Seu perfil não possui acesso à operação de turmas.",
-      } satisfies ApiError);
-    }
-  }
-
-  async function requireFinanceAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (!["owner", "finance"].includes(request.user.role)) {
-      return reply.status(403).send({
-        code: "FINANCE_ACCESS_DENIED",
-        message: "Seu perfil não possui acesso ao financeiro.",
-      } satisfies ApiError);
-    }
-  }
-
-  async function requireManagementAccess(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (!["owner", "finance"].includes(request.user.role)) {
-      return reply.status(403).send({
-        code: "MANAGEMENT_ACCESS_DENIED",
-        message: "Seu perfil não possui acesso aos relatórios gerenciais.",
-      } satisfies ApiError);
-    }
+  /** Guarda por módulo e nível: exige todos os requisitos (ver `ROUTE_ACCESS`). */
+  function requireModules(requirements: readonly ModuleRequirement[]) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      const access = requestAccess.get(request);
+      const missing = requirements.find(
+        ({ module, level }) =>
+          !(level === "edit" ? access?.editModules : access?.modules)?.includes(
+            module,
+          ),
+      );
+      if (missing)
+        return reply.status(403).send({
+          code: moduleDeniedCodes[missing.module],
+          message: `Seu usuário não possui permissão para ${
+            missing.level === "edit" ? "editar" : "ver"
+          } ${appModuleLabels[missing.module]}.`,
+        } satisfies ApiError);
+    };
   }
 
   async function requireOwnerAccess(
@@ -471,6 +442,32 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         message: "Esta operação é restrita à gestão proprietária.",
       } satisfies ApiError);
   }
+
+  // Aplica o mapa único `ROUTE_ACCESS` a cada rota registrada; rota fora do mapa não sobe.
+  app.addHook("onRoute", (routeOptions) => {
+    const methods = Array.isArray(routeOptions.method)
+      ? routeOptions.method
+      : [routeOptions.method];
+    // Preflight CORS do @fastify/cors (`OPTIONS *`): sem dados, só cabeçalhos.
+    if (methods.every((method) => method === "OPTIONS") && routeOptions.url === "*")
+      return;
+    // O Fastify cria a HEAD de cada GET copiando as opções originais (sem a guarda): a HEAD
+    // recebe exatamente o acesso do GET correspondente.
+    const method = methods[0] === "HEAD" ? "GET" : methods[0];
+    const key = `${method} ${routeOptions.url}`;
+    const access = ROUTE_ACCESS[key];
+    if (!access)
+      throw new Error(`Rota sem acesso definido em ROUTE_ACCESS: ${key}`);
+    if (access === "public") return;
+    routeOptions.preHandler = [
+      authenticate,
+      ...(access === "owner"
+        ? [requireOwnerAccess]
+        : access === "login"
+          ? []
+          : [requireModules(access)]),
+    ];
+  });
 
   /** Recusa (409 `HOLIDAY`) horários cuja data, no fuso da clínica, é feriado. */
   async function assertNoHoliday(clinicId: string, startsAtList: string[]) {
@@ -545,12 +542,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/admin/users",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request) => repository.listAdminUsers(request.user.clinicId),
   );
   app.post(
     "/admin/users",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const input = adminUserInputSchema.parse(request.body);
       return reply
@@ -567,7 +564,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/admin/users/:id",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const user = await repository.updateAdminUser(
@@ -586,7 +583,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/admin/users/:id/reset-password",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const { password } = passwordResetSchema.parse(request.body);
@@ -606,7 +603,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/admin/clinic-settings",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const settings = await repository.getClinicSettings(
         request.user.clinicId,
@@ -621,7 +618,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.put(
     "/admin/clinic-settings",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.updateClinicSettings(
         request.user.clinicId,
@@ -631,13 +628,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/relationship/settings",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.getRelationshipSettings(request.user.clinicId),
   );
   app.put(
     "/relationship/settings",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.updateRelationshipSettings(
         request.user.clinicId,
@@ -652,7 +649,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.post(
     "/holidays",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -665,7 +662,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.delete(
     "/holidays/:id",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const deleted =
@@ -681,7 +678,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/relationship/suggestions",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.listContactSuggestions(
         request.user.clinicId,
@@ -690,7 +687,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/relationship/birthdays",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const query = z
         .object({ month: birthdayMonthSchema.optional() })
@@ -703,7 +700,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/relationship/activities",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const query = z
         .object({ patientId: z.uuid().optional() })
@@ -716,7 +713,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/relationship/activities",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -730,7 +727,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/satisfaction",
-    { preHandler: [authenticate, requireSatisfactionAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -744,7 +741,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/satisfaction",
-    { preHandler: [authenticate, requireSatisfactionAccess] },
+    { preHandler: authenticate },
     async (request): Promise<SatisfactionReport> => {
       const query = satisfactionFilterSchema.parse(request.query);
       // Padrão: `to` = hoje (data da clínica); `from` = dia 1º do mês de `to`.
@@ -767,12 +764,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/admin/audit-events",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request) => repository.listAdminAuditEvents(request.user.clinicId),
   );
   app.get(
     "/admin/permission-matrix",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async () =>
       userRoleSchema.options.map((role): PermissionMatrixItem => {
         if (role === "owner") {
@@ -806,7 +803,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.get(
     "/patients/export",
-    { preHandler: [authenticate, requireOwnerAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { format, columns, ...filters } = patientExportFilterSchema.parse(
         request.query,
@@ -897,12 +894,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   }
   app.post(
     "/patients/import/preview",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => analyzePatientImport(request.user.clinicId, request.body),
   );
   app.post(
     "/patients/import",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request): Promise<PatientImportResult> => {
       const analysis = await analyzePatientImport(request.user.clinicId, request.body);
       const [firstError] = analysis.errors;
@@ -942,7 +939,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/patients/:id/timeline",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const timeline = z.uuid().safeParse(id).success
@@ -1120,7 +1117,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.post(
     "/schedule-blocks",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1133,7 +1130,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/schedule-blocks/:id/cancel",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const block = await repository.cancelScheduleBlock(
@@ -1151,7 +1148,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/groups/workspace",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const query = request.query as { from?: string; to?: string };
       if (!query.from || !query.to)
@@ -1168,7 +1165,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/groups",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1181,7 +1178,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.put(
     "/groups/:id",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const group = await repository.updateGroupClass(
@@ -1195,7 +1192,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/group-enrollments",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1208,7 +1205,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/group-enrollments/:id/cancel",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const enrollment = await repository.cancelGroupEnrollment(
@@ -1239,7 +1236,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.put(
     "/group-sessions/:sessionId/attendance/:patientId",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { sessionId, patientId } = request.params as {
         sessionId: string;
@@ -1256,7 +1253,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/group-sessions/:id/complete",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const session = await repository.completeGroupSession(
@@ -1273,7 +1270,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/group-replacements/book",
-    { preHandler: [authenticate, requireGroupAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.bookReplacement(
         request.user.clinicId,
@@ -1284,12 +1281,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/inventory/workspace",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => repository.getInventoryWorkspace(request.user.clinicId),
   );
   app.post(
     "/inventory/products",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1303,7 +1300,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/inventory/movements",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1317,7 +1314,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/patient-tabs",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1331,7 +1328,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/patient-tabs/:id/items",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const tab = await repository.addPatientTabItem(
@@ -1350,7 +1347,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/patient-tabs/:id/close",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const tab = await repository.closePatientTab(
@@ -1369,7 +1366,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/patient-tabs/:id/cancel",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const tab = await repository.cancelPatientTab(
@@ -1388,7 +1385,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/clinical-records",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const query = optionalPatientFilterSchema.parse(request.query);
       return repository.listClinicalRecords(
@@ -1399,7 +1396,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-records",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1413,7 +1410,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-records/:id/finalize",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const record = await repository.finalizeClinicalRecord(
@@ -1431,7 +1428,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/clinical-records/:id/revisions",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { id } = request.params as { id: string };
       return repository.listClinicalRecordRevisions(request.user.clinicId, id);
@@ -1439,7 +1436,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/clinical-workspace/:patientId",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { patientId } = request.params as { patientId: string };
       const workspace = await repository.getClinicalWorkspace(
@@ -1457,7 +1454,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/clinical-workspace/:patientId/export",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { patientId } = request.params as { patientId: string };
       const workspace = await repository.getClinicalWorkspace(
@@ -1480,7 +1477,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/clinical-workspace/:patientId/access-events",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { patientId } = request.params as { patientId: string };
       return repository.listClinicalAccessEvents(
@@ -1491,7 +1488,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-attachments",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1505,7 +1502,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/clinical-attachments/:id/content",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const attachment = await repository.getClinicalAttachmentContent(
@@ -1523,7 +1520,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-addenda",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1537,7 +1534,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/assessment-templates",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1550,7 +1547,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-assessments",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1564,7 +1561,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/therapeutic-goals",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1578,7 +1575,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/therapeutic-goals/:id/status",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const goal = await repository.updateTherapeuticGoalStatus(
@@ -1598,7 +1595,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/clinical-measurements",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1612,7 +1609,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/treatment-closures",
-    { preHandler: [authenticate, requireClinicalAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1632,7 +1629,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.post(
     "/plans",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1646,7 +1643,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/plans/:id/status",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const status = planTransitionSchema.parse(
@@ -1668,7 +1665,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/plans/:id/renew",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const plan = await repository.renewPatientPlan(
@@ -1687,7 +1684,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/plans/:id/auto-renew",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const plan = await repository.updatePatientPlanAutoRenew(
@@ -1715,7 +1712,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/finance/summary",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) => {
       await repository.renewDuePatientPlans(
         request.user.clinicId,
@@ -1726,7 +1723,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/receivables/:id/pay",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const receivable = await repository.settleReceivable(
@@ -1745,7 +1742,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/finance/receivables/:id/adjust",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = receivableAdjustmentInputSchema.parse(request.body);
@@ -1766,7 +1763,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/finance/receivables/:id/receipt",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const receipt = await repository.getPaymentReceipt(
@@ -1783,7 +1780,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/finance/workspace",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) => {
       // Abrir o financeiro gera as competências pendentes das despesas fixas.
       await repository.generateDueRecurringPayables(
@@ -1795,7 +1792,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/finance/daily-cash",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { date } = dailyCashFilterSchema.parse(request.query);
       return repository.getDailyCash(
@@ -1806,7 +1803,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/finance/forecast",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { months } = financeForecastFilterSchema.parse(request.query);
       const { clinicId, sub } = request.user;
@@ -1828,7 +1825,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/finance/recurring-payables",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) => {
       await repository.generateDueRecurringPayables(
         request.user.clinicId,
@@ -1839,7 +1836,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/recurring-payables",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1853,7 +1850,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.put(
     "/finance/recurring-payables/:id",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const recurring = await repository.updateRecurringPayable(
@@ -1872,7 +1869,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.delete(
     "/finance/recurring-payables/:id",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const deleted = await repository.deleteRecurringPayable(
@@ -1889,7 +1886,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/renegotiations",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1903,7 +1900,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/commission-rules",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1916,7 +1913,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/commissions/generate",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.generateCommissions(
         request.user.clinicId,
@@ -1925,7 +1922,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/commissions/:id/pay",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const commission = await repository.settleCommission(
@@ -1943,7 +1940,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/commissions/:id/reverse",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const commission = await repository.reverseCommission(
@@ -1960,7 +1957,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/categories",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1973,7 +1970,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/cost-centers",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -1986,7 +1983,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/payables",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -2000,7 +1997,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/payables/:id/pay",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = paymentInputSchema.parse(request.body ?? {});
@@ -2020,7 +2017,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/payables/:id/reverse",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const payable = await repository.reversePayablePayment(
@@ -2038,7 +2035,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/finance/receivables/:id/reverse",
-    { preHandler: [authenticate, requireFinanceAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const receivable = await repository.reverseReceivablePayment(
@@ -2057,12 +2054,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/leads",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => repository.listLeads(request.user.clinicId),
   );
   app.post(
     "/leads",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -2075,7 +2072,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/leads/:id/stage",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = leadMoveSchema.parse(request.body);
@@ -2096,7 +2093,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/leads/:id/convert",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const conversion = await repository.convertLead(
@@ -2114,7 +2111,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/leads/:id/activity",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const activity = await repository.getLeadActivity(
@@ -2131,7 +2128,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/leads/:id/contacts",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const contact = await repository.createLeadContact(
@@ -2150,7 +2147,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/leads/:id/tasks",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const task = await repository.createLeadTask(
@@ -2169,7 +2166,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/leads/:id/appointments",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = leadAppointmentInputSchema.parse(request.body);
@@ -2189,7 +2186,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/lead-tasks/:id/status",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const status = leadTaskStatusSchema.parse(
@@ -2211,12 +2208,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/communications",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => repository.getCommunicationCenter(request.user.clinicId),
   );
   app.put(
     "/communications/preferences",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) =>
       repository.setCommunicationPreference(
         request.user.clinicId,
@@ -2225,7 +2222,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/communications/messages",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -2271,7 +2268,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   app.post(
     "/communications/broadcast/preview",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request): Promise<BroadcastResult> => {
       const { input, plan } = await planBroadcast(
         request.user.clinicId,
@@ -2282,7 +2279,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/communications/broadcast",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { input, plan } = await planBroadcast(
         request.user.clinicId,
@@ -2298,7 +2295,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/communications/reminders/generate",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const input = reminderGenerationInputSchema.parse(request.body);
       return repository.generateReminders(
@@ -2310,12 +2307,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/document-templates",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => repository.listDocumentTemplates(request.user.clinicId),
   );
   app.post(
     "/document-templates",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -2328,7 +2325,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.post(
     "/document-templates/:id/versions",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = documentTemplateVersionInputSchema.parse(request.body);
@@ -2347,12 +2344,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/documents",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request) => repository.listIssuedDocuments(request.user.clinicId),
   );
   app.post(
     "/documents",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) =>
       reply
         .status(201)
@@ -2366,7 +2363,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.patch(
     "/documents/:id/status",
-    { preHandler: [authenticate, requireCommercialAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const status = documentTransitionSchema.parse(
@@ -2388,7 +2385,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
 
   app.get(
     "/reports/management",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const filter = managementReportFilterSchema.parse(request.query);
       return repository.getManagementReport(
@@ -2400,7 +2397,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/reports/retention",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const filter = retentionReportFilterSchema.parse(request.query);
       const today = saoPauloToday();
@@ -2421,7 +2418,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/reports/clients",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const filter = clientReportFilterSchema.parse(request.query);
       const { clinicId } = request.user;
@@ -2453,7 +2450,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/reports/sales",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request) => {
       const { month } = salesReportFilterSchema.parse(request.query);
       return repository.getSalesReport(request.user.clinicId, month);
@@ -2461,7 +2458,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/reports/sales.xlsx",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const { month } = salesReportFilterSchema.parse(request.query);
       const report = await repository.getSalesReport(request.user.clinicId, month);
@@ -2479,7 +2476,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   );
   app.get(
     "/reports/management.csv",
-    { preHandler: [authenticate, requireManagementAccess] },
+    { preHandler: authenticate },
     async (request, reply) => {
       const filter = managementReportFilterSchema.parse(request.query);
       const report = await repository.getManagementReport(
