@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appointmentInputSchema,
+  broadcastInputSchema,
+  broadcastSkipReasonLabels,
+  broadcastSkipReasons,
   contactActivityInputSchema,
   contactOutcomeSchema,
   contactReasonSchema,
@@ -29,6 +32,25 @@ import {
 } from "./index.js";
 
 describe("shared contracts", () => {
+  it("parses a segmented broadcast with defaults and empty optional filters", () => {
+    expect(broadcastInputSchema.parse({ channel: "email", body: " Oi, {{nome}} " })).toEqual({
+      segment: { tags: [], birthdayMonth: false },
+      channel: "email",
+      body: "Oi, {{nome}}",
+    });
+    expect(
+      broadcastInputSchema.parse({
+        segment: { tags: ["vip"], status: "", activePlan: "", birthdayMonth: true },
+        channel: "whatsapp",
+        body: "Oi",
+      }).segment,
+    ).toEqual({ tags: ["vip"], birthdayMonth: true });
+    expect(
+      broadcastInputSchema.safeParse({ channel: "sms", body: "Oi" }).success,
+    ).toBe(false);
+    expect(broadcastSkipReasons.every((reason) => broadcastSkipReasonLabels[reason])).toBe(true);
+  });
+
   it("lists the due competences of a fixed expense across years", () => {
     const model = { startMonth: "2026-11", active: true };
     expect(recurringPayableCompetences(model, "2027-02")).toEqual([

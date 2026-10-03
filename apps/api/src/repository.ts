@@ -32,6 +32,7 @@ import type {
   CostCenter,
   CostCenterInput,
   DailyCash,
+  BroadcastMessageDraft,
   CommunicationCenter,
   CommunicationPreference,
   CommunicationPreferenceInput,
@@ -625,6 +626,11 @@ export interface ClinicRepository {
     clinicId: string,
     input: ManualMessageInput,
   ): Promise<OutboundMessage>;
+  /** Enfileira as mensagens `manual` de um comunicado de uma vez; devolve quantas gravou. */
+  queueBroadcastMessages(
+    clinicId: string,
+    drafts: BroadcastMessageDraft[],
+  ): Promise<number>;
   generateReminders(
     clinicId: string,
     referenceDate: string,

@@ -478,7 +478,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** V2
-- **Status:** TODO
+- **Status:** DONE
 
 ### T040 — Comunicado segmentado na interface
 - **Escopo:** em Comunicações, formulário de segmento, canal e texto, prévia com contagem e motivos

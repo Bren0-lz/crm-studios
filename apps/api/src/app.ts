@@ -31,6 +31,7 @@ import {
   clinicalRecordInputSchema,
   costCenterInputSchema,
   communicationPreferenceInputSchema,
+  broadcastInputSchema,
   documentTemplateInputSchema,
   documentTemplateVersionInputSchema,
   documentTransitionSchema,
@@ -80,6 +81,7 @@ import {
   therapeuticGoalStatusSchema,
   treatmentClosureInputSchema,
   type ApiError,
+  type BroadcastResult,
   type ManagementReport,
   type PatientImportAnalysis,
   type PatientImportResult,
@@ -90,6 +92,7 @@ import {
   buildClientReport,
   resolveClientReportPeriod,
 } from "./client-report.js";
+import { buildBroadcast } from "./broadcast.js";
 import { config } from "./config.js";
 import { clinicDateOf, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
@@ -2227,6 +2230,66 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
             manualMessageInputSchema.parse(request.body),
           ),
         ),
+  );
+  // Comunicado segmentado: a prévia não grava nada; o envio só enfileira
+  // mensagens `manual` na outbox (nenhum disparo real).
+  async function planBroadcast(clinicId: string, body: unknown) {
+    const input = broadcastInputSchema.parse(body);
+    const [patients, plans, center] = await Promise.all([
+      repository.listPatients(clinicId),
+      input.segment.activePlan === undefined
+        ? Promise.resolve([])
+        : repository.listPatientPlans(clinicId),
+      repository.getCommunicationCenter(clinicId),
+    ]);
+    const plan = buildBroadcast(
+      patients,
+      plans,
+      center.preferences,
+      input,
+      saoPauloToday(),
+    );
+    return { input, plan };
+  }
+  const broadcastResult = (
+    preview: boolean,
+    input: { channel: "whatsapp" | "email" },
+    plan: ReturnType<typeof buildBroadcast>,
+    queued: number,
+  ) => ({
+    preview,
+    channel: input.channel,
+    matched: plan.matched,
+    queued,
+    skipped: plan.skipped,
+    ...(plan.drafts[0] ? { sampleBody: plan.drafts[0].body } : {}),
+  });
+  app.post(
+    "/communications/broadcast/preview",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request): Promise<BroadcastResult> => {
+      const { input, plan } = await planBroadcast(
+        request.user.clinicId,
+        request.body,
+      );
+      return broadcastResult(true, input, plan, plan.drafts.length);
+    },
+  );
+  app.post(
+    "/communications/broadcast",
+    { preHandler: [authenticate, requireCommercialAccess] },
+    async (request, reply) => {
+      const { input, plan } = await planBroadcast(
+        request.user.clinicId,
+        request.body,
+      );
+      const queued = await repository.queueBroadcastMessages(
+        request.user.clinicId,
+        plan.drafts,
+      );
+      const result: BroadcastResult = broadcastResult(false, input, plan, queued);
+      return reply.status(201).send(result);
+    },
   );
   app.post(
     "/communications/reminders/generate",

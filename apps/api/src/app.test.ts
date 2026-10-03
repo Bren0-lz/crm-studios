@@ -5577,4 +5577,316 @@ describe("CRM API", () => {
       await app.close();
     });
   });
+
+  describe("segmented broadcast", () => {
+    const tag = "comunicado-t039";
+    async function setup() {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const create = async (payload: Record<string, unknown>) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload,
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json() as { id: string; fullName: string };
+      };
+      const ana = await create({
+        fullName: "Ana Comunicado Silva",
+        phone: "11922220001",
+        whatsapp: "11988880001",
+        email: "ana.comunicado@example.com",
+        birthDate: "1990-03-20",
+        tags: [tag],
+      });
+      const bruno = await create({
+        fullName: "Bruno Comunicado",
+        phone: "11922220002",
+        birthDate: "1988-07-02",
+        tags: [tag],
+      });
+      const carla = await create({
+        fullName: "Carla Comunicado",
+        phone: "11922220003",
+        email: "carla.comunicado@example.com",
+        tags: [tag],
+      });
+      await create({
+        fullName: "Dora Fora do Segmento",
+        phone: "11922220004",
+        email: "dora@example.com",
+        tags: ["outra-t039"],
+      });
+      const optOut = await app.inject({
+        method: "PUT",
+        url: "/communications/preferences",
+        headers,
+        payload: { patientId: carla.id, channel: "email", allowed: false },
+      });
+      expect(optOut.statusCode).toBe(200);
+      const manualCount = async () =>
+        (
+          (
+            await app.inject({ method: "GET", url: "/communications", headers })
+          ).json() as { messages: Array<{ kind: string }> }
+        ).messages.filter((message) => message.kind === "manual").length;
+      return { app, headers, ana, bruno, carla, manualCount };
+    }
+
+    it("previews the segment without writing, skipping opt-out and missing destination", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date("2032-03-15T15:00:00.000Z"));
+        const { app, headers, ana, bruno, carla, manualCount } = await setup();
+        const before = await manualCount();
+        const preview = (payload: Record<string, unknown>) =>
+          app.inject({
+            method: "POST",
+            url: "/communications/broadcast/preview",
+            headers,
+            payload,
+          });
+        const email = await preview({
+          segment: { tags: [tag] },
+          channel: "email",
+          body: "Oi, {{nome}}! Temos novidades.",
+        });
+        expect(email.statusCode).toBe(200);
+        expect(email.json()).toEqual({
+          preview: true,
+          channel: "email",
+          matched: 3,
+          queued: 1,
+          skipped: [
+            { patientId: bruno.id, patientName: bruno.fullName, reason: "no_destination" },
+            { patientId: carla.id, patientName: carla.fullName, reason: "opt_out" },
+          ],
+          sampleBody: "Oi, Ana! Temos novidades.",
+        });
+        expect(await manualCount()).toBe(before);
+
+        // O opt-out é por canal: no WhatsApp a Carla recebe.
+        const whatsapp = await preview({
+          segment: { tags: [tag] },
+          channel: "whatsapp",
+          body: "Oi, {{nome}}!",
+        });
+        expect(whatsapp.json()).toMatchObject({ matched: 3, queued: 3, skipped: [] });
+
+        const birthdays = await preview({
+          segment: { tags: [tag], birthdayMonth: true },
+          channel: "whatsapp",
+          body: "Parabéns, {{nome}}!",
+        });
+        expect(birthdays.json()).toMatchObject({
+          matched: 1,
+          queued: 1,
+          sampleBody: "Parabéns, Ana!",
+        });
+
+        const withoutPlan = await preview({
+          segment: { tags: [tag], activePlan: false },
+          channel: "whatsapp",
+          body: "Oi",
+        });
+        expect(withoutPlan.json()).toMatchObject({ matched: 3 });
+        const services = await app.inject({ method: "GET", url: "/services", headers });
+        const plan = await app.inject({
+          method: "POST",
+          url: "/plans",
+          headers,
+          payload: {
+            patientId: ana.id,
+            serviceId: services.json()[0].id,
+            name: "Pacote comunicado",
+            kind: "fixed_package",
+            totalSessions: 4,
+            validFrom: "2032-03-15",
+            totalValueInCents: 40000,
+            installments: 1,
+            firstDueDate: "2032-03-15",
+          },
+        });
+        expect(plan.statusCode).toBe(201);
+        const withPlan = await preview({
+          segment: { tags: [tag], activePlan: true },
+          channel: "whatsapp",
+          body: "Oi",
+        });
+        expect(withPlan.json()).toMatchObject({ matched: 1, queued: 1 });
+        const noPlan = await preview({
+          segment: { tags: [tag], activePlan: false },
+          channel: "whatsapp",
+          body: "Oi",
+        });
+        expect(noPlan.json()).toMatchObject({ matched: 2 });
+
+        const inactive = await preview({
+          segment: { tags: [tag], status: "inactive" },
+          channel: "whatsapp",
+          body: "Oi",
+        });
+        expect(inactive.json()).toMatchObject({ matched: 0, queued: 0, skipped: [] });
+        expect(inactive.json()).not.toHaveProperty("sampleBody");
+        const emptyFilters = await preview({
+          segment: { tags: [tag], status: "", activePlan: "" },
+          channel: "whatsapp",
+          body: "Oi",
+        });
+        expect(emptyFilters.statusCode).toBe(200);
+        expect(emptyFilters.json()).toMatchObject({ matched: 3 });
+        expect(await manualCount()).toBe(before);
+        await app.close();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("queues manual messages in the outbox with the first name filled in", async () => {
+      const { app, headers, ana, carla, manualCount } = await setup();
+      const before = await manualCount();
+      const response = await app.inject({
+        method: "POST",
+        url: "/communications/broadcast",
+        headers,
+        payload: {
+          segment: { tags: [tag] },
+          channel: "email",
+          body: "Oi, {{nome}}! Temos novidades.",
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toMatchObject({
+        preview: false,
+        channel: "email",
+        matched: 3,
+        queued: 1,
+      });
+      expect(response.json().skipped).toHaveLength(2);
+      expect(await manualCount()).toBe(before + 1);
+
+      const whatsapp = await app.inject({
+        method: "POST",
+        url: "/communications/broadcast",
+        headers,
+        payload: { segment: { tags: [tag] }, channel: "whatsapp", body: "Até breve, {{nome}}." },
+      });
+      expect(whatsapp.statusCode).toBe(201);
+      expect(whatsapp.json()).toMatchObject({ queued: 3, skipped: [] });
+      const center = await app.inject({ method: "GET", url: "/communications", headers });
+      const messages = (
+        center.json() as {
+          deliveryMode: string;
+          messages: Array<Record<string, unknown>>;
+        }
+      ).messages.filter((message) => message.kind === "manual");
+      expect(center.json().deliveryMode).toBe("outbox_only");
+      expect(messages).toHaveLength(before + 4);
+      expect(messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            patientId: ana.id,
+            channel: "email",
+            recipient: "ana.comunicado@example.com",
+            body: "Oi, Ana! Temos novidades.",
+            status: "queued",
+            attempts: 0,
+          }),
+          expect.objectContaining({
+            patientId: ana.id,
+            channel: "whatsapp",
+            recipient: "11988880001",
+            body: "Até breve, Ana.",
+          }),
+          expect.objectContaining({
+            patientId: carla.id,
+            channel: "whatsapp",
+            recipient: "11922220003",
+            body: "Até breve, Carla.",
+          }),
+        ]),
+      );
+      expect(
+        messages.some(
+          (message) => message.patientId === carla.id && message.channel === "email",
+        ),
+      ).toBe(false);
+      await app.close();
+    });
+
+    it("skips messages that exceed the limit once the name is filled in", async () => {
+      const { app, headers } = await setup();
+      const created = await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: { fullName: "Maximiliano Comunicado", phone: "11922220005", tags: [tag] },
+      });
+      expect(created.statusCode).toBe(201);
+      // Modelo com 500 caracteres: "Ana", "Bruno" e "Carla" cabem; "Maximiliano" passa (503).
+      const response = await app.inject({
+        method: "POST",
+        url: "/communications/broadcast/preview",
+        headers,
+        payload: {
+          segment: { tags: [tag] },
+          channel: "whatsapp",
+          body: `{{nome}}${"x".repeat(492)}`,
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        matched: 4,
+        queued: 3,
+        skipped: [
+          {
+            patientId: created.json().id,
+            patientName: "Maximiliano Comunicado",
+            reason: "message_too_long",
+          },
+        ],
+      });
+      await app.close();
+    });
+
+    it("validates the input and requires commercial access", async () => {
+      const { app, headers } = await setup();
+      for (const payload of [
+        { channel: "sms", body: "Oi" },
+        { channel: "email", body: "  " },
+        { channel: "email", body: "x".repeat(501) },
+        { segment: { status: "archived" }, channel: "email", body: "Oi" },
+        { segment: { activePlan: "sim" }, channel: "email", body: "Oi" },
+      ]) {
+        for (const url of ["/communications/broadcast/preview", "/communications/broadcast"]) {
+          const response = await app.inject({ method: "POST", url, headers, payload });
+          expect(response.statusCode, JSON.stringify(payload)).toBe(400);
+          expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+        }
+      }
+      const physiotherapist = {
+        authorization: `Bearer ${app.jwt.sign({
+          sub: "22222222-2222-4222-8222-222222222222",
+          clinicId: "11111111-1111-4111-8111-111111111111",
+          role: "physiotherapist" as UserRole,
+        })}`,
+      };
+      const payload = { segment: { tags: [tag] }, channel: "whatsapp", body: "Oi" };
+      for (const url of ["/communications/broadcast/preview", "/communications/broadcast"]) {
+        const denied = await app.inject({
+          method: "POST",
+          url,
+          headers: physiotherapist,
+          payload,
+        });
+        expect(denied.statusCode).toBe(403);
+        expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+        const anonymous = await app.inject({ method: "POST", url, payload });
+        expect(anonymous.statusCode).toBe(401);
+      }
+      await app.close();
+    });
+  });
 });

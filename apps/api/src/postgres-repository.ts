@@ -32,6 +32,7 @@ import type {
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
+  BroadcastMessageDraft,
   CommunicationChannel,
   CommunicationPreference,
   CommunicationPreferenceInput,
@@ -6654,6 +6655,43 @@ export class PostgresClinicRepository implements ClinicRepository {
       ],
     );
     return mapOutboundMessage(result.rows[0]!);
+  }
+
+  async queueBroadcastMessages(
+    clinicId: string,
+    drafts: BroadcastMessageDraft[],
+  ) {
+    if (drafts.length === 0) return 0;
+    const batchId = randomUUID();
+    return this.inTransaction(async (client) => {
+      // O JOIN com patients garante que todo destinatário é da clínica; se
+      // algum não for, nada é gravado.
+      const inserted = await client.query(
+        `INSERT INTO outbound_messages
+           (clinic_id, patient_id, channel, kind, recipient, body,
+            scheduled_for, idempotency_key)
+         SELECT $1, p.id, d.channel, 'manual', d.recipient, d.body, now(),
+                'broadcast:' || $2 || ':' || p.id::text
+         FROM unnest($3::uuid[], $4::text[], $5::text[], $6::text[])
+              AS d(patient_id, channel, recipient, body)
+         JOIN patients p ON p.id = d.patient_id AND p.clinic_id = $1`,
+        [
+          clinicId,
+          batchId,
+          drafts.map((draft) => draft.patientId),
+          drafts.map((draft) => draft.channel),
+          drafts.map((draft) => draft.recipient),
+          drafts.map((draft) => draft.body),
+        ],
+      );
+      if (inserted.rowCount !== drafts.length)
+        throw new DomainError(
+          "PATIENT_NOT_FOUND",
+          "Cliente não encontrado.",
+          404,
+        );
+      return drafts.length;
+    });
   }
 
   async generateReminders(clinicId: string, referenceDate: string) {

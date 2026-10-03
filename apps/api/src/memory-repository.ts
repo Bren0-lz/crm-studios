@@ -29,6 +29,7 @@ import type {
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
+  BroadcastMessageDraft,
   CommunicationPreference,
   CommunicationPreferenceInput,
   CostCenter,
@@ -4367,6 +4368,40 @@ export class MemoryClinicRepository implements ClinicRepository {
       scheduledFor: input.scheduledFor ?? now(),
       idempotencyKey: `manual:${uuid()}`,
     });
+  }
+
+  async queueBroadcastMessages(
+    clinicId: string,
+    drafts: BroadcastMessageDraft[],
+  ) {
+    // Valida tudo antes de gravar: o comunicado entra inteiro ou não entra.
+    const patients = drafts.map((draft) => {
+      const patient = this.patients.find(
+        (item) => item.clinicId === clinicId && item.id === draft.patientId,
+      );
+      if (!patient)
+        throw new DomainError(
+          "PATIENT_NOT_FOUND",
+          "Cliente não encontrado.",
+          404,
+        );
+      return patient;
+    });
+    const batchId = uuid();
+    const scheduledFor = now();
+    drafts.forEach((draft, index) =>
+      this.pushMessage({
+        clinicId,
+        patient: patients[index]!,
+        channel: draft.channel,
+        kind: "manual",
+        recipient: draft.recipient,
+        body: draft.body,
+        scheduledFor,
+        idempotencyKey: `broadcast:${batchId}:${draft.patientId}`,
+      }),
+    );
+    return drafts.length;
   }
 
   async generateReminders(clinicId: string, referenceDate: string) {

@@ -844,6 +844,36 @@ export type ManualMessageInput = z.infer<typeof manualMessageInputSchema>;
 export const reminderGenerationInputSchema = z.object({
   referenceDate: z.iso.date(),
 });
+/**
+ * Comunicado segmentado. Segmento vazio = todos os clientes. Etiquetas: basta
+ * uma das informadas. `activePlan` ausente = com ou sem plano ativo.
+ * `birthdayMonth` = aniversariantes do mês corrente da clínica.
+ */
+export const broadcastSegmentSchema = z.object({
+  tags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+  status: z.preprocess(emptyQueryToUndefined, patientStatusSchema.optional()),
+  activePlan: z.preprocess(emptyQueryToUndefined, z.boolean().optional()),
+  birthdayMonth: z.boolean().default(false),
+});
+export type BroadcastSegment = z.infer<typeof broadcastSegmentSchema>;
+export const broadcastInputSchema = z.object({
+  segment: broadcastSegmentSchema.default({ tags: [], birthdayMonth: false }),
+  channel: communicationChannelSchema,
+  /** Texto com `{{nome}}` (primeiro nome do cliente). */
+  body: z.string().trim().min(1).max(500),
+});
+export type BroadcastInput = z.infer<typeof broadcastInputSchema>;
+export const broadcastSkipReasons = [
+  "opt_out",
+  "no_destination",
+  "message_too_long",
+] as const;
+export type BroadcastSkipReason = (typeof broadcastSkipReasons)[number];
+export const broadcastSkipReasonLabels: Record<BroadcastSkipReason, string> = {
+  opt_out: "Não autorizou mensagens neste canal",
+  no_destination: "Sem contato cadastrado para o canal",
+  message_too_long: "Mensagem passa de 500 caracteres com o nome",
+};
 
 export const documentKindSchema = z.enum([
   "contract",
@@ -1792,6 +1822,33 @@ export interface ReminderGenerationResult {
   queued: number;
   skippedByPreference: number;
   alreadyQueued: number;
+}
+
+export interface BroadcastSkippedPatient {
+  patientId: string;
+  patientName: string;
+  reason: BroadcastSkipReason;
+}
+
+/** Mensagem pronta para a fila (já com `{{nome}}` preenchido). */
+export interface BroadcastMessageDraft {
+  patientId: string;
+  channel: CommunicationChannel;
+  recipient: string;
+  body: string;
+}
+
+export interface BroadcastResult {
+  /** `true` na prévia: nada foi gravado. */
+  preview: boolean;
+  channel: CommunicationChannel;
+  /** Clientes que caem no segmento. */
+  matched: number;
+  /** Enfileiradas (envio) ou que seriam enfileiradas (prévia). */
+  queued: number;
+  skipped: BroadcastSkippedPatient[];
+  /** Texto do primeiro destinatário, para conferência. */
+  sampleBody?: string;
 }
 
 export interface DocumentTemplate extends DocumentTemplateInput {

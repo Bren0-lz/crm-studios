@@ -16,7 +16,7 @@ import {
 export function filterPatientsForExport(
   patients: Patient[],
   plans: PatientPlan[],
-  filter: PatientExportFilter,
+  filter: Partial<PatientExportFilter>,
   today: string,
 ): Patient[] {
   const withActivePlan = new Set(
