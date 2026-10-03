@@ -493,7 +493,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   comunicado. Criar correções se precisar.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T035, T038, T040
-- **Status:** TODO
+- **Status:** BLOCKED
 
 ### T041 — Documentação da rodada 2
 - **Escopo:** novos incrementos em `docs/STATUS_IMPLEMENTACAO.md`: design, feriados, experimental
