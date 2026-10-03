@@ -4,6 +4,7 @@ import type {
   AdminUser,
   AdminUserInput,
   AdminUserUpdate,
+  AppModule,
   Appointment,
   AppointmentInput,
   AppointmentRescheduleEvent,
@@ -124,7 +125,9 @@ import type {
   UserRole,
 } from "@crm/contracts";
 import {
+  appModuleSchema,
   defaultRelationshipSettings,
+  effectiveModules,
   groupClassName,
   nextPlanPeriod,
   planInstallmentSchedule,
@@ -161,10 +164,34 @@ interface UserRow {
   fullName: string;
   email: string;
   role: AuthenticatedUser["role"];
+  jobTitle: string | null;
+  modules: string[] | null;
   passwordHash: string;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
+  job_title AS "jobTitle", modules, password_hash AS "passwordHash", active,
+  created_at AS "createdAt", updated_at AS "updatedAt"`;
+
+/** Ajuste de módulos gravado (ignora chaves desconhecidas); `null` = padrão do perfil. */
+function storedUserModules(row: UserRow): AppModule[] | null {
+  if (row.role === "owner" || row.modules === null) return null;
+  return row.modules.filter((module): module is AppModule =>
+    appModuleSchema.safeParse(module).success,
+  );
+}
+
+/** Owner não guarda ajuste; senão a lista normalizada (ordem do enum, sem duplicatas). */
+function normalizeUserModules(
+  role: AuthenticatedUser["role"],
+  modules: readonly AppModule[] | null,
+): AppModule[] | null {
+  return role === "owner" || modules === null
+    ? null
+    : effectiveModules(role, modules);
 }
 
 interface PatientRow {
@@ -947,6 +974,9 @@ function mapAdminUser(row: UserRow): AdminUser {
     fullName: row.fullName,
     email: row.email,
     role: row.role,
+    ...(row.jobTitle ? { jobTitle: row.jobTitle } : {}),
+    modules: effectiveModules(row.role, storedUserModules(row)),
+    customModules: storedUserModules(row) !== null,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -1700,9 +1730,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   async findUserByEmail(email: string) {
     const result = await this.pool.query<UserRow>(
       `
-        SELECT id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-               password_hash AS "passwordHash", active,
-               created_at AS "createdAt", updated_at AS "updatedAt"
+        SELECT ${userColumns}
         FROM users
         WHERE lower(email) = lower($1) AND active = true
         ORDER BY created_at
@@ -1716,9 +1744,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   async findUserById(clinicId: string, userId: string) {
     const result = await this.pool.query<UserRow>(
       `
-        SELECT id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-               password_hash AS "passwordHash", active,
-               created_at AS "createdAt", updated_at AS "updatedAt"
+        SELECT ${userColumns}
         FROM users
         WHERE clinic_id = $1 AND id = $2 AND active = true
       `,
@@ -1729,10 +1755,7 @@ export class PostgresClinicRepository implements ClinicRepository {
 
   async listAdminUsers(clinicId: string) {
     const result = await this.pool.query<UserRow>(
-      `SELECT id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-              password_hash AS "passwordHash", active,
-              created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM users WHERE clinic_id = $1 ORDER BY full_name`,
+      `SELECT ${userColumns} FROM users WHERE clinic_id = $1 ORDER BY full_name`,
       [clinicId],
     );
     return result.rows.map(mapAdminUser);
@@ -1748,12 +1771,18 @@ export class PostgresClinicRepository implements ClinicRepository {
     try {
       await client.query("BEGIN");
       const result = await client.query<UserRow>(
-        `INSERT INTO users (clinic_id, full_name, email, role, password_hash)
-         VALUES ($1,$2,$3,$4,$5)
-         RETURNING id, clinic_id AS "clinicId", full_name AS "fullName", email,
-                   role, password_hash AS "passwordHash", active,
-                   created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [clinicId, input.fullName, input.email, input.role, passwordHash],
+        `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING ${userColumns}`,
+        [
+          clinicId,
+          input.fullName,
+          input.email,
+          input.role,
+          passwordHash,
+          input.jobTitle?.trim() || null,
+          normalizeUserModules(input.role, input.modules ?? null),
+        ],
       );
       await this.addAdminAudit(
         client,
@@ -1764,8 +1793,19 @@ export class PostgresClinicRepository implements ClinicRepository {
         result.rows[0]!.id,
         { email: input.email, role: input.role },
       );
+      const created = mapAdminUser(result.rows[0]!);
+      if (created.customModules)
+        await this.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "users.permissions_updated",
+          "user",
+          created.id,
+          { modules: created.modules, custom: true },
+        );
       await client.query("COMMIT");
-      return mapAdminUser(result.rows[0]!);
+      return created;
     } catch (error) {
       await client.query("ROLLBACK");
       if (hasDatabaseCode(error, "23505"))
@@ -1795,18 +1835,53 @@ export class PostgresClinicRepository implements ClinicRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const current = await client.query<UserRow>(
+        `SELECT ${userColumns} FROM users WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+        [clinicId, userId],
+      );
+      if (!current.rows[0]) {
+        await client.query("COMMIT");
+        return null;
+      }
+      const previousModules = storedUserModules(current.rows[0]);
+      const nextModules = normalizeUserModules(
+        input.role,
+        input.modules === undefined ? previousModules : input.modules,
+      );
+      const jobTitle =
+        input.jobTitle === undefined
+          ? current.rows[0].jobTitle
+          : input.jobTitle.trim() || null;
       const result = await client.query<UserRow>(
-        `UPDATE users SET full_name = $3, role = $4, active = $5, updated_at = now()
+        `UPDATE users SET full_name = $3, role = $4, active = $5, job_title = $6,
+           modules = $7, updated_at = now()
          WHERE clinic_id = $1 AND id = $2
-         RETURNING id, clinic_id AS "clinicId", full_name AS "fullName", email,
-                   role, password_hash AS "passwordHash", active,
-                   created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [clinicId, userId, input.fullName, input.role, input.active],
+         RETURNING ${userColumns}`,
+        [
+          clinicId,
+          userId,
+          input.fullName,
+          input.role,
+          input.active,
+          jobTitle,
+          nextModules,
+        ],
       );
       if (!result.rows[0]) {
         await client.query("COMMIT");
         return null;
       }
+      const updated = mapAdminUser(result.rows[0]);
+      if (JSON.stringify(previousModules) !== JSON.stringify(nextModules))
+        await this.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "users.permissions_updated",
+          "user",
+          userId,
+          { modules: updated.modules, custom: updated.customModules },
+        );
       await this.addAdminAudit(
         client,
         clinicId,
@@ -1817,7 +1892,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         { role: input.role, active: input.active },
       );
       await client.query("COMMIT");
-      return mapAdminUser(result.rows[0]);
+      return updated;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

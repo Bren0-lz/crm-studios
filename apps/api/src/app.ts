@@ -87,6 +87,10 @@ import {
   type PatientImportResult,
   type SatisfactionReport,
   type UserSummary,
+  type PermissionMatrixItem,
+  appModuleLabels,
+  roleDefaultModules,
+  userRoleSchema,
 } from "@crm/contracts";
 import {
   buildClientReport,
@@ -353,6 +357,18 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     } satisfies ApiError);
   });
 
+  /** Dados públicos do usuário logado, com os módulos efetivos. */
+  function toUserSummary(user: UserSummary): UserSummary {
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
+      modules: user.modules,
+    };
+  }
+
   async function authenticate(request: FastifyRequest, reply: FastifyReply) {
     try {
       await request.jwtVerify();
@@ -510,13 +526,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       { sub: user.id, clinicId: user.clinicId, role: user.role },
       { expiresIn: "8h" },
     );
-    const summary: UserSummary = {
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      role: user.role,
-    };
-    return { token, user: summary };
+    return { token, user: toUserSummary(user) };
   });
 
   app.get("/me", { preHandler: authenticate }, async (request, reply) => {
@@ -528,13 +538,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return reply
         .status(404)
         .send({ code: "USER_NOT_FOUND", message: "Usuário não encontrado." });
-    const summary: UserSummary = {
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      role: user.role,
-    };
-    return summary;
+    return toUserSummary(user);
   });
 
   app.get(
@@ -767,21 +771,16 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.get(
     "/admin/permission-matrix",
     { preHandler: [authenticate, requireOwnerAccess] },
-    async () => [
-      { role: "owner", modules: ["Todos os módulos", "Administração"] },
-      {
-        role: "reception",
-        modules: ["Clientes", "Agenda", "CRM", "Comunicações", "Contratos"],
-      },
-      {
-        role: "physiotherapist",
-        modules: ["Clientes", "Agenda", "Prontuários", "Planos"],
-      },
-      {
-        role: "finance",
-        modules: ["Clientes", "Planos", "Financeiro", "Relatórios", "CRM"],
-      },
-    ],
+    async () =>
+      userRoleSchema.options.map(
+        (role): PermissionMatrixItem => ({
+          role,
+          modules:
+            role === "owner"
+              ? ["Todos os módulos", "Administração"]
+              : roleDefaultModules[role].map((module) => appModuleLabels[module]),
+        }),
+      ),
   );
 
   app.get("/dashboard", { preHandler: authenticate }, async (request) => {

@@ -54,6 +54,86 @@ export const userRoleSchema = z.enum([
   "finance",
 ]);
 export type UserRole = z.infer<typeof userRoleSchema>;
+
+/**
+ * Módulos do sistema que a gestora liga/desliga por usuário (chaves estáveis).
+ * "Visão geral" é sempre visível e "Administração" é sempre só da gestora (owner):
+ * nenhum dos dois é módulo configurável.
+ */
+export const appModuleSchema = z.enum([
+  "agenda",
+  "groups",
+  "patients",
+  "plans",
+  "crm",
+  "relationship",
+  "communications",
+  "contracts",
+  "clinical",
+  "finance",
+  "reports",
+  "settings",
+]);
+export type AppModule = z.infer<typeof appModuleSchema>;
+export const appModuleLabels: Record<AppModule, string> = {
+  agenda: "Agenda",
+  groups: "Turmas",
+  patients: "Clientes",
+  plans: "Planos e sessões",
+  crm: "CRM comercial",
+  relationship: "Contatos sugeridos",
+  communications: "Comunicações",
+  contracts: "Contratos",
+  clinical: "Prontuários",
+  finance: "Financeiro",
+  reports: "Relatórios",
+  settings: "Configurações",
+};
+/** Padrão de cada perfil: reproduz o menu lateral de antes dos módulos por usuário. */
+export const roleDefaultModules: Record<UserRole, readonly AppModule[]> = {
+  owner: appModuleSchema.options,
+  reception: [
+    "agenda",
+    "groups",
+    "patients",
+    "plans",
+    "crm",
+    "relationship",
+    "communications",
+    "contracts",
+    "settings",
+  ],
+  physiotherapist: ["agenda", "groups", "patients", "plans", "clinical"],
+  finance: [
+    "agenda",
+    "patients",
+    "plans",
+    "crm",
+    "relationship",
+    "communications",
+    "contracts",
+    "finance",
+    "reports",
+    "settings",
+  ],
+};
+/**
+ * Módulos efetivos: owner tem sempre todos; sem ajuste (nulo/ausente) vale o padrão do
+ * perfil; senão a lista informada, sem duplicatas e na ordem do enum.
+ */
+export function effectiveModules(
+  role: UserRole,
+  modules?: readonly AppModule[] | null,
+): AppModule[] {
+  if (role === "owner") return [...appModuleSchema.options];
+  const chosen = modules ?? roleDefaultModules[role];
+  return appModuleSchema.options.filter((module) => chosen.includes(module));
+}
+const jobTitleSchema = z.string().trim().max(80);
+const userModulesSchema = z
+  .array(appModuleSchema)
+  .max(appModuleSchema.options.length * 2)
+  .nullable();
 const strongPasswordSchema = z
   .string()
   .min(10)
@@ -66,12 +146,20 @@ export const adminUserInputSchema = z.object({
   email: z.email().transform((value) => value.toLowerCase()),
   role: userRoleSchema,
   password: strongPasswordSchema,
+  /** Cargo informativo; vazio = sem cargo. */
+  jobTitle: jobTitleSchema.optional(),
+  /** Ausente ou `null` = padrão do perfil. */
+  modules: userModulesSchema.optional(),
 });
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 export const adminUserUpdateSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
   role: userRoleSchema,
   active: z.boolean(),
+  /** Ausente = mantém o cargo atual; vazio = remove o cargo. */
+  jobTitle: jobTitleSchema.optional(),
+  /** Ausente = mantém os módulos atuais; `null` = volta ao padrão do perfil. */
+  modules: userModulesSchema.optional(),
 });
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
 export const passwordResetSchema = z.object({ password: strongPasswordSchema });
@@ -982,10 +1070,15 @@ export interface UserSummary {
   fullName: string;
   email: string;
   role: UserRole;
+  jobTitle?: string;
+  /** Módulos efetivos (já resolvidos com `effectiveModules`). */
+  modules: AppModule[];
 }
 
 export interface AdminUser extends UserSummary {
   clinicId: string;
+  /** `true` quando a gestora ajustou os módulos (não segue o padrão do perfil). */
+  customModules: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;

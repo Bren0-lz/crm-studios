@@ -128,6 +128,8 @@ import type {
 
 export interface AuthenticatedUser extends UserSummary {
   clinicId: string;
+  /** `true` quando os módulos foram ajustados pela gestora (não seguem o perfil). */
+  customModules: boolean;
   passwordHash: string;
   active: boolean;
   createdAt: string;

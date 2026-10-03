@@ -39,6 +39,7 @@ const recurringPayableMarker = "postgres-recurring-payable-test";
 const dailyCashMarker = "postgres-daily-cash-test";
 const financeClassificationMarker = "postgres-finance-classification-test";
 const exportAuditMarker = "postgres-export-audit-test";
+const permissionsUserEmail = "postgres-permissions-test@movimenta.local";
 // Dia exclusivo deste teste (aaaa-mm-dd), bem à frente de qualquer movimento real.
 const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -224,8 +225,21 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
   }
 
+  async function cleanupPermissionsUser() {
+    const ids = `SELECT id FROM users WHERE clinic_id = $1 AND email = $2`;
+    await pool.query(
+      `DELETE FROM audit_events WHERE clinic_id = $1 AND entity_type = 'user' AND entity_id IN (${ids})`,
+      [clinicId, permissionsUserEmail],
+    );
+    await pool.query("DELETE FROM users WHERE clinic_id = $1 AND email = $2", [
+      clinicId,
+      permissionsUserEmail,
+    ]);
+  }
+
   afterAll(async () => {
     if (!pool) return;
+    await cleanupPermissionsUser();
     await cleanupExportAudit();
     await cleanupLeadAppointments();
     await cleanupLeadConversion();
@@ -1797,6 +1811,57 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       ).toBe(false);
     } finally {
       await cleanupExportAudit();
+    }
+  });
+
+  it("persists job title and per-user modules and audits permission changes", async () => {
+    await cleanupPermissionsUser();
+    try {
+      const created = await repository.createAdminUser(
+        clinicId,
+        ownerId,
+        {
+          fullName: "Teste Permissões",
+          email: permissionsUserEmail,
+          role: "reception",
+          password: "Segura@1234",
+          jobTitle: "Instrutora de Pilates",
+        },
+        "hash-de-teste",
+      );
+      expect(created).toMatchObject({ jobTitle: "Instrutora de Pilates", customModules: false });
+      expect(created.modules).toContain("settings");
+      const base = { fullName: "Teste Permissões", role: "reception" as const, active: true };
+      const custom = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        modules: ["finance", "agenda", "finance"],
+      });
+      expect(custom).toMatchObject({ customModules: true, modules: ["agenda", "finance"] });
+      const kept = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        jobTitle: "",
+      });
+      expect(kept).toMatchObject({ modules: ["agenda", "finance"] });
+      expect(kept?.jobTitle).toBeUndefined();
+      const stored = await pool.query<{ modules: string[] | null; job_title: string | null }>(
+        "SELECT modules, job_title FROM users WHERE id = $1",
+        [created.id],
+      );
+      expect(stored.rows[0]).toEqual({ modules: ["agenda", "finance"], job_title: null });
+      const reset = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        modules: null,
+      });
+      expect(reset).toMatchObject({ customModules: false });
+      expect((await repository.findUserById(clinicId, created.id))?.modules).toEqual(
+        reset?.modules,
+      );
+      const events = (await repository.listAdminAuditEvents(clinicId)).filter(
+        (item) => item.action === "users.permissions_updated" && item.entityId === created.id,
+      );
+      expect(events).toHaveLength(2);
+    } finally {
+      await cleanupPermissionsUser();
     }
   });
 

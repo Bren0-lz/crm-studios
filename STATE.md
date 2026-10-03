@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T047
-- **Última concluída:** T041
+- **Tarefa atual:** T048
+- **Última concluída:** T047
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -88,3 +88,4 @@
 - 2026-10-03 V3 DONE: aprovada pelo dono no chat, sem correções. Loop segue com T041. Ambiente: o Bash (Git Bash) não traz o Node no PATH — começar cada comando com `export PATH="/c/Program Files/nodejs:$PATH";` (PowerShell desativado nesta sessão).
 - 2026-10-03 T041 FAIL 1/3: o STATUS diz que não existe declaração de comparecimento, mas Contratos ainda aceita o tipo de modelo `attendance_declaration` ("Declaração de comparecimento"). Só a emissão pela agenda foi removida — corrigir incrementos 8, 31 e 37.
 - 2026-10-03 T041 DONE (verifier PASS na 2ª tentativa; contratos 24, API 140 + 23 skip, web 70). README com marca Studios Aryana e lista atualizada; STATUS com incrementos 28–42 (31 = declaração pela agenda removida; tipo de modelo "Declaração de comparecimento" segue em Contratos). Rodada 2/3 documentada. Próxima: T047 (rodada 4).
+- 2026-10-03 T047 DONE (verifier PASS na 1ª; contratos 29, API 141 + 24 skip, web 70). Migração 0039 (`users.job_title`, `users.modules text[]`, sem CHECK; próxima livre: 0040). Contratos: `appModuleSchema`/`AppModule`, `appModuleLabels`, `roleDefaultModules` (= menu `navItems`: reception agenda, groups, patients, plans, crm, relationship, communications, contracts, settings; physiotherapist agenda, groups, patients, plans, clinical; finance agenda, patients, plans, crm, relationship, communications, contracts, finance, reports, settings), `effectiveModules`. `PATCH /admin/users/:id`: `modules` ausente = mantém, `null` = padrão, lista = ajuste; `jobTitle` ausente = mantém, "" = remove (trim, ≤80). Owner nunca guarda ajuste. `AdminUser`/`AuthenticatedUser` ganharam `customModules: boolean`; `UserSummary` tem `jobTitle?` e `modules` (obrigatório). Login e `/me` devolvem módulos efetivos (`toUserSummary`). Auditoria `users.permissions_updated` {modules, custom}. P/ T048 — DIVERGÊNCIAS menu × API: (1) fisioterapeuta vê Clientes/Planos mas gravações de clientes e planos exigem `requireCommercialAccess` (só owner/reception/finance); leituras /patients e /plans só pedem login; (2) `requireSatisfactionAccess` libera os 4 perfis; (3) Agenda/Visão geral (/dashboard, /appointments, /professionals, /rooms, /services, /holidays, GET /group-sessions) só pedem login, mas POST /schedule-blocks exige comercial; (4) Relatórios e Financeiro batem com o menu. P/ T049: `UserSummary` antigo no localStorage (`getStoredUser`) não tem `modules` — tratar.

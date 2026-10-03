@@ -68,6 +68,144 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("creates and edits users with job title and modules, auditing permission changes", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const me = await app.inject({ method: "GET", url: "/me", headers });
+    expect(me.json().modules).toContain("settings");
+    expect(me.json().modules).toHaveLength(12);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Bia Souza",
+        email: "bia@movimenta.local",
+        role: "reception",
+        password: "Segura@1234",
+        jobTitle: " Instrutora de Pilates ",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      jobTitle: "Instrutora de Pilates",
+      customModules: false,
+      modules: [
+        "agenda",
+        "groups",
+        "patients",
+        "plans",
+        "crm",
+        "relationship",
+        "communications",
+        "contracts",
+        "settings",
+      ],
+    });
+    const userId = created.json().id as string;
+    const base = { fullName: "Bia Souza", role: "reception", active: true };
+
+    const custom = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, modules: ["finance", "agenda", "finance"] },
+    });
+    expect(custom.statusCode).toBe(200);
+    expect(custom.json()).toMatchObject({
+      jobTitle: "Instrutora de Pilates",
+      customModules: true,
+      modules: ["agenda", "finance"],
+    });
+
+    // Ausente = mantém os módulos e o cargo; vazio remove o cargo.
+    const kept = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, role: "finance", jobTitle: "" },
+    });
+    expect(kept.json()).toMatchObject({ role: "finance", modules: ["agenda", "finance"] });
+    expect(kept.json().jobTitle).toBeUndefined();
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email: "bia@movimenta.local", password: "Segura@1234" },
+    });
+    expect(login.json().user).toMatchObject({ role: "finance", modules: ["agenda", "finance"] });
+    const userHeaders = { authorization: `Bearer ${login.json().token as string}` };
+    const userMe = await app.inject({ method: "GET", url: "/me", headers: userHeaders });
+    expect(userMe.json().modules).toEqual(["agenda", "finance"]);
+
+    const reset = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, role: "physiotherapist", modules: null },
+    });
+    expect(reset.json()).toMatchObject({
+      customModules: false,
+      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+    });
+
+    const invalid = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, modules: ["admin"] },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const audit = await app.inject({ method: "GET", url: "/admin/audit-events", headers });
+    const permissionEvents = (
+      audit.json() as Array<{ action: string; entityId?: string; metadata: Record<string, unknown> }>
+    ).filter((event) => event.action === "users.permissions_updated");
+    expect(permissionEvents).toHaveLength(2);
+    expect(permissionEvents.every((event) => event.entityId === userId)).toBe(true);
+    expect(permissionEvents.map((event) => event.metadata.custom)).toEqual([false, true]);
+
+    const matrix = await app.inject({ method: "GET", url: "/admin/permission-matrix", headers });
+    expect(matrix.json()).toEqual([
+      { role: "owner", modules: ["Todos os módulos", "Administração"] },
+      {
+        role: "reception",
+        modules: [
+          "Agenda",
+          "Turmas",
+          "Clientes",
+          "Planos e sessões",
+          "CRM comercial",
+          "Contatos sugeridos",
+          "Comunicações",
+          "Contratos",
+          "Configurações",
+        ],
+      },
+      {
+        role: "physiotherapist",
+        modules: ["Agenda", "Turmas", "Clientes", "Planos e sessões", "Prontuários"],
+      },
+      {
+        role: "finance",
+        modules: [
+          "Agenda",
+          "Clientes",
+          "Planos e sessões",
+          "CRM comercial",
+          "Contatos sugeridos",
+          "Comunicações",
+          "Contratos",
+          "Financeiro",
+          "Relatórios",
+          "Configurações",
+        ],
+      },
+    ]);
+    await app.close();
+  });
+
   it("treats an empty client filter as every client in plans and clinical records", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

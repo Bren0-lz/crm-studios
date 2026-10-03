@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  adminUserInputSchema,
+  adminUserUpdateSchema,
+  appModuleLabels,
+  appModuleSchema,
+  effectiveModules,
+  roleDefaultModules,
   appointmentInputSchema,
   broadcastInputSchema,
   broadcastSkipReasonLabels,
@@ -432,5 +438,76 @@ describe("patient export filter", () => {
       { activePlan: "sim" },
     ])
       expect(patientExportFilterSchema.safeParse(query).success).toBe(false);
+  });
+});
+
+describe("user modules", () => {
+  it("gives the owner every module regardless of the stored list", () => {
+    expect(effectiveModules("owner")).toEqual(appModuleSchema.options);
+    expect(effectiveModules("owner", ["agenda"])).toEqual(appModuleSchema.options);
+  });
+
+  it("uses the role default when there is no adjustment", () => {
+    expect(effectiveModules("reception")).toEqual(roleDefaultModules.reception);
+    expect(effectiveModules("physiotherapist", null)).toEqual([
+      "agenda",
+      "groups",
+      "patients",
+      "plans",
+      "clinical",
+    ]);
+    expect(effectiveModules("finance", undefined)).toContain("finance");
+    expect(effectiveModules("reception")).not.toContain("finance");
+  });
+
+  it("deduplicates a custom list and sorts it in the enum order", () => {
+    expect(effectiveModules("reception", ["finance", "agenda", "finance", "crm"])).toEqual([
+      "agenda",
+      "crm",
+      "finance",
+    ]);
+    expect(effectiveModules("finance", [])).toEqual([]);
+  });
+
+  it("labels every module in pt-BR", () => {
+    for (const module of appModuleSchema.options) expect(appModuleLabels[module]).toBeTruthy();
+    expect(appModuleLabels.patients).toBe("Clientes");
+  });
+
+  it("accepts job title and modules on user create and update", () => {
+    const created = adminUserInputSchema.parse({
+      fullName: "Bia Souza",
+      email: "BIA@x.com",
+      role: "reception",
+      password: "Segura@1234",
+      jobTitle: "  Instrutora de Pilates ",
+      modules: ["agenda", "finance"],
+    });
+    expect(created.jobTitle).toBe("Instrutora de Pilates");
+    expect(created.modules).toEqual(["agenda", "finance"]);
+    const reset = adminUserUpdateSchema.parse({
+      fullName: "Bia Souza",
+      role: "reception",
+      active: true,
+      modules: null,
+    });
+    expect(reset.modules).toBeNull();
+    expect(reset.jobTitle).toBeUndefined();
+    expect(
+      adminUserUpdateSchema.safeParse({
+        fullName: "Bia Souza",
+        role: "reception",
+        active: true,
+        modules: ["admin"],
+      }).success,
+    ).toBe(false);
+    expect(
+      adminUserUpdateSchema.safeParse({
+        fullName: "Bia Souza",
+        role: "reception",
+        active: true,
+        jobTitle: "x".repeat(81),
+      }).success,
+    ).toBe(false);
   });
 });

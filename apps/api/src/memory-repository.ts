@@ -3,6 +3,7 @@ import type {
   AdminAuditEvent,
   AdminUserInput,
   AdminUserUpdate,
+  AppModule,
   Appointment,
   AppointmentInput,
   AppointmentRescheduleEvent,
@@ -123,6 +124,7 @@ import type {
 } from "@crm/contracts";
 import {
   defaultRelationshipSettings,
+  effectiveModules,
   groupClassName,
   nextPlanPeriod,
   planInstallmentSchedule,
@@ -307,6 +309,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   > = [];
   private readonly documentTemplates: DocumentTemplate[] = [];
   private readonly issuedDocuments: IssuedDocument[] = [];
+  /** Módulos ajustados pela gestora, por usuário (ausente = padrão do perfil). */
+  private readonly userModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -314,6 +318,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "owner",
+      modules: effectiveModules("owner"),
+      customModules: false,
       passwordHash: hashSync("Admin@123", 10),
       active: true,
       createdAt: now(),
@@ -569,22 +575,35 @@ export class MemoryClinicRepository implements ClinicRepository {
         409,
       );
     const timestamp = now();
+    const jobTitle = input.jobTitle?.trim();
     const user: AuthenticatedUser = {
       id: uuid(),
       clinicId,
       fullName: input.fullName,
       email: input.email.toLowerCase(),
       role: input.role,
+      ...(jobTitle ? { jobTitle } : {}),
+      modules: [],
+      customModules: false,
       passwordHash,
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    this.setUserModules(user, input.modules ?? null);
     this.users.push(user);
     this.addAdminAudit(actorUserId, "user.created", "user", user.id, {
       role: user.role,
       email: user.email,
     });
+    if (user.customModules)
+      this.addAdminAudit(
+        actorUserId,
+        "users.permissions_updated",
+        "user",
+        user.id,
+        { modules: user.modules, custom: true },
+      );
     const { passwordHash: _, ...summary } = user;
     void _;
     return summary;
@@ -606,14 +625,51 @@ export class MemoryClinicRepository implements ClinicRepository {
         "Você não pode desativar o próprio acesso.",
         409,
       );
-    Object.assign(user, input, { updatedAt: now() });
+    const previousCustom = this.userModules.get(user.id) ?? null;
+    user.fullName = input.fullName;
+    user.role = input.role;
+    user.active = input.active;
+    if (input.jobTitle !== undefined) {
+      const jobTitle = input.jobTitle.trim();
+      if (jobTitle) user.jobTitle = jobTitle;
+      else delete user.jobTitle;
+    }
+    this.setUserModules(
+      user,
+      input.modules === undefined ? previousCustom : input.modules,
+    );
+    user.updatedAt = now();
     this.addAdminAudit(actorUserId, "user.updated", "user", user.id, {
       role: user.role,
       active: user.active,
     });
+    const currentCustom = this.userModules.get(user.id) ?? null;
+    if (JSON.stringify(previousCustom) !== JSON.stringify(currentCustom))
+      this.addAdminAudit(
+        actorUserId,
+        "users.permissions_updated",
+        "user",
+        user.id,
+        { modules: user.modules, custom: user.customModules },
+      );
     const { passwordHash: _, ...summary } = user;
     void _;
     return summary;
+  }
+
+  /** Owner não guarda ajuste (tem sempre todos os módulos); `null` = padrão do perfil. */
+  private setUserModules(
+    user: AuthenticatedUser,
+    modules: readonly AppModule[] | null,
+  ) {
+    const custom =
+      user.role === "owner" || modules === null
+        ? null
+        : effectiveModules(user.role, modules);
+    if (custom) this.userModules.set(user.id, custom);
+    else this.userModules.delete(user.id);
+    user.customModules = custom !== null;
+    user.modules = effectiveModules(user.role, custom);
   }
 
   async resetAdminUserPassword(
