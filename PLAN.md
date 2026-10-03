@@ -541,33 +541,64 @@ Regras gerais da rodada:
 - **Depende de:** T041
 - **Status:** DONE
 
-### T048 — A API respeita os módulos de cada usuário
+### T048 — Níveis "ver" e "editar" por módulo na API (dados)
+Decisão do dono (03/10/2026): cada módulo tem dois níveis, **ver** e **editar**. O padrão de cada
+perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Planos, mas não edita.
+- **Escopo:**
+  - Migração nova `0040_user_edit_modules.sql`: `users.edit_modules text[] NULL` (sem CHECK).
+  - Contratos: `roleDefaultEditModules` (padrão por perfil = **gravações que a API permite hoje**,
+    derivado das guardas `require*Access` de `app.ts` — ver divergências da T047 no diário) e
+    helper puro `effectiveEditModules(role, modules?, editModules?)`: owner → todos; nulo → padrão
+    do perfil; o resultado é sempre **subconjunto** dos módulos efetivos de visualização (editar
+    implica ver; editar sem ver é descartado), sem duplicatas e na ordem do enum.
+  - `adminUserInputSchema`/`adminUserUpdateSchema` ganham `editModules` (mesma semântica de
+    `modules`: ausente = mantém, `null` = padrão, lista = ajuste). `AdminUser`, `UserSummary` e
+    `AuthenticatedUser` ganham `editModules` (efetivos); `customModules` fica `true` se qualquer um
+    dos dois ajustes estiver gravado. Login e `/me` devolvem `editModules`.
+  - Dois repositórios, auditoria `users.permissions_updated` com `{modules, editModules, custom}`.
+  - `GET /admin/permission-matrix` mostra, por perfil, o que vê e o que edita (rótulos pt-BR).
+  - NÃO troca as guardas ainda (é a T053).
+  - Testes: `effectiveEditModules` em contracts.test.ts (inclui "editar sem ver é descartado" e
+    fisioterapeuta sem edição de `patients`/`plans`); rotas de usuário em app.test.ts; PG opt-in.
+- **Gate:** `npm exec -w @crm/contracts -- vitest run src/contracts.test.ts` e
+  `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T047
+- **Status:** DONE
+
+### T053 — A API respeita os módulos e níveis de cada usuário
 - **Escopo:**
   - Trocar as guardas por perfil (`requireClinicalAccess`, `requireCommercialAccess`,
     `requireFinanceAccess`, `requireManagementAccess`, `requireGroupAccess`,
-    `requireSatisfactionAccess`…) por `requireModule(...modules)`, lendo os módulos efetivos do
-    usuário **no banco a cada requisição** (mudança vale sem novo login; usuário desativado → 401).
-    `requireOwnerAccess` continua para Administração.
-  - Mapear cada rota a um ou mais módulos; documentar o mapa num comentário/constante única.
-  - Testes: todos os testes de 403 existentes continuam passando com os módulos padrão; novos
-    testes mostram um usuário recepção **com** `finance` acessando `/finance/*` e um sem `patients`
-    recebendo 403 em `/patients`.
+    `requireSatisfactionAccess`…) por `requireModule(module, "view" | "edit")`, lendo módulos e
+    níveis efetivos do usuário **no banco a cada requisição** (mudança vale sem novo login; usuário
+    desativado → 401). `requireOwnerAccess` continua para Administração.
+  - Leituras exigem "ver"; gravações exigem "editar". Rotas que hoje só pedem login (agenda,
+    visão geral, cadastros de apoio como `/professionals`, `/rooms`, `/services`, `/holidays`)
+    continuam assim nas leituras; mapear as gravações. Mapa rota → módulo/nível numa constante única.
+  - Testes: todos os testes de 403 existentes continuam passando com os padrões; novos testes:
+    recepção **com** `finance` acessa `/finance/*`; usuário sem `patients` recebe 403 em `/patients`;
+    fisioterapeuta padrão lê `/patients` e recebe 403 ao criar cliente; fisioterapeuta com edição de
+    `patients` liberada consegue criar.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
-- **Depende de:** T047
+- **Depende de:** T048
 - **Status:** TODO
 
 ### T049 — Usuários com cargo e permissões na interface
 - **Escopo:**
-  - Em Configurações › Usuários (só owner): formulário de criar/editar com Cargo e uma lista de
-    módulos em `checkbox-field`, já marcada com o padrão do perfil; trocar o perfil sugere o novo
-    padrão; botão "Restaurar padrão do perfil" (envia `modules: null`). Owner mostra "Acesso total"
-    sem checkboxes. Lista de usuários mostra cargo e um selo "Permissões personalizadas".
+  - Em Configurações › Usuários (só owner): formulário de criar/editar com Cargo e uma tabela de
+    módulos com duas colunas de `checkbox-field`, **Ver** e **Editar**, já marcada com o padrão do
+    perfil (marcar Editar marca Ver; desmarcar Ver desmarca Editar); trocar o perfil sugere o novo
+    padrão; botão "Restaurar padrão do perfil" (envia `modules: null, editModules: null`). Owner
+    mostra "Acesso total" sem checkboxes. Lista de usuários mostra cargo e o selo "Permissões
+    personalizadas" (`customModules`).
   - O menu lateral e as rotas da web passam a usar os `modules` do usuário logado (não mais
-    `roles` fixos).
+    `roles` fixos); botões de criar/editar/excluir somem (ou ficam desabilitados com explicação)
+    quando o módulo não está em `editModules`. Tratar `UserSummary` antigo do localStorage sem
+    `modules`/`editModules` (forçar novo login ou buscar `/me`).
   - A matriz de permissões vira referência do padrão de cada perfil.
   - Usar `Modal` (não `window.prompt/confirm`) nos fluxos tocados. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
-- **Depende de:** T048
+- **Depende de:** T053
 - **Status:** TODO
 
 ### T050 — Comissão por usuário na API

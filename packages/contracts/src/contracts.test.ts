@@ -4,7 +4,9 @@ import {
   adminUserUpdateSchema,
   appModuleLabels,
   appModuleSchema,
+  effectiveEditModules,
   effectiveModules,
+  roleDefaultEditModules,
   roleDefaultModules,
   appointmentInputSchema,
   broadcastInputSchema,
@@ -507,6 +509,92 @@ describe("user modules", () => {
         role: "reception",
         active: true,
         jobTitle: "x".repeat(81),
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("user edit modules", () => {
+  it("gives the owner edit on every module regardless of stored lists", () => {
+    expect(effectiveEditModules("owner")).toEqual(appModuleSchema.options);
+    expect(effectiveEditModules("owner", ["agenda"], [])).toEqual(appModuleSchema.options);
+  });
+
+  it("keeps the physiotherapist default without edit on patients and plans", () => {
+    const edit = effectiveEditModules("physiotherapist");
+    expect(edit).toEqual(["agenda", "groups", "clinical"]);
+    expect(edit).not.toContain("patients");
+    expect(edit).not.toContain("plans");
+    expect(effectiveModules("physiotherapist")).toContain("patients");
+    expect(effectiveModules("physiotherapist")).toContain("plans");
+  });
+
+  it("mirrors the writes the API allows today for each role", () => {
+    expect(effectiveEditModules("reception")).toEqual([
+      "agenda",
+      "groups",
+      "patients",
+      "plans",
+      "crm",
+      "relationship",
+      "communications",
+      "contracts",
+    ]);
+    expect(effectiveEditModules("finance")).toEqual([
+      "agenda",
+      "patients",
+      "plans",
+      "crm",
+      "relationship",
+      "communications",
+      "contracts",
+      "finance",
+    ]);
+    for (const role of ["reception", "physiotherapist", "finance"] as const) {
+      expect(effectiveEditModules(role)).not.toContain("reports");
+      expect(effectiveEditModules(role)).not.toContain("settings");
+      for (const module of roleDefaultEditModules[role])
+        expect(roleDefaultModules[role]).toContain(module);
+    }
+  });
+
+  it("drops edit without view, deduplicates and sorts in the enum order", () => {
+    expect(
+      effectiveEditModules("reception", null, ["finance", "crm", "agenda", "crm"]),
+    ).toEqual(["agenda", "crm"]);
+    expect(
+      effectiveEditModules("reception", ["agenda", "finance"], ["finance", "crm", "finance"]),
+    ).toEqual(["finance"]);
+    expect(effectiveEditModules("physiotherapist", ["agenda", "patients"])).toEqual(["agenda"]);
+    expect(effectiveEditModules("finance", undefined, [])).toEqual([]);
+  });
+
+  it("accepts editModules on user create and update", () => {
+    const created = adminUserInputSchema.parse({
+      fullName: "Bia Souza",
+      email: "bia@x.com",
+      role: "physiotherapist",
+      password: "Segura@1234",
+      editModules: ["patients"],
+    });
+    expect(created.editModules).toEqual(["patients"]);
+    const reset = adminUserUpdateSchema.parse({
+      fullName: "Bia Souza",
+      role: "reception",
+      active: true,
+      editModules: null,
+    });
+    expect(reset.editModules).toBeNull();
+    expect(
+      adminUserUpdateSchema.parse({ fullName: "Bia Souza", role: "reception", active: true })
+        .editModules,
+    ).toBeUndefined();
+    expect(
+      adminUserUpdateSchema.safeParse({
+        fullName: "Bia Souza",
+        role: "reception",
+        active: true,
+        editModules: ["admin"],
       }).success,
     ).toBe(false);
   });

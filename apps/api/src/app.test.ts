@@ -168,7 +168,11 @@ describe("CRM API", () => {
 
     const matrix = await app.inject({ method: "GET", url: "/admin/permission-matrix", headers });
     expect(matrix.json()).toEqual([
-      { role: "owner", modules: ["Todos os módulos", "Administração"] },
+      {
+        role: "owner",
+        modules: ["Todos os módulos", "Administração"],
+        editModules: ["Todos os módulos", "Administração"],
+      },
       {
         role: "reception",
         modules: [
@@ -182,10 +186,21 @@ describe("CRM API", () => {
           "Contratos",
           "Configurações",
         ],
+        editModules: [
+          "Agenda",
+          "Turmas",
+          "Clientes",
+          "Planos e sessões",
+          "CRM comercial",
+          "Contatos sugeridos",
+          "Comunicações",
+          "Contratos",
+        ],
       },
       {
         role: "physiotherapist",
         modules: ["Agenda", "Turmas", "Clientes", "Planos e sessões", "Prontuários"],
+        editModules: ["Agenda", "Turmas", "Prontuários"],
       },
       {
         role: "finance",
@@ -201,8 +216,145 @@ describe("CRM API", () => {
           "Relatórios",
           "Configurações",
         ],
+        editModules: [
+          "Agenda",
+          "Clientes",
+          "Planos e sessões",
+          "CRM comercial",
+          "Contatos sugeridos",
+          "Comunicações",
+          "Contratos",
+          "Financeiro",
+        ],
       },
     ]);
+    await app.close();
+  });
+
+  it("stores edit levels per user, keeping edit inside view and auditing changes", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const me = await app.inject({ method: "GET", url: "/me", headers });
+    expect(me.json().editModules).toHaveLength(12);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Carla Lima",
+        email: "carla@movimenta.local",
+        role: "physiotherapist",
+        password: "Segura@1234",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({
+      customModules: false,
+      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+      editModules: ["agenda", "groups", "clinical"],
+    });
+    const userId = created.json().id as string;
+    const base = { fullName: "Carla Lima", role: "physiotherapist", active: true };
+
+    // Só a edição ajustada já marca como personalizado; editar sem ver é descartado.
+    const custom = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, editModules: ["patients", "finance", "clinical", "patients"] },
+    });
+    expect(custom.statusCode).toBe(200);
+    expect(custom.json()).toMatchObject({
+      customModules: true,
+      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+      editModules: ["patients", "clinical"],
+    });
+
+    // Ausente = mantém a edição; tirar a visualização tira a edição.
+    const narrowed = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, modules: ["agenda", "clinical"] },
+    });
+    expect(narrowed.json()).toMatchObject({
+      customModules: true,
+      modules: ["agenda", "clinical"],
+      editModules: ["clinical"],
+    });
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email: "carla@movimenta.local", password: "Segura@1234" },
+    });
+    expect(login.json().user).toMatchObject({
+      modules: ["agenda", "clinical"],
+      editModules: ["clinical"],
+    });
+    const userMe = await app.inject({
+      method: "GET",
+      url: "/me",
+      headers: { authorization: `Bearer ${login.json().token as string}` },
+    });
+    expect(userMe.json().editModules).toEqual(["clinical"]);
+
+    // Só a visualização volta ao padrão: a edição ajustada continua valendo.
+    const viewReset = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, modules: null },
+    });
+    expect(viewReset.json()).toMatchObject({
+      customModules: true,
+      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+    });
+
+    const reset = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, modules: null, editModules: null },
+    });
+    expect(reset.json()).toMatchObject({
+      customModules: false,
+      editModules: ["agenda", "groups", "clinical"],
+    });
+
+    // Owner nunca guarda ajuste: edita tudo.
+    const owner = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, role: "owner", editModules: ["agenda"] },
+    });
+    expect(owner.json().customModules).toBe(false);
+    expect(owner.json().editModules).toHaveLength(12);
+
+    const invalid = await app.inject({
+      method: "PATCH",
+      url: `/admin/users/${userId}`,
+      headers,
+      payload: { ...base, editModules: ["admin"] },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const audit = await app.inject({ method: "GET", url: "/admin/audit-events", headers });
+    const permissionEvents = (
+      audit.json() as Array<{ action: string; entityId?: string; metadata: Record<string, unknown> }>
+    ).filter(
+      (event) => event.action === "users.permissions_updated" && event.entityId === userId,
+    );
+    expect(permissionEvents).toHaveLength(4);
+    const firstChange = permissionEvents.at(-1)!;
+    expect(firstChange.metadata).toEqual({
+      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+      editModules: ["patients", "clinical"],
+      custom: true,
+    });
+    expect(permissionEvents[0]!.metadata).toMatchObject({ custom: false });
     await app.close();
   });
 

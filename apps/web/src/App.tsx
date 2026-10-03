@@ -10570,7 +10570,12 @@ function AdminPage() {
           {matrix.map((item) => (
             <article key={item.role}>
               <strong>{item.role}</strong>
-              <span>{item.modules.join(" · ")}</span>
+              <span>
+                Vê: {item.modules.join(" · ")} — Edita:{" "}
+                {item.editModules.length
+                  ? item.editModules.join(" · ")
+                  : "nenhum módulo"}
+              </span>
             </article>
           ))}
         </section>

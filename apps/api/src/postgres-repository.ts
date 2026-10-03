@@ -127,6 +127,7 @@ import type {
 import {
   appModuleSchema,
   defaultRelationshipSettings,
+  effectiveEditModules,
   effectiveModules,
   groupClassName,
   nextPlanPeriod,
@@ -166,6 +167,7 @@ interface UserRow {
   role: AuthenticatedUser["role"];
   jobTitle: string | null;
   modules: string[] | null;
+  editModules: string[] | null;
   passwordHash: string;
   active: boolean;
   createdAt: Date;
@@ -173,15 +175,26 @@ interface UserRow {
 }
 
 const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-  job_title AS "jobTitle", modules, password_hash AS "passwordHash", active,
+  job_title AS "jobTitle", modules, edit_modules AS "editModules",
+  password_hash AS "passwordHash", active,
   created_at AS "createdAt", updated_at AS "updatedAt"`;
+
+function knownModules(modules: string[]): AppModule[] {
+  return modules.filter((module): module is AppModule =>
+    appModuleSchema.safeParse(module).success,
+  );
+}
 
 /** Ajuste de módulos gravado (ignora chaves desconhecidas); `null` = padrão do perfil. */
 function storedUserModules(row: UserRow): AppModule[] | null {
   if (row.role === "owner" || row.modules === null) return null;
-  return row.modules.filter((module): module is AppModule =>
-    appModuleSchema.safeParse(module).success,
-  );
+  return knownModules(row.modules);
+}
+
+/** Ajuste de edição gravado (ignora chaves desconhecidas); `null` = padrão do perfil. */
+function storedUserEditModules(row: UserRow): AppModule[] | null {
+  if (row.role === "owner" || row.editModules === null) return null;
+  return knownModules(row.editModules);
 }
 
 /** Owner não guarda ajuste; senão a lista normalizada (ordem do enum, sem duplicatas). */
@@ -192,6 +205,17 @@ function normalizeUserModules(
   return role === "owner" || modules === null
     ? null
     : effectiveModules(role, modules);
+}
+
+/** Como `normalizeUserModules`, descartando edição de módulo sem visualização. */
+function normalizeUserEditModules(
+  role: AuthenticatedUser["role"],
+  modules: readonly AppModule[] | null,
+  editModules: readonly AppModule[] | null,
+): AppModule[] | null {
+  return role === "owner" || editModules === null
+    ? null
+    : effectiveEditModules(role, normalizeUserModules(role, modules), editModules);
 }
 
 interface PatientRow {
@@ -976,7 +1000,13 @@ function mapAdminUser(row: UserRow): AdminUser {
     role: row.role,
     ...(row.jobTitle ? { jobTitle: row.jobTitle } : {}),
     modules: effectiveModules(row.role, storedUserModules(row)),
-    customModules: storedUserModules(row) !== null,
+    editModules: effectiveEditModules(
+      row.role,
+      storedUserModules(row),
+      storedUserEditModules(row),
+    ),
+    customModules:
+      storedUserModules(row) !== null || storedUserEditModules(row) !== null,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -1771,8 +1801,9 @@ export class PostgresClinicRepository implements ClinicRepository {
     try {
       await client.query("BEGIN");
       const result = await client.query<UserRow>(
-        `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
+        `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules,
+           edit_modules)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          RETURNING ${userColumns}`,
         [
           clinicId,
@@ -1782,6 +1813,11 @@ export class PostgresClinicRepository implements ClinicRepository {
           passwordHash,
           input.jobTitle?.trim() || null,
           normalizeUserModules(input.role, input.modules ?? null),
+          normalizeUserEditModules(
+            input.role,
+            input.modules ?? null,
+            input.editModules ?? null,
+          ),
         ],
       );
       await this.addAdminAudit(
@@ -1802,7 +1838,11 @@ export class PostgresClinicRepository implements ClinicRepository {
           "users.permissions_updated",
           "user",
           created.id,
-          { modules: created.modules, custom: true },
+          {
+            modules: created.modules,
+            editModules: created.editModules,
+            custom: true,
+          },
         );
       await client.query("COMMIT");
       return created;
@@ -1844,9 +1884,16 @@ export class PostgresClinicRepository implements ClinicRepository {
         return null;
       }
       const previousModules = storedUserModules(current.rows[0]);
-      const nextModules = normalizeUserModules(
+      const previousEditModules = storedUserEditModules(current.rows[0]);
+      const requestedModules =
+        input.modules === undefined ? previousModules : input.modules;
+      const nextModules = normalizeUserModules(input.role, requestedModules);
+      const nextEditModules = normalizeUserEditModules(
         input.role,
-        input.modules === undefined ? previousModules : input.modules,
+        requestedModules,
+        input.editModules === undefined
+          ? previousEditModules
+          : input.editModules,
       );
       const jobTitle =
         input.jobTitle === undefined
@@ -1854,7 +1901,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           : input.jobTitle.trim() || null;
       const result = await client.query<UserRow>(
         `UPDATE users SET full_name = $3, role = $4, active = $5, job_title = $6,
-           modules = $7, updated_at = now()
+           modules = $7, edit_modules = $8, updated_at = now()
          WHERE clinic_id = $1 AND id = $2
          RETURNING ${userColumns}`,
         [
@@ -1865,6 +1912,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           input.active,
           jobTitle,
           nextModules,
+          nextEditModules,
         ],
       );
       if (!result.rows[0]) {
@@ -1872,7 +1920,10 @@ export class PostgresClinicRepository implements ClinicRepository {
         return null;
       }
       const updated = mapAdminUser(result.rows[0]);
-      if (JSON.stringify(previousModules) !== JSON.stringify(nextModules))
+      if (
+        JSON.stringify([previousModules, previousEditModules]) !==
+        JSON.stringify([nextModules, nextEditModules])
+      )
         await this.addAdminAudit(
           client,
           clinicId,
@@ -1880,7 +1931,11 @@ export class PostgresClinicRepository implements ClinicRepository {
           "users.permissions_updated",
           "user",
           userId,
-          { modules: updated.modules, custom: updated.customModules },
+          {
+            modules: updated.modules,
+            editModules: updated.editModules,
+            custom: updated.customModules,
+          },
         );
       await this.addAdminAudit(
         client,

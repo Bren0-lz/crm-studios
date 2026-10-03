@@ -89,6 +89,7 @@ import {
   type UserSummary,
   type PermissionMatrixItem,
   appModuleLabels,
+  roleDefaultEditModules,
   roleDefaultModules,
   userRoleSchema,
 } from "@crm/contracts";
@@ -357,7 +358,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     } satisfies ApiError);
   });
 
-  /** Dados públicos do usuário logado, com os módulos efetivos. */
+  /** Dados públicos do usuário logado, com os módulos e a edição efetivos. */
   function toUserSummary(user: UserSummary): UserSummary {
     return {
       id: user.id,
@@ -366,6 +367,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       role: user.role,
       ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
       modules: user.modules,
+      editModules: user.editModules,
     };
   }
 
@@ -772,15 +774,19 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     "/admin/permission-matrix",
     { preHandler: [authenticate, requireOwnerAccess] },
     async () =>
-      userRoleSchema.options.map(
-        (role): PermissionMatrixItem => ({
+      userRoleSchema.options.map((role): PermissionMatrixItem => {
+        if (role === "owner") {
+          const everything = ["Todos os módulos", "Administração"];
+          return { role, modules: everything, editModules: [...everything] };
+        }
+        return {
           role,
-          modules:
-            role === "owner"
-              ? ["Todos os módulos", "Administração"]
-              : roleDefaultModules[role].map((module) => appModuleLabels[module]),
-        }),
-      ),
+          modules: roleDefaultModules[role].map((module) => appModuleLabels[module]),
+          editModules: roleDefaultEditModules[role].map(
+            (module) => appModuleLabels[module],
+          ),
+        };
+      }),
   );
 
   app.get("/dashboard", { preHandler: authenticate }, async (request) => {

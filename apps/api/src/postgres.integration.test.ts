@@ -1865,6 +1865,66 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("persists per-user edit levels inside the visible modules", async () => {
+    await cleanupPermissionsUser();
+    try {
+      const created = await repository.createAdminUser(
+        clinicId,
+        ownerId,
+        {
+          fullName: "Teste Permissões",
+          email: permissionsUserEmail,
+          role: "physiotherapist",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      expect(created).toMatchObject({
+        customModules: false,
+        editModules: ["agenda", "groups", "clinical"],
+      });
+      const base = { fullName: "Teste Permissões", role: "physiotherapist" as const, active: true };
+      const custom = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        editModules: ["patients", "finance", "clinical", "patients"],
+      });
+      expect(custom).toMatchObject({ customModules: true, editModules: ["patients", "clinical"] });
+      const stored = await pool.query<{ modules: string[] | null; edit_modules: string[] | null }>(
+        "SELECT modules, edit_modules FROM users WHERE id = $1",
+        [created.id],
+      );
+      expect(stored.rows[0]).toEqual({ modules: null, edit_modules: ["patients", "clinical"] });
+      const narrowed = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        modules: ["agenda", "clinical"],
+      });
+      expect(narrowed).toMatchObject({ modules: ["agenda", "clinical"], editModules: ["clinical"] });
+      expect((await repository.findUserById(clinicId, created.id))?.editModules).toEqual([
+        "clinical",
+      ]);
+      const reset = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        modules: null,
+        editModules: null,
+      });
+      expect(reset).toMatchObject({
+        customModules: false,
+        editModules: ["agenda", "groups", "clinical"],
+      });
+      const events = (await repository.listAdminAuditEvents(clinicId)).filter(
+        (item) => item.action === "users.permissions_updated" && item.entityId === created.id,
+      );
+      expect(events).toHaveLength(3);
+      expect(events.at(-1)?.metadata).toEqual({
+        modules: ["agenda", "groups", "patients", "plans", "clinical"],
+        editModules: ["patients", "clinical"],
+        custom: true,
+      });
+    } finally {
+      await cleanupPermissionsUser();
+    }
+  });
+
   it("queues a broadcast as manual outbox messages in one transaction", async () => {
     const broadcastPhone = "11977770391";
     const cleanup = async () => {

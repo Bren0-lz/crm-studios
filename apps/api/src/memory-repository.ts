@@ -124,6 +124,7 @@ import type {
 } from "@crm/contracts";
 import {
   defaultRelationshipSettings,
+  effectiveEditModules,
   effectiveModules,
   groupClassName,
   nextPlanPeriod,
@@ -311,6 +312,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly issuedDocuments: IssuedDocument[] = [];
   /** Módulos ajustados pela gestora, por usuário (ausente = padrão do perfil). */
   private readonly userModules = new Map<string, AppModule[]>();
+  /** Módulos com edição ajustados pela gestora (ausente = padrão do perfil). */
+  private readonly userEditModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -319,6 +322,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       email: "admin@movimenta.local",
       role: "owner",
       modules: effectiveModules("owner"),
+      editModules: effectiveEditModules("owner"),
       customModules: false,
       passwordHash: hashSync("Admin@123", 10),
       active: true,
@@ -584,13 +588,14 @@ export class MemoryClinicRepository implements ClinicRepository {
       role: input.role,
       ...(jobTitle ? { jobTitle } : {}),
       modules: [],
+      editModules: [],
       customModules: false,
       passwordHash,
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    this.setUserModules(user, input.modules ?? null);
+    this.setUserModules(user, input.modules ?? null, input.editModules ?? null);
     this.users.push(user);
     this.addAdminAudit(actorUserId, "user.created", "user", user.id, {
       role: user.role,
@@ -602,7 +607,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         "users.permissions_updated",
         "user",
         user.id,
-        { modules: user.modules, custom: true },
+        { modules: user.modules, editModules: user.editModules, custom: true },
       );
     const { passwordHash: _, ...summary } = user;
     void _;
@@ -625,7 +630,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         "Você não pode desativar o próprio acesso.",
         409,
       );
-    const previousCustom = this.userModules.get(user.id) ?? null;
+    const previousCustom = this.storedPermissions(user.id);
     user.fullName = input.fullName;
     user.role = input.role;
     user.active = input.active;
@@ -636,40 +641,64 @@ export class MemoryClinicRepository implements ClinicRepository {
     }
     this.setUserModules(
       user,
-      input.modules === undefined ? previousCustom : input.modules,
+      input.modules === undefined ? previousCustom.modules : input.modules,
+      input.editModules === undefined
+        ? previousCustom.editModules
+        : input.editModules,
     );
     user.updatedAt = now();
     this.addAdminAudit(actorUserId, "user.updated", "user", user.id, {
       role: user.role,
       active: user.active,
     });
-    const currentCustom = this.userModules.get(user.id) ?? null;
+    const currentCustom = this.storedPermissions(user.id);
     if (JSON.stringify(previousCustom) !== JSON.stringify(currentCustom))
       this.addAdminAudit(
         actorUserId,
         "users.permissions_updated",
         "user",
         user.id,
-        { modules: user.modules, custom: user.customModules },
+        {
+          modules: user.modules,
+          editModules: user.editModules,
+          custom: user.customModules,
+        },
       );
     const { passwordHash: _, ...summary } = user;
     void _;
     return summary;
   }
 
-  /** Owner não guarda ajuste (tem sempre todos os módulos); `null` = padrão do perfil. */
+  private storedPermissions(userId: string) {
+    return {
+      modules: this.userModules.get(userId) ?? null,
+      editModules: this.userEditModules.get(userId) ?? null,
+    };
+  }
+
+  /**
+   * Owner não guarda ajuste (tem sempre todos os módulos); `null` = padrão do perfil.
+   * A edição guardada já descarta módulos sem visualização.
+   */
   private setUserModules(
     user: AuthenticatedUser,
     modules: readonly AppModule[] | null,
+    editModules: readonly AppModule[] | null,
   ) {
+    const owner = user.role === "owner";
     const custom =
-      user.role === "owner" || modules === null
+      owner || modules === null ? null : effectiveModules(user.role, modules);
+    const customEdit =
+      owner || editModules === null
         ? null
-        : effectiveModules(user.role, modules);
+        : effectiveEditModules(user.role, custom, editModules);
     if (custom) this.userModules.set(user.id, custom);
     else this.userModules.delete(user.id);
-    user.customModules = custom !== null;
+    if (customEdit) this.userEditModules.set(user.id, customEdit);
+    else this.userEditModules.delete(user.id);
+    user.customModules = custom !== null || customEdit !== null;
     user.modules = effectiveModules(user.role, custom);
+    user.editModules = effectiveEditModules(user.role, custom, customEdit);
   }
 
   async resetAdminUserPassword(
