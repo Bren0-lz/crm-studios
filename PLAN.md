@@ -485,7 +485,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   dos pulados, confirmação e aviso de que a fila ainda não envia de fato. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T039
-- **Status:** TODO
+- **Status:** DONE
 
 ### V3 — Revisão visual dos relatórios (manual)
 - **Tipo:** manual

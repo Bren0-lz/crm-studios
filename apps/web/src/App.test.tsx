@@ -1964,6 +1964,107 @@ describe("application shell", () => {
     }
   });
 
+  it("previews a segmented broadcast, shows skipped clients and queues it after confirmation", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    const patients = [
+      { id: "99999999-9999-4999-8999-999999999991", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", email: "helena@exemplo.com", tags: ["pilates"], status: "active" },
+      { id: "99999999-9999-4999-8999-999999999992", recordNumber: "PAC-00002", fullName: "Bruno Lima", phone: "11987654322", tags: ["pilates", "vip"], status: "active" },
+    ];
+    const preview = {
+      preview: true,
+      channel: "email",
+      matched: 3,
+      queued: 1,
+      skipped: [
+        { patientId: "99999999-9999-4999-8999-999999999992", patientName: "Bruno Lima", reason: "no_destination" },
+        { patientId: "99999999-9999-4999-8999-999999999993", patientName: "Carla Souza", reason: "opt_out" },
+      ],
+      sampleBody: "Oi Helena, temos aula especial!",
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/communications/broadcast/preview")) return { ok: true, status: 200, json: async () => preview } as Response;
+      if (url.includes("/communications/broadcast")) return { ok: true, status: 201, json: async () => ({ ...preview, preview: false }) } as Response;
+      if (url.includes("/communications")) return { ok: true, status: 200, json: async () => ({ deliveryMode: "outbox_only", preferences: [], messages: [] }) } as Response;
+      return { ok: true, status: 200, json: async () => patients } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/comunicacoes"]}><App /></MemoryRouter>);
+    const panel = (await screen.findByRole("heading", { name: "Comunicado segmentado" })).closest("section")!;
+    expect(within(panel).getByText(/a fila ainda não envia de fato/)).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Enfileirar comunicado" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: /^pilates/ }));
+    fireEvent.change(within(panel).getByLabelText("Situação"), { target: { value: "active" } });
+    fireEvent.change(within(panel).getByLabelText("Plano"), { target: { value: "with" } });
+    fireEvent.click(within(panel).getByLabelText("Só aniversariantes do mês"));
+    fireEvent.change(within(panel).getByLabelText("Canal do comunicado"), { target: { value: "email" } });
+    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), { target: { value: "Oi {{nome}}, temos aula especial!" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
+
+    expect(await within(panel).findByText("3 cliente(s) no segmento")).toBeInTheDocument();
+    expect(within(panel).getByText("1 entrará(ão) na fila")).toBeInTheDocument();
+    expect(within(panel).getByText("2 pulado(s)")).toBeInTheDocument();
+    expect(within(panel).getByText("Oi Helena, temos aula especial!")).toBeInTheDocument();
+    expect(within(panel).getByText("Bruno Lima")).toBeInTheDocument();
+    expect(within(panel).getByText("Sem contato cadastrado para o canal")).toBeInTheDocument();
+    expect(within(panel).getByText("Carla Souza")).toBeInTheDocument();
+    expect(within(panel).getByText("Não autorizou mensagens neste canal")).toBeInTheDocument();
+    const previewCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/communications/broadcast/preview"));
+    expect(JSON.parse(String(previewCall?.[1]?.body))).toEqual({
+      segment: { tags: ["pilates"], status: "active", activePlan: true, birthdayMonth: true },
+      channel: "email",
+      body: "Oi {{nome}}, temos aula especial!",
+    });
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Enfileirar comunicado" }));
+    const dialog = screen.getByRole("dialog", { name: "Confirmar comunicado" });
+    expect(within(dialog).getByText(/1 mensagem\(ns\) por e-mail/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/a fila ainda não envia de fato/)).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url).endsWith("/communications/broadcast") && init?.method === "POST")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar e enfileirar" }));
+
+    expect(await screen.findByText("1 mensagem(ns) do comunicado adicionada(s) à fila; 2 cliente(s) pulado(s).")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Confirmar comunicado" })).not.toBeInTheDocument();
+    const sendCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/communications/broadcast"));
+    expect(sendCall?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(JSON.parse(String(previewCall?.[1]?.body)));
+    expect(within(panel).queryByText("3 cliente(s) no segmento")).not.toBeInTheDocument();
+  });
+
+  it("requires broadcast text, discards a stale preview and shows preview errors", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "reception" }));
+    let failPreview = false;
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/communications/broadcast/preview")) {
+        return failPreview
+          ? ({ ok: false, status: 400, json: async () => ({ code: "VALIDATION_ERROR", message: "Dados inválidos." }) } as Response)
+          : ({ ok: true, status: 200, json: async () => ({ preview: true, channel: "whatsapp", matched: 0, queued: 0, skipped: [] }) } as Response);
+      }
+      if (url.includes("/communications")) return { ok: true, status: 200, json: async () => ({ deliveryMode: "outbox_only", preferences: [], messages: [] }) } as Response;
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/comunicacoes"]}><App /></MemoryRouter>);
+    const panel = (await screen.findByRole("heading", { name: "Comunicado segmentado" })).closest("section")!;
+    fireEvent.submit(within(panel).getByLabelText("Texto do comunicado").closest("form")!);
+    expect(within(panel).getByText("Escreva o texto do comunicado.")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/broadcast"))).toBe(false);
+
+    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), { target: { value: "Aviso geral" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
+    expect(await within(panel).findByText("Nenhum cliente receberia este comunicado.")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Enfileirar comunicado" })).not.toBeInTheDocument();
+
+    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), { target: { value: "Aviso geral 2" } });
+    expect(within(panel).queryByText("Nenhum cliente receberia este comunicado.")).not.toBeInTheDocument();
+
+    failPreview = true;
+    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
+    expect(await within(panel).findByText("Dados inválidos.")).toBeInTheDocument();
+  });
+
   it("hides the patient pagination when every patient fits on one page", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));

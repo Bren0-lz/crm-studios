@@ -29,6 +29,8 @@ import type {
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
+  BroadcastInput,
+  BroadcastResult,
   CommunicationCenter,
   CommunicationPreference,
   CommunicationPreferenceInput,
@@ -576,6 +578,16 @@ export const api = {
     }),
   queueMessage: (input: ManualMessageInput) =>
     request<OutboundMessage>("/communications/messages", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  broadcastPreview: (input: BroadcastInput) =>
+    request<BroadcastResult>("/communications/broadcast/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  sendBroadcast: (input: BroadcastInput) =>
+    request<BroadcastResult>("/communications/broadcast", {
       method: "POST",
       body: JSON.stringify(input),
     }),

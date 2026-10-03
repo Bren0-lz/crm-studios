@@ -3770,12 +3770,14 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .communication-compose,
-.reminder-generator {
+.reminder-generator,
+.communication-broadcast {
   padding: 23px;
 }
 
 .communication-compose h2,
-.reminder-generator h2 {
+.reminder-generator h2,
+.communication-broadcast h2 {
   margin: 4px 0 16px;
   font-family: "Manrope", sans-serif;
   font-size: 18px;
@@ -3846,6 +3848,98 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 .communication-history {
   grid-column: 1 / -1;
+}
+
+.communication-broadcast {
+  grid-column: 1 / -1;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.communication-broadcast h2 {
+  margin-bottom: 0;
+}
+
+.communication-broadcast .outbox-note {
+  margin-top: 0;
+}
+
+.broadcast-tags {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.broadcast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.broadcast-preview {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.broadcast-preview > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.broadcast-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.broadcast-sample,
+.broadcast-skipped {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.broadcast-sample p {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #f8f7f2;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.broadcast-skipped ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.broadcast-skipped li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.broadcast-skipped li span {
+  color: var(--muted);
+}
+
+.broadcast-confirm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.broadcast-confirm p {
+  margin: 0;
 }
 
 .message-list article {
