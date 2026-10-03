@@ -1008,6 +1008,83 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupDailyCash();
   });
 
+  it("lists PostgreSQL payments and reversals by event date in the clinic time zone", async () => {
+    await cleanupDailyCash();
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      patientId: patients[0]!.id,
+      serviceId: services[0]!.id,
+      name: dailyCashMarker,
+      kind: "fixed_package",
+      totalSessions: 1,
+      validFrom: dailyCashDay,
+      totalValueInCents: 12_000,
+      installments: 1,
+      firstDueDate: dailyCashDay,
+    });
+    const receivable = await pool.query<{ id: string }>(
+      "SELECT id FROM receivables WHERE plan_id = $1",
+      [plan.id],
+    );
+    const receivableId = receivable.rows[0]!.id;
+    await repository.settleReceivable(clinicId, ownerId, receivableId, "cash");
+    await repository.reverseReceivablePayment(clinicId, ownerId, receivableId);
+    await repository.settleReceivable(clinicId, ownerId, receivableId, "pix");
+    const events = await pool.query<{ id: string }>(
+      `SELECT id FROM financial_events
+       WHERE receivable_id = $1 AND kind IN ('payment','payment_reversal')
+       ORDER BY created_at, id`,
+      [receivableId],
+    );
+    expect(events.rows).toHaveLength(3);
+    const nextDay = new Date(`${dailyCashDay}T12:00:00.000Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    const nextDate = nextDay.toISOString().slice(0, 10);
+    // 1º pagamento: 23h30 de São Paulo (dia seguinte em UTC); estorno ao meio-dia;
+    // 2º pagamento já no dia seguinte.
+    const moves = [
+      `${nextDate}T02:30:00.000Z`,
+      `${dailyCashDay}T15:00:00.000Z`,
+      `${nextDate}T15:00:00.000Z`,
+    ];
+    for (const [index, row] of events.rows.entries())
+      await pool.query("UPDATE financial_events SET created_at = $2::timestamptz WHERE id = $1", [
+        row.id,
+        moves[index],
+      ]);
+
+    const anotherInstance = new PostgresClinicRepository(pool);
+    const onDay = (
+      await anotherInstance.listReceivedPayments(clinicId, dailyCashDay, dailyCashDay)
+    ).filter((item) => item.receivableId === receivableId);
+    expect(
+      onDay.map((item) => [item.kind, Math.abs(item.amountInCents), item.occurredAt]),
+    ).toEqual([
+      ["reversal", 12_000, moves[1]],
+      ["payment", 12_000, moves[0]],
+    ]);
+    expect(onDay[1]).toMatchObject({
+      patientId: patients[0]!.id,
+      patientName: patients[0]!.fullName,
+      sourceId: plan.id,
+      paymentMethod: "cash",
+    });
+    const following = (
+      await anotherInstance.listReceivedPayments(clinicId, nextDate, nextDate)
+    ).filter((item) => item.receivableId === receivableId);
+    expect(following.map((item) => [item.kind, item.paymentMethod])).toEqual([
+      ["payment", "pix"],
+    ]);
+    const both = (
+      await anotherInstance.listReceivedPayments(clinicId, dailyCashDay, nextDate)
+    ).filter((item) => item.receivableId === receivableId);
+    expect(both).toHaveLength(3);
+    await cleanupDailyCash();
+  });
+
   it("renews due PostgreSQL plans once and blocks a second manual renewal", async () => {
     const [patients, services] = await Promise.all([
       repository.listPatients(clinicId),

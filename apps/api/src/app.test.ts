@@ -2730,6 +2730,186 @@ describe("CRM API", () => {
     }
   });
 
+  it("reports client rankings and the age distribution of active clients", async () => {
+    // Os dados demo são montados na data real; o período do teste fica longe deles.
+    const { app } = await authenticatedApp();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 12h de São Paulo de quarta, 17/05/2034.
+    vi.setSystemTime(new Date("2034-05-17T15:00:00.000Z"));
+    try {
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      const sub = "22222222-2222-4222-8222-222222222222";
+      const headersAs = (role: UserRole = "owner") => ({
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role })}`,
+      });
+      const headers = headersAs();
+      type Report = {
+        from: string;
+        to: string;
+        topBySessions: { patientId: string; completedSessions: number }[];
+        topByRevenue: { patientId: string; receivedInCents: number }[];
+        activeClients: number;
+        ageDistribution: { band: string; clients: number }[];
+      };
+      const clientsReport = async (query = "?from=2034-05-01&to=2034-05-31") => {
+        const response = await app.inject({
+          method: "GET",
+          url: `/reports/clients${query}`,
+          headers,
+        });
+        expect(response.statusCode).toBe(200);
+        return response.json() as Report;
+      };
+      // Os dados demo (planos em aberto) também entram: compara-se a diferença.
+      const before = await clientsReport();
+      expect(before).toMatchObject({ from: "2034-05-01", to: "2034-05-31" });
+
+      const [services, professionals, rooms] = await Promise.all([
+        app.inject({ method: "GET", url: "/services", headers }),
+        app.inject({ method: "GET", url: "/professionals", headers }),
+        app.inject({ method: "GET", url: "/rooms", headers }),
+      ]);
+      const createPatient = async (fullName: string, phone: string, birthDate: string) => {
+        const response = await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload: { fullName, phone, birthDate, tags: [] },
+        });
+        expect(response.statusCode).toBe(201);
+        return response.json().id as string;
+      };
+      const completedVisit = async (patientId: string, startsAt: string) => {
+        const created = await app.inject({
+          method: "POST",
+          url: "/appointments",
+          headers,
+          payload: {
+            patientId,
+            professionalId: professionals.json()[0].id,
+            roomId: rooms.json()[0].id,
+            serviceId: services.json()[0].id,
+            startsAt,
+          },
+        });
+        expect(created.statusCode).toBe(201);
+        const completed = await app.inject({
+          method: "PATCH",
+          url: `/appointments/${created.json().id}/status`,
+          headers,
+          payload: { status: "completed" },
+        });
+        expect(completed.statusCode).toBe(200);
+      };
+      const paidPlan = async (patientId: string) => {
+        const plan = await app.inject({
+          method: "POST",
+          url: "/plans",
+          headers,
+          payload: {
+            patientId,
+            serviceId: services.json()[0].id,
+            kind: "fixed_package",
+            name: "Plano do ranking",
+            totalSessions: 4,
+            validFrom: "2034-05-01",
+            totalValueInCents: 12_000,
+            installments: 1,
+            firstDueDate: "2034-05-10",
+          },
+        });
+        expect(plan.statusCode).toBe(201);
+        const receivable = (
+          await app.inject({ method: "GET", url: "/finance/workspace", headers })
+        )
+          .json()
+          .summary.receivables.find(
+            (item: { planId?: string }) => item.planId === plan.json().id,
+          );
+        const paid = await app.inject({
+          method: "POST",
+          url: `/finance/receivables/${receivable.id}/pay`,
+          headers,
+          payload: { paymentMethod: "pix" },
+        });
+        expect(paid.statusCode).toBe(200);
+        return receivable.id as string;
+      };
+
+      // 44 anos em 31/05/2034 (faz 45 só em 01/06); duas sessões; pago e estornado.
+      const adult = await createPatient("Ranking Adulto", "11955560001", "1989-06-01");
+      // Sem data de nascimento; uma sessão; pago.
+      const noDate = await createPatient("Ranking Sem Data", "11955560002", "");
+      await completedVisit(adult, "2034-05-15T13:00:00.000Z");
+      await completedVisit(adult, "2034-05-16T13:00:00.000Z");
+      await completedVisit(noDate, "2034-05-15T16:00:00.000Z");
+      const reversedReceivable = await paidPlan(adult);
+      await paidPlan(noDate);
+      const reversed = await app.inject({
+        method: "POST",
+        url: `/finance/receivables/${reversedReceivable}/reverse`,
+        headers,
+      });
+      expect(reversed.statusCode).toBe(200);
+
+      const after = await clientsReport();
+      const sessionsIndex = (patientId: string) =>
+        after.topBySessions.findIndex((item) => item.patientId === patientId);
+      expect(after.topBySessions[sessionsIndex(adult)]?.completedSessions).toBe(2);
+      expect(after.topBySessions[sessionsIndex(noDate)]?.completedSessions).toBe(1);
+      expect(sessionsIndex(adult)).toBeLessThan(sessionsIndex(noDate));
+      expect(before.topBySessions).toEqual([]);
+      expect(after.topBySessions.map((item) => item.patientId)).toEqual([adult, noDate]);
+      expect(
+        after.topByRevenue.find((item) => item.patientId === noDate)?.receivedInCents,
+      ).toBe(12_000);
+      expect(after.topByRevenue.some((item) => item.patientId === adult)).toBe(false);
+      expect(after.activeClients - before.activeClients).toBe(2);
+      const bandDelta = (band: string) =>
+        after.ageDistribution.find((item) => item.band === band)!.clients -
+        before.ageDistribution.find((item) => item.band === band)!.clients;
+      expect(bandDelta("30-44")).toBe(1);
+      expect(bandDelta("unknown")).toBe(1);
+      expect(bandDelta("45-59")).toBe(0);
+
+      // Fora do período: nada dos novos clientes nos rankings.
+      const april = await clientsReport("?from=2034-04-01&to=2034-04-30");
+      expect(april.topBySessions.some((item) => item.patientId === adult)).toBe(false);
+      expect(april.topByRevenue.some((item) => item.patientId === noDate)).toBe(false);
+
+      // Parâmetros vazios: até hoje, seis meses.
+      expect(await clientsReport("?from=&to=")).toMatchObject({
+        from: "2033-12-01",
+        to: "2034-05-17",
+      });
+      for (const query of ["?from=abc", "?from=2034-06-01&to=2034-05-01"]) {
+        const invalid = await app.inject({
+          method: "GET",
+          url: `/reports/clients${query}`,
+          headers,
+        });
+        expect(invalid.statusCode).toBe(400);
+      }
+      const finance = await app.inject({
+        method: "GET",
+        url: "/reports/clients",
+        headers: headersAs("finance"),
+      });
+      expect(finance.statusCode).toBe(200);
+      for (const role of ["reception", "physiotherapist"] as const) {
+        const denied = await app.inject({
+          method: "GET",
+          url: "/reports/clients",
+          headers: headersAs(role),
+        });
+        expect(denied.statusCode).toBe(403);
+      }
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));

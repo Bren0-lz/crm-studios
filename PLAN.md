@@ -458,7 +458,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   - Testes em `client-report.test.ts` e na rota.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/client-report.test.ts src/app.test.ts`
 - **Depende de:** V2
-- **Status:** TODO
+- **Status:** DONE
 
 ### T038 — Retenção, rankings e faixa etária na interface
 - **Escopo:** cartões em Relatórios, usando o período filtrado: retenção mês a mês e

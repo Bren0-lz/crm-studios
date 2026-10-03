@@ -14,6 +14,7 @@ import {
   clinicalAssessmentInputSchema,
   clinicalAttachmentInputSchema,
   clinicSettingsInputSchema,
+  clientReportFilterSchema,
   dailyCashFilterSchema,
   financeForecastFilterSchema,
   relationshipSettingsSchema,
@@ -85,7 +86,12 @@ import {
   type SatisfactionReport,
   type UserSummary,
 } from "@crm/contracts";
+import {
+  buildClientReport,
+  resolveClientReportPeriod,
+} from "./client-report.js";
 import { config } from "./config.js";
+import { clinicDateOf, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { DomainError, type ClinicRepository } from "./repository.js";
 import {
@@ -2343,6 +2349,38 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         repository.listPatientPlans(clinicId),
       ]);
       return buildRetentionReport(period, { appointments, plans }, today);
+    },
+  );
+  app.get(
+    "/reports/clients",
+    { preHandler: [authenticate, requireManagementAccess] },
+    async (request) => {
+      const filter = clientReportFilterSchema.parse(request.query);
+      const { clinicId } = request.user;
+      const settings = await repository.getClinicSettings(clinicId);
+      const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
+      const period = resolveClientReportPeriod(
+        filter,
+        clinicDateOf(new Date(), timeZone),
+      );
+      // Janela folgada de um dia em cada ponta; o relatório filtra pela data
+      // no fuso da clínica.
+      const day = 24 * 60 * 60 * 1000;
+      const [patients, appointments, plans, payments] = await Promise.all([
+        repository.listPatients(clinicId),
+        repository.listAppointments(
+          clinicId,
+          new Date(Date.parse(`${period.from}T00:00:00.000Z`) - day).toISOString(),
+          new Date(Date.parse(`${period.to}T00:00:00.000Z`) + 2 * day).toISOString(),
+        ),
+        repository.listPatientPlans(clinicId),
+        repository.listReceivedPayments(clinicId, period.from, period.to),
+      ]);
+      return buildClientReport(
+        period,
+        { patients, appointments, plans, payments },
+        timeZone,
+      );
     },
   );
   app.get(

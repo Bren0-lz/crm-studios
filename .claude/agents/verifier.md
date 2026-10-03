@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Verifica de forma independente se uma tarefa foi realmente concluída, rodando os gates do zero e auditando o diff. Não escreve código de produção.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep, Bash, PowerShell
 model: opus
 ---
 

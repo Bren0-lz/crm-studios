@@ -148,7 +148,7 @@ import { inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
-import { buildDailyCash } from "./daily-cash.js";
+import { buildDailyCash, clinicDateOf } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
@@ -4689,6 +4689,19 @@ export class MemoryClinicRepository implements ClinicRepository {
       },
       this.clinicSettings.timezone,
     );
+  }
+
+  async listReceivedPayments(clinicId: string, from: string, to: string) {
+    return this.receivedPayments(clinicId)
+      .filter((item) => {
+        const date = clinicDateOf(item.occurredAt, this.clinicSettings.timezone);
+        return date >= from && date <= to;
+      })
+      .sort(
+        (a, b) =>
+          Date.parse(a.occurredAt) - Date.parse(b.occurredAt) ||
+          a.id.localeCompare(b.id),
+      );
   }
 
   private receivedPayments(clinicId: string): ReceivedPayment[] {

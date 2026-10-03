@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Implementa UMA tarefa do PLAN.md, escrevendo código e testes até o gate passar. Use quando o orquestrador precisar executar uma tarefa do plano.
-tools: Read, Write, Edit, Glob, Grep, Bash
+tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell
 model: opus
 ---
 

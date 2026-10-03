@@ -1641,6 +1641,70 @@ export interface RetentionReport {
   };
 }
 
+/**
+ * Query de `GET /reports/clients`, com os mesmos padrões da retenção: `to`
+ * ausente = hoje (fuso da clínica); `from` ausente = 1º dia do mês cinco meses
+ * antes do mês de `to`. Parâmetros vazios contam como ausentes.
+ */
+export const clientReportFilterSchema = retentionReportFilterSchema;
+export type ClientReportFilter = RetentionReportFilter;
+
+/** Faixas etárias do relatório de clientes (`unknown` = sem data de nascimento). */
+export const clientAgeBandSchema = z.enum([
+  "0-17",
+  "18-29",
+  "30-44",
+  "45-59",
+  "60+",
+  "unknown",
+]);
+export type ClientAgeBand = z.infer<typeof clientAgeBandSchema>;
+export const clientAgeBandLabels: Record<ClientAgeBand, string> = {
+  "0-17": "0 a 17 anos",
+  "18-29": "18 a 29 anos",
+  "30-44": "30 a 44 anos",
+  "45-59": "45 a 59 anos",
+  "60+": "60 anos ou mais",
+  unknown: "Sem data de nascimento",
+};
+
+export interface ClientSessionsRankingEntry {
+  patientId: string;
+  patientName: string;
+  /** Atendimentos concluídos no período (data no fuso da clínica). */
+  completedSessions: number;
+}
+
+export interface ClientRevenueRankingEntry {
+  patientId: string;
+  patientName: string;
+  /** Pagamentos menos estornos no período (data do evento no fuso da clínica). */
+  receivedInCents: number;
+}
+
+export interface ClientAgeBandCount {
+  band: ClientAgeBand;
+  label: string;
+  clients: number;
+}
+
+export interface ClientReport {
+  generatedAt: string;
+  /** Período pedido (aaaa-mm-dd), já com os padrões aplicados. */
+  from: string;
+  to: string;
+  /** Até 20 clientes com mais sessões concluídas no período. */
+  topBySessions: ClientSessionsRankingEntry[];
+  /** Até 20 clientes com mais recebimentos líquidos (positivos) no período. */
+  topByRevenue: ClientRevenueRankingEntry[];
+  /**
+   * Clientes ativos no período (atendimento concluído ou plano vigente em
+   * algum dia do período) por faixa etária, com a idade na data `to`.
+   */
+  activeClients: number;
+  ageDistribution: ClientAgeBandCount[];
+}
+
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;

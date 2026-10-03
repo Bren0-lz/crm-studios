@@ -65,6 +65,7 @@ import type {
   LeadTaskStatus,
   ManualMessageInput,
   ManagementReport,
+  ReceivedPayment,
   SalesReport,
   IssuedDocument,
   InventoryWorkspace,
@@ -657,6 +658,15 @@ export interface ClinicRepository {
   getSalesReport(clinicId: string, month: string): Promise<SalesReport>;
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
+  /**
+   * Eventos de recebimento e estorno cuja data, no fuso da clínica, está entre
+   * `from` e `to` (aaaa-mm-dd, inclusive), em ordem cronológica.
+   */
+  listReceivedPayments(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<ReceivedPayment[]>;
 }
 
 export class DomainError extends Error {

@@ -7255,6 +7255,54 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
   }
 
+  async listReceivedPayments(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<ReceivedPayment[]> {
+    const result = await this.pool.query<{
+      id: string;
+      receivableId: string;
+      kind: "payment" | "payment_reversal";
+      planId: string | null;
+      tabId: string | null;
+      patientId: string;
+      patientName: string;
+      description: string;
+      amountInCents: number;
+      occurredAt: Date;
+      paymentMethod: ReceivedPayment["paymentMethod"] | null;
+    }>(
+      `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+              r.plan_id AS "planId",
+              (SELECT pt.id FROM patient_tabs pt WHERE pt.receivable_id=r.id LIMIT 1) AS "tabId",
+              r.patient_id AS "patientId", p.full_name AS "patientName",
+              r.description, fe.amount_in_cents AS "amountInCents",
+              fe.created_at AS "occurredAt",
+              fe.metadata->>'paymentMethod' AS "paymentMethod"
+       FROM financial_events fe
+       JOIN clinics c ON c.id=fe.clinic_id
+       JOIN receivables r ON r.id=fe.receivable_id
+       JOIN patients p ON p.id=r.patient_id
+       WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+         AND (fe.created_at AT TIME ZONE c.timezone)::date BETWEEN $2::date AND $3::date
+       ORDER BY fe.created_at, fe.id`,
+      [clinicId, from, to],
+    );
+    return result.rows.map((item) => ({
+      id: item.id,
+      receivableId: item.receivableId,
+      kind: item.kind === "payment" ? "payment" : "reversal",
+      ...(item.planId || item.tabId ? { sourceId: item.planId ?? item.tabId! } : {}),
+      occurredAt: item.occurredAt.toISOString(),
+      patientId: item.patientId,
+      patientName: item.patientName,
+      description: item.description,
+      amountInCents: item.amountInCents,
+      ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+    }));
+  }
+
   async getManagementReport(
     clinicId: string,
     from: string,
