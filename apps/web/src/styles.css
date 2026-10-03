@@ -4128,6 +4128,38 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   border-bottom: 0;
 }
 
+/* audit: mobile-ok nome do cliente flexível + valor curto cabem em 390px */
+.ranking-rows > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* audit: mobile-ok rótulo da faixa + percentual e contagem curtos cabem em 390px */
+.age-rows > div {
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(calc(var(--space-7) + 8px), auto));
+}
+
+.client-insights {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.retention-report > .retention-scroll {
+  padding: 0 var(--space-5);
+}
+
+.retention-summary {
+  margin: 0;
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.client-insights .panel > .error-banner {
+  margin: 0 var(--space-5) var(--space-4);
+}
+
 .report-rows span {
   color: var(--muted);
   text-align: right;

@@ -1512,6 +1512,148 @@ describe("application shell", () => {
     expect(within(updated).getByText("—")).toBeInTheDocument();
   });
 
+  it("shows retention, rankings and age bands for the filtered period", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Aryana Dutra",
+      email: "admin@movimenta.local",
+      role: "owner",
+    }));
+    const today = new Date().toLocaleDateString("sv-SE");
+    const retention = (months: Array<{ month: string; activeClients: number; newClients: number; lostClients: number; retentionRate: number | null; cancelledPlans: number; cancelledValueInCents: number }>) => ({
+      generatedAt: "2026-09-30T12:00:00.000Z",
+      from: "2026-08-01",
+      to: "2026-09-30",
+      startMonth: months[0]?.month ?? "2026-01",
+      endMonth: months[months.length - 1]?.month ?? "2026-01",
+      months,
+      totals: {
+        newClients: months.reduce((sum, item) => sum + item.newClients, 0),
+        lostClients: months.reduce((sum, item) => sum + item.lostClients, 0),
+        cancelledPlans: months.reduce((sum, item) => sum + item.cancelledPlans, 0),
+        cancelledValueInCents: months.reduce((sum, item) => sum + item.cancelledValueInCents, 0),
+      },
+    });
+    const bands = (counts: number[]) =>
+      (["0-17", "18-29", "30-44", "45-59", "60+", "unknown"] as const).map((band, index) => ({
+        band,
+        label: ["0 a 17 anos", "18 a 29 anos", "30 a 44 anos", "45 a 59 anos", "60 anos ou mais", "Sem data de nascimento"][index],
+        clients: counts[index],
+      }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
+      if (url.includes("/reports/retention?from=2026-01-01")) {
+        return json(retention([{ month: "2026-01", activeClients: 0, newClients: 0, lostClients: 0, retentionRate: null, cancelledPlans: 0, cancelledValueInCents: 0 }]));
+      }
+      if (url.includes("/reports/retention?")) {
+        return json(retention([
+          { month: "2026-08", activeClients: 10, newClients: 3, lostClients: 1, retentionRate: 0.9, cancelledPlans: 2, cancelledValueInCents: 45000 },
+          { month: "2026-09", activeClients: 12, newClients: 4, lostClients: 2, retentionRate: 0.8, cancelledPlans: 0, cancelledValueInCents: 0 },
+        ]));
+      }
+      if (url.includes("/reports/clients?from=2026-01-01")) {
+        return json({ generatedAt: "2026-01-31T12:00:00.000Z", from: "2026-01-01", to: "2026-01-31", topBySessions: [], topByRevenue: [], activeClients: 0, ageDistribution: bands([0, 0, 0, 0, 0, 0]) });
+      }
+      if (url.includes("/reports/clients?")) {
+        return json({
+          generatedAt: "2026-09-30T12:00:00.000Z",
+          from: "2026-08-01",
+          to: "2026-09-30",
+          topBySessions: [
+            { patientId: "p-1", patientName: "Helena Almeida", completedSessions: 12 },
+            { patientId: "p-2", patientName: "Bruno Costa", completedSessions: 7 },
+          ],
+          topByRevenue: [{ patientId: "p-3", patientName: "Carla Souza", receivedInCents: 120000 }],
+          activeClients: 4,
+          ageDistribution: bands([0, 1, 2, 0, 0, 1]),
+        });
+      }
+      return { ok: false, status: 503, json: async () => ({ message: "Dados indisponíveis" }) } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
+
+    const retentionPanel = (await screen.findByRole("heading", { name: "Retenção mês a mês" })).closest("section") as HTMLElement;
+    const august = (await within(retentionPanel).findByRole("rowheader", { name: "08/2026" })).closest("tr") as HTMLElement;
+    expect(within(august).getByText("90%")).toBeInTheDocument();
+    expect(within(august).getByText(/R\$\s450,00/)).toBeInTheDocument();
+    expect(within(retentionPanel).getByText("7 novos · 3 perdidos · 2 planos cancelados", { exact: false })).toBeInTheDocument();
+
+    const sessions = screen.getByRole("heading", { name: "Mais sessões concluídas" }).closest("section") as HTMLElement;
+    expect(await within(sessions).findByText("1. Helena Almeida")).toBeInTheDocument();
+    expect(within(sessions).getByText("12 sessões")).toBeInTheDocument();
+    expect(within(sessions).getByText("2. Bruno Costa")).toBeInTheDocument();
+    const revenue = screen.getByRole("heading", { name: "Mais recebimentos" }).closest("section") as HTMLElement;
+    expect(within(revenue).getByText("1. Carla Souza")).toBeInTheDocument();
+    expect(within(revenue).getByText(/R\$\s1\.200,00/)).toBeInTheDocument();
+    const ages = screen.getByRole("heading", { name: "Faixa etária" }).closest("section") as HTMLElement;
+    const thirties = within(ages).getByText("30 a 44 anos").parentElement as HTMLElement;
+    expect(within(thirties).getByText("50%")).toBeInTheDocument();
+    expect(within(thirties).getByText("2")).toBeInTheDocument();
+    expect(within(ages).getByText("Sem data de nascimento")).toBeInTheDocument();
+    expect(within(ages).getByText("4 clientes ativos no período", { exact: false })).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(`/reports/retention?from=${today.slice(0, 8)}01&to=${today}`))).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(`/reports/clients?from=${today.slice(0, 8)}01&to=${today}`))).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-01-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    const january = (await screen.findByRole("rowheader", { name: "01/2026" })).closest("tr") as HTMLElement;
+    expect(within(january).getByText("—")).toBeInTheDocument();
+    expect(await screen.findByText("Nenhum cliente com sessão concluída no período.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum recebimento de cliente no período.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum cliente ativo no período.")).toBeInTheDocument();
+    expect(screen.queryByText("1. Helena Almeida")).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/reports/retention?from=2026-01-01&to=2026-01-31"))).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/reports/clients?from=2026-01-01&to=2026-01-31"))).toBe(true);
+  });
+
+  it("shows the retention error in its card without hiding the client rankings", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Aryana Dutra",
+      email: "admin@movimenta.local",
+      role: "finance",
+    }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/reports/retention?")) {
+        return { ok: false, status: 400, json: async () => ({ code: "RETENTION_PERIOD_TOO_LONG", message: "A retenção aceita no máximo 24 meses." }) } as Response;
+      }
+      if (url.includes("/reports/clients?")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            generatedAt: "2026-09-30T12:00:00.000Z",
+            from: "2024-01-01",
+            to: "2026-09-30",
+            topBySessions: [{ patientId: "p-1", patientName: "Helena Almeida", completedSessions: 30 }],
+            topByRevenue: [],
+            activeClients: 1,
+            ageDistribution: [
+              { band: "0-17", label: "0 a 17 anos", clients: 0 },
+              { band: "18-29", label: "18 a 29 anos", clients: 1 },
+              { band: "30-44", label: "30 a 44 anos", clients: 0 },
+              { band: "45-59", label: "45 a 59 anos", clients: 0 },
+              { band: "60+", label: "60 anos ou mais", clients: 0 },
+              { band: "unknown", label: "Sem data de nascimento", clients: 0 },
+            ],
+          }),
+        } as Response;
+      }
+      return { ok: false, status: 503, json: async () => ({ message: "Dados indisponíveis" }) } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/relatorios"]}><App /></MemoryRouter>);
+    const retentionPanel = (await screen.findByRole("heading", { name: "Retenção mês a mês" })).closest("section") as HTMLElement;
+    expect(await within(retentionPanel).findByText("A retenção aceita no máximo 24 meses.")).toBeInTheDocument();
+    expect(await screen.findByText("1. Helena Almeida")).toBeInTheDocument();
+    expect(screen.getByText("30 sessões")).toBeInTheDocument();
+    expect(screen.getByText("Relatórios gerenciais")).toBeInTheDocument();
+  });
+
   it("tells when the trials card could not be loaded", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({

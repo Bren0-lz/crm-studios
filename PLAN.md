@@ -465,7 +465,7 @@ vem primeiro. A próxima migração livre é a **0031**.
   cancelamentos, os dois rankings e a distribuição por faixa etária. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T036, T037
-- **Status:** TODO
+- **Status:** DONE
 
 ### T039 — Comunicado segmentado na API
 - **Escopo:**

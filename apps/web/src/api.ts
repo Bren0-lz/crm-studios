@@ -112,6 +112,8 @@ import type {
   SatisfactionReport,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
+  RetentionReport,
+  ClientReport,
 } from "@crm/contracts";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
@@ -632,6 +634,14 @@ export const api = {
   managementReportCsv: (from: string, to: string) =>
     requestBlob(
       `/reports/management.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  retentionReport: (from: string, to: string) =>
+    request<RetentionReport>(
+      `/reports/retention?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  clientReport: (from: string, to: string) =>
+    request<ClientReport>(
+      `/reports/clients?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
   salesReport: (month: string) =>
     request<SalesReport>(`/reports/sales?month=${encodeURIComponent(month)}`),
