@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serverlessDatabaseUrl } from "./database-connection.js";
+import { migrationDatabaseUrl, serverlessDatabaseUrl } from "./database-connection.js";
 import { assertServerlessConfig, stripApiPrefix } from "./serverless-app.js";
 
 describe("serverless entry", () => {
@@ -40,6 +40,23 @@ describe("serverless entry", () => {
       "postgresql://crm:crm@localhost:5432/crm",
     ]) {
       expect(serverlessDatabaseUrl(unchanged)).toBe(unchanged);
+    }
+  });
+
+  it("moves the Supabase transaction pooler back to session mode for migrations", () => {
+    const pooler = "aws-0-sa-east-1.pooler.supabase.com";
+    expect(migrationDatabaseUrl(`postgresql://postgres.abc:senha@${pooler}:6543/postgres`)).toBe(
+      `postgresql://postgres.abc:senha@${pooler}:5432/postgres`,
+    );
+    expect(
+      migrationDatabaseUrl(`postgresql://postgres.abc:senha@${pooler}:6543/postgres?pgbouncer=true`),
+    ).toBe(`postgresql://postgres.abc:senha@${pooler}:5432/postgres`);
+    for (const unchanged of [
+      `postgresql://postgres.abc:senha@${pooler}:5432/postgres`,
+      "postgresql://postgres:senha@db.abc.supabase.co:5432/postgres",
+      "postgresql://crm:crm@localhost:6543/crm",
+    ]) {
+      expect(migrationDatabaseUrl(unchanged)).toBe(unchanged);
     }
   });
 });

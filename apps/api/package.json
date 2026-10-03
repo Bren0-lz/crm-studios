@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "db:setup": "tsx src/db-cli.ts",
+    "db:migrate": "tsx src/migrate-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src",
     "test:postgres": "vitest run src/postgres.integration.test.ts",

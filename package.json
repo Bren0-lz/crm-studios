@@ -12,6 +12,7 @@
     "test": "npm run test -w @crm/contracts && npm run test -w @crm/api && npm run test -w @crm/web",
     "test:postgres": "npm run test:postgres -w @crm/api",
     "db:setup": "npm run db:setup -w @crm/api",
+    "db:migrate": "npm run db:migrate -w @crm/api",
     "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web",
     "lint": "npm run lint -w @crm/api && npm run lint -w @crm/web",
     "format:check": "prettier --check .",

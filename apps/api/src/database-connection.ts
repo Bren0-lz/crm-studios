@@ -51,6 +51,20 @@ export function serverlessDatabaseUrl(url: string): string {
 }
 
 /**
+ * Caminho inverso de `serverlessDatabaseUrl`: as migrações usam trava de sessão e não rodam
+ * no pooler em modo transação (6543). Se a URL apontar para ele no Supabase, o mesmo host
+ * atende em modo sessão na 5432. Outras URLs ficam como estão.
+ */
+export function migrationDatabaseUrl(url: string): string {
+  const parsed = new URL(url);
+  const isSupabasePooler = /\.pooler\.supabase\.com$/i.test(parsed.hostname);
+  if (!isSupabasePooler || parsed.port !== transactionPoolerPort) return url;
+  parsed.port = "5432";
+  parsed.searchParams.delete("pgbouncer");
+  return parsed.toString();
+}
+
+/**
  * Monta a configuração do `pg.Pool`. Parâmetros de TLS da URL (`sslmode`, `sslrootcert`…)
  * são removidos, porque o `pg` daria preferência a eles sobre a opção `ssl` e trataria
  * `sslmode=require` como verificação completa, o que falha com a CA própria do Supabase.

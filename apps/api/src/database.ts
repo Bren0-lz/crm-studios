@@ -33,7 +33,8 @@ export function createDatabasePool({
   return pool;
 }
 
-export async function runMigrations(pool: Pool) {
+/** Aplica as migrações pendentes, em ordem, e devolve os nomes das que foram aplicadas agora. */
+export async function runMigrations(pool: Pool): Promise<string[]> {
   // Confere a URL do próprio pool (os testes de integração usam TEST_DATABASE_URL).
   const url = pool.options.connectionString ?? config.DATABASE_URL;
   if (usesTransactionPooler(url)) {
@@ -63,6 +64,7 @@ export async function runMigrations(pool: Pool) {
       ).rows.map((row) => row.name),
     );
 
+    const appliedNow: string[] = [];
     for (const file of files) {
       if (applied.has(file)) continue;
       const sql = await readFile(`${migrationsPath}/${file}`, "utf8");
@@ -73,11 +75,13 @@ export async function runMigrations(pool: Pool) {
           file,
         ]);
         await client.query("COMMIT");
+        appliedNow.push(file);
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;
       }
     }
+    return appliedNow;
   } finally {
     await client.query("SELECT pg_advisory_unlock($1)", [migrationLockId]);
     client.release();

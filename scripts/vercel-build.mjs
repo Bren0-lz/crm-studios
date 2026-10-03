@@ -1,4 +1,5 @@
 // Build para a Vercel usando a Build Output API v3 (https://vercel.com/docs/build-output-api/v3).
+// Em produção, aplica antes as migrações pendentes (npm run db:migrate).
 // Gera .vercel/output com:
 //   static/                 site React (Vite) compilado com VITE_API_URL=/api
 //   functions/api.func/     a API Fastify empacotada numa função Node (apps/api/src/serverless.ts)
@@ -17,6 +18,16 @@ const nodeRuntime = "nodejs22.x";
 
 rmSync(output, { recursive: true, force: true });
 mkdirSync(functionDir, { recursive: true });
+
+// Migrações antes de tudo, só no deploy de produção (previews não tocam o banco do site).
+// Se uma falhar, o comando sai com erro, o build para e a versão anterior continua no ar:
+// o código novo nunca é publicado sem as colunas de que precisa.
+if (process.env.VERCEL_ENV === "production" && process.env.STORAGE_MODE === "postgres") {
+  console.log("› Aplicando migrações pendentes no banco");
+  execSync("npm run db:migrate", { cwd: root, stdio: "inherit" });
+} else {
+  console.log("› Migrações puladas (não é deploy de produção com STORAGE_MODE=postgres)");
+}
 
 console.log("› Compilando o site com VITE_API_URL=/api");
 execSync("npm run build -w @crm/web", {
