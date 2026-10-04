@@ -3465,12 +3465,33 @@ describe("users and permissions", () => {
     updatedAt: "2026-09-01T12:00:00.000Z",
   };
 
-  function mockAdmin(handler?: (url: string, init?: RequestInit) => unknown) {
+  const adminUser = {
+    ...customUser,
+    id: "55555555-5555-4555-8555-555555555555",
+    fullName: "Aryana Dutra",
+    email: "admin@movimenta.local",
+    jobTitle: "Sócia",
+    ...legacyAccess("admin"),
+    customModules: false,
+  };
+  const carlaUser = {
+    ...customUser,
+    id: "99999999-9999-4999-8999-999999999999",
+    fullName: "Carla Reis",
+    email: "carla@movimenta.local",
+    jobTitle: "Fisioterapeuta",
+    modules: ["agenda", "patients", "clinical"],
+    editModules: ["clinical"],
+  };
+  const lastAdminConflict = { ok: false, status: 409, json: async () => ({ code: "LAST_ADMIN", message: "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes." }) } as Response;
+
+  function mockAdmin(handler?: (url: string, init?: RequestInit) => unknown, users: unknown[] = [customUser]) {
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
       const handled = handler?.(url, init);
+      if (handled && typeof handled === "object" && "ok" in handled && (handled as Response).ok === false) return handled as Response;
       if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
-      const body = url.includes("/admin/users") ? [customUser]
+      const body = url.includes("/admin/users") ? users
         : url.includes("/admin/permission-matrix") ? [{ role: "user", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
           : url.includes("/relationship/settings") ? relationshipSettingsFixture()
             : url.includes("/admin/clinic-settings") ? null
@@ -3484,19 +3505,26 @@ describe("users and permissions", () => {
     return { url: String(call?.[0]), body: JSON.parse(String(call?.[1]?.body)) as Record<string, unknown> };
   }
 
-  it("lists users with job title and custom badge and shows each profile default", async () => {
+  it("lists users with type, job title and an access summary, without profile defaults", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-    mockAdmin();
+    const noAccess = { ...carlaUser, id: "12121212-1212-4121-8121-121212121212", fullName: "Davi Rocha", jobTitle: undefined, modules: [], editModules: [], customModules: false };
+    const readOnly = { ...carlaUser, id: "13131313-1313-4131-8131-131313131313", fullName: "Elisa Prado", jobTitle: undefined, modules: ["reports"], editModules: [] };
+    mockAdmin(undefined, [adminUser, customUser, noAccess, readOnly]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+    const row = (name: string) => within(section).getByText(name).closest("article")!;
     expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
-    expect(within(section).getByText(/Usuário comum · Instrutora de Pilates/)).toBeInTheDocument();
-    expect(within(section).getByText("Permissões personalizadas")).toBeInTheDocument();
-    const matrix = screen.getByRole("heading", { name: "Padrão de cada perfil" }).closest("section")!;
-    expect(within(matrix).getByText("Usuário comum")).toBeInTheDocument();
-    expect(within(matrix).getByText("Vê: Agenda · Prontuários")).toBeInTheDocument();
-    expect(within(matrix).getByText("Edita: Prontuários")).toBeInTheDocument();
+    expect(within(row("Maria Souza")).getByText("Usuário comum · Instrutora de Pilates")).toBeInTheDocument();
+    expect(within(row("Maria Souza")).getByText("Vê 10 módulos · edita 8")).toBeInTheDocument();
+    expect(within(row("Aryana Dutra")).getByText("Admin · Sócia")).toBeInTheDocument();
+    expect(within(row("Aryana Dutra")).getByText("Acesso total")).toBeInTheDocument();
+    expect(within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)")).toBeInTheDocument();
+    expect(within(row("Elisa Prado")).getByText("Vê 1 módulo · só visualiza")).toBeInTheDocument();
+    // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
+    expect(within(section).queryByText("Permissões personalizadas")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Padrão de cada perfil" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/admin/permission-matrix"))).toBe(false);
   });
 
   it("creates a user with job title and adjusted modules, keeping edit inside view", async () => {
@@ -3508,12 +3536,16 @@ describe("users and permissions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
     // Usuário comum novo começa sem nenhum módulo (T055: acabaram os padrões por perfil).
-    expect(within(dialog).getByLabelText("Perfil")).toHaveValue("user");
-    for (const module of ["Agenda", "Clientes", "Financeiro", "Prontuários"]) {
+    const type = within(dialog).getByLabelText("Tipo");
+    expect(type).toHaveValue("user");
+    expect(within(type).getAllByRole("option").map((option) => option.textContent)).toEqual(["Admin", "Usuário comum"]);
+    expect(within(dialog).queryByLabelText("Perfil")).not.toBeInTheDocument();
+    for (const module of ["Agenda", "Turmas", "Clientes", "Planos e sessões", "CRM comercial", "Contatos sugeridos", "Comunicações", "Contratos", "Prontuários", "Financeiro", "Relatórios", "Configurações"]) {
       expect(within(dialog).getByLabelText(`Ver ${module}`)).not.toBeChecked();
       expect(within(dialog).getByLabelText(`Editar ${module}`)).not.toBeChecked();
     }
-    expect(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" })).toBeDisabled();
+    expect(within(dialog).queryByRole("button", { name: "Restaurar padrão do perfil" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Padrão do perfil/)).not.toBeInTheDocument();
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
     fireEvent.click(within(dialog).getByLabelText("Editar Relatórios"));
@@ -3521,14 +3553,15 @@ describe("users and permissions", () => {
     fireEvent.click(within(dialog).getByLabelText("Ver Relatórios"));
     expect(within(dialog).getByLabelText("Editar Relatórios")).not.toBeChecked();
     fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
-    expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
 
-    // Admin: acesso total, sem checkboxes; voltar a usuário comum desmarca tudo.
-    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "admin" } });
+    // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
+    fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Ver Clientes")).not.toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "user" } });
-    expect(within(dialog).getByLabelText("Ver Turmas")).not.toBeChecked();
+    expect(within(dialog).queryByLabelText("Copiar permissões de…")).not.toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "user" } });
+    expect(within(dialog).getByLabelText("Ver Turmas")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
     fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
     fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
     fireEvent.click(within(dialog).getByLabelText("Ver Planos e sessões"));
@@ -3555,25 +3588,116 @@ describe("users and permissions", () => {
     prompt.mockRestore();
   });
 
-  it("edits a user and restores the profile default sending null permissions", async () => {
+  it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-    mockAdmin((_url, init) => (init?.method === "PATCH" ? { ...customUser, customModules: false } : undefined));
+    mockAdmin(
+      (url, init) => (init?.method === "POST" && url.endsWith("/admin/users") ? { ...carlaUser, id: "44444444-4444-4444-8444-444444444444", fullName: "Ana Lima" } : undefined),
+      [adminUser, customUser, carlaUser],
+    );
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    const copy = within(dialog).getByLabelText("Copiar permissões de…");
+    // Só usuários comuns: o admin não entra na lista (ele não tem módulos marcados).
+    expect(within(copy).getAllByRole("option").map((option) => option.textContent)).toEqual(["Escolha um usuário", "Maria Souza", "Carla Reis"]);
+    fireEvent.change(copy, { target: { value: carlaUser.id } });
+    expect(within(dialog).getByText(/Permissões copiadas de Carla Reis/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Ver Agenda")).toBeChecked();
+    expect(within(dialog).getByLabelText("Editar Agenda")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
+    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
+    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    // Continua editável depois de copiar.
+    fireEvent.click(within(dialog).getByLabelText("Ver Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
+
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), { target: { value: "SenhaForte123" } });
+    fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
+    expect(await screen.findByText("Usuário Ana Lima criado.")).toBeInTheDocument();
+    expect(lastCall("POST").body).toEqual({
+      fullName: "Ana Lima",
+      email: "ana@movimenta.local",
+      password: "SenhaForte123",
+      role: "user",
+      modules: ["agenda", "clinical"],
+      editModules: ["agenda", "clinical"],
+    });
+    // A pessoa copiada não muda.
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+  });
+
+  it("copies permissions when editing, without listing the user being edited", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((_url, init) => (init?.method === "PATCH" ? customUser : undefined), [adminUser, customUser, carlaUser]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     expect(within(dialog).getByLabelText("Cargo")).toHaveValue("Instrutora de Pilates");
     expect(within(dialog).getByLabelText("Ver Financeiro")).toBeChecked();
-    expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" }));
+    const copy = within(dialog).getByLabelText("Copiar permissões de…");
+    expect(within(copy).queryByRole("option", { name: "Maria Souza" })).not.toBeInTheDocument();
+    fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
-    expect(within(dialog).getByText("Padrão do perfil Usuário comum")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: "" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await screen.findByText("Alterações de Maria Souza salvas.")).toBeInTheDocument();
     const { url, body } = lastCall("PATCH");
     expect(url).toContain(`/admin/users/${customUser.id}`);
-    expect(body).toEqual({ fullName: "Maria Souza", role: "user", active: true, jobTitle: "", modules: null, editModules: null });
+    expect(body).toEqual({
+      fullName: "Maria Souza",
+      role: "user",
+      active: true,
+      jobTitle: "",
+      modules: ["agenda", "patients", "clinical"],
+      editModules: ["patients", "clinical"],
+    });
+  });
+
+  it("shows full access for an admin and starts unchecked when demoting to common user", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(undefined, [adminUser, customUser]);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Aryana Dutra" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
+    expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Ver Agenda")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
+    expect(within(dialog).getByLabelText("Ver Agenda")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Ver Configurações")).not.toBeChecked();
+  });
+
+  it("explains in the form that the last admin cannot be demoted", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((_url, init) => (init?.method === "PATCH" ? lastAdminConflict : undefined), [adminUser, customUser]);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Aryana Dutra" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
+    fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
+    expect(await within(dialog).findByText(/precisa de pelo menos um admin ativo/)).toHaveClass("form-error");
+    expect(lastCall("PATCH").body).toMatchObject({ role: "user", modules: null, editModules: null });
+    expect(screen.getByRole("dialog", { name: "Editar Aryana Dutra" })).toBeInTheDocument();
+  });
+
+  it("explains in the modal that the last admin cannot be deactivated", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((_url, init) => (init?.method === "PATCH" ? lastAdminConflict : undefined), [adminUser]);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Desativar" }));
+    const dialog = screen.getByRole("dialog", { name: "Desativar usuário" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Desativar" }));
+    expect(await within(dialog).findByText(/precisa de pelo menos um admin ativo/)).toHaveClass("form-error");
+    expect(lastCall("PATCH").body).toEqual({ fullName: "Aryana Dutra", role: "admin", active: false });
   });
 
   it("sends custom lists when editing permissions of an existing user", async () => {

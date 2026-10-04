@@ -111,7 +111,6 @@ import type {
   TreatmentClosure,
   TreatmentClosureInput,
   UserSummary,
-  PermissionMatrixItem,
   RelationshipSettings,
   SatisfactionReport,
   SatisfactionSurvey,
@@ -268,8 +267,6 @@ export const api = {
       body: JSON.stringify(input),
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
-  permissionMatrix: () =>
-    request<PermissionMatrixItem[]>("/admin/permission-matrix"),
   dashboard: (date: string) =>
     request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>

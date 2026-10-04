@@ -122,7 +122,6 @@ import type {
   CommissionEntry,
   PaymentMethod,
   PaymentReceipt,
-  PermissionMatrixItem,
   Receivable,
   PlanStatus,
   Professional,
@@ -11139,7 +11138,6 @@ function ScheduleBlockModal({
 function AdminPage() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
-  const [matrix, setMatrix] = useState<PermissionMatrixItem[]>([]);
   const [audit, setAudit] = useState<AdminAuditEvent[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -11149,15 +11147,13 @@ function AdminPage() {
 
   async function load() {
     try {
-      const [userData, settingData, matrixData, auditData] = await Promise.all([
+      const [userData, settingData, auditData] = await Promise.all([
         api.adminUsers(),
         api.clinicSettings(),
-        api.permissionMatrix(),
         api.adminAuditEvents(),
       ]);
       setUsers(userData);
       setSettings(settingData);
-      setMatrix(matrixData);
       setAudit(auditData);
     } catch (cause) {
       setError((cause as Error).message);
@@ -11168,14 +11164,12 @@ function AdminPage() {
     Promise.all([
       api.adminUsers(),
       api.clinicSettings(),
-      api.permissionMatrix(),
       api.adminAuditEvents(),
     ])
-      .then(([userData, settingData, matrixData, auditData]) => {
+      .then(([userData, settingData, auditData]) => {
         if (!active) return;
         setUsers(userData);
         setSettings(settingData);
-        setMatrix(matrixData);
         setAudit(auditData);
       })
       .catch((cause: Error) => {
@@ -11244,17 +11238,11 @@ function AdminPage() {
                     {item.jobTitle ? ` · ${item.jobTitle}` : ""}
                   </small>
                   <small className="admin-user-email">{item.email}</small>
+                  <small>{userAccessSummary(item)}</small>
                   <small>{userCommissionSummary(item)}</small>
-                  {(item.customModules || !item.active) && (
+                  {!item.active && (
                     <div className="admin-user-tags">
-                      {item.customModules && (
-                        <span className="status-pill custom-permissions">
-                          Permissões personalizadas
-                        </span>
-                      )}
-                      {!item.active && (
-                        <span className="status-pill cancelled">Inativo</span>
-                      )}
+                      <span className="status-pill cancelled">Inativo</span>
                     </div>
                   )}
                 </div>
@@ -11379,30 +11367,6 @@ function AdminPage() {
         )}
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
-        <section className="panel admin-matrix">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">Referência</span>
-              <h2>Padrão de cada perfil</h2>
-            </div>
-          </div>
-          <p className="muted-copy">
-            Ponto de partida de cada usuário. Ajustes por pessoa ficam no
-            cadastro dela, em “Editar”.
-          </p>
-          {matrix.map((item) => (
-            <article key={item.role}>
-              <strong>{roleLabels[item.role]}</strong>
-              <span>Vê: {item.modules.join(" · ")}</span>
-              <span>
-                Edita:{" "}
-                {item.editModules.length
-                  ? item.editModules.join(" · ")
-                  : "nenhum módulo"}
-              </span>
-            </article>
-          ))}
-        </section>
         <section className="panel admin-audit">
           <div className="panel-head">
             <div>
@@ -11472,11 +11436,22 @@ function AdminPage() {
   );
 }
 
-/** Usuário comum novo começa sem nenhum módulo (não há mais padrão por perfil). */
-const noModules: readonly AppModule[] = [];
+/** Resumo do acesso na lista de usuários (não há padrão por perfil: só o que foi marcado). */
+function userAccessSummary(user: AdminUser) {
+  if (user.role === "admin") return "Acesso total";
+  const view = user.modules.length;
+  if (view === 0) return "Nenhum módulo (só Visão geral)";
+  const edit = user.editModules.length;
+  const viewLabel = `Vê ${view} ${view === 1 ? "módulo" : "módulos"}`;
+  return edit === 0 ? `${viewLabel} · só visualiza` : `${viewLabel} · edita ${edit}`;
+}
 
-function sameModules(a: readonly AppModule[], b: readonly AppModule[]) {
-  return a.length === b.length && a.every((module) => b.includes(module));
+/** Erro ao salvar usuário; o 409 LAST_ADMIN ganha explicação própria. */
+function userSaveErrorMessage(cause: unknown) {
+  if (cause instanceof ApiClientError && cause.code === "LAST_ADMIN") {
+    return "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes de rebaixar ou desativar este.";
+  }
+  return (cause as Error).message;
 }
 
 /** Lista sem duplicatas e na ordem dos módulos (a mesma do menu). */
@@ -11749,23 +11724,34 @@ function UserFormModal({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(user?.role ?? "user");
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
+  // Usuário comum novo (ou admin sendo rebaixado) começa com tudo desmarcado: não há padrão.
+  const startsCommon = user?.role === "user";
   const [modules, setModules] = useState<AppModule[]>(() =>
-    orderedModules(user ? user.modules : noModules),
+    startsCommon ? orderedModules(user.modules) : [],
   );
   const [editModules, setEditModules] = useState<AppModule[]>(() =>
-    orderedModules(user ? user.editModules : noModules),
+    startsCommon ? orderedModules(user.editModules) : [],
   );
+  const [copiedFrom, setCopiedFrom] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isOwner = role === "admin";
-  const followsDefault =
-    sameModules(modules, noModules) &&
-    sameModules(editModules, noModules);
+  const isAdmin = role === "admin";
+  // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
+  const copySources = users.filter(
+    (item) => item.role === "user" && item.id !== user?.id,
+  );
 
-  // Sem padrões por perfil (T055): trocar o tipo ou restaurar desmarca tudo.
-  function applyDefault() {
-    setModules([]);
-    setEditModules([]);
+  function copyPermissions(sourceId: string) {
+    const source = copySources.find((item) => item.id === sourceId);
+    if (!source) return;
+    const view = orderedModules(source.modules);
+    setModules(view);
+    setEditModules(
+      orderedModules(source.editModules).filter((module) =>
+        view.includes(module),
+      ),
+    );
+    setCopiedFrom(source.fullName);
   }
   function toggleView(module: AppModule, checked: boolean) {
     if (checked) {
@@ -11792,7 +11778,7 @@ function UserFormModal({
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
     const permissions =
-      isOwner || followsDefault
+      isAdmin || (modules.length === 0 && editModules.length === 0)
         ? { modules: null, editModules: null }
         : { modules, editModules };
     const title = jobTitle.trim();
@@ -11815,7 +11801,7 @@ function UserFormModal({
           });
       onSaved(saved);
     } catch (cause) {
-      setError((cause as Error).message);
+      setError(userSaveErrorMessage(cause));
       setSaving(false);
     }
   }
@@ -11866,16 +11852,12 @@ function UserFormModal({
           </>
         )}
         <label>
-          Perfil
+          Tipo
           <select
             value={role}
-            onChange={(event) => {
-              const nextRole = event.target.value as UserRole;
-              setRole(nextRole);
-              applyDefault();
-            }}
+            onChange={(event) => setRole(event.target.value as UserRole)}
           >
-            {(Object.keys(roleLabels) as UserRole[]).map((item) => (
+            {userRoleSchema.options.map((item) => (
               <option value={item} key={item}>
                 {roleLabels[item]}
               </option>
@@ -11900,31 +11882,37 @@ function UserFormModal({
         )}
         <fieldset className="form-fieldset span-2">
           <legend>Módulos</legend>
-          {isOwner ? (
+          {isAdmin ? (
             <p className="muted-copy">
               Acesso total: o admin vê e edita todos os módulos, além da
               Administração.
             </p>
           ) : (
             <div className="permission-editor">
-              <div className="permission-editor-head">
-                <span
-                  className={`status-pill ${followsDefault ? "active" : "custom-permissions"}`}
-                >
-                  {followsDefault
-                    ? `Padrão do perfil ${roleLabels[role]}`
-                    : "Permissões personalizadas"}
-                </span>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={followsDefault}
-                  onClick={() => applyDefault()}
-                >
-                  <RotateCcw size={15} aria-hidden="true" />
-                  Restaurar padrão do perfil
-                </button>
-              </div>
+              {copySources.length > 0 && (
+                <div className="permission-editor-head">
+                  <label>
+                    Copiar permissões de…
+                    <select
+                      value=""
+                      onChange={(event) => copyPermissions(event.target.value)}
+                    >
+                      <option value="">Escolha um usuário</option>
+                      {copySources.map((item) => (
+                        <option value={item.id} key={item.id}>
+                          {item.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {copiedFrom && (
+                    <p className="muted-copy" role="status">
+                      Permissões copiadas de {copiedFrom}. Ajuste abaixo antes
+                      de salvar, se precisar.
+                    </p>
+                  )}
+                </div>
+              )}
               <table className="permission-table">
                 <thead>
                   <tr>
@@ -12096,7 +12084,7 @@ function UserActiveModal({
         }),
       );
     } catch (cause) {
-      setError((cause as Error).message);
+      setError(userSaveErrorMessage(cause));
       setSaving(false);
     }
   }

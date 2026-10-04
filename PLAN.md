@@ -853,7 +853,7 @@ profissional; criar modais personalizados para cada opção".
   tipo e um resumo do acesso. Menu e telas continuam por módulos. Testes web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T055
-- **Status:** TODO
+- **Status:** DONE
 
 ### T057 — Comissão direto no usuário na API
 - **Escopo:** percentual e vigência definidos no próprio usuário, inclusive na criação

@@ -2901,7 +2901,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .admin-users small,
-.admin-matrix span,
 .admin-audit span {
   display: block;
   margin-top: 3px;
@@ -2909,18 +2908,13 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: var(--text-xs);
 }
 
-.admin-matrix article,
 .admin-audit article {
   padding: 11px 0;
   border-top: 1px solid var(--line);
   font-size: var(--text-xs);
 }
 
-.admin-matrix > .muted-copy {
-  margin: 0 0 var(--space-3);
-}
-
-/* Usuários: selos (permissões personalizadas, inativo) e ações agrupadas que quebram linha. */
+/* Usuários: selo de inativo e ações agrupadas que quebram linha. */
 .admin-user-tags {
   display: flex;
   flex-wrap: wrap;
@@ -2952,11 +2946,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   }
 }
 
-.status-pill.custom-permissions {
-  background: #e4e8f8;
-  color: #485b9a;
-}
-
 /* Formulário de usuário: tabela de módulos com colunas Ver e Editar. */
 .permission-editor {
   display: grid;
@@ -2967,12 +2956,14 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   margin: 0;
 }
 
+/* "Copiar permissões de…": seletor acima da tabela e aviso do que foi copiado. */
 .permission-editor-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: var(--space-2);
+}
+
+.permission-editor-head > .muted-copy {
+  margin: 0;
 }
 
 /* Formulário de usuário: seção Comissão (profissional ligado, percentual e vigência). */
