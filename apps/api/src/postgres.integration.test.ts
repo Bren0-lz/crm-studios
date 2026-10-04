@@ -1925,6 +1925,116 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("links a user to one professional and reads the commission rule in force today", async () => {
+    const crefitos = ["PG-T050-A", "PG-T050-B"];
+    const cleanup = async () => {
+      const professionals = `SELECT id FROM professionals WHERE clinic_id = $1 AND crefito = ANY($2)`;
+      await pool.query(
+        `DELETE FROM commission_rules WHERE clinic_id = $1 AND professional_id IN (${professionals})`,
+        [clinicId, crefitos],
+      );
+      await pool.query(`DELETE FROM professionals WHERE clinic_id = $1 AND crefito = ANY($2)`, [
+        clinicId,
+        crefitos,
+      ]);
+      await cleanupPermissionsUser();
+    };
+    await cleanup();
+    try {
+      const [first, second] = await Promise.all(
+        crefitos.map(async (crefito, index) => {
+          const inserted = await pool.query<{ id: string }>(
+            `INSERT INTO professionals (clinic_id, full_name, crefito, specialty, color)
+             VALUES ($1, $2, $3, 'Pilates', '#5c6f68') RETURNING id`,
+            [clinicId, `Profissional T050 ${index}`, crefito],
+          );
+          return inserted.rows[0]!.id;
+        }),
+      );
+      const user = await repository.createAdminUser(
+        clinicId,
+        ownerId,
+        {
+          fullName: "Teste Comissão",
+          email: permissionsUserEmail,
+          role: "physiotherapist",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      await expect(
+        repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+          percentage: 30,
+          effectiveFrom: "2001-01-01",
+        }),
+      ).rejects.toMatchObject({ code: "USER_NOT_PROFESSIONAL" });
+      await expect(
+        repository.setAdminUserProfessional(
+          clinicId,
+          ownerId,
+          user.id,
+          "99999999-9999-4999-8999-999999999999",
+        ),
+      ).rejects.toMatchObject({ code: "PROFESSIONAL_NOT_FOUND" });
+      expect(
+        await repository.setAdminUserProfessional(
+          clinicId,
+          ownerId,
+          "99999999-9999-4999-8999-999999999999",
+          first!,
+        ),
+      ).toBeNull();
+
+      const linked = await repository.setAdminUserProfessional(clinicId, ownerId, user.id, first!);
+      expect(linked).toMatchObject({ professionalId: first, professionalName: "Profissional T050 0" });
+      await expect(
+        repository.setAdminUserProfessional(clinicId, ownerId, ownerId, first!),
+      ).rejects.toMatchObject({ code: "PROFESSIONAL_ALREADY_LINKED" });
+
+      await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+        percentage: 35.5,
+        effectiveFrom: "2001-01-01",
+      });
+      const withFuture = await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+        percentage: 50,
+        effectiveFrom: "2999-01-01",
+      });
+      expect(withFuture).toMatchObject({
+        commissionPercentage: 35.5,
+        commissionEffectiveFrom: "2001-01-01",
+      });
+      await expect(
+        repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+          percentage: 40,
+          effectiveFrom: "2001-01-01",
+        }),
+      ).rejects.toMatchObject({ code: "COMMISSION_RULE_DUPLICATE" });
+      const listed = (await repository.listAdminUsers(clinicId)).find((item) => item.id === user.id);
+      expect(listed).toMatchObject({ professionalId: first, commissionPercentage: 35.5 });
+
+      // Trocar a ligação libera o profissional anterior; desligar remove a comissão do usuário.
+      const switched = await repository.setAdminUserProfessional(clinicId, ownerId, user.id, second!);
+      expect(switched).toMatchObject({ professionalId: second });
+      expect(switched?.commissionPercentage).toBeUndefined();
+      const links = await pool.query<{ id: string; user_id: string | null }>(
+        `SELECT id, user_id FROM professionals WHERE id = ANY($1) ORDER BY crefito`,
+        [[first, second]],
+      );
+      expect(links.rows.map((row) => row.user_id)).toEqual([null, user.id]);
+      const unlinked = await repository.setAdminUserProfessional(clinicId, ownerId, user.id, null);
+      expect(unlinked?.professionalId).toBeUndefined();
+
+      const events = (await repository.listAdminAuditEvents(clinicId)).filter(
+        (item) =>
+          item.entityId === user.id &&
+          ["users.professional_updated", "users.commission_updated"].includes(item.action),
+      );
+      expect(events).toHaveLength(5);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("queues a broadcast as manual outbox messages in one transaction", async () => {
     const broadcastPhone = "11977770391";
     const cleanup = async () => {

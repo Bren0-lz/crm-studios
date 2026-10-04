@@ -4,7 +4,9 @@ import jwt from "@fastify/jwt";
 import { compare, hash } from "bcryptjs";
 import { z } from "zod";
 import {
+  adminUserCommissionInputSchema,
   adminUserInputSchema,
+  adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
@@ -599,6 +601,49 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
           message: "Usuário não encontrado.",
         });
       return { updated: true };
+    },
+  );
+  // Liga/desliga o usuário a um profissional da agenda; ligar outro troca a ligação.
+  app.put(
+    "/admin/users/:id/professional",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { professionalId } = adminUserProfessionalInputSchema.parse(
+        request.body,
+      );
+      const user = await repository.setAdminUserProfessional(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        professionalId,
+      );
+      if (!user)
+        return reply.status(404).send({
+          code: "USER_NOT_FOUND",
+          message: "Usuário não encontrado.",
+        });
+      return user;
+    },
+  );
+  // Nova regra de comissão (commission_rules) para o profissional ligado ao usuário.
+  app.put(
+    "/admin/users/:id/commission",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const user = await repository.setAdminUserCommission(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        adminUserCommissionInputSchema.parse(request.body),
+      );
+      if (!user)
+        return reply.status(404).send({
+          code: "USER_NOT_FOUND",
+          message: "Usuário não encontrado.",
+        });
+      return user;
     },
   );
   app.get(

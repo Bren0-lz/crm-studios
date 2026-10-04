@@ -617,7 +617,7 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
   - Dois repositórios, auditoria e testes (rota + PG opt-in).
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T047
-- **Status:** TODO
+- **Status:** DONE
 
 ### T051 — Comissão por usuário na interface
 - **Escopo:** no formulário de usuário (só owner), seção "Comissão": profissional da agenda

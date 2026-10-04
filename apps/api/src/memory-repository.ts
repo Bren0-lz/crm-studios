@@ -1,6 +1,8 @@
 import { hashSync } from "bcryptjs";
 import type {
   AdminAuditEvent,
+  AdminUser,
+  AdminUserCommissionInput,
   AdminUserInput,
   AdminUserUpdate,
   AppModule,
@@ -312,6 +314,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly issuedDocuments: IssuedDocument[] = [];
   /** Módulos ajustados pela gestora, por usuário (ausente = padrão do perfil). */
   private readonly userModules = new Map<string, AppModule[]>();
+  /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
+  private readonly professionalUsers = new Map<string, string>();
   /** Módulos com edição ajustados pela gestora (ausente = padrão do perfil). */
   private readonly userEditModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
@@ -553,11 +557,121 @@ export class MemoryClinicRepository implements ClinicRepository {
   async listAdminUsers(clinicId: string) {
     return this.users
       .filter((user) => user.clinicId === clinicId)
-      .map(({ passwordHash: _, ...user }) => {
-        void _;
-        return user;
-      })
+      .map((user) => this.toAdminUser(user))
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }
+
+  /** Usuário sem senha, com o profissional ligado e a regra de comissão vigente hoje. */
+  private toAdminUser(user: AuthenticatedUser): AdminUser {
+    const { passwordHash: _, ...summary } = user;
+    void _;
+    const professional = this.linkedProfessional(user.clinicId, user.id);
+    if (!professional) return summary;
+    const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
+    const rule = this.commissionRules
+      .filter(
+        (item) =>
+          item.clinicId === user.clinicId &&
+          item.professionalId === professional.id &&
+          item.active &&
+          item.effectiveFrom <= today,
+      )
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+    return {
+      ...summary,
+      professionalId: professional.id,
+      professionalName: professional.fullName,
+      ...(rule
+        ? {
+            commissionPercentage: rule.percentage,
+            commissionEffectiveFrom: rule.effectiveFrom,
+          }
+        : {}),
+    };
+  }
+
+  private linkedProfessional(clinicId: string, userId: string) {
+    return this.professionals.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        this.professionalUsers.get(item.id) === userId,
+    );
+  }
+
+  async setAdminUserProfessional(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    professionalId: string | null,
+  ) {
+    const user = this.users.find(
+      (item) => item.clinicId === clinicId && item.id === userId,
+    );
+    if (!user) return null;
+    if (professionalId) {
+      const professional = this.professionals.find(
+        (item) => item.clinicId === clinicId && item.id === professionalId,
+      );
+      if (!professional)
+        throw new DomainError(
+          "PROFESSIONAL_NOT_FOUND",
+          "Profissional não encontrado.",
+          404,
+        );
+      const owner = this.professionalUsers.get(professionalId);
+      if (owner && owner !== userId)
+        throw new DomainError(
+          "PROFESSIONAL_ALREADY_LINKED",
+          "Este profissional já está ligado a outro usuário.",
+          409,
+        );
+    }
+    const previousProfessionalId =
+      this.linkedProfessional(clinicId, userId)?.id ?? null;
+    if (previousProfessionalId !== professionalId) {
+      for (const [id, linkedUserId] of [...this.professionalUsers])
+        if (linkedUserId === userId) this.professionalUsers.delete(id);
+      if (professionalId) this.professionalUsers.set(professionalId, userId);
+      this.addAdminAudit(
+        actorUserId,
+        "users.professional_updated",
+        "user",
+        userId,
+        { professionalId, previousProfessionalId },
+      );
+    }
+    return this.toAdminUser(user);
+  }
+
+  async setAdminUserCommission(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    const user = this.users.find(
+      (item) => item.clinicId === clinicId && item.id === userId,
+    );
+    if (!user) return null;
+    const professional = this.linkedProfessional(clinicId, userId);
+    if (!professional)
+      throw new DomainError(
+        "USER_NOT_PROFESSIONAL",
+        "Ligue o usuário a um profissional da agenda antes de definir a comissão.",
+        409,
+      );
+    const rule = await this.createCommissionRule(clinicId, {
+      professionalId: professional.id,
+      percentage: input.percentage,
+      effectiveFrom: input.effectiveFrom,
+    });
+    this.addAdminAudit(actorUserId, "users.commission_updated", "user", userId, {
+      professionalId: professional.id,
+      ruleId: rule.id,
+      percentage: rule.percentage,
+      effectiveFrom: rule.effectiveFrom,
+    });
+    return this.toAdminUser(user);
   }
 
   async createAdminUser(
@@ -664,9 +778,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           custom: user.customModules,
         },
       );
-    const { passwordHash: _, ...summary } = user;
-    void _;
-    return summary;
+    return this.toAdminUser(user);
   }
 
   private storedPermissions(userId: string) {

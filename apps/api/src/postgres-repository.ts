@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AdminAuditEvent,
   AdminUser,
+  AdminUserCommissionInput,
   AdminUserInput,
   AdminUserUpdate,
   AppModule,
@@ -1013,6 +1014,48 @@ function mapAdminUser(row: UserRow): AdminUser {
   };
 }
 
+interface AdminUserRow extends UserRow {
+  professionalId: string | null;
+  professionalName: string | null;
+  commissionPercentage: string | null;
+  commissionEffectiveFrom: string | null;
+}
+
+/**
+ * Usuários com o profissional ligado (`professionals.user_id`) e a regra de comissão vigente hoje
+ * no fuso da clínica (mesma escolha da geração: ativa, maior vigência que já começou).
+ * `$1` = clínica; para um só usuário, filtre por `u.id` no WHERE.
+ */
+const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "professionalName",
+    cr.percentage AS "commissionPercentage", cr.effective_from::text AS "commissionEffectiveFrom"
+  FROM (SELECT ${userColumns} FROM users WHERE clinic_id = $1) u
+  JOIN clinics c ON c.id = u."clinicId"
+  LEFT JOIN LATERAL (SELECT pr.id, pr.full_name FROM professionals pr
+    WHERE pr.clinic_id = u."clinicId" AND pr.user_id = u.id
+    ORDER BY pr.created_at, pr.id LIMIT 1) p ON true
+  LEFT JOIN LATERAL (SELECT r.percentage, r.effective_from FROM commission_rules r
+    WHERE r.clinic_id = u."clinicId" AND r.professional_id = p.id AND r.active
+      AND r.effective_from <= (now() AT TIME ZONE c.timezone)::date
+    ORDER BY r.effective_from DESC LIMIT 1) cr ON true`;
+
+function mapAdminUserWithCommission(row: AdminUserRow): AdminUser {
+  return {
+    ...mapAdminUser(row),
+    ...(row.professionalId
+      ? {
+          professionalId: row.professionalId,
+          professionalName: row.professionalName ?? "",
+        }
+      : {}),
+    ...(row.commissionPercentage !== null && row.commissionEffectiveFrom
+      ? {
+          commissionPercentage: Number(row.commissionPercentage),
+          commissionEffectiveFrom: row.commissionEffectiveFrom,
+        }
+      : {}),
+  };
+}
+
 function mapAuthenticatedUser(row: UserRow): AuthenticatedUser {
   return { ...mapAdminUser(row), passwordHash: row.passwordHash };
 }
@@ -1784,11 +1827,147 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async listAdminUsers(clinicId: string) {
-    const result = await this.pool.query<UserRow>(
-      `SELECT ${userColumns} FROM users WHERE clinic_id = $1 ORDER BY full_name`,
+    const result = await this.pool.query<AdminUserRow>(
+      `${adminUserSelect} ORDER BY u."fullName"`,
       [clinicId],
     );
-    return result.rows.map(mapAdminUser);
+    return result.rows.map(mapAdminUserWithCommission);
+  }
+
+  private async findAdminUser(
+    client: Pool | PoolClient,
+    clinicId: string,
+    userId: string,
+  ) {
+    const result = await client.query<AdminUserRow>(
+      `${adminUserSelect} WHERE u.id = $2`,
+      [clinicId, userId],
+    );
+    return result.rows[0] ? mapAdminUserWithCommission(result.rows[0]) : null;
+  }
+
+  async setAdminUserProfessional(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    professionalId: string | null,
+  ) {
+    try {
+      return await this.inTransaction(async (client) => {
+        const user = await client.query(
+          `SELECT id FROM users WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          [clinicId, userId],
+        );
+        if (!user.rows[0]) return null;
+        if (professionalId) {
+          const professional = await client.query<{ userId: string | null }>(
+            `SELECT user_id AS "userId" FROM professionals
+             WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+            [clinicId, professionalId],
+          );
+          if (!professional.rows[0])
+            throw new DomainError(
+              "PROFESSIONAL_NOT_FOUND",
+              "Profissional não encontrado.",
+              404,
+            );
+          const linkedUserId = professional.rows[0].userId;
+          if (linkedUserId && linkedUserId !== userId)
+            throw new DomainError(
+              "PROFESSIONAL_ALREADY_LINKED",
+              "Este profissional já está ligado a outro usuário.",
+              409,
+            );
+        }
+        const previous = await client.query<{ id: string }>(
+          `SELECT id FROM professionals WHERE clinic_id = $1 AND user_id = $2
+           ORDER BY created_at, id FOR UPDATE`,
+          [clinicId, userId],
+        );
+        const previousProfessionalId = previous.rows[0]?.id ?? null;
+        if (previousProfessionalId !== professionalId) {
+          // Um usuário tem no máximo um profissional: ligar outro desliga o anterior.
+          await client.query(
+            `UPDATE professionals SET user_id = NULL, updated_at = now()
+             WHERE clinic_id = $1 AND user_id = $2`,
+            [clinicId, userId],
+          );
+          if (professionalId)
+            await client.query(
+              `UPDATE professionals SET user_id = $3, updated_at = now()
+               WHERE clinic_id = $1 AND id = $2`,
+              [clinicId, professionalId, userId],
+            );
+          await this.addAdminAudit(
+            client,
+            clinicId,
+            actorUserId,
+            "users.professional_updated",
+            "user",
+            userId,
+            { professionalId, previousProfessionalId },
+          );
+        }
+        return this.findAdminUser(client, clinicId, userId);
+      });
+    } catch (error) {
+      // Índice único parcial (clinic_id, user_id): corrida com outra ligação simultânea.
+      if (hasDatabaseCode(error, "23505"))
+        throw new DomainError(
+          "PROFESSIONAL_ALREADY_LINKED",
+          "Este profissional já está ligado a outro usuário.",
+          409,
+        );
+      throw error;
+    }
+  }
+
+  async setAdminUserCommission(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      const user = await client.query(
+        `SELECT id FROM users WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, userId],
+      );
+      if (!user.rows[0]) return null;
+      const professional = await client.query<{ id: string }>(
+        `SELECT id FROM professionals WHERE clinic_id = $1 AND user_id = $2
+         ORDER BY created_at, id LIMIT 1 FOR UPDATE`,
+        [clinicId, userId],
+      );
+      const professionalId = professional.rows[0]?.id;
+      if (!professionalId)
+        throw new DomainError(
+          "USER_NOT_PROFESSIONAL",
+          "Ligue o usuário a um profissional da agenda antes de definir a comissão.",
+          409,
+        );
+      // Mesma gravação de POST /finance/commission-rules (createCommissionRule).
+      const rule = await this.insertCommissionRule(client, clinicId, {
+        professionalId,
+        percentage: input.percentage,
+        effectiveFrom: input.effectiveFrom,
+      });
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "users.commission_updated",
+        "user",
+        userId,
+        {
+          professionalId,
+          ruleId: rule.id,
+          percentage: rule.percentage,
+          effectiveFrom: rule.effectiveFrom,
+        },
+      );
+      return this.findAdminUser(client, clinicId, userId);
+    });
   }
 
   async createAdminUser(
@@ -1946,8 +2125,9 @@ export class PostgresClinicRepository implements ClinicRepository {
         userId,
         { role: input.role, active: input.active },
       );
+      const withCommission = await this.findAdminUser(client, clinicId, userId);
       await client.query("COMMIT");
-      return updated;
+      return withCommission ?? updated;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -6266,8 +6446,16 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async createCommissionRule(clinicId: string, input: CommissionRuleInput) {
+    return this.insertCommissionRule(this.pool, clinicId, input);
+  }
+
+  private async insertCommissionRule(
+    client: Pool | PoolClient,
+    clinicId: string,
+    input: CommissionRuleInput,
+  ) {
     try {
-      const result = await this.pool.query<CommissionRuleRow>(
+      const result = await client.query<CommissionRuleRow>(
         `WITH inserted AS (INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from)
           SELECT $1,id,$3,$4 FROM professionals WHERE clinic_id = $1 AND id = $2 RETURNING *)
          SELECT i.id, i.clinic_id AS "clinicId", i.professional_id AS "professionalId",

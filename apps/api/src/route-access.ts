@@ -51,6 +51,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /admin/users": "owner",
   "PATCH /admin/users/:id": "owner",
   "POST /admin/users/:id/reset-password": "owner",
+  "PUT /admin/users/:id/professional": "owner",
+  "PUT /admin/users/:id/commission": "owner",
   "GET /admin/clinic-settings": "owner",
   "PUT /admin/clinic-settings": "owner",
   "PUT /relationship/settings": "owner",

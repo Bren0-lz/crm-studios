@@ -1,6 +1,7 @@
 import type {
   AdminAuditEvent,
   AdminUser,
+  AdminUserCommissionInput,
   AdminUserInput,
   AdminUserUpdate,
   Appointment,
@@ -161,6 +162,27 @@ export interface ClinicRepository {
     userId: string,
     passwordHash: string,
   ): Promise<boolean>;
+  /**
+   * Liga o usuário a um profissional da agenda (`professionals.user_id`) ou desliga (`null`).
+   * Um usuário tem no máximo um profissional: ligar outro desliga o anterior. `null` = usuário
+   * inexistente; PROFESSIONAL_NOT_FOUND (404) e PROFESSIONAL_ALREADY_LINKED (409, de outro usuário).
+   */
+  setAdminUserProfessional(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    professionalId: string | null,
+  ): Promise<AdminUser | null>;
+  /**
+   * Nova regra de comissão (mesma de `createCommissionRule`) para o profissional ligado ao
+   * usuário. `null` = usuário inexistente; USER_NOT_PROFESSIONAL (409) sem profissional ligado.
+   */
+  setAdminUserCommission(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ): Promise<AdminUser | null>;
   getClinicSettings(clinicId: string): Promise<ClinicSettings | null>;
   updateClinicSettings(
     clinicId: string,

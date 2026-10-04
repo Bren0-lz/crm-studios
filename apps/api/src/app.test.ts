@@ -401,6 +401,158 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("links users to agenda professionals and sets their commission rule, owner only", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    await seedRoleUsers(app);
+    const ana = "33333333-3333-4333-8333-333333333333";
+    const other = "44444444-4444-4444-8444-444444444444";
+    const missing = "99999999-9999-4999-8999-999999999999";
+    const createUser = async (email: string) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/admin/users",
+        headers,
+        payload: {
+          fullName: "Instrutora Teste",
+          email,
+          role: "physiotherapist",
+          password: "Segura@1234",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      return created.json().id as string;
+    };
+    const userA = await createUser("instrutora.a@movimenta.local");
+    const userB = await createUser("instrutora.b@movimenta.local");
+    const link = (userId: string, professionalId: string | null) =>
+      app.inject({
+        method: "PUT",
+        url: `/admin/users/${userId}/professional`,
+        headers,
+        payload: { professionalId },
+      });
+    const commission = (userId: string, payload: Record<string, unknown>) =>
+      app.inject({
+        method: "PUT",
+        url: `/admin/users/${userId}/commission`,
+        headers,
+        payload,
+      });
+
+    // Sem profissional ligado não há comissão.
+    const notProfessional = await commission(userA, { percentage: 30, effectiveFrom: "2020-01-01" });
+    expect(notProfessional.statusCode).toBe(409);
+    expect(notProfessional.json().code).toBe("USER_NOT_PROFESSIONAL");
+    expect((await link(missing, ana)).json().code).toBe("USER_NOT_FOUND");
+    expect((await link(missing, ana)).statusCode).toBe(404);
+    const unknownProfessional = await link(userA, missing);
+    expect(unknownProfessional.statusCode).toBe(404);
+    expect(unknownProfessional.json().code).toBe("PROFESSIONAL_NOT_FOUND");
+    expect((await link(userA, "nao-e-uuid")).statusCode).toBe(400);
+    expect((await commission(missing, { percentage: 10, effectiveFrom: "2020-01-01" })).statusCode).toBe(404);
+
+    const linked = await link(userA, ana);
+    expect(linked.statusCode).toBe(200);
+    expect(linked.json()).toMatchObject({
+      id: userA,
+      professionalId: ana,
+      professionalName: "Dra. Ana Martins",
+    });
+    expect(linked.json().commissionPercentage).toBeUndefined();
+
+    const taken = await link(userB, ana);
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json().code).toBe("PROFESSIONAL_ALREADY_LINKED");
+
+    const rule = await commission(userA, { percentage: 40, effectiveFrom: "2020-01-01" });
+    expect(rule.statusCode).toBe(200);
+    expect(rule.json()).toMatchObject({
+      professionalId: ana,
+      commissionPercentage: 40,
+      commissionEffectiveFrom: "2020-01-01",
+    });
+    // Regra futura não vale hoje; vigência repetida e percentual fora de 0–100 são recusados.
+    const future = await commission(userA, { percentage: 50, effectiveFrom: "2999-01-01" });
+    expect(future.json()).toMatchObject({ commissionPercentage: 40, commissionEffectiveFrom: "2020-01-01" });
+    const duplicate = await commission(userA, { percentage: 45, effectiveFrom: "2020-01-01" });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json().code).toBe("COMMISSION_RULE_DUPLICATE");
+    expect((await commission(userA, { percentage: 101, effectiveFrom: "2020-01-01" })).statusCode).toBe(400);
+    expect((await commission(userA, { percentage: 10, effectiveFrom: "01/01/2020" })).statusCode).toBe(400);
+
+    // A regra é a mesma do Financeiro (commission_rules por profissional).
+    const workspace = await app.inject({ method: "GET", url: "/finance/workspace", headers });
+    const rules = (workspace.json().commissionRules as Array<{ professionalId: string; percentage: number }>)
+      .filter((item) => item.professionalId === ana)
+      .map((item) => item.percentage)
+      .sort();
+    expect(rules).toEqual([40, 50]);
+
+    const users = await app.inject({ method: "GET", url: "/admin/users", headers });
+    expect(users.json().find((item: { id: string }) => item.id === userA)).toMatchObject({
+      professionalId: ana,
+      professionalName: "Dra. Ana Martins",
+      commissionPercentage: 40,
+      commissionEffectiveFrom: "2020-01-01",
+    });
+    expect(users.json().find((item: { id: string }) => item.id === userB).professionalId).toBeUndefined();
+
+    // Ligar a outro profissional troca a ligação e libera o anterior.
+    const switched = await link(userA, other);
+    expect(switched.statusCode).toBe(200);
+    expect(switched.json().professionalId).toBe(other);
+    expect(switched.json().commissionPercentage).toBeUndefined();
+    expect((await link(userB, ana)).json().professionalId).toBe(ana);
+    const unlinked = await link(userA, null);
+    expect(unlinked.statusCode).toBe(200);
+    expect(unlinked.json().professionalId).toBeUndefined();
+    expect(unlinked.json().professionalName).toBeUndefined();
+
+    for (const role of ["reception", "physiotherapist", "finance"] as const) {
+      const roleHeaders = {
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId: "11111111-1111-4111-8111-111111111111", role })}`,
+      };
+      const denied = await app.inject({
+        method: "PUT",
+        url: `/admin/users/${userB}/professional`,
+        headers: roleHeaders,
+        payload: { professionalId: null },
+      });
+      expect(denied.statusCode).toBe(403);
+      const deniedCommission = await app.inject({
+        method: "PUT",
+        url: `/admin/users/${userB}/commission`,
+        headers: roleHeaders,
+        payload: { percentage: 10, effectiveFrom: "2021-01-01" },
+      });
+      expect(deniedCommission.statusCode).toBe(403);
+    }
+
+    const audit = await app.inject({ method: "GET", url: "/admin/audit-events", headers });
+    const events = audit.json() as Array<{ action: string; entityId?: string; metadata: Record<string, unknown> }>;
+    const linkEvents = events.filter(
+      (item) => item.action === "users.professional_updated" && item.entityId === userA,
+    );
+    expect(linkEvents.map((item) => item.metadata)).toEqual(
+      expect.arrayContaining([
+        { professionalId: ana, previousProfessionalId: null },
+        { professionalId: other, previousProfessionalId: ana },
+        { professionalId: null, previousProfessionalId: other },
+      ]),
+    );
+    const commissionEvents = events.filter(
+      (item) => item.action === "users.commission_updated" && item.entityId === userA,
+    );
+    expect(commissionEvents).toHaveLength(2);
+    expect(commissionEvents.map((item) => item.metadata)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ professionalId: ana, percentage: 40, effectiveFrom: "2020-01-01" }),
+      ]),
+    );
+    await app.close();
+  });
+
   it("treats an empty client filter as every client in plans and clinical records", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };

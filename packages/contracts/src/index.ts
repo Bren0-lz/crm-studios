@@ -814,6 +814,20 @@ export const commissionRuleInputSchema = z.object({
   effectiveFrom: z.iso.date(),
 });
 export type CommissionRuleInput = z.infer<typeof commissionRuleInputSchema>;
+/** Liga o usuário a um profissional da agenda; `null` desliga. Ligar outro troca a ligação. */
+export const adminUserProfessionalInputSchema = z.object({
+  professionalId: z.uuid().nullable(),
+});
+export type AdminUserProfessionalInput = z.infer<
+  typeof adminUserProfessionalInputSchema
+>;
+/** Nova regra de comissão para o profissional ligado ao usuário (mesma tabela do Financeiro). */
+export const adminUserCommissionInputSchema = commissionRuleInputSchema.omit({
+  professionalId: true,
+});
+export type AdminUserCommissionInput = z.infer<
+  typeof adminUserCommissionInputSchema
+>;
 export const commissionGenerationInputSchema = z.object({
   competence: z.string().regex(/^\d{4}-\d{2}$/),
 });
@@ -1132,6 +1146,13 @@ export interface AdminUser extends UserSummary {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
+  professionalId?: string;
+  professionalName?: string;
+  /** Percentual da regra de comissão vigente hoje (fuso da clínica) do profissional ligado. */
+  commissionPercentage?: number;
+  /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
+  commissionEffectiveFrom?: string;
 }
 
 export interface ClinicSettings extends ClinicSettingsInput {
