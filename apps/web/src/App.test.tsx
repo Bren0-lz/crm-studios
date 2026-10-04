@@ -3085,6 +3085,152 @@ describe("users and permissions", () => {
     confirm.mockRestore();
   });
 
+  describe("commission per user", () => {
+    const pilatesId = "66666666-6666-4666-8666-666666666666";
+    const takenId = "77777777-7777-4777-8777-777777777777";
+    const professional = (id: string, fullName: string) => ({ id, clinicId: customUser.clinicId, fullName, crefito: "CREF 1234", specialty: "Pilates", color: "#336699", active: true });
+    const otherUser = { ...customUser, id: "88888888-8888-4888-8888-888888888888", fullName: "Bruno Lima", email: "bruno@movimenta.local", customModules: false, professionalId: takenId, professionalName: "Bruno Lima (agenda)", commissionPercentage: 35, commissionEffectiveFrom: "2026-01-01" };
+    const conflict = (code: string, message: string) => ({ ok: false, status: 409, json: async () => ({ code, message }) }) as Response;
+
+    function mockCommission(handler: (url: string, init?: RequestInit) => unknown, options: { professionalsFail?: boolean } = {}) {
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        const handled = handler(url, init);
+        if (handled && typeof handled === "object" && "ok" in handled && (handled as Response).ok === false) return handled as Response;
+        if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
+        if (url.endsWith("/professionals") && options.professionalsFail) return { ok: false, status: 500, json: async () => ({ code: "BOOM", message: "Falha ao listar profissionais." }) } as Response;
+        const body = url.endsWith("/professionals") ? [professional(pilatesId, "Maria Pilates"), professional(takenId, "Bruno Lima (agenda)")]
+          : url.includes("/admin/users") ? [customUser, otherUser]
+            : url.includes("/admin/permission-matrix") ? []
+              : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+                : url.includes("/admin/clinic-settings") ? null
+                  : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+    }
+
+    async function openEditor(name = "Maria Souza") {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+      render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: `Editar ${name}` }));
+      return screen.getByRole("dialog", { name: `Editar ${name}` });
+    }
+
+    it("shows the linked professional and current percentage in the user list", async () => {
+      mockCommission(() => undefined);
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+      render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+      expect(await within(section).findByText("Agenda: Bruno Lima (agenda) · Comissão 35%")).toBeInTheDocument();
+      expect(within(section).getByText("Sem profissional da agenda")).toBeInTheDocument();
+    });
+
+    it("links a professional, then saves the commission with the exact bodies", async () => {
+      const linked = { ...customUser, professionalId: pilatesId, professionalName: "Maria Pilates" };
+      const withRule = { ...linked, commissionPercentage: 12.5, commissionEffectiveFrom: saoPauloToday() };
+      mockCommission((url, init) => {
+        if (init?.method === "PUT" && url.endsWith("/professional")) return linked;
+        if (init?.method === "PUT" && url.endsWith("/commission")) return withRule;
+        return undefined;
+      });
+      const dialog = await openEditor();
+      const select = await within(dialog).findByLabelText("Profissional da agenda");
+      // Livres: o profissional já ligado a outro usuário não aparece.
+      expect(within(select).getByRole("option", { name: "Nenhum" })).toBeInTheDocument();
+      expect(within(select).getByRole("option", { name: "Maria Pilates" })).toBeInTheDocument();
+      expect(within(select).queryByRole("option", { name: "Bruno Lima (agenda)" })).not.toBeInTheDocument();
+      // Sem profissional ligado, percentual e data ficam desabilitados com explicação.
+      expect(within(dialog).getByLabelText("Percentual de comissão (%)")).toBeDisabled();
+      expect(within(dialog).getByLabelText("Vale a partir de")).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Salvar comissão" })).toBeDisabled();
+      expect(within(dialog).getByText(/Ligue um profissional da agenda/)).toBeInTheDocument();
+
+      fireEvent.change(select, { target: { value: pilatesId } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar profissional" }));
+      expect(await within(dialog).findByText("Profissional Maria Pilates ligado.")).toBeInTheDocument();
+      const link = lastCall("PUT");
+      expect(link.url).toContain(`/admin/users/${customUser.id}/professional`);
+      expect(link.body).toEqual({ professionalId: pilatesId });
+
+      const percentage = within(dialog).getByLabelText("Percentual de comissão (%)");
+      expect(percentage).toBeEnabled();
+      fireEvent.change(percentage, { target: { value: "12.5" } });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), { target: { value: saoPauloToday() } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar comissão" }));
+      expect(await within(dialog).findByText("Comissão de 12,5% salva.")).toBeInTheDocument();
+      const rule = lastCall("PUT");
+      expect(rule.url).toContain(`/admin/users/${customUser.id}/commission`);
+      expect(rule.body).toEqual({ percentage: 12.5, effectiveFrom: saoPauloToday() });
+      // A linha da lista é atualizada sem recarregar.
+      const section = screen.getByRole("heading", { name: "Usuários" }).closest("section")!;
+      expect(within(section).getByText("Agenda: Maria Pilates · Comissão 12,5%")).toBeInTheDocument();
+    });
+
+    it("warns when the rule starts in the future", async () => {
+      const linked = { ...customUser, professionalId: pilatesId, professionalName: "Maria Pilates", commissionPercentage: 30, commissionEffectiveFrom: "2026-01-01" };
+      mockCommission((url, init) => {
+        if (url.endsWith("/admin/users") && !init?.method) return [linked, otherUser];
+        if (init?.method === "PUT" && url.endsWith("/commission")) return linked;
+        return undefined;
+      });
+      const dialog = await openEditor();
+      await within(dialog).findByLabelText("Profissional da agenda");
+      expect(within(dialog).getByLabelText("Percentual de comissão (%)")).toHaveValue(30);
+      fireEvent.change(within(dialog).getByLabelText("Percentual de comissão (%)"), { target: { value: "40" } });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), { target: { value: "2099-01-01" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar comissão" }));
+      expect(await within(dialog).findByText(/A regra de 40% vale a partir de .+; até lá segue 30%\./)).toBeInTheDocument();
+      expect(lastCall("PUT").body).toEqual({ percentage: 40, effectiveFrom: "2099-01-01" });
+    });
+
+    it("unlinks with null and shows 409 errors in the form", async () => {
+      const linked = { ...customUser, professionalId: pilatesId, professionalName: "Maria Pilates" };
+      let attempt = 0;
+      mockCommission((url, init) => {
+        if (url.endsWith("/admin/users") && !init?.method) return [linked, otherUser];
+        if (init?.method === "PUT" && url.endsWith("/professional")) {
+          attempt += 1;
+          return attempt === 1
+            ? conflict("PROFESSIONAL_ALREADY_LINKED", "Este profissional já está ligado a outro usuário.")
+            : { ...customUser };
+        }
+        if (init?.method === "PUT" && url.endsWith("/commission")) {
+          return conflict("COMMISSION_RULE_DUPLICATE", "Já existe uma regra com essa data.");
+        }
+        return undefined;
+      });
+      const dialog = await openEditor();
+      const select = await within(dialog).findByLabelText("Profissional da agenda");
+      expect(select).toHaveValue(pilatesId);
+      fireEvent.change(within(dialog).getByLabelText("Percentual de comissão (%)"), { target: { value: "20" } });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), { target: { value: "2026-01-01" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar comissão" }));
+      expect(await within(dialog).findByText("Já existe uma regra com essa data.")).toHaveClass("form-error");
+
+      fireEvent.change(select, { target: { value: "" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar profissional" }));
+      expect(await within(dialog).findByText("Este profissional já está ligado a outro usuário.")).toHaveClass("form-error");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar profissional" }));
+      expect(await within(dialog).findByText("Profissional desligado.")).toBeInTheDocument();
+      expect(lastCall("PUT").body).toEqual({ professionalId: null });
+      expect(within(dialog).getByLabelText("Percentual de comissão (%)")).toBeDisabled();
+    });
+
+    it("shows loading and error states for the professionals list and explains new users", async () => {
+      mockCommission(() => undefined, { professionalsFail: true });
+      const dialog = await openEditor();
+      expect(dialog.querySelector(".loading-block")).not.toBeNull();
+      expect(await within(dialog).findByText(/Falha ao listar profissionais\./)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+      fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
+      const created = screen.getByRole("dialog", { name: "Novo usuário" });
+      expect(within(created).getByText(/Depois de criar o usuário/)).toBeInTheDocument();
+      expect(within(created).queryByLabelText("Profissional da agenda")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters the menu and routes by the user's modules and hides create actions without edit", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({

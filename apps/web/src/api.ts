@@ -1,6 +1,7 @@
 import type {
   AdminAuditEvent,
   AdminUser,
+  AdminUserCommissionInput,
   AdminUserInput,
   AdminUserUpdate,
   Appointment,
@@ -242,6 +243,16 @@ export const api = {
   updateAdminUser: (id: string, input: AdminUserUpdate) =>
     request<AdminUser>(`/admin/users/${id}`, {
       method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  setUserProfessional: (id: string, professionalId: string | null) =>
+    request<AdminUser>(`/admin/users/${id}/professional`, {
+      method: "PUT",
+      body: JSON.stringify({ professionalId }),
+    }),
+  setUserCommission: (id: string, input: AdminUserCommissionInput) =>
+    request<AdminUser>(`/admin/users/${id}/commission`, {
+      method: "PUT",
       body: JSON.stringify(input),
     }),
   resetAdminPassword: (id: string, password: string) =>

@@ -10544,6 +10544,7 @@ function AdminPage() {
                     {item.email} · {roleLabels[item.role]}
                     {item.jobTitle ? ` · ${item.jobTitle}` : ""}
                   </small>
+                  <small>{userCommissionSummary(item)}</small>
                   {(item.customModules || !item.active) && (
                     <div className="admin-user-tags">
                       {item.customModules && (
@@ -10725,6 +10726,16 @@ function AdminPage() {
       {userForm && (
         <UserFormModal
           user={userForm === "new" ? null : userForm}
+          users={users ?? []}
+          onUserUpdated={(updated) =>
+            setUsers((current) =>
+              current
+                ? current.map((item) =>
+                    item.id === updated.id ? updated : item,
+                  )
+                : current,
+            )
+          }
           onClose={() => setUserForm(null)}
           onSaved={(saved) =>
             finish(
@@ -10768,12 +10779,254 @@ function orderedModules(list: readonly AppModule[]) {
   return appModuleSchema.options.filter((module) => list.includes(module));
 }
 
+const percentageLabel = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 2,
+});
+
+/** Resumo da lista de usuários: profissional da agenda ligado e percentual vigente hoje. */
+function userCommissionSummary(user: AdminUser) {
+  if (!user.professionalId) return "Sem profissional da agenda";
+  const name = user.professionalName ?? "profissional ligado";
+  return user.commissionPercentage === undefined
+    ? `Agenda: ${name} · Sem comissão vigente`
+    : `Agenda: ${name} · Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+}
+
+function loadCommissionProfessionals(
+  onLoaded: (items: Professional[]) => void,
+  onError: (message: string) => void,
+) {
+  api
+    .professionals()
+    .then(onLoaded)
+    .catch((cause: Error) => onError(cause.message));
+}
+
+/**
+ * Seção "Comissão" do cadastro de usuário (só usuário já salvo). Cada ação grava na hora
+ * (PUT próprio) e devolve o usuário atualizado para a lista, sem recarregar a página.
+ */
+function UserCommissionSection({
+  user,
+  users,
+  onUpdated,
+}: {
+  user: AdminUser;
+  users: AdminUser[];
+  onUpdated: (updated: AdminUser) => void;
+}) {
+  const [current, setCurrent] = useState(user);
+  const [professionals, setProfessionals] = useState<Professional[] | null>(
+    null,
+  );
+  const [loadError, setLoadError] = useState("");
+  const [selected, setSelected] = useState(user.professionalId ?? "");
+  const [percentage, setPercentage] = useState(
+    user.commissionPercentage === undefined
+      ? ""
+      : String(user.commissionPercentage),
+  );
+  const [effectiveFrom, setEffectiveFrom] = useState(saoPauloToday());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    loadCommissionProfessionals(
+      (items) => {
+        if (active) setProfessionals(items);
+      },
+      (message) => {
+        if (active) setLoadError(message);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
+  const taken = new Set(
+    users
+      .filter((item) => item.id !== current.id && item.professionalId)
+      .map((item) => item.professionalId),
+  );
+  const options = (professionals ?? []).filter(
+    (item) =>
+      item.id === current.professionalId ||
+      (item.active && !taken.has(item.id)),
+  );
+  const linked = Boolean(current.professionalId);
+
+  function applyUpdate(updated: AdminUser) {
+    setCurrent(updated);
+    onUpdated(updated);
+  }
+
+  async function saveProfessional() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const updated = await api.setUserProfessional(
+        current.id,
+        selected || null,
+      );
+      applyUpdate(updated);
+      setSelected(updated.professionalId ?? "");
+      setPercentage(
+        updated.commissionPercentage === undefined
+          ? ""
+          : String(updated.commissionPercentage),
+      );
+      setNotice(
+        updated.professionalId
+          ? `Profissional ${updated.professionalName ?? ""} ligado.`
+          : "Profissional desligado.",
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCommission() {
+    setError("");
+    setNotice("");
+    const value = Number(percentage.replace(",", "."));
+    if (percentage.trim() === "" || !Number.isFinite(value) || value < 0 || value > 100) {
+      setError("Informe um percentual entre 0 e 100.");
+      return;
+    }
+    if (!effectiveFrom) {
+      setError("Informe a data em que a comissão passa a valer.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await api.setUserCommission(current.id, {
+        percentage: value,
+        effectiveFrom,
+      });
+      applyUpdate(updated);
+      const label = `${percentageLabel.format(value)}%`;
+      if (effectiveFrom > saoPauloToday()) {
+        const now =
+          current.commissionPercentage === undefined
+            ? "sem comissão vigente"
+            : `${percentageLabel.format(current.commissionPercentage)}%`;
+        setNotice(
+          `Regra salva. A regra de ${label} vale a partir de ${shortDate.format(new Date(`${effectiveFrom}T12:00:00`))}; até lá segue ${now}.`,
+        );
+      } else {
+        setNotice(`Comissão de ${label} salva.`);
+      }
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <fieldset className="form-fieldset span-2">
+      <legend>Comissão</legend>
+      {professionals === null && !loadError ? (
+        <LoadingBlock />
+      ) : loadError ? (
+        <div className="form-error" role="alert">
+          Não foi possível carregar os profissionais da agenda: {loadError}
+        </div>
+      ) : (
+        <div className="commission-editor">
+          <div className="commission-row">
+            <label>
+              Profissional da agenda
+              <select
+                value={selected}
+                onChange={(event) => setSelected(event.target.value)}
+              >
+                <option value="">Nenhum</option>
+                {options.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || selected === (current.professionalId ?? "")}
+              onClick={() => void saveProfessional()}
+            >
+              Salvar profissional
+            </button>
+          </div>
+          <div className="form-fieldset-grid">
+            <label>
+              Percentual de comissão (%)
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                disabled={!linked}
+                value={percentage}
+                onChange={(event) => setPercentage(event.target.value)}
+              />
+            </label>
+            <label>
+              Vale a partir de
+              <input
+                type="date"
+                disabled={!linked}
+                value={effectiveFrom}
+                onChange={(event) => setEffectiveFrom(event.target.value)}
+              />
+            </label>
+          </div>
+          <p className="muted-copy">
+            {!linked
+              ? "Ligue um profissional da agenda (e salve) para definir a comissão: ela é calculada sobre os atendimentos dele."
+              : current.commissionPercentage === undefined
+                ? "Sem comissão vigente hoje. Uma regra com data futura só passa a valer nessa data."
+                : `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${shortDate.format(new Date(`${current.commissionEffectiveFrom}T12:00:00`))}` : ""}. Uma regra com data futura só passa a valer nessa data.`}
+          </p>
+          <div className="commission-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy || !linked}
+              onClick={() => void saveCommission()}
+            >
+              Salvar comissão
+            </button>
+          </div>
+          {error && <div className="form-error">{error}</div>}
+          {notice && (
+            <p className="muted-copy" role="status">
+              {notice}
+            </p>
+          )}
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
 function UserFormModal({
   user,
+  users,
+  onUserUpdated,
   onClose,
   onSaved,
 }: {
   user: AdminUser | null;
+  users: AdminUser[];
+  onUserUpdated: (updated: AdminUser) => void;
   onClose: () => void;
   onSaved: (saved: AdminUser) => void;
 }) {
@@ -11007,6 +11260,21 @@ function UserFormModal({
             </div>
           )}
         </fieldset>
+        {user ? (
+          <UserCommissionSection
+            user={user}
+            users={users}
+            onUpdated={onUserUpdated}
+          />
+        ) : (
+          <fieldset className="form-fieldset span-2">
+            <legend>Comissão</legend>
+            <p className="muted-copy">
+              Depois de criar o usuário, abra “Editar” para ligar o
+              profissional da agenda e definir a comissão.
+            </p>
+          </fieldset>
+        )}
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button

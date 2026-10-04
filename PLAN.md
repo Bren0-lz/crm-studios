@@ -626,7 +626,7 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
   com explicação. Estados de carregando/erro. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T049, T050
-- **Status:** TODO
+- **Status:** DONE
 
 ### V4 — Revisão de usuários e permissões (manual)
 - **Tipo:** manual
@@ -635,7 +635,7 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
   Financeiro e conferir o percentual.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T049, T051
-- **Status:** TODO
+- **Status:** BLOCKED
 
 ### T052 — Documentação da rodada 4
 - **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (cargo, permissões por usuário,

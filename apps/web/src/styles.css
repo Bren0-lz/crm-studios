@@ -2828,6 +2828,33 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   gap: var(--space-2);
 }
 
+/* Formulário de usuário: seção Comissão (profissional ligado, percentual e vigência). */
+.commission-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.commission-editor > .muted-copy {
+  margin: 0;
+}
+
+.commission-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.commission-row > label {
+  flex: 1 1 calc(var(--space-8) * 3);
+  min-width: 0;
+}
+
+.commission-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .permission-table {
   width: 100%;
   border-collapse: collapse;
