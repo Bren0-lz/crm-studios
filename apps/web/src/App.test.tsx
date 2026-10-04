@@ -107,6 +107,78 @@ describe("modal scroll lock", () => {
   });
 });
 
+describe("modal closing", () => {
+  function StackedModals({ busy = false }: { busy?: boolean }) {
+    const [first, setFirst] = useState(false);
+    const [second, setSecond] = useState(false);
+    return (
+      <>
+        <button onClick={() => setFirst(true)}>Abrir primeiro</button>
+        {first && (
+          <Modal title="Primeiro" subtitle="Modal de baixo" onClose={() => setFirst(false)}>
+            <button onClick={() => setSecond(true)}>Abrir segundo</button>
+          </Modal>
+        )}
+        {second && (
+          <Modal title="Segundo" subtitle="Modal de cima" busy={busy} onClose={() => setSecond(false)}>
+            <p>Conteúdo do segundo</p>
+          </Modal>
+        )}
+      </>
+    );
+  }
+
+  it("does not close a modal when the backdrop is clicked", () => {
+    render(<StackedModals />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
+    const backdrop = document.querySelector(".modal-backdrop")!;
+    fireEvent.mouseDown(backdrop);
+    fireEvent.mouseUp(backdrop);
+    fireEvent.click(backdrop);
+    expect(screen.getByRole("dialog", { name: "Primeiro" })).toBeInTheDocument();
+  });
+
+  it("closes only the top modal with Esc", () => {
+    render(<StackedModals />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir segundo" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(2);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Segundo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Primeiro" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("disables the close button and ignores Esc while the modal is busy", () => {
+    render(<StackedModals busy />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir segundo" }));
+    const top = screen.getByRole("dialog", { name: "Segundo" });
+    expect(within(top).getByRole("button", { name: "Fechar" })).toBeDisabled();
+    fireEvent.keyDown(window, { key: "Escape" });
+    // O de cima está salvando: Esc não fecha ele nem o de baixo.
+    expect(screen.getAllByRole("dialog")).toHaveLength(2);
+  });
+
+  it("keeps a drawer open on backdrop click and closes it with Esc", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/groups/workspace?") ? { groups: [], enrollments: [], sessions: [], attendance: [], replacementCredits: [] } : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/turmas"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
+    const backdrop = document.querySelector(".drawer-backdrop")!;
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(screen.getByRole("dialog", { name: "Nova turma" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Nova turma" })).not.toBeInTheDocument();
+  });
+});
+
 describe("application shell", () => {
   it("edits group capacity and weekly hours in a drawer", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
@@ -2963,6 +3035,27 @@ describe("application shell", () => {
       fireEvent.keyDown(window, { key: "Escape" });
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
+    });
+
+    it("locks the X, Voltar and Esc of an action modal while it saves", async () => {
+      renderFinance();
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      // O ajuste fica pendente: o modal continua "salvando".
+      vi.mocked(fetch).mockImplementation((input, init) =>
+        init?.method === "PATCH" ? new Promise<Response>(() => undefined) : base(input, init));
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Ajustar valor da parcela" });
+      expect(within(dialog).getByRole("button", { name: "Fechar" })).toBeEnabled();
+      fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), { target: { value: "200" } });
+      fireEvent.change(within(dialog).getByLabelText("Justificativa"), { target: { value: "Desconto combinado" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      await within(dialog).findByRole("button", { name: "Salvando…" });
+      expect(within(dialog).getByRole("button", { name: "Fechar" })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Voltar" })).toBeDisabled();
+      fireEvent.keyDown(window, { key: "Escape" });
+      fireEvent.mouseDown(dialog.parentElement!);
+      expect(screen.getByRole("dialog", { name: "Ajustar valor da parcela" })).toBeInTheDocument();
     });
 
     it("renegotiates the selected installments in a single form", async () => {

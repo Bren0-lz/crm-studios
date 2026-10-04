@@ -89,6 +89,9 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   com `/* audit: mobile-ok <motivo real> */` logo acima da regra.
 - **Estados**: toda tela/lista com dados remotos trata carregando (`LoadingBlock`), vazio
   (`EmptyState`) e erro (`ErrorBanner`/`error-banner`; em formulário, `form-error`).
+- **Modais/gavetas**: clicar no fundo não fecha (o audit reprova handler de clique em `*backdrop`);
+  Esc fecha só o de cima; durante o salvamento passe `busy` ao `Modal`/`Drawer` (trava X e Esc) e
+  desative o "Voltar/Cancelar".
 - **Tabelas**: valores numéricos e monetários alinhados à direita (`text-align: right`).
 - **Reaproveitar** antes de criar: `panel`, `panel-head`, `list-toolbar`, `form-grid`,
   `clinical-form`, `plan-card`, `plans-grid`, `status-pill`, `success-banner`, `Modal`,

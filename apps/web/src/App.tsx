@@ -1389,6 +1389,7 @@ function PatientExportModal({
       eyebrow="Exportação"
       title="Exportar clientes"
       subtitle="Baixe a base de clientes em planilha, com os filtros aplicados na tela."
+      busy={exporting}
       onClose={onClose}
     >
       <form className="patient-export" onSubmit={(event) => void submit(event)} noValidate>
@@ -1448,7 +1449,7 @@ function PatientExportModal({
           </div>
         )}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={exporting}>
             Voltar
           </button>
           <button type="submit" className="primary-button" disabled={exporting}>
@@ -1550,6 +1551,7 @@ function PatientImportModal({
       eyebrow="Importação"
       title="Importar clientes"
       subtitle="Envie uma planilha .csv ou .xlsx, confira a prévia e confirme a importação."
+      busy={loading}
       onClose={onClose}
     >
       <div className="patient-import">
@@ -1628,7 +1630,7 @@ function PatientImportModal({
           </>
         )}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             {result ? "Fechar" : "Cancelar"}
           </button>
           {!result && (
@@ -1702,6 +1704,7 @@ function PatientModal({
     <Modal
       title={patient ? "Editar cliente" : "Novo cliente"}
       subtitle={patient ? `Atualize o cadastro ${patient.recordNumber}.` : "Cadastre as informações essenciais. O restante pode ser completado depois."}
+      busy={loading}
       onClose={onClose}
     >
       {patient && (
@@ -1809,7 +1812,7 @@ function PatientModal({
           </p>
         )}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             {editable ? "Cancelar" : "Fechar"}
           </button>
           {editable && (
@@ -2362,6 +2365,7 @@ function ContactActivityModal({
       eyebrow={contactReasonLabels[suggestion.reason]}
       title="Registrar contato"
       subtitle={`${suggestion.patientName} · ${suggestion.detail}`}
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -2402,7 +2406,7 @@ function ContactActivityModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -2936,7 +2940,8 @@ function BroadcastPanel({
           eyebrow="Comunicado"
           title="Confirmar comunicado"
           subtitle="Confira antes de adicionar as mensagens à fila."
-          onClose={() => !sending && setConfirming(false)}
+          busy={sending}
+          onClose={() => setConfirming(false)}
         >
           <div className="broadcast-confirm">
             <p>
@@ -3532,6 +3537,7 @@ function TemplateVersionModal({
       title="Nova versão"
       subtitle={`${template.name} · versão ${template.version + 1}`}
       eyebrow="Modelos"
+      busy={saving}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -3589,6 +3595,7 @@ function CancelDocumentModal({
       title="Cancelar documento"
       subtitle={document.title}
       eyebrow="Documentos"
+      busy={saving}
       onClose={onClose}
     >
       <div className="form-grid">
@@ -4691,6 +4698,7 @@ function LeadAppointmentModal({
       eyebrow="Lead"
       title="Agendar experimental"
       subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
+      busy={saving}
       onClose={onClose}
     >
       {loadError ? (
@@ -4780,7 +4788,7 @@ function LeadAppointmentModal({
           </label>
           {error && <div className="form-error span-2">{error}</div>}
           <div className="modal-actions span-2">
-            <button type="button" className="secondary-button" onClick={onClose}>
+            <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
               Cancelar
             </button>
             <button className="primary-button" disabled={saving}>
@@ -4837,6 +4845,7 @@ function LeadModal({
     <Modal
       title="Novo lead"
       subtitle="Registre o contato para acompanhar a oportunidade no funil."
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -4915,7 +4924,7 @@ function LeadModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -5033,6 +5042,7 @@ function LeadActivityModal({
     <Modal
       title={lead.fullName}
       subtitle="Contatos e tarefas comerciais em uma única linha do tempo."
+      busy={saving}
       onClose={onClose}
     >
       <div className="activity-tabs">
@@ -5593,6 +5603,7 @@ function PlanModal({
           ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
           : "O saldo e as contas a receber serão criados na mesma operação."
       }
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -5738,7 +5749,7 @@ function PlanModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -6745,6 +6756,7 @@ function SettleModal({
       eyebrow="Financeiro"
       title={isReceivable ? "Dar baixa na parcela" : "Pagar despesa"}
       subtitle={`${target.title} · ${target.description} · ${currency.format(target.amountInCents / 100)}`}
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -6768,7 +6780,7 @@ function SettleModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Voltar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -7445,6 +7457,7 @@ function RecurringPayableEndModal({
     <Modal
       title="Encerrar despesa fixa"
       subtitle={`${item.description}: nenhuma conta é gerada depois do último mês.`}
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -7460,7 +7473,7 @@ function RecurringPayableEndModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Voltar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -7523,6 +7536,7 @@ function RecurringPayableModal({
     <Modal
       title="Nova despesa fixa"
       subtitle="A conta a pagar é gerada todo mês, do mês inicial até o final."
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -7632,7 +7646,7 @@ function RecurringPayableModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Voltar
           </button>
           <button
@@ -7686,6 +7700,7 @@ function PayableModal({
     <Modal
       title="Nova conta a pagar"
       subtitle="Classifique a despesa para compor o fluxo de caixa."
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -7778,7 +7793,7 @@ function PayableModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Voltar
           </button>
           <button
@@ -8701,6 +8716,7 @@ function ClinicalAttachmentModal({
     <Modal
       title="Novo anexo clínico"
       subtitle="PDF, PNG ou JPEG de até 5 MB. O conteúdo é validado e recebe uma impressão SHA-256."
+      busy={loading}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -8723,7 +8739,7 @@ function ClinicalAttachmentModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={!file || loading}>
@@ -8770,6 +8786,7 @@ function ClinicalAddendumModal({
     <Modal
       title="Adendo ao prontuário"
       subtitle="O texto original não será alterado. O adendo ficará permanentemente vinculado à evolução."
+      busy={loading}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -8815,7 +8832,7 @@ function ClinicalAddendumModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -8848,15 +8865,18 @@ function AssessmentTemplateModal({
     ],
   });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setSaving(true);
     try {
       await api.createAssessmentTemplate(form);
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
+      setSaving(false);
     }
   }
 
@@ -8876,6 +8896,7 @@ function AssessmentTemplateModal({
     <Modal
       title="Novo modelo de avaliação"
       subtitle="Monte campos estruturados para uma especialidade. Modelos usados permanecem versionados."
+      busy={saving}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9003,10 +9024,10 @@ function AssessmentTemplateModal({
         </div>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="primary-button">Salvar modelo</button>
+          <button className="primary-button" disabled={saving}>Salvar modelo</button>
         </div>
       </form>
     </Modal>
@@ -9030,11 +9051,13 @@ function ClinicalAssessmentModal({
   >({});
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const template = templates.find((item) => item.id === templateId);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setSaving(true);
     try {
       const input: ClinicalAssessmentInput = {
         patientId,
@@ -9046,6 +9069,7 @@ function ClinicalAssessmentModal({
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
+      setSaving(false);
     }
   }
 
@@ -9053,6 +9077,7 @@ function ClinicalAssessmentModal({
     <Modal
       title="Nova avaliação configurável"
       subtitle="Os dados são preservados com o modelo e a autoria usados no registro."
+      busy={saving}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9128,10 +9153,10 @@ function ClinicalAssessmentModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="primary-button" disabled={!templateId}>
+          <button className="primary-button" disabled={!templateId || saving}>
             Registrar avaliação
           </button>
         </div>
@@ -9156,19 +9181,23 @@ function TherapeuticGoalModal({
     unit: "",
   });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setSaving(true);
     try {
       await api.createTherapeuticGoal(form);
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
+      setSaving(false);
     }
   }
   return (
     <Modal
       title="Novo objetivo terapêutico"
       subtitle="Defina um resultado observável e, quando aplicável, uma meta numérica."
+      busy={saving}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9236,10 +9265,10 @@ function TherapeuticGoalModal({
         </div>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="primary-button">Salvar objetivo</button>
+          <button className="primary-button" disabled={saving}>Salvar objetivo</button>
         </div>
       </form>
     </Modal>
@@ -9267,19 +9296,23 @@ function ClinicalMeasurementModal({
     notes: "",
   });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setSaving(true);
     try {
       await api.createClinicalMeasurement(form);
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
+      setSaving(false);
     }
   }
   return (
     <Modal
       title="Nova medição clínica"
       subtitle="Registre medidas comparáveis para acompanhar a evolução ao longo do tempo."
+      busy={saving}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9351,10 +9384,10 @@ function ClinicalMeasurementModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="primary-button">Registrar medição</button>
+          <button className="primary-button" disabled={saving}>Registrar medição</button>
         </div>
       </form>
     </Modal>
@@ -9378,19 +9411,23 @@ function TreatmentClosureModal({
     occurredAt: new Date().toISOString(),
   });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setSaving(true);
     try {
       await api.createTreatmentClosure(form);
       onSaved();
     } catch (cause) {
       setError((cause as Error).message);
+      setSaving(false);
     }
   }
   return (
     <Modal
       title="Encerramento do tratamento"
       subtitle="O registro é permanente e compõe a linha do tempo clínica."
+      busy={saving}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9432,10 +9469,10 @@ function TreatmentClosureModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="primary-button">Registrar encerramento</button>
+          <button className="primary-button" disabled={saving}>Registrar encerramento</button>
         </div>
       </form>
     </Modal>
@@ -9481,6 +9518,7 @@ function ClinicalRecordModal({
     <Modal
       title={record ? "Editar evolução" : "Nova evolução clínica"}
       subtitle="Registre informações objetivas e necessárias para a continuidade do cuidado."
+      busy={loading}
       onClose={onClose}
     >
       <form className="clinical-form" onSubmit={submit}>
@@ -9579,7 +9617,7 @@ function ClinicalRecordModal({
         </label>
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -10463,7 +10501,7 @@ function AppointmentDetailsModal({
     );
   }
   return (
-    <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} onClose={onClose}>
+    <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} busy={cancelling} onClose={onClose}>
       <div className="appointment-details">
         {!isLead && appointment.patientId && (
           <div className="sos-area">
@@ -10645,7 +10683,7 @@ function SatisfactionSurveyModal({
     }
   }
   return (
-    <Modal title="Registrar satisfação" subtitle={appointment.patientName} eyebrow="Pesquisa NPS" onClose={onClose}>
+    <Modal title="Registrar satisfação" subtitle={appointment.patientName} eyebrow="Pesquisa NPS" busy={saving} onClose={onClose}>
       <form className="form-grid" onSubmit={(event) => void save(event)}>
         <fieldset className="span-2 form-fieldset">
           <legend>De 0 a 10, quanto recomendaria a clínica a um amigo?</legend>
@@ -10720,6 +10758,7 @@ function AppointmentRescheduleModal({
     <Modal
       title="Reagendar atendimento"
       subtitle={`${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`}
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -10758,7 +10797,7 @@ function AppointmentRescheduleModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -10891,6 +10930,7 @@ function AppointmentModal({
     <Modal
       title="Novo atendimento"
       subtitle="A duração e o valor seguem o serviço selecionado."
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -11022,7 +11062,7 @@ function AppointmentModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
           <button className="primary-button" disabled={loading}>
@@ -11086,6 +11126,7 @@ function ScheduleBlockModal({
     <Modal
       title="Bloquear horário"
       subtitle="Impeça novos agendamentos durante uma indisponibilidade."
+      busy={loading}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -11159,7 +11200,7 @@ function ScheduleBlockModal({
         </label>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Voltar
           </button>
           <button
@@ -11191,13 +11232,6 @@ function UnsavedChangesModal({
 }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !saving) onContinue();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onContinue, saving]);
   async function save(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -11215,9 +11249,8 @@ function UnsavedChangesModal({
       eyebrow="Alterações não salvas"
       title="Salvar as alterações?"
       subtitle={`${section} tem edição que ainda não foi salva.`}
-      onClose={() => {
-        if (!saving) onContinue();
-      }}
+      busy={saving}
+      onClose={onContinue}
     >
       <form className="form-grid" noValidate onSubmit={(event) => void save(event)}>
         <p className="span-2">
@@ -11997,6 +12030,7 @@ function UserFormModal({
           : "Acesso da equipe ao sistema, com cargo e módulos."
       }
       eyebrow="Usuários"
+      busy={saving}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -12272,6 +12306,7 @@ function ResetPasswordModal({
       title="Redefinir senha"
       subtitle={`${user.fullName} · ${user.email}`}
       eyebrow="Usuários"
+      busy={saving}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -12340,6 +12375,7 @@ function UserActiveModal({
       title={user.active ? "Desativar usuário" : "Ativar usuário"}
       subtitle={`${user.fullName} · ${user.email}`}
       eyebrow="Usuários"
+      busy={saving}
       onClose={onClose}
     >
       <div className="form-grid">
@@ -12760,13 +12796,6 @@ function ActionModal({
 }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !saving) onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, saving]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -12785,7 +12814,7 @@ function ActionModal({
     }
   }
   return (
-    <Modal eyebrow={eyebrow} title={title} subtitle={subtitle} onClose={onClose}>
+    <Modal eyebrow={eyebrow} title={title} subtitle={subtitle} busy={saving} onClose={onClose}>
       <form className="form-grid" noValidate onSubmit={(event) => void submit(event)}>
         <p className="span-2">{effect}</p>
         {children}
@@ -13223,41 +13252,66 @@ function DeleteHolidayModal({
   );
 }
 
+// Pilha dos modais/gavetas abertos (o último aberto fica no topo): Esc fecha só o de cima e não
+// faz nada enquanto ele salva (`busy`). Clicar no fundo não fecha — só o X, Esc ou os botões.
+const escapeStack: symbol[] = [];
+
+function useEscapeToClose(onClose: () => void, busy: boolean) {
+  const latest = useRef({ onClose, busy });
+  useEffect(() => {
+    latest.current = { onClose, busy };
+  });
+  useEffect(() => {
+    const id = Symbol("dialog");
+    escapeStack.push(id);
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || escapeStack[escapeStack.length - 1] !== id) return;
+      if (!latest.current.busy) latest.current.onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      const index = escapeStack.indexOf(id);
+      if (index >= 0) escapeStack.splice(index, 1);
+    };
+  }, []);
+}
+
 export function Modal({
   title,
   subtitle,
   eyebrow = "Cadastro rápido",
+  busy = false,
   onClose,
   children,
 }: {
   title: string;
   subtitle: string;
   eyebrow?: string;
+  /** Salvamento em andamento: X e Esc ficam desativados. */
+  busy?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
   useBodyScrollLock();
+  useEscapeToClose(onClose, busy);
+  // Id próprio: com modal sobre modal, cada um é nomeado pelo seu título.
+  const titleId = useId();
   return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <div className="modal-backdrop" role="presentation">
       <section
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
       >
         <div className="modal-head">
           <div>
             <span className="eyebrow">{eyebrow}</span>
-            <h2 id="modal-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             <p>{subtitle}</p>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Fechar">
+          <button className="icon-button" onClick={onClose} aria-label="Fechar" disabled={busy}>
             <X size={20} />
           </button>
         </div>
@@ -13267,17 +13321,13 @@ export function Modal({
   );
 }
 
-function Drawer({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
+function Drawer({ title, subtitle, busy = false, onClose, children }: { title: string; subtitle: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
   useBodyScrollLock();
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useEscapeToClose(onClose, busy);
   return (
-    <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="drawer-backdrop">
       <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
-        <header className="drawer-head"><div><span className="eyebrow">Turmas</span><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" onClick={onClose} aria-label="Fechar gaveta" autoFocus><X size={20} /></button></header>
+        <header className="drawer-head"><div><span className="eyebrow">Turmas</span><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" onClick={onClose} aria-label="Fechar gaveta" autoFocus disabled={busy}><X size={20} /></button></header>
         <div className="drawer-body">{children}</div>
       </aside>
     </div>
@@ -13317,6 +13367,7 @@ function GroupsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [drawer, setDrawer] = useState<"create" | "enroll" | null>(null);
+  const [saving, setSaving] = useState(false);
   const canManage = canEdit("groups");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
@@ -13382,11 +13433,14 @@ function GroupsPage() {
   }, []);
   async function run(action: () => Promise<unknown>) {
     setError("");
+    setSaving(true);
     try {
       await action();
       await load();
     } catch (cause) {
       setError((cause as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
   const activeEnrollments =
@@ -13428,7 +13482,7 @@ function GroupsPage() {
             <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
           </div>
-          {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
+          {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." busy={saving} onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
             {error && <ErrorBanner error={error} />}
             <h2>Nova turma</h2>
@@ -13522,7 +13576,7 @@ function GroupsPage() {
             </form>
           </section>
           </Drawer>}
-          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o cliente." onClose={closeDrawers}>
+          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o cliente." busy={saving} onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
             {error && <ErrorBanner error={error} />}
             <h2>Matrícula</h2>
@@ -13608,7 +13662,7 @@ function GroupsPage() {
             </div>
           </section>
 
-          {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} onClose={closeDrawers}>
+          {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} busy={saving} onClose={closeDrawers}>
             <div className="group-drawer-content">
               {error && <ErrorBanner error={error} />}
               {canManage && (

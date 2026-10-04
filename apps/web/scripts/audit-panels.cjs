@@ -613,4 +613,42 @@ if (nativeProblems.length) {
 } else {
   console.log("Nenhum prompt/confirm/alert do navegador em apps/web/src.");
 }
+
+// Sétima verificação (fundo de modal): clicar fora não fecha modal nem gaveta — fecham só pelo X,
+// por Esc ou pelos botões. Todo elemento JSX de App.tsx cuja `className` contém `backdrop`
+// (`modal-backdrop`, `drawer-backdrop`…) é reprovado se tiver handler de clique/toque/ponteiro
+// (`onClick`, `onMouseDown`, `onMouseUp`, `onPointerDown`, `onPointerUp`, `onTouchStart`,
+// `onTouchEnd`): o fundo não tem outra razão para tratar clique além de fechar. O menu "Mais ações"
+// (`ActionMenu`) e o menu lateral do celular não são modais e não usam `backdrop`.
+const BACKDROP_HANDLERS = new Set(["onClick", "onMouseDown", "onMouseUp", "onPointerDown", "onPointerUp", "onTouchStart", "onTouchEnd"]);
+const classText = (init) => {
+  if (!init) return "";
+  if (ts.isStringLiteral(init)) return init.text;
+  if (ts.isJsxExpression(init) && init.expression) return init.expression.getText(sf);
+  return "";
+};
+const backdropProblems = [];
+const visitBackdrops = (node) => {
+  if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+    const attrs = node.attributes.properties.filter((a) => ts.isJsxAttribute(a) && a.name);
+    const className = attrs.find((a) => a.name.getText(sf) === "className");
+    if (className && /backdrop/.test(classText(className.initializer))) {
+      for (const attr of attrs) {
+        const name = attr.name.getText(sf);
+        if (BACKDROP_HANDLERS.has(name)) {
+          backdropProblems.push(`App.tsx:${lineOf(attr)} fundo de modal com ${name} (clicar fora não fecha; feche pelo X, Esc ou botões)`);
+        }
+      }
+    }
+  }
+  ts.forEachChild(node, visitBackdrops);
+};
+visitBackdrops(sf);
+
+if (backdropProblems.length) {
+  console.error(`${backdropProblems.length} fundo(s) de modal que fecham por clique:\n` + backdropProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum fundo de modal fecha por clique em App.tsx.");
+}
 if (failed) process.exit(1);
