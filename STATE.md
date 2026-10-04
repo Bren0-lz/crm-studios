@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** V4
-- **Última concluída:** T051
+- **Tarefa atual:** nenhuma (plano concluído)
+- **Última concluída:** T052
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -104,3 +104,5 @@
 - 2026-10-03 T050 DONE (verifier PASS na 1ª; API 150 + 26 skip, web 84, contratos 34). Migração 0041 (só zera `user_id` de profissionais duplicados do mesmo usuário, mantendo o mais antigo; depois índice único parcial `professionals(clinic_id, user_id)`; roda sozinha no próximo deploy; próxima livre: 0042). Contratos: `adminUserProfessionalInputSchema` {professionalId|null}, `adminUserCommissionInputSchema` {percentage, effectiveFrom}; `AdminUser.professionalId?/professionalName?/commissionPercentage?/commissionEffectiveFrom?` (regra ativa com maior effective_from ≤ hoje SP). Rotas só owner: PUT /admin/users/:id/professional (troca desliga o anterior; 404 USER_NOT_FOUND/PROFESSIONAL_NOT_FOUND; 409 PROFESSIONAL_ALREADY_LINKED) e PUT /admin/users/:id/commission (409 USER_NOT_PROFESSIONAL, 409 COMMISSION_RULE_DUPLICATE); ambas devolvem AdminUser. Auditoria users.professional_updated / users.commission_updated. P/ T051: `Professional` não tem `userId` — livres = GET /professionals menos os `professionalId` de GET /admin/users (o do próprio usuário continua na lista); "Nenhum" envia null; regra futura não muda o percentual exibido.
 - 2026-10-03 T051 DONE (verifier PASS na 1ª; web 89, API 150 + 26 skip, contratos 34). `UserCommissionSection` no `UserFormModal`: profissional (ativos livres + o do próprio usuário + "Nenhum"), percentual e "Vale a partir de"; "Salvar profissional"/"Salvar comissão" gravam na hora e atualizam só a linha; desabilitado com explicação sem profissional; aviso para data futura; usuário novo: comissão só depois de criado (via Editar). Lista mostra "Agenda: X · Comissão N%". api.ts: `setUserProfessional`, `setUserCommission`. Observação: Enter num campo de comissão envia o formulário principal (PATCH), não "Salvar comissão".
 - 2026-10-03 aguardando revisão manual de V4 (dependências T049, T051 DONE). Pontos para o dono decidir na V4: /schedule-blocks exige editar Agenda E Clientes; estoque/comandas exigem editar Clientes; histórico do cliente exige ver Clientes E CRM; GET /relationship/settings exige ver Configurações (403 em Contatos sugeridos sem Configurações); telas que carregam /patients dão erro para quem não vê Clientes; prompt/confirm antigos em CRM, Financeiro e cancelar bloqueio; Enter na seção de comissão.
+- 2026-10-03 V4 DONE: aprovada pelo dono no chat, sem correções (as regras e pendências listadas na V4 ficam como estão). Loop segue com T052.
+- 2026-10-03 T052 DONE (verifier PASS na 1ª; contratos 34, API 150 + 26 skip, web 89). STATUS incrementos 43 (cargo e permissões, regras da V4 e limitações), 44 (comissão por usuário), 45 (migrações automáticas no deploy); README com itens novos e seção da Vercel descrevendo `npm run db:migrate`. PLANO CONCLUÍDO: rodada 4 inteira DONE. Pendência que segue: integração PG de T037, T039, T047, T048, T050 nunca executada (sem `.env` nesta máquina).

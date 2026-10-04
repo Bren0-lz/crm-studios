@@ -635,11 +635,11 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
   Financeiro e conferir o percentual.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T049, T051
-- **Status:** BLOCKED
+- **Status:** DONE
 
 ### T052 — Documentação da rodada 4
 - **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (cargo, permissões por usuário,
   comissão por usuário) e item no `README.md`.
 - **Gate:** `npm run build`
 - **Depende de:** V4
-- **Status:** TODO
+- **Status:** DONE

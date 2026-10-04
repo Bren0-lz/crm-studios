@@ -559,6 +559,55 @@ Concluído:
 
 Limite atual: os testes de integração PostgreSQL dos incrementos 41 e 42 existem, mas não foram executados nesta máquina, que não tem `TEST_DATABASE_URL`.
 
+## Incremento 43 — Cargo e permissões por usuário
+
+Concluído:
+
+- cargo em texto livre (até 80 caracteres, ex.: "Instrutora de Pilates"), só informativo: não dá acesso (migração `0039`);
+- módulos por usuário, cada um com os níveis **Ver** e **Editar**: Agenda, Turmas, Clientes, Planos, CRM, Contatos sugeridos, Comunicações, Contratos, Prontuários, Financeiro, Relatórios e Configurações (migrações `0039` e `0040`); editar implica ver;
+- usuário sem ajuste segue o padrão do perfil, que reproduz o acesso anterior; "Restaurar padrão do perfil" desfaz o ajuste;
+- a gestora tem sempre acesso total (não editável); **Administração** (usuários, feriados, prazos) continua só da gestora e não é um módulo configurável; a Visão geral é sempre visível;
+- a API confere módulo e nível em todas as rotas (mapa único de rota → acesso) e relê as permissões do usuário no banco a cada requisição: a mudança vale sem novo login e usuário desativado recebe 401;
+- por decisão do dono, a fisioterapeuta não grava mais clientes (criar e editar cliente exigem editar Clientes); ela continua vendo Clientes e Planos;
+- em Configurações › Usuários: formulário com Cargo e tabela Ver/Editar já marcada com o padrão do perfil, selo "Permissões personalizadas" na lista e matriz "Padrão de cada perfil" como referência;
+- menu, rotas da web e botões de gravação seguem os módulos e níveis do usuário logado;
+- auditoria das mudanças de permissão;
+- testes de contratos, API em memória, PostgreSQL (opt-in) e interface.
+
+Regras aprovadas na revisão do dono:
+
+- criar e cancelar bloqueios de agenda exige editar Agenda **e** Clientes;
+- estoque e comandas (inclusive a leitura) exigem editar Clientes;
+- o histórico do cliente exige ver Clientes **e** CRM.
+
+Limitações conhecidas:
+
+- quem tem Contatos sugeridos sem ver Configurações recebe erro ao abrir a tela (ela carrega os prazos e mensagens de Configurações);
+- telas que carregam a lista de clientes (Agenda, Comunicações, Contratos, Turmas) dão erro para quem não vê Clientes;
+- a API aplica a mudança de permissão na hora, mas a interface só a mostra depois de recarregar a página ou entrar de novo.
+
+## Incremento 44 — Comissão por usuário
+
+Concluído:
+
+- usuário ligado a um profissional da agenda (no máximo um por usuário; migração `0041`) e percentual de comissão com data de início de vigência, no formulário de usuário da gestora;
+- o percentual cria uma nova regra de comissão do profissional, a mesma usada pelo Financeiro; a lista de usuários mostra o profissional e o percentual vigente;
+- sem profissional ligado, o percentual fica desabilitado com explicação;
+- a geração de comissões não mudou: continua por profissional, sobre atendimentos concluídos, com a regra vigente na data do atendimento;
+- auditoria das ligações e dos percentuais;
+- testes de API em memória, PostgreSQL (opt-in) e interface.
+
+## Incremento 45 — Migrações automáticas no deploy
+
+Concluído:
+
+- `npm run db:migrate` aplica só as migrações pendentes, sem dados demonstrativos;
+- o build de produção na Vercel (`VERCEL_ENV=production` com `STORAGE_MODE=postgres`) roda `npm run db:migrate` antes de compilar; se uma migração falhar, o build falha e a versão anterior continua no ar;
+- para migrar, a URL do Transaction pooler do Supabase (porta 6543) é trocada pela do Session pooler (5432);
+- deploys de prévia (preview) não aplicam migrações.
+
+Limite atual: os testes de integração PostgreSQL dos incrementos 43 e 44 existem, mas não foram executados nesta máquina, que não tem `TEST_DATABASE_URL`.
+
 ## Próximo incremento de desenvolvimento autônomo
 
 Conciliação dos cálculos financeiros com casos reais da clínica e preparação da importação validada dos dados do sistema anterior, inclusive seu modelo de planilha.

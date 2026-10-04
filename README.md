@@ -5,6 +5,8 @@ CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). 
 ## O que já funciona
 
 - autenticação com perfis de acesso;
+- usuários com cargo e permissões por módulo (Ver e Editar), com o padrão do perfil como ponto de partida e conferidas pela API a cada requisição;
+- comissão por usuário: ligação a um profissional da agenda e percentual com início de vigência;
 - painel com indicadores operacionais;
 - cadastro, edição e pesquisa de clientes, com lista paginada (20 por página);
 - importação de clientes por planilha CSV ou XLSX, com prévia, detecção de duplicados e modelo para download;
@@ -161,8 +163,12 @@ Variáveis de ambiente no painel da Vercel (Settings › Environment Variables):
 | `NODE_ENV` | `production` |
 | `WEB_ORIGIN` | o endereço do site, ex. `https://seu-projeto.vercel.app` |
 
-A função não roda migrações nem seed. Antes de publicar uma versão com migração nova, aplique-as
-da sua máquina com a URL do **Session pooler** (porta 5432) no `.env` e `npm run db:setup`.
+No deploy de produção (`VERCEL_ENV=production` com `STORAGE_MODE=postgres`), o build roda
+`npm run db:migrate` antes de compilar: aplica só as migrações pendentes, sem seed, trocando a
+porta 6543 pela 5432 do Session pooler. Se uma migração falhar, o build falha e a versão anterior
+continua no ar. Deploys de prévia não aplicam migrações. A função em si não roda migrações nem seed; para
+aplicá-las da sua máquina, use `npm run db:migrate` (ou `npm run db:setup`, que também aplica o
+seed demo se `SEED_DEMO_DATA=true`) com a URL do **Session pooler** no `.env`.
 A Vercel publica o que está no GitHub: faça o push dos commits antes.
 
 ## Estrutura
