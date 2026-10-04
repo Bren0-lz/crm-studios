@@ -903,7 +903,50 @@ profissional; criar modais personalizados para cada opção".
   Prontuários, Configurações, CRM vazio e os novos modais de confirmação.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** D08, D09, D10, D11, D12, T059, T060
-- **Status:** BLOCKED
+- **Status:** DONE
+
+Decisões do dono na V5 (04/10/2026):
+- Contas a receber passa a usar sinal e cor como as outras abas do Financeiro (T067).
+- Regra nova no Financeiro para profissional ligado a usuário só valer onde o usuário não tem regra
+  própria: **mantido** como está.
+- Fechar a gaveta "Dados da clínica" com alterações não salvas abre um aviso (T068).
+- Modais: nada fecha durante o salvamento, todos fecham com Esc e **nenhum** fecha ao clicar fora,
+  em todo o CRM (T069).
+
+### T067 — Contas a receber com sinal e cor
+- **Escopo:** em Financeiro › Contas a receber, os valores seguem o mesmo padrão das outras abas
+  (`signedCurrency`, `.cash-in`/`.cash-out`): entrada a receber com a cor de entrada; estornos,
+  ajustes negativos ou valores que reduzem o saldo com "- R$" em vermelho. Mesma regra no cartão de
+  celular. Teste web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
+- **Depende de:** V5
+- **Status:** TODO
+
+### T068 — Aviso ao fechar "Dados da clínica" com alterações
+- **Escopo:** em Configurações, fechar a gaveta "Dados da clínica" (ou sair da página pelo menu do
+  app) com edição não salva abre um modal (`ActionModal`/`Modal`, nunca `window.confirm`) com
+  **Salvar alterações**, **Descartar alterações** e **Continuar editando**. Salvar usa o mesmo
+  salvamento do formulário e só fecha se der certo (erro aparece no modal); descartar volta aos
+  valores salvos e fecha; continuar mantém a gaveta aberta. Sem alterações, fecha direto. Se for
+  simples, aplicar o mesmo às outras gavetas com formulário editável (Prazos e mensagens). Teste web
+  dos três caminhos.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
+- **Depende de:** V5
+- **Status:** TODO
+
+### T069 — Modais sem fechar por clique fora, com Esc e travados no salvamento
+- **Escopo:** em todo o CRM (`Modal`, `ActionModal`, `Drawer` e qualquer outro diálogo com fundo):
+  (1) clicar no fundo **não fecha** mais nada — remover o `onMouseDown` do `.modal-backdrop` e
+  equivalentes; (2) **Esc fecha** todos os modais/gavetas (hoje só o `ActionModal`), só o de cima
+  quando houver modal sobre modal; (3) durante o salvamento (`saving`/envio em andamento), o X, o
+  Esc e o "Voltar/Cancelar" ficam desativados — o `Modal` ganha prop opcional (ex.: `busy`) e as
+  telas que salvam passam o estado. O `ActionMenu` (menu "Mais ações") continua fechando ao clicar
+  fora — não é modal. Ampliar o audit (autorizado): reprovar fundo de modal com `onClick`/
+  `onMouseDown` que chame fechar. Testes web: clique no fundo não fecha; Esc fecha; X desativado
+  durante o salvamento.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
+- **Depende de:** V5
+- **Status:** TODO
 
 ## Rodada 6 — Etiquetas, cadastro guiado e WhatsApp (pedido do dono, 04/10/2026)
 
