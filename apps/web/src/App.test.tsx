@@ -2720,10 +2720,11 @@ describe("application shell", () => {
         commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
       };
     }
-    function renderFinance() {
+    function renderFinance(extraReceivables: object[] = []) {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
       const workspace = receivablesWorkspace();
+      workspace.summary.receivables.push(...(extraReceivables as typeof workspace.summary.receivables));
       vi.mocked(fetch).mockImplementation(async (input, init) => {
         const url = String(input);
         if (init?.method === "POST" && url.includes("/finance/receivables/")) {
@@ -2748,7 +2749,7 @@ describe("application shell", () => {
 
       const ana = rowOf("Ana Souza");
       expect(within(ana).getByText("Pilates 2x · parcela 1/3")).toBeInTheDocument();
-      expect(within(ana).getByText("R$ 250,00")).toHaveClass("finance-amount");
+      expect(within(ana).getByText("+ R$ 250,00")).toHaveClass("finance-amount", "cash-in");
       expect(within(ana).getByText("Em aberto")).toHaveClass("status-pill");
       expect(within(ana).getByRole("button", { name: "Dar baixa" })).toHaveClass("primary-button", "button-sm");
       expect(within(ana).getByRole("button", { name: "Ajustar" })).toBeInTheDocument();
@@ -2763,6 +2764,20 @@ describe("application shell", () => {
       expect(within(carla).getByRole("button", { name: "Estornar" })).toHaveClass("danger-button", "button-sm");
       // Parcela paga não entra na seleção para renegociar.
       expect(within(carla).queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    it("shows receivable values with sign and color like the other finance tabs", async () => {
+      renderFinance([
+        { clinicId, installmentCount: 1, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z", id: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", patientId: "p4", patientName: "Diego Rocha", description: "Ajuste de crédito", installmentNumber: 1, dueDate: saoPauloToday(), amountInCents: -4000, status: "open", overdue: false },
+      ]);
+      await screen.findByText("Ana Souza");
+      expect(within(rowOf("Ana Souza")).getByText("+ R$ 250,00")).toHaveClass("finance-amount", "cash-in");
+      expect(within(rowOf("Bruno Lima")).getByText("+ R$ 180,00")).toHaveClass("finance-amount", "cash-in");
+      expect(within(rowOf("Carla Mendes")).getByText("+ R$ 300,00")).toHaveClass("finance-amount", "cash-in");
+      // Valor que reduz o saldo aparece com "- R$" em vermelho (mesmo elemento no cartão de celular).
+      const diego = within(rowOf("Diego Rocha")).getByText("- R$ 40,00");
+      expect(diego).toHaveClass("finance-amount", "cash-out");
+      expect(diego).not.toHaveClass("cash-in");
     });
 
     it("selects installments and shows the action bar only with items selected", async () => {

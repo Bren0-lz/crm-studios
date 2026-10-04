@@ -6461,8 +6461,10 @@ function ReceivablesList({
                 <span className="finance-label">Vencimento </span>
                 {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
               </span>
-              <strong className="finance-amount">
-                {currency.format(item.amountInCents / 100)}
+              <strong
+                className={`finance-amount ${item.amountInCents < 0 ? "cash-out" : "cash-in"}`}
+              >
+                {signedCurrency(item.amountInCents)}
               </strong>
               <span>
                 <span className={`status-pill ${situation.pill}`}>

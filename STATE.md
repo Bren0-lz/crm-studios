@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T067
-- **Última concluída:** V5
+- **Tarefa atual:** T068
+- **Última concluída:** T067
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -132,3 +132,4 @@
 - 2026-10-04 RODADA 6 planejada (pedido do dono): T061 botões de WhatsApp (variante whatsapp-button + audit), T062/T063 etiquetas configuráveis com cor (migração 0044 importa as etiquetas existentes; cliente só escolhe entre as configuradas; filtros com as configuradas; excluir em uso = 409), T064/T065 cadastro guiado do cliente (demonstração / plano com turma opcional do mesmo serviço / avulso / só cadastrar) e filtro "Assinantes sem turma vinculada", V6 manual, T066 documentação. Começa depois da V5 e da T054. Próxima migração livre: 0044.
 - 2026-10-04 Pedido do dono: fim da documentação desnecessária. T054 e T066 removidas do PLAN.md (T061 passa a depender da V5); critério global de STATUS/README removido; CLAUDE.md › Documentação: só escrever documento quando for essencial para o desenvolvimento.
 - 2026-10-04 V5 DONE (aprovada pelo dono no chat). Decisões: Contas a receber com sinal/cor (T067); regra do Financeiro p/ profissional ligado a usuário mantida; aviso Salvar/Descartar/Continuar ao fechar Dados da clínica com alteração (T068); modais nunca fecham por clique fora em todo o CRM, Esc fecha todos, X/Esc/Voltar travados durante o salvamento (T069). Ordem: T067–T069 antes da rodada 6.
+- 2026-10-04 T067 DONE (verifier PASS na 1ª; web 143, API 162 + 31 skip, contratos 35). ReceivablesList usa signedCurrency + cash-in (≥0, "+ R$") / cash-out (<0, "- R$" vermelho); celular herda (mesmo elemento). renderFinance aceita parcelas extras. Parcelas pagas/canceladas positivas também ficam verdes (cor segue o sinal, não o status).

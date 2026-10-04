@@ -920,7 +920,7 @@ Decisões do dono na V5 (04/10/2026):
   celular. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
 - **Depende de:** V5
-- **Status:** TODO
+- **Status:** DONE
 
 ### T068 — Aviso ao fechar "Dados da clínica" com alterações
 - **Escopo:** em Configurações, fechar a gaveta "Dados da clínica" (ou sair da página pelo menu do
