@@ -707,7 +707,7 @@ Regras gerais da rodada:
     classe.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D06
-- **Status:** TODO
+- **Status:** DONE
 
 ### D08 — Revisão extensa do Financeiro: estrutura e Contas a receber
 Pedido do dono (04/10/2026): "revisão extensa na aba Financeiro — textos pequenos demais, um campo

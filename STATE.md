@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** D07
-- **Última concluída:** D06
+- **Tarefa atual:** D08
+- **Última concluída:** D07
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -112,3 +112,6 @@
 - 2026-10-04 Pedido do dono: revisão extensa do Financeiro (textos pequenos, caixa de marcar gigante, informações confusas). D08 ampliada (estrutura, Contas a receber, caixa de seleção, filtros, forma de pagamento escolhida na baixa) e nova D12 (Contas a pagar/despesas fixas, Comissões, Caixa do dia, Previsão). V5 passa a depender da D12.
 - 2026-10-04 Pedido do dono: fim das janelas nativas do navegador. D10 reescrita: as 14 ocorrências de window.prompt/confirm (CRM perda e conversão, cancelar plano, ajustar parcela, categoria, centro de custo, renegociação com 4 prompts seguidos, regra de comissão, finalizar evolução, cancelar bloqueio, excluir feriado) viram modais próprios; audit-panels pode ser ampliado para reprovar prompt/confirm/alert.
 - 2026-10-04 D06 DONE (verifier PASS na 2ª; web 89, API 150 + 26 skip, contratos 34). Tokens em :root: --text-xs 12, sm 13, md 14, lg 16, xl 18, 2xl 22, 3xl 30, 4xl 42, fluid-lg clamp(20,2vw,28), fluid-xl clamp(30,3vw,42), display clamp(42,5.5vw,76). Todos os font-size de styles.css usam tokens; input/select/textarea em --text-md; .agenda-actions select e .lead-actions em --text-sm. audit-panels ganhou 4ª checagem (token não declarado, < 12px, px fora do :root, calc com subtração/divisão/fator < 1, min(), clamp com mínimo fora de token, em/rem < 1, % < 100; font-size: 0 permitido para esconder texto). CLAUDE.md › Design de páginas › Tipografia. Sem conferência visual: possíveis apertos no contador do kanban (22px), .filter-badge (19px de altura) e botões de linha (agenda, financeiro, CRM) — ver na D07/D08.
+- 2026-10-04 D07 FAIL 1/3: Configurações ainda tem 2 primários de largura total ("Salvar configurações", "Salvar prazos e mensagens": filhos diretos de form.clinical-form, grid sem justify) e abas com className ternário "active" : "" escapam da checagem de botão sem classe.
+- 2026-10-04 D07 FAIL 2/3: ainda esticados por grid — "Imprimir recibo" (ReceiptModal, .receipt-content) e "Adicionar campo" (.assessment-field-builder). Decisão do orquestrador: o "Agendar experimental" (.lead-trial-button) com largura total no cartão estreito do kanban é exceção aceita, como o "Entrar" do login.
+- 2026-10-04 D07 DONE (verifier PASS na 3ª; web 92, API 150 + 26 skip, contratos 34). Variantes primary/secondary/text/danger-button + button-sm (32px, --text-sm); :disabled opacidade 0,5 + not-allowed. Removidas ghost-icon, ghost-danger, group-cancel-button e regras de botão por contexto; .segmented button → .segment-button; abas → .tab-button (sempre presente). Primários de formulário em modal-actions à direita. Exceções de largura total: Entrar (login), .lead-trial-button no kanban, ações empilhadas no celular. audit-panels: 5ª checagem (button sem classe ou com classe que pode ficar vazia; exceções em BUTTON_CLASS_BY_PROP; AUDIT_APP_TSX aponta outro .tsx para testes sintéticos). P/ D09: "Matricular cliente" na gaveta da turma (.group-drawer-quick-actions, flex 1 1 180px) ainda estica. P/ V5: conferir ícone de 32px em Agenda de hoje e "Buscar" dentro do campo de busca.

@@ -815,9 +815,9 @@ function BirthdayDashboardCard() {
                   <strong>{suggestion.patientName}</strong>
                   <small>{suggestion.detail}</small>
                 </div>
-                <div className="plan-actions">
+                <div className="birthday-actions">
                   <a
-                    className="secondary-button"
+                    className="secondary-button button-sm"
                     href={whatsappLink(
                       suggestion.whatsapp || suggestion.phone,
                       birthdayMessage(settings, suggestion.patientName),
@@ -831,7 +831,7 @@ function BirthdayDashboardCard() {
                   {canEdit("relationship") && (
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       disabled={saving === suggestion.referenceKey}
                       onClick={() => void markSent(suggestion)}
                     >
@@ -867,7 +867,7 @@ function AppointmentRow({ appointment }: { appointment: Appointment }) {
       <span className={`status-pill ${appointment.status}`}>
         {statusLabel(appointment.status)}
       </span>
-      <button className="ghost-icon">
+      <button className="icon-button button-sm">
         <MoreHorizontal size={19} />
       </button>
     </div>
@@ -1029,7 +1029,7 @@ function PatientsPage() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por nome, CPF ou telefone"
             />
-            <button>Buscar</button>
+            <button className="primary-button button-sm">Buscar</button>
           </form>
           <button
             type="button"
@@ -1057,7 +1057,7 @@ function PatientsPage() {
               <span className="filter-label" id="patient-status-filter">Situação</span>
               <div className="segmented" role="group" aria-labelledby="patient-status-filter">
                 {([["all", "Todos"], ["active", "Ativos"], ["inactive", "Inativos"]] as const).map(([value, label]) => (
-                  <button
+                  <button className="segment-button"
                     type="button"
                     key={value}
                     aria-pressed={filters.status === value}
@@ -1093,7 +1093,7 @@ function PatientsPage() {
               </select>
             </label>
             {activeFilterCount > 0 && (
-              <button type="button" className="text-link clear-filters" onClick={clearFilters}>
+              <button type="button" className="text-button button-sm clear-filters" onClick={clearFilters}>
                 Limpar filtros
               </button>
             )}
@@ -1377,10 +1377,10 @@ function PatientExportModal({
         <fieldset className="form-fieldset">
           <legend>Colunas</legend>
           <div className="patient-export-bulk">
-            <button type="button" onClick={() => setColumns([...patientExportColumns])}>
+            <button className="text-button button-sm" type="button" onClick={() => setColumns([...patientExportColumns])}>
               Marcar todas
             </button>
-            <button type="button" onClick={() => setColumns([])}>
+            <button className="text-button button-sm" type="button" onClick={() => setColumns([])}>
               Desmarcar todas
             </button>
           </div>
@@ -2020,14 +2020,14 @@ function RelationshipPage() {
       {error && <ErrorBanner error={error} />}
       {notice && <div className="success-banner">{notice}</div>}
       <div className="segmented" role="group" aria-label="Visão">
-        <button
+        <button className="segment-button"
           type="button"
           aria-pressed={view === "suggestions"}
           onClick={() => setView("suggestions")}
         >
           Contatos sugeridos
         </button>
-        <button
+        <button className="segment-button"
           type="button"
           aria-pressed={view === "birthdays"}
           onClick={() => setView("birthdays")}
@@ -2112,7 +2112,7 @@ function RelationshipPage() {
                   </div>
                   <div className="plan-actions">
                     <a
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       href={whatsappLink(contactPhone, messageFor(suggestion))}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -2122,7 +2122,7 @@ function RelationshipPage() {
                     </a>
                     {canEdit("relationship") && (
                     <button
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       onClick={() => {
                         setNotice("");
                         setRecording(suggestion);
@@ -2241,9 +2241,9 @@ function BirthdaysMonthPanel({
                 <strong>{formatPhone(entry.phone)}</strong>
               </div>
               {!entry.congratulated && (
-                <div className="plan-actions">
+                <div className="birthday-actions">
                   <a
-                    className="secondary-button"
+                    className="secondary-button button-sm"
                     href={whatsappLink(
                       entry.whatsapp || entry.phone,
                       birthdayMessage(settings, entry.patientName),
@@ -2257,7 +2257,7 @@ function BirthdaysMonthPanel({
                   {canEdit("relationship") && (
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       disabled={saving === entry.referenceKey}
                       onClick={() => void markSent(entry)}
                     >
@@ -2551,12 +2551,14 @@ function CommunicationsPage() {
                   placeholder="Não inclua diagnósticos ou informações clínicas."
                 />
               </label>
+              <div className="modal-actions">
               <button
                 className="primary-button"
                 disabled={!patientId || !body.trim()}
               >
                 Adicionar à fila
               </button>
+              </div>
             </form>
           </section>
           <section className="panel reminder-generator">
@@ -2574,12 +2576,14 @@ function CommunicationsPage() {
                 onChange={(event) => setReferenceDate(event.target.value)}
               />
             </label>
+            <div className="modal-actions">
             <button
-              className="secondary-button"
+              className="primary-button"
               onClick={() => void generate()}
             >
               Gerar lembretes
             </button>
+            </div>
             <div className="outbox-note">
               <LockKeyhole size={17} />
               <span>
@@ -3165,7 +3169,9 @@ function DocumentsPage() {
                 {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
                 {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
               </small>
-              <button className="secondary-button">Criar modelo</button>
+              <div className="modal-actions">
+                <button className="primary-button">Criar modelo</button>
+              </div>
             </form>
           </section>
           <section className="panel document-form-panel">
@@ -3270,12 +3276,14 @@ function DocumentsPage() {
                   }
                 />
               </label>
+              <div className="modal-actions">
               <button
                 className="primary-button"
                 disabled={!documentForm.templateId || !documentForm.patientId}
               >
                 Criar rascunho
               </button>
+              </div>
             </form>
           </section>
           </>
@@ -3311,7 +3319,7 @@ function DocumentsPage() {
                     </span>
                     {canManage && template.active && (
                       <button
-                        className="secondary-button"
+                        className="secondary-button button-sm"
                         onClick={() => setVersioning(template)}
                       >
                         Nova versão
@@ -3360,7 +3368,7 @@ function DocumentsPage() {
                     <div className="document-actions">
                       {item.status === "issued" && (
                         <button
-                          className="secondary-button"
+                          className="secondary-button button-sm"
                           onClick={() => setPrinting(item)}
                         >
                           <Printer size={15} /> Imprimir
@@ -3368,7 +3376,7 @@ function DocumentsPage() {
                       )}
                       {canManage && item.status === "draft" && (
                         <button
-                          className="primary-button"
+                          className="primary-button button-sm"
                           onClick={() => void issueDocument(item)}
                         >
                           Emitir
@@ -3376,7 +3384,7 @@ function DocumentsPage() {
                       )}
                       {canManage && item.status !== "cancelled" && (
                         <button
-                          className="secondary-button danger"
+                          className="danger-button button-sm"
                           onClick={() => setCancelling(item)}
                         >
                           Cancelar
@@ -3554,7 +3562,7 @@ function CancelDocumentModal({
           </button>
           <button
             type="button"
-            className="secondary-button danger"
+            className="danger-button"
             onClick={() => void confirmCancel()}
             disabled={saving}
           >
@@ -4429,7 +4437,7 @@ function CommercialPage() {
                               ? ` · ${lead.overdueTasks} atrasada(s)`
                               : ""}
                           </span>
-                          <button onClick={() => setActivityLead(lead)}>
+                          <button className="text-button button-sm" onClick={() => setActivityLead(lead)}>
                             Atividades
                           </button>
                         </div>
@@ -4453,14 +4461,14 @@ function CommercialPage() {
                                 ))}
                             </select>
                             <button
-                              className="primary-button"
+                              className="primary-button button-sm"
                               onClick={() => void convert(lead)}
                             >
                               Converter
                             </button>
                             {!lead.convertedPatientId && (
                               <button
-                                className="secondary-button lead-trial-button"
+                                className="secondary-button button-sm lead-trial-button"
                                 onClick={() => {
                                   setNotice("");
                                   setTrialLead(lead);
@@ -4942,7 +4950,7 @@ function LeadActivityModal({
     >
       <div className="activity-tabs">
         <button
-          className={tab === "tasks" ? "active" : ""}
+          className={`tab-button ${tab === "tasks" ? "active" : ""}`}
           onClick={() => setTab("tasks")}
         >
           Tarefas (
@@ -4950,7 +4958,7 @@ function LeadActivityModal({
           )
         </button>
         <button
-          className={tab === "contacts" ? "active" : ""}
+          className={`tab-button ${tab === "contacts" ? "active" : ""}`}
           onClick={() => setTab("contacts")}
         >
           Contatos ({activity?.contacts.length ?? 0})
@@ -4993,9 +5001,11 @@ function LeadActivityModal({
                 }
               />
             </label>
-            <button className="primary-button span-2" disabled={saving}>
+            <div className="modal-actions">
+            <button className="primary-button" disabled={saving}>
               Adicionar tarefa
             </button>
+            </div>
           </form>
           )}
           <div className="activity-list">
@@ -5010,12 +5020,12 @@ function LeadActivityModal({
                 </div>
                 {item.status === "open" && editable ? (
                   <div>
-                    <button
+                    <button className="secondary-button button-sm"
                       onClick={() => void changeTask(item.id, "completed")}
                     >
                       Concluir
                     </button>
-                    <button
+                    <button className="danger-button button-sm"
                       onClick={() => void changeTask(item.id, "cancelled")}
                     >
                       Cancelar
@@ -5084,9 +5094,11 @@ function LeadActivityModal({
                 }
               />
             </label>
-            <button className="primary-button span-2" disabled={saving}>
+            <div className="modal-actions">
+            <button className="primary-button" disabled={saving}>
               Registrar contato
             </button>
+            </div>
           </form>
           )}
           <div className="activity-list contact-timeline">
@@ -5305,7 +5317,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                   )}
                   <div className="plan-actions">
                     <button
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       onClick={() => setMovementPlan(plan)}
                     >
                       <FileClock size={15} />
@@ -5315,7 +5327,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                       plan.status !== "cancelled" &&
                       !plan.renewedByPlanId && (
                         <button
-                          className="secondary-button"
+                          className="secondary-button button-sm"
                           onClick={() => setRenewingPlan(plan)}
                         >
                           <RefreshCw size={15} />
@@ -5326,7 +5338,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                       <>
                         {plan.status === "active" ? (
                           <button
-                            className="secondary-button"
+                            className="secondary-button button-sm"
                             onClick={() => void changeStatus(plan, "paused")}
                           >
                             <Pause size={15} />
@@ -5334,7 +5346,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                           </button>
                         ) : (
                           <button
-                            className="secondary-button"
+                            className="secondary-button button-sm"
                             onClick={() => void changeStatus(plan, "active")}
                           >
                             <Play size={15} />
@@ -5342,7 +5354,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                           </button>
                         )}
                         <button
-                          className="ghost-danger"
+                          className="danger-button button-sm"
                           onClick={() =>
                             window.confirm(
                               "Cancelar este plano definitivamente?",
@@ -5906,31 +5918,31 @@ function FinancePage() {
           <section className="finance-controls">
             <div className="activity-tabs">
               <button
-                className={tab === "receivables" ? "active" : ""}
+                className={`tab-button ${tab === "receivables" ? "active" : ""}`}
                 onClick={() => setTab("receivables")}
               >
                 Contas a receber ({data.summary.receivables.length})
               </button>
               <button
-                className={tab === "payables" ? "active" : ""}
+                className={`tab-button ${tab === "payables" ? "active" : ""}`}
                 onClick={() => setTab("payables")}
               >
                 Contas a pagar ({data.payables.length})
               </button>
               <button
-                className={tab === "commissions" ? "active" : ""}
+                className={`tab-button ${tab === "commissions" ? "active" : ""}`}
                 onClick={() => setTab("commissions")}
               >
                 Comissões ({data.commissions.length})
               </button>
               <button
-                className={tab === "dailyCash" ? "active" : ""}
+                className={`tab-button ${tab === "dailyCash" ? "active" : ""}`}
                 onClick={() => setTab("dailyCash")}
               >
                 Caixa do dia
               </button>
               <button
-                className={tab === "forecast" ? "active" : ""}
+                className={`tab-button ${tab === "forecast" ? "active" : ""}`}
                 onClick={() => setTab("forecast")}
               >
                 Previsão
@@ -6060,7 +6072,7 @@ function FinancePage() {
                       <div className="finance-actions">
                         {canManage && item.status === "open" && (
                           <button
-                            className="secondary-button"
+                            className="secondary-button button-sm"
                             onClick={() =>
                               void adjustReceivable(item.id, item.amountInCents)
                             }
@@ -6070,7 +6082,7 @@ function FinancePage() {
                         )}
                         {item.status === "paid" && (
                           <button
-                            className="secondary-button"
+                            className="secondary-button button-sm"
                             onClick={() =>
                               void api
                                 .paymentReceipt(item.id)
@@ -6085,11 +6097,7 @@ function FinancePage() {
                         )}
                         {canManage && (
                         <button
-                          className={
-                            item.status === "paid"
-                              ? "secondary-button"
-                              : "primary-button"
-                          }
+                          className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
                           disabled={item.status === "cancelled"}
                           onClick={() =>
                             void receivableAction(
@@ -6143,11 +6151,7 @@ function FinancePage() {
                     <div className="finance-actions">
                       {canManage && (
                       <button
-                        className={
-                          item.status === "paid"
-                            ? "secondary-button"
-                            : "primary-button"
-                        }
+                        className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
                         onClick={() =>
                           void payableAction(
                             item.id,
@@ -6185,11 +6189,7 @@ function FinancePage() {
                     <div className="finance-actions">
                       {canManage && (
                       <button
-                        className={
-                          item.status === "paid"
-                            ? "secondary-button"
-                            : "primary-button"
-                        }
+                        className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
                         onClick={async () => {
                           if (item.status === "paid")
                             await api.reverseCommission(item.id);
@@ -6713,7 +6713,7 @@ function RecurringPayablesSection({
                     {editable && status !== "ended" && (
                       <>
                         <button
-                          className="secondary-button"
+                          className="secondary-button button-sm"
                           aria-label={`${item.active ? "Pausar" : "Reativar"} ${item.description}`}
                           disabled={busyId === item.id}
                           onClick={() =>
@@ -6723,7 +6723,7 @@ function RecurringPayablesSection({
                           {item.active ? "Pausar" : "Reativar"}
                         </button>
                         <button
-                          className="secondary-button"
+                          className="danger-button button-sm"
                           aria-label={`Encerrar ${item.description}`}
                           disabled={busyId === item.id}
                           onClick={() => setEnding(item)}
@@ -7186,9 +7186,11 @@ function ReceiptModal({
             <dd>{new Date(receipt.paidAt).toLocaleString("pt-BR")}</dd>
           </div>
         </dl>
+        <div className="modal-actions">
         <button className="primary-button" onClick={() => window.print()}>
           Imprimir recibo
         </button>
+        </div>
       </div>
     </Modal>
   );
@@ -7361,7 +7363,7 @@ function ClinicalRecordsPage() {
                 </div>
                 <div className="clinical-card-actions">
                   <button
-                    className="secondary-button"
+                    className="secondary-button button-sm"
                     onClick={() => setHistoryRecord(record)}
                   >
                     <FileClock size={16} />
@@ -7370,13 +7372,13 @@ function ClinicalRecordsPage() {
                   {canManage && record.status === "draft" && (
                     <>
                       <button
-                        className="secondary-button"
+                        className="secondary-button button-sm"
                         onClick={() => setEditor(record)}
                       >
                         Editar
                       </button>
                       <button
-                        className="primary-button"
+                        className="primary-button button-sm"
                         onClick={() => void finalize(record)}
                       >
                         Finalizar
@@ -7605,7 +7607,7 @@ function ClinicalWorkspacePanel({
               Nova medição
             </button>
             <button
-              className="secondary-button"
+              className="danger-button"
               onClick={() => setEditor("closure")}
             >
               Encerrar tratamento
@@ -7679,7 +7681,7 @@ function ClinicalWorkspacePanel({
                       </div>
                       {editable && goal.status === "active" && (
                         <button
-                          className="text-button"
+                          className="text-button button-sm"
                           onClick={async () => {
                             try {
                               await api.updateTherapeuticGoalStatus(
@@ -7744,7 +7746,7 @@ function ClinicalWorkspacePanel({
                     </small>
                   </div>
                   <button
-                    className="text-button"
+                    className="text-button button-sm"
                     onClick={() => void downloadAttachment(attachment.id)}
                   >
                     Baixar
@@ -9107,19 +9109,19 @@ function AgendaPage() {
           <div className="agenda-toolbar-end">
             <div className="view-toggle">
               <button
-                className={view === "day" ? "active" : ""}
+                className={`tab-button ${view === "day" ? "active" : ""}`}
                 onClick={() => setView("day")}
               >
                 Dia
               </button>
               <button
-                className={view === "week" ? "active" : ""}
+                className={`tab-button ${view === "week" ? "active" : ""}`}
                 onClick={() => setView("week")}
               >
                 Semana
               </button>
               <button
-                className={view === "month" ? "active" : ""}
+                className={`tab-button ${view === "month" ? "active" : ""}`}
                 onClick={() => setView("month")}
               >
                 Mês
@@ -9572,7 +9574,7 @@ function ScheduleBlockCard({
         )}
       </div>
       {block.status === "active" && !compact && onCancel && (
-        <button className="secondary-button danger" onClick={onCancel}>
+        <button className="danger-button button-sm" onClick={onCancel}>
           Cancelar bloqueio
         </button>
       )}
@@ -9636,7 +9638,7 @@ function AgendaCard({
             <option value="cancelled">Cancelado</option>
           </select>
           <button
-            className="ghost-icon"
+            className="icon-button button-sm"
             aria-label={`Histórico de ${appointment.patientName}`}
             title="Histórico de reagendamentos"
             onClick={onHistory}
@@ -9783,13 +9785,13 @@ function AppointmentDetailsModal({
             <span>O horário será liberado na agenda.</span>
             <div>
               <button className="secondary-button" onClick={() => setConfirmCancel(false)} disabled={cancelling}>Voltar</button>
-              <button className="secondary-button danger" onClick={() => void cancelAppointment()} disabled={cancelling}>{cancelling ? "Cancelando…" : "Confirmar cancelamento"}</button>
+              <button className="danger-button" onClick={() => void cancelAppointment()} disabled={cancelling}>{cancelling ? "Cancelando…" : "Confirmar cancelamento"}</button>
             </div>
           </div>
         )}
         {editable && !confirmCancel && canChange && (
           <div className="appointment-detail-actions">
-            <button className="secondary-button danger" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>
+            <button className="danger-button" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>
             <button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>
           </div>
         )}
@@ -10560,7 +10562,7 @@ function AdminPage() {
                 </div>
                 <div className="admin-user-actions">
                   <button
-                    className="secondary-button"
+                    className="secondary-button button-sm"
                     aria-label={`Editar ${item.fullName}`}
                     onClick={() => {
                       setNotice("");
@@ -10570,7 +10572,7 @@ function AdminPage() {
                     Editar
                   </button>
                   <button
-                    className="secondary-button"
+                    className={item.active ? "danger-button button-sm" : "secondary-button button-sm"}
                     onClick={() => {
                       setNotice("");
                       setToggling(item);
@@ -10579,7 +10581,7 @@ function AdminPage() {
                     {item.active ? "Desativar" : "Ativar"}
                   </button>
                   <button
-                    className="text-button"
+                    className="secondary-button button-sm"
                     onClick={() => {
                       setNotice("");
                       setResetting(item);
@@ -10671,7 +10673,9 @@ function AdminPage() {
                   }
                 />
               </label>
-              <button className="primary-button">Salvar configurações</button>
+              <div className="modal-actions">
+                <button className="primary-button">Salvar configurações</button>
+              </div>
             </form>
           </section>
         )}
@@ -11411,7 +11415,7 @@ function UserActiveModal({
           </button>
           <button
             type="button"
-            className={user.active ? "secondary-button danger" : "primary-button"}
+            className={user.active ? "danger-button" : "primary-button"}
             onClick={() => void confirm()}
             disabled={saving}
           >
@@ -11540,7 +11544,7 @@ function HolidaysSection() {
                   </div>
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="danger-button button-sm"
                     disabled={removingId === holiday.id}
                     aria-label={`Excluir feriado ${holiday.name}`}
                     onClick={() => void remove(holiday)}
@@ -11682,9 +11686,11 @@ function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
           ))}
           {notice && <p className="muted-copy">{notice}</p>}
           {canEdit && (
+            <div className="modal-actions">
             <button className="primary-button" disabled={saving}>
               {saving ? "Salvando…" : "Salvar prazos e mensagens"}
             </button>
+            </div>
           )}
         </form>
       )}
@@ -11789,14 +11795,14 @@ function GroupSlotsEditor({ slots, onChange, weekDayNames }: { slots: GroupClass
   }
   return (
     <div className="group-slots-editor">
-      <div className="group-slots-head"><div><h4>Dias e horários fixos</h4><p>Estes horários ficam reservados na agenda toda semana, com o profissional e a sala da turma.</p></div><button type="button" className="secondary-button" disabled={slots.length >= 14} onClick={addSlot}>Adicionar horário</button></div>
+      <div className="group-slots-head"><div><h4>Dias e horários fixos</h4><p>Estes horários ficam reservados na agenda toda semana, com o profissional e a sala da turma.</p></div><button type="button" className="secondary-button button-sm" disabled={slots.length >= 14} onClick={addSlot}>Adicionar horário</button></div>
       {slots.length === 0 && <p className="group-empty">Adicione ao menos um dia e horário para a turma.</p>}
       {slots.map((slot, index) => (
         <div className="group-slot-row" key={index}>
           <label>Dia<select value={slot.weekday} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, weekday: Number(event.target.value) } : item))}>{weekDayNames.map((name, weekday) => <option key={name} value={weekday}>{name}</option>)}</select></label>
           <label>Início<input type="time" required value={slot.startTime} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, startTime: event.target.value } : item))} /></label>
           <label>Término<input type="time" required min={slot.startTime} value={slot.endTime} onChange={(event) => onChange(slots.map((item, position) => position === index ? { ...item, endTime: event.target.value } : item))} /></label>
-          <button type="button" className="ghost-icon" aria-label={`Remover horário ${index + 1}`} onClick={() => onChange(slots.filter((_, position) => position !== index))}><X size={18} /></button>
+          <button type="button" className="icon-button" aria-label={`Remover horário ${index + 1}`} onClick={() => onChange(slots.filter((_, position) => position !== index))}><X size={18} /></button>
         </div>
       ))}
     </div>
@@ -12014,7 +12020,7 @@ function GroupsPage() {
                 <br />
                 {describeGroupSchedule(groupForm.weeklySlots)}
               </div>
-              <button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button>
+              <div className="modal-actions span-2"><button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button></div>
             </form>
           </section>
           </Drawer>}
@@ -12072,7 +12078,7 @@ function GroupsPage() {
                   ))}
                 </select>
               </label>
-              <button className="primary-button">Matricular</button>
+              <div className="modal-actions span-2"><button className="primary-button">Matricular</button></div>
             </form>
           </section>
           </Drawer>}
@@ -12098,7 +12104,7 @@ function GroupsPage() {
                   <div className="group-slot-summary">
                     {(group.weeklySlots ?? []).length ? group.weeklySlots.map((slot) => <span key={`${slot.weekday}-${slot.startTime}`}>{groupSlotLabel(slot, weekDayNames)}</span>) : <small>Horários ainda não definidos</small>}
                   </div>
-                  <button className="secondary-button" onClick={() => openGroup(group)}>Abrir turma</button>
+                  <button className="secondary-button button-sm" onClick={() => openGroup(group)}>Abrir turma</button>
                 </article>
               ))}
             </div>
@@ -12122,7 +12128,7 @@ function GroupsPage() {
                   <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
                   <div className="group-drawer-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
                   <GroupSlotsEditor slots={editingSlots} onChange={setEditingSlots} weekDayNames={weekDayNames} />
-                  <button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button>
+                  <div className="modal-actions span-2"><button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button></div>
                 </form>
               </section>
               </>
@@ -12131,7 +12137,7 @@ function GroupsPage() {
                 <h3>Participantes</h3>
                 <div className="group-members">
                   {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
-                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span>{canManage && <button type="button" className="group-cancel-button" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button>}</div>
+                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span>{canManage && <button type="button" className="danger-button button-sm" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button>}</div>
                   ))}
                   {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
                 </div>

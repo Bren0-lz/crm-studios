@@ -8,7 +8,8 @@ const ts = require("typescript");
 
 const webSrc = path.join(__dirname, "..", "src");
 const css = fs.readFileSync(path.join(webSrc, "styles.css"), "utf8");
-const appPath = path.join(webSrc, "App.tsx");
+// AUDIT_APP_TSX aponta para outro arquivo .tsx (testes sintéticos da auditoria sem mexer no App.tsx).
+const appPath = process.env.AUDIT_APP_TSX || path.join(webSrc, "App.tsx");
 const sf = ts.createSourceFile(appPath, fs.readFileSync(appPath, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
 // Painéis que recebem padding do contêiner pai (seletor contextual no CSS).
@@ -466,5 +467,59 @@ if (fontProblems.length) {
   failed = true;
 } else {
   console.log("Nenhum tamanho de fonte fora da escala --text-* (mínimo 12px).");
+}
+
+// Quinta verificação (botões): todo `<button>` em App.tsx tem `className` não vazio — as
+// variantes são `primary-button`, `secondary-button`, `text-button`, `danger-button` (e
+// `icon-button` para botão só com ícone), com o modificador `button-sm` para ações de linha e de
+// cartão; controles próprios (abas, filtros em pílula, células do calendário) têm classe própria.
+// Sem classe, o botão cai no estilo nativo do navegador. Também reprova expressões que podem
+// resultar em classe vazia: ternário ou `&&` com "", e template só com trechos condicionais
+// (ex.: aba com `className={ativa ? "active" : ""}` fica sem classe quando inativa).
+// Exceções: componentes (pelo nome da função que os declara) cujo `<button>` recebe a classe por
+// prop, ex.: `<button {...props}>`. Hoje nenhum componente faz isso; inclua aqui o nome e o motivo.
+const BUTTON_CLASS_BY_PROP = new Set([]);
+const canBeEmpty = (e) => {
+  if (!e) return true;
+  if (ts.isParenthesizedExpression(e)) return canBeEmpty(e.expression);
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return !e.text.trim();
+  if (ts.isConditionalExpression(e)) return canBeEmpty(e.whenTrue) || canBeEmpty(e.whenFalse);
+  if (ts.isBinaryExpression(e)) {
+    const op = e.operatorToken.kind;
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return true;
+    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) return canBeEmpty(e.right);
+  }
+  if (ts.isTemplateExpression(e)) {
+    const fixed = e.head.text + e.templateSpans.map((span) => span.literal.text).join("");
+    return !fixed.trim() && e.templateSpans.every((span) => canBeEmpty(span.expression));
+  }
+  return false;
+};
+const buttonProblems = [];
+const enclosingFunction = (node) => {
+  for (let n = node.parent; n; n = n.parent) {
+    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)) && n.name) return n.name.text;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name)) return n.name.text;
+  }
+  return "";
+};
+const visitButtons = (node) => {
+  if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === "button") {
+    const attr = node.attributes.properties.find((a) => ts.isJsxAttribute(a) && a.name && a.name.getText(sf) === "className");
+    const init = attr && attr.initializer;
+    const empty = attr && (!init || canBeEmpty(ts.isJsxExpression(init) ? init.expression : init));
+    if ((!attr || empty) && !BUTTON_CLASS_BY_PROP.has(enclosingFunction(node))) {
+      buttonProblems.push(`App.tsx:${lineOf(node)} <button> ${attr ? "com className que pode ficar vazio" : "sem className"} (use primary-button, secondary-button, text-button ou danger-button)`);
+    }
+  }
+  ts.forEachChild(node, visitButtons);
+};
+visitButtons(sf);
+
+if (buttonProblems.length) {
+  console.error(`${buttonProblems.length} botão(ões) sem classe de variante:\n` + buttonProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum <button> sem className em App.tsx.");
 }
 if (failed) process.exit(1);
