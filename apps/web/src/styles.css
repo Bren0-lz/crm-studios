@@ -17,6 +17,10 @@
   --terracotta: #c96f50;
   --amber: #d3a349;
   --red: #b85d53;
+  /* Verde do WhatsApp escurecido para texto branco com contraste AA: #075e54 = 7,67:1 e o hover
+     #064c44 = 9,88:1 (o #25d366 da marca dá só 1,98:1 com branco). */
+  --whatsapp: #075e54;
+  --whatsapp-hover: #064c44;
   --shadow: 0 18px 55px rgba(34, 50, 44, 0.09);
   --space-1: 4px;
   --space-2: 8px;
@@ -316,11 +320,13 @@ textarea:focus {
 }
 
 /* Botões: quatro variantes (primary, secondary, text, danger) e o tamanho compacto
-   `button-sm` para ações de linha e de cartão. Vale para <button> e para <a>/NavLink. */
+   `button-sm` para ações de linha e de cartão. Vale para <button> e para <a>/NavLink.
+   `whatsapp-button` é a variante dos links que abrem o WhatsApp (whatsappLink). */
 .primary-button,
 .secondary-button,
 .text-button,
-.danger-button {
+.danger-button,
+.whatsapp-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -393,10 +399,25 @@ textarea:focus {
   outline-offset: 2px;
 }
 
+.whatsapp-button {
+  background: var(--whatsapp);
+  color: white;
+}
+
+.whatsapp-button:hover:not(:disabled) {
+  background: var(--whatsapp-hover);
+}
+
+.whatsapp-button:focus-visible {
+  outline: 2px solid var(--whatsapp);
+  outline-offset: 2px;
+}
+
 .primary-button:disabled,
 .secondary-button:disabled,
 .text-button:disabled,
-.danger-button:disabled {
+.danger-button:disabled,
+.whatsapp-button:disabled {
   box-shadow: none;
   cursor: not-allowed;
   opacity: 0.5;

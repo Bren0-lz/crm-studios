@@ -651,4 +651,46 @@ if (backdropProblems.length) {
 } else {
   console.log("Nenhum fundo de modal fecha por clique em App.tsx.");
 }
+
+// Oitava verificação (links do WhatsApp): todo elemento JSX dos .tsx de apps/web/src cujo `href`
+// usa `whatsappLink(...)` ou contém `wa.me` precisa da variante `whatsapp-button` na `className`
+// (mesma aparência em todas as telas; `button-sm` para ações de linha e de cartão), abrir em nova
+// aba (`target="_blank"`) e ter `rel` com `noopener`. Com AUDIT_APP_TSX, esse arquivo entra no
+// lugar do App.tsx (testes sintéticos).
+const WHATSAPP_HREF = /\bwhatsappLink\s*\(|wa\.me/;
+const attrText = (attr, source) => {
+  const init = attr && attr.initializer;
+  if (!init) return "";
+  if (ts.isStringLiteral(init)) return init.text;
+  if (ts.isJsxExpression(init) && init.expression) return init.expression.getText(source);
+  return "";
+};
+const whatsappProblems = [];
+for (const file of nativeFiles.filter((f) => f.endsWith(".tsx"))) {
+  const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const where = (node) => `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+  const visitLinks = (node) => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const attrs = node.attributes.properties.filter((a) => ts.isJsxAttribute(a) && a.name);
+      const find = (name) => attrs.find((a) => a.name.getText(source) === name);
+      const href = find("href");
+      if (href && WHATSAPP_HREF.test(attrText(href, source))) {
+        const missing = [];
+        if (!/(^|[^\w-])whatsapp-button([^\w-]|$)/.test(attrText(find("className"), source))) missing.push("className sem whatsapp-button");
+        if (attrText(find("target"), source) !== "_blank") missing.push(`sem target="_blank"`);
+        if (!/\bnoopener\b/.test(attrText(find("rel"), source))) missing.push(`rel sem "noopener"`);
+        if (missing.length) whatsappProblems.push(`${where(node)} link do WhatsApp: ${missing.join(", ")}`);
+      }
+    }
+    ts.forEachChild(node, visitLinks);
+  };
+  visitLinks(source);
+}
+
+if (whatsappProblems.length) {
+  console.error(`${whatsappProblems.length} link(s) do WhatsApp fora do padrão (whatsapp-button, nova aba, rel noopener):\n` + whatsappProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Todos os links do WhatsApp usam whatsapp-button, abrem em nova aba e têm rel noopener.");
+}
 if (failed) process.exit(1);

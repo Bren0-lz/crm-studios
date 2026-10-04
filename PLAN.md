@@ -979,7 +979,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
   sem a variante é reprovado. Teste web.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** V5
-- **Status:** TODO
+- **Status:** DONE
 
 ### T062 — Etiquetas configuráveis na API
 - **Escopo:**

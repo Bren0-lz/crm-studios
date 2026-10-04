@@ -1003,6 +1003,8 @@ describe("application shell", () => {
     const whatsapp = within(helenaCard).getByRole("link", { name: /WhatsApp/ });
     expect(whatsapp).toHaveAttribute("href", `https://wa.me/5511911112222?text=${encodeURIComponent("Oi Helena, seu plano está acabando.")}`);
     expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(whatsapp).toHaveClass("whatsapp-button", "button-sm");
+    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
     const brunoCard = screen.getByText("Bruno Souza").closest("article")!;
     expect(within(brunoCard).getByRole("link", { name: /WhatsApp/ })).toHaveAttribute("href", `https://wa.me/5511955556666?text=${encodeURIComponent("Oi Bruno, sentimos sua falta.")}`);
 
@@ -1061,6 +1063,8 @@ describe("application shell", () => {
     const congratulate = within(helena).getByRole("link", { name: /Dar parabéns/ });
     expect(congratulate).toHaveAttribute("href", `https://wa.me/5511911112222?text=${encodeURIComponent("Parabéns, Helena!")}`);
     expect(congratulate).toHaveAttribute("target", "_blank");
+    expect(congratulate).toHaveClass("whatsapp-button", "button-sm");
+    expect(congratulate.getAttribute("rel")).toMatch(/\bnoopener\b/);
     const carla = within(card).getByText("Carla Dias").closest(".attention-item") as HTMLElement;
     expect(within(carla).getByRole("link", { name: /Dar parabéns/ })).toHaveAttribute("href", `https://wa.me/5511933334444?text=${encodeURIComponent("Parabéns, Carla!")}`);
     expect(within(card).queryByText("Bruno Souza")).not.toBeInTheDocument();
@@ -1122,6 +1126,8 @@ describe("application shell", () => {
     expect(helena).toHaveTextContent("03 de fev.");
     expect(helena).toHaveTextContent("Completa 37 anos");
     expect(within(helena).getByRole("link", { name: /Dar parabéns/ })).toHaveAttribute("href", `https://wa.me/5511911112222?text=${encodeURIComponent("Parabéns, Helena!")}`);
+    expect(within(helena).getByRole("link", { name: /Dar parabéns/ })).toHaveClass("whatsapp-button", "button-sm");
+    expect(within(helena).getByRole("link", { name: /Dar parabéns/ }).getAttribute("rel")).toMatch(/\bnoopener\b/);
     const bruno = screen.getByText("Bruno Souza").closest("article")!;
     expect(bruno).toHaveTextContent("28 de fev.");
     expect(within(bruno).getByText("Parabéns enviado")).toBeInTheDocument();
@@ -2427,6 +2433,9 @@ describe("application shell", () => {
     const whatsapp = within(sos).getByRole("link", { name: /WhatsApp/ });
     expect(whatsapp.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5511955556666/);
     expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(whatsapp).toHaveClass("whatsapp-button");
+    expect(whatsapp).not.toHaveClass("secondary-button");
+    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
     expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
     expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
     expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
@@ -4777,7 +4786,7 @@ describe("button variants", () => {
     const card = (await screen.findByRole("heading", { name: "Aniversariantes" })).closest("section")!;
     const helena = (await within(card).findByText("Helena Almeida")).closest(".attention-item") as HTMLElement;
     const congratulate = within(helena).getByRole("link", { name: /Dar parabéns/ });
-    expect(congratulate).toHaveClass("secondary-button", "button-sm");
+    expect(congratulate).toHaveClass("whatsapp-button", "button-sm");
     expect(within(helena).getByRole("button", { name: "Marcar como enviado" })).toHaveClass("secondary-button", "button-sm");
     // Sem a divisória do cartão de plano acima das ações de aniversário.
     expect(congratulate.parentElement).toHaveClass("birthday-actions");

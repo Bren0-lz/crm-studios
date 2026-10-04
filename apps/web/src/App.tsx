@@ -862,7 +862,7 @@ function BirthdayDashboardCard() {
                 </div>
                 <div className="birthday-actions">
                   <a
-                    className="secondary-button button-sm"
+                    className="whatsapp-button button-sm"
                     href={whatsappLink(
                       suggestion.whatsapp || suggestion.phone,
                       birthdayMessage(settings, suggestion.patientName),
@@ -870,7 +870,7 @@ function BirthdayDashboardCard() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <MessageCircle size={15} />
+                    <MessageCircle size={15} aria-hidden="true" />
                     Dar parabéns
                   </a>
                   {canEdit("relationship") && (
@@ -2160,12 +2160,12 @@ function RelationshipPage() {
                   </div>
                   <div className="plan-actions">
                     <a
-                      className="secondary-button button-sm"
+                      className="whatsapp-button button-sm"
                       href={whatsappLink(contactPhone, messageFor(suggestion))}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <MessageCircle size={15} />
+                      <MessageCircle size={15} aria-hidden="true" />
                       WhatsApp
                     </a>
                     {canEdit("relationship") && (
@@ -2291,7 +2291,7 @@ function BirthdaysMonthPanel({
               {!entry.congratulated && (
                 <div className="birthday-actions">
                   <a
-                    className="secondary-button button-sm"
+                    className="whatsapp-button button-sm"
                     href={whatsappLink(
                       entry.whatsapp || entry.phone,
                       birthdayMessage(settings, entry.patientName),
@@ -2299,7 +2299,7 @@ function BirthdaysMonthPanel({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <MessageCircle size={15} />
+                    <MessageCircle size={15} aria-hidden="true" />
                     Dar parabéns
                   </a>
                   {canEdit("relationship") && (
@@ -10617,7 +10617,7 @@ function SosPanel({ patient }: { patient: Patient | undefined }) {
                 <a className="secondary-button" href={`tel:${phone}`}>
                   <Phone size={15} aria-hidden="true" /> Ligar
                 </a>
-                <a className="secondary-button" href={whatsappLink(phone, "")} target="_blank" rel="noreferrer">
+                <a className="whatsapp-button" href={whatsappLink(phone, "")} target="_blank" rel="noopener noreferrer">
                   <MessageCircle size={15} aria-hidden="true" /> WhatsApp
                 </a>
               </div>
