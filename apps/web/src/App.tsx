@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   Bell,
   BarChart3,
@@ -426,6 +426,17 @@ const navItems: Array<{
   { to: "/configuracoes", label: "Configurações", icon: Settings, module: "settings" },
 ];
 
+/**
+ * Guarda de saída pelo menu do app. O app usa `BrowserRouter` (sem data router, então sem
+ * `useBlocker`): quem tem edição pendente registra uma função que recebe o destino e devolve
+ * `true` para segurar o clique no menu (e abrir o próprio aviso). Voltar do navegador e URL
+ * digitada não passam por aqui.
+ */
+type NavigationGuard = (to: string) => boolean;
+const NavigationGuardContext = createContext<(guard: NavigationGuard) => () => void>(
+  () => () => {},
+);
+
 function Shell({
   user,
   onLogout,
@@ -436,6 +447,14 @@ function Shell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const guards = useRef(new Set<NavigationGuard>());
+  const registerGuard = useCallback((guard: NavigationGuard) => {
+    const set = guards.current;
+    set.add(guard);
+    return () => {
+      set.delete(guard);
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -470,7 +489,15 @@ function Shell({
                 to={item.to}
                 end={item.to === "/"}
                 key={item.to}
-                onClick={() => setMobileOpen(false)}
+                onClick={(event) => {
+                  setMobileOpen(false);
+                  for (const guard of guards.current) {
+                    if (guard(item.to)) {
+                      event.preventDefault();
+                      return;
+                    }
+                  }
+                }}
               >
                 <Icon size={19} />
                 <span>{item.label}</span>
@@ -516,7 +543,11 @@ function Shell({
             <span className="top-avatar">{initials(user.fullName)}</span>
           </div>
         </header>
-        <div className="page-content">{children}</div>
+        <div className="page-content">
+          <NavigationGuardContext.Provider value={registerGuard}>
+            {children}
+          </NavigationGuardContext.Provider>
+        </div>
       </section>
     </div>
   );
@@ -11144,6 +11175,137 @@ function ScheduleBlockModal({
 }
 
 /**
+ * Aviso de edição não salva (fechar gaveta ou sair pelo menu): Salvar (só segue se der certo; o
+ * erro fica no modal), Descartar (volta aos valores salvos e segue) ou Continuar editando.
+ */
+function UnsavedChangesModal({
+  section,
+  onSave,
+  onDiscard,
+  onContinue,
+}: {
+  section: string;
+  onSave: () => Promise<void>;
+  onDiscard: () => void;
+  onContinue: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) onContinue();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onContinue, saving]);
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setError("");
+    setSaving(true);
+    try {
+      await onSave();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      eyebrow="Alterações não salvas"
+      title="Salvar as alterações?"
+      subtitle={`${section} tem edição que ainda não foi salva.`}
+      onClose={() => {
+        if (!saving) onContinue();
+      }}
+    >
+      <form className="form-grid" noValidate onSubmit={(event) => void save(event)}>
+        <p className="span-2">
+          Salve para manter o que foi alterado ou descarte para voltar aos valores salvos.
+        </p>
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onContinue}
+            disabled={saving}
+          >
+            Continuar editando
+          </button>
+          <button
+            type="button"
+            className="danger-button"
+            onClick={onDiscard}
+            disabled={saving}
+          >
+            Descartar alterações
+          </button>
+          <button type="submit" className="primary-button" disabled={saving} autoFocus>
+            {saving ? "Salvando…" : "Salvar alterações"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Edição pendente de um formulário: `confirmLeave(seguir)` segue direto sem alteração ou abre o
+ * aviso; com alteração, também segura a saída pelo menu do app (ver `NavigationGuardContext`).
+ */
+function useUnsavedChangesPrompt({
+  section,
+  dirty,
+  save,
+  discard,
+}: {
+  section: string;
+  dirty: boolean;
+  save: () => Promise<void>;
+  discard: () => void;
+}) {
+  const [pending, setPending] = useState<{ proceed: () => void } | null>(null);
+  const navigate = useNavigate();
+  const registerGuard = useContext(NavigationGuardContext);
+  useEffect(() => {
+    if (!dirty) return;
+    return registerGuard((to) => {
+      setPending({ proceed: () => void navigate(to) });
+      return true;
+    });
+  }, [dirty, registerGuard, navigate]);
+  const confirmLeave = useCallback(
+    (proceed: () => void) => {
+      if (dirty) setPending({ proceed });
+      else proceed();
+    },
+    [dirty],
+  );
+  const modal = pending && (
+    <UnsavedChangesModal
+      section={section}
+      onSave={async () => {
+        await save();
+        setPending(null);
+        pending.proceed();
+      }}
+      onDiscard={() => {
+        discard();
+        setPending(null);
+        pending.proceed();
+      }}
+      onContinue={() => setPending(null)}
+    />
+  );
+  return { confirmLeave, modal };
+}
+
+/**
  * Seção recolhível (gaveta) com o visual de `.panel`/`panel-head`: começa fechada e abre pelo
  * título — botão nativo dentro do `h2` (Enter/Espaço), com `aria-expanded`/`aria-controls`.
  * Fechada, o conteúdo não é montado: componentes que buscam os próprios dados só buscam ao abrir
@@ -11210,6 +11372,26 @@ function AdminPage() {
   const [toggling, setToggling] = useState<AdminUser | null>(null);
   // Gaveta de Usuários controlada aqui: "Novo usuário" abre a gaveta junto com o modal.
   const [usersOpen, setUsersOpen] = useState(false);
+  // Dados da clínica: valores salvos (base do "descartar") e gaveta controlada para avisar ao fechar.
+  const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(null);
+  const [clinicOpen, setClinicOpen] = useState(false);
+  const clinicDirty =
+    settings !== null &&
+    savedSettings !== null &&
+    JSON.stringify(settings) !== JSON.stringify(savedSettings);
+  const clinicPrompt = useUnsavedChangesPrompt({
+    section: "Dados da clínica",
+    dirty: clinicDirty,
+    save: async () => {
+      if (!settings) return;
+      const saved = await api.updateClinicSettings(settings);
+      setSettings(saved);
+      setSavedSettings(saved);
+      // Como o submit do formulário: recarrega (auditoria inclusa).
+      void load();
+    },
+    discard: () => setSettings(savedSettings),
+  });
 
   async function load() {
     try {
@@ -11220,6 +11402,7 @@ function AdminPage() {
       ]);
       setUsers(userData);
       setSettings(settingData);
+      setSavedSettings(settingData);
       setAudit(auditData);
     } catch (cause) {
       setError((cause as Error).message);
@@ -11236,6 +11419,7 @@ function AdminPage() {
         if (!active) return;
         setUsers(userData);
         setSettings(settingData);
+        setSavedSettings(settingData);
         setAudit(auditData);
       })
       .catch((cause: Error) => {
@@ -11351,6 +11535,11 @@ function AdminPage() {
           className="admin-settings"
           eyebrow="Organização"
           title="Dados da clínica"
+          open={clinicOpen}
+          onOpenChange={(next) => {
+            if (next) setClinicOpen(true);
+            else clinicPrompt.confirmLeave(() => setClinicOpen(false));
+          }}
         >
           {!settings ? (
             !error && <LoadingBlock />
@@ -11360,7 +11549,9 @@ function AdminPage() {
               onSubmit={async (event) => {
                 event.preventDefault();
                 try {
-                  setSettings(await api.updateClinicSettings(settings));
+                  const saved = await api.updateClinicSettings(settings);
+                  setSettings(saved);
+                  setSavedSettings(saved);
                   await load();
                 } catch (cause) {
                   setError((cause as Error).message);
@@ -11457,6 +11648,7 @@ function AdminPage() {
           )}
         </CollapsibleSection>
       </div>
+      {clinicPrompt.modal}
       {userForm && (
         <UserFormModal
           user={userForm === "new" ? null : userForm}
@@ -12352,30 +12544,75 @@ function RelationshipSettingsPage() {
   );
 }
 
+type CloseGuard = (proceed: () => void) => void;
+
 function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
+  const [open, setOpen] = useState(false);
+  // O conteúdo (que guarda a edição) registra aqui o aviso de alteração não salva.
+  const closeGuard = useRef<CloseGuard | null>(null);
+  const registerCloseGuard = useCallback((guard: CloseGuard | null) => {
+    closeGuard.current = guard;
+  }, []);
   return (
     <CollapsibleSection
       className="admin-relationship"
       eyebrow="Relacionamento"
       title="Prazos e mensagens"
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setOpen(true);
+        else if (closeGuard.current) closeGuard.current(() => setOpen(false));
+        else setOpen(false);
+      }}
     >
-      <RelationshipSettingsContent canEdit={canEdit} />
+      <RelationshipSettingsContent canEdit={canEdit} registerCloseGuard={registerCloseGuard} />
     </CollapsibleSection>
   );
 }
 
 /** Conteúdo da gaveta de Prazos e mensagens: só monta (e busca os valores) quando a gaveta abre. */
-function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
+function RelationshipSettingsContent({
+  canEdit,
+  registerCloseGuard,
+}: {
+  canEdit: boolean;
+  registerCloseGuard: (guard: CloseGuard | null) => void;
+}) {
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const prompt = useUnsavedChangesPrompt({
+    section: "Prazos e mensagens",
+    dirty:
+      canEdit &&
+      settings !== null &&
+      savedSettings !== null &&
+      JSON.stringify(settings) !== JSON.stringify(savedSettings),
+    save: async () => {
+      if (!settings) return;
+      const saved = await api.updateRelationshipSettings(settings);
+      setSettings(saved);
+      setSavedSettings(saved);
+    },
+    discard: () => setSettings(savedSettings),
+  });
+  const { confirmLeave } = prompt;
+  useEffect(() => {
+    registerCloseGuard(confirmLeave);
+    return () => registerCloseGuard(null);
+  }, [registerCloseGuard, confirmLeave]);
 
   useEffect(() => {
     let active = true;
     api
       .relationshipSettings()
-      .then((data) => active && setSettings(data))
+      .then((data) => {
+        if (!active) return;
+        setSettings(data);
+        setSavedSettings(data);
+      })
       .catch((cause: Error) => active && setError(cause.message));
     return () => {
       active = false;
@@ -12389,7 +12626,9 @@ function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
     setError("");
     setNotice("");
     try {
-      setSettings(await api.updateRelationshipSettings(settings));
+      const saved = await api.updateRelationshipSettings(settings);
+      setSettings(saved);
+      setSavedSettings(saved);
       setNotice("Prazos e mensagens salvos.");
     } catch (cause) {
       setError((cause as Error).message);
@@ -12460,6 +12699,7 @@ function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
           )}
         </form>
       )}
+      {prompt.modal}
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
 import { useState } from "react";
@@ -4350,6 +4350,139 @@ describe("settings drawers", () => {
     expect(fetched("/relationship/settings")).toBe(false);
     fireEvent.click(toggle);
     expect(await screen.findByLabelText("Plano acabando: avisar quantos dias antes do fim")).toHaveAttribute("readonly");
+  });
+
+  describe("unsaved changes warning (T068)", () => {
+    function mockClinicSave(putResponses: Array<"ok" | "fail">) {
+      // O servidor guarda o que foi salvo: a recarga depois de salvar devolve o valor novo.
+      let current = clinic;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/admin/clinic-settings") && init?.method === "PUT") {
+          const outcome = putResponses.shift() ?? "ok";
+          if (outcome === "fail") {
+            return { ok: false, status: 400, json: async () => ({ code: "VALIDATION_ERROR", message: "Nome inválido." }) } as Response;
+          }
+          current = { ...clinic, ...JSON.parse(String(init.body)) };
+          const saved = current;
+          return { ok: true, status: 200, json: async () => saved } as Response;
+        }
+        if (url.includes("/admin/clinic-settings")) {
+          const loaded = current;
+          return { ok: true, status: 200, json: async () => loaded } as Response;
+        }
+        if (url.includes("/relationship/settings") && init?.method === "PUT") {
+          return { ok: true, status: 200, json: async () => JSON.parse(String(init.body)) } as Response;
+        }
+        const body = url.includes("/admin/users") ? [user]
+          : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+            : url.includes("/admin/clinic-settings") ? clinic
+              : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+    }
+    const puts = () => vi.mocked(fetch).mock.calls.filter(([input, options]) => String(input).includes("/admin/clinic-settings") && options?.method === "PUT");
+
+    async function editClinicName(value: string) {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(owner));
+      render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
+      fireEvent.click(toggle);
+      const name = await screen.findByLabelText("Nome");
+      fireEvent.change(name, { target: { value } });
+      return toggle;
+    }
+
+    it("closes directly when nothing changed", async () => {
+      mockClinicSave([]);
+      const toggle = await editClinicName("Studios Aryana");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("keeps editing when the user chooses to continue", async () => {
+      mockClinicSave([]);
+      const toggle = await editClinicName("Studio Novo");
+      fireEvent.click(toggle);
+      const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
+      expect(within(dialog).getByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Descartar alterações" })).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByLabelText("Nome")).toHaveValue("Studio Novo");
+      expect(puts()).toHaveLength(0);
+    });
+
+    it("discards back to the saved values and closes", async () => {
+      mockClinicSave([]);
+      const toggle = await editClinicName("Studio Novo");
+      fireEvent.click(toggle);
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Descartar alterações" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(puts()).toHaveLength(0);
+      fireEvent.click(toggle);
+      expect(await screen.findByLabelText("Nome")).toHaveValue("Studios Aryana");
+      // Sem alteração depois de descartar: fecha direto.
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("saves with the form request, shows the error in the modal and closes only on success", async () => {
+      mockClinicSave(["fail", "ok"]);
+      const toggle = await editClinicName("Studio Novo");
+      fireEvent.click(toggle);
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("Nome inválido.");
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(puts()).toHaveLength(2);
+      expect(JSON.parse(String(puts()[1]![1]!.body))).toMatchObject({ name: "Studio Novo" });
+      fireEvent.click(toggle);
+      expect(await screen.findByLabelText("Nome")).toHaveValue("Studio Novo");
+    });
+
+    it("holds the app menu navigation until the user decides", async () => {
+      mockClinicSave([]);
+      await editClinicName("Studio Novo");
+      fireEvent.click(screen.getByRole("link", { name: "Clientes" }));
+      const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
+      expect(screen.getByRole("heading", { name: "Configurações" })).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+      expect(screen.getByLabelText("Nome")).toHaveValue("Studio Novo");
+      fireEvent.click(screen.getByRole("link", { name: "Clientes" }));
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Descartar alterações" }));
+      await waitFor(() => expect(screen.queryByRole("heading", { name: "Configurações" })).not.toBeInTheDocument());
+    });
+
+    it("warns before closing Prazos e mensagens with unsaved edits", async () => {
+      mockClinicSave([]);
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(owner));
+      render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
+      fireEvent.click(toggle);
+      const field = await screen.findByLabelText("Saldo baixo: sessões restantes");
+      const original = (field as HTMLInputElement).value;
+      fireEvent.change(field, { target: { value: "7" } });
+      fireEvent.click(toggle);
+      const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      fireEvent.click(toggle);
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Salvar alterações" }));
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+      const put = vi.mocked(fetch).mock.calls.find(([input, options]) => String(input).includes("/relationship/settings") && options?.method === "PUT");
+      expect(JSON.parse(String(put![1]!.body))).toMatchObject({ lowBalanceSessions: 7 });
+      expect(original).not.toBe("7");
+    });
   });
 });
 

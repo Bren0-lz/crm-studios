@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T068
-- **Última concluída:** T067
+- **Tarefa atual:** T069
+- **Última concluída:** T068
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -133,3 +133,5 @@
 - 2026-10-04 Pedido do dono: fim da documentação desnecessária. T054 e T066 removidas do PLAN.md (T061 passa a depender da V5); critério global de STATUS/README removido; CLAUDE.md › Documentação: só escrever documento quando for essencial para o desenvolvimento.
 - 2026-10-04 V5 DONE (aprovada pelo dono no chat). Decisões: Contas a receber com sinal/cor (T067); regra do Financeiro p/ profissional ligado a usuário mantida; aviso Salvar/Descartar/Continuar ao fechar Dados da clínica com alteração (T068); modais nunca fecham por clique fora em todo o CRM, Esc fecha todos, X/Esc/Voltar travados durante o salvamento (T069). Ordem: T067–T069 antes da rodada 6.
 - 2026-10-04 T067 DONE (verifier PASS na 1ª; web 143, API 162 + 31 skip, contratos 35). ReceivablesList usa signedCurrency + cash-in (≥0, "+ R$") / cash-out (<0, "- R$" vermelho); celular herda (mesmo elemento). renderFinance aceita parcelas extras. Parcelas pagas/canceladas positivas também ficam verdes (cor segue o sinal, não o status).
+- 2026-10-04 T068 FAIL 1/3: funcionalidade aprovada, mas o teste "filters the menu and routes by the user's modules" trocou a asserção do link "Visão geral" por "Clientes" (cobertura perdida; a original passa). T069 marcada DOING por engano do orquestrador (revertido).
+- 2026-10-04 T068 DONE (verifier PASS na 2ª; web 149, API 162 + 31 skip, contratos 35). UnsavedChangesModal (Modal; Salvar alterações/Descartar alterações/Continuar editando; erro em form-error) + hook useUnsavedChangesPrompt; NavigationGuardContext no Shell segura clique nos NavLink com edição pendente. Dados da clínica (AdminPage, savedSettings, load() após salvar) e Prazos e mensagens (RelationshipSettingsContent, registerCloseGuard) com gavetas controladas. Limitação: BrowserRouter sem data router → voltar do navegador, URL digitada, recarregar e Sair não passam pelo aviso. P/ T069: UnsavedChangesModal usa Modal (clique no fundo = continuar editando hoje). finish() de ações em usuários recarrega e sobrescreve edição pendente de Dados da clínica (antigo).

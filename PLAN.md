@@ -932,7 +932,7 @@ Decisões do dono na V5 (04/10/2026):
   dos três caminhos.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
 - **Depende de:** V5
-- **Status:** TODO
+- **Status:** DONE
 
 ### T069 — Modais sem fechar por clique fora, com Esc e travados no salvamento
 - **Escopo:** em todo o CRM (`Modal`, `ActionModal`, `Drawer` e qualquer outro diálogo com fundo):
