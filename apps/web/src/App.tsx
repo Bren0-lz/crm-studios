@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   Bell,
   BarChart3,
@@ -38,6 +38,7 @@ import {
   Star,
   Stethoscope,
   UserMinus,
+  UserPlus,
   Users,
   X,
   type LucideIcon,
@@ -547,12 +548,13 @@ function LoadingBlock() {
   );
 }
 
-function EmptyState({ title, copy }: { title: string; copy: string }) {
+function EmptyState({ title, copy, action }: { title: string; copy: string; action?: ReactNode }) {
   return (
     <div className="empty-state">
       <CalendarDays size={30} />
       <strong>{title}</strong>
       <span>{copy}</span>
+      {action}
     </div>
   );
 }
@@ -1899,13 +1901,13 @@ function PatientTimelineSection({ patientId }: { patientId: string }) {
   );
 }
 
-const leadStages: Array<{ value: LeadStage; label: string }> = [
-  { value: "new_contact", label: "Novos" },
-  { value: "contacted", label: "Em contato" },
-  { value: "evaluation", label: "Avaliação" },
-  { value: "proposal", label: "Proposta" },
-  { value: "won", label: "Ganhos" },
-  { value: "lost", label: "Perdidos" },
+const leadStages: Array<{ value: LeadStage; label: string; hint: string }> = [
+  { value: "new_contact", label: "Novos", hint: "Leads recém-cadastrados aparecem aqui." },
+  { value: "contacted", label: "Em contato", hint: "Mova para cá quem já recebeu o primeiro contato." },
+  { value: "evaluation", label: "Avaliação", hint: "Leads com avaliação ou aula experimental marcada." },
+  { value: "proposal", label: "Proposta", hint: "Leads que receberam proposta de plano." },
+  { value: "won", label: "Ganhos", hint: "Leads convertidos em cliente ficam aqui." },
+  { value: "lost", label: "Perdidos", hint: "Leads perdidos ficam aqui, com o motivo." },
 ];
 
 const contactReasonLabels: Record<ContactReason, string> = {
@@ -4405,6 +4407,28 @@ function CommercialPage() {
               <span>taxa de conversão</span>
             </div>
           </section>
+          {leads.length === 0 ? (
+            !error && (
+            <section className="panel">
+              <EmptyState
+                title="Nenhum lead cadastrado"
+                copy={
+                  canManage
+                    ? "Cadastre o primeiro interessado para acompanhar o contato até a conversão."
+                    : "Os leads cadastrados pela equipe aparecem aqui."
+                }
+                action={
+                  canManage ? (
+                    <button className="primary-button" onClick={() => setModalOpen(true)}>
+                      <Plus size={18} />
+                      Cadastrar primeiro lead
+                    </button>
+                  ) : undefined
+                }
+              />
+            </section>
+            )
+          ) : (
           <div className="kanban-board">
             {leadStages.map((stage) => (
               <section className="kanban-column" key={stage.value}>
@@ -4415,6 +4439,9 @@ function CommercialPage() {
                   </span>
                 </header>
                 <div>
+                  {!leads.some((lead) => lead.stage === stage.value) && (
+                    <p className="kanban-empty-hint">{stage.hint}</p>
+                  )}
                   {leads
                     .filter((lead) => lead.stage === stage.value)
                     .map((lead) => (
@@ -4491,6 +4518,7 @@ function CommercialPage() {
               </section>
             ))}
           </div>
+          )}
         </>
       )}
       {modalOpen && (
@@ -7968,6 +7996,102 @@ function ClinicalRecordsPage() {
   );
 }
 
+type ActionMenuItem = {
+  label: string;
+  onSelect: () => void;
+  icon?: ReactNode;
+  danger?: boolean;
+};
+
+/** Menu de ações secundárias acessível por teclado (setas, Esc fecha e devolve o foco ao botão). */
+function ActionMenu({ label, items }: { label: string; items: ActionMenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    function onPointerDown(event: MouseEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  function close(returnFocus: boolean) {
+    setOpen(false);
+    if (returnFocus) buttonRef.current?.focus();
+  }
+
+  function onMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const entries = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    );
+    const index = entries.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+    } else if (event.key === "Tab") {
+      setOpen(false);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      entries[(index + 1) % entries.length]?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      entries[(index - 1 + entries.length) % entries.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      entries[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      entries[entries.length - 1]?.focus();
+    }
+  }
+
+  return (
+    <div className="action-menu" ref={wrapperRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="secondary-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <MoreHorizontal size={16} /> {label}
+      </button>
+      {open && (
+        <div className="action-menu-list" role="menu" aria-label={label} ref={menuRef} onKeyDown={onMenuKeyDown}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={item.danger ? "action-menu-item action-menu-item-danger" : "action-menu-item"}
+              onClick={() => {
+                close(true);
+                item.onSelect();
+              }}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClinicalWorkspacePanel({
   patients,
   editable,
@@ -8134,66 +8258,53 @@ function ClinicalWorkspacePanel({
         <>
           <div className="clinical-workspace-actions">
             {editable && (
-            <>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("template")}
-            >
-              Novo modelo
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("assessment")}
-            >
-              Nova avaliação
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("goal")}
-            >
-              Novo objetivo
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("measurement")}
-            >
-              Nova medição
-            </button>
-            <button
-              className="danger-button"
-              onClick={() => setEditor("closure")}
-            >
-              Encerrar tratamento
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("attachment")}
-            >
-              <Paperclip size={15} /> Anexar arquivo
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => setEditor("addendum")}
-              disabled={workspace.records.every(
-                (item) => item.status !== "finalized",
-              )}
-            >
-              Adicionar adendo
-            </button>
-            </>
+              <div className="clinical-workspace-main-actions">
+                <button
+                  className="secondary-button"
+                  onClick={() => setEditor("assessment")}
+                >
+                  Nova avaliação
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => setEditor("measurement")}
+                >
+                  Nova medição
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => setEditor("addendum")}
+                  disabled={workspace.records.every(
+                    (item) => item.status !== "finalized",
+                  )}
+                >
+                  Adicionar adendo
+                </button>
+                <ActionMenu
+                  label="Mais ações"
+                  items={[
+                    { label: "Novo modelo", onSelect: () => setEditor("template") },
+                    { label: "Novo objetivo", onSelect: () => setEditor("goal") },
+                    { label: "Anexar arquivo", icon: <Paperclip size={15} />, onSelect: () => setEditor("attachment") },
+                    { label: "Encerrar tratamento", danger: true, onSelect: () => setEditor("closure") },
+                  ]}
+                />
+              </div>
             )}
-            <button
-              className="secondary-button"
-              onClick={() => void exportRecord(true)}
-            >
-              <Printer size={15} /> Imprimir
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => void exportRecord()}
-            >
-              <Download size={15} /> Exportar
-            </button>
+            <div className="clinical-workspace-output-actions">
+              <button
+                className="secondary-button"
+                onClick={() => void exportRecord(true)}
+              >
+                <Printer size={15} /> Imprimir
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => void exportRecord()}
+              >
+                <Download size={15} /> Exportar
+              </button>
+            </div>
           </div>
           <div className="clinical-workspace-grid">
             <div className="clinical-goals">
@@ -11092,13 +11203,14 @@ function AdminPage() {
             />
           ) : (
             users.map((item) => (
-              <article key={item.id}>
-                <div>
+              <article key={item.id} className="admin-user-row">
+                <div className="admin-user-info">
                   <strong>{item.fullName}</strong>
                   <small>
-                    {item.email} · {roleLabels[item.role]}
+                    {roleLabels[item.role]}
                     {item.jobTitle ? ` · ${item.jobTitle}` : ""}
                   </small>
+                  <small className="admin-user-email">{item.email}</small>
                   <small>{userCommissionSummary(item)}</small>
                   {(item.customModules || !item.active) && (
                     <div className="admin-user-tags">
@@ -12465,7 +12577,12 @@ function GroupsPage() {
         eyebrow="Operação coletiva"
         title="Turmas"
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
-        action={canManage && <button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
+        action={canManage && (
+          <div className="page-actions">
+            <button className="secondary-button" onClick={() => setDrawer("enroll")}><UserPlus size={18} /> Matricular cliente</button>
+            <button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>
+          </div>
+        )}
       />
       {!canManage && <ReadOnlyNotice module="groups" />}
       {error && <ErrorBanner error={error} />}
@@ -12478,11 +12595,6 @@ function GroupsPage() {
             <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
           </div>
-          {canManage && (
-          <div className="group-actions-bar">
-            <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular cliente</button>
-          </div>
-          )}
           {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
             {error && <ErrorBanner error={error} />}

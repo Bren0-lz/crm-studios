@@ -772,7 +772,7 @@ de marcar GIGANTE e informações muito confusas".
   - Teste web para o menu "Mais ações" e para o CRM vazio.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D07
-- **Status:** TODO
+- **Status:** DONE
 
 ### D10 — Fim das janelas do navegador: um modal próprio para cada ação
 Pedido do dono (04/10/2026): "parar de usar esses forms do JS (prompt/confirm), é feio e nada
