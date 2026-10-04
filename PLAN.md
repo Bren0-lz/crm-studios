@@ -12,7 +12,6 @@ faixa etária, e comunicado segmentado na fila de mensagens.
 - V1–V3 revisadas pelo dono.
 - `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs`
   retorna 0 na `main`.
-- `docs/STATUS_IMPLEMENTACAO.md` e `README.md` descrevem as novas funcionalidades.
 
 ## Fora de escopo
 - Cadastro completo do cliente (endereço, gênero, responsável, mesclagem de cadastros).
@@ -906,13 +905,6 @@ profissional; criar modais personalizados para cada opção".
 - **Depende de:** D08, D09, D10, D11, D12, T059, T060
 - **Status:** BLOCKED
 
-### T054 — Documentação da rodada 5
-- **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (escala tipográfica, botões,
-  Financeiro, telas organizadas, confirmações, permissões personalizadas).
-- **Gate:** `npm run build`
-- **Depende de:** V5
-- **Status:** TODO
-
 ## Rodada 6 — Etiquetas, cadastro guiado e WhatsApp (pedido do dono, 04/10/2026)
 
 Pedidos do dono:
@@ -943,7 +935,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
   em nova aba com `rel="noopener"`. Ampliar o audit (autorizado): link com `whatsappLink`/`wa.me`
   sem a variante é reprovado. Teste web.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
-- **Depende de:** T054
+- **Depende de:** V5
 - **Status:** TODO
 
 ### T062 — Etiquetas configuráveis na API
@@ -1008,9 +1000,3 @@ Decisões do orquestrador (o dono pode mudar na V6):
 - **Depende de:** T065
 - **Status:** TODO
 
-### T066 — Documentação da rodada 6
-- **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` e item no `README.md` (botões de
-  WhatsApp, etiquetas configuráveis com cor, cadastro guiado, filtro de assinantes sem turma).
-- **Gate:** `npm run build`
-- **Depende de:** V6
-- **Status:** TODO

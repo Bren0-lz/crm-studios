@@ -12,7 +12,7 @@ tarefa), e as regras permanentes em `CLAUDE.md`.
    atualizou este HANDOFF; antes dele, `bcdd713` (T060). Tudo até `bcdd713` já está publicado.
 3. O loop está parado na **V5** (revisão visual manual da rodada 5). Só seguir com `/loop /next`
    depois que o dono aprovar a V5 no chat (aí marcar V5 `DONE` no `PLAN.md` e registrar no
-   `STATE.md`). Depois vêm a T054 (documentação da rodada 5) e a rodada 6 (T061–T066 + V6).
+   `STATE.md`). Depois vem a rodada 6 (T061–T065 + V6).
 
 ## O que é o projeto
 
@@ -79,7 +79,7 @@ npm run typecheck && npm run lint && npm test && npm run build && node apps/web/
   ligado a usuário só vale onde o usuário não tem regra própria; fechar a gaveta "Dados da clínica"
   descarta edição não salva; X/clique fora fecham modal durante o salvamento e modais antigos não
   fecham com Esc.
-- **Rodada 6 planejada (pedido do dono de 04/10/2026), T061–T066 + V6:** botões de WhatsApp
+- **Rodada 6 planejada (pedido do dono de 04/10/2026), T061–T065 + V6:** botões de WhatsApp
   estilizados; etiquetas configuráveis com cor em Configurações (cliente só escolhe entre as
   configuradas; filtros usam as configuradas; migração 0044 importa as etiquetas existentes);
   cadastro guiado do cliente (aula de demonstração / plano com turma opcional do mesmo serviço /
@@ -140,5 +140,8 @@ npm run typecheck && npm run lint && npm test && npm run build && node apps/web/
 - Navegador: Chrome conectado do notebook; abrir aba nova e fechar ao terminar. Login de teste só
   em `localhost`; no site publicado, testar pela API com curl.
 - Avisos "LF will be replaced by CRLF" no git são normais nesta máquina.
+- **Sem documentação desnecessária** (pedido do dono, 04/10/2026): nada de tarefas de documentação
+  (T054 e T066 removidas); `docs/STATUS_IMPLEMENTACAO.md` e `README.md` não são mais atualizados.
+  Escrever documento só quando for essencial para o desenvolvimento.
 - Prioridade do dono: funcionalidades e usabilidade primeiro; infraestrutura e segurança só quando
   ele pedir.

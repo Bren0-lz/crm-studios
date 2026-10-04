@@ -61,9 +61,9 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   (`apps/web/src/App.test.tsx`); contratos em `packages/contracts/src/contracts.test.ts`.
 - **Dados demo**: `demo-patients.ts`, `demo-scenarios.ts` e `seed-demo-scenarios.ts` — se um
   tipo ganhar campo obrigatório, atualize-os também.
-- **Documentação**: só edite `docs/STATUS_IMPLEMENTACAO.md` e `README.md` quando o escopo da
-  tarefa pedir. O `PLAN.md` tem tarefas dedicadas de documentação; editar esses arquivos em outra
-  tarefa é escopo além do pedido e o verifier reprova.
+- **Documentação**: não existem tarefas de documentação. Não edite `docs/STATUS_IMPLEMENTACAO.md`,
+  `README.md` nem crie documentos novos — só quando for essencial para o desenvolvimento (ex.: regra
+  nova em `CLAUDE.md` que os agentes precisam seguir). Fora disso o verifier reprova.
 
 ### Design de páginas
 - **Estrutura**: página nova começa com `PageHeader`; conteúdo fica dentro de `.panel`. O
