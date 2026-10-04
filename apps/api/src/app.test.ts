@@ -6477,6 +6477,66 @@ describe("CRM API", () => {
       await app.close();
     });
 
+    it("reads relationship settings with Contatos sugeridos or Configurações", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      for (const modules of [["relationship"], ["settings"]]) {
+        const user = await createUser(app, owner, { role: "reception", modules });
+        const read = await app.inject({ method: "GET", url: "/relationship/settings", headers: user.headers });
+        expect(read.statusCode, modules.join()).toBe(200);
+        expect(read.json()).toEqual(defaultRelationshipSettings);
+        const head = await app.inject({ method: "HEAD", url: "/relationship/settings", headers: user.headers });
+        expect(head.statusCode, modules.join()).toBe(200);
+        const write = await app.inject({
+          method: "PUT",
+          url: "/relationship/settings",
+          headers: user.headers,
+          payload: defaultRelationshipSettings,
+        });
+        expect(write.statusCode).toBe(403);
+      }
+      const without = await createUser(app, owner, { role: "reception", modules: ["agenda", "crm"] });
+      const denied = await app.inject({ method: "GET", url: "/relationship/settings", headers: without.headers });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      expect(denied.json().message).toContain("Contatos sugeridos");
+      const deniedHead = await app.inject({ method: "HEAD", url: "/relationship/settings", headers: without.headers });
+      expect(deniedHead.statusCode).toBe(403);
+      await app.close();
+    });
+
+    it("lists minimal client options to whoever sees a module that picks clients", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const full = (await app.inject({ method: "GET", url: "/patients", headers: owner })).json() as Array<{
+        id: string;
+        fullName: string;
+        tags: string[];
+      }>;
+      expect(full.length).toBeGreaterThan(0);
+      for (const module of ["agenda", "communications", "contracts", "groups", "patients"]) {
+        const user = await createUser(app, owner, { role: "reception", modules: [module] });
+        const options = await app.inject({ method: "GET", url: "/patients/options", headers: user.headers });
+        expect(options.statusCode, module).toBe(200);
+        const body = options.json() as Array<Record<string, unknown>>;
+        expect(body).toEqual(full.map(({ id, fullName, tags }) => ({ id, fullName, tags })));
+        for (const item of body) expect(Object.keys(item).sort()).toEqual(["fullName", "id", "tags"]);
+        const head = await app.inject({ method: "HEAD", url: "/patients/options", headers: user.headers });
+        expect(head.statusCode, module).toBe(200);
+        if (module !== "patients") {
+          const list = await app.inject({ method: "GET", url: "/patients", headers: user.headers });
+          expect(list.statusCode, module).toBe(403);
+        }
+      }
+      const crmOnly = await createUser(app, owner, { role: "reception", modules: ["crm", "finance"] });
+      const denied = await app.inject({ method: "GET", url: "/patients/options", headers: crmOnly.headers });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      expect((await app.inject({ method: "HEAD", url: "/patients/options", headers: crmOnly.headers })).statusCode).toBe(403);
+      expect((await app.inject({ method: "GET", url: "/patients/options" })).statusCode).toBe(401);
+      await app.close();
+    });
+
     it("lets the default physiotherapist read clients but not save them", async () => {
       const { app, token } = await authenticatedApp();
       const owner = { authorization: `Bearer ${token}` };

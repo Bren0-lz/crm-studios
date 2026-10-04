@@ -82,6 +82,7 @@ import type {
   PatientExportColumn,
   PatientImportAnalysis,
   PatientImportFileInput,
+  PatientOption,
   PatientImportResult,
   PatientTimelineEntry,
   PatientInput,
@@ -273,6 +274,8 @@ export const api = {
     request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>
     request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
+  /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
+  patientOptions: () => request<PatientOption[]>("/patients/options"),
   exportPatients: (params: PatientExportParams) =>
     requestBlob(`/patients/export?${patientExportQuery(params)}`),
   createPatient: (input: PatientInput) =>

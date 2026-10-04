@@ -1187,6 +1187,17 @@ export interface Patient extends PatientInput {
   updatedAt: string;
 }
 
+/**
+ * Cliente na lista mínima de apoio (`GET /patients/options`): só o que Agenda, Comunicações,
+ * Contratos e Turmas precisam para escolher o cliente (nome) e filtrar comunicados (etiquetas),
+ * sem os dados cadastrais (telefone, CPF, endereço…), que ficam no módulo Clientes.
+ */
+export interface PatientOption {
+  id: string;
+  fullName: string;
+  tags: string[];
+}
+
 export interface Professional extends ProfessionalInput {
   id: string;
   clinicId: string;

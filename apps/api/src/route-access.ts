@@ -11,11 +11,20 @@ export interface ModuleRequirement {
  * - `login`: basta estar logado (usuário ativo).
  * - `owner`: Administração, sempre só da gestora (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
+ * - `{ anyOf: [...] }`: basta UM dos níveis listados (leituras de apoio usadas por várias
+ *   telas). O 403 usa o código do primeiro módulo e cita todos na mensagem.
  */
-export type RouteAccess = "public" | "login" | "owner" | ModuleRequirement[];
+export type RouteAccess =
+  | "public"
+  | "login"
+  | "owner"
+  | ModuleRequirement[]
+  | { anyOf: ModuleRequirement[] };
 
 const view = (...modules: AppModule[]): ModuleRequirement[] =>
   modules.map((module) => ({ module, level: "view" }));
+/** Ver qualquer um dos módulos. */
+const viewAny = (...modules: AppModule[]) => ({ anyOf: view(...modules) });
 const edit = (...modules: AppModule[]): ModuleRequirement[] =>
   modules.map((module) => ({ module, level: "edit" }));
 
@@ -39,7 +48,11 @@ const edit = (...modules: AppModule[]): ModuleRequirement[] =>
  *   workspace de estoque/comandas exige EDITAR Clientes (ver Clientes a liberaria para a
  *   fisioterapeuta).
  * - `/satisfaction`: antes os 4 perfis; fica em Agenda.
- * - `GET /relationship/settings`: antes só comercial; fica em ver Configurações.
+ * - `GET /relationship/settings`: antes só comercial; exige ver Contatos sugeridos OU
+ *   Configurações (as duas telas e o cartão de aniversários da Visão geral leem os prazos).
+ * - `GET /patients/options` (D11): lista mínima de clientes (id, nome e etiquetas) para as telas
+ *   que só escolhem o cliente — exige ver Clientes, Agenda, Comunicações, Contratos OU Turmas.
+ *   O cadastro completo (`GET /patients`) continua só com ver Clientes.
  */
 export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /health": "public",
@@ -98,6 +111,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // Clientes (inclui estoque e comandas).
   "GET /patients": view("patients"),
+  "GET /patients/options": viewAny("patients", "agenda", "communications", "contracts", "groups"),
   "POST /patients": edit("patients"),
   "PUT /patients/:id": edit("patients"),
   "POST /patients/import/preview": edit("patients"),
@@ -131,7 +145,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PATCH /lead-tasks/:id/status": edit("crm"),
 
   // Contatos sugeridos (relacionamento).
-  "GET /relationship/settings": view("settings"),
+  "GET /relationship/settings": viewAny("relationship", "settings"),
   "GET /relationship/suggestions": view("relationship"),
   "GET /relationship/birthdays": view("relationship"),
   "GET /relationship/activities": view("relationship"),

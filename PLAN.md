@@ -814,7 +814,7 @@ profissional; criar modais personalizados para cada opção".
   degrada com aviso; escolher a opção mais simples e segura e documentar. Testes de rota e web.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D07
-- **Status:** TODO
+- **Status:** DONE
 
 ### Pedidos do dono de 04/10/2026 (entram antes da V5)
 - **Permissões 100% livres:** acabam os perfis com permissões pré-definidas (recepção,

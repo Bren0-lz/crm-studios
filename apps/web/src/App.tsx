@@ -105,6 +105,7 @@ import type {
   ManagementReport,
   SalesReport,
   Patient,
+  PatientOption,
   PatientExportColumn,
   PatientImportAnalysis,
   PatientImportDuplicate,
@@ -2378,7 +2379,7 @@ function ContactActivityModal({
 
 function CommunicationsPage() {
   const [center, setCenter] = useState<CommunicationCenter | null>(null);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [patientId, setPatientId] = useState("");
   const [channel, setChannel] = useState<CommunicationChannel>("whatsapp");
   const [body, setBody] = useState("");
@@ -2393,7 +2394,7 @@ function CommunicationsPage() {
   async function load() {
     const [communicationData, patientData] = await Promise.all([
       api.communications(),
-      api.patients(),
+      api.patientOptions(),
     ]);
     setCenter(communicationData);
     setPatients(patientData);
@@ -2402,7 +2403,7 @@ function CommunicationsPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.communications(), api.patients()])
+    Promise.all([api.communications(), api.patientOptions()])
       .then(([communicationData, patientData]) => {
         if (!active) return;
         setCenter(communicationData);
@@ -2670,7 +2671,7 @@ function BroadcastPanel({
   outboxOnly,
   onQueued,
 }: {
-  patients: Patient[];
+  patients: PatientOption[];
   outboxOnly: boolean;
   onQueued: (result: BroadcastResult) => void;
 }) {
@@ -2958,8 +2959,9 @@ function fetchContractsPageData() {
   return Promise.all([
     api.documentTemplates(),
     api.documents(),
-    api.patients(),
-    api.plans(),
+    api.patientOptions(),
+    // Planos são opcionais no documento: quem não vê Planos emite sem vincular plano.
+    canView("plans") ? api.plans() : Promise.resolve([]),
     api.professionals(),
   ]);
 }
@@ -2967,7 +2969,7 @@ function fetchContractsPageData() {
 function DocumentsPage() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [plans, setPlans] = useState<PatientPlan[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -9603,6 +9605,16 @@ function ClinicalHistoryModal({
   );
 }
 
+/**
+ * Clientes da Agenda: quem vê Clientes recebe o cadastro completo (detalhes do atendimento); os
+ * demais, só a lista mínima para escolher o cliente (`GET /patients/options`).
+ */
+async function fetchAgendaPatients(): Promise<{ options: PatientOption[]; records: Patient[] }> {
+  if (!canView("patients")) return { options: await api.patientOptions(), records: [] };
+  const records = await api.patients();
+  return { options: records, records };
+}
+
 function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<"day" | "week" | "month">("day");
@@ -9614,7 +9626,9 @@ function AgendaPage() {
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  // Cadastro completo só para quem vê Clientes (dados do cliente nos detalhes do atendimento).
+  const [patientRecords, setPatientRecords] = useState<Patient[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -9671,7 +9685,7 @@ function AgendaPage() {
       api.professionals(),
       api.rooms(),
       api.services(),
-      api.patients(),
+      fetchAgendaPatients(),
     ])
       .then(
         ([
@@ -9692,7 +9706,8 @@ function AgendaPage() {
           setProfessionals(professionalData);
           setRooms(roomData);
           setServices(serviceData);
-          setPatients(patientData);
+          setPatients(patientData.options);
+          setPatientRecords(patientData.records);
         },
       )
       .catch((cause: Error) => {
@@ -10030,7 +10045,7 @@ function AgendaPage() {
       {selectedAppointment && (
         <AppointmentDetailsModal
           appointment={selectedAppointment}
-          patient={patients.find((item) => item.id === selectedAppointment.patientId)}
+          patient={patientRecords.find((item) => item.id === selectedAppointment.patientId)}
           service={services.find((item) => item.id === selectedAppointment.serviceId)}
           onClose={() => setSelectedAppointmentId(null)}
           editable={canSchedule}
@@ -10772,7 +10787,7 @@ function AppointmentModal({
   onCreated,
 }: {
   date: Date;
-  patients: Patient[];
+  patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];
   services: Service[];
@@ -12993,7 +13008,7 @@ function GroupSlotsEditor({ slots, onChange, weekDayNames }: { slots: GroupClass
 function GroupsPage() {
   const weekDayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -13023,7 +13038,7 @@ function GroupsPage() {
       const [data, patientData, professionalData, roomData, serviceData] =
         await Promise.all([
           api.groupWorkspace(dates.from, dates.to),
-          api.patients(),
+          api.patientOptions(),
           api.professionals(),
           api.rooms(),
           api.services(),
@@ -13044,7 +13059,7 @@ function GroupsPage() {
     const dates = groupOperationRange();
     Promise.all([
       api.groupWorkspace(dates.from, dates.to),
-      api.patients(),
+      api.patientOptions(),
       api.professionals(),
       api.rooms(),
       api.services(),

@@ -87,6 +87,7 @@ import {
   type ManagementReport,
   type PatientImportAnalysis,
   type PatientImportResult,
+  type PatientOption,
   type SatisfactionReport,
   type UserSummary,
   type PermissionMatrixItem,
@@ -434,6 +435,23 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     };
   }
 
+  /** Guarda "qualquer um de": basta um dos requisitos (ver `ROUTE_ACCESS`, `{ anyOf }`). */
+  function requireAnyModule(requirements: readonly ModuleRequirement[]) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      const access = requestAccess.get(request);
+      const allowed = requirements.some(({ module, level }) =>
+        (level === "edit" ? access?.editModules : access?.modules)?.includes(module),
+      );
+      if (!allowed)
+        return reply.status(403).send({
+          code: moduleDeniedCodes[requirements[0]!.module],
+          message: `Seu usuário não possui permissão para ${
+            requirements[0]!.level === "edit" ? "editar" : "ver"
+          } ${requirements.map(({ module }) => appModuleLabels[module]).join(" ou ")}.`,
+        } satisfies ApiError);
+    };
+  }
+
   async function requireOwnerAccess(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -467,7 +485,9 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         ? [requireOwnerAccess]
         : access === "login"
           ? []
-          : [requireModules(access)]),
+          : Array.isArray(access)
+            ? [requireModules(access)]
+            : [requireAnyModule(access.anyOf)]),
     ];
   });
 
@@ -845,6 +865,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.get("/patients", { preHandler: authenticate }, async (request) => {
     const query = request.query as { search?: string };
     return repository.listPatients(request.user.clinicId, query.search);
+  });
+  // Lista mínima de apoio (D11): só id, nome e etiquetas, para telas que escolhem o cliente.
+  app.get("/patients/options", { preHandler: authenticate }, async (request) => {
+    const patients = await repository.listPatients(request.user.clinicId);
+    return patients.map(
+      ({ id, fullName, tags }): PatientOption => ({ id, fullName, tags }),
+    );
   });
   app.get(
     "/patients/export",
