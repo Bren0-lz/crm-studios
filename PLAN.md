@@ -912,3 +912,105 @@ profissional; criar modais personalizados para cada opção".
 - **Gate:** `npm run build`
 - **Depende de:** V5
 - **Status:** TODO
+
+## Rodada 6 — Etiquetas, cadastro guiado e WhatsApp (pedido do dono, 04/10/2026)
+
+Pedidos do dono:
+- Estilizar os botões que levam para o WhatsApp.
+- Configurar etiquetas em Configurações, cada uma com uma cor própria.
+- Ao etiquetar um cliente, só poder escolher entre as etiquetas configuradas.
+- Os filtros mostram as etiquetas configuradas.
+- Ao adicionar cliente, dizer se ele vai fazer uma **aula de demonstração**, **assinar um plano** ou
+  **contratar um serviço avulso**. Quem assina já pode ser ligado a um plano e, de acordo com o
+  plano, a uma turma — a turma **não é obrigatória** e pode ser escolhida depois com o responsável
+  daquele tipo de aula. Em Clientes, filtro **"Assinantes sem turma vinculada"**.
+
+Decisões do orquestrador (o dono pode mudar na V6):
+- As etiquetas que os clientes já têm hoje (texto livre) viram etiquetas configuradas na migração,
+  com uma cor padrão — nada some.
+- Excluir uma etiqueta em uso é bloqueado, com aviso de quantos clientes a usam (renomear é
+  permitido e atualiza os clientes).
+- "Serviço avulso" = plano do tipo `single`; "plano" = `recurring` ou `fixed_package`.
+- Turma compatível = turma do mesmo serviço do plano; o responsável é o profissional da turma.
+- "Assinante sem turma vinculada" = cliente com plano ativo que não é avulso e sem matrícula ativa
+  em nenhuma turma do serviço desse plano.
+- Etiquetas dos leads (CRM) ficam como estão nesta rodada.
+
+### T061 — Botões de WhatsApp estilizados
+- **Escopo:** variante própria `whatsapp-button` (verde do WhatsApp com contraste AA, ícone, tamanho
+  normal e `button-sm`), aplicada a todos os links que abrem o WhatsApp (`whatsappLink`: Contatos
+  sugeridos, aniversários, SOS, detalhe do cliente e demais). Mesma aparência em todas as telas; abre
+  em nova aba com `rel="noopener"`. Ampliar o audit (autorizado): link com `whatsappLink`/`wa.me`
+  sem a variante é reprovado. Teste web.
+- **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T054
+- **Status:** TODO
+
+### T062 — Etiquetas configuráveis na API
+- **Escopo:**
+  - Migração nova `0044_…`: tabela de etiquetas por clínica (nome único sem diferenciar
+    maiúsculas/acentos, cor `#RRGGBB`), importando as etiquetas distintas que os clientes já têm,
+    com cor padrão. Segura para o deploy automático (transação, idempotente, sem perda).
+  - Rotas: listar (quem vê `patients`, `settings` ou módulos que usam etiquetas), criar, renomear e
+    trocar cor, excluir (edição de `settings`). Renomear atualiza as etiquetas dos clientes; excluir
+    etiqueta em uso devolve 409 com a contagem.
+  - Cadastro e edição de cliente só aceitam etiquetas configuradas (400 com a lista das
+    desconhecidas). Importação de clientes: etiqueta desconhecida vira erro na prévia daquela linha.
+  - Filtros (`/patients/export`, comunicado segmentado) continuam funcionando com os nomes.
+  - Dois repositórios, `ROUTE_ACCESS`, auditoria, testes de rota e PG opt-in (inclui a migração).
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T061
+- **Status:** TODO
+
+### T063 — Etiquetas configuráveis na interface
+- **Escopo:** gaveta "Etiquetas" em Configurações (criar, renomear, escolher cor com paleta
+  sugerida e seletor livre, excluir com o aviso do 409). No cadastro do cliente, as etiquetas viram
+  seleção múltipla só das configuradas (chips coloridos), sem campo de texto livre. Filtros de
+  Clientes, exportação e comunicado segmentado listam as etiquetas configuradas com a cor. Selos de
+  etiqueta coloridos nas listas (texto legível sobre a cor, contraste AA). Testes web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T062
+- **Status:** TODO
+
+### T064 — Cadastro guiado do cliente na API
+- **Escopo:**
+  - Rota transacional para criar o cliente já com o próximo passo: `demonstration` (cria o
+    atendimento experimental — serviço, profissional, data/hora, respeitando feriados e conflitos),
+    `plan` (cria o plano `recurring`/`fixed_package` e, opcionalmente, a matrícula numa turma do
+    mesmo serviço) ou `single` (cria o plano avulso). Tudo ou nada (transação no PG). Reaproveitar a
+    validação dos fluxos existentes.
+  - Filtro `withoutGroup=true` em `GET /patients` (e na exportação): assinantes sem turma vinculada,
+    conforme a definição acima.
+  - Dois repositórios, `ROUTE_ACCESS` (edição de `patients` + a do módulo afetado: `agenda`, `plans`,
+    `groups`), testes de rota e PG opt-in.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T063
+- **Status:** TODO
+
+### T065 — Cadastro guiado do cliente na interface
+- **Escopo:** ao criar cliente, depois dos dados, a pergunta "O que o cliente vai fazer?" com três
+  opções (Aula de demonstração · Assinar um plano · Serviço avulso), e uma opção "Só cadastrar por
+  enquanto". Demonstração: serviço, profissional, data e hora. Plano/avulso: formulário de plano
+  reaproveitado; para plano, campo **opcional** de turma, listando só turmas do serviço do plano com
+  o responsável e as vagas, e o texto "A turma pode ser escolhida depois com o responsável". Em
+  Clientes, filtro "Assinantes sem turma vinculada" (e um selo/atalho para matricular). Opções
+  escondidas para quem não pode editar o módulo correspondente. Testes web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T064
+- **Status:** TODO
+
+### V6 — Revisão da rodada 6 (manual)
+- **Tipo:** manual
+- **Escopo:** em 1440px e 390px: botões de WhatsApp, Configurações › Etiquetas (cores), cadastro de
+  cliente com as quatro opções, turma opcional, filtro "Assinantes sem turma vinculada", filtros com
+  etiquetas coloridas.
+- **Gate:** aprovação do dono no chat.
+- **Depende de:** T065
+- **Status:** TODO
+
+### T066 — Documentação da rodada 6
+- **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` e item no `README.md` (botões de
+  WhatsApp, etiquetas configuráveis com cor, cadastro guiado, filtro de assinantes sem turma).
+- **Gate:** `npm run build`
+- **Depende de:** V6
+- **Status:** TODO
