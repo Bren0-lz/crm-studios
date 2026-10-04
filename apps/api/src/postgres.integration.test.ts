@@ -2561,4 +2561,167 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       await cleanup();
     }
   });
+
+  it("configures the demo clients' tags after the seed", async () => {
+    const used = await pool.query<{ tag: string }>(
+      "SELECT DISTINCT unnest(tags) AS tag FROM patients WHERE clinic_id = $1 AND tags && ARRAY['Pós-operatório','Pilates']",
+      [clinicId],
+    );
+    const tags = await repository.listPatientTags(clinicId);
+    for (const { tag } of used.rows)
+      expect(tags.map((item) => item.name), tag).toContain(tag);
+    expect(tags.find((item) => item.name === "Pilates")?.patientCount).toBeGreaterThan(0);
+  });
+
+  it("creates, renames with the clients, recolors and deletes tags only when unused", async () => {
+    const phone = "11977770620";
+    const names = ["PG Etiqueta T062", "PG Etiqueta T062 Nova"];
+    const cleanup = async () => {
+      await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND phone = $2", [clinicId, phone]);
+      await pool.query("DELETE FROM patient_tags WHERE clinic_id = $1 AND name = ANY($2)", [
+        clinicId,
+        names,
+      ]);
+    };
+    await cleanup();
+    try {
+      const tag = await repository.createPatientTag(clinicId, ownerId, {
+        name: names[0]!,
+        color: "#aa3366",
+      });
+      expect(tag).toMatchObject({ clinicId, name: names[0], color: "#aa3366", patientCount: 0 });
+      await expect(
+        repository.createPatientTag(clinicId, ownerId, { name: "pg etiquetá t062", color: "#000000" }),
+      ).rejects.toMatchObject({ code: "PATIENT_TAG_DUPLICATE" });
+
+      const patient = await repository.createPatient(clinicId, {
+        fullName: "Cliente Etiqueta PG",
+        phone,
+        tags: [names[0]!, "Outra coisa"],
+      });
+      const renamed = await repository.updatePatientTag(clinicId, ownerId, tag.id, {
+        name: names[1]!,
+      });
+      expect(renamed).toMatchObject({ id: tag.id, name: names[1], color: "#aa3366", patientCount: 1 });
+      const [stored] = await repository.listPatients(clinicId, phone);
+      expect(stored?.id).toBe(patient.id);
+      expect(stored?.tags).toEqual([names[1], "Outra coisa"]);
+      await expect(
+        repository.updatePatientTag(clinicId, ownerId, tag.id, { name: "pilates" }),
+      ).rejects.toMatchObject({ code: "PATIENT_TAG_DUPLICATE" });
+      expect(
+        await repository.updatePatientTag(clinicId, ownerId, tag.id, { color: "#112233" }),
+      ).toMatchObject({ name: names[1], color: "#112233" });
+      expect(
+        await repository.updatePatientTag(clinicId, ownerId, "12121212-1212-4121-8121-121212121212", {
+          color: "#112233",
+        }),
+      ).toBeNull();
+
+      const inUse = await repository
+        .deletePatientTag(clinicId, ownerId, tag.id)
+        .catch((error: unknown) => error);
+      expect(inUse).toBeInstanceOf(DomainError);
+      expect(inUse).toMatchObject({ code: "PATIENT_TAG_IN_USE", statusCode: 409, details: { patientCount: 1 } });
+      await repository.updatePatient(clinicId, patient.id, {
+        fullName: patient.fullName,
+        phone,
+        tags: [],
+      });
+      expect(await repository.deletePatientTag(clinicId, ownerId, tag.id)).toBe(true);
+      expect(await repository.deletePatientTag(clinicId, ownerId, tag.id)).toBe(false);
+
+      const audit = await pool.query<{ action: string; metadata: Record<string, unknown> }>(
+        `SELECT action, metadata FROM audit_events
+         WHERE clinic_id = $1 AND entity_type = 'patient_tag' AND entity_id = $2
+         ORDER BY created_at`,
+        [clinicId, tag.id],
+      );
+      expect(audit.rows.map((row) => row.action)).toEqual([
+        "patient_tag.created",
+        "patient_tag.updated",
+        "patient_tag.updated",
+        "patient_tag.deleted",
+      ]);
+      expect(audit.rows[1]?.metadata).toMatchObject({ previousName: names[0], patientsUpdated: 1 });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("migration 0044 configures the clients' existing tags without losing any", async () => {
+    const sql = readFileSync(
+      fileURLToPath(new URL("../migrations/0044_patient_tags.sql", import.meta.url)),
+      "utf8",
+    );
+    const clinic = "11111111-1111-4111-8111-000000000044";
+    const other = "11111111-1111-4111-8111-000000000045";
+    // Esquema temporário com as tabelas como estavam antes da 0044; tudo desfeito no ROLLBACK.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("CREATE SCHEMA t062_migration");
+      await client.query("SET LOCAL search_path TO t062_migration");
+      await client.query("CREATE TABLE clinics (id uuid PRIMARY KEY)");
+      await client.query(
+        `CREATE TABLE patients (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+           clinic_id uuid NOT NULL REFERENCES clinics(id), full_name text NOT NULL,
+           tags text[] NOT NULL DEFAULT '{}')`,
+      );
+      await client.query("INSERT INTO clinics (id) VALUES ($1), ($2)", [clinic, other]);
+      await client.query(
+        `INSERT INTO patients (clinic_id, full_name, tags) VALUES
+           ($1, 'Ana', ARRAY['Pós-operatório', 'VIP']),
+           ($1, 'Bia', ARRAY['pos-operatorio', 'Pós-operatório']),
+           ($1, 'Caio', ARRAY['Pós-operatório']),
+           ($1, 'Davi', ARRAY[]::text[]),
+           ($2, 'Eva', ARRAY['vip', ''])`,
+        [clinic, other],
+      );
+      const tagsSnapshot = `SELECT clinic_id, name, name_key, color FROM patient_tags ORDER BY clinic_id, name`;
+      const patientsSnapshot = `SELECT full_name, tags FROM patients ORDER BY full_name`;
+
+      await client.query(sql);
+      const once = [await client.query(tagsSnapshot), await client.query(patientsSnapshot)];
+      await client.query(sql); // pode rodar de novo sem erro nem efeito
+      const twice = [await client.query(tagsSnapshot), await client.query(patientsSnapshot)];
+      expect(twice.map((result) => result.rows)).toEqual(once.map((result) => result.rows));
+
+      // Uma etiqueta por nome (sem diferenciar maiúsculas/acentos), por clínica, com a cor padrão;
+      // a grafia mais usada vence.
+      expect(twice[0]!.rows).toEqual([
+        { clinic_id: clinic, name: "Pós-operatório", name_key: "pos-operatorio", color: "#64748b" },
+        { clinic_id: clinic, name: "VIP", name_key: "vip", color: "#64748b" },
+        { clinic_id: other, name: "vip", name_key: "vip", color: "#64748b" },
+      ]);
+      // Clientes passam à grafia configurada, sem repetir; nada some.
+      expect(twice[1]!.rows).toEqual([
+        { full_name: "Ana", tags: ["Pós-operatório", "VIP"] },
+        { full_name: "Bia", tags: ["Pós-operatório"] },
+        { full_name: "Caio", tags: ["Pós-operatório"] },
+        { full_name: "Davi", tags: [] },
+        { full_name: "Eva", tags: ["vip", ""] },
+      ]);
+
+      await client.query("SAVEPOINT unique_key");
+      await expect(
+        client.query(
+          "INSERT INTO patient_tags (clinic_id, name, name_key) VALUES ($1, 'Vip', 'vip')",
+          [clinic],
+        ),
+      ).rejects.toMatchObject({ code: "23505" });
+      await client.query("ROLLBACK TO SAVEPOINT unique_key");
+      await client.query("SAVEPOINT color_check");
+      await expect(
+        client.query(
+          "INSERT INTO patient_tags (clinic_id, name, name_key, color) VALUES ($1, 'Nova', 'nova', 'azul')",
+          [clinic],
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+      await client.query("ROLLBACK TO SAVEPOINT color_check");
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
 });

@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { config } from "./config.js";
 import { databaseConnectionConfig, usesTransactionPooler } from "./database-connection.js";
 import { demoPatients } from "./demo-patients.js";
+import { ensurePatientTags } from "./postgres-repository.js";
 import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 
 const migrationsPath = fileURLToPath(new URL("../migrations", import.meta.url));
@@ -198,6 +199,16 @@ export async function seedDemoData(pool: Pool) {
       ON CONFLICT (id) DO NOTHING
     `);
     await seedDemoScenarios(client);
+    // Etiquetas dos clientes demo precisam estar configuradas (o cadastro só aceita as da lista).
+    const demoTags = await client.query<{ tag: string }>(
+      "SELECT DISTINCT unnest(tags) AS tag FROM patients WHERE clinic_id = $1",
+      ["11111111-1111-4111-8111-111111111111"],
+    );
+    await ensurePatientTags(
+      client,
+      "11111111-1111-4111-8111-111111111111",
+      demoTags.rows.map((row) => row.tag),
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

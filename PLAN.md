@@ -995,7 +995,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
   - Dois repositórios, `ROUTE_ACCESS`, auditoria, testes de rota e PG opt-in (inclui a migração).
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T061
-- **Status:** TODO
+- **Status:** DONE
 
 ### T063 — Etiquetas configuráveis na interface
 - **Escopo:** gaveta "Etiquetas" em Configurações (criar, renomear, escolher cor com paleta

@@ -77,6 +77,9 @@ import type {
   OutboundMessage,
   Patient,
   PatientInput,
+  PatientTag,
+  PatientTagInput,
+  PatientTagUpdate,
   PatientPlan,
   PatientPlanInput,
   PlanRenewalInput,
@@ -124,11 +127,13 @@ import type {
   SatisfactionSurveyInput,
 } from "@crm/contracts";
 import {
+  DEFAULT_PATIENT_TAG_COLOR,
   defaultRelationshipSettings,
   effectiveEditModules,
   effectiveModules,
   groupClassName,
   nextPlanPeriod,
+  patientTagKey,
   planInstallmentSchedule,
   recurringPayableCompetences,
   recurringPayableDueDate,
@@ -158,6 +163,8 @@ import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
   lastAdminError,
+  patientTagDuplicateError,
+  patientTagInUseError,
   type AuthenticatedUser,
   type ClinicRepository,
 } from "./repository.js";
@@ -470,8 +477,12 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly products: Product[] = [];
   private readonly stockMovements: StockMovement[] = [];
   private readonly patientTabs: PatientTab[] = [];
+  /** Etiquetas configuradas; começam com as etiquetas que os clientes demo já têm. */
+  private readonly patientTags: Omit<PatientTag, "patientCount">[] = [];
 
   constructor(withRichDemo = false) {
+    for (const patient of this.patients)
+      for (const tag of patient.tags) this.ensurePatientTag(patient.clinicId, tag);
     if (!withRichDemo) return;
     const data = buildDemoScenarios();
     this.professionals.push(...demoProfessionals);
@@ -1327,6 +1338,115 @@ export class MemoryClinicRepository implements ClinicRepository {
         if (item.patientId === patientId) item.patientName = patient.fullName;
     }
     return patient;
+  }
+
+  /** Garante a etiqueta configurada (cor padrão) — dados demo e "Convertido do CRM". */
+  private ensurePatientTag(clinicId: string, name: string) {
+    const key = patientTagKey(name);
+    if (!key) return;
+    if (this.patientTags.some((tag) => tag.clinicId === clinicId && patientTagKey(tag.name) === key))
+      return;
+    const timestamp = now();
+    this.patientTags.push({
+      id: uuid(),
+      clinicId,
+      name: name.trim(),
+      color: DEFAULT_PATIENT_TAG_COLOR,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+
+  private withPatientCount(tag: Omit<PatientTag, "patientCount">): PatientTag {
+    return {
+      ...tag,
+      patientCount: this.patients.filter(
+        (patient) => patient.clinicId === tag.clinicId && patient.tags.includes(tag.name),
+      ).length,
+    };
+  }
+
+  async listPatientTags(clinicId: string) {
+    return this.patientTags
+      .filter((tag) => tag.clinicId === clinicId)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((tag) => this.withPatientCount(tag));
+  }
+
+  async createPatientTag(clinicId: string, actorUserId: string, input: PatientTagInput) {
+    const key = patientTagKey(input.name);
+    if (this.patientTags.some((tag) => tag.clinicId === clinicId && patientTagKey(tag.name) === key))
+      throw patientTagDuplicateError(input.name);
+    const timestamp = now();
+    const tag = {
+      id: uuid(),
+      clinicId,
+      name: input.name,
+      color: input.color,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.patientTags.push(tag);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(actorUserId, "patient_tag.created", "patient_tag", tag.id, {
+        name: tag.name,
+        color: tag.color,
+      });
+    return this.withPatientCount(tag);
+  }
+
+  async updatePatientTag(
+    clinicId: string,
+    actorUserId: string,
+    tagId: string,
+    input: PatientTagUpdate,
+  ) {
+    const tag = this.patientTags.find((item) => item.clinicId === clinicId && item.id === tagId);
+    if (!tag) return null;
+    const previousName = tag.name;
+    const name = input.name ?? tag.name;
+    if (
+      input.name !== undefined &&
+      this.patientTags.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id !== tagId &&
+          patientTagKey(item.name) === patientTagKey(name),
+      )
+    )
+      throw patientTagDuplicateError(name);
+    let patientsUpdated = 0;
+    if (name !== previousName) {
+      for (const patient of this.patients) {
+        if (patient.clinicId !== clinicId || !patient.tags.includes(previousName)) continue;
+        patient.tags = patient.tags.map((item) => (item === previousName ? name : item));
+        patientsUpdated += 1;
+      }
+    }
+    Object.assign(tag, { name, color: input.color ?? tag.color, updatedAt: now() });
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(actorUserId, "patient_tag.updated", "patient_tag", tag.id, {
+        name: tag.name,
+        color: tag.color,
+        ...(name !== previousName ? { previousName, patientsUpdated } : {}),
+      });
+    return this.withPatientCount(tag);
+  }
+
+  async deletePatientTag(clinicId: string, actorUserId: string, tagId: string) {
+    const index = this.patientTags.findIndex(
+      (item) => item.clinicId === clinicId && item.id === tagId,
+    );
+    const tag = this.patientTags[index];
+    if (!tag) return false;
+    const { patientCount } = this.withPatientCount(tag);
+    if (patientCount > 0) throw patientTagInUseError(tag.name, patientCount);
+    this.patientTags.splice(index, 1);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(actorUserId, "patient_tag.deleted", "patient_tag", tag.id, {
+        name: tag.name,
+      });
+    return true;
   }
 
   async listProfessionals(clinicId: string) {
@@ -4436,6 +4556,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           Boolean(lead.email && item.email === lead.email)),
     );
     const reusedExisting = Boolean(patient);
+    if (!patient) this.ensurePatientTag(clinicId, "Convertido do CRM");
     patient ??= await this.createPatient(clinicId, {
       fullName: lead.fullName,
       phone: lead.phone,

@@ -35,6 +35,10 @@ import {
   patientExportColumns,
   patientExportFilterSchema,
   patientInputSchema,
+  patientTagInputSchema,
+  patientTagKey,
+  patientTagUpdateSchema,
+  resolvePatientTags,
   recurringPayableCompetences,
   recurringPayableDueDate,
 } from "./index.js";
@@ -135,6 +139,24 @@ describe("shared contracts", () => {
     expect(result.tags).toEqual(["Pilates"]);
     expect(() => patientInputSchema.parse({ fullName: "Maria da Silva", phone: "9999-9999" })).toThrow();
     expect(patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11 3333 4444", emergencyContactPhone: "" }).emergencyContactPhone).toBe("");
+  });
+
+  it("validates configured patient tags and compares names without case or accents", () => {
+    expect(patientTagInputSchema.parse({ name: "  VIP " })).toEqual({ name: "VIP", color: "#64748b" });
+    expect(patientTagInputSchema.parse({ name: "VIP", color: "#A1B2C3" }).color).toBe("#a1b2c3");
+    expect(patientTagInputSchema.safeParse({ name: "VIP", color: "red" }).success).toBe(false);
+    expect(patientTagInputSchema.safeParse({ name: " " }).success).toBe(false);
+    expect(patientTagInputSchema.safeParse({ name: "x".repeat(41) }).success).toBe(false);
+    expect(patientTagUpdateSchema.safeParse({}).success).toBe(false);
+    expect(patientTagUpdateSchema.parse({ color: "#000000" })).toEqual({ color: "#000000" });
+    expect(patientTagKey("  Pós-Operatório ")).toBe(patientTagKey("pos-operatorio"));
+    expect(patientTagKey("Dança  terapia")).toBe("danca terapia");
+    expect(
+      resolvePatientTags(["pilates", "Pós-operatório", "PILATES", "Nova", "Nova"], [
+        { name: "Pilates" },
+        { name: "Pós-operatório" },
+      ]),
+    ).toEqual({ tags: ["Pilates", "Pós-operatório"], unknown: ["Nova"] });
   });
 
   it("formats Brazilian phone numbers while typing", () => {

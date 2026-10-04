@@ -79,6 +79,14 @@ function roleSub(app: TestApp, role: UserRole) {
   return ids[role];
 }
 
+/** Configura as etiquetas (T062: o cadastro do cliente só aceita etiquetas configuradas). */
+async function configureTags(app: TestApp, headers: Record<string, string>, names: string[]) {
+  for (const name of names) {
+    const created = await app.inject({ method: "POST", url: "/patient-tags", headers, payload: { name } });
+    expect(created.statusCode, name).toBe(201);
+  }
+}
+
 describe("CRM API", () => {
   it("allows the web app to send every write method through CORS", async () => {
     const app = await buildApp({ repository: new MemoryClinicRepository(), logger: false });
@@ -827,6 +835,7 @@ describe("CRM API", () => {
 
   it("creates and searches a patient", async () => {
     const { app, token } = await authenticatedApp();
+    await configureTags(app, { authorization: `Bearer ${token}` }, ["Avaliação"]);
     const created = await app.inject({
       method: "POST",
       url: "/patients",
@@ -861,6 +870,7 @@ describe("CRM API", () => {
   it("edits a patient without changing their record number or duplicating a CPF", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
+    await configureTags(app, headers, ["Retorno"]);
     const patient = (
       await app.inject({
         method: "POST",
@@ -6074,11 +6084,246 @@ describe("CRM API", () => {
     expect(list.json()).toEqual([]);
     await app.close();
   });
+  describe("configured patient tags", () => {
+    type Tag = { id: string; name: string; color: string; patientCount: number };
+    const listTags = async (app: TestApp, headers: Record<string, string>) => {
+      const response = await app.inject({ method: "GET", url: "/patient-tags", headers });
+      expect(response.statusCode).toBe(200);
+      return response.json() as Tag[];
+    };
+
+    it("starts with the tags clients already have, with the default color and usage count", async () => {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const tags = await listTags(app, headers);
+      const patients = (await app.inject({ method: "GET", url: "/patients", headers })).json() as Array<{
+        tags: string[];
+      }>;
+      const used = [...new Set(patients.flatMap((patient) => patient.tags))];
+      expect(tags.map((tag) => tag.name).sort()).toEqual([...used].sort());
+      const names = tags.map((tag) => tag.name);
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "pt-BR")));
+      const postOp = tags.find((tag) => tag.name === "Pós-operatório")!;
+      expect(postOp).toMatchObject({ color: "#64748b" });
+      expect(postOp.patientCount).toBe(
+        patients.filter((patient) => patient.tags.includes("Pós-operatório")).length,
+      );
+      await app.close();
+    });
+
+    it("creates, renames, recolors and deletes tags, keeping clients and filters in sync", async () => {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const created = await app.inject({
+        method: "POST",
+        url: "/patient-tags",
+        headers,
+        payload: { name: " Gestante T062 ", color: "#AA3366" },
+      });
+      expect(created.statusCode).toBe(201);
+      const tag = created.json() as Tag;
+      expect(tag).toMatchObject({ name: "Gestante T062", color: "#aa3366", patientCount: 0 });
+
+      for (const name of ["gestante t062", "GESTÁNTE T062"]) {
+        const duplicate = await app.inject({ method: "POST", url: "/patient-tags", headers, payload: { name } });
+        expect(duplicate.statusCode, name).toBe(409);
+        expect(duplicate.json()).toMatchObject({ code: "PATIENT_TAG_DUPLICATE" });
+      }
+      const badColor = await app.inject({
+        method: "POST",
+        url: "/patient-tags",
+        headers,
+        payload: { name: "Cor ruim", color: "vermelho" },
+      });
+      expect(badColor.statusCode).toBe(400);
+
+      // Cliente só aceita etiquetas configuradas (grafia oficial, sem repetir).
+      const unknown = await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: ["Gestante T062", "Inventada", "Outra"] },
+      });
+      expect(unknown.statusCode).toBe(400);
+      expect(unknown.json()).toMatchObject({
+        code: "PATIENT_TAG_UNKNOWN",
+        details: { unknownTags: ["Inventada", "Outra"] },
+      });
+      expect(unknown.json().message).toContain("Inventada, Outra");
+      const patient = await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: ["gestante t062", "GESTANTE T062"] },
+      });
+      expect(patient.statusCode).toBe(201);
+      expect(patient.json().tags).toEqual(["Gestante T062"]);
+      const patientId = patient.json().id as string;
+      const editUnknown = await app.inject({
+        method: "PUT",
+        url: `/patients/${patientId}`,
+        headers,
+        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: ["Inventada"] },
+      });
+      expect(editUnknown.statusCode).toBe(400);
+      expect(editUnknown.json()).toMatchObject({ code: "PATIENT_TAG_UNKNOWN", details: { unknownTags: ["Inventada"] } });
+
+      // Renomear troca o nome nos clientes; exportação e comunicado filtram pelo nome novo.
+      const renamed = await app.inject({
+        method: "PATCH",
+        url: `/patient-tags/${tag.id}`,
+        headers,
+        payload: { name: "Gestantes T062" },
+      });
+      expect(renamed.statusCode).toBe(200);
+      expect(renamed.json()).toMatchObject({ id: tag.id, name: "Gestantes T062", color: "#aa3366", patientCount: 1 });
+      const listed = (await app.inject({ method: "GET", url: "/patients?search=Gabi", headers })).json();
+      expect(listed[0].tags).toEqual(["Gestantes T062"]);
+      const exported = await app.inject({
+        method: "GET",
+        url: `/patients/export?columns=fullName&tags=${encodeURIComponent("Gestantes T062")}`,
+        headers,
+      });
+      expect(exported.statusCode).toBe(200);
+      expect(exported.body).toContain("Gabi Gestante");
+      const broadcast = await app.inject({
+        method: "POST",
+        url: "/communications/broadcast/preview",
+        headers,
+        payload: { segment: { tags: ["Gestantes T062"] }, channel: "whatsapp", body: "Oi, {{nome}}" },
+      });
+      expect(broadcast.statusCode).toBe(200);
+      expect(broadcast.json()).toMatchObject({ matched: 1, sampleBody: "Oi, Gabi" });
+
+      const caseOnly = await app.inject({
+        method: "PATCH",
+        url: `/patient-tags/${tag.id}`,
+        headers,
+        payload: { name: "GESTANTES T062" },
+      });
+      expect(caseOnly.statusCode).toBe(200);
+      const clash = await app.inject({
+        method: "PATCH",
+        url: `/patient-tags/${tag.id}`,
+        headers,
+        payload: { name: "pos-operatorio" },
+      });
+      expect(clash.statusCode).toBe(409);
+      expect(clash.json()).toMatchObject({ code: "PATIENT_TAG_DUPLICATE" });
+      const recolored = await app.inject({
+        method: "PATCH",
+        url: `/patient-tags/${tag.id}`,
+        headers,
+        payload: { color: "#112233" },
+      });
+      expect(recolored.json()).toMatchObject({ name: "GESTANTES T062", color: "#112233" });
+      const empty = await app.inject({ method: "PATCH", url: `/patient-tags/${tag.id}`, headers, payload: {} });
+      expect(empty.statusCode).toBe(400);
+
+      // Excluir etiqueta em uso: 409 com a contagem; sem uso: 204.
+      const inUse = await app.inject({ method: "DELETE", url: `/patient-tags/${tag.id}`, headers });
+      expect(inUse.statusCode).toBe(409);
+      expect(inUse.json()).toMatchObject({ code: "PATIENT_TAG_IN_USE", details: { patientCount: 1 } });
+      expect(inUse.json().message).toContain("1 cliente");
+      const cleared = await app.inject({
+        method: "PUT",
+        url: `/patients/${patientId}`,
+        headers,
+        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: [] },
+      });
+      expect(cleared.statusCode).toBe(200);
+      const deleted = await app.inject({ method: "DELETE", url: `/patient-tags/${tag.id}`, headers });
+      expect(deleted.statusCode).toBe(204);
+      expect((await listTags(app, headers)).some((item) => item.id === tag.id)).toBe(false);
+      for (const [method, url] of [
+        ["DELETE", `/patient-tags/${tag.id}`],
+        ["DELETE", "/patient-tags/abc"],
+        ["PATCH", `/patient-tags/${tag.id}`],
+        ["PATCH", "/patient-tags/abc"],
+      ] as const) {
+        const missing = await app.inject(
+          method === "PATCH" ? { method, url, headers, payload: { color: "#000000" } } : { method, url, headers },
+        );
+        expect(missing.statusCode, `${method} ${url}`).toBe(404);
+        expect(missing.json()).toMatchObject({ code: "PATIENT_TAG_NOT_FOUND" });
+      }
+
+      const audit = (await app.inject({ method: "GET", url: "/admin/audit-events", headers })).json() as Array<{
+        action: string;
+        entityId?: string;
+        metadata: Record<string, unknown>;
+      }>;
+      const tagEvents = audit.filter((event) => event.entityId === tag.id).map((event) => event.action);
+      expect(tagEvents).toEqual([
+        "patient_tag.deleted",
+        "patient_tag.updated",
+        "patient_tag.updated",
+        "patient_tag.updated",
+        "patient_tag.created",
+      ]);
+      expect(audit.find((event) => event.entityId === tag.id && event.metadata.previousName === "Gestante T062"))
+        .toMatchObject({ metadata: { name: "Gestantes T062", patientsUpdated: 1 } });
+      await app.close();
+    });
+
+    it("keeps the CRM conversion tag configured", async () => {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const lead = await app.inject({
+        method: "POST",
+        url: "/leads",
+        headers,
+        payload: { fullName: "Lia Convertida", phone: "11933330009", source: "Instagram", interest: "Pilates" },
+      });
+      expect(lead.statusCode).toBe(201);
+      const converted = await app.inject({ method: "POST", url: `/leads/${lead.json().id}/convert`, headers });
+      expect(converted.statusCode).toBe(200);
+      const tags = await listTags(app, headers);
+      expect(tags.find((tag) => tag.name === "Convertido do CRM")).toMatchObject({ patientCount: 1 });
+      const patientId = converted.json().patient.id as string;
+      const edited = await app.inject({
+        method: "PUT",
+        url: `/patients/${patientId}`,
+        headers,
+        payload: { fullName: "Lia Convertida", phone: "11933330009", tags: ["Convertido do CRM"] },
+      });
+      expect(edited.statusCode).toBe(200);
+      await app.close();
+    });
+
+    it("marks import rows with unknown tags as errors and uses the configured spelling", async () => {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const csv = [
+        "Nome;Telefone;Etiquetas",
+        "Iara Importada;21966660001;pos-operatorio, ESPORTIVO",
+        "Ivo Importado;21966660002;Pós-operatório, Desconhecida",
+      ].join("\n");
+      const file = { fileName: "clientes.csv", contentBase64: Buffer.from(csv, "utf8").toString("base64") };
+      const preview = await app.inject({ method: "POST", url: "/patients/import/preview", headers, payload: file });
+      expect(preview.statusCode).toBe(200);
+      expect(preview.json()).toMatchObject({
+        totals: { valid: 1, error: 1, duplicate: 0 },
+        rows: [
+          { line: 2, status: "valid", input: { tags: ["Pós-operatório", "Esportivo"] } },
+          { line: 3, status: "error", errors: ["Linha 3: etiqueta não configurada: Desconhecida."] },
+        ],
+      });
+      const imported = await app.inject({ method: "POST", url: "/patients/import", headers, payload: file });
+      expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 1 });
+      const listed = (await app.inject({ method: "GET", url: "/patients?search=Importad", headers })).json();
+      expect(listed).toHaveLength(1);
+      expect(listed[0]).toMatchObject({ fullName: "Iara Importada", tags: ["Pós-operatório", "Esportivo"] });
+      await app.close();
+    });
+  });
+
   describe("patient export", () => {
     const tag = "exporta-t034";
     async function setup() {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
+      await configureTags(app, headers, [tag, "vip", "outra-t034"]);
       const create = async (payload: Record<string, unknown>) => {
         const response = await app.inject({
           method: "POST",
@@ -6338,6 +6583,7 @@ describe("CRM API", () => {
     async function setup() {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
+      await configureTags(app, headers, [tag, "outra-t039"]);
       const create = async (payload: Record<string, unknown>) => {
         const response = await app.inject({
           method: "POST",
@@ -6773,6 +7019,69 @@ describe("CRM API", () => {
       expect(denied.json().message).toContain("Contatos sugeridos");
       const deniedHead = await app.inject({ method: "HEAD", url: "/relationship/settings", headers: without.headers });
       expect(deniedHead.statusCode).toBe(403);
+      await app.close();
+    });
+
+    it("lists configured tags to client-picking modules and manages them only with Configurações editing", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      for (const module of ["patients", "settings", "agenda", "communications", "contracts", "groups"]) {
+        const user = await createUser(app, owner, { role: "reception", modules: [module], editModules: [] });
+        const list = await app.inject({ method: "GET", url: "/patient-tags", headers: user.headers });
+        expect(list.statusCode, module).toBe(200);
+        const head = await app.inject({ method: "HEAD", url: "/patient-tags", headers: user.headers });
+        expect(head.statusCode, module).toBe(200);
+        const create = await app.inject({
+          method: "POST",
+          url: "/patient-tags",
+          headers: user.headers,
+          payload: { name: `Sem edição ${module}` },
+        });
+        expect(create.statusCode, module).toBe(403);
+      }
+      const without = await createUser(app, owner, { role: "reception", modules: ["crm", "finance"] });
+      const denied = await app.inject({ method: "GET", url: "/patient-tags", headers: without.headers });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+
+      // Recepção (padrão antigo) vê Configurações sem editar: não gerencia etiquetas.
+      const reception = await createUser(app, owner, { role: "reception" });
+      const receptionCreate = await app.inject({
+        method: "POST",
+        url: "/patient-tags",
+        headers: reception.headers,
+        payload: { name: "Recepção T062" },
+      });
+      expect(receptionCreate.statusCode).toBe(403);
+
+      const editor = await createUser(app, owner, {
+        role: "reception",
+        modules: ["settings"],
+        editModules: ["settings"],
+      });
+      const created = await app.inject({
+        method: "POST",
+        url: "/patient-tags",
+        headers: editor.headers,
+        payload: { name: "Editora T062" },
+      });
+      expect(created.statusCode).toBe(201);
+      const tagId = created.json().id as string;
+      for (const headers of [reception.headers, without.headers]) {
+        const patch = await app.inject({ method: "PATCH", url: `/patient-tags/${tagId}`, headers, payload: { color: "#000000" } });
+        expect(patch.statusCode).toBe(403);
+        const remove = await app.inject({ method: "DELETE", url: `/patient-tags/${tagId}`, headers });
+        expect(remove.statusCode).toBe(403);
+      }
+      const patch = await app.inject({
+        method: "PATCH",
+        url: `/patient-tags/${tagId}`,
+        headers: editor.headers,
+        payload: { color: "#000000" },
+      });
+      expect(patch.statusCode).toBe(200);
+      const remove = await app.inject({ method: "DELETE", url: `/patient-tags/${tagId}`, headers: editor.headers });
+      expect(remove.statusCode).toBe(204);
       await app.close();
     });
 

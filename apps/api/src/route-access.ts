@@ -53,6 +53,8 @@ const edit = (...modules: AppModule[]): ModuleRequirement[] =>
  * - `GET /patients/options` (D11): lista mínima de clientes (id, nome e etiquetas) para as telas
  *   que só escolhem o cliente — exige ver Clientes, Agenda, Comunicações, Contratos OU Turmas.
  *   O cadastro completo (`GET /patients`) continua só com ver Clientes.
+ * - `GET /patient-tags` (T062): mesmas telas de `/patients/options` (que mostram etiquetas) mais
+ *   Configurações; criar, renomear/trocar cor e excluir exigem editar Configurações.
  */
 export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /health": "public",
@@ -115,6 +117,18 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patients": edit("patients"),
   "PUT /patients/:id": edit("patients"),
   "POST /patients/import/preview": edit("patients"),
+  // Etiquetas configuradas (T062): leitura para quem vê clientes/etiquetas; gestão em Configurações.
+  "GET /patient-tags": viewAny(
+    "patients",
+    "settings",
+    "agenda",
+    "communications",
+    "contracts",
+    "groups",
+  ),
+  "POST /patient-tags": edit("settings"),
+  "PATCH /patient-tags/:id": edit("settings"),
+  "DELETE /patient-tags/:id": edit("settings"),
   "POST /patients/import": edit("patients"),
   "GET /patients/:id/timeline": view("patients", "crm"),
   "GET /inventory/workspace": edit("patients"),

@@ -79,6 +79,9 @@ import type {
   OutboundMessage,
   Patient,
   PatientInput,
+  PatientTag,
+  PatientTagInput,
+  PatientTagUpdate,
   PatientPlan,
   PatientPlanInput,
   PlanRenewalInput,
@@ -126,11 +129,13 @@ import type {
 } from "@crm/contracts";
 import {
   appModuleSchema,
+  DEFAULT_PATIENT_TAG_COLOR,
   defaultRelationshipSettings,
   effectiveEditModules,
   effectiveModules,
   groupClassName,
   nextPlanPeriod,
+  patientTagKey,
   planInstallmentSchedule,
   recurringPayableCompetences,
   recurringPayableDueDate,
@@ -156,6 +161,8 @@ import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
   lastAdminError,
+  patientTagDuplicateError,
+  patientTagInUseError,
   type AuthenticatedUser,
   type ClinicRepository,
 } from "./repository.js";
@@ -1797,6 +1804,48 @@ function mapHoliday(row: HolidayRow): Holiday {
   return { ...row, createdAt: row.createdAt.toISOString() };
 }
 
+interface PatientTagRow {
+  id: string;
+  clinicId: string;
+  name: string;
+  color: string;
+  patientCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Colunas de `patient_tags pt` com a contagem de clientes que usam a etiqueta. */
+const patientTagColumns = `pt.id, pt.clinic_id AS "clinicId", pt.name, pt.color,
+  (SELECT count(*)::int FROM patients p
+    WHERE p.clinic_id = pt.clinic_id AND pt.name = ANY(p.tags)) AS "patientCount",
+  pt.created_at AS "createdAt", pt.updated_at AS "updatedAt"`;
+
+function mapPatientTag(row: PatientTagRow): PatientTag {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** Garante a etiqueta configurada com a cor padrão (ex.: "Convertido do CRM", dados demo). */
+export async function ensurePatientTags(
+  client: Pool | PoolClient,
+  clinicId: string,
+  names: readonly string[],
+) {
+  for (const name of names) {
+    const key = patientTagKey(name);
+    if (!key) continue;
+    await client.query(
+      `INSERT INTO patient_tags (clinic_id, name, name_key, color)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (clinic_id, name_key) DO NOTHING`,
+      [clinicId, name.trim(), key, DEFAULT_PATIENT_TAG_COLOR],
+    );
+  }
+}
+
 export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -3013,6 +3062,109 @@ export class PostgresClinicRepository implements ClinicRepository {
         );
       throw error;
     }
+  }
+
+  async listPatientTags(clinicId: string) {
+    const result = await this.pool.query<PatientTagRow>(
+      `SELECT ${patientTagColumns} FROM patient_tags pt WHERE pt.clinic_id = $1`,
+      [clinicId],
+    );
+    return result.rows
+      .map(mapPatientTag)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
+
+  private async getPatientTag(client: Pool | PoolClient, clinicId: string, tagId: string) {
+    const result = await client.query<PatientTagRow>(
+      `SELECT ${patientTagColumns} FROM patient_tags pt WHERE pt.clinic_id = $1 AND pt.id = $2`,
+      [clinicId, tagId],
+    );
+    return result.rows[0] ? mapPatientTag(result.rows[0]) : null;
+  }
+
+  async createPatientTag(clinicId: string, actorUserId: string, input: PatientTagInput) {
+    try {
+      return await this.inTransaction(async (client) => {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO patient_tags (clinic_id, name, name_key, color)
+           VALUES ($1, $2, $3, $4) RETURNING id`,
+          [clinicId, input.name, patientTagKey(input.name), input.color],
+        );
+        const tag = (await this.getPatientTag(client, clinicId, inserted.rows[0]!.id))!;
+        await this.addAdminAudit(client, clinicId, actorUserId, "patient_tag.created", "patient_tag", tag.id, {
+          name: tag.name,
+          color: tag.color,
+        });
+        return tag;
+      });
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505")) throw patientTagDuplicateError(input.name);
+      throw error;
+    }
+  }
+
+  async updatePatientTag(
+    clinicId: string,
+    actorUserId: string,
+    tagId: string,
+    input: PatientTagUpdate,
+  ) {
+    try {
+      return await this.inTransaction(async (client) => {
+        const current = await client.query<{ name: string }>(
+          `SELECT name FROM patient_tags WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          [clinicId, tagId],
+        );
+        if (!current.rows[0]) return null;
+        const previousName = current.rows[0].name;
+        const name = input.name ?? previousName;
+        await client.query(
+          `UPDATE patient_tags
+           SET name = $3, name_key = $4, color = coalesce($5, color), updated_at = now()
+           WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, tagId, name, patientTagKey(name), input.color ?? null],
+        );
+        let patientsUpdated = 0;
+        if (name !== previousName) {
+          const renamed = await client.query(
+            `UPDATE patients SET tags = array_replace(tags, $2, $3)
+             WHERE clinic_id = $1 AND $2 = ANY(tags)`,
+            [clinicId, previousName, name],
+          );
+          patientsUpdated = renamed.rowCount ?? 0;
+        }
+        const tag = (await this.getPatientTag(client, clinicId, tagId))!;
+        await this.addAdminAudit(client, clinicId, actorUserId, "patient_tag.updated", "patient_tag", tag.id, {
+          name: tag.name,
+          color: tag.color,
+          ...(name !== previousName ? { previousName, patientsUpdated } : {}),
+        });
+        return tag;
+      });
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505")) throw patientTagDuplicateError(input.name ?? "");
+      throw error;
+    }
+  }
+
+  async deletePatientTag(clinicId: string, actorUserId: string, tagId: string) {
+    return this.inTransaction(async (client) => {
+      const current = await client.query<{ id: string }>(
+        `SELECT id FROM patient_tags WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+        [clinicId, tagId],
+      );
+      if (!current.rows[0]) return false;
+      const tag = (await this.getPatientTag(client, clinicId, tagId))!;
+      if (tag.patientCount > 0) throw patientTagInUseError(tag.name, tag.patientCount);
+      await client.query(`DELETE FROM patient_tags WHERE clinic_id = $1 AND id = $2`, [
+        clinicId,
+        tagId,
+      ]);
+      await this.addAdminAudit(client, clinicId, actorUserId, "patient_tag.deleted", "patient_tag", tag.id, {
+        name: tag.name,
+      });
+      return true;
+    });
   }
 
   async listProfessionals(clinicId: string) {
@@ -6792,6 +6944,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       }
       const reusedExisting = Boolean(patientResult.rows[0]);
       if (!patientResult.rows[0]) {
+        await ensurePatientTags(client, clinicId, ["Convertido do CRM"]);
         const patientId = randomUUID();
         patientResult = await client.query<PatientRow>(
           `INSERT INTO patients

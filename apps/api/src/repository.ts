@@ -75,6 +75,9 @@ import type {
   OutboundMessage,
   Patient,
   PatientInput,
+  PatientTag,
+  PatientTagInput,
+  PatientTagUpdate,
   PatientPlan,
   PatientPlanInput,
   PatientTab,
@@ -278,6 +281,37 @@ export interface ClinicRepository {
     patientId: string,
     input: PatientInput,
   ): Promise<Patient | null>;
+  /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
+  listPatientTags(clinicId: string): Promise<PatientTag[]>;
+  /**
+   * Cria a etiqueta (auditoria `patient_tag.created`). Nome igual a outro da clínica sem
+   * diferenciar maiúsculas/acentos: 409 `PATIENT_TAG_DUPLICATE`.
+   */
+  createPatientTag(
+    clinicId: string,
+    actorUserId: string,
+    input: PatientTagInput,
+  ): Promise<PatientTag>;
+  /**
+   * Renomeia e/ou troca a cor (auditoria `patient_tag.updated`). Renomear troca o nome nas
+   * etiquetas dos clientes, tudo junto. Nome de outra etiqueta: 409 `PATIENT_TAG_DUPLICATE`.
+   * `null` quando a etiqueta não existe na clínica.
+   */
+  updatePatientTag(
+    clinicId: string,
+    actorUserId: string,
+    tagId: string,
+    input: PatientTagUpdate,
+  ): Promise<PatientTag | null>;
+  /**
+   * Exclui a etiqueta (auditoria `patient_tag.deleted`); `false` quando não existe. Em uso por
+   * algum cliente: 409 `PATIENT_TAG_IN_USE` com `details.patientCount`.
+   */
+  deletePatientTag(
+    clinicId: string,
+    actorUserId: string,
+    tagId: string,
+  ): Promise<boolean>;
   listProfessionals(clinicId: string): Promise<Professional[]>;
   createProfessional(
     clinicId: string,
@@ -710,9 +744,30 @@ export class DomainError extends Error {
     public readonly code: string,
     message: string,
     public readonly statusCode = 400,
+    /** Vai no corpo do erro como `details` (ex.: contagem, lista de itens recusados). */
+    public readonly details?: unknown,
   ) {
     super(message);
   }
+}
+
+/** 409 ao criar/renomear etiqueta com o nome de outra (sem diferenciar maiúsculas/acentos). */
+export function patientTagDuplicateError(name: string) {
+  return new DomainError(
+    "PATIENT_TAG_DUPLICATE",
+    `Já existe uma etiqueta chamada "${name}".`,
+    409,
+  );
+}
+
+/** 409 ao excluir etiqueta que algum cliente ainda usa. */
+export function patientTagInUseError(name: string, patientCount: number) {
+  return new DomainError(
+    "PATIENT_TAG_IN_USE",
+    `A etiqueta "${name}" está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
+    409,
+    { patientCount },
+  );
 }
 
 /** 409 ao rebaixar ou desativar o último admin ativo da clínica (ninguém ficaria sem Administração). */

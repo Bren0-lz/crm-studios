@@ -198,6 +198,76 @@ export const patientInputSchema = z.object({
 });
 export type PatientInput = z.infer<typeof patientInputSchema>;
 
+/** Cor das etiquetas criadas sem cor e das importadas na migração 0044. */
+export const DEFAULT_PATIENT_TAG_COLOR = "#64748b";
+const patientTagNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe o nome da etiqueta.")
+  .max(40, "O nome da etiqueta pode ter até 40 caracteres.");
+const patientTagColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Use uma cor no formato #RRGGBB.")
+  .transform((value) => value.toLowerCase());
+/** `POST /patient-tags`: cor opcional (padrão `DEFAULT_PATIENT_TAG_COLOR`). */
+export const patientTagInputSchema = z.object({
+  name: patientTagNameSchema,
+  color: patientTagColorSchema.default(DEFAULT_PATIENT_TAG_COLOR),
+});
+export type PatientTagInput = z.infer<typeof patientTagInputSchema>;
+/** `PATCH /patient-tags/:id`: renomear e/ou trocar a cor (ao menos um dos dois). */
+export const patientTagUpdateSchema = z
+  .object({ name: patientTagNameSchema.optional(), color: patientTagColorSchema.optional() })
+  .refine((value) => value.name !== undefined || value.color !== undefined, {
+    message: "Informe o novo nome ou a nova cor.",
+  });
+export type PatientTagUpdate = z.infer<typeof patientTagUpdateSchema>;
+/** Etiqueta configurada da clínica (Configurações › Etiquetas). */
+export interface PatientTag {
+  id: string;
+  clinicId: string;
+  name: string;
+  /** `#rrggbb` (minúsculas). */
+  color: string;
+  /** Quantos clientes têm a etiqueta. */
+  patientCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+/**
+ * Chave de comparação do nome da etiqueta: sem acentos, minúsculas e espaços internos
+ * colapsados. Dois nomes com a mesma chave são a mesma etiqueta ("Pós-operatório" =
+ * "pos-operatorio").
+ */
+export function patientTagKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+/**
+ * Confere etiquetas informadas contra as configuradas: devolve os nomes oficiais (na grafia
+ * configurada, sem repetição, na ordem informada) e as desconhecidas.
+ */
+export function resolvePatientTags(
+  tags: readonly string[],
+  configured: readonly Pick<PatientTag, "name">[],
+): { tags: string[]; unknown: string[] } {
+  const byKey = new Map(configured.map((tag) => [patientTagKey(tag.name), tag.name]));
+  const resolved: string[] = [];
+  const unknown: string[] = [];
+  for (const tag of tags) {
+    const name = byKey.get(patientTagKey(tag));
+    if (name === undefined) {
+      if (!unknown.includes(tag)) unknown.push(tag);
+    } else if (!resolved.includes(name)) resolved.push(name);
+  }
+  return { tags: resolved, unknown };
+}
+
 /** Colunas aceitas em `GET /patients/export?columns=` (na ordem em que saem no arquivo). */
 export const patientExportColumnSchema = z.enum(
   [

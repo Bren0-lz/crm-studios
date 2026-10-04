@@ -1,11 +1,13 @@
 import ExcelJS from "exceljs";
 import {
   patientInputSchema,
+  resolvePatientTags,
   type Patient,
   type PatientImportAnalysis,
   type PatientImportDuplicate,
   type PatientImportRow,
   type PatientInput,
+  type PatientTag,
 } from "@crm/contracts";
 
 type ImportField =
@@ -219,11 +221,13 @@ function emptyAnalysis(error: string): PatientImportAnalysis {
 /**
  * Analisa as linhas lidas de CSV/XLSX: a primeira linha não vazia é o cabeçalho. Cada linha vira
  * `valid`, `error` (com mensagens em pt-BR) ou `duplicate` (CPF ou telefone já na base ou em uma
- * linha válida anterior do arquivo).
+ * linha válida anterior do arquivo). Com `configuredTags`, etiqueta fora da lista é erro da linha
+ * e as aceitas passam a usar a grafia configurada (sem diferenciar maiúsculas/acentos).
  */
 export function validatePatientImport(
   rows: readonly (readonly string[])[],
   existingPatients: readonly Patient[],
+  configuredTags?: readonly Pick<PatientTag, "name">[],
 ): PatientImportAnalysis {
   const headerIndex = rows.findIndex((row) => !isBlankRow(row));
   const header = headerIndex >= 0 ? rows[headerIndex] : undefined;
@@ -298,6 +302,14 @@ export function validatePatientImport(
             : `Linha ${line}: ${issueMessage(field)}`,
         );
       }
+    }
+    if (parsed.success && configuredTags) {
+      const { tags, unknown } = resolvePatientTags(parsed.data.tags, configuredTags);
+      if (unknown.length > 0)
+        errors.push(
+          `Linha ${line}: ${unknown.length === 1 ? "etiqueta não configurada" : "etiquetas não configuradas"}: ${unknown.join(", ")}.`,
+        );
+      else parsed.data.tags = tags;
     }
     if (!parsed.success || errors.length > 0) {
       result.push({ line, status: "error", fullName, phone, errors });

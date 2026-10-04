@@ -67,6 +67,9 @@ import {
   patientExportFilterSchema,
   patientInputSchema,
   patientImportFileSchema,
+  patientTagInputSchema,
+  patientTagUpdateSchema,
+  resolvePatientTags,
   professionalInputSchema,
   productInputSchema,
   recurringAppointmentInputSchema,
@@ -87,6 +90,7 @@ import {
   type ManagementReport,
   type PatientImportAnalysis,
   type PatientImportResult,
+  type PatientInput,
   type PatientOption,
   type SatisfactionReport,
   type UserSummary,
@@ -349,7 +353,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     if (error instanceof DomainError) {
       return reply
         .status(error.statusCode)
-        .send({ code: error.code, message: error.message } satisfies ApiError);
+        .send({
+          code: error.code,
+          message: error.message,
+          ...(error.details === undefined ? {} : { details: error.details }),
+        } satisfies ApiError);
     }
     if (typeof error === "object" && error !== null && "issues" in error) {
       return reply.status(400).send({
@@ -910,15 +918,81 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         .send(patientsToCsv(rows, columns));
     },
   );
+  /**
+   * O cliente só recebe etiquetas configuradas: troca cada uma pela grafia oficial (sem
+   * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas.
+   */
+  async function withConfiguredTags(clinicId: string, input: PatientInput): Promise<PatientInput> {
+    if (input.tags.length === 0) return input;
+    const { tags, unknown } = resolvePatientTags(
+      input.tags,
+      await repository.listPatientTags(clinicId),
+    );
+    if (unknown.length > 0)
+      throw new DomainError(
+        "PATIENT_TAG_UNKNOWN",
+        `${unknown.length === 1 ? "Etiqueta não configurada" : "Etiquetas não configuradas"}: ${unknown.join(", ")}. Cadastre em Configurações › Etiquetas.`,
+        400,
+        { unknownTags: unknown },
+      );
+    return { ...input, tags };
+  }
   app.post(
     "/patients",
     { preHandler: authenticate },
     async (request, reply) => {
+      const clinicId = request.user.clinicId;
       const patient = await repository.createPatient(
-        request.user.clinicId,
-        patientInputSchema.parse(request.body),
+        clinicId,
+        await withConfiguredTags(clinicId, patientInputSchema.parse(request.body)),
       );
       return reply.status(201).send(patient);
+    },
+  );
+  app.get("/patient-tags", { preHandler: authenticate }, async (request) =>
+    repository.listPatientTags(request.user.clinicId),
+  );
+  app.post(
+    "/patient-tags",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createPatientTag(
+            request.user.clinicId,
+            request.user.sub,
+            patientTagInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  const patientTagNotFound = {
+    code: "PATIENT_TAG_NOT_FOUND",
+    message: "Etiqueta não encontrada.",
+  } satisfies ApiError;
+  app.patch(
+    "/patient-tags/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = patientTagUpdateSchema.parse(request.body);
+      const tag = z.uuid().safeParse(id).success
+        ? await repository.updatePatientTag(request.user.clinicId, request.user.sub, id, input)
+        : null;
+      if (!tag) return reply.status(404).send(patientTagNotFound);
+      return tag;
+    },
+  );
+  app.delete(
+    "/patient-tags/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted =
+        z.uuid().safeParse(id).success &&
+        (await repository.deletePatientTag(request.user.clinicId, request.user.sub, id));
+      if (!deleted) return reply.status(404).send(patientTagNotFound);
+      return reply.status(204).send();
     },
   );
   const patientImportMaxBytes = 2 * 1024 * 1024;
@@ -954,7 +1028,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         400,
       );
     }
-    return validatePatientImport(rows, await repository.listPatients(clinicId));
+    const [patients, tags] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listPatientTags(clinicId),
+    ]);
+    return validatePatientImport(rows, patients, tags);
   }
   app.post(
     "/patients/import/preview",
@@ -991,7 +1069,10 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,
-        patientInputSchema.parse(request.body),
+        await withConfiguredTags(
+          request.user.clinicId,
+          patientInputSchema.parse(request.body),
+        ),
       );
       if (!patient)
         return reply.status(404).send({
