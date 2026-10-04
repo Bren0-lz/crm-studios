@@ -735,7 +735,7 @@ de marcar GIGANTE e informações muito confusas".
     (se mantida), filtro por situação.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D07
-- **Status:** TODO
+- **Status:** DONE
 
 ### D12 — Revisão extensa do Financeiro: demais abas
 - **Escopo:** aplicar o mesmo padrão da D08 às abas **Contas a pagar** (inclui despesas fixas),
@@ -751,6 +751,7 @@ de marcar GIGANTE e informações muito confusas".
   - estados de vazio com próximo passo em todas as abas.
   - Testes web para as abas alteradas (textos explicativos presentes, valores alinhados por classe,
     vazio).
+  - Contas a receber: limpar a seleção de parcelas depois de baixa, estorno ou ajuste (hoje uma parcela quitada continua marcada e iria junto no "Renegociar"); teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D08
 - **Status:** TODO

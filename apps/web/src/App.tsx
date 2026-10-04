@@ -31,6 +31,8 @@ import {
   RotateCcw,
   Search,
   Settings,
+  Tags,
+  Building2,
   Siren,
   SlidersHorizontal,
   Star,
@@ -117,6 +119,7 @@ import type {
   PaymentMethod,
   PaymentReceipt,
   PermissionMatrixItem,
+  Receivable,
   PlanStatus,
   Professional,
   RecurringPayable,
@@ -5722,7 +5725,10 @@ function FinancePage() {
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [receivableFilter, setReceivableFilter] =
+    useState<ReceivableFilter>("all");
+  const [receivableSearch, setReceivableSearch] = useState("");
+  const [settling, setSettling] = useState<SettleTarget | null>(null);
   const [payableModal, setPayableModal] = useState(false);
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
@@ -5744,25 +5750,44 @@ function FinancePage() {
       active = false;
     };
   }, []);
-  async function receivableAction(id: string, operation: "pay" | "reverse") {
+  async function reverseReceivable(id: string) {
     setError("");
     try {
-      if (operation === "pay") await api.settleReceivable(id, paymentMethod);
-      else await api.reverseReceivable(id);
+      await api.reverseReceivable(id);
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
     }
   }
-  async function payableAction(id: string, operation: "pay" | "reverse") {
+  async function reversePayable(id: string) {
     setError("");
     try {
-      if (operation === "pay") await api.settlePayable(id, paymentMethod);
-      else await api.reversePayable(id);
+      await api.reversePayable(id);
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
     }
+  }
+  async function settle(target: SettleTarget, method: PaymentMethod) {
+    if (target.kind === "receivable")
+      await api.settleReceivable(target.id, method);
+    else await api.settlePayable(target.id, method);
+    // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
+    setSettling(null);
+    setError("");
+    try {
+      await reload();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+  function changeReceivableFilter(filter: ReceivableFilter) {
+    setReceivableFilter(filter);
+    setSelectedReceivables([]);
+  }
+  function changeReceivableSearch(value: string) {
+    setReceivableSearch(value);
+    setSelectedReceivables([]);
   }
   async function adjustReceivable(id: string, currentValue: number) {
     const value = window.prompt(
@@ -5867,13 +5892,13 @@ function FinancePage() {
               className="secondary-button"
               onClick={() => void createCategory()}
             >
-              + Categoria
+              <Tags size={18} /> Nova categoria
             </button>
             <button
               className="secondary-button"
               onClick={() => void createCenter()}
             >
-              + Centro de custo
+              <Building2 size={18} /> Novo centro de custo
             </button>
             <button
               className="primary-button"
@@ -5897,43 +5922,63 @@ function FinancePage() {
               <strong>
                 {currency.format(data.cashBalanceThisMonthInCents / 100)}
               </strong>
+              <small className="metric-note">
+                Recebido no mês − despesas pagas no mês.
+              </small>
             </article>
             <article className="metric-card">
               <span>Recebido no mês</span>
               <strong>
                 {currency.format(data.summary.paidThisMonthInCents / 100)}
               </strong>
+              <small className="metric-note">
+                Parcelas de clientes com baixa neste mês.
+              </small>
             </article>
             <article className="metric-card">
               <span>Despesas pagas</span>
               <strong>
                 {currency.format(data.paidExpensesThisMonthInCents / 100)}
               </strong>
+              <small className="metric-note">
+                Contas da clínica quitadas neste mês.
+              </small>
             </article>
             <article className="metric-card">
               <span>Compromissos em aberto</span>
               <strong>{currency.format(data.payableOpenInCents / 100)}</strong>
+              <small className="metric-note">
+                Contas a pagar que ainda não foram quitadas.
+              </small>
             </article>
           </section>
           <section className="finance-controls">
-            <div className="activity-tabs">
+            <div className="activity-tabs finance-tabs">
               <button
                 className={`tab-button ${tab === "receivables" ? "active" : ""}`}
+                aria-label={`Contas a receber (${data.summary.receivables.length})`}
                 onClick={() => setTab("receivables")}
               >
-                Contas a receber ({data.summary.receivables.length})
+                Contas a receber
+                <span className="tab-count">
+                  {data.summary.receivables.length}
+                </span>
               </button>
               <button
                 className={`tab-button ${tab === "payables" ? "active" : ""}`}
+                aria-label={`Contas a pagar (${data.payables.length})`}
                 onClick={() => setTab("payables")}
               >
-                Contas a pagar ({data.payables.length})
+                Contas a pagar
+                <span className="tab-count">{data.payables.length}</span>
               </button>
               <button
                 className={`tab-button ${tab === "commissions" ? "active" : ""}`}
+                aria-label={`Comissões (${data.commissions.length})`}
                 onClick={() => setTab("commissions")}
               >
-                Comissões ({data.commissions.length})
+                Comissões
+                <span className="tab-count">{data.commissions.length}</span>
               </button>
               <button
                 className={`tab-button ${tab === "dailyCash" ? "active" : ""}`}
@@ -5948,24 +5993,6 @@ function FinancePage() {
                 Previsão
               </button>
             </div>
-            {tab !== "dailyCash" && tab !== "forecast" && (
-            <label>
-              Forma usada na baixa
-              <select
-                value={paymentMethod}
-                onChange={(event) =>
-                  setPaymentMethod(event.target.value as PaymentMethod)
-                }
-              >
-                <option value="pix">Pix</option>
-                <option value="card">Cartão</option>
-                <option value="cash">Dinheiro</option>
-                <option value="bank_transfer">Transferência</option>
-                <option value="boleto">Boleto</option>
-                <option value="other">Outro</option>
-              </select>
-            </label>
-            )}
           </section>
           {tab === "dailyCash" ? (
             <DailyCashSection />
@@ -5990,14 +6017,6 @@ function FinancePage() {
                       : "Comissões"}
                 </h2>
               </div>
-              {canManage && tab === "receivables" && selectedReceivables.length > 0 && (
-                <button
-                  className="primary-button"
-                  onClick={() => void renegotiate()}
-                >
-                  Renegociar ({selectedReceivables.length})
-                </button>
-              )}
               {canManage && tab === "commissions" && (
                 <div className="page-actions">
                   <button
@@ -6021,99 +6040,36 @@ function FinancePage() {
               )}
             </div>
             {tab === "receivables" ? (
-              data.summary.receivables.length === 0 ? (
-                <EmptyState
-                  title="Nenhuma conta a receber"
-                  copy="As parcelas surgem após a venda de um plano."
-                />
-              ) : (
-                <div className="finance-table advanced">
-                  {data.summary.receivables.map((item) => (
-                    <div className="finance-row" key={item.id}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Selecionar ${item.description}`}
-                        disabled={item.status !== "open"}
-                        checked={selectedReceivables.includes(item.id)}
-                        onChange={() =>
-                          setSelectedReceivables((current) =>
-                            current.includes(item.id)
-                              ? current.filter((id) => id !== item.id)
-                              : [...current, item.id],
-                          )
-                        }
-                      />
-                      <div>
-                        <strong>{item.patientName}</strong>
-                        <span>{item.description}</span>
-                      </div>
-                      <div>
-                        <span>Vencimento</span>
-                        <strong>
-                          {new Date(
-                            `${item.dueDate}T12:00:00`,
-                          ).toLocaleDateString("pt-BR")}
-                        </strong>
-                      </div>
-                      <strong>
-                        {currency.format(item.amountInCents / 100)}
-                      </strong>
-                      <span
-                        className={`status-pill ${item.overdue ? "overdue" : item.status}`}
-                      >
-                        {item.overdue
-                          ? "Vencida"
-                          : item.status === "paid"
-                            ? "Paga"
-                            : item.status === "cancelled"
-                              ? "Cancelada"
-                              : "Aberta"}
-                      </span>
-                      <div className="finance-actions">
-                        {canManage && item.status === "open" && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() =>
-                              void adjustReceivable(item.id, item.amountInCents)
-                            }
-                          >
-                            Ajustar
-                          </button>
-                        )}
-                        {item.status === "paid" && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() =>
-                              void api
-                                .paymentReceipt(item.id)
-                                .then(setReceipt)
-                                .catch((cause: Error) =>
-                                  setError(cause.message),
-                                )
-                            }
-                          >
-                            Recibo
-                          </button>
-                        )}
-                        {canManage && (
-                        <button
-                          className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
-                          disabled={item.status === "cancelled"}
-                          onClick={() =>
-                            void receivableAction(
-                              item.id,
-                              item.status === "paid" ? "reverse" : "pay",
-                            )
-                          }
-                        >
-                          {item.status === "paid" ? "Estornar" : "Dar baixa"}
-                        </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
+              <ReceivablesList
+                receivables={data.summary.receivables}
+                canManage={canManage}
+                filter={receivableFilter}
+                search={receivableSearch}
+                selected={selectedReceivables}
+                onFilterChange={changeReceivableFilter}
+                onSearchChange={changeReceivableSearch}
+                onSelectedChange={setSelectedReceivables}
+                onRenegotiate={() => void renegotiate()}
+                onSettle={(item) =>
+                  setSettling({
+                    kind: "receivable",
+                    id: item.id,
+                    title: item.patientName,
+                    description: item.description,
+                    amountInCents: item.amountInCents,
+                  })
+                }
+                onReverse={(id) => void reverseReceivable(id)}
+                onAdjust={(item) =>
+                  void adjustReceivable(item.id, item.amountInCents)
+                }
+                onReceipt={(id) =>
+                  void api
+                    .paymentReceipt(id)
+                    .then(setReceipt)
+                    .catch((cause: Error) => setError(cause.message))
+                }
+              />
             ) : tab === "payables" && data.payables.length === 0 ? (
               <EmptyState
                 title="Nenhuma conta a pagar"
@@ -6153,10 +6109,16 @@ function FinancePage() {
                       <button
                         className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
                         onClick={() =>
-                          void payableAction(
-                            item.id,
-                            item.status === "paid" ? "reverse" : "pay",
-                          )
+                          item.status === "paid"
+                            ? void reversePayable(item.id)
+                            : setSettling({
+                                kind: "payable",
+                                id: item.id,
+                                title: item.description,
+                                description:
+                                  item.supplier || item.categoryName,
+                                amountInCents: item.amountInCents,
+                              })
                         }
                       >
                         {item.status === "paid" ? "Estornar" : "Pagar"}
@@ -6229,7 +6191,378 @@ function FinancePage() {
       {receipt && (
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
       )}
+      {settling && (
+        <SettleModal
+          target={settling}
+          onClose={() => setSettling(null)}
+          onConfirm={(method) => settle(settling, method)}
+        />
+      )}
     </>
+  );
+}
+
+type ReceivableFilter = "all" | "open" | "overdue" | "paid";
+
+interface SettleTarget {
+  kind: "receivable" | "payable";
+  id: string;
+  title: string;
+  description: string;
+  amountInCents: number;
+}
+
+const paymentMethodOptions: { value: PaymentMethod; label: string }[] = [
+  { value: "pix", label: "Pix" },
+  { value: "card", label: "Cartão" },
+  { value: "cash", label: "Dinheiro" },
+  { value: "bank_transfer", label: "Transferência" },
+  { value: "boleto", label: "Boleto" },
+  { value: "other", label: "Outro" },
+];
+
+const receivableFilterLabels: Record<ReceivableFilter, string> = {
+  all: "Todas",
+  open: "Em aberto",
+  overdue: "Vencidas",
+  paid: "Pagas",
+};
+
+function receivableSituation(item: Receivable, today: string) {
+  if (item.status === "paid") return { key: "paid", label: "Paga", pill: "paid" };
+  if (item.status === "cancelled")
+    return { key: "cancelled", label: "Cancelada", pill: "cancelled" };
+  if (item.overdue) {
+    const days = Math.max(
+      1,
+      Math.round(
+        (Date.parse(`${today}T12:00:00Z`) -
+          Date.parse(`${item.dueDate}T12:00:00Z`)) /
+          86_400_000,
+      ),
+    );
+    return {
+      key: "overdue",
+      label: `Vencida há ${days} ${days === 1 ? "dia" : "dias"}`,
+      pill: "overdue",
+    };
+  }
+  return { key: "open", label: "Em aberto", pill: "open" };
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function ReceivablesList({
+  receivables,
+  canManage,
+  filter,
+  search,
+  selected,
+  onFilterChange,
+  onSearchChange,
+  onSelectedChange,
+  onRenegotiate,
+  onSettle,
+  onReverse,
+  onAdjust,
+  onReceipt,
+}: {
+  receivables: Receivable[];
+  canManage: boolean;
+  filter: ReceivableFilter;
+  search: string;
+  selected: string[];
+  onFilterChange: (filter: ReceivableFilter) => void;
+  onSearchChange: (value: string) => void;
+  onSelectedChange: (ids: string[]) => void;
+  onRenegotiate: () => void;
+  onSettle: (item: Receivable) => void;
+  onReverse: (id: string) => void;
+  onAdjust: (item: Receivable) => void;
+  onReceipt: (id: string) => void;
+}) {
+  if (receivables.length === 0) {
+    return (
+      <EmptyState
+        title="Nenhuma conta a receber"
+        copy="As parcelas surgem após a venda de um plano."
+      />
+    );
+  }
+  const today = saoPauloToday();
+  const rows = receivables.map((item) => ({
+    item,
+    situation: receivableSituation(item, today),
+  }));
+  const counts: Record<ReceivableFilter, number> = {
+    all: rows.length,
+    open: rows.filter((row) => row.situation.key === "open").length,
+    overdue: rows.filter((row) => row.situation.key === "overdue").length,
+    paid: rows.filter((row) => row.situation.key === "paid").length,
+  };
+  const term = normalizeSearch(search);
+  const visible = rows.filter(
+    (row) =>
+      (filter === "all" || row.situation.key === filter) &&
+      (!term || normalizeSearch(row.item.patientName).includes(term)),
+  );
+  const selectable = canManage
+    ? visible.filter((row) => row.item.status === "open")
+    : [];
+  const allSelected =
+    selectable.length > 0 &&
+    selectable.every((row) => selected.includes(row.item.id));
+  function toggle(id: string) {
+    onSelectedChange(
+      selected.includes(id)
+        ? selected.filter((current) => current !== id)
+        : [...selected, id],
+    );
+  }
+  return (
+    <>
+      <div className="list-toolbar finance-filters">
+        <div
+          className="tag-filter-list"
+          role="group"
+          aria-label="Filtrar parcelas por situação"
+        >
+          {(Object.keys(receivableFilterLabels) as ReceivableFilter[]).map(
+            (key) => (
+              <button
+                key={key}
+                type="button"
+                className="tag-filter"
+                aria-pressed={filter === key}
+                onClick={() => onFilterChange(key)}
+              >
+                {receivableFilterLabels[key]} <small>{counts[key]}</small>
+              </button>
+            ),
+          )}
+        </div>
+        <div className="search-box">
+          <Search size={18} />
+          <input
+            type="search"
+            aria-label="Buscar cliente"
+            placeholder="Buscar por cliente"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </div>
+        {selectable.length > 0 && (
+          <label className="select-all">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() =>
+                onSelectedChange(
+                  allSelected ? [] : selectable.map((row) => row.item.id),
+                )
+              }
+            />
+            Selecionar todas
+          </label>
+        )}
+      </div>
+      {canManage && selected.length > 0 && (
+        <div className="selection-bar" role="status">
+          <strong>
+            {selected.length === 1
+              ? "1 parcela selecionada"
+              : `${selected.length} parcelas selecionadas`}
+          </strong>
+          <div className="page-actions">
+            <button
+              type="button"
+              className="text-button button-sm"
+              onClick={() => onSelectedChange([])}
+            >
+              Limpar seleção
+            </button>
+            <button
+              type="button"
+              className="primary-button button-sm"
+              onClick={onRenegotiate}
+            >
+              Renegociar
+            </button>
+          </div>
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <div className="finance-filter-empty">
+          <EmptyState
+            title="Nenhuma parcela encontrada"
+            copy="Limpe a busca ou escolha outra situação para ver as parcelas."
+          />
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              onFilterChange("all");
+              onSearchChange("");
+            }}
+          >
+            Limpar filtros
+          </button>
+        </div>
+      ) : (
+        <div
+          className={`finance-table receivables-table${canManage ? " selectable" : ""}`}
+        >
+          <div className="finance-row finance-head" aria-hidden="true">
+            {canManage && <span />}
+            <span>Cliente e plano</span>
+            <span>Vencimento</span>
+            <span className="finance-amount">Valor</span>
+            <span>Situação</span>
+            <span className="finance-actions">Ações</span>
+          </div>
+          {visible.map(({ item, situation }) => (
+            <div className="finance-row" key={item.id}>
+              {canManage &&
+                (item.status === "open" ? (
+                  <input
+                    type="checkbox"
+                    className="row-check"
+                    aria-label={`Selecionar parcela de ${item.patientName}`}
+                    checked={selected.includes(item.id)}
+                    onChange={() => toggle(item.id)}
+                  />
+                ) : (
+                  <span />
+                ))}
+              <div className="receivable-client">
+                <strong title={item.patientName}>{item.patientName}</strong>
+                <span title={item.description}>{item.description}</span>
+              </div>
+              <span className="receivable-due">
+                <span className="receivable-label">Vencimento </span>
+                {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
+              </span>
+              <strong className="finance-amount">
+                {currency.format(item.amountInCents / 100)}
+              </strong>
+              <span>
+                <span className={`status-pill ${situation.pill}`}>
+                  {situation.label}
+                </span>
+              </span>
+              <div className="finance-actions">
+                {canManage && item.status === "open" && (
+                  <button
+                    className="secondary-button button-sm"
+                    onClick={() => onAdjust(item)}
+                  >
+                    Ajustar
+                  </button>
+                )}
+                {item.status === "paid" && (
+                  <button
+                    className="secondary-button button-sm"
+                    onClick={() => onReceipt(item.id)}
+                  >
+                    Recibo
+                  </button>
+                )}
+                {canManage && item.status === "open" && (
+                  <button
+                    className="primary-button button-sm"
+                    onClick={() => onSettle(item)}
+                  >
+                    Dar baixa
+                  </button>
+                )}
+                {canManage && item.status === "paid" && (
+                  <button
+                    className="danger-button button-sm"
+                    onClick={() => onReverse(item.id)}
+                  >
+                    Estornar
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SettleModal({
+  target,
+  onClose,
+  onConfirm,
+}: {
+  target: SettleTarget;
+  onClose: () => void;
+  onConfirm: (method: PaymentMethod) => Promise<void>;
+}) {
+  const [method, setMethod] = useState<PaymentMethod>("pix");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const isReceivable = target.kind === "receivable";
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await onConfirm(method);
+    } catch (cause) {
+      setError((cause as Error).message);
+      setLoading(false);
+    }
+  }
+  return (
+    <Modal
+      eyebrow="Financeiro"
+      title={isReceivable ? "Dar baixa na parcela" : "Pagar despesa"}
+      subtitle={`${target.title} · ${target.description} · ${currency.format(target.amountInCents / 100)}`}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          {isReceivable
+            ? "Forma de pagamento recebida"
+            : "Forma de pagamento usada"}
+          <select
+            autoFocus
+            value={method}
+            onChange={(event) =>
+              setMethod(event.target.value as PaymentMethod)
+            }
+          >
+            {paymentMethodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Voltar
+          </button>
+          <button className="primary-button" disabled={loading}>
+            {loading
+              ? "Salvando…"
+              : isReceivable
+                ? "Confirmar baixa"
+                : "Confirmar pagamento"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

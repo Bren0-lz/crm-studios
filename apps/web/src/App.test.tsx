@@ -2651,6 +2651,171 @@ describe("application shell", () => {
     expect(screen.queryByText("Nenhuma despesa fixa")).not.toBeInTheDocument();
   });
 
+  describe("finance receivables", () => {
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    function shiftDate(iso: string, days: number) {
+      const date = new Date(`${iso}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+    function receivablesWorkspace() {
+      const today = saoPauloToday();
+      const base = { clinicId, installmentCount: 3, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
+      const receivables = [
+        { ...base, id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1", patientId: "p1", patientName: "Ana Souza", description: "Pilates 2x · parcela 1/3", installmentNumber: 1, dueDate: shiftDate(today, 10), amountInCents: 25000, status: "open", overdue: false },
+        { ...base, id: "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1", patientId: "p2", patientName: "Bruno Lima", description: "Dançaterapia · parcela 2/3", installmentNumber: 2, dueDate: shiftDate(today, -5), amountInCents: 18000, status: "open", overdue: true },
+        { ...base, id: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", patientId: "p3", patientName: "Carla Mendes", description: "Depilação · parcela 1/1", installmentNumber: 1, dueDate: shiftDate(today, -2), amountInCents: 30000, status: "paid", paidAt: `${today}T12:00:00.000Z`, overdue: false, paymentMethod: "pix" },
+      ];
+      return {
+        summary: { openInCents: 43000, overdueInCents: 18000, paidThisMonthInCents: 30000, receivables },
+        categories: [], costCenters: [], payables: [],
+        payableOpenInCents: 0, payableOverdueInCents: 0, paidExpensesThisMonthInCents: 0, cashBalanceThisMonthInCents: 30000,
+        commissionRules: [], commissions: [], commissionOpenInCents: 0, paidCommissionsThisMonthInCents: 0,
+      };
+    }
+    function renderFinance() {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+      const workspace = receivablesWorkspace();
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === "POST" && url.includes("/finance/receivables/")) {
+          return { ok: true, status: 200, json: async () => ({ ...workspace.summary.receivables[0], status: "paid" }) } as Response;
+        }
+        const body = url.includes("/finance/workspace") ? workspace : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    }
+    const rowOf = (name: string) => screen.getByText(name).closest(".finance-row") as HTMLElement;
+
+    it("shows each installment on one line with client, due date, value, status and clear actions", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      // A forma de pagamento não fica mais solta no topo da página.
+      expect(screen.queryByLabelText("Forma usada na baixa")).not.toBeInTheDocument();
+      // Cartões de resumo explicam o número.
+      expect(screen.getByText("Recebido no mês − despesas pagas no mês.")).toBeInTheDocument();
+      // Abas com contagem num selo e nome acessível estável.
+      expect(screen.getByRole("button", { name: "Contas a receber (3)" })).toBeInTheDocument();
+
+      const ana = rowOf("Ana Souza");
+      expect(within(ana).getByText("Pilates 2x · parcela 1/3")).toBeInTheDocument();
+      expect(within(ana).getByText("R$ 250,00")).toHaveClass("finance-amount");
+      expect(within(ana).getByText("Em aberto")).toHaveClass("status-pill");
+      expect(within(ana).getByRole("button", { name: "Dar baixa" })).toHaveClass("primary-button", "button-sm");
+      expect(within(ana).getByRole("button", { name: "Ajustar" })).toBeInTheDocument();
+      expect(within(ana).getByRole("checkbox", { name: "Selecionar parcela de Ana Souza" })).toBeInTheDocument();
+
+      const bruno = rowOf("Bruno Lima");
+      expect(within(bruno).getByText("Vencida há 5 dias")).toHaveClass("status-pill", "overdue");
+
+      const carla = rowOf("Carla Mendes");
+      expect(within(carla).getByText("Paga")).toHaveClass("status-pill", "paid");
+      expect(within(carla).getByRole("button", { name: "Recibo" })).toHaveClass("secondary-button", "button-sm");
+      expect(within(carla).getByRole("button", { name: "Estornar" })).toHaveClass("danger-button", "button-sm");
+      // Parcela paga não entra na seleção para renegociar.
+      expect(within(carla).queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    it("selects installments and shows the action bar only with items selected", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      expect(screen.queryByRole("button", { name: "Renegociar" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar parcela de Ana Souza" }));
+      expect(screen.getByText("1 parcela selecionada")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Renegociar" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todas" }));
+      expect(screen.getByText("2 parcelas selecionadas")).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Selecionar parcela de Bruno Lima" })).toBeChecked();
+      fireEvent.click(screen.getByRole("button", { name: "Limpar seleção" }));
+      expect(screen.queryByText(/selecionadas?$/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Renegociar" })).not.toBeInTheDocument();
+    });
+
+    it("filters installments by status and client, with an empty state that says what to do", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(screen.getByRole("button", { name: /^Vencidas/ }));
+      expect(screen.getByRole("button", { name: /^Vencidas/ })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("Bruno Lima")).toBeInTheDocument();
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+      expect(screen.queryByText("Carla Mendes")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Pagas/ }));
+      expect(screen.getByText("Carla Mendes")).toBeInTheDocument();
+      expect(screen.queryByText("Bruno Lima")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Em aberto/ }));
+      expect(screen.getByText("Ana Souza")).toBeInTheDocument();
+      expect(screen.queryByText("Bruno Lima")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Todas/ }));
+      fireEvent.change(screen.getByLabelText("Buscar cliente"), { target: { value: "bruno" } });
+      expect(screen.getByText("Bruno Lima")).toBeInTheDocument();
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Buscar cliente"), { target: { value: "Zuleica" } });
+      expect(screen.getByText("Nenhuma parcela encontrada")).toBeInTheDocument();
+      expect(screen.getByText("Limpe a busca ou escolha outra situação para ver as parcelas.")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+      expect(screen.getByText("Ana Souza")).toBeInTheDocument();
+      expect(screen.getByText("Carla Mendes")).toBeInTheDocument();
+    });
+
+    it("asks for the payment method in a modal when settling an installment", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Dar baixa" }));
+      const dialog = await screen.findByRole("dialog", { name: "Dar baixa na parcela" });
+      expect(within(dialog).getByText(/Ana Souza/)).toBeInTheDocument();
+      const select = within(dialog).getByLabelText("Forma de pagamento recebida");
+      expect(select).toHaveValue("pix");
+      fireEvent.change(select, { target: { value: "card" } });
+      fireEvent.submit(dialog.querySelector("form")!);
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      const call = vi.mocked(fetch).mock.calls.find(([url, options]) => options?.method === "POST" && String(url).includes("/finance/receivables/"));
+      expect(String(call?.[0])).toContain("/finance/receivables/a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1/pay");
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ paymentMethod: "card" });
+    });
+
+    it("shows the reload error on the page after a successful settlement", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+      const workspace = receivablesWorkspace();
+      let settled = false;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === "POST" && url.includes("/finance/receivables/")) {
+          settled = true;
+          return { ok: true, status: 200, json: async () => ({ ...workspace.summary.receivables[0], status: "paid" }) } as Response;
+        }
+        if (url.includes("/finance/workspace") && settled) {
+          return { ok: false, status: 500, json: async () => ({ code: "INTERNAL", message: "Falha ao recarregar o financeiro." }) } as Response;
+        }
+        const body = url.includes("/finance/workspace") ? workspace : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Dar baixa" }));
+      const dialog = await screen.findByRole("dialog", { name: "Dar baixa na parcela" });
+      fireEvent.submit(dialog.querySelector("form")!);
+      expect(await screen.findByText("Falha ao recarregar o financeiro.")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("closes the settle modal without calling the API on Voltar", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Dar baixa" }));
+      const dialog = await screen.findByRole("dialog", { name: "Dar baixa na parcela" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+    });
+  });
+
   it("shows the daily cash with totals by payment method and movements", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));

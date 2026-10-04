@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** D08
-- **Última concluída:** D07
+- **Tarefa atual:** D12
+- **Última concluída:** D08
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -115,3 +115,5 @@
 - 2026-10-04 D07 FAIL 1/3: Configurações ainda tem 2 primários de largura total ("Salvar configurações", "Salvar prazos e mensagens": filhos diretos de form.clinical-form, grid sem justify) e abas com className ternário "active" : "" escapam da checagem de botão sem classe.
 - 2026-10-04 D07 FAIL 2/3: ainda esticados por grid — "Imprimir recibo" (ReceiptModal, .receipt-content) e "Adicionar campo" (.assessment-field-builder). Decisão do orquestrador: o "Agendar experimental" (.lead-trial-button) com largura total no cartão estreito do kanban é exceção aceita, como o "Entrar" do login.
 - 2026-10-04 D07 DONE (verifier PASS na 3ª; web 92, API 150 + 26 skip, contratos 34). Variantes primary/secondary/text/danger-button + button-sm (32px, --text-sm); :disabled opacidade 0,5 + not-allowed. Removidas ghost-icon, ghost-danger, group-cancel-button e regras de botão por contexto; .segmented button → .segment-button; abas → .tab-button (sempre presente). Primários de formulário em modal-actions à direita. Exceções de largura total: Entrar (login), .lead-trial-button no kanban, ações empilhadas no celular. audit-panels: 5ª checagem (button sem classe ou com classe que pode ficar vazia; exceções em BUTTON_CLASS_BY_PROP; AUDIT_APP_TSX aponta outro .tsx para testes sintéticos). P/ D09: "Matricular cliente" na gaveta da turma (.group-drawer-quick-actions, flex 1 1 180px) ainda estica. P/ V5: conferir ícone de 32px em Agenda de hoje e "Buscar" dentro do campo de busca.
+- 2026-10-04 D08 FAIL 1/3: (1) correção da caixa de marcar só no Financeiro — regra global input,select {min-height 44px; padding 0 13px} ainda infla checkboxes/radios no resto (Planos "Renovar automaticamente" 14x44px, .checkbox-field, .preference-row, radios); (2) FinancePage.settle fecha o modal antes do reload e engole o erro do recarregamento. Layout do Financeiro aprovado.
+- 2026-10-04 D08 DONE (verifier PASS na 2ª; web 98, API 150 + 26 skip, contratos 34). O quadrado gigante era a caixa de seleção das parcelas (alimenta "Renegociar"), inflada pela regra global de input; regra global nova input[type=checkbox|radio] 18px (styles.css ~286) vale para o app todo. Contas a receber: linha numa faixa (cliente/plano, vencimento shortDate, valor à direita, selo Paga/Em aberto/Vencida há N dias/Cancelada, ações button-sm), seleção com "Selecionar todas" e barra "N parcelas selecionadas" (Renegociar, Limpar seleção), filtros Todas/Em aberto/Vencidas/Pagas + busca sem acento, vazio com "Limpar filtros". 4 cartões com explicação; "Nova categoria"/"Novo centro de custo" secundários com ícone; abas com contagem em selo e rolagem. Forma de pagamento escolhida no SettleModal (receber e pagar), mesmo corpo {paymentMethod}. Seleção não é limpa após baixa/estorno → incluído na D12.
