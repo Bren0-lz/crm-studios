@@ -1,16 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { effectiveEditModules, effectiveModules, saoPauloToday, type UserRole } from "@crm/contracts";
+import { effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
 import { useState } from "react";
 import App, { Modal } from "./App";
 
 vi.stubGlobal("fetch", vi.fn());
 
-/** Usuário logado gravado no localStorage, com os módulos padrão do perfil (como login e /me devolvem). */
+/**
+ * Módulos dos perfis antigos, usados como atalho nos testes: a migração 0042 gravou exatamente
+ * esses módulos nos usuários de recepção, fisioterapia e financeiro (que viraram "user").
+ */
+const legacyProfiles: Record<string, { modules: AppModule[]; editModules: AppModule[] }> = {
+  reception: {
+    modules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "settings"],
+    editModules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts"],
+  },
+  physiotherapist: {
+    modules: ["agenda", "groups", "patients", "plans", "clinical"],
+    editModules: ["agenda", "groups", "clinical"],
+  },
+  finance: {
+    modules: ["agenda", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance", "reports", "settings"],
+    editModules: ["agenda", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance"],
+  },
+};
+/** Tipo e módulos efetivos de um perfil antigo (`owner` = admin). */
+function legacyAccess(role: string): { role: UserRole; modules: AppModule[]; editModules: AppModule[] } {
+  if (role === "owner" || role === "admin")
+    return { role: "admin", modules: effectiveModules("admin"), editModules: effectiveEditModules("admin") };
+  const profile = legacyProfiles[role];
+  return { role: "user", modules: [...(profile?.modules ?? [])], editModules: [...(profile?.editModules ?? [])] };
+}
+
+/** Usuário logado gravado no localStorage, com os módulos do perfil (como login e /me devolvem). */
 function storedUser(user: { id: string; fullName: string; email: string; role: string }) {
-  const role = user.role as UserRole;
-  return JSON.stringify({ ...user, modules: effectiveModules(role), editModules: effectiveEditModules(role) });
+  return JSON.stringify({ ...user, ...legacyAccess(user.role) });
 }
 afterEach(() => {
   cleanup();
@@ -3430,10 +3455,10 @@ describe("users and permissions", () => {
     clinicId: "11111111-1111-4111-8111-111111111111",
     fullName: "Maria Souza",
     email: "maria@movimenta.local",
-    role: "reception",
+    role: "user",
     jobTitle: "Instrutora de Pilates",
-    modules: [...effectiveModules("reception"), "finance"],
-    editModules: effectiveEditModules("reception"),
+    modules: [...legacyAccess("reception").modules, "finance"],
+    editModules: legacyAccess("reception").editModules,
     customModules: true,
     active: true,
     createdAt: "2026-09-01T12:00:00.000Z",
@@ -3446,7 +3471,7 @@ describe("users and permissions", () => {
       const handled = handler?.(url, init);
       if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
       const body = url.includes("/admin/users") ? [customUser]
-        : url.includes("/admin/permission-matrix") ? [{ role: "physiotherapist", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
+        : url.includes("/admin/permission-matrix") ? [{ role: "user", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
           : url.includes("/relationship/settings") ? relationshipSettingsFixture()
             : url.includes("/admin/clinic-settings") ? null
               : [];
@@ -3466,10 +3491,10 @@ describe("users and permissions", () => {
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
     expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
-    expect(within(section).getByText(/Recepção · Instrutora de Pilates/)).toBeInTheDocument();
+    expect(within(section).getByText(/Usuário comum · Instrutora de Pilates/)).toBeInTheDocument();
     expect(within(section).getByText("Permissões personalizadas")).toBeInTheDocument();
     const matrix = screen.getByRole("heading", { name: "Padrão de cada perfil" }).closest("section")!;
-    expect(within(matrix).getByText("Fisioterapeuta")).toBeInTheDocument();
+    expect(within(matrix).getByText("Usuário comum")).toBeInTheDocument();
     expect(within(matrix).getByText("Vê: Agenda · Prontuários")).toBeInTheDocument();
     expect(within(matrix).getByText("Edita: Prontuários")).toBeInTheDocument();
   });
@@ -3482,33 +3507,32 @@ describe("users and permissions", () => {
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-    // Novo usuário começa no padrão da recepção.
-    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Clientes")).toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    // Usuário comum novo começa sem nenhum módulo (T055: acabaram os padrões por perfil).
+    expect(within(dialog).getByLabelText("Perfil")).toHaveValue("user");
+    for (const module of ["Agenda", "Clientes", "Financeiro", "Prontuários"]) {
+      expect(within(dialog).getByLabelText(`Ver ${module}`)).not.toBeChecked();
+      expect(within(dialog).getByLabelText(`Editar ${module}`)).not.toBeChecked();
+    }
     expect(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" })).toBeDisabled();
-
-    // Trocar o perfil sugere o padrão novo.
-    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "physiotherapist" } });
-    expect(within(dialog).getByLabelText("Ver Prontuários")).toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Clientes")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Ver CRM comercial")).not.toBeChecked();
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
     fireEvent.click(within(dialog).getByLabelText("Editar Relatórios"));
     expect(within(dialog).getByLabelText("Ver Relatórios")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Ver Relatórios"));
+    expect(within(dialog).getByLabelText("Editar Relatórios")).not.toBeChecked();
     fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
-    expect(within(dialog).getByLabelText("Editar Turmas")).not.toBeChecked();
     expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
 
-    // Gestora: acesso total, sem checkboxes.
-    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "owner" } });
+    // Admin: acesso total, sem checkboxes; voltar a usuário comum desmarca tudo.
+    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Ver Clientes")).not.toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "physiotherapist" } });
+    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "user" } });
+    expect(within(dialog).getByLabelText("Ver Turmas")).not.toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
     fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
-    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Ver Planos e sessões"));
+    fireEvent.click(within(dialog).getByLabelText("Ver Prontuários"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
@@ -3522,10 +3546,10 @@ describe("users and permissions", () => {
       fullName: "Ana Lima",
       email: "ana@movimenta.local",
       password: "SenhaForte123",
-      role: "physiotherapist",
+      role: "user",
       jobTitle: "Fisioterapeuta pélvica",
       modules: ["agenda", "patients", "plans", "clinical"],
-      editModules: ["agenda", "patients", "clinical"],
+      editModules: ["agenda", "patients"],
     });
     expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
@@ -3543,13 +3567,13 @@ describe("users and permissions", () => {
     expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" }));
     expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
-    expect(within(dialog).getByText("Padrão do perfil Recepção")).toBeInTheDocument();
+    expect(within(dialog).getByText("Padrão do perfil Usuário comum")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: "" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await screen.findByText("Alterações de Maria Souza salvas.")).toBeInTheDocument();
     const { url, body } = lastCall("PATCH");
     expect(url).toContain(`/admin/users/${customUser.id}`);
-    expect(body).toEqual({ fullName: "Maria Souza", role: "reception", active: true, jobTitle: "", modules: null, editModules: null });
+    expect(body).toEqual({ fullName: "Maria Souza", role: "user", active: true, jobTitle: "", modules: null, editModules: null });
   });
 
   it("sends custom lists when editing permissions of an existing user", async () => {
@@ -3564,7 +3588,7 @@ describe("users and permissions", () => {
     await screen.findByText("Alterações de Maria Souza salvas.");
     expect(lastCall("PATCH").body).toEqual({
       fullName: "Maria Souza",
-      role: "reception",
+      role: "user",
       active: true,
       jobTitle: "Instrutora de Pilates",
       modules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance", "settings"],
@@ -3596,7 +3620,7 @@ describe("users and permissions", () => {
     const activeDialog = screen.getByRole("dialog", { name: "Desativar usuário" });
     fireEvent.click(within(activeDialog).getByRole("button", { name: "Desativar" }));
     expect(await screen.findByText("Maria Souza foi desativado(a).")).toBeInTheDocument();
-    expect(lastCall("PATCH").body).toEqual({ fullName: "Maria Souza", role: "reception", active: false });
+    expect(lastCall("PATCH").body).toEqual({ fullName: "Maria Souza", role: "user", active: false });
     expect(prompt).not.toHaveBeenCalled();
     expect(confirm).not.toHaveBeenCalled();
     prompt.mockRestore();
@@ -3775,7 +3799,7 @@ describe("users and permissions", () => {
       id: "55555555-5555-4555-8555-555555555555",
       fullName: "Carla Recepção",
       email: "carla@movimenta.local",
-      role: "reception",
+      role: "user",
       modules: ["agenda", "patients", "finance"],
       editModules: ["agenda"],
     }));
@@ -3814,7 +3838,7 @@ describe("users and permissions", () => {
   it("completes an old stored session without modules using /me", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
-    const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception", modules: effectiveModules("reception"), editModules: effectiveEditModules("reception") };
+    const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/me") ? fresh : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -3833,6 +3857,54 @@ describe("users and permissions", () => {
     expect(await screen.findByRole("heading", { name: "Acesse sua clínica" })).toBeInTheDocument();
     expect(localStorage.getItem("crm.auth.user")).toBeNull();
   });
+
+  it("refreshes a session stored before T055 with role owner and lists, reaching the administration", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    // Sessão gravada antes do deploy: perfil antigo, mas já com listas de módulos.
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Aryana Dutra",
+      email: "admin@movimenta.local",
+      role: "owner",
+      modules: effectiveModules("admin"),
+      editModules: effectiveEditModules("admin"),
+    }));
+    const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", ...legacyAccess("admin") };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.endsWith("/me") ? fresh
+        : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+          : url.includes("/admin/clinic-settings") ? null
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Usuários" })).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toMatchObject({ role: "admin" });
+    expect(screen.getByTitle("Sair")).toHaveTextContent("Admin");
+  });
+
+  it("refreshes a session stored before T055 with role reception and lists", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "33333333-3333-4333-8333-333333333333",
+      fullName: "Joana Recepção",
+      email: "recepcao@movimenta.local",
+      role: "reception",
+      ...legacyProfiles.reception,
+    }));
+    const fresh = { id: "33333333-3333-4333-8333-333333333333", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).endsWith("/me") ? fresh : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+    expect(screen.getByTitle("Sair")).toHaveTextContent("Usuário comum");
+  });
 });
 
 describe("view-only modules", () => {
@@ -3842,7 +3914,7 @@ describe("view-only modules", () => {
       id: "55555555-5555-4555-8555-555555555555",
       fullName: "Carla Consulta",
       email: "carla@movimenta.local",
-      role: "reception",
+      role: "user",
       modules: ["agenda", "patients"],
       editModules: [],
     }));
@@ -3893,7 +3965,7 @@ describe("view-only modules", () => {
       id: "55555555-5555-4555-8555-555555555555",
       fullName: "Carla Consulta",
       email: "carla@movimenta.local",
-      role: "reception",
+      role: "user",
       modules: ["crm"],
       editModules: [],
     }));
@@ -3933,7 +4005,7 @@ describe("view-only relationship", () => {
       id: "55555555-5555-4555-8555-555555555555",
       fullName: "Carla Consulta",
       email: "carla@movimenta.local",
-      role: "reception",
+      role: "user",
       modules: ["relationship", "settings"],
       editModules: [],
     }));
@@ -3969,7 +4041,7 @@ describe("dashboard links by agenda access", () => {
   const dashboard = { appointmentsToday: 0, completedToday: 0, patientsActive: 3, noShowsThisMonth: 0, nextAppointments: [] };
   function renderDashboard(modules: string[], editModules: string[]) {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "55555555-5555-4555-8555-555555555555", fullName: "Carla Consulta", email: "carla@movimenta.local", role: "reception", modules, editModules }));
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "55555555-5555-4555-8555-555555555555", fullName: "Carla Consulta", email: "carla@movimenta.local", role: "user", modules, editModules }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).includes("/dashboard") ? dashboard : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -4043,7 +4115,7 @@ describe("button variants", () => {
   });
 
   it("uses a button variant on every button of the settings page", async () => {
-    const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", role: "reception", modules: effectiveModules("reception"), editModules: effectiveEditModules("reception"), customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
+    const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", ...legacyAccess("reception"), customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
     const holiday = { id: "h1", clinicId: "11111111-1111-4111-8111-111111111111", name: "Dia da cidade", date: "2026-11-20", createdAt: "2026-09-01T12:00:00.000Z" };
     mockApi((url) =>
       url.includes("/admin/users") ? [user]
@@ -4374,7 +4446,7 @@ describe("screens without the patients module", () => {
       id: "55555555-5555-4555-8555-555555555555",
       fullName: "Carla Personalizada",
       email: "carla@movimenta.local",
-      role: "reception",
+      role: "user",
       modules: [module],
       editModules: [module],
     }));

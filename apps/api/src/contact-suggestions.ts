@@ -10,7 +10,7 @@ import type {
   Receivable,
   RelationshipSettings,
   SatisfactionSurvey,
-  UserRole,
+  AppModule,
 } from "@crm/contracts";
 
 export interface ContactSuggestionData {
@@ -39,8 +39,6 @@ const reasonRank: Record<ContactReason, number> = {
   nps_detractor: 10,
 };
 const birthdayTodayRank = 1;
-
-const financeRoles: UserRole[] = ["owner", "finance"];
 
 /** Janela fixa da regra `nps_detractor`, em dias. */
 export const npsDetractorWindowDays = 30;
@@ -100,7 +98,8 @@ export function buildContactSuggestions(
   data: ContactSuggestionData,
   settings: RelationshipSettings,
   today: string,
-  role: UserRole,
+  /** Módulos que o usuário vê: parcela vencida só aparece para quem vê o Financeiro. */
+  modules: readonly AppModule[],
 ): ContactSuggestion[] {
   const candidates: Candidate[] = [];
   const activePatients = data.patients.filter(
@@ -388,7 +387,7 @@ export function buildContactSuggestions(
     }
 
     // overdue_payment
-    if (financeRoles.includes(role)) {
+    if (modules.includes("finance")) {
       const overdue = data.receivables
         .filter(
           (receivable) =>

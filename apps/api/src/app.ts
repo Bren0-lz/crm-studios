@@ -93,9 +93,6 @@ import {
   type PermissionMatrixItem,
   appModuleLabels,
   type AppModule,
-  roleDefaultEditModules,
-  roleDefaultModules,
-  userRoleSchema,
 } from "@crm/contracts";
 import {
   buildClientReport,
@@ -452,14 +449,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     };
   }
 
-  async function requireOwnerAccess(
+  /** Administração: só usuário do tipo admin (tipo relido do repositório no `authenticate`). */
+  async function requireAdminAccess(
     request: FastifyRequest,
     reply: FastifyReply,
   ) {
-    if (request.user.role !== "owner")
+    if (request.user.role !== "admin")
       return reply.status(403).send({
-        code: "OWNER_ACCESS_REQUIRED",
-        message: "Esta operação é restrita à gestão proprietária.",
+        code: "ADMIN_ACCESS_REQUIRED",
+        message: "Esta operação é restrita a usuários admin.",
       } satisfies ApiError);
   }
 
@@ -481,8 +479,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     if (access === "public") return;
     routeOptions.preHandler = [
       authenticate,
-      ...(access === "owner"
-        ? [requireOwnerAccess]
+      ...(access === "admin"
+        ? [requireAdminAccess]
         : access === "login"
           ? []
           : Array.isArray(access)
@@ -747,7 +745,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     async (request) =>
       repository.listContactSuggestions(
         request.user.clinicId,
-        request.user.role,
+        requestAccess.get(request)?.modules ?? [],
       ),
   );
   app.get(
@@ -835,20 +833,14 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   app.get(
     "/admin/permission-matrix",
     { preHandler: authenticate },
-    async () =>
-      userRoleSchema.options.map((role): PermissionMatrixItem => {
-        if (role === "owner") {
-          const everything = ["Todos os módulos", "Administração"];
-          return { role, modules: everything, editModules: [...everything] };
-        }
-        return {
-          role,
-          modules: roleDefaultModules[role].map((module) => appModuleLabels[module]),
-          editModules: roleDefaultEditModules[role].map(
-            (module) => appModuleLabels[module],
-          ),
-        };
-      }),
+    async (): Promise<PermissionMatrixItem[]> => {
+      const everything = ["Todos os módulos", "Administração"];
+      // Sem padrões por perfil: o usuário comum novo começa sem nenhum módulo.
+      return [
+        { role: "admin", modules: everything, editModules: [...everything] },
+        { role: "user", modules: [], editModules: [] },
+      ];
+    },
   );
 
   app.get("/dashboard", { preHandler: authenticate }, async (request) => {

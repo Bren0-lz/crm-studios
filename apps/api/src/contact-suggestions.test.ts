@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appModuleSchema,
   defaultRelationshipSettings,
   type Appointment,
   type ContactActivity,
@@ -149,7 +150,7 @@ function survey(overrides: Partial<SatisfactionSurvey> = {}): SatisfactionSurvey
 
 function build(
   data: Partial<ContactSuggestionData>,
-  role: Parameters<typeof buildContactSuggestions>[3] = "owner",
+  modules: Parameters<typeof buildContactSuggestions>[3] = appModuleSchema.options,
 ) {
   return buildContactSuggestions(
     {
@@ -163,7 +164,7 @@ function build(
     },
     settings,
     today,
-    role,
+    modules,
   );
 }
 
@@ -202,14 +203,14 @@ describe("buildContactSuggestions", () => {
         { patients: [patient({ birthDate: "1990-01-02" })], plans: [], appointments: [], receivables: [], tabs: [], activities: [] },
         settings,
         "2026-12-30",
-        "owner",
+        appModuleSchema.options,
       );
       expect(newYear[0]).toMatchObject({ referenceKey: `${ana}:2027`, dueDate: "2027-01-02" });
       const leap = buildContactSuggestions(
         { patients: [patient({ birthDate: "2000-02-29" })], plans: [], appointments: [], receivables: [], tabs: [], activities: [] },
         settings,
         "2027-02-28",
-        "owner",
+        appModuleSchema.options,
       );
       expect(leap[0]).toMatchObject({ reason: "birthday", dueDate: "2027-02-28" });
     });
@@ -391,18 +392,18 @@ describe("buildContactSuggestions", () => {
   });
 
   describe("overdue_payment", () => {
-    it("shows the oldest open overdue installment to owner and finance only", () => {
+    it("shows the oldest open overdue installment only to who sees Finance", () => {
       const receivables = [
         receivable({ id: "rec-2", dueDate: "2026-09-25" }),
         receivable({ id: "rec-1", dueDate: "2026-09-10" }),
       ];
-      for (const role of ["owner", "finance"] as const) {
-        expect(build({ receivables }, role)).toMatchObject([
+      for (const modules of [appModuleSchema.options, ["relationship", "finance"] as const]) {
+        expect(build({ receivables }, modules)).toMatchObject([
           { reason: "overdue_payment", referenceKey: "rec-1", dueDate: "2026-09-10" },
         ]);
       }
-      for (const role of ["reception", "physiotherapist"] as const) {
-        expect(build({ receivables }, role)).toEqual([]);
+      for (const modules of [[], ["relationship", "patients", "crm"] as const]) {
+        expect(build({ receivables }, modules)).toEqual([]);
       }
     });
 

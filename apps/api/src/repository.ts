@@ -121,7 +121,7 @@ import type {
   ContactSuggestion,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
-  UserRole,
+  AppModule,
   ReplacementBookingInput,
   ReplacementCredit,
   UserSummary,
@@ -129,7 +129,7 @@ import type {
 
 export interface AuthenticatedUser extends UserSummary {
   clinicId: string;
-  /** `true` quando os módulos foram ajustados pela gestora (não seguem o perfil). */
+  /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;
   passwordHash: string;
   active: boolean;
@@ -210,10 +210,13 @@ export interface ClinicRepository {
   createHoliday(clinicId: string, input: HolidayInput): Promise<Holiday>;
   /** `false` quando o feriado não existe na clínica. */
   deleteHoliday(clinicId: string, holidayId: string): Promise<boolean>;
-  /** Sugestões de contato do dia (data da clínica), já filtradas pelo perfil. */
+  /**
+   * Sugestões de contato do dia (data da clínica), já filtradas pelos módulos que o usuário vê
+   * (parcela vencida só para quem vê o Financeiro).
+   */
   listContactSuggestions(
     clinicId: string,
-    role: UserRole,
+    modules: readonly AppModule[],
   ): Promise<ContactSuggestion[]>;
   createContactActivity(
     clinicId: string,
@@ -707,4 +710,13 @@ export class DomainError extends Error {
   ) {
     super(message);
   }
+}
+
+/** 409 ao rebaixar ou desativar o último admin ativo da clínica (ninguém ficaria sem Administração). */
+export function lastAdminError() {
+  return new DomainError(
+    "LAST_ADMIN",
+    "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes.",
+    409,
+  );
 }

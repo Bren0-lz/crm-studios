@@ -47,18 +47,23 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const userRoleSchema = z.enum([
-  "owner",
-  "reception",
-  "physiotherapist",
-  "finance",
-]);
+/**
+ * Tipo de usuário: `admin` tem acesso total (todos os módulos e a Administração); `user`
+ * (usuário comum) vê e edita só os módulos marcados pelo admin — sem nenhum marcado, só a
+ * Visão geral. Os antigos perfis (gestora, recepção, fisioterapeuta, financeiro) foram
+ * convertidos pela migração 0042 sem mudar o acesso de ninguém.
+ */
+export const userRoleSchema = z.enum(["admin", "user"]);
 export type UserRole = z.infer<typeof userRoleSchema>;
+export const userRoleLabels: Record<UserRole, string> = {
+  admin: "Admin",
+  user: "Usuário comum",
+};
 
 /**
- * Módulos do sistema que a gestora liga/desliga por usuário (chaves estáveis).
- * "Visão geral" é sempre visível e "Administração" é sempre só da gestora (owner):
- * nenhum dos dois é módulo configurável.
+ * Módulos do sistema que o admin libera por usuário (chaves estáveis).
+ * "Visão geral" é sempre visível e "Administração" é sempre só do admin: nenhum dos dois é
+ * módulo configurável.
  */
 export const appModuleSchema = z.enum([
   "agenda",
@@ -89,88 +94,30 @@ export const appModuleLabels: Record<AppModule, string> = {
   reports: "Relatórios",
   settings: "Configurações",
 };
-/** Padrão de cada perfil: reproduz o menu lateral de antes dos módulos por usuário. */
-export const roleDefaultModules: Record<UserRole, readonly AppModule[]> = {
-  owner: appModuleSchema.options,
-  reception: [
-    "agenda",
-    "groups",
-    "patients",
-    "plans",
-    "crm",
-    "relationship",
-    "communications",
-    "contracts",
-    "settings",
-  ],
-  physiotherapist: ["agenda", "groups", "patients", "plans", "clinical"],
-  finance: [
-    "agenda",
-    "patients",
-    "plans",
-    "crm",
-    "relationship",
-    "communications",
-    "contracts",
-    "finance",
-    "reports",
-    "settings",
-  ],
-};
 /**
- * Módulos efetivos: owner tem sempre todos; sem ajuste (nulo/ausente) vale o padrão do
- * perfil; senão a lista informada, sem duplicatas e na ordem do enum.
+ * Módulos efetivos: admin tem sempre todos; usuário comum só os gravados (nulo/ausente =
+ * nenhum), sem duplicatas e na ordem do enum.
  */
 export function effectiveModules(
   role: UserRole,
   modules?: readonly AppModule[] | null,
 ): AppModule[] {
-  if (role === "owner") return [...appModuleSchema.options];
-  const chosen = modules ?? roleDefaultModules[role];
+  if (role === "admin") return [...appModuleSchema.options];
+  const chosen = modules ?? [];
   return appModuleSchema.options.filter((module) => chosen.includes(module));
 }
 /**
- * Padrão de edição de cada perfil: as gravações que a API permitia por perfil antes dos
- * níveis por usuário (guardas `require*Access` de `app.ts`). A fisioterapeuta vê Clientes e
- * Planos, mas não edita (decisão do dono). Relatórios só têm leitura e Configurações (prazos
- * de relacionamento) só são gravadas pela gestora: nenhum perfil tem edição padrão neles.
- */
-export const roleDefaultEditModules: Record<UserRole, readonly AppModule[]> = {
-  owner: appModuleSchema.options,
-  reception: [
-    "agenda",
-    "groups",
-    "patients",
-    "plans",
-    "crm",
-    "relationship",
-    "communications",
-    "contracts",
-  ],
-  physiotherapist: ["agenda", "groups", "clinical"],
-  finance: [
-    "agenda",
-    "patients",
-    "plans",
-    "crm",
-    "relationship",
-    "communications",
-    "contracts",
-    "finance",
-  ],
-};
-/**
- * Módulos com edição efetiva: owner edita tudo; sem ajuste vale o padrão do perfil. Editar
- * implica ver: o resultado é sempre subconjunto de `effectiveModules(role, modules)`, sem
- * duplicatas e na ordem do enum.
+ * Módulos com edição efetiva: admin edita tudo; usuário comum só os gravados (nulo/ausente =
+ * nenhum). Editar implica ver: o resultado é sempre subconjunto de
+ * `effectiveModules(role, modules)`, sem duplicatas e na ordem do enum.
  */
 export function effectiveEditModules(
   role: UserRole,
   modules?: readonly AppModule[] | null,
   editModules?: readonly AppModule[] | null,
 ): AppModule[] {
-  if (role === "owner") return [...appModuleSchema.options];
-  const chosen = editModules ?? roleDefaultEditModules[role];
+  if (role === "admin") return [...appModuleSchema.options];
+  const chosen = editModules ?? [];
   return effectiveModules(role, modules).filter((module) => chosen.includes(module));
 }
 const jobTitleSchema = z.string().trim().max(80);
@@ -192,9 +139,9 @@ export const adminUserInputSchema = z.object({
   password: strongPasswordSchema,
   /** Cargo informativo; vazio = sem cargo. */
   jobTitle: jobTitleSchema.optional(),
-  /** Ausente ou `null` = padrão do perfil. */
+  /** Módulos que o usuário comum vê; ausente ou `null` = nenhum (admin ignora: vê tudo). */
   modules: userModulesSchema.optional(),
-  /** Módulos com edição; ausente ou `null` = padrão do perfil (editar sem ver é descartado). */
+  /** Módulos com edição; ausente ou `null` = nenhum (editar sem ver é descartado). */
   editModules: userModulesSchema.optional(),
 });
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
@@ -204,9 +151,9 @@ export const adminUserUpdateSchema = z.object({
   active: z.boolean(),
   /** Ausente = mantém o cargo atual; vazio = remove o cargo. */
   jobTitle: jobTitleSchema.optional(),
-  /** Ausente = mantém os módulos atuais; `null` = volta ao padrão do perfil. */
+  /** Ausente = mantém os módulos atuais; `null` = nenhum. */
   modules: userModulesSchema.optional(),
-  /** Ausente = mantém os módulos com edição atuais; `null` = volta ao padrão do perfil. */
+  /** Ausente = mantém os módulos com edição atuais; `null` = nenhum. */
   editModules: userModulesSchema.optional(),
 });
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
@@ -1141,7 +1088,7 @@ export interface UserSummary {
 
 export interface AdminUser extends UserSummary {
   clinicId: string;
-  /** `true` quando a gestora ajustou módulos ou edição (não segue o padrão do perfil). */
+  /** `true` quando há módulos ou edição gravados para o usuário comum (admin: sempre `false`). */
   customModules: boolean;
   active: boolean;
   createdAt: string;
@@ -1172,9 +1119,9 @@ export interface AdminAuditEvent {
 
 export interface PermissionMatrixItem {
   role: UserRole;
-  /** Rótulos (pt-BR) dos módulos que o perfil vê por padrão. */
+  /** Rótulos (pt-BR) dos módulos que o tipo vê por padrão (usuário comum novo: nenhum). */
   modules: string[];
-  /** Rótulos (pt-BR) dos módulos que o perfil edita por padrão (subconjunto de `modules`). */
+  /** Rótulos (pt-BR) dos módulos que o tipo edita por padrão (subconjunto de `modules`). */
   editModules: string[];
 }
 

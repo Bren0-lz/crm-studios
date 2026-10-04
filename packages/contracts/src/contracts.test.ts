@@ -6,8 +6,8 @@ import {
   appModuleSchema,
   effectiveEditModules,
   effectiveModules,
-  roleDefaultEditModules,
-  roleDefaultModules,
+  userRoleLabels,
+  userRoleSchema,
   appointmentInputSchema,
   broadcastInputSchema,
   broadcastSkipReasonLabels,
@@ -443,32 +443,32 @@ describe("patient export filter", () => {
   });
 });
 
-describe("user modules", () => {
-  it("gives the owner every module regardless of the stored list", () => {
-    expect(effectiveModules("owner")).toEqual(appModuleSchema.options);
-    expect(effectiveModules("owner", ["agenda"])).toEqual(appModuleSchema.options);
+describe("user types and modules", () => {
+  it("has only two user types: admin and common user", () => {
+    expect(userRoleSchema.options).toEqual(["admin", "user"]);
+    expect(userRoleLabels).toEqual({ admin: "Admin", user: "Usuário comum" });
+    for (const legacy of ["owner", "reception", "physiotherapist", "finance"])
+      expect(userRoleSchema.safeParse(legacy).success).toBe(false);
   });
 
-  it("uses the role default when there is no adjustment", () => {
-    expect(effectiveModules("reception")).toEqual(roleDefaultModules.reception);
-    expect(effectiveModules("physiotherapist", null)).toEqual([
-      "agenda",
-      "groups",
-      "patients",
-      "plans",
-      "clinical",
-    ]);
-    expect(effectiveModules("finance", undefined)).toContain("finance");
-    expect(effectiveModules("reception")).not.toContain("finance");
+  it("gives the admin every module regardless of the stored list", () => {
+    expect(effectiveModules("admin")).toEqual(appModuleSchema.options);
+    expect(effectiveModules("admin", ["agenda"])).toEqual(appModuleSchema.options);
+    expect(effectiveModules("admin", null)).toEqual(appModuleSchema.options);
+  });
+
+  it("gives a common user without stored modules no module at all", () => {
+    expect(effectiveModules("user")).toEqual([]);
+    expect(effectiveModules("user", null)).toEqual([]);
+    expect(effectiveModules("user", [])).toEqual([]);
   });
 
   it("deduplicates a custom list and sorts it in the enum order", () => {
-    expect(effectiveModules("reception", ["finance", "agenda", "finance", "crm"])).toEqual([
+    expect(effectiveModules("user", ["finance", "agenda", "finance", "crm"])).toEqual([
       "agenda",
       "crm",
       "finance",
     ]);
-    expect(effectiveModules("finance", [])).toEqual([]);
   });
 
   it("labels every module in pt-BR", () => {
@@ -480,7 +480,7 @@ describe("user modules", () => {
     const created = adminUserInputSchema.parse({
       fullName: "Bia Souza",
       email: "BIA@x.com",
-      role: "reception",
+      role: "user",
       password: "Segura@1234",
       jobTitle: "  Instrutora de Pilates ",
       modules: ["agenda", "finance"],
@@ -489,7 +489,7 @@ describe("user modules", () => {
     expect(created.modules).toEqual(["agenda", "finance"]);
     const reset = adminUserUpdateSchema.parse({
       fullName: "Bia Souza",
-      role: "reception",
+      role: "user",
       active: true,
       modules: null,
     });
@@ -498,7 +498,7 @@ describe("user modules", () => {
     expect(
       adminUserUpdateSchema.safeParse({
         fullName: "Bia Souza",
-        role: "reception",
+        role: "user",
         active: true,
         modules: ["admin"],
       }).success,
@@ -506,93 +506,68 @@ describe("user modules", () => {
     expect(
       adminUserUpdateSchema.safeParse({
         fullName: "Bia Souza",
-        role: "reception",
+        role: "user",
         active: true,
         jobTitle: "x".repeat(81),
+      }).success,
+    ).toBe(false);
+    expect(
+      adminUserInputSchema.safeParse({
+        fullName: "Bia Souza",
+        email: "bia@x.com",
+        role: "reception",
+        password: "Segura@1234",
       }).success,
     ).toBe(false);
   });
 });
 
 describe("user edit modules", () => {
-  it("gives the owner edit on every module regardless of stored lists", () => {
-    expect(effectiveEditModules("owner")).toEqual(appModuleSchema.options);
-    expect(effectiveEditModules("owner", ["agenda"], [])).toEqual(appModuleSchema.options);
+  it("gives the admin edit on every module regardless of stored lists", () => {
+    expect(effectiveEditModules("admin")).toEqual(appModuleSchema.options);
+    expect(effectiveEditModules("admin", ["agenda"], [])).toEqual(appModuleSchema.options);
   });
 
-  it("keeps the physiotherapist default without edit on patients and plans", () => {
-    const edit = effectiveEditModules("physiotherapist");
-    expect(edit).toEqual(["agenda", "groups", "clinical"]);
-    expect(edit).not.toContain("patients");
-    expect(edit).not.toContain("plans");
-    expect(effectiveModules("physiotherapist")).toContain("patients");
-    expect(effectiveModules("physiotherapist")).toContain("plans");
-  });
-
-  it("mirrors the writes the API allows today for each role", () => {
-    expect(effectiveEditModules("reception")).toEqual([
-      "agenda",
-      "groups",
-      "patients",
-      "plans",
-      "crm",
-      "relationship",
-      "communications",
-      "contracts",
-    ]);
-    expect(effectiveEditModules("finance")).toEqual([
-      "agenda",
-      "patients",
-      "plans",
-      "crm",
-      "relationship",
-      "communications",
-      "contracts",
-      "finance",
-    ]);
-    for (const role of ["reception", "physiotherapist", "finance"] as const) {
-      expect(effectiveEditModules(role)).not.toContain("reports");
-      expect(effectiveEditModules(role)).not.toContain("settings");
-      for (const module of roleDefaultEditModules[role])
-        expect(roleDefaultModules[role]).toContain(module);
-    }
+  it("gives a common user without stored edit no edit at all", () => {
+    expect(effectiveEditModules("user")).toEqual([]);
+    expect(effectiveEditModules("user", ["agenda", "crm"])).toEqual([]);
+    expect(effectiveEditModules("user", ["agenda", "crm"], null)).toEqual([]);
   });
 
   it("drops edit without view, deduplicates and sorts in the enum order", () => {
+    expect(effectiveEditModules("user", null, ["finance", "crm", "agenda"])).toEqual([]);
     expect(
-      effectiveEditModules("reception", null, ["finance", "crm", "agenda", "crm"]),
+      effectiveEditModules("user", ["agenda", "crm"], ["finance", "crm", "agenda", "crm"]),
     ).toEqual(["agenda", "crm"]);
     expect(
-      effectiveEditModules("reception", ["agenda", "finance"], ["finance", "crm", "finance"]),
+      effectiveEditModules("user", ["agenda", "finance"], ["finance", "crm", "finance"]),
     ).toEqual(["finance"]);
-    expect(effectiveEditModules("physiotherapist", ["agenda", "patients"])).toEqual(["agenda"]);
-    expect(effectiveEditModules("finance", undefined, [])).toEqual([]);
   });
 
   it("accepts editModules on user create and update", () => {
     const created = adminUserInputSchema.parse({
       fullName: "Bia Souza",
       email: "bia@x.com",
-      role: "physiotherapist",
+      role: "user",
       password: "Segura@1234",
       editModules: ["patients"],
     });
     expect(created.editModules).toEqual(["patients"]);
     const reset = adminUserUpdateSchema.parse({
       fullName: "Bia Souza",
-      role: "reception",
+      role: "user",
       active: true,
       editModules: null,
     });
     expect(reset.editModules).toBeNull();
     expect(
-      adminUserUpdateSchema.parse({ fullName: "Bia Souza", role: "reception", active: true })
+      adminUserUpdateSchema.parse({ fullName: "Bia Souza", role: "user", active: true })
         .editModules,
     ).toBeUndefined();
     expect(
       adminUserUpdateSchema.safeParse({
         fullName: "Bia Souza",
-        role: "reception",
+        role: "user",
         active: true,
         editModules: ["admin"],
       }).success,

@@ -843,7 +843,7 @@ profissional; criar modais personalizados para cada opção".
 - **Gate:** `npm exec -w @crm/contracts -- vitest run src/contracts.test.ts` e
   `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** D11
-- **Status:** TODO
+- **Status:** DONE
 
 ### T056 — Permissões livres na interface
 - **Escopo:** formulário de usuário com o campo **Tipo** ("Admin" ou "Usuário comum"); usuário

@@ -141,7 +141,7 @@ import type {
   UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { appModuleLabels, appModuleSchema, roleDefaultEditModules, roleDefaultModules, broadcastSkipReasonLabels, competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -356,16 +356,22 @@ function LoginPage({ onLogin }: { onLogin: (user: UserSummary) => void }) {
   );
 }
 
-const roleLabels: Record<UserRole, string> = {
-  owner: "Gestora",
-  reception: "Recepção",
-  physiotherapist: "Fisioterapeuta",
-  finance: "Financeiro",
-};
+const roleLabels: Record<UserRole, string> = userRoleLabels;
 
-/** Sessão gravada antes dos módulos por usuário: não traz `modules`/`editModules`. */
+/**
+ * Sessão gravada no formato atual. Sessões antigas (antes dos módulos por usuário, sem
+ * `modules`/`editModules`, ou antes da T055, com perfil `owner`/`reception`/…) são
+ * completadas com `/me`.
+ */
 function hasAccessLists(user: UserSummary) {
-  return Array.isArray(user.modules) && Array.isArray(user.editModules);
+  return (
+    typeof user.id === "string" &&
+    typeof user.fullName === "string" &&
+    typeof user.email === "string" &&
+    userRoleSchema.safeParse(user.role).success &&
+    Array.isArray(user.modules) &&
+    Array.isArray(user.editModules)
+  );
 }
 
 /** O usuário logado vê o módulo (menu, rotas e leituras). */
@@ -386,7 +392,7 @@ function ReadOnlyNotice({ module, copy }: { module: AppModule; copy?: string }) 
       <LockKeyhole size={16} aria-hidden="true" />
       <span>
         {copy ??
-          `Seu acesso a ${appModuleLabels[module]} é só de consulta. Para criar, editar ou excluir, peça à gestora a permissão de edição.`}
+          `Seu acesso a ${appModuleLabels[module]} é só de consulta. Para criar, editar ou excluir, peça a um admin a permissão de edição.`}
       </span>
     </p>
   );
@@ -930,7 +936,7 @@ function PatientsPage() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
   const canManage = canEdit("patients");
-  const canExport = getStoredUser()?.role === "owner";
+  const canExport = getStoredUser()?.role === "admin";
 
   async function load(query = search) {
     setLoading(true);
@@ -11466,6 +11472,9 @@ function AdminPage() {
   );
 }
 
+/** Usuário comum novo começa sem nenhum módulo (não há mais padrão por perfil). */
+const noModules: readonly AppModule[] = [];
+
 function sameModules(a: readonly AppModule[], b: readonly AppModule[]) {
   return a.length === b.length && a.every((module) => b.includes(module));
 }
@@ -11738,25 +11747,25 @@ function UserFormModal({
   const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>(user?.role ?? "reception");
+  const [role, setRole] = useState<UserRole>(user?.role ?? "user");
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
   const [modules, setModules] = useState<AppModule[]>(() =>
-    orderedModules(user ? user.modules : roleDefaultModules.reception),
+    orderedModules(user ? user.modules : noModules),
   );
   const [editModules, setEditModules] = useState<AppModule[]>(() =>
-    orderedModules(user ? user.editModules : roleDefaultEditModules.reception),
+    orderedModules(user ? user.editModules : noModules),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isOwner = role === "owner";
+  const isOwner = role === "admin";
   const followsDefault =
-    sameModules(modules, roleDefaultModules[role]) &&
-    sameModules(editModules, roleDefaultEditModules[role]);
+    sameModules(modules, noModules) &&
+    sameModules(editModules, noModules);
 
-  // Trocar o perfil (ou restaurar) sugere o padrão do perfil escolhido.
-  function applyDefault(nextRole: UserRole) {
-    setModules(orderedModules(roleDefaultModules[nextRole]));
-    setEditModules(orderedModules(roleDefaultEditModules[nextRole]));
+  // Sem padrões por perfil (T055): trocar o tipo ou restaurar desmarca tudo.
+  function applyDefault() {
+    setModules([]);
+    setEditModules([]);
   }
   function toggleView(module: AppModule, checked: boolean) {
     if (checked) {
@@ -11781,7 +11790,7 @@ function UserFormModal({
     event.preventDefault();
     setSaving(true);
     setError("");
-    // Seguindo o padrão (ou gestora), grava `null`: o usuário acompanha o padrão do perfil.
+    // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
     const permissions =
       isOwner || followsDefault
         ? { modules: null, editModules: null }
@@ -11863,7 +11872,7 @@ function UserFormModal({
             onChange={(event) => {
               const nextRole = event.target.value as UserRole;
               setRole(nextRole);
-              applyDefault(nextRole);
+              applyDefault();
             }}
           >
             {(Object.keys(roleLabels) as UserRole[]).map((item) => (
@@ -11893,7 +11902,7 @@ function UserFormModal({
           <legend>Módulos</legend>
           {isOwner ? (
             <p className="muted-copy">
-              Acesso total: a gestora vê e edita todos os módulos, além da
+              Acesso total: o admin vê e edita todos os módulos, além da
               Administração.
             </p>
           ) : (
@@ -11910,7 +11919,7 @@ function UserFormModal({
                   type="button"
                   className="secondary-button"
                   disabled={followsDefault}
-                  onClick={() => applyDefault(role)}
+                  onClick={() => applyDefault()}
                 >
                   <RotateCcw size={15} aria-hidden="true" />
                   Restaurar padrão do perfil
@@ -11960,7 +11969,7 @@ function UserFormModal({
               </table>
               <p className="muted-copy">
                 “Visão geral” aparece para todos; Administração (usuários,
-                feriados e dados da clínica) é sempre só da gestora.
+                feriados e dados da clínica) é sempre só do admin.
               </p>
             </div>
           )}
@@ -12341,7 +12350,7 @@ function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
       {error && <ErrorBanner error={error} />}
       {!canEdit && (
         <p className="muted-copy">
-          Somente a gestora da clínica pode alterar estes valores.
+          Somente um admin pode alterar estes valores.
         </p>
       )}
       {!settings ? (
@@ -13434,7 +13443,7 @@ function App() {
                 <Route
                   path="/configuracoes"
                   element={
-                    user!.role === "owner" ? (
+                    user!.role === "admin" ? (
                       <AdminPage />
                     ) : (
                       allow("settings", <RelationshipSettingsPage />)

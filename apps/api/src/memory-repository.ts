@@ -122,7 +122,6 @@ import type {
   ContactActivityInput,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
-  UserRole,
 } from "@crm/contracts";
 import {
   defaultRelationshipSettings,
@@ -158,6 +157,7 @@ import { buildDailyCash, clinicDateOf } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
+  lastAdminError,
   type AuthenticatedUser,
   type ClinicRepository,
 } from "./repository.js";
@@ -312,11 +312,11 @@ export class MemoryClinicRepository implements ClinicRepository {
   > = [];
   private readonly documentTemplates: DocumentTemplate[] = [];
   private readonly issuedDocuments: IssuedDocument[] = [];
-  /** Módulos ajustados pela gestora, por usuário (ausente = padrão do perfil). */
+  /** Módulos gravados pelo admin para o usuário comum (ausente = nenhum). */
   private readonly userModules = new Map<string, AppModule[]>();
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   private readonly professionalUsers = new Map<string, string>();
-  /** Módulos com edição ajustados pela gestora (ausente = padrão do perfil). */
+  /** Módulos com edição gravados para o usuário comum (ausente = nenhum). */
   private readonly userEditModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
     {
@@ -324,9 +324,9 @@ export class MemoryClinicRepository implements ClinicRepository {
       clinicId: CLINIC_ID,
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
-      role: "owner",
-      modules: effectiveModules("owner"),
-      editModules: effectiveEditModules("owner"),
+      role: "admin",
+      modules: effectiveModules("admin"),
+      editModules: effectiveEditModules("admin"),
       customModules: false,
       passwordHash: hashSync("Admin@123", 10),
       active: true,
@@ -744,6 +744,21 @@ export class MemoryClinicRepository implements ClinicRepository {
         "Você não pode desativar o próprio acesso.",
         409,
       );
+    const losesAdmin =
+      user.role === "admin" &&
+      user.active &&
+      (input.role !== "admin" || !input.active);
+    if (
+      losesAdmin &&
+      !this.users.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id !== user.id &&
+          item.role === "admin" &&
+          item.active,
+      )
+    )
+      throw lastAdminError();
     const previousCustom = this.storedPermissions(user.id);
     user.fullName = input.fullName;
     user.role = input.role;
@@ -789,7 +804,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   /**
-   * Owner não guarda ajuste (tem sempre todos os módulos); `null` = padrão do perfil.
+   * Admin não guarda lista (tem sempre todos os módulos); usuário comum: `null` = nenhum.
    * A edição guardada já descarta módulos sem visualização.
    */
   private setUserModules(
@@ -797,11 +812,11 @@ export class MemoryClinicRepository implements ClinicRepository {
     modules: readonly AppModule[] | null,
     editModules: readonly AppModule[] | null,
   ) {
-    const owner = user.role === "owner";
+    const admin = user.role === "admin";
     const custom =
-      owner || modules === null ? null : effectiveModules(user.role, modules);
+      admin || modules === null ? null : effectiveModules(user.role, modules);
     const customEdit =
-      owner || editModules === null
+      admin || editModules === null
         ? null
         : effectiveEditModules(user.role, custom, editModules);
     if (custom) this.userModules.set(user.id, custom);
@@ -892,7 +907,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     return true;
   }
 
-  async listContactSuggestions(clinicId: string, role: UserRole) {
+  async listContactSuggestions(clinicId: string, modules: readonly AppModule[]) {
     const today = saoPauloToday();
     const [settings, plans, activities, surveys] = await Promise.all([
       this.getRelationshipSettings(clinicId),
@@ -918,7 +933,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       },
       settings,
       today,
-      role,
+      modules,
     );
   }
 

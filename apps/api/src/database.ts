@@ -101,7 +101,7 @@ export async function seedDemoData(pool: Pool) {
     await client.query(
       `
       INSERT INTO users (id, clinic_id, full_name, email, password_hash, role)
-      VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Aryana Dutra', 'admin@movimenta.local', $1, 'owner')
+      VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Aryana Dutra', 'admin@movimenta.local', $1, 'admin')
       ON CONFLICT (clinic_id, email) DO NOTHING
       `,
       [passwordHash],

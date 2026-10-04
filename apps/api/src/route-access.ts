@@ -9,7 +9,7 @@ export interface ModuleRequirement {
 /**
  * - `public`: sem login (saúde e login).
  * - `login`: basta estar logado (usuário ativo).
- * - `owner`: Administração, sempre só da gestora (não é módulo configurável).
+ * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
  * - `{ anyOf: [...] }`: basta UM dos níveis listados (leituras de apoio usadas por várias
  *   telas). O 403 usa o código do primeiro módulo e cita todos na mensagem.
@@ -17,7 +17,7 @@ export interface ModuleRequirement {
 export type RouteAccess =
   | "public"
   | "login"
-  | "owner"
+  | "admin"
   | ModuleRequirement[]
   | { anyOf: ModuleRequirement[] };
 
@@ -32,13 +32,13 @@ const edit = (...modules: AppModule[]): ModuleRequirement[] =>
  * Mapa único rota → acesso exigido (chave `MÉTODO /caminho`, como registrado no Fastify).
  * Toda rota precisa estar aqui: `buildApp` recusa subir com rota sem entrada.
  *
- * Com os padrões de perfil (`roleDefaultModules`/`roleDefaultEditModules`) o acesso é o mesmo
- * de antes dos módulos por usuário, exceto a decisão do dono: gravar clientes
+ * Com os padrões dos perfis antigos (`legacy-roles.ts`, gravados nos usuários pela migração
+ * 0042) o acesso é o mesmo de antes dos módulos por usuário, exceto a decisão do dono: gravar clientes
  * (`POST /patients`, `PUT /patients/:id`) passa a exigir edição de Clientes — a
  * fisioterapeuta deixa de gravar clientes.
  *
  * Escolhas que preservam o acesso de antes (pontos para o dono revisar):
- * - `/schedule-blocks` (gravações): antes só comercial (owner/recepção/financeiro); exige
+ * - `/schedule-blocks` (gravações): antes só comercial (gestora/recepção/financeiro); exige
  *   editar Agenda E Clientes.
  * - `/professionals`, `/rooms`, `/services` (gravações): antes bastava login; exigem editar
  *   Agenda (todos os perfis têm por padrão).
@@ -59,21 +59,21 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /auth/login": "public",
   "GET /me": "login",
 
-  // Administração (só a gestora).
-  "GET /admin/users": "owner",
-  "POST /admin/users": "owner",
-  "PATCH /admin/users/:id": "owner",
-  "POST /admin/users/:id/reset-password": "owner",
-  "PUT /admin/users/:id/professional": "owner",
-  "PUT /admin/users/:id/commission": "owner",
-  "GET /admin/clinic-settings": "owner",
-  "PUT /admin/clinic-settings": "owner",
-  "PUT /relationship/settings": "owner",
-  "POST /holidays": "owner",
-  "DELETE /holidays/:id": "owner",
-  "GET /admin/audit-events": "owner",
-  "GET /admin/permission-matrix": "owner",
-  "GET /patients/export": "owner",
+  // Administração (só admin).
+  "GET /admin/users": "admin",
+  "POST /admin/users": "admin",
+  "PATCH /admin/users/:id": "admin",
+  "POST /admin/users/:id/reset-password": "admin",
+  "PUT /admin/users/:id/professional": "admin",
+  "PUT /admin/users/:id/commission": "admin",
+  "GET /admin/clinic-settings": "admin",
+  "PUT /admin/clinic-settings": "admin",
+  "PUT /relationship/settings": "admin",
+  "POST /holidays": "admin",
+  "DELETE /holidays/:id": "admin",
+  "GET /admin/audit-events": "admin",
+  "GET /admin/permission-matrix": "admin",
+  "GET /patients/export": "admin",
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",

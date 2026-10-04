@@ -1,11 +1,25 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
-import type { Appointment, Lead, UserRole } from "@crm/contracts";
-import { defaultRelationshipSettings, groupClassName } from "@crm/contracts";
+import type { Appointment, Lead } from "@crm/contracts";
+import { appModuleSchema, defaultRelationshipSettings, groupClassName } from "@crm/contracts";
 import { localParts, zonedTimeToUtc } from "./group-schedule.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
+import {
+  legacyRoleDefaultEditModules,
+  legacyRoleDefaultModules,
+  type LegacyRole,
+} from "./legacy-roles.js";
 import { MemoryClinicRepository } from "./memory-repository.js";
+
+/**
+ * Os testes de acesso usam os perfis antigos como "fixtures": cada um vira um usuário real com
+ * os módulos que o perfil tinha (o que a migração 0042 gravou). `owner` = o admin demo.
+ */
+type UserRole = LegacyRole;
+/** Tipo no token (a API relê o tipo e os módulos do usuário a cada requisição). */
+const tokenRole = (role: LegacyRole): "admin" | "user" =>
+  role === "owner" ? "admin" : "user";
 
 async function authenticatedApp() {
   const app = await buildApp({
@@ -45,8 +59,10 @@ async function seedRoleUsers(app: TestApp) {
       payload: {
         fullName: `Usuária ${role}`,
         email: `perfil.${role}@teste.local`,
-        role,
+        role: "user",
         password: "SenhaForte123",
+        modules: legacyRoleDefaultModules[role],
+        editModules: legacyRoleDefaultEditModules[role],
       },
     });
     expect(created.statusCode).toBe(201);
@@ -115,10 +131,12 @@ describe("CRM API", () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const me = await app.inject({ method: "GET", url: "/me", headers });
+    expect(me.json()).toMatchObject({ role: "admin" });
     expect(me.json().modules).toContain("settings");
     expect(me.json().modules).toHaveLength(12);
 
-    const created = await app.inject({
+    // Perfis antigos não existem mais.
+    const legacy = await app.inject({
       method: "POST",
       url: "/admin/users",
       headers,
@@ -127,27 +145,33 @@ describe("CRM API", () => {
         email: "bia@movimenta.local",
         role: "reception",
         password: "Segura@1234",
+      },
+    });
+    expect(legacy.statusCode).toBe(400);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Bia Souza",
+        email: "bia@movimenta.local",
+        role: "user",
+        password: "Segura@1234",
         jobTitle: " Instrutora de Pilates ",
       },
     });
     expect(created.statusCode).toBe(201);
+    // Usuário comum novo começa sem nenhum módulo.
     expect(created.json()).toMatchObject({
+      role: "user",
       jobTitle: "Instrutora de Pilates",
       customModules: false,
-      modules: [
-        "agenda",
-        "groups",
-        "patients",
-        "plans",
-        "crm",
-        "relationship",
-        "communications",
-        "contracts",
-        "settings",
-      ],
+      modules: [],
+      editModules: [],
     });
     const userId = created.json().id as string;
-    const base = { fullName: "Bia Souza", role: "reception", active: true };
+    const base = { fullName: "Bia Souza", role: "user", active: true };
 
     const custom = await app.inject({
       method: "PATCH",
@@ -167,9 +191,9 @@ describe("CRM API", () => {
       method: "PATCH",
       url: `/admin/users/${userId}`,
       headers,
-      payload: { ...base, role: "finance", jobTitle: "" },
+      payload: { ...base, jobTitle: "" },
     });
-    expect(kept.json()).toMatchObject({ role: "finance", modules: ["agenda", "finance"] });
+    expect(kept.json()).toMatchObject({ role: "user", modules: ["agenda", "finance"] });
     expect(kept.json().jobTitle).toBeUndefined();
 
     const login = await app.inject({
@@ -177,21 +201,19 @@ describe("CRM API", () => {
       url: "/auth/login",
       payload: { email: "bia@movimenta.local", password: "Segura@1234" },
     });
-    expect(login.json().user).toMatchObject({ role: "finance", modules: ["agenda", "finance"] });
+    expect(login.json().user).toMatchObject({ role: "user", modules: ["agenda", "finance"] });
     const userHeaders = { authorization: `Bearer ${login.json().token as string}` };
     const userMe = await app.inject({ method: "GET", url: "/me", headers: userHeaders });
     expect(userMe.json().modules).toEqual(["agenda", "finance"]);
 
+    // `null` = nenhum módulo (não há mais padrão por perfil).
     const reset = await app.inject({
       method: "PATCH",
       url: `/admin/users/${userId}`,
       headers,
-      payload: { ...base, role: "physiotherapist", modules: null },
+      payload: { ...base, modules: null },
     });
-    expect(reset.json()).toMatchObject({
-      customModules: false,
-      modules: ["agenda", "groups", "patients", "plans", "clinical"],
-    });
+    expect(reset.json()).toMatchObject({ customModules: false, modules: [], editModules: [] });
 
     const invalid = await app.inject({
       method: "PATCH",
@@ -212,64 +234,11 @@ describe("CRM API", () => {
     const matrix = await app.inject({ method: "GET", url: "/admin/permission-matrix", headers });
     expect(matrix.json()).toEqual([
       {
-        role: "owner",
+        role: "admin",
         modules: ["Todos os módulos", "Administração"],
         editModules: ["Todos os módulos", "Administração"],
       },
-      {
-        role: "reception",
-        modules: [
-          "Agenda",
-          "Turmas",
-          "Clientes",
-          "Planos e sessões",
-          "CRM comercial",
-          "Contatos sugeridos",
-          "Comunicações",
-          "Contratos",
-          "Configurações",
-        ],
-        editModules: [
-          "Agenda",
-          "Turmas",
-          "Clientes",
-          "Planos e sessões",
-          "CRM comercial",
-          "Contatos sugeridos",
-          "Comunicações",
-          "Contratos",
-        ],
-      },
-      {
-        role: "physiotherapist",
-        modules: ["Agenda", "Turmas", "Clientes", "Planos e sessões", "Prontuários"],
-        editModules: ["Agenda", "Turmas", "Prontuários"],
-      },
-      {
-        role: "finance",
-        modules: [
-          "Agenda",
-          "Clientes",
-          "Planos e sessões",
-          "CRM comercial",
-          "Contatos sugeridos",
-          "Comunicações",
-          "Contratos",
-          "Financeiro",
-          "Relatórios",
-          "Configurações",
-        ],
-        editModules: [
-          "Agenda",
-          "Clientes",
-          "Planos e sessões",
-          "CRM comercial",
-          "Contatos sugeridos",
-          "Comunicações",
-          "Contratos",
-          "Financeiro",
-        ],
-      },
+      { role: "user", modules: [], editModules: [] },
     ]);
     await app.close();
   });
@@ -280,6 +249,7 @@ describe("CRM API", () => {
     const me = await app.inject({ method: "GET", url: "/me", headers });
     expect(me.json().editModules).toHaveLength(12);
 
+    const physioModules = ["agenda", "groups", "patients", "plans", "clinical"];
     const created = await app.inject({
       method: "POST",
       url: "/admin/users",
@@ -287,20 +257,22 @@ describe("CRM API", () => {
       payload: {
         fullName: "Carla Lima",
         email: "carla@movimenta.local",
-        role: "physiotherapist",
+        role: "user",
         password: "Segura@1234",
+        modules: physioModules,
       },
     });
     expect(created.statusCode).toBe(201);
+    // Ver não dá edição: sem `editModules`, nenhuma edição.
     expect(created.json()).toMatchObject({
-      customModules: false,
-      modules: ["agenda", "groups", "patients", "plans", "clinical"],
-      editModules: ["agenda", "groups", "clinical"],
+      customModules: true,
+      modules: physioModules,
+      editModules: [],
     });
     const userId = created.json().id as string;
-    const base = { fullName: "Carla Lima", role: "physiotherapist", active: true };
+    const base = { fullName: "Carla Lima", role: "user", active: true };
 
-    // Só a edição ajustada já marca como personalizado; editar sem ver é descartado.
+    // Editar sem ver é descartado.
     const custom = await app.inject({
       method: "PATCH",
       url: `/admin/users/${userId}`,
@@ -310,7 +282,7 @@ describe("CRM API", () => {
     expect(custom.statusCode).toBe(200);
     expect(custom.json()).toMatchObject({
       customModules: true,
-      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+      modules: physioModules,
       editModules: ["patients", "clinical"],
     });
 
@@ -343,38 +315,23 @@ describe("CRM API", () => {
     });
     expect(userMe.json().editModules).toEqual(["clinical"]);
 
-    // Só a visualização volta ao padrão: a edição ajustada continua valendo.
-    const viewReset = await app.inject({
-      method: "PATCH",
-      url: `/admin/users/${userId}`,
-      headers,
-      payload: { ...base, modules: null },
-    });
-    expect(viewReset.json()).toMatchObject({
-      customModules: true,
-      modules: ["agenda", "groups", "patients", "plans", "clinical"],
-    });
-
     const reset = await app.inject({
       method: "PATCH",
       url: `/admin/users/${userId}`,
       headers,
       payload: { ...base, modules: null, editModules: null },
     });
-    expect(reset.json()).toMatchObject({
-      customModules: false,
-      editModules: ["agenda", "groups", "clinical"],
-    });
+    expect(reset.json()).toMatchObject({ customModules: false, modules: [], editModules: [] });
 
-    // Owner nunca guarda ajuste: edita tudo.
-    const owner = await app.inject({
+    // Admin nunca guarda lista: vê e edita tudo.
+    const admin = await app.inject({
       method: "PATCH",
       url: `/admin/users/${userId}`,
       headers,
-      payload: { ...base, role: "owner", editModules: ["agenda"] },
+      payload: { ...base, role: "admin", editModules: ["agenda"] },
     });
-    expect(owner.json().customModules).toBe(false);
-    expect(owner.json().editModules).toHaveLength(12);
+    expect(admin.json()).toMatchObject({ role: "admin", customModules: false });
+    expect(admin.json().editModules).toHaveLength(12);
 
     const invalid = await app.inject({
       method: "PATCH",
@@ -391,9 +348,13 @@ describe("CRM API", () => {
       (event) => event.action === "users.permissions_updated" && event.entityId === userId,
     );
     expect(permissionEvents).toHaveLength(4);
-    const firstChange = permissionEvents.at(-1)!;
-    expect(firstChange.metadata).toEqual({
-      modules: ["agenda", "groups", "patients", "plans", "clinical"],
+    expect(permissionEvents.at(-1)!.metadata).toEqual({
+      modules: physioModules,
+      editModules: [],
+      custom: true,
+    });
+    expect(permissionEvents.at(-2)!.metadata).toEqual({
+      modules: physioModules,
       editModules: ["patients", "clinical"],
       custom: true,
     });
@@ -416,7 +377,7 @@ describe("CRM API", () => {
         payload: {
           fullName: "Instrutora Teste",
           email,
-          role: "physiotherapist",
+          role: "user",
           password: "Segura@1234",
         },
       });
@@ -511,7 +472,7 @@ describe("CRM API", () => {
 
     for (const role of ["reception", "physiotherapist", "finance"] as const) {
       const roleHeaders = {
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId: "11111111-1111-4111-8111-111111111111", role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId: "11111111-1111-4111-8111-111111111111", role: tokenRole(role) })}`,
       };
       const denied = await app.inject({
         method: "PUT",
@@ -996,7 +957,7 @@ describe("CRM API", () => {
           authorization: `Bearer ${app.jwt.sign({
             sub: "22222222-2222-4222-8222-222222222222",
             clinicId: "11111111-1111-4111-8111-111111111111",
-            role: "owner",
+            role: "admin",
           })}`,
         },
         payload: {
@@ -1023,7 +984,7 @@ describe("CRM API", () => {
           authorization: `Bearer ${app.jwt.sign({
             sub: "22222222-2222-4222-8222-222222222222",
             clinicId: "11111111-1111-4111-8111-111111111111",
-            role: "owner",
+            role: "admin",
           })}`,
         },
       });
@@ -1038,7 +999,7 @@ describe("CRM API", () => {
           authorization: `Bearer ${app.jwt.sign({
             sub: "22222222-2222-4222-8222-222222222222",
             clinicId: "11111111-1111-4111-8111-111111111111",
-            role: "owner",
+            role: "admin",
           })}`,
         },
       });
@@ -1056,7 +1017,7 @@ describe("CRM API", () => {
           authorization: `Bearer ${app.jwt.sign({
             sub: "22222222-2222-4222-8222-222222222222",
             clinicId: "11111111-1111-4111-8111-111111111111",
-            role: "owner",
+            role: "admin",
           })}`,
         },
       });
@@ -1108,7 +1069,7 @@ describe("CRM API", () => {
       method: "POST",
       url: `/leads/${leadId}/appointments`,
       headers: {
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "physiotherapist"), clinicId, role: "physiotherapist" })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "physiotherapist"), clinicId, role: "user" })}`,
       },
       payload,
     });
@@ -1133,7 +1094,7 @@ describe("CRM API", () => {
     expect(missing.json()).toMatchObject({ code: "LEAD_NOT_FOUND" });
 
     const receptionHeaders = {
-      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "reception" })}`,
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "user" })}`,
     };
     const created = await app.inject({
       method: "POST",
@@ -1400,7 +1361,7 @@ describe("CRM API", () => {
         authorization: `Bearer ${app.jwt.sign({
           sub: "22222222-2222-4222-8222-222222222222",
           clinicId: "11111111-1111-4111-8111-111111111111",
-          role: "owner",
+          role: "admin",
         })}`,
       };
       const suggestions = await app.inject({
@@ -1719,7 +1680,7 @@ describe("CRM API", () => {
     const token = app.jwt.sign({
       sub: roleSub(app, "reception"),
       clinicId: "11111111-1111-4111-8111-111111111111",
-      role: "reception",
+      role: "user",
     });
     const response = await app.inject({
       method: "GET",
@@ -2369,7 +2330,7 @@ describe("CRM API", () => {
     const receptionToken = app.jwt.sign({
       sub: roleSub(app, "reception"),
       clinicId: "11111111-1111-4111-8111-111111111111",
-      role: "reception",
+      role: "user",
     });
     const denied = await app.inject({
       method: "GET",
@@ -2678,7 +2639,7 @@ describe("CRM API", () => {
     const clinicId = "11111111-1111-4111-8111-111111111111";
     await seedRoleUsers(app);
     const headersAs = (role: UserRole = "owner") => ({
-      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
     });
     const at = (iso: string) => vi.setSystemTime(new Date(iso));
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -2895,7 +2856,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const headersAs = (role: UserRole = "owner") => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const headers = headersAs();
       const forecast = async (query = "?months=3") => {
@@ -3062,7 +3023,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const headersAs = (role: UserRole = "owner") => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const headers = headersAs();
       type Month = {
@@ -3227,7 +3188,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const headersAs = (role: UserRole = "owner") => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const headers = headersAs();
       type Report = {
@@ -3405,7 +3366,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const headersAs = (role: UserRole = "owner") => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const at = (iso: string) => vi.setSystemTime(new Date(iso));
       let workspace = await app.inject({
@@ -4395,7 +4356,7 @@ describe("CRM API", () => {
     const clinicId = "11111111-1111-4111-8111-111111111111";
     await seedRoleUsers(app);
     const receptionHeaders = {
-      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "reception" })}`,
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "user" })}`,
     };
     const day = (offset: number) =>
       new Date(Date.UTC(2031, 3, 21 + offset)).toISOString().slice(0, 10);
@@ -4409,7 +4370,7 @@ describe("CRM API", () => {
       payload: { date: holidayDate, name: "Tiradentes" },
     });
     expect(forbidden.statusCode).toBe(403);
-    expect(forbidden.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+    expect(forbidden.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
     const invalid = await app.inject({
       method: "POST",
       url: "/holidays",
@@ -4534,7 +4495,7 @@ describe("CRM API", () => {
       headers: receptionHeaders,
     });
     expect(receptionDelete.statusCode).toBe(403);
-    expect(receptionDelete.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+    expect(receptionDelete.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
     const removed = await app.inject({
       method: "DELETE",
       url: `/holidays/${created.json().id}`,
@@ -4608,7 +4569,7 @@ describe("CRM API", () => {
     const clinicId = "11111111-1111-4111-8111-111111111111";
     await seedRoleUsers(app);
     const receptionHeaders = {
-      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "reception" })}`,
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "user" })}`,
     };
     const receptionRead = await app.inject({
       method: "GET",
@@ -4624,13 +4585,13 @@ describe("CRM API", () => {
       payload: defaultRelationshipSettings,
     });
     expect(receptionWrite.statusCode).toBe(403);
-    expect(receptionWrite.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+    expect(receptionWrite.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
 
     const physiotherapistRead = await app.inject({
       method: "GET",
       url: "/relationship/settings",
       headers: {
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "physiotherapist"), clinicId, role: "physiotherapist" })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "physiotherapist"), clinicId, role: "user" })}`,
       },
     });
     expect(physiotherapistRead.statusCode).toBe(403);
@@ -4647,7 +4608,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const roleHeaders = (role: UserRole) => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const patient = (
         await app.inject({
@@ -4849,7 +4810,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const headers = (role: UserRole = "owner") => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
       });
       const patient = (
         await app.inject({
@@ -4934,7 +4895,7 @@ describe("CRM API", () => {
         authorization: `Bearer ${app.jwt.sign({
           sub: roleSub(app, role),
           clinicId: "11111111-1111-4111-8111-111111111111",
-          role,
+          role: tokenRole(role),
         })}`,
       });
       const createPatient = async (fullName: string, birthDate?: string) =>
@@ -5095,7 +5056,7 @@ describe("CRM API", () => {
     const sub = "22222222-2222-4222-8222-222222222222";
     await seedRoleUsers(app);
     const roleHeaders = (role: UserRole) => ({
-      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role })}`,
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
     });
     const helena = "99999999-9999-4999-8999-999999999999";
     const lucas = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -5272,7 +5233,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       const sub = "22222222-2222-4222-8222-222222222222";
       const headers = () => ({
-        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "owner" })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub, clinicId, role: "admin" })}`,
       });
       const list = (query = "") =>
         app.inject({
@@ -5366,7 +5327,7 @@ describe("CRM API", () => {
       const clinicId = "11111111-1111-4111-8111-111111111111";
       await seedRoleUsers(app);
       const roleHeaders = (role: UserRole, clinic = clinicId) => ({
-        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId: clinic, role })}`,
+        authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId: clinic, role: tokenRole(role) })}`,
       });
       const helena = "99999999-9999-4999-8999-999999999999";
       const helenaAppointment = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -5739,7 +5700,7 @@ describe("CRM API", () => {
       authorization: `Bearer ${app.jwt.sign({
         sub: roleSub(app, "physiotherapist"),
         clinicId: "11111111-1111-4111-8111-111111111111",
-        role: "physiotherapist",
+        role: "user",
       })}`,
     };
     for (const url of ["/patients/import/preview", "/patients/import"]) {
@@ -5861,7 +5822,7 @@ describe("CRM API", () => {
       authorization: `Bearer ${app.jwt.sign({
         sub: roleSub(app, role),
         clinicId: "11111111-1111-4111-8111-111111111111",
-        role,
+        role: tokenRole(role),
       })}`,
     });
 
@@ -6032,7 +5993,7 @@ describe("CRM API", () => {
           headers: tokenHeaders(app, role),
         });
         expect(response.statusCode, role).toBe(403);
-        expect(response.json()).toMatchObject({ code: "OWNER_ACCESS_REQUIRED" });
+        expect(response.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
       }
       const anonymous = await app.inject({ method: "GET", url: "/patients/export" });
       expect(anonymous.statusCode).toBe(401);
@@ -6368,7 +6329,7 @@ describe("CRM API", () => {
         authorization: `Bearer ${app.jwt.sign({
           sub: roleSub(app, "physiotherapist"),
           clinicId: "11111111-1111-4111-8111-111111111111",
-          role: "physiotherapist" as UserRole,
+          role: "user" as const,
         })}`,
       };
       const payload = { segment: { tags: [tag] }, channel: "whatsapp", body: "Oi" };
@@ -6395,11 +6356,24 @@ describe("CRM API", () => {
       payload: Record<string, unknown>,
     ) {
       const email = `${String(payload.role)}.${Math.random().toString(36).slice(2)}@teste.local`;
+      // Perfil antigo como atalho: usuário comum com os módulos que o perfil tinha.
+      const { role, ...rest } = payload;
+      const legacy = (["reception", "physiotherapist", "finance"] as const).find(
+        (item) => item === role,
+      );
+      const body = legacy
+        ? {
+            role: "user",
+            modules: legacyRoleDefaultModules[legacy],
+            editModules: legacyRoleDefaultEditModules[legacy],
+            ...rest,
+          }
+        : payload;
       const created = await app.inject({
         method: "POST",
         url: "/admin/users",
         headers: ownerHeaders,
-        payload: { fullName: "Usuária Teste", email, password: "SenhaForte123", ...payload },
+        payload: { fullName: "Usuária Teste", email, password: "SenhaForte123", ...body },
       });
       expect(created.statusCode).toBe(201);
       const login = await app.inject({
@@ -6440,9 +6414,9 @@ describe("CRM API", () => {
       const owner = { authorization: `Bearer ${token}` };
       const reception = await createUser(app, owner, { role: "reception" });
       for (const [url, code] of [
-        ["/admin/users", "OWNER_ACCESS_REQUIRED"],
+        ["/admin/users", "ADMIN_ACCESS_REQUIRED"],
         ["/finance/workspace", "FINANCE_ACCESS_DENIED"],
-        ["/patients/export", "OWNER_ACCESS_REQUIRED"],
+        ["/patients/export", "ADMIN_ACCESS_REQUIRED"],
         ["/reports/management", "MANAGEMENT_ACCESS_DENIED"],
       ] as const) {
         const denied = await app.inject({ method: "HEAD", url, headers: reception.headers });
@@ -6584,7 +6558,7 @@ describe("CRM API", () => {
         headers: owner,
         payload: {
           fullName: "Usuária Teste",
-          role: "physiotherapist",
+          role: "user",
           active: true,
           editModules: ["agenda", "groups", "clinical", "patients"],
         },
@@ -6597,7 +6571,7 @@ describe("CRM API", () => {
         method: "PATCH",
         url: `/admin/users/${physio.id}`,
         headers: owner,
-        payload: { fullName: "Usuária Teste", role: "physiotherapist", active: false },
+        payload: { fullName: "Usuária Teste", role: "user", active: false },
       });
       expect(deactivated.statusCode).toBe(200);
       for (const url of ["/patients", "/dashboard", "/me"]) {
@@ -6605,6 +6579,112 @@ describe("CRM API", () => {
         expect(refused.statusCode, url).toBe(401);
         expect(refused.json()).toMatchObject({ code: "UNAUTHORIZED" });
       }
+      await app.close();
+    });
+
+    it("starts a new common user without any module (only the overview)", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const user = await createUser(app, owner, { role: "user" });
+      const me = await app.inject({ method: "GET", url: "/me", headers: user.headers });
+      expect(me.json()).toMatchObject({ role: "user", modules: [], editModules: [] });
+      expect((await app.inject({ method: "GET", url: "/dashboard", headers: user.headers })).statusCode).toBe(200);
+      for (const url of [
+        "/patients",
+        "/patients/options",
+        "/groups/workspace",
+        "/plans",
+        "/leads",
+        "/clinical-records",
+        "/finance/workspace",
+        "/reports/management",
+        "/relationship/settings",
+        "/communications",
+      ]) {
+        const denied = await app.inject({ method: "GET", url, headers: user.headers });
+        expect(denied.statusCode, url).toBe(403);
+      }
+      for (const url of ["/admin/users", "/admin/clinic-settings", "/admin/audit-events", "/patients/export"]) {
+        const get = await app.inject({ method: "GET", url, headers: user.headers });
+        expect(get.statusCode, url).toBe(403);
+        expect(get.json(), url).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
+        expect((await app.inject({ method: "HEAD", url, headers: user.headers })).statusCode, url).toBe(403);
+      }
+      // Nem com todos os módulos o usuário comum entra na Administração.
+      const full = await createUser(app, owner, {
+        role: "user",
+        modules: appModuleSchema.options,
+        editModules: appModuleSchema.options,
+      });
+      expect((await app.inject({ method: "GET", url: "/finance/workspace", headers: full.headers })).statusCode).toBe(200);
+      for (const url of ["/admin/users", "/admin/permission-matrix"]) {
+        expect((await app.inject({ method: "GET", url, headers: full.headers })).statusCode, url).toBe(403);
+        expect((await app.inject({ method: "HEAD", url, headers: full.headers })).statusCode, url).toBe(403);
+      }
+      await app.close();
+    });
+
+    it("gives an admin every module and the administration, ignoring stored lists", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const admin = await createUser(app, owner, { role: "admin", modules: ["agenda"], editModules: [] });
+      const me = await app.inject({ method: "GET", url: "/me", headers: admin.headers });
+      expect(me.json()).toMatchObject({
+        role: "admin",
+        modules: appModuleSchema.options,
+        editModules: appModuleSchema.options,
+      });
+      for (const url of ["/admin/users", "/admin/audit-events", "/finance/workspace", "/leads", "/plans"]) {
+        expect((await app.inject({ method: "GET", url, headers: admin.headers })).statusCode, url).toBe(200);
+        expect((await app.inject({ method: "HEAD", url, headers: admin.headers })).statusCode, url).toBe(200);
+      }
+      const listed = (await app.inject({ method: "GET", url: "/admin/users", headers: owner })).json() as Array<{
+        id: string;
+        customModules: boolean;
+      }>;
+      expect(listed.find((item) => item.id === admin.id)?.customModules).toBe(false);
+      await app.close();
+    });
+
+    it("never lets the clinic lose its last active admin", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const patch = (id: string, headers: Record<string, string>, payload: Record<string, unknown>) =>
+        app.inject({
+          method: "PATCH",
+          url: `/admin/users/${id}`,
+          headers,
+          payload: { fullName: "Usuária Teste", ...payload },
+        });
+      const demoted = await patch(OWNER_ID, owner, { fullName: "Aryana Dutra", role: "user", active: true });
+      expect(demoted.statusCode).toBe(409);
+      expect(demoted.json()).toMatchObject({ code: "LAST_ADMIN" });
+      expect((await app.inject({ method: "GET", url: "/admin/users", headers: owner })).statusCode).toBe(200);
+
+      // Com outro admin ativo dá para rebaixar; admin desativado não conta.
+      const second = await createUser(app, owner, { role: "admin" });
+      expect((await patch(second.id, owner, { role: "admin", active: false })).statusCode).toBe(200);
+      const stillLast = await patch(OWNER_ID, owner, { fullName: "Aryana Dutra", role: "user", active: true });
+      expect(stillLast.statusCode).toBe(409);
+      expect(stillLast.json()).toMatchObject({ code: "LAST_ADMIN" });
+      expect((await patch(second.id, owner, { role: "admin", active: true })).statusCode).toBe(200);
+      const handedOver = await patch(OWNER_ID, owner, { fullName: "Aryana Dutra", role: "user", active: true });
+      expect(handedOver.statusCode).toBe(200);
+      expect(handedOver.json()).toMatchObject({ role: "user", modules: [] });
+      // A ex-admin perde a Administração na hora; a nova admin não pode se rebaixar nem desativar a última.
+      expect((await app.inject({ method: "GET", url: "/admin/users", headers: owner })).statusCode).toBe(403);
+      const selfDemotion = await patch(second.id, second.headers, { role: "user", active: true });
+      expect(selfDemotion.json()).toMatchObject({ code: "LAST_ADMIN" });
+
+      const repository = new MemoryClinicRepository();
+      const clinicId = "11111111-1111-4111-8111-111111111111";
+      await expect(
+        repository.updateAdminUser(clinicId, "outra-pessoa", OWNER_ID, {
+          fullName: "Aryana Dutra",
+          role: "admin",
+          active: false,
+        }),
+      ).rejects.toMatchObject({ code: "LAST_ADMIN", statusCode: 409 });
       await app.close();
     });
   });

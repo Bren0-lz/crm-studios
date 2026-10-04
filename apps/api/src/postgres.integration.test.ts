@@ -1,10 +1,26 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { runMigrations, seedDemoData } from "./database.js";
 import { databaseConnectionConfig } from "./database-connection.js";
+import {
+  legacyEffectiveEditModules,
+  legacyEffectiveModules,
+  legacyRoleDefaultModules,
+  migrateLegacyUser,
+  type LegacyRole,
+} from "./legacy-roles.js";
 import { PostgresClinicRepository } from "./postgres-repository.js";
 import { DomainError } from "./repository.js";
-import { defaultRelationshipSettings, saoPauloToday } from "@crm/contracts";
+import {
+  appModuleSchema,
+  defaultRelationshipSettings,
+  effectiveEditModules,
+  effectiveModules,
+  saoPauloToday,
+  type AppModule,
+} from "@crm/contracts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const clinicId = "11111111-1111-4111-8111-111111111111";
@@ -613,7 +629,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(commissions.find((item) => item.appointmentId === trial!.id)).toBeUndefined();
 
     // Sugestões e linha do tempo leem a agenda sem quebrar e sem o lead.
-    const suggestions = await repository.listContactSuggestions(clinicId, "owner");
+    const suggestions = await repository.listContactSuggestions(clinicId, appModuleSchema.options);
     expect(JSON.stringify(suggestions)).not.toContain(trial!.id);
     const timeline = await repository.getPatientTimeline(clinicId, patients[0]!.id);
     expect(JSON.stringify(timeline)).not.toContain(trial!.id);
@@ -1229,7 +1245,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       tags: [],
     });
     const mine = async () =>
-      (await repository.listContactSuggestions(clinicId, "reception")).filter(
+      (await repository.listContactSuggestions(clinicId, legacyRoleDefaultModules.reception)).filter(
         (item) => item.patientId === patient.id,
       );
     const birthday = (await mine()).find((item) => item.reason === "birthday");
@@ -1823,15 +1839,20 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         {
           fullName: "Teste Permissões",
           email: permissionsUserEmail,
-          role: "reception",
+          role: "user",
           password: "Segura@1234",
           jobTitle: "Instrutora de Pilates",
         },
         "hash-de-teste",
       );
-      expect(created).toMatchObject({ jobTitle: "Instrutora de Pilates", customModules: false });
-      expect(created.modules).toContain("settings");
-      const base = { fullName: "Teste Permissões", role: "reception" as const, active: true };
+      // Usuário comum novo começa sem nenhum módulo.
+      expect(created).toMatchObject({
+        jobTitle: "Instrutora de Pilates",
+        customModules: false,
+        modules: [],
+        editModules: [],
+      });
+      const base = { fullName: "Teste Permissões", role: "user" as const, active: true };
       const custom = await repository.updateAdminUser(clinicId, ownerId, created.id, {
         ...base,
         modules: ["finance", "agenda", "finance"],
@@ -1852,10 +1873,20 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ...base,
         modules: null,
       });
-      expect(reset).toMatchObject({ customModules: false });
-      expect((await repository.findUserById(clinicId, created.id))?.modules).toEqual(
-        reset?.modules,
+      expect(reset).toMatchObject({ customModules: false, modules: [] });
+      expect((await repository.findUserById(clinicId, created.id))?.modules).toEqual([]);
+      const promoted = await repository.updateAdminUser(clinicId, ownerId, created.id, {
+        ...base,
+        role: "admin",
+        modules: ["agenda"],
+      });
+      expect(promoted).toMatchObject({ role: "admin", customModules: false });
+      expect(promoted?.modules).toEqual(appModuleSchema.options);
+      const promotedRow = await pool.query<{ role: string; modules: string[] | null }>(
+        "SELECT role, modules FROM users WHERE id = $1",
+        [created.id],
       );
+      expect(promotedRow.rows[0]).toEqual({ role: "admin", modules: null });
       const events = (await repository.listAdminAuditEvents(clinicId)).filter(
         (item) => item.action === "users.permissions_updated" && item.entityId === created.id,
       );
@@ -1874,16 +1905,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         {
           fullName: "Teste Permissões",
           email: permissionsUserEmail,
-          role: "physiotherapist",
+          role: "user",
           password: "Segura@1234",
+          modules: [...legacyRoleDefaultModules.physiotherapist],
         },
         "hash-de-teste",
       );
-      expect(created).toMatchObject({
-        customModules: false,
-        editModules: ["agenda", "groups", "clinical"],
-      });
-      const base = { fullName: "Teste Permissões", role: "physiotherapist" as const, active: true };
+      expect(created).toMatchObject({ customModules: true, editModules: [] });
+      const base = { fullName: "Teste Permissões", role: "user" as const, active: true };
       const custom = await repository.updateAdminUser(clinicId, ownerId, created.id, {
         ...base,
         editModules: ["patients", "finance", "clinical", "patients"],
@@ -1893,7 +1922,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "SELECT modules, edit_modules FROM users WHERE id = $1",
         [created.id],
       );
-      expect(stored.rows[0]).toEqual({ modules: null, edit_modules: ["patients", "clinical"] });
+      expect(stored.rows[0]).toEqual({
+        modules: ["agenda", "groups", "patients", "plans", "clinical"],
+        edit_modules: ["patients", "clinical"],
+      });
       const narrowed = await repository.updateAdminUser(clinicId, ownerId, created.id, {
         ...base,
         modules: ["agenda", "clinical"],
@@ -1907,22 +1939,160 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         modules: null,
         editModules: null,
       });
-      expect(reset).toMatchObject({
-        customModules: false,
-        editModules: ["agenda", "groups", "clinical"],
-      });
+      expect(reset).toMatchObject({ customModules: false, modules: [], editModules: [] });
       const events = (await repository.listAdminAuditEvents(clinicId)).filter(
         (item) => item.action === "users.permissions_updated" && item.entityId === created.id,
       );
-      expect(events).toHaveLength(3);
-      expect(events.at(-1)?.metadata).toEqual({
-        modules: ["agenda", "groups", "patients", "plans", "clinical"],
-        editModules: ["patients", "clinical"],
-        custom: true,
-      });
+      expect(events).toHaveLength(4);
     } finally {
       await cleanupPermissionsUser();
     }
+  });
+
+  it("refuses to demote or deactivate the last active admin of a clinic", async () => {
+    const lonelyClinic = "0f550000-0000-4000-8000-000000000055";
+    const cleanup = async () => {
+      await pool.query("DELETE FROM audit_events WHERE clinic_id = $1", [lonelyClinic]);
+      await pool.query("DELETE FROM users WHERE clinic_id = $1", [lonelyClinic]);
+      await pool.query("DELETE FROM clinics WHERE id = $1", [lonelyClinic]);
+    };
+    await cleanup();
+    try {
+      await pool.query("INSERT INTO clinics (id, name) VALUES ($1, $2)", [
+        lonelyClinic,
+        "Clínica T055",
+      ]);
+      const admin = await repository.createAdminUser(
+        lonelyClinic,
+        ownerId,
+        {
+          fullName: "Única Admin",
+          email: "t055-admin@movimenta.local",
+          role: "admin",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      const other = await repository.createAdminUser(
+        lonelyClinic,
+        ownerId,
+        {
+          fullName: "Outra Pessoa",
+          email: "t055-user@movimenta.local",
+          role: "user",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      const base = { fullName: "Única Admin", role: "admin" as const, active: true };
+      await expect(
+        repository.updateAdminUser(lonelyClinic, other.id, admin.id, { ...base, role: "user" }),
+      ).rejects.toMatchObject({ code: "LAST_ADMIN", statusCode: 409 });
+      await expect(
+        repository.updateAdminUser(lonelyClinic, other.id, admin.id, { ...base, active: false }),
+      ).rejects.toMatchObject({ code: "LAST_ADMIN", statusCode: 409 });
+      expect(await repository.findUserById(lonelyClinic, admin.id)).toMatchObject({
+        role: "admin",
+        active: true,
+      });
+      await repository.updateAdminUser(lonelyClinic, admin.id, other.id, {
+        fullName: "Outra Pessoa",
+        role: "admin",
+        active: true,
+      });
+      expect(
+        await repository.updateAdminUser(lonelyClinic, other.id, admin.id, {
+          ...base,
+          role: "user",
+        }),
+      ).toMatchObject({ role: "user", modules: [] });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("migration 0042 turns the legacy profiles into admin/user without changing access", async () => {
+    const sql = readFileSync(
+      fileURLToPath(new URL("../migrations/0042_user_types.sql", import.meta.url)),
+      "utf8",
+    );
+    const legacyUsers: Array<{
+      id: string;
+      role: LegacyRole;
+      modules: AppModule[] | null;
+      editModules: AppModule[] | null;
+    }> = [
+      { id: "owner", role: "owner", modules: null, editModules: null },
+      { id: "reception", role: "reception", modules: null, editModules: null },
+      { id: "physiotherapist", role: "physiotherapist", modules: null, editModules: null },
+      { id: "finance", role: "finance", modules: null, editModules: null },
+      { id: "reception-custom", role: "reception", modules: ["agenda", "finance"], editModules: null },
+      { id: "physio-edit", role: "physiotherapist", modules: null, editModules: ["patients", "clinical"] },
+      { id: "finance-empty", role: "finance", modules: [], editModules: [] },
+    ];
+    // Esquema temporário com a tabela como estava antes da 0042; tudo desfeito no ROLLBACK.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("CREATE SCHEMA t055_migration");
+      await client.query("SET LOCAL search_path TO t055_migration");
+      await client.query(
+        "CREATE TYPE user_role AS ENUM ('owner', 'reception', 'physiotherapist', 'finance')",
+      );
+      await client.query(
+        `CREATE TABLE users (id text PRIMARY KEY, role user_role NOT NULL,
+           modules text[] NULL, edit_modules text[] NULL)`,
+      );
+      for (const user of legacyUsers)
+        await client.query(
+          "INSERT INTO users (id, role, modules, edit_modules) VALUES ($1, $2, $3, $4)",
+          [user.id, user.role, user.modules, user.editModules],
+        );
+      await client.query(sql);
+      await client.query(sql); // pode rodar de novo sem erro nem efeito
+      const migrated = await client.query<{
+        id: string;
+        role: "admin" | "user";
+        modules: AppModule[] | null;
+        editModules: AppModule[] | null;
+      }>('SELECT id, role, modules, edit_modules AS "editModules" FROM users');
+      expect(migrated.rows).toHaveLength(legacyUsers.length);
+      for (const before of legacyUsers) {
+        const after = migrated.rows.find((row) => row.id === before.id)!;
+        expect(after.role).toBe(before.role === "owner" ? "admin" : "user");
+        expect(after, before.id).toMatchObject(migrateLegacyUser(before));
+        expect(effectiveModules(after.role, after.modules)).toEqual(
+          legacyEffectiveModules(before.role, before.modules),
+        );
+        expect(effectiveEditModules(after.role, after.modules, after.editModules)).toEqual(
+          legacyEffectiveEditModules(before.role, before.modules, before.editModules),
+        );
+      }
+      const column = await client.query<{ data_type: string }>(
+        `SELECT data_type FROM information_schema.columns
+         WHERE table_schema = 't055_migration' AND table_name = 'users' AND column_name = 'role'`,
+      );
+      expect(column.rows[0]?.data_type).toBe("text");
+      await client.query("SAVEPOINT legacy_value");
+      await expect(
+        client.query("INSERT INTO users (id, role) VALUES ('late', 'reception')"),
+      ).rejects.toMatchObject({ code: "23514" });
+      await client.query("ROLLBACK TO SAVEPOINT legacy_value");
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("stores the demo admin as admin after the migrations", async () => {
+    const owner = await pool.query<{ role: string }>("SELECT role FROM users WHERE id = $1", [
+      ownerId,
+    ]);
+    expect(owner.rows[0]?.role).toBe("admin");
+    expect(await repository.findUserById(clinicId, ownerId)).toMatchObject({
+      role: "admin",
+      modules: appModuleSchema.options,
+    });
   });
 
   it("links a user to one professional and reads the commission rule in force today", async () => {
@@ -1957,7 +2127,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         {
           fullName: "Teste Comissão",
           email: permissionsUserEmail,
-          role: "physiotherapist",
+          role: "user",
           password: "Segura@1234",
         },
         "hash-de-teste",

@@ -123,7 +123,6 @@ import type {
   ContactActivityInput,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
-  UserRole,
 } from "@crm/contracts";
 import {
   appModuleSchema,
@@ -156,6 +155,7 @@ import { buildDailyCash, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
 import {
   DomainError,
+  lastAdminError,
   type AuthenticatedUser,
   type ClinicRepository,
 } from "./repository.js";
@@ -186,24 +186,24 @@ function knownModules(modules: string[]): AppModule[] {
   );
 }
 
-/** Ajuste de módulos gravado (ignora chaves desconhecidas); `null` = padrão do perfil. */
+/** Módulos gravados do usuário comum (ignora chaves desconhecidas); `null` = nenhum. */
 function storedUserModules(row: UserRow): AppModule[] | null {
-  if (row.role === "owner" || row.modules === null) return null;
+  if (row.role === "admin" || row.modules === null) return null;
   return knownModules(row.modules);
 }
 
-/** Ajuste de edição gravado (ignora chaves desconhecidas); `null` = padrão do perfil. */
+/** Edição gravada do usuário comum (ignora chaves desconhecidas); `null` = nenhuma. */
 function storedUserEditModules(row: UserRow): AppModule[] | null {
-  if (row.role === "owner" || row.editModules === null) return null;
+  if (row.role === "admin" || row.editModules === null) return null;
   return knownModules(row.editModules);
 }
 
-/** Owner não guarda ajuste; senão a lista normalizada (ordem do enum, sem duplicatas). */
+/** Admin não guarda lista; senão a lista normalizada (ordem do enum, sem duplicatas). */
 function normalizeUserModules(
   role: AuthenticatedUser["role"],
   modules: readonly AppModule[] | null,
 ): AppModule[] | null {
-  return role === "owner" || modules === null
+  return role === "admin" || modules === null
     ? null
     : effectiveModules(role, modules);
 }
@@ -214,7 +214,7 @@ function normalizeUserEditModules(
   modules: readonly AppModule[] | null,
   editModules: readonly AppModule[] | null,
 ): AppModule[] | null {
-  return role === "owner" || editModules === null
+  return role === "admin" || editModules === null
     ? null
     : effectiveEditModules(role, normalizeUserModules(role, modules), editModules);
 }
@@ -2062,6 +2062,20 @@ export class PostgresClinicRepository implements ClinicRepository {
         await client.query("COMMIT");
         return null;
       }
+      if (
+        current.rows[0].role === "admin" &&
+        current.rows[0].active &&
+        (input.role !== "admin" || !input.active)
+      ) {
+        // Trava os demais admins ativos: duas trocas simultâneas não deixam a clínica sem admin.
+        const otherAdmins = await client.query(
+          `SELECT id FROM users
+           WHERE clinic_id = $1 AND id <> $2 AND role = 'admin' AND active
+           FOR UPDATE`,
+          [clinicId, userId],
+        );
+        if (otherAdmins.rowCount === 0) throw lastAdminError();
+      }
       const previousModules = storedUserModules(current.rows[0]);
       const previousEditModules = storedUserEditModules(current.rows[0]);
       const requestedModules =
@@ -2362,7 +2376,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     return Boolean(result.rowCount);
   }
 
-  async listContactSuggestions(clinicId: string, role: UserRole) {
+  async listContactSuggestions(clinicId: string, modules: readonly AppModule[]) {
     const today = saoPauloToday();
     const [
       settings,
@@ -2417,7 +2431,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       },
       settings,
       today,
-      role,
+      modules,
     );
   }
 
