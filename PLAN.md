@@ -643,3 +643,258 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
 - **Gate:** `npm run build`
 - **Depende de:** V4
 - **Status:** DONE
+
+## Rodada 5 — Estética e usabilidade (pedido do dono, 04/10/2026)
+
+Pedido: "melhorar a estética do site, o visual dos botões, os textos soltos e a usabilidade em geral;
+tudo tem que ser bem intuitivo e fácil". Varredura feita no Chrome (cópia local, 1440px, todas as 13
+telas). Achados que viram tarefas:
+- **Texto pequeno demais:** `styles.css` tem 69 regras com 8–10px e 47 com 11px; na tela medida,
+  39 textos de 10–11px (rótulos, abas, botões de linha, selos, legendas).
+- **Botões sem padrão:** "Redefinir senha" com estilo nativo do navegador (Configurações);
+  "Dar parabéns" sublinhado e maior que "Marcar como enviado", com uma linha solta em cima (Visão
+  geral e Aniversários); botões primários de largura total em verde apagado que parecem desabilitados
+  (Comunicações "Adicionar à fila", Contratos "Criar rascunho"); "Gerar lembretes" e "Criar modelo"
+  brancos ao lado de primários verdes; "Cancelar" de plano como texto vermelho solto; "Registrar
+  contato" minúsculo ao lado do "WhatsApp"; botões "Recibo" e "Estornar" com cerca de 9px.
+- **Layout quebrado:** Financeiro › Parcelas — linha com metade esquerda vazia, um quadrado cinza
+  solto, nome espremido em 3 linhas e os botões caídos abaixo; abas do Financeiro espremidas
+  ("Contas a receber (120)" quebra em 2 linhas); cartão "Compromissos em aberto" sozinho numa 2ª
+  linha.
+- **Elementos soltos:** "Matricular cliente" flutuando fora de painel (Turmas); 9 botões de ação
+  num bloco que quebra linha (Prontuários › Acompanhamento); colunas do CRM vazias sem orientação.
+- **Fluxos antigos:** `window.prompt`/`confirm` ainda em CRM (mover etapa, converter), Financeiro
+  (ajustes) e Agenda (cancelar bloqueio); Enter na seção de comissão envia o formulário errado.
+- **Permissões personalizadas:** Contatos sugeridos sem Configurações dá erro (GET
+  /relationship/settings exige ver Configurações); telas que carregam `/patients` dão erro para quem
+  não vê Clientes.
+
+Regras gerais da rodada:
+- Só visual e usabilidade: nenhuma regra de negócio muda (exceto o acesso de leitura da D11).
+- Reaproveitar classes; tokens de espaçamento e raio; nada de `style={{}}`; celular ≤700px.
+- Os testes web existentes continuam passando; testes que dependem de texto exato só mudam se o
+  texto mudar de propósito (explicar no relatório).
+
+### D06 — Escala tipográfica legível
+- **Escopo:**
+  - Tokens novos em `:root`: `--text-xs` 12px, `--text-sm` 13px, `--text-md` 14px, `--text-lg`
+    16px, `--text-xl` 18px, `--text-2xl` 22px, `--text-3xl` 30px, `--text-4xl` 42px (ajustar se
+    necessário e documentar).
+  - Nenhum texto abaixo de 12px; texto corrido e campos de formulário em 14px; rótulos e legendas
+    em 12–13px. Trocar todos os `font-size` em px de `styles.css` pelos tokens.
+  - Ampliar `apps/web/scripts/audit-panels.cjs` (autorizado nesta tarefa) com uma 4ª checagem:
+    reprova `font-size` abaixo de 12px e `font-size` em px fora dos tokens (exceto dentro de
+    `:root`). Documentar a regra no `CLAUDE.md` › "Design de páginas" (autorizado).
+- **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T052
+- **Status:** DONE
+
+### D07 — Botões padronizados
+- **Escopo:**
+  - Variantes únicas: `primary-button`, `secondary-button`, `text-button`, `danger-button` (nova,
+    para ações destrutivas: cancelar plano, estornar, desativar, encerrar) e tamanho compacto
+    `button-sm` para ações de linha e de cartão (mínimo `--text-sm`, altura de pelo menos 32px).
+    Estado `:disabled` claro (opacidade e cursor), sem parecer "carregando".
+  - Todo `<button>` e todo link com cara de botão em `App.tsx` usa uma dessas classes (corrigir
+    "Redefinir senha", "Dar parabéns", "Recibo", "Estornar", "Registrar contato", "Cancelar" do
+    plano, "Gerar lembretes", "Criar modelo", "Adicionar à fila", "Criar rascunho"…). Primários de
+    largura total viram tamanho normal alinhado à direita em `modal-actions` ou no rodapé do
+    formulário.
+  - Remover a linha solta acima dos botões de aniversário.
+  - Ampliar o `audit-panels.cjs` (autorizado): reprova `<button` em App.tsx sem `className`
+    (exceto componentes que recebem a classe por prop — listar as exceções numa constante).
+  - Teste web que renderiza Configurações, Visão geral e Planos e confere que não há `button` sem
+    classe.
+- **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D06
+- **Status:** TODO
+
+### D08 — Revisão extensa do Financeiro: estrutura e Contas a receber
+Pedido do dono (04/10/2026): "revisão extensa na aba Financeiro — textos pequenos demais, um campo
+de marcar GIGANTE e informações muito confusas".
+- **Escopo:**
+  - **Caixa de marcar gigante:** identificar o quadrado cinza das linhas (seleção para baixa em
+    lote?). Se tiver uso, vira uma caixa de seleção de tamanho normal (≈18px), alinhada à esquerda
+    da linha, com rótulo acessível ("Selecionar parcela de <cliente>"), uma opção "Selecionar todas"
+    e uma barra de ação que aparece só com itens marcados ("2 parcelas selecionadas · Dar baixa");
+    se não tiver uso, sai.
+  - **Linhas de Parcelas legíveis:** cliente e plano à esquerda (nome numa linha só, com
+    reticências), vencimento, valor alinhado à direita, situação (selo com cor e texto: Paga, Em
+    aberto, Vencida há N dias) e ações (`button-sm`) na mesma linha; no celular a linha vira cartão.
+    Ações explicadas por texto claro ("Dar baixa", "Recibo", "Estornar"), com destrutivas em
+    `danger-button`.
+  - **Topo da página:** cartões de resumo em grade de 4 (2 no celular) com rótulo e uma frase curta
+    do que cada número significa ("Saldo do mês = recebido − despesas pagas"); ações do cabeçalho
+    ("+ Categoria", "+ Centro de custo") num menu "Cadastros" ou como secundárias com ícone.
+  - **Abas:** legíveis numa linha, sem quebrar rótulo, com contagem num selo; rolagem horizontal no
+    celular. O seletor "Forma usada na baixa" sai do topo e passa a ser escolhido no momento da
+    baixa (modal da baixa), com rótulo claro.
+  - **Filtros de Contas a receber:** por situação (Em aberto, Vencidas, Pagas) e busca por cliente,
+    com estado vazio que diga o próximo passo.
+  - Teste web cobrindo: linha de parcela (nome, valor, situação e ações), seleção e barra de ação
+    (se mantida), filtro por situação.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D07
+- **Status:** TODO
+
+### D12 — Revisão extensa do Financeiro: demais abas
+- **Escopo:** aplicar o mesmo padrão da D08 às abas **Contas a pagar** (inclui despesas fixas),
+  **Comissões**, **Caixa do dia** e **Previsão**:
+  - textos e títulos que expliquem o que a tela mostra (uma frase curta por seção), rótulos
+    completos em vez de abreviações, valores alinhados à direita com sinal e cor consistentes
+    (entrada verde, saída vermelha), datas no formato do sistema;
+  - linhas no mesmo formato da D08 (sem caixas gigantes, ações compactas e claras);
+  - Previsão: tabela legível no celular (rolagem com primeira coluna fixa) e legenda do que é
+    "Confirmado" e "Projetado";
+  - Caixa do dia: resumo de entradas, saídas e saldo no topo, movimentos agrupados por forma de
+    pagamento com totais;
+  - estados de vazio com próximo passo em todas as abas.
+  - Testes web para as abas alteradas (textos explicativos presentes, valores alinhados por classe,
+    vazio).
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D08
+- **Status:** TODO
+
+### D09 — Telas sem elementos soltos
+- **Escopo:**
+  - Turmas: "Matricular cliente" vai para o cabeçalho da página (secundário) ou para dentro do
+    painel da turma.
+  - Prontuários › Acompanhamento: ações agrupadas — as principais visíveis (Nova avaliação, Nova
+    medição, Adicionar adendo) e as demais num menu "Mais ações" acessível por teclado; Imprimir e
+    Exportar juntos à direita.
+  - Configurações › Usuários: linha do usuário com nome, cargo e e-mail e ações compactas
+    alinhadas.
+  - CRM: coluna vazia mostra um texto curto de orientação e o botão "Novo lead" fica evidente
+    quando não há leads.
+  - Agenda: seletor de situação do atendimento e legenda de profissionais legíveis (pelo menos
+    `--text-sm`).
+  - Teste web para o menu "Mais ações" e para o CRM vazio.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D07
+- **Status:** TODO
+
+### D10 — Fim das janelas do navegador: um modal próprio para cada ação
+Pedido do dono (04/10/2026): "parar de usar esses forms do JS (prompt/confirm), é feio e nada
+profissional; criar modais personalizados para cada opção".
+- **Escopo:**
+  - Trocar **todas** as janelas nativas (`window.prompt`, `window.confirm`, `window.alert`) de
+    `apps/web/src/App.tsx` por um `Modal` próprio para cada ação, com título, frase explicando o
+    efeito, os campos certos para o dado pedido e botões "Confirmar"/"Voltar" (ações destrutivas
+    com `danger-button`). Levantamento atual (14 ocorrências):
+    - CRM: motivo da perda do lead (campo de texto obrigatório); converter lead em cliente
+      (confirmação mostrando o nome e o que acontece);
+    - Planos: cancelar plano (confirmação com o efeito no saldo/parcelas);
+    - Financeiro: ajustar valor de parcela (campo monetário em R$ com o valor atual); nova
+      categoria de despesa e novo centro de custo (formulário com nome); renegociar parcelas (um
+      formulário só com valor em R$, número de parcelas, primeira data em seletor de data e motivo —
+      hoje são 4 prompts seguidos); nova regra de comissão (percentual e vigência);
+    - Prontuários: finalizar evolução (confirmação explicando que não poderá mais ser editada);
+    - Agenda: cancelar bloqueio (confirmação com o motivo e o horário);
+    - Configurações: excluir feriado (confirmação com nome e data);
+    - qualquer outra que aparecer na varredura.
+  - Campos com validação em português (`form-error`), foco no primeiro campo ao abrir, Esc fecha,
+    Enter confirma.
+  - Enter na seção de comissão salva a comissão, não o formulário principal.
+  - Revisar os textos dos botões e títulos tocados para verbos claros e consistentes ("Salvar",
+    "Confirmar", "Voltar") e mensagens de vazio com o próximo passo.
+  - Ampliar o `audit-panels.cjs` (autorizado nesta tarefa): reprova qualquer `window.prompt`,
+    `window.confirm`, `window.alert` ou `prompt(`/`confirm(`/`alert(` globais em `apps/web/src`.
+  - Teste web para cada modal novo (abre, valida, envia o corpo certo, Voltar não envia nada) e
+    para o Enter da comissão.
+- **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D07
+- **Status:** TODO
+
+### D11 — Telas que funcionam com permissões personalizadas
+- **Escopo:** GET /relationship/settings passa a exigir ver `relationship` **ou** `settings` (mapa
+  em `route-access.ts`). Telas que carregam `/patients` só como apoio (Agenda, Comunicações,
+  Contratos, Turmas) não quebram para quem não vê Clientes: ou a API libera uma lista mínima de
+  clientes (id e nome) para quem vê esses módulos — rota nova `GET /patients/options` — ou a web
+  degrada com aviso; escolher a opção mais simples e segura e documentar. Testes de rota e web.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** D07
+- **Status:** TODO
+
+### Pedidos do dono de 04/10/2026 (entram antes da V5)
+- **Permissões 100% livres:** acabam os perfis com permissões pré-definidas (recepção,
+  fisioterapeuta, financeiro). Ao criar um usuário, o admin escolhe só o **tipo**: "Admin" (acesso
+  total, inclusive Administração) ou "Usuário comum". Para o usuário comum, o admin marca módulo a
+  módulo o que ele vê e edita. **Usuário comum novo começa com tudo desmarcado.** Opção de
+  **copiar as permissões de outro usuário** ao criar ou editar.
+- **Comissão direto no usuário:** o percentual é definido no próprio usuário (já no formulário de
+  criação), sem exigir antes a ligação com um profissional da agenda.
+- **Configurações em gavetas:** cada seção da aba Configurações começa fechada e abre ao clicar.
+
+### T055 — Permissões livres na API
+- **Escopo:**
+  - Tipo de usuário passa a ser `admin` | `user` (contratos e API). Migração NOVA `0042_…`:
+    `owner` → `admin`; recepção, fisioterapeuta e financeiro → `user`, **gravando em
+    `modules`/`edit_modules` os módulos efetivos que cada um tem hoje** (ninguém perde nem ganha
+    acesso na migração). A migração roda sozinha no deploy: não pode falhar com os dados atuais.
+  - Fim dos padrões por perfil: `user` sem módulos marcados não acessa nenhum módulo (só Visão
+    geral). `admin` tem tudo, inclusive Administração (`requireOwnerAccess` → admin).
+  - Procurar todo uso de perfil fixo no código (API e web: `role === "physiotherapist"`,
+    `"reception"`, `"finance"`, `"owner"`, rótulos, dados demo, seed, testes) e trocar por
+    módulos/tipo; listar no relatório o que mudou (ex.: quem assina prontuário).
+  - Regra de segurança: não permitir rebaixar ou desativar o último admin ativo (409).
+  - Testes: migração dos padrões (cada perfil antigo mantém o mesmo acesso), usuário comum novo sem
+    acesso, admin com tudo, último admin protegido; PG opt-in.
+- **Gate:** `npm exec -w @crm/contracts -- vitest run src/contracts.test.ts` e
+  `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** D11
+- **Status:** TODO
+
+### T056 — Permissões livres na interface
+- **Escopo:** formulário de usuário com o campo **Tipo** ("Admin" ou "Usuário comum"); usuário
+  comum novo começa com Ver/Editar todos desmarcados; campo **"Copiar permissões de…"** (lista de
+  usuários) que preenche a tabela, ainda editável antes de salvar; admin mostra "Acesso total".
+  Sai o "Restaurar padrão do perfil" e a matriz "Padrão de cada perfil". Lista de usuários mostra o
+  tipo e um resumo do acesso. Menu e telas continuam por módulos. Testes web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T055
+- **Status:** TODO
+
+### T057 — Comissão direto no usuário na API
+- **Escopo:** percentual e vigência definidos no próprio usuário, inclusive na criação
+  (`POST /admin/users` aceita `commission` opcional), sem exigir profissional ligado. A ligação com
+  o profissional da agenda continua existindo **só para saber quais atendimentos são da pessoa**;
+  a geração de comissões usa a regra do usuário ligado ao profissional (e a regra antiga do
+  profissional enquanto não houver regra no usuário). Migrar as regras existentes sem perda
+  (migração nova, se precisar, segura para o deploy). Testes de rota, geração e PG opt-in.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
+- **Depende de:** T055
+- **Status:** TODO
+
+### T058 — Comissão direto no usuário na interface
+- **Escopo:** campos "Comissão (%)" e "Vale a partir de" no formulário de criar e de editar
+  usuário, salvos junto com o restante (sem passo separado); a ligação com o profissional da agenda
+  fica como campo opcional explicado ("para contar os atendimentos desta pessoa"). Enter salva o
+  formulário inteiro. Testes web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T056, T057
+- **Status:** TODO
+
+### T059 — Configurações em gavetas
+- **Escopo:** cada seção de Configurações (Usuários, Dados da clínica, Feriados, Prazos e
+  mensagens, Auditoria e as demais) vira uma gaveta que começa **fechada** e abre ao clicar no
+  título (botão com `aria-expanded`, ícone de seta, acessível por teclado); várias podem ficar
+  abertas. Visual consistente com o resto (painel, tokens). Testes web: começa fechada, abre e
+  fecha.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T058
+- **Status:** TODO
+
+### V5 — Revisão visual da rodada 5 (manual)
+- **Tipo:** manual
+- **Escopo:** em 1440px e 390px, percorrer as 13 telas e conferir textos, botões, Financeiro,
+  Prontuários, Configurações, CRM vazio e os novos modais de confirmação.
+- **Gate:** aprovação do dono no chat.
+- **Depende de:** D08, D09, D10, D11, D12, T059
+- **Status:** TODO
+
+### T054 — Documentação da rodada 5
+- **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (escala tipográfica, botões,
+  Financeiro, telas organizadas, confirmações, permissões personalizadas).
+- **Gate:** `npm run build`
+- **Depende de:** V5
+- **Status:** TODO

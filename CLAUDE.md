@@ -73,6 +73,17 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 - **Tokens**: CSS novo usa `--space-1`…`--space-8` (4, 8, 12, 16, 24, 32, 48, 64px) e
   `--radius-sm/md/lg` (8, 12, 18px); valor fora da escala via `calc(var(--space-N) ± Xpx)`.
   Nada de px soltos para espaçamento e nada de `style={{}}` no JSX.
+- **Tipografia**: `font-size` só com a escala do `:root` — `--text-xs` 12px, `--text-sm` 13px,
+  `--text-md` 14px, `--text-lg` 16px, `--text-xl` 18px, `--text-2xl` 22px, `--text-3xl` 30px,
+  `--text-4xl` 42px e os fluidos `--text-fluid-lg`, `--text-fluid-xl`, `--text-display`. Nenhum
+  texto abaixo de 12px; texto corrido e campos em `--text-md`; rótulos e legendas em
+  `--text-xs`/`--text-sm`. Todo `var(--text-X)` usado precisa estar declarado no `:root`, e
+  nenhum token fica abaixo de 12px. Fora do `:root` valem só: `var(--text-*)`; `calc()` com token,
+  sem subtração nem divisão e multiplicando só por fator ≥ 1; `clamp()` com mínimo
+  `var(--text-*)` e `max()` com algum `var(--text-*)`, sem unidade absoluta (px, pt…); `min()`
+  não vale; `inherit`/`initial`/`unset`/`revert`; `em`/`rem` ≥ 1 ou `%` ≥ 100%; `0` (texto
+  escondido de propósito). O `audit-panels.cjs` (4ª checagem) reprova o resto, inclusive
+  `font:` com tamanho absoluto.
 - **Celular**: toda regra com `grid-template-columns` de 2+ trilhas precisa de regra no bloco
   `@media (max-width: 700px)` que reduza a 1 coluna (ou usar `auto-fit`/`auto-fill`). Exceção só
   com `/* audit: mobile-ok <motivo real> */` logo acima da regra.

@@ -396,4 +396,75 @@ if (cardProblems.length) {
 } else {
   console.log("Nenhum cartão encostado na borda lateral de .panel.");
 }
+
+// Quarta verificação (tipografia): os tamanhos de fonte vêm da escala `--text-*` declarada no
+// `:root`. O `:root` precisa declarar pelo menos um token e nenhum token pode ficar abaixo de
+// 12px (nos fluidos, o menor px do `clamp()`). Todo `var(--text-X)` usado no arquivo precisa estar
+// declarado no `:root`. Fora do `:root`, `font-size` só aceita:
+//   - `var(--text-*)`;
+//   - `calc()` com token, sem subtração nem divisão, e multiplicações só por fatores ≥ 1;
+//   - `clamp()` cujo mínimo é `var(--text-*)`, e `max()` com pelo menos um `var(--text-*)` —
+//     ambos sem unidade absoluta (px, pt, pc, cm, mm, in, Q); `min()` é recusado;
+//   - `inherit`, `initial`, `unset`, `revert`;
+//   - `em`/`rem`/`%` relativos só a partir de 1 (1em / 100%), que nunca encolhem o texto;
+//   - `0` (texto escondido de propósito, ex.: indicador em forma de bolinha).
+// O atalho `font:` não pode trazer tamanho em unidade absoluta. Vale também dentro de `@media`.
+const MIN_FONT = 12;
+const ABSOLUTE = /\d(?:\.\d+)?(px|pt|pc|cm|mm|in|q)\b/i;
+const TOKEN = /^var\(\s*--text-[\w-]+\s*\)$/;
+const fontProblems = [];
+const minPxOf = (value) => {
+  const nums = [...value.matchAll(/(\d*\.?\d+)px/g)].map((x) => Number(x[1]));
+  return nums.length ? Math.min(...nums) : NaN;
+};
+const declaredText = new Set();
+for (const rule of cssRules) {
+  if (rule.prelude !== ":root") continue;
+  for (const [prop, value] of declsOf(rule.body)) {
+    if (!/^--text-/.test(prop)) continue;
+    declaredText.add(prop);
+    if (!(minPxOf(value) >= MIN_FONT)) fontProblems.push(`styles.css:${rule.line} ${prop}: ${value} (token abaixo de ${MIN_FONT}px ou sem px)`);
+  }
+}
+if (!declaredText.size) fontProblems.push("styles.css :root não declara nenhum token --text-*");
+const innerOf = (value, fn) => value.slice(fn.length + 1, -1);
+const fontSizeOk = (raw) => {
+  const value = raw.replace(/!important/, "").trim();
+  if (TOKEN.test(value)) return true;
+  if (/^(inherit|initial|unset|revert)$/.test(value)) return true;
+  if (value === "0") return true;
+  const rel = value.match(/^(\d*\.?\d+)(em|rem|%)$/);
+  if (rel) return rel[2] === "%" ? Number(rel[1]) >= 100 : Number(rel[1]) >= 1;
+  if (!/\)$/.test(value) || ABSOLUTE.test(value)) return false;
+  if (value.startsWith("calc(")) {
+    const inner = innerOf(value, "calc");
+    if (!/var\(\s*--text-/.test(inner) || /\//.test(inner) || /(^|[\s(])-(?!-)/.test(inner.replace(/var\([^)]*\)/g, "T"))) return false;
+    const factors = [...inner.matchAll(/\*\s*(\d*\.?\d+)|(\d*\.?\d+)\s*\*/g)].map((x) => Number(x[1] ?? x[2]));
+    return factors.every((n) => n >= 1);
+  }
+  if (value.startsWith("clamp(")) return TOKEN.test(splitTopLevel(innerOf(value, "clamp"), ",")[0] ?? "");
+  if (value.startsWith("max(")) return splitTopLevel(innerOf(value, "max"), ",").some((a) => TOKEN.test(a));
+  return false;
+};
+for (const rule of cssRules) {
+  for (const [prop, value] of declsOf(rule.body)) {
+    for (const used of value.matchAll(/var\(\s*(--text-[\w-]+)/g)) {
+      if (!declaredText.has(used[1])) fontProblems.push(`styles.css:${rule.line} ${used[1]} usado sem declaração no :root`);
+    }
+    if (rule.prelude === ":root") continue;
+    if (prop === "font-size" && !fontSizeOk(value)) {
+      fontProblems.push(`styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font-size: ${value} } fora da escala --text-* (ou abaixo de ${MIN_FONT}px)`);
+    }
+    if (prop === "font" && ABSOLUTE.test(value)) {
+      fontProblems.push(`styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font: ${value} } com tamanho em unidade absoluta`);
+    }
+  }
+}
+
+if (fontProblems.length) {
+  console.error(`${fontProblems.length} tamanho(s) de fonte fora da escala tipográfica:\n` + fontProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum tamanho de fonte fora da escala --text-* (mínimo 12px).");
+}
 if (failed) process.exit(1);
