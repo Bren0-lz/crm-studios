@@ -2491,8 +2491,10 @@ describe("application shell", () => {
     const section = (await screen.findByRole("heading", { name: "Despesas fixas" })).closest("section")!;
     expect(await within(section).findByText("Aluguel da sala")).toBeInTheDocument();
     expect(within(section).getByText("Imobiliária Centro · Administrativo")).toBeInTheDocument();
-    expect(within(section).getByText("R$ 2.500,00")).toBeInTheDocument();
+    // Despesa é saída: valor com sinal, em vermelho e alinhado à direita.
+    expect(within(section).getByText("- R$ 2.500,00")).toHaveClass("finance-amount", "cash-out");
     expect(within(section).getByText("Dia 10")).toBeInTheDocument();
+    expect(within(section).getByText(/Contas que se repetem todo mês/)).toBeInTheDocument();
     expect(within(section).getByText("Desde 01/2026 · Última gerada: 09/2026")).toBeInTheDocument();
     expect(within(section).getByText("Desde 02/2026 · Reativada em 05/2026 · Última gerada: 07/2026")).toBeInTheDocument();
     expect(within(section).getAllByText("Ativa")).toHaveLength(2);
@@ -2814,6 +2816,157 @@ describe("application shell", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
     });
+
+    it("clears the installment selection after settling, reversing or adjusting", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      const selectBoth = () => {
+        fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todas" }));
+        expect(screen.getByText("2 parcelas selecionadas")).toBeInTheDocument();
+      };
+      const workspaceLoads = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/finance/workspace")).length;
+
+      // Baixa: a parcela quitada não pode continuar marcada para o "Renegociar".
+      selectBoth();
+      fireEvent.click(within(rowOf("Bruno Lima")).getByRole("button", { name: "Dar baixa" }));
+      const dialog = await screen.findByRole("dialog", { name: "Dar baixa na parcela" });
+      fireEvent.submit(dialog.querySelector("form")!);
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      await vi.waitFor(() => expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Renegociar" })).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Selecionar parcela de Ana Souza" })).not.toBeChecked();
+
+      // Estorno.
+      selectBoth();
+      let loads = workspaceLoads();
+      fireEvent.click(within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }));
+      await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
+      expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument();
+
+      // Ajuste de valor.
+      selectBoth();
+      const prompt = vi.spyOn(window, "prompt").mockReturnValueOnce("200").mockReturnValueOnce("Desconto combinado");
+      loads = workspaceLoads();
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
+      expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument();
+      expect(vi.mocked(fetch).mock.calls.some(([url, options]) => options?.method === "PATCH" && String(url).includes("/finance/receivables/a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1/adjust"))).toBe(true);
+      prompt.mockRestore();
+    });
+  });
+
+  describe("finance payables and commissions", () => {
+    // Mesmo formato de data do sistema (shortDate do App).
+    const shortDate = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    function shiftDate(iso: string, days: number) {
+      const date = new Date(`${iso}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    }
+    function financeWorkspace(overrides: Record<string, unknown> = {}) {
+      const today = saoPauloToday();
+      const base = { clinicId, categoryId: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", costCenterId: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", categoryName: "Aluguel", costCenterName: "Administrativo", createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
+      return {
+        summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
+        categories: [], costCenters: [],
+        payables: [
+          { ...base, id: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1", description: "Aluguel da sala", supplier: "Imobiliária Centro", dueDate: shiftDate(today, -3), amountInCents: 250000, status: "open", overdue: true },
+          { ...base, id: "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2", description: "Material de limpeza", dueDate: shiftDate(today, 7), amountInCents: 8990, status: "open", overdue: false },
+          { ...base, id: "f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3", description: "Conta de luz", supplier: "Energisa", dueDate: shiftDate(today, -10), amountInCents: 32000, status: "paid", paidAt: `${today}T12:00:00.000Z`, paymentMethod: "pix", overdue: false },
+        ],
+        payableOpenInCents: 258990, payableOverdueInCents: 250000, paidExpensesThisMonthInCents: 32000, cashBalanceThisMonthInCents: -32000,
+        commissionRules: [],
+        commissions: [
+          { id: "g1g1g1g1-0000-4000-8000-000000000001", clinicId, professionalId: "p1", professionalName: "Juliana Prado", appointmentId: "ap1", competence: "2026-09", baseAmountInCents: 30000, percentage: 30, amountInCents: 9000, status: "open", createdAt: "2026-09-30T12:00:00.000Z" },
+          { id: "g1g1g1g1-0000-4000-8000-000000000002", clinicId, professionalId: "p2", professionalName: "Rafael Costa", appointmentId: "ap2", competence: "2026-08", baseAmountInCents: 20000, percentage: 25, amountInCents: 5000, status: "paid", paidAt: "2026-09-05T12:00:00.000Z", createdAt: "2026-08-31T12:00:00.000Z" },
+        ],
+        commissionOpenInCents: 9000, paidCommissionsThisMonthInCents: 5000,
+        ...overrides,
+      };
+    }
+    function renderFinance(workspace: ReturnType<typeof financeWorkspace>) {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === "POST") return { ok: true, status: 200, json: async () => ({}) } as Response;
+        const body = url.includes("/finance/workspace") ? workspace : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+    }
+    const rowOf = (name: string) => screen.getByText(name).closest(".finance-row") as HTMLElement;
+
+    it("shows payables in readable rows with explanation, signed red values, dates and compact actions", async () => {
+      renderFinance(financeWorkspace());
+      fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (3)" }));
+      const section = (await screen.findByRole("heading", { name: "Contas a pagar" })).closest("section")!;
+      expect(within(section).getByText(/Despesas da clínica pelo vencimento/)).toBeInTheDocument();
+
+      const rent = rowOf("Aluguel da sala");
+      expect(within(rent).getByText("Imobiliária Centro · Administrativo")).toBeInTheDocument();
+      expect(within(rent).getByText("- R$ 2.500,00")).toHaveClass("finance-amount", "cash-out");
+      expect(within(rent).getByText("Vencida há 3 dias")).toHaveClass("status-pill", "overdue");
+      expect(within(rent).getByRole("button", { name: "Pagar Aluguel da sala" })).toHaveClass("primary-button", "button-sm");
+      const dueText = shortDate.format(new Date(`${shiftDate(saoPauloToday(), -3)}T12:00:00`));
+      expect(rent.querySelector(".finance-due")).toHaveTextContent(dueText);
+
+      const cleaning = rowOf("Material de limpeza");
+      expect(within(cleaning).getByText("Aluguel · Administrativo")).toBeInTheDocument();
+      expect(within(cleaning).getByText("Em aberto")).toHaveClass("status-pill", "open");
+
+      const light = rowOf("Conta de luz");
+      expect(within(light).getByText("Paga")).toHaveClass("status-pill", "paid");
+      expect(within(light).getByRole("button", { name: "Estornar Conta de luz" })).toHaveClass("danger-button", "button-sm");
+      expect(within(light).queryByRole("button", { name: /^Pagar/ })).not.toBeInTheDocument();
+
+      // Pagar pede a forma de pagamento no modal.
+      fireEvent.click(within(rent).getByRole("button", { name: "Pagar Aluguel da sala" }));
+      const dialog = await screen.findByRole("dialog", { name: "Pagar despesa" });
+      expect(within(dialog).getByLabelText("Forma de pagamento usada")).toBeInTheDocument();
+    });
+
+    it("shows an empty payables list with the next step", async () => {
+      renderFinance(financeWorkspace({ payables: [] }));
+      fireEvent.click(await screen.findByRole("button", { name: "Contas a pagar (0)" }));
+      const section = (await screen.findByRole("heading", { name: "Contas a pagar" })).closest("section")!;
+      expect(within(section).getByText("Nenhuma conta a pagar")).toBeInTheDocument();
+      expect(within(section).getByText(/Lance a primeira despesa/)).toBeInTheDocument();
+      fireEvent.click(within(section).getByRole("button", { name: "Nova despesa" }));
+      expect(await screen.findByRole("dialog", { name: "Nova conta a pagar" })).toBeInTheDocument();
+    });
+
+    it("shows commissions with full labels, signed values aligned right and clear actions", async () => {
+      renderFinance(financeWorkspace());
+      fireEvent.click(await screen.findByRole("button", { name: "Comissões (2)" }));
+      const section = (await screen.findByRole("heading", { name: "Comissões" })).closest("section")!;
+      expect(within(section).getByText(/Quanto cada profissional tem a receber/)).toBeInTheDocument();
+      expect(within(section).getByRole("button", { name: "Nova regra" })).toHaveClass("secondary-button");
+      expect(within(section).getByRole("button", { name: "Gerar comissões do mês" })).toHaveClass("primary-button");
+
+      const juliana = rowOf("Juliana Prado");
+      expect(within(juliana).getByText("Competência 09/2026")).toBeInTheDocument();
+      const numbers = [...juliana.querySelectorAll(".finance-number")].map((cell) => cell.textContent?.replace(/\s/g, " "));
+      expect(numbers).toEqual(["Base de cálculo R$ 300,00", "Percentual 30%"]);
+      expect(within(juliana).getByText("- R$ 90,00")).toHaveClass("finance-amount", "cash-out");
+      expect(within(juliana).getByText("Em aberto")).toHaveClass("status-pill", "open");
+      expect(within(juliana).getByRole("button", { name: "Pagar comissão de Juliana Prado" })).toHaveClass("primary-button", "button-sm");
+
+      const rafael = rowOf("Rafael Costa");
+      expect(within(rafael).getByText(`Competência 08/2026 · paga em ${shortDate.format(new Date("2026-09-05T12:00:00.000Z"))}`)).toBeInTheDocument();
+      expect(within(rafael).getByRole("button", { name: "Estornar comissão de Rafael Costa" })).toHaveClass("danger-button", "button-sm");
+
+      fireEvent.click(within(juliana).getByRole("button", { name: "Pagar comissão de Juliana Prado" }));
+      await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, options]) => options?.method === "POST" && String(url).includes("/finance/commissions/g1g1g1g1-0000-4000-8000-000000000001/pay"))).toBe(true));
+    });
+
+    it("shows an empty commissions list with the next step", async () => {
+      renderFinance(financeWorkspace({ commissions: [] }));
+      fireEvent.click(await screen.findByRole("button", { name: "Comissões (0)" }));
+      expect(await screen.findByText("Nenhuma comissão gerada")).toBeInTheDocument();
+      expect(screen.getByText(/Cadastre uma regra de comissão e use “Gerar comissões do mês”/)).toBeInTheDocument();
+    });
   });
 
   it("shows the daily cash with totals by payment method and movements", async () => {
@@ -2869,39 +3022,50 @@ describe("application shell", () => {
     expect(within(totals).getByText("Saídas").nextElementSibling).toHaveTextContent("R$ 2.550,00");
     expect(within(totals).getByText("Saldo").nextElementSibling).toHaveTextContent("-R$ 2.380,00");
 
-    // Totais por forma de pagamento, na ordem da API, com rótulo para "sem forma".
-    const methods = within(section).getByRole("table", { name: "Totais por forma de pagamento" });
-    const methodRows = within(methods).getAllByRole("row").slice(1);
-    expect(methodRows.map((row) => row.querySelector("th")?.textContent)).toEqual(["Pix", "Transferência", "Não informada"]);
-    const cells = (row: HTMLElement) => within(row).getAllByRole("cell").map((cell) => cell.textContent?.replace(/\s/g, " "));
-    expect(cells(methodRows[0]!)).toEqual(["R$ 250,00", "R$ 0,00", "R$ 250,00"]);
-    expect(cells(methodRows[1]!)).toEqual(["R$ 0,00", "R$ 2.500,00", "-R$ 2.500,00"]);
-    expect(cells(methodRows[2]!)).toEqual(["-R$ 80,00", "R$ 50,00", "-R$ 130,00"]);
+    // Frase curta explica a aba; entradas em verde e saídas em vermelho no resumo.
+    expect(within(section).getByText(/Tudo o que entrou e saiu do caixa no dia escolhido/)).toBeInTheDocument();
+    expect(within(totals).getByText("Entradas").nextElementSibling).toHaveClass("cash-in");
+    expect(within(totals).getByText("Saídas").nextElementSibling).toHaveClass("cash-out");
 
-    // Movimentos em ordem, com tipo, hora (São Paulo), forma e valor com sinal.
-    const rows = [...section.querySelectorAll(".daily-cash-table .finance-row")] as HTMLElement[];
-    expect(rows).toHaveLength(4);
-    expect(within(rows[0]!).getByText("Recebimento")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("09:15")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("Pix")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("+ R$ 250,00")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Estorno")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Bruno Lima")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Não informada")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("- R$ 80,00")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("Conta paga")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("14:30")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("Transferência")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("- R$ 2.500,00")).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("Comissão")).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("- R$ 50,00")).toBeInTheDocument();
+    // Movimentos agrupados por forma de pagamento (ordem da API), cada grupo com seus totais.
+    const groups = [...section.querySelectorAll(".daily-cash-group")] as HTMLElement[];
+    expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual(["Pix", "Transferência", "Não informada"]);
+    const totalsOf = (group: HTMLElement) => [...group.querySelectorAll(".daily-cash-group-totals dd")].map((dd) => dd.textContent?.replace(/\s/g, " "));
+    expect(totalsOf(groups[0]!)).toEqual(["R$ 250,00", "R$ 0,00", "R$ 250,00"]);
+    expect(totalsOf(groups[1]!)).toEqual(["R$ 0,00", "R$ 2.500,00", "-R$ 2.500,00"]);
+    expect(totalsOf(groups[2]!)).toEqual(["-R$ 80,00", "R$ 50,00", "-R$ 130,00"]);
+    expect(screen.getByRole("region", { name: "Movimentos em Pix" })).toBe(groups[0]);
+
+    // Dentro de cada grupo, em ordem, com tipo, hora (São Paulo) e valor com sinal e cor.
+    const rowsOf = (group: HTMLElement) => [...group.querySelectorAll(".daily-cash-table .finance-row")] as HTMLElement[];
+    expect(section.querySelectorAll(".daily-cash-table .finance-row")).toHaveLength(4);
+    const [pixRow] = rowsOf(groups[0]!);
+    expect(within(pixRow!).getByText("Recebimento")).toBeInTheDocument();
+    expect(within(pixRow!).getByText("09:15")).toBeInTheDocument();
+    expect(within(pixRow!).getByText("+ R$ 250,00")).toHaveClass("finance-amount", "cash-in");
+    const [transferRow] = rowsOf(groups[1]!);
+    expect(within(transferRow!).getByText("Conta paga")).toBeInTheDocument();
+    expect(within(transferRow!).getByText("14:30")).toBeInTheDocument();
+    expect(within(transferRow!).getByText("- R$ 2.500,00")).toHaveClass("finance-amount", "cash-out");
+    const unspecifiedRows = rowsOf(groups[2]!);
+    expect(unspecifiedRows).toHaveLength(2);
+    expect(within(unspecifiedRows[0]!).getByText("Estorno")).toBeInTheDocument();
+    expect(within(unspecifiedRows[0]!).getByText("Bruno Lima")).toBeInTheDocument();
+    expect(within(unspecifiedRows[0]!).getByText("- R$ 80,00")).toHaveClass("cash-out");
+    expect(within(unspecifiedRows[1]!).getByText("Comissão")).toBeInTheDocument();
+    expect(within(unspecifiedRows[1]!).getByText("- R$ 50,00")).toBeInTheDocument();
 
     // Outro dia sem movimento: busca a data escolhida e mostra o estado vazio.
     fireEvent.change(dateInput, { target: { value: "2026-09-01" } });
     expect(await within(section).findByText("Nenhum movimento neste dia")).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/finance/daily-cash?date=2026-09-01"))).toBe(true);
     expect(within(section).queryByText("Ana Souza")).not.toBeInTheDocument();
-    expect(within(section).queryByRole("table", { name: "Totais por forma de pagamento" })).not.toBeInTheDocument();
+    expect(section.querySelector(".daily-cash-group")).toBeNull();
+    // O vazio diz o próximo passo e oferece voltar para hoje.
+    expect(within(section).getByText(/Escolha outra data no campo acima/)).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("button", { name: "Ver o caixa de hoje" }));
+    expect(await within(section).findByText("Ana Souza")).toBeInTheDocument();
+    expect(dateInput).toHaveValue(today);
   });
 
   it("shows the finance forecast by month with confirmed and projected values", async () => {
@@ -2965,6 +3129,20 @@ describe("application shell", () => {
     const footer = within(table).getAllByRole("row").find((row) => row.closest("tfoot"))!;
     expect(footer.querySelector("th")?.textContent).toBe("Total");
     expect(cells(footer)).toEqual(["R$ 800,00", "R$ 2.500,00", "-R$ 1.700,00", "R$ 2.250,00", "R$ 12.500,00", "-R$ 10.250,00", "-R$ 11.950,00"]);
+    // Entradas em verde, saídas em vermelho, saldo negativo em vermelho.
+    const firstCells = within(bodyRows()[0]!).getAllByRole("cell");
+    expect(firstCells[0]).toHaveClass("cash-in");
+    expect(firstCells[1]).toHaveClass("cash-out");
+    expect(firstCells[2]).toHaveClass("negative");
+
+    // Frase explicativa e legenda do que é Confirmado e Projetado.
+    expect(within(section).getByText(/Quanto deve entrar e sair do caixa nos próximos meses/)).toBeInTheDocument();
+    const legend = section.querySelector(".forecast-legend")!;
+    expect([...legend.querySelectorAll("dt")].map((dt) => dt.textContent)).toEqual(["Confirmado", "Projetado"]);
+    expect(legend).toHaveTextContent("já lançadas e em aberto");
+    expect(legend).toHaveTextContent("Renovações automáticas de planos e despesas fixas");
+    // A tabela rola na horizontal dentro do próprio contêiner (1ª coluna fixa no CSS).
+    expect(table.parentElement).toHaveClass("forecast-scroll");
 
     // Em atraso aparece à parte, fora dos saldos.
     const overdue = section.querySelector(".forecast-overdue")!;
@@ -3009,6 +3187,7 @@ describe("application shell", () => {
     const { unmount } = render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Previsão" }));
     expect(await screen.findByText("Nada previsto no período")).toBeInTheDocument();
+    expect(screen.getByText(/Venda um plano, lance uma conta a pagar ou cadastre uma despesa fixa/)).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Previsão por mês" })).not.toBeInTheDocument();
     unmount();
 

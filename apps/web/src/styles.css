@@ -3345,14 +3345,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   border-bottom: 1px solid var(--line);
 }
 
-/* audit: mobile-ok tabela com min-width 820px; .finance-panel rola na horizontal em ≤ 820px */
-.finance-table.advanced .finance-row {
-  grid-template-columns: minmax(210px, 1.4fr) 105px 115px 78px minmax(
-      190px,
-      auto
-    );
-}
-
 .finance-controls {
   display: flex;
   align-items: center;
@@ -3438,17 +3430,33 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   padding: 0 calc(var(--space-5) - 1px) var(--space-6);
 }
 
-.receivables-table {
+.finance-list {
   min-width: 0;
+}
+
+.finance-list .finance-row {
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-3) calc(var(--space-5) - 1px);
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .receivables-table .finance-row {
   grid-template-columns:
     minmax(0, 1fr) 90px 110px 140px minmax(200px, auto);
-  gap: var(--space-4);
-  min-height: 0;
-  padding: var(--space-3) calc(var(--space-5) - 1px);
+}
+
+/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
+.payables-table .finance-row,
+.recurring-table .finance-row {
+  grid-template-columns:
+    minmax(0, 1fr) 90px 130px 140px minmax(180px, auto);
+}
+
+/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
+.commissions-table .finance-row {
+  grid-template-columns:
+    minmax(0, 1fr) 120px 90px 130px 100px minmax(120px, auto);
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
@@ -3457,7 +3465,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     calc(var(--space-4) + 2px) minmax(0, 1fr) 90px 110px 140px minmax(200px, auto);
 }
 
-.receivables-table .finance-head {
+.finance-list .finance-head {
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
   background: #f8f7f2;
@@ -3466,45 +3474,49 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-weight: 700;
 }
 
-.receivable-client {
+.finance-item {
   min-width: 0;
 }
 
-.receivables-table .receivable-client > strong,
-.receivables-table .receivable-client > span {
+.finance-list .finance-item > strong,
+.finance-list .finance-item > span {
   overflow: hidden;
   margin: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.receivables-table .receivable-client > strong {
+.finance-list .finance-item > strong {
   font-size: var(--text-md);
 }
 
-.receivables-table .receivable-client > span {
+.finance-list .finance-item > span {
   font-size: var(--text-sm);
 }
 
-.receivable-due {
+.finance-due {
   font-size: var(--text-sm);
   white-space: nowrap;
 }
 
-.receivable-label {
+.finance-label {
   display: none;
 }
 
-.receivables-table .finance-row > .finance-amount {
+.finance-number {
+  text-align: right;
+}
+
+.finance-list .finance-row > .finance-amount {
   font-size: var(--text-md);
   white-space: nowrap;
 }
 
-.receivables-table .status-pill {
+.finance-list .status-pill {
   white-space: nowrap;
 }
 
-.receivables-table .finance-actions {
+.finance-list .finance-actions {
   flex-wrap: nowrap;
   gap: var(--space-2);
   text-align: right;
@@ -3580,35 +3592,82 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: var(--text-2xl);
 }
 
+/* Entrada verde, saída vermelha em todo o Financeiro. */
 .daily-cash-totals li.negative strong,
+.cash-out,
 .finance-row > .finance-amount.cash-out {
   color: var(--red);
 }
 
+.cash-in,
 .finance-row > .finance-amount.cash-in {
   color: var(--green-2);
 }
 
-.daily-cash-methods {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-xs);
+.panel-head .panel-help {
+  max-width: 64ch;
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 
-.daily-cash-methods th,
-.daily-cash-methods td {
-  padding: var(--space-2) var(--space-3);
+.daily-cash-groups {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) calc(var(--space-5) - 1px);
+}
+
+.daily-cash-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.daily-cash-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
-  text-align: right;
+  background: #f8f7f2;
 }
 
-.daily-cash-methods th:first-child {
-  text-align: left;
+.daily-cash-group-head h3 {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-size: var(--text-lg);
 }
 
-.daily-cash-methods thead th {
+.daily-cash-group-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.daily-cash-group-totals div {
+  display: grid;
+  justify-items: end;
+}
+
+.daily-cash-group-totals dt {
   color: var(--muted);
   font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.daily-cash-group-totals dd {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.daily-cash-group .finance-row {
+  padding: var(--space-3) var(--space-4);
 }
 
 .forecast-body {
@@ -3617,11 +3676,35 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   padding: var(--space-5) calc(var(--space-5) - 1px);
 }
 
-.forecast-help,
+.forecast-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.forecast-legend div {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: #f4f2eb;
+}
+
+.forecast-legend dt {
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.forecast-legend dd {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 .forecast-overdue {
   margin: 0;
   color: var(--muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 
@@ -3642,8 +3725,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .forecast-table {
   width: 100%;
   min-width: 720px;
-  border-collapse: collapse;
-  font-size: var(--text-xs);
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-sm);
 }
 
 .forecast-table th,
@@ -3669,6 +3753,17 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   text-align: left;
 }
 
+/* Primeira coluna (mês) fixa ao rolar a tabela na horizontal. */
+.forecast-table thead tr:first-child th:first-child,
+.forecast-table tbody th,
+.forecast-table tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--paper);
+  box-shadow: inset -1px 0 0 var(--line);
+}
+
 .forecast-table .forecast-balance,
 .forecast-table tfoot th,
 .forecast-table tfoot td {
@@ -3679,9 +3774,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   color: var(--red);
 }
 
-/* audit: mobile-ok tabela com min-width 820px; .finance-panel rola na horizontal em ≤ 820px */
+/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .daily-cash-table .finance-row {
-  grid-template-columns: 60px 120px minmax(220px, 1fr) 120px 130px;
+  grid-template-columns: 52px 120px minmax(0, 1fr) 130px;
 }
 
 .receipt-content {
@@ -4750,30 +4845,42 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     margin-left: 0;
   }
 
-  .receivables-table .finance-head {
+  .finance-list .finance-head {
     display: none;
   }
 
-  .receivables-table .finance-row,
+  .finance-list .finance-row,
   .receivables-table.selectable .finance-row {
     grid-template-columns: 1fr;
     gap: var(--space-2);
     padding: var(--space-4);
   }
 
-  .receivable-label {
+  .finance-label {
     display: inline;
     color: var(--muted);
   }
 
-  .receivables-table .finance-row > .finance-amount {
+  .finance-number {
+    text-align: left;
+  }
+
+  .finance-list .finance-row > .finance-amount {
     font-size: var(--text-lg);
     text-align: left;
   }
 
-  .receivables-table .finance-actions {
+  .finance-list .finance-actions {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .daily-cash-groups {
+    padding: var(--space-4);
+  }
+
+  .daily-cash-group-totals div {
+    justify-items: start;
   }
 
   .selection-bar {

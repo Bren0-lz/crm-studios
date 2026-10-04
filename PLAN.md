@@ -754,7 +754,7 @@ de marcar GIGANTE e informações muito confusas".
   - Contas a receber: limpar a seleção de parcelas depois de baixa, estorno ou ajuste (hoje uma parcela quitada continua marcada e iria junto no "Renegociar"); teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D08
-- **Status:** TODO
+- **Status:** DONE
 
 ### D09 — Telas sem elementos soltos
 - **Escopo:**

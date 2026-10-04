@@ -115,7 +115,9 @@ import type {
   PatientPlanInput,
   PatientTimelineEntry,
   PatientTimelineKind,
+  Payable,
   PayableInput,
+  CommissionEntry,
   PaymentMethod,
   PaymentReceipt,
   PermissionMatrixItem,
@@ -5754,6 +5756,8 @@ function FinancePage() {
     setError("");
     try {
       await api.reverseReceivable(id);
+      // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
+      setSelectedReceivables([]);
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -5774,6 +5778,7 @@ function FinancePage() {
     else await api.settlePayable(target.id, method);
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
+    if (target.kind === "receivable") setSelectedReceivables([]);
     setError("");
     try {
       await reload();
@@ -5801,6 +5806,7 @@ function FinancePage() {
     if (!reason) return;
     try {
       await api.adjustReceivable(id, Math.round(Number(value) * 100), reason);
+      setSelectedReceivables([]);
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -5855,6 +5861,25 @@ function FinancePage() {
         reason,
       });
       setSelectedReceivables([]);
+      await reload();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+  async function toggleCommission(item: CommissionEntry) {
+    setError("");
+    try {
+      if (item.status === "paid") await api.reverseCommission(item.id);
+      else await api.settleCommission(item.id);
+      await reload();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+  async function generateCommissions() {
+    setError("");
+    try {
+      await api.generateCommissions(new Date().toISOString().slice(0, 7));
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -5998,175 +6023,108 @@ function FinancePage() {
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
+          ) : tab === "receivables" ? (
+          <section className="panel finance-panel">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Entradas</span>
+                <h2>Parcelas</h2>
+              </div>
+            </div>
+            <ReceivablesList
+              receivables={data.summary.receivables}
+              canManage={canManage}
+              filter={receivableFilter}
+              search={receivableSearch}
+              selected={selectedReceivables}
+              onFilterChange={changeReceivableFilter}
+              onSearchChange={changeReceivableSearch}
+              onSelectedChange={setSelectedReceivables}
+              onRenegotiate={() => void renegotiate()}
+              onSettle={(item) =>
+                setSettling({
+                  kind: "receivable",
+                  id: item.id,
+                  title: item.patientName,
+                  description: item.description,
+                  amountInCents: item.amountInCents,
+                })
+              }
+              onReverse={(id) => void reverseReceivable(id)}
+              onAdjust={(item) =>
+                void adjustReceivable(item.id, item.amountInCents)
+              }
+              onReceipt={(id) =>
+                void api
+                  .paymentReceipt(id)
+                  .then(setReceipt)
+                  .catch((cause: Error) => setError(cause.message))
+              }
+            />
+          </section>
+          ) : tab === "payables" ? (
+          <section className="panel finance-panel">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Saídas</span>
+                <h2>Contas a pagar</h2>
+                <p className="panel-help">
+                  Despesas da clínica pelo vencimento, em aberto e já pagas.
+                  As despesas fixas logo abaixo geram uma conta por mês
+                  automaticamente.
+                </p>
+              </div>
+            </div>
+            <PayablesList
+              payables={data.payables}
+              canManage={canManage}
+              onCreate={() => setPayableModal(true)}
+              onReverse={(id) => void reversePayable(id)}
+              onSettle={(item) =>
+                setSettling({
+                  kind: "payable",
+                  id: item.id,
+                  title: item.description,
+                  description: item.supplier || item.categoryName,
+                  amountInCents: item.amountInCents,
+                })
+              }
+            />
+          </section>
           ) : (
           <section className="panel finance-panel">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">
-                  {tab === "receivables"
-                    ? "Entradas"
-                    : tab === "payables"
-                      ? "Saídas"
-                      : "Profissionais"}
-                </span>
-                <h2>
-                  {tab === "receivables"
-                    ? "Parcelas"
-                    : tab === "payables"
-                      ? "Despesas"
-                      : "Comissões"}
-                </h2>
+                <span className="eyebrow">Profissionais</span>
+                <h2>Comissões</h2>
+                <p className="panel-help">
+                  Quanto cada profissional tem a receber pelos atendimentos
+                  concluídos: o percentual da regra sobre a base de cálculo de
+                  cada atendimento.
+                </p>
               </div>
-              {canManage && tab === "commissions" && (
+              {canManage && (
                 <div className="page-actions">
                   <button
                     className="secondary-button"
                     onClick={() => void createCommissionRule()}
                   >
-                    + Regra
+                    <Plus size={18} /> Nova regra
                   </button>
                   <button
                     className="primary-button"
-                    onClick={async () => {
-                      await api.generateCommissions(
-                        new Date().toISOString().slice(0, 7),
-                      );
-                      await reload();
-                    }}
+                    onClick={() => void generateCommissions()}
                   >
-                    Gerar competência
+                    Gerar comissões do mês
                   </button>
                 </div>
               )}
             </div>
-            {tab === "receivables" ? (
-              <ReceivablesList
-                receivables={data.summary.receivables}
-                canManage={canManage}
-                filter={receivableFilter}
-                search={receivableSearch}
-                selected={selectedReceivables}
-                onFilterChange={changeReceivableFilter}
-                onSearchChange={changeReceivableSearch}
-                onSelectedChange={setSelectedReceivables}
-                onRenegotiate={() => void renegotiate()}
-                onSettle={(item) =>
-                  setSettling({
-                    kind: "receivable",
-                    id: item.id,
-                    title: item.patientName,
-                    description: item.description,
-                    amountInCents: item.amountInCents,
-                  })
-                }
-                onReverse={(id) => void reverseReceivable(id)}
-                onAdjust={(item) =>
-                  void adjustReceivable(item.id, item.amountInCents)
-                }
-                onReceipt={(id) =>
-                  void api
-                    .paymentReceipt(id)
-                    .then(setReceipt)
-                    .catch((cause: Error) => setError(cause.message))
-                }
-              />
-            ) : tab === "payables" && data.payables.length === 0 ? (
-              <EmptyState
-                title="Nenhuma conta a pagar"
-                copy="Cadastre as despesas previstas da clínica."
-              />
-            ) : tab === "payables" ? (
-              <div className="finance-table advanced">
-                {data.payables.map((item) => (
-                  <div className="finance-row" key={item.id}>
-                    <div>
-                      <strong>{item.description}</strong>
-                      <span>
-                        {item.supplier || item.categoryName} ·{" "}
-                        {item.costCenterName}
-                      </span>
-                    </div>
-                    <div>
-                      <span>Vencimento</span>
-                      <strong>
-                        {new Date(
-                          `${item.dueDate}T12:00:00`,
-                        ).toLocaleDateString("pt-BR")}
-                      </strong>
-                    </div>
-                    <strong>{currency.format(item.amountInCents / 100)}</strong>
-                    <span
-                      className={`status-pill ${item.overdue ? "overdue" : item.status}`}
-                    >
-                      {item.overdue
-                        ? "Vencida"
-                        : item.status === "paid"
-                          ? "Paga"
-                          : "Aberta"}
-                    </span>
-                    <div className="finance-actions">
-                      {canManage && (
-                      <button
-                        className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
-                        onClick={() =>
-                          item.status === "paid"
-                            ? void reversePayable(item.id)
-                            : setSettling({
-                                kind: "payable",
-                                id: item.id,
-                                title: item.description,
-                                description:
-                                  item.supplier || item.categoryName,
-                                amountInCents: item.amountInCents,
-                              })
-                        }
-                      >
-                        {item.status === "paid" ? "Estornar" : "Pagar"}
-                      </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : data.commissions.length === 0 ? (
-              <EmptyState
-                title="Nenhuma comissão gerada"
-                copy="Cadastre uma regra e gere a competência após concluir atendimentos."
-              />
-            ) : (
-              <div className="finance-table advanced">
-                {data.commissions.map((item) => (
-                  <div className="finance-row" key={item.id}>
-                    <div>
-                      <strong>{item.professionalName}</strong>
-                      <span>
-                        {item.competence} · {item.percentage}% sobre{" "}
-                        {currency.format(item.baseAmountInCents / 100)}
-                      </span>
-                    </div>
-                    <strong>{currency.format(item.amountInCents / 100)}</strong>
-                    <span className={`status-pill ${item.status}`}>
-                      {item.status === "paid" ? "Paga" : "Aberta"}
-                    </span>
-                    <div className="finance-actions">
-                      {canManage && (
-                      <button
-                        className={item.status === "paid" ? "danger-button button-sm" : "primary-button button-sm"}
-                        onClick={async () => {
-                          if (item.status === "paid")
-                            await api.reverseCommission(item.id);
-                          else await api.settleCommission(item.id);
-                          await reload();
-                        }}
-                      >
-                        {item.status === "paid" ? "Estornar" : "Pagar"}
-                      </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <CommissionsList
+              commissions={data.commissions}
+              canManage={canManage}
+              onToggle={(item) => void toggleCommission(item)}
+            />
           </section>
           )}
           {tab === "payables" && (
@@ -6228,7 +6186,11 @@ const receivableFilterLabels: Record<ReceivableFilter, string> = {
   paid: "Pagas",
 };
 
-function receivableSituation(item: Receivable, today: string) {
+/** Situação de uma parcela ou conta pelo vencimento (selo com cor e texto). */
+function receivableSituation(
+  item: Pick<Receivable, "status" | "overdue" | "dueDate">,
+  today: string,
+) {
   if (item.status === "paid") return { key: "paid", label: "Paga", pill: "paid" };
   if (item.status === "cancelled")
     return { key: "cancelled", label: "Cancelada", pill: "cancelled" };
@@ -6416,7 +6378,7 @@ function ReceivablesList({
         </div>
       ) : (
         <div
-          className={`finance-table receivables-table${canManage ? " selectable" : ""}`}
+          className={`finance-table finance-list receivables-table${canManage ? " selectable" : ""}`}
         >
           <div className="finance-row finance-head" aria-hidden="true">
             {canManage && <span />}
@@ -6440,12 +6402,12 @@ function ReceivablesList({
                 ) : (
                   <span />
                 ))}
-              <div className="receivable-client">
+              <div className="finance-item">
                 <strong title={item.patientName}>{item.patientName}</strong>
                 <span title={item.description}>{item.description}</span>
               </div>
-              <span className="receivable-due">
-                <span className="receivable-label">Vencimento </span>
+              <span className="finance-due">
+                <span className="finance-label">Vencimento </span>
                 {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
               </span>
               <strong className="finance-amount">
@@ -6495,6 +6457,178 @@ function ReceivablesList({
         </div>
       )}
     </>
+  );
+}
+
+/** Valor com sinal explícito pelo efeito no caixa (+ entrada, - saída). */
+function signedCurrency(effectInCents: number) {
+  return `${effectInCents < 0 ? "-" : "+"} ${currency.format(Math.abs(effectInCents) / 100)}`;
+}
+
+function PayablesList({
+  payables,
+  canManage,
+  onCreate,
+  onSettle,
+  onReverse,
+}: {
+  payables: Payable[];
+  canManage: boolean;
+  onCreate: () => void;
+  onSettle: (item: Payable) => void;
+  onReverse: (id: string) => void;
+}) {
+  if (payables.length === 0) {
+    return (
+      <div className="finance-filter-empty">
+        <EmptyState
+          title="Nenhuma conta a pagar"
+          copy="Lance a primeira despesa em “Nova despesa” ou cadastre uma despesa fixa logo abaixo."
+        />
+        {canManage && (
+          <button type="button" className="secondary-button" onClick={onCreate}>
+            <Plus size={18} /> Nova despesa
+          </button>
+        )}
+      </div>
+    );
+  }
+  const today = saoPauloToday();
+  return (
+    <div className="finance-table finance-list payables-table">
+      <div className="finance-row finance-head" aria-hidden="true">
+        <span>Descrição e fornecedor</span>
+        <span>Vencimento</span>
+        <span className="finance-amount">Valor</span>
+        <span>Situação</span>
+        <span className="finance-actions">Ações</span>
+      </div>
+      {payables.map((item) => {
+        const situation = receivableSituation(item, today);
+        const detail = `${item.supplier || item.categoryName} · ${item.costCenterName}`;
+        return (
+          <div className="finance-row" key={item.id}>
+            <div className="finance-item">
+              <strong title={item.description}>{item.description}</strong>
+              <span title={detail}>{detail}</span>
+            </div>
+            <span className="finance-due">
+              <span className="finance-label">Vencimento </span>
+              {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
+            </span>
+            <strong className="finance-amount cash-out">
+              {signedCurrency(-item.amountInCents)}
+            </strong>
+            <span>
+              <span className={`status-pill ${situation.pill}`}>
+                {situation.label}
+              </span>
+            </span>
+            <div className="finance-actions">
+              {canManage && item.status === "open" && (
+                <button
+                  className="primary-button button-sm"
+                  aria-label={`Pagar ${item.description}`}
+                  onClick={() => onSettle(item)}
+                >
+                  Pagar
+                </button>
+              )}
+              {canManage && item.status === "paid" && (
+                <button
+                  className="danger-button button-sm"
+                  aria-label={`Estornar ${item.description}`}
+                  onClick={() => onReverse(item.id)}
+                >
+                  Estornar
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CommissionsList({
+  commissions,
+  canManage,
+  onToggle,
+}: {
+  commissions: CommissionEntry[];
+  canManage: boolean;
+  onToggle: (item: CommissionEntry) => void;
+}) {
+  if (commissions.length === 0) {
+    return (
+      <EmptyState
+        title="Nenhuma comissão gerada"
+        copy="Cadastre uma regra de comissão e use “Gerar comissões do mês” depois de concluir atendimentos."
+      />
+    );
+  }
+  return (
+    <div className="finance-table finance-list commissions-table">
+      <div className="finance-row finance-head" aria-hidden="true">
+        <span>Profissional e competência</span>
+        <span className="finance-number">Base de cálculo</span>
+        <span className="finance-number">Percentual</span>
+        <span className="finance-amount">Comissão</span>
+        <span>Situação</span>
+        <span className="finance-actions">Ações</span>
+      </div>
+      {commissions.map((item) => {
+        const detail = [
+          `Competência ${formatCompetence(item.competence)}`,
+          item.paidAt &&
+            `paga em ${shortDate.format(new Date(item.paidAt))}`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <div className="finance-row" key={item.id}>
+            <div className="finance-item">
+              <strong title={item.professionalName}>
+                {item.professionalName}
+              </strong>
+              <span>{detail}</span>
+            </div>
+            <span className="finance-due finance-number">
+              <span className="finance-label">Base de cálculo </span>
+              {currency.format(item.baseAmountInCents / 100)}
+            </span>
+            <span className="finance-due finance-number">
+              <span className="finance-label">Percentual </span>
+              {item.percentage}%
+            </span>
+            <strong className="finance-amount cash-out">
+              {signedCurrency(-item.amountInCents)}
+            </strong>
+            <span>
+              <span className={`status-pill ${item.status}`}>
+                {item.status === "paid" ? "Paga" : "Em aberto"}
+              </span>
+            </span>
+            <div className="finance-actions">
+              {canManage && (
+                <button
+                  className={
+                    item.status === "paid"
+                      ? "danger-button button-sm"
+                      : "primary-button button-sm"
+                  }
+                  aria-label={`${item.status === "paid" ? "Estornar" : "Pagar"} comissão de ${item.professionalName}`}
+                  onClick={() => onToggle(item)}
+                >
+                  {item.status === "paid" ? "Estornar" : "Pagar"}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -6592,20 +6726,51 @@ const saoPauloTime = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
 });
 
-/** Efeito do movimento no caixa, com sinal explícito (não depende só da cor). */
 function dailyCashMovementAmount(movement: DailyCashMovement) {
   const effect =
     movement.direction === "in"
       ? movement.amountInCents
       : -movement.amountInCents;
-  return {
-    effect,
-    text: `${effect < 0 ? "-" : "+"} ${currency.format(Math.abs(effect) / 100)}`,
-  };
+  return { effect, text: signedCurrency(effect) };
+}
+
+/** Movimentos do dia agrupados por forma de pagamento, na ordem dos totais da API. */
+function dailyCashGroups(cash: DailyCash) {
+  const methods = cash.byPaymentMethod.map((item) => item.paymentMethod);
+  for (const movement of cash.movements)
+    if (!methods.includes(movement.paymentMethod))
+      methods.push(movement.paymentMethod);
+  return methods.map((method) => {
+    const movements = cash.movements.filter(
+      (movement) => movement.paymentMethod === method,
+    );
+    const total = cash.byPaymentMethod.find(
+      (item) => item.paymentMethod === method,
+    );
+    const inflow =
+      total?.inflowInCents ??
+      movements
+        .filter((movement) => movement.direction === "in")
+        .reduce((sum, movement) => sum + movement.amountInCents, 0);
+    const outflow =
+      total?.outflowInCents ??
+      movements
+        .filter((movement) => movement.direction === "out")
+        .reduce((sum, movement) => sum + movement.amountInCents, 0);
+    return {
+      method,
+      label: dailyCashMethodLabels[method],
+      inflow,
+      outflow,
+      balance: total?.balanceInCents ?? inflow - outflow,
+      movements,
+    };
+  });
 }
 
 function DailyCashSection() {
-  const [date, setDate] = useState(() => saoPauloToday());
+  const today = saoPauloToday();
+  const [date, setDate] = useState(today);
   const [cash, setCash] = useState<DailyCash | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -6618,6 +6783,13 @@ function DailyCashSection() {
       active = false;
     };
   }, [date]);
+  function changeDate(value: string) {
+    // Campo limpo mantém o dia anterior: a rota sem data usaria hoje.
+    if (!value || value === date) return;
+    setCash(null);
+    setError("");
+    setDate(value);
+  }
   return (
     <div className="daily-cash">
       {error && <ErrorBanner error={error} />}
@@ -6628,42 +6800,51 @@ function DailyCashSection() {
               {cash ? `Movimentos de ${formatIsoDate(cash.date)}` : "Movimentos"}
             </span>
             <h2>Caixa do dia</h2>
+            <p className="panel-help">
+              Tudo o que entrou e saiu do caixa no dia escolhido, separado por
+              forma de pagamento.
+            </p>
           </div>
           <label className="daily-cash-date">
             Data
             <input
               type="date"
               value={date}
-              onChange={(event) => {
-                // Campo limpo mantém o dia anterior: a rota sem data usaria hoje.
-                if (!event.target.value || event.target.value === date) return;
-                setCash(null);
-                setError("");
-                setDate(event.target.value);
-              }}
+              onChange={(event) => changeDate(event.target.value)}
             />
           </label>
         </div>
         {!cash ? (
           !error && <LoadingBlock />
         ) : cash.movements.length === 0 ? (
-          <EmptyState
-            title="Nenhum movimento neste dia"
-            copy="Recebimentos, estornos, contas pagas e comissões pagas aparecem aqui."
-          />
+          <div className="finance-filter-empty">
+            <EmptyState
+              title="Nenhum movimento neste dia"
+              copy="Escolha outra data no campo acima. Baixas de parcelas, estornos, contas pagas e comissões pagas aparecem aqui."
+            />
+            {date !== today && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => changeDate(today)}
+              >
+                Ver o caixa de hoje
+              </button>
+            )}
+          </div>
         ) : (
           <>
             <div className="daily-cash-summary">
               <ul className="daily-cash-totals" aria-label="Totais do dia">
                 <li>
                   <span>Entradas</span>
-                  <strong>
+                  <strong className="cash-in">
                     {currency.format(cash.totalInflowInCents / 100)}
                   </strong>
                 </li>
                 <li>
                   <span>Saídas</span>
-                  <strong>
+                  <strong className="cash-out">
                     {currency.format(cash.totalOutflowInCents / 100)}
                   </strong>
                 </li>
@@ -6674,64 +6855,70 @@ function DailyCashSection() {
                   <strong>{currency.format(cash.balanceInCents / 100)}</strong>
                 </li>
               </ul>
-              <table
-                className="daily-cash-methods"
-                aria-label="Totais por forma de pagamento"
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">Forma</th>
-                    <th scope="col">Entradas</th>
-                    <th scope="col">Saídas</th>
-                    <th scope="col">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cash.byPaymentMethod.map((item) => (
-                    <tr key={item.paymentMethod}>
-                      <th scope="row">
-                        {dailyCashMethodLabels[item.paymentMethod]}
-                      </th>
-                      <td>{currency.format(item.inflowInCents / 100)}</td>
-                      <td>{currency.format(item.outflowInCents / 100)}</td>
-                      <td>{currency.format(item.balanceInCents / 100)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
-            <div className="finance-table daily-cash-table">
-              {cash.movements.map((movement) => {
-                const kind = dailyCashKinds[movement.kind];
-                const amount = dailyCashMovementAmount(movement);
-                return (
-                  <div className="finance-row" key={movement.id}>
-                    <strong>
-                      {saoPauloTime.format(new Date(movement.occurredAt))}
-                    </strong>
-                    <span className={`status-pill ${kind.pill}`}>
-                      {kind.label}
-                    </span>
-                    <div>
-                      <strong>{movement.description}</strong>
-                      {movement.counterpart && (
-                        <span>{movement.counterpart}</span>
-                      )}
-                    </div>
-                    <div>
-                      <span>Forma</span>
-                      <strong>
-                        {dailyCashMethodLabels[movement.paymentMethod]}
-                      </strong>
-                    </div>
-                    <strong
-                      className={`finance-amount ${amount.effect < 0 ? "cash-out" : "cash-in"}`}
-                    >
-                      {amount.text}
-                    </strong>
+            <div className="daily-cash-groups">
+              {dailyCashGroups(cash).map((group) => (
+                <section
+                  className="daily-cash-group"
+                  key={group.method}
+                  aria-label={`Movimentos em ${group.label}`}
+                >
+                  <div className="daily-cash-group-head">
+                    <h3>{group.label}</h3>
+                    <dl className="daily-cash-group-totals">
+                      <div>
+                        <dt>Entradas</dt>
+                        <dd className="cash-in">
+                          {currency.format(group.inflow / 100)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Saídas</dt>
+                        <dd className="cash-out">
+                          {currency.format(group.outflow / 100)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Saldo</dt>
+                        <dd className={group.balance < 0 ? "cash-out" : undefined}>
+                          {currency.format(group.balance / 100)}
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
-                );
-              })}
+                  <div className="finance-table finance-list daily-cash-table">
+                    {group.movements.map((movement) => {
+                      const kind = dailyCashKinds[movement.kind];
+                      const amount = dailyCashMovementAmount(movement);
+                      return (
+                        <div className="finance-row" key={movement.id}>
+                          <span className="finance-due">
+                            {saoPauloTime.format(new Date(movement.occurredAt))}
+                          </span>
+                          <span>
+                            <span className={`status-pill ${kind.pill}`}>
+                              {kind.label}
+                            </span>
+                          </span>
+                          <div className="finance-item">
+                            <strong title={movement.description}>
+                              {movement.description}
+                            </strong>
+                            {movement.counterpart && (
+                              <span>{movement.counterpart}</span>
+                            )}
+                          </div>
+                          <strong
+                            className={`finance-amount ${amount.effect < 0 ? "cash-out" : "cash-in"}`}
+                          >
+                            {amount.text}
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           </>
         )}
@@ -6745,8 +6932,8 @@ const forecastHorizons = [3, 6, 12] as const;
 function forecastFlowCells(flow: FinanceForecastFlow) {
   return (
     <>
-      <td>{currency.format(flow.inflowInCents / 100)}</td>
-      <td>{currency.format(flow.outflowInCents / 100)}</td>
+      <td className="cash-in">{currency.format(flow.inflowInCents / 100)}</td>
+      <td className="cash-out">{currency.format(flow.outflowInCents / 100)}</td>
       <td className={flow.balanceInCents < 0 ? "negative" : undefined}>
         {currency.format(flow.balanceInCents / 100)}
       </td>
@@ -6794,6 +6981,9 @@ function FinanceForecastSection() {
                 : "Próximos meses"}
             </span>
             <h2>Previsão</h2>
+            <p className="panel-help">
+              Quanto deve entrar e sair do caixa nos próximos meses, mês a mês.
+            </p>
           </div>
           <label className="daily-cash-date">
             Horizonte
@@ -6820,21 +7010,38 @@ function FinanceForecastSection() {
         ) : forecastIsEmpty(forecast) ? (
           <EmptyState
             title="Nada previsto no período"
-            copy="Parcelas a receber, contas a pagar, renovações automáticas e despesas fixas aparecem aqui."
+            copy="Venda um plano, lance uma conta a pagar ou cadastre uma despesa fixa para ver a previsão. Você também pode aumentar o horizonte."
           />
         ) : (
           <div className="forecast-body">
-            <p className="forecast-help">
-              Confirmado: parcelas e contas já lançadas e em aberto, pelo
-              vencimento. Projetado: renovações automáticas e despesas fixas
-              que ainda serão lançadas.
-            </p>
+            <dl className="forecast-legend" aria-label="Legenda da previsão">
+              <div>
+                <dt>Confirmado</dt>
+                <dd>
+                  Parcelas de clientes e contas a pagar já lançadas e em
+                  aberto, pelo vencimento.
+                </dd>
+              </div>
+              <div>
+                <dt>Projetado</dt>
+                <dd>
+                  Renovações automáticas de planos e despesas fixas que ainda
+                  vão ser lançadas.
+                </dd>
+              </div>
+            </dl>
             {hasOverdue && overdue && (
               <p className="forecast-overdue">
                 <strong>Em atraso</strong> (vencidos antes de{" "}
                 {formatCompetence(forecast.startMonth)}, fora dos saldos):{" "}
-                {currency.format(overdue.inflowInCents / 100)} a receber ·{" "}
-                {currency.format(overdue.outflowInCents / 100)} a pagar
+                <span className="cash-in">
+                  {currency.format(overdue.inflowInCents / 100)}
+                </span>{" "}
+                a receber ·{" "}
+                <span className="cash-out">
+                  {currency.format(overdue.outflowInCents / 100)}
+                </span>{" "}
+                a pagar
               </p>
             )}
             <div className="forecast-scroll">
@@ -6989,6 +7196,10 @@ function RecurringPayablesSection({
           <div>
             <span className="eyebrow">Recorrentes</span>
             <h2>Despesas fixas</h2>
+            <p className="panel-help">
+              Contas que se repetem todo mês, como aluguel e internet. Cada mês
+              vira uma conta a pagar no dia do vencimento.
+            </p>
           </div>
           {editable && (
             <button className="primary-button" onClick={() => setModal(true)}>
@@ -7004,7 +7215,14 @@ function RecurringPayablesSection({
             copy="Cadastre aluguel, internet e outras contas mensais para gerá-las automaticamente."
           />
         ) : (
-          <div className="finance-table advanced">
+          <div className="finance-table finance-list recurring-table">
+            <div className="finance-row finance-head" aria-hidden="true">
+              <span>Descrição e período</span>
+              <span>Vencimento</span>
+              <span className="finance-amount">Valor mensal</span>
+              <span>Situação</span>
+              <span className="finance-actions">Ações</span>
+            </div>
             {items.map((item) => {
               const status = recurringPayableStatus(item, currentMonth);
               const period = [
@@ -7020,27 +7238,29 @@ function RecurringPayablesSection({
                 .join(" · ");
               return (
                 <div className="finance-row" key={item.id}>
-                  <div>
-                    <strong>{item.description}</strong>
+                  <div className="finance-item">
+                    <strong title={item.description}>{item.description}</strong>
                     <span>
                       {item.supplier || item.categoryName} ·{" "}
                       {item.costCenterName}
                     </span>
-                    <span>{period}</span>
+                    <span title={period}>{period}</span>
                   </div>
-                  <div>
-                    <span>Vencimento</span>
-                    <strong>Dia {item.dayOfMonth}</strong>
-                  </div>
-                  <strong className="finance-amount">
-                    {currency.format(item.amountInCents / 100)}
+                  <span className="finance-due">
+                    <span className="finance-label">Vencimento </span>
+                    <span>Dia {item.dayOfMonth}</span>
+                  </span>
+                  <strong className="finance-amount cash-out">
+                    {signedCurrency(-item.amountInCents)}
                   </strong>
-                  <span className={`status-pill ${status}`}>
-                    {status === "ended"
-                      ? "Encerrada"
-                      : status === "paused"
-                        ? "Pausada"
-                        : "Ativa"}
+                  <span>
+                    <span className={`status-pill ${status}`}>
+                      {status === "ended"
+                        ? "Encerrada"
+                        : status === "paused"
+                          ? "Pausada"
+                          : "Ativa"}
+                    </span>
                   </span>
                   <div className="finance-actions">
                     {editable && status !== "ended" && (
