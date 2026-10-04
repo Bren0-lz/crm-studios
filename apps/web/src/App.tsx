@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   Bell,
   BarChart3,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -11140,6 +11141,62 @@ function ScheduleBlockModal({
   );
 }
 
+/**
+ * Seção recolhível (gaveta) com o visual de `.panel`/`panel-head`: começa fechada e abre pelo
+ * título — botão nativo dentro do `h2` (Enter/Espaço), com `aria-expanded`/`aria-controls`.
+ * Fechada, o conteúdo não é montado: componentes que buscam os próprios dados só buscam ao abrir
+ * (e mostram carregando/erro nesse momento). Pode ser controlada (`open` + `onOpenChange`).
+ */
+function CollapsibleSection({
+  title,
+  eyebrow,
+  className,
+  open: controlledOpen,
+  onOpenChange,
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const bodyId = useId();
+  function toggle() {
+    if (controlledOpen === undefined) setInnerOpen(!open);
+    onOpenChange?.(!open);
+  }
+  return (
+    <section
+      className={`panel collapsible-section${open ? " is-open" : ""}${className ? ` ${className}` : ""}`}
+    >
+      <div className="panel-head collapsible-head">
+        <div>
+          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+          <h2>
+            <button
+              type="button"
+              className="text-button collapsible-toggle"
+              aria-expanded={open}
+              aria-controls={bodyId}
+              onClick={toggle}
+            >
+              {title}
+            </button>
+          </h2>
+        </div>
+        <ChevronDown className="collapsible-chevron" size={20} aria-hidden="true" />
+      </div>
+      <div id={bodyId} className="collapsible-body" hidden={!open}>
+        {open ? children : null}
+      </div>
+    </section>
+  );
+}
+
 function AdminPage() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
@@ -11149,6 +11206,8 @@ function AdminPage() {
   const [userForm, setUserForm] = useState<AdminUser | "new" | null>(null);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [toggling, setToggling] = useState<AdminUser | null>(null);
+  // Gaveta de Usuários controlada aqui: "Novo usuário" abre a gaveta junto com o modal.
+  const [usersOpen, setUsersOpen] = useState(false);
 
   async function load() {
     try {
@@ -11205,6 +11264,7 @@ function AdminPage() {
             className="primary-button"
             onClick={() => {
               setNotice("");
+              setUsersOpen(true);
               setUserForm("new");
             }}
           >
@@ -11219,13 +11279,13 @@ function AdminPage() {
         </div>
       )}
       <div className="admin-grid">
-        <section className="panel admin-users">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">Acessos</span>
-              <h2>Usuários</h2>
-            </div>
-          </div>
+        <CollapsibleSection
+          className="admin-users"
+          eyebrow="Acessos"
+          title="Usuários"
+          open={usersOpen}
+          onOpenChange={setUsersOpen}
+        >
           {users === null ? (
             !error && <LoadingBlock />
           ) : users.length === 0 ? (
@@ -11284,15 +11344,15 @@ function AdminPage() {
               </article>
             ))
           )}
-        </section>
-        {settings && (
-          <section className="panel admin-settings">
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Organização</span>
-                <h2>Dados da clínica</h2>
-              </div>
-            </div>
+        </CollapsibleSection>
+        <CollapsibleSection
+          className="admin-settings"
+          eyebrow="Organização"
+          title="Dados da clínica"
+        >
+          {!settings ? (
+            !error && <LoadingBlock />
+          ) : (
             <form
               className="clinical-form"
               onSubmit={async (event) => {
@@ -11368,18 +11428,19 @@ function AdminPage() {
                 <button className="primary-button">Salvar configurações</button>
               </div>
             </form>
-          </section>
-        )}
+          )}
+        </CollapsibleSection>
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
-        <section className="panel admin-audit">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">Rastreabilidade</span>
-              <h2>Auditoria recente</h2>
-            </div>
-          </div>
-          {audit.length === 0 ? (
+        <CollapsibleSection
+          className="admin-audit"
+          eyebrow="Rastreabilidade"
+          title="Auditoria recente"
+        >
+          {users === null ? (
+            // Usuários, dados e auditoria chegam juntos no mesmo carregamento da página.
+            !error && <LoadingBlock />
+          ) : audit.length === 0 ? (
             <p className="muted-copy">Nenhuma alteração administrativa.</p>
           ) : (
             audit.slice(0, 20).map((item) => (
@@ -11392,7 +11453,7 @@ function AdminPage() {
               </article>
             ))
           )}
-        </section>
+        </CollapsibleSection>
       </div>
       {userForm && (
         <UserFormModal
@@ -12108,6 +12169,15 @@ function UserActiveModal({
 }
 
 function HolidaysSection() {
+  return (
+    <CollapsibleSection className="admin-holidays" eyebrow="Agenda" title="Feriados">
+      <HolidaysContent />
+    </CollapsibleSection>
+  );
+}
+
+/** Conteúdo da gaveta de Feriados: só monta (e busca a lista) quando a gaveta abre. */
+function HolidaysContent() {
   const [holidays, setHolidays] = useState<Holiday[] | null>(null);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
@@ -12163,13 +12233,7 @@ function HolidaysSection() {
   }
 
   return (
-    <section className="panel admin-holidays">
-      <div className="panel-head">
-        <div>
-          <span className="eyebrow">Agenda</span>
-          <h2>Feriados</h2>
-        </div>
-      </div>
+    <>
       <p className="muted-copy">
         Nos feriados a agenda não aceita novos atendimentos.
       </p>
@@ -12240,7 +12304,7 @@ function HolidaysSection() {
           onConfirm={() => remove(deletingHoliday)}
         />
       )}
-    </section>
+    </>
   );
 }
 
@@ -12277,6 +12341,19 @@ function RelationshipSettingsPage() {
 }
 
 function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
+  return (
+    <CollapsibleSection
+      className="admin-relationship"
+      eyebrow="Relacionamento"
+      title="Prazos e mensagens"
+    >
+      <RelationshipSettingsContent canEdit={canEdit} />
+    </CollapsibleSection>
+  );
+}
+
+/** Conteúdo da gaveta de Prazos e mensagens: só monta (e busca os valores) quando a gaveta abre. */
+function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -12310,13 +12387,7 @@ function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <section className="panel admin-relationship">
-      <div className="panel-head">
-        <div>
-          <span className="eyebrow">Relacionamento</span>
-          <h2>Prazos e mensagens</h2>
-        </div>
-      </div>
+    <>
       {error && <ErrorBanner error={error} />}
       {!canEdit && (
         <p className="muted-copy">
@@ -12377,7 +12448,7 @@ function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
           )}
         </form>
       )}
-    </section>
+    </>
   );
 }
 

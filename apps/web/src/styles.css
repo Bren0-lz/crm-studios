@@ -3032,7 +3032,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   padding: var(--space-5);
 }
 
-.admin-holidays > .muted-copy {
+.admin-holidays .collapsible-body > .muted-copy {
   margin: 0 0 var(--space-4);
 }
 
@@ -5216,3 +5216,81 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .patient-export-scope p { margin: 0; color: #24302b; font-size: var(--text-sm); font-weight: 700; }
 .patient-export-scope small { color: var(--muted); font-size: var(--text-xs); }
 .patient-export-bulk { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-3); }
+
+/* Gaveta (CollapsibleSection, Configurações): cabeçalho do painel inteiro clicável pelo botão do
+   título; fechada, some a linha do cabeçalho e o corpo (vazio) fica oculto. */
+.collapsible-head {
+  position: relative;
+}
+
+.collapsible-section:not(.is-open) > .collapsible-head {
+  border-bottom: 0;
+}
+
+/* Variante text-button (padrão de botões) ajustada para virar o próprio título do painel. */
+.text-button.collapsible-toggle,
+.text-button.collapsible-toggle:hover:not(:disabled) {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+
+/* O botão cobre o cabeçalho todo (eyebrow e seta incluídos) sem deixar de ser o título. */
+.collapsible-toggle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.text-button.collapsible-toggle:focus-visible {
+  outline: none;
+}
+
+.collapsible-toggle:focus-visible::after {
+  outline: 2px solid var(--green-2);
+  outline-offset: -2px;
+}
+
+.collapsible-head:hover {
+  background: #f7f8f5;
+}
+
+.collapsible-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.collapsible-section.is-open .collapsible-chevron {
+  transform: rotate(180deg);
+}
+
+.collapsible-body {
+  padding: var(--space-4) calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.collapsible-body > :first-child {
+  margin-top: 0;
+}
+
+/* Na grade de Configurações o respiro vem do corpo da gaveta, não do painel. */
+.admin-grid > .collapsible-section {
+  align-self: start;
+  padding: 0;
+}
+
+.admin-grid > .collapsible-section > .panel-head {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-chevron {
+    transition: none;
+  }
+}

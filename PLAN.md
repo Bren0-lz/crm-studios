@@ -883,7 +883,7 @@ profissional; criar modais personalizados para cada opção".
   fecha.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T058
-- **Status:** TODO
+- **Status:** DONE
 
 ### T060 — Corrigir a comissão no mesmo dia sem erro
 - **Escopo:** hoje, salvar a comissão de um usuário com a mesma data de vigência de uma regra que

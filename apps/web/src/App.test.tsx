@@ -37,6 +37,17 @@ function legacyAccess(role: string): { role: UserRole; modules: AppModule[]; edi
 function storedUser(user: { id: string; fullName: string; email: string; role: string }) {
   return JSON.stringify({ ...user, ...legacyAccess(user.role) });
 }
+
+/** Configurações em gavetas (T059): abre as seções pelo título antes de interagir; devolve a última. */
+async function openSettingsSection(...names: string[]) {
+  let section: HTMLElement | null = null;
+  for (const name of names) {
+    const toggle = await screen.findByRole("button", { name });
+    if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
+    section = toggle.closest("section");
+  }
+  return section!;
+}
 afterEach(() => {
   cleanup();
   vi.mocked(fetch).mockReset();
@@ -1079,8 +1090,8 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Prazos e mensagens" })).closest("section")!;
-    expect(within(section).getByText("{{nome}}")).toBeInTheDocument();
+    const section = await openSettingsSection("Prazos e mensagens");
+    expect(await within(section).findByText("{{nome}}")).toBeInTheDocument();
     expect(section).toHaveTextContent("primeiro nome do cliente");
     const planDays = await within(section).findByLabelText("Plano acabando: avisar quantos dias antes do fim");
     expect(planDays).toHaveValue(7);
@@ -1106,7 +1117,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Prazos e mensagens" })).closest("section")!;
+    const section = await openSettingsSection("Prazos e mensagens");
     const planDays = await within(section).findByLabelText("Plano acabando: avisar quantos dias antes do fim");
     expect(planDays).toHaveValue(7);
     expect(planDays).toHaveAttribute("readonly");
@@ -2143,7 +2154,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Feriados" })).closest("section")!;
+    const section = await openSettingsSection("Feriados");
     expect(await within(section).findByText("Natal")).toBeInTheDocument();
     expect(within(section).getByText("25/12/2026")).toBeInTheDocument();
 
@@ -2192,7 +2203,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Feriados" })).closest("section")!;
+    const section = await openSettingsSection("Feriados");
     expect(await within(section).findByText("Nenhum feriado cadastrado")).toBeInTheDocument();
   });
 
@@ -3512,7 +3523,7 @@ describe("users and permissions", () => {
     const readOnly = { ...carlaUser, id: "13131313-1313-4131-8131-131313131313", fullName: "Elisa Prado", jobTitle: undefined, modules: ["reports"], editModules: [] };
     mockAdmin(undefined, [adminUser, customUser, noAccess, readOnly]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+    const section = await openSettingsSection("Usuários");
     const row = (name: string) => within(section).getByText(name).closest("article")!;
     expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
     expect(within(row("Maria Souza")).getByText("Usuário comum · Instrutora de Pilates")).toBeInTheDocument();
@@ -3634,6 +3645,7 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
     mockAdmin((_url, init) => (init?.method === "PATCH" ? customUser : undefined), [adminUser, customUser, carlaUser]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     expect(within(dialog).getByLabelText("Cargo")).toHaveValue("Instrutora de Pilates");
@@ -3664,6 +3676,7 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
     mockAdmin(undefined, [adminUser, customUser]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Aryana Dutra" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
@@ -3679,6 +3692,7 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
     mockAdmin((_url, init) => (init?.method === "PATCH" ? lastAdminConflict : undefined), [adminUser, customUser]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Aryana Dutra" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
@@ -3693,6 +3707,7 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
     mockAdmin((_url, init) => (init?.method === "PATCH" ? lastAdminConflict : undefined), [adminUser]);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Desativar" }));
     const dialog = screen.getByRole("dialog", { name: "Desativar usuário" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Desativar" }));
@@ -3705,6 +3720,7 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
     mockAdmin((_url, init) => (init?.method === "PATCH" ? customUser : undefined));
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     fireEvent.click(within(dialog).getByLabelText("Editar Financeiro"));
@@ -3731,6 +3747,7 @@ describe("users and permissions", () => {
     const prompt = vi.spyOn(window, "prompt");
     const confirm = vi.spyOn(window, "confirm");
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Redefinir senha" }));
     const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
     fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), { target: { value: "NovaSenha123" } });
@@ -3779,6 +3796,7 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
       fireEvent.click(await screen.findByRole("button", { name: `Editar ${name}` }));
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
@@ -3793,7 +3811,7 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+      const section = await openSettingsSection("Usuários");
       expect(await within(section).findByText("Agenda: Bruno Lima (agenda) · Comissão 35%")).toBeInTheDocument();
       // A comissão não depende mais do profissional ligado: os dois aparecem sempre.
       expect(within(section).getByText("Sem profissional da agenda · Sem comissão vigente")).toBeInTheDocument();
@@ -4159,6 +4177,126 @@ describe("users and permissions", () => {
   });
 });
 
+describe("settings drawers", () => {
+  const owner = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
+  const sections = ["Usuários", "Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente"];
+  const clinic = { id: "c1", name: "Studios Aryana", legalName: "", taxId: "", phone: "", email: "", address: "", timezone: "America/Sao_Paulo", updatedAt: "2026-09-01T12:00:00.000Z" };
+  const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", role: "user", modules: [], editModules: [], customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
+  const fetched = (path: string) => vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(path));
+
+  function mockSettings(holidays: () => Promise<Response> | Response = () => ({ ok: true, status: 200, json: async () => [] }) as unknown as Response) {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/holidays")) return holidays();
+      const body = url.includes("/admin/users") ? [user]
+        : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+          : url.includes("/admin/clinic-settings") ? clinic
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+  }
+
+  it("starts every section closed and opens and closes them like drawers", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    for (const name of sections) {
+      const toggle = await screen.findByRole("button", { name });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      const body = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+      expect(body).not.toBeNull();
+      expect(body).toBeEmptyDOMElement();
+      expect(screen.getByRole("heading", { name })).toContainElement(toggle);
+    }
+    // Fechadas, o conteúdo não existe e os dados das seções que carregam sozinhas nem são pedidos.
+    expect(screen.queryByText("Maria Souza")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
+    expect(fetched("/holidays")).toBe(false);
+    expect(fetched("/relationship/settings")).toBe(false);
+
+    const holidays = screen.getByRole("button", { name: "Feriados" });
+    fireEvent.click(holidays);
+    expect(holidays).toHaveAttribute("aria-expanded", "true");
+    const holidaySection = holidays.closest("section")!;
+    expect(await within(holidaySection).findByText("Nenhum feriado cadastrado")).toBeInTheDocument();
+    expect(fetched("/holidays")).toBe(true);
+
+    // Várias abertas ao mesmo tempo.
+    const users = screen.getByRole("button", { name: "Usuários" });
+    fireEvent.click(users);
+    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
+    expect(holidays).toHaveAttribute("aria-expanded", "true");
+    expect(within(holidaySection).getByLabelText("Nome do feriado")).toBeInTheDocument();
+
+    // Fechar tira o conteúdo do DOM (não só esconde).
+    fireEvent.click(holidays);
+    expect(holidays).toHaveAttribute("aria-expanded", "false");
+    expect(within(holidaySection).queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
+    expect(screen.getByText("Maria Souza")).toBeInTheDocument();
+  });
+
+  it("uses a native button in the heading so the keyboard toggles it", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
+    // Botão nativo type="button": Enter e Espaço disparam o clique no navegador, sem tabindex extra.
+    expect(toggle.tagName).toBe("BUTTON");
+    expect(toggle).toHaveAttribute("type", "button");
+    expect(toggle).not.toHaveAttribute("tabindex");
+    toggle.focus();
+    expect(toggle).toHaveFocus();
+    expect(toggle.closest("section")!.querySelector(".collapsible-chevron")).not.toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Razão social")).not.toBeInTheDocument();
+  });
+
+  it("shows loading and then the error when a section loads on open", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    let fail: (response: Response) => void = () => {};
+    mockSettings(() => new Promise<Response>((resolve) => { fail = resolve; }));
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = await openSettingsSection("Feriados");
+    await vi.waitFor(() => expect(fetched("/holidays")).toBe(true));
+    expect(section.querySelector(".loading-block")).not.toBeNull();
+    fail({ ok: false, status: 500, json: async () => ({ code: "BOOM", message: "Falha ao listar feriados." }) } as Response);
+    expect(await within(section).findByText(/Falha ao listar feriados\./)).toBeInTheDocument();
+    expect(section.querySelector(".loading-block")).toBeNull();
+  });
+
+  it("opens the users drawer together with the modal from the header button", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const users = await screen.findByRole("button", { name: "Usuários" });
+    expect(users).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
+    expect(screen.getByRole("dialog", { name: "Novo usuário" })).toBeInTheDocument();
+    expect(users).toHaveAttribute("aria-expanded", "true");
+    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
+  });
+
+  it("keeps the read-only settings page closed until opened", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(fetched("/relationship/settings")).toBe(false);
+    fireEvent.click(toggle);
+    expect(await screen.findByLabelText("Plano acabando: avisar quantos dias antes do fim")).toHaveAttribute("readonly");
+  });
+});
+
 describe("view-only modules", () => {
   it("shows appointment details without cancel, reschedule or satisfaction when the agenda is view-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
@@ -4378,7 +4516,8 @@ describe("button variants", () => {
                 : undefined,
     );
     const { container } = render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+    await openSettingsSection("Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente");
+    const section = await openSettingsSection("Usuários");
     await within(section).findByText("Maria Souza");
     expect(within(section).getByRole("button", { name: "Redefinir senha" })).toHaveClass("secondary-button", "button-sm");
     expect(within(section).getByRole("button", { name: "Desativar" })).toHaveClass("danger-button", "button-sm");
