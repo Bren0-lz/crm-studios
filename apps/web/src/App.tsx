@@ -4312,6 +4312,8 @@ function CommercialPage() {
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
+  const [losingLead, setLosingLead] = useState<Lead | null>(null);
+  const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const canManage = canEdit("crm");
   useEffect(() => {
     let active = true;
@@ -4335,27 +4337,26 @@ function CommercialPage() {
   }
   async function move(lead: Lead, stage: LeadStage) {
     if (stage === "won") return;
-    const lostReason =
-      stage === "lost"
-        ? window.prompt("Qual foi o motivo da perda?")?.trim()
-        : undefined;
-    if (stage === "lost" && !lostReason) return;
+    // Perda pede o motivo num modal próprio; o seletor só muda depois de confirmar.
+    if (stage === "lost") {
+      setLosingLead(lead);
+      return;
+    }
     setError("");
     try {
-      replaceLead(await api.moveLead(lead.id, stage, lostReason));
+      replaceLead(await api.moveLead(lead.id, stage));
     } catch (cause) {
       setError((cause as Error).message);
     }
   }
+  async function markLost(lead: Lead, reason: string) {
+    replaceLead(await api.moveLead(lead.id, "lost", reason));
+    setLosingLead(null);
+  }
   async function convert(lead: Lead) {
-    if (!window.confirm(`Converter ${lead.fullName} em cliente?`)) return;
-    setError("");
-    try {
-      const result = await api.convertLead(lead.id);
-      replaceLead(result.lead);
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+    const result = await api.convertLead(lead.id);
+    replaceLead(result.lead);
+    setConvertingLead(null);
   }
   const activeLeads = leads.filter(
     (lead) => !["won", "lost"].includes(lead.stage),
@@ -4494,7 +4495,7 @@ function CommercialPage() {
                             </select>
                             <button
                               className="primary-button button-sm"
-                              onClick={() => void convert(lead)}
+                              onClick={() => setConvertingLead(lead)}
                             >
                               Converter
                             </button>
@@ -4528,6 +4529,20 @@ function CommercialPage() {
             replaceLead(lead);
             setModalOpen(false);
           }}
+        />
+      )}
+      {losingLead && (
+        <LeadLostModal
+          lead={losingLead}
+          onClose={() => setLosingLead(null)}
+          onConfirm={(reason) => markLost(losingLead, reason)}
+        />
+      )}
+      {convertingLead && (
+        <LeadConvertModal
+          lead={convertingLead}
+          onClose={() => setConvertingLead(null)}
+          onConfirm={() => convert(convertingLead)}
         />
       )}
       {trialLead && (
@@ -5170,6 +5185,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
   const [renewingPlan, setRenewingPlan] = useState<PatientPlan | null>(null);
+  const [cancellingPlan, setCancellingPlan] = useState<PatientPlan | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -5388,11 +5404,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                         )}
                         <button
                           className="danger-button button-sm"
-                          onClick={() =>
-                            window.confirm(
-                              "Cancelar este plano definitivamente?",
-                            ) && void changeStatus(plan, "cancelled")
-                          }
+                          onClick={() => setCancellingPlan(plan)}
                         >
                           Cancelar
                         </button>
@@ -5433,6 +5445,16 @@ function PlansPage({ canManage }: { canManage: boolean }) {
               ),
             ]);
             setRenewingPlan(null);
+          }}
+        />
+      )}
+      {cancellingPlan && (
+        <PlanCancelModal
+          plan={cancellingPlan}
+          onClose={() => setCancellingPlan(null)}
+          onConfirm={async () => {
+            replacePlan(await api.updatePlanStatus(cancellingPlan.id, "cancelled"));
+            setCancellingPlan(null);
           }}
         />
       )}
@@ -5760,6 +5782,10 @@ function FinancePage() {
   const [receivableSearch, setReceivableSearch] = useState("");
   const [settling, setSettling] = useState<SettleTarget | null>(null);
   const [payableModal, setPayableModal] = useState(false);
+  const [adjusting, setAdjusting] = useState<Receivable | null>(null);
+  const [registry, setRegistry] = useState<"category" | "costCenter" | null>(null);
+  const [renegotiating, setRenegotiating] = useState(false);
+  const [commissionRuleOpen, setCommissionRuleOpen] = useState(false);
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
   const canManage = canEdit("finance");
@@ -5822,77 +5848,41 @@ function FinancePage() {
     setReceivableSearch(value);
     setSelectedReceivables([]);
   }
-  async function adjustReceivable(id: string, currentValue: number) {
-    const value = window.prompt(
-      "Novo valor da parcela em reais:",
-      String(currentValue / 100),
-    );
-    if (value === null) return;
-    const reason = window
-      .prompt("Justificativa obrigatória do ajuste:")
-      ?.trim();
-    if (!reason) return;
+  // Ações em modal: o erro da API fica no modal; feito o pedido, o modal fecha e, se o
+  // recarregamento falhar, o aviso vai para a página (como na baixa).
+  async function reloadAfterAction() {
+    setError("");
     try {
-      await api.adjustReceivable(id, Math.round(Number(value) * 100), reason);
-      setSelectedReceivables([]);
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
     }
   }
-  async function createCategory() {
-    const name = window.prompt("Nome da nova categoria de despesa:")?.trim();
-    if (!name) return;
-    try {
-      await api.createFinancialCategory({ name, kind: "expense" });
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+  async function adjustReceivable(id: string, amountInCents: number, reason: string) {
+    await api.adjustReceivable(id, amountInCents, reason);
+    setAdjusting(null);
+    setSelectedReceivables([]);
+    await reloadAfterAction();
   }
-  async function createCenter() {
-    const name = window.prompt("Nome do novo centro de custo:")?.trim();
-    if (!name) return;
-    try {
-      await api.createCostCenter({ name });
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+  async function createRegistry(kind: "category" | "costCenter", name: string) {
+    if (kind === "category") await api.createFinancialCategory({ name, kind: "expense" });
+    else await api.createCostCenter({ name });
+    setRegistry(null);
+    await reloadAfterAction();
   }
-  async function renegotiate() {
-    if (!data || selectedReceivables.length === 0) return;
-    const selected = data.summary.receivables.filter((item) =>
-      selectedReceivables.includes(item.id),
-    );
-    const total = selected.reduce((sum, item) => sum + item.amountInCents, 0);
-    const value = window.prompt(
-      "Novo valor total em reais:",
-      String(total / 100),
-    );
-    const installments = window.prompt(
-      "Quantidade de novas parcelas:",
-      String(selected.length),
-    );
-    const firstDueDate = window.prompt(
-      "Primeiro vencimento (AAAA-MM-DD):",
-      new Date().toISOString().slice(0, 10),
-    );
-    const reason = window.prompt("Motivo da renegociação:")?.trim();
-    if (!value || !installments || !firstDueDate || !reason) return;
-    try {
-      await api.renegotiateReceivables({
-        receivableIds: selectedReceivables,
-        totalAmountInCents: Math.round(Number(value) * 100),
-        installments: Number(installments),
-        firstDueDate,
-        reason,
-      });
-      setSelectedReceivables([]);
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+  async function renegotiate(input: {
+    totalAmountInCents: number;
+    installments: number;
+    firstDueDate: string;
+    reason: string;
+  }) {
+    await api.renegotiateReceivables({
+      receivableIds: selectedReceivables,
+      ...input,
+    });
+    setRenegotiating(false);
+    setSelectedReceivables([]);
+    await reloadAfterAction();
   }
   async function toggleCommission(item: CommissionEntry) {
     setError("");
@@ -5913,24 +5903,14 @@ function FinancePage() {
       setError((cause as Error).message);
     }
   }
-  async function createCommissionRule() {
-    const professional = professionals[0];
-    if (!professional) return;
-    const percentage = window.prompt(
-      `Percentual para ${professional.fullName}:`,
-      "30",
-    );
-    if (!percentage) return;
-    try {
-      await api.createCommissionRule({
-        professionalId: professional.id,
-        percentage: Number(percentage),
-        effectiveFrom: new Date().toISOString().slice(0, 10),
-      });
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+  async function createCommissionRule(input: {
+    professionalId: string;
+    percentage: number;
+    effectiveFrom: string;
+  }) {
+    await api.createCommissionRule(input);
+    setCommissionRuleOpen(false);
+    await reloadAfterAction();
   }
   return (
     <>
@@ -5943,13 +5923,13 @@ function FinancePage() {
           <div className="page-actions">
             <button
               className="secondary-button"
-              onClick={() => void createCategory()}
+              onClick={() => setRegistry("category")}
             >
               <Tags size={18} /> Nova categoria
             </button>
             <button
               className="secondary-button"
-              onClick={() => void createCenter()}
+              onClick={() => setRegistry("costCenter")}
             >
               <Building2 size={18} /> Novo centro de custo
             </button>
@@ -6068,7 +6048,7 @@ function FinancePage() {
               onFilterChange={changeReceivableFilter}
               onSearchChange={changeReceivableSearch}
               onSelectedChange={setSelectedReceivables}
-              onRenegotiate={() => void renegotiate()}
+              onRenegotiate={() => setRenegotiating(true)}
               onSettle={(item) =>
                 setSettling({
                   kind: "receivable",
@@ -6079,9 +6059,7 @@ function FinancePage() {
                 })
               }
               onReverse={(id) => void reverseReceivable(id)}
-              onAdjust={(item) =>
-                void adjustReceivable(item.id, item.amountInCents)
-              }
+              onAdjust={(item) => setAdjusting(item)}
               onReceipt={(id) =>
                 void api
                   .paymentReceipt(id)
@@ -6135,7 +6113,7 @@ function FinancePage() {
                 <div className="page-actions">
                   <button
                     className="secondary-button"
-                    onClick={() => void createCommissionRule()}
+                    onClick={() => setCommissionRuleOpen(true)}
                   >
                     <Plus size={18} /> Nova regra
                   </button>
@@ -6176,6 +6154,38 @@ function FinancePage() {
       )}
       {receipt && (
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
+      )}
+      {adjusting && (
+        <ReceivableAdjustModal
+          receivable={adjusting}
+          onClose={() => setAdjusting(null)}
+          onConfirm={(amountInCents, reason) =>
+            adjustReceivable(adjusting.id, amountInCents, reason)
+          }
+        />
+      )}
+      {registry && (
+        <FinanceRegistryModal
+          kind={registry}
+          onClose={() => setRegistry(null)}
+          onConfirm={(name) => createRegistry(registry, name)}
+        />
+      )}
+      {renegotiating && data && (
+        <RenegotiateModal
+          receivables={data.summary.receivables.filter((item) =>
+            selectedReceivables.includes(item.id),
+          )}
+          onClose={() => setRenegotiating(false)}
+          onConfirm={renegotiate}
+        />
+      )}
+      {commissionRuleOpen && (
+        <CommissionRuleModal
+          professionals={professionals}
+          onClose={() => setCommissionRuleOpen(false)}
+          onConfirm={createCommissionRule}
+        />
       )}
       {settling && (
         <SettleModal
@@ -7787,6 +7797,7 @@ function ClinicalRecordsPage() {
   const [historyRecord, setHistoryRecord] = useState<ClinicalRecord | null>(
     null,
   );
+  const [finalizing, setFinalizing] = useState<ClinicalRecord | null>(null);
   const canManage = canEdit("clinical");
 
   useEffect(() => {
@@ -7830,18 +7841,8 @@ function ClinicalRecordsPage() {
   }
 
   async function finalize(record: ClinicalRecord) {
-    if (
-      !window.confirm(
-        "Após finalizar, o prontuário não poderá mais ser alterado. Deseja continuar?",
-      )
-    )
-      return;
-    setError("");
-    try {
-      replaceRecord(await api.finalizeClinicalRecord(record.id));
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+    replaceRecord(await api.finalizeClinicalRecord(record.id));
+    setFinalizing(null);
   }
 
   const availableAppointments = appointments.filter(
@@ -7960,7 +7961,7 @@ function ClinicalRecordsPage() {
                       </button>
                       <button
                         className="primary-button button-sm"
-                        onClick={() => void finalize(record)}
+                        onClick={() => setFinalizing(record)}
                       >
                         Finalizar
                       </button>
@@ -7990,6 +7991,13 @@ function ClinicalRecordsPage() {
         <ClinicalHistoryModal
           record={historyRecord}
           onClose={() => setHistoryRecord(null)}
+        />
+      )}
+      {finalizing && (
+        <FinalizeRecordModal
+          record={finalizing}
+          onClose={() => setFinalizing(null)}
+          onConfirm={() => finalize(finalizing)}
         />
       )}
     </>
@@ -9600,6 +9608,7 @@ function AgendaPage() {
   const [view, setView] = useState<"day" | "week" | "month">("day");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
+  const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(null);
   const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -9887,7 +9896,7 @@ function AgendaPage() {
                           compact
                           block={entry.block}
                           key={entry.block.id}
-                          onCancel={canBlock ? () => void cancelBlock(entry.block) : undefined}
+                          onCancel={canBlock ? () => setCancellingBlock(entry.block) : undefined}
                         />
                       ) : entry.kind === "group" ? (
                         <GroupSessionCard compact session={entry.session} key={entry.session.id} />
@@ -9945,7 +9954,7 @@ function AgendaPage() {
                 <ScheduleBlockCard
                   block={entry.block}
                   key={entry.block.id}
-                  onCancel={canBlock ? () => void cancelBlock(entry.block) : undefined}
+                  onCancel={canBlock ? () => setCancellingBlock(entry.block) : undefined}
                 />
               ) : entry.kind === "group" ? (
                 <GroupSessionCard session={entry.session} key={entry.session.id} />
@@ -10050,6 +10059,13 @@ function AgendaPage() {
           onClose={() => setHistoryAppointment(null)}
         />
       )}
+      {cancellingBlock && (
+        <CancelBlockModal
+          block={cancellingBlock}
+          onClose={() => setCancellingBlock(null)}
+          onConfirm={() => cancelBlock(cancellingBlock)}
+        />
+      )}
     </>
   );
 
@@ -10065,13 +10081,9 @@ function AgendaPage() {
   }
 
   async function cancelBlock(block: ScheduleBlock) {
-    if (!window.confirm(`Cancelar o bloqueio “${block.reason}”?`)) return;
-    try {
-      const updated = await api.cancelScheduleBlock(block.id);
-      setBlocks((items) => items.filter((item) => item.id !== updated.id));
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+    const updated = await api.cancelScheduleBlock(block.id);
+    setBlocks((items) => items.filter((item) => item.id !== updated.id));
+    setCancellingBlock(null);
   }
 }
 
@@ -11599,6 +11611,13 @@ function UserCommissionSection({
     }
   }
 
+  // A seção fica dentro do formulário do usuário: Enter aqui salva só a comissão.
+  function saveCommissionOnEnter(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!busy && linked) void saveCommission();
+  }
+
   return (
     <fieldset className="form-fieldset span-2">
       <legend>Comissão</legend>
@@ -11645,6 +11664,7 @@ function UserCommissionSection({
                 disabled={!linked}
                 value={percentage}
                 onChange={(event) => setPercentage(event.target.value)}
+                onKeyDown={saveCommissionOnEnter}
               />
             </label>
             <label>
@@ -11654,6 +11674,7 @@ function UserCommissionSection({
                 disabled={!linked}
                 value={effectiveFrom}
                 onChange={(event) => setEffectiveFrom(event.target.value)}
+                onKeyDown={saveCommissionOnEnter}
               />
             </label>
           </div>
@@ -12098,7 +12119,7 @@ function HolidaysSection() {
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({ date: "", name: "" });
   const [saving, setSaving] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -12133,21 +12154,18 @@ function HolidaysSection() {
   }
 
   async function remove(holiday: Holiday) {
-    if (!window.confirm(`Excluir o feriado “${holiday.name}” de ${formatIsoDate(holiday.date)}?`)) return;
-    setRemovingId(holiday.id);
-    setFormError("");
     try {
       await api.deleteHoliday(holiday.id);
-      setHolidays((items) => (items ?? []).filter((item) => item.id !== holiday.id));
     } catch (cause) {
-      setFormError(
+      throw new Error(
         cause instanceof ApiClientError
           ? cause.message
           : "Não foi possível excluir o feriado.",
+        { cause },
       );
-    } finally {
-      setRemovingId(null);
     }
+    setHolidays((items) => (items ?? []).filter((item) => item.id !== holiday.id));
+    setDeletingHoliday(null);
   }
 
   return (
@@ -12210,9 +12228,8 @@ function HolidaysSection() {
                   <button
                     type="button"
                     className="danger-button button-sm"
-                    disabled={removingId === holiday.id}
                     aria-label={`Excluir feriado ${holiday.name}`}
-                    onClick={() => void remove(holiday)}
+                    onClick={() => setDeletingHoliday(holiday)}
                   >
                     Excluir
                   </button>
@@ -12221,6 +12238,13 @@ function HolidaysSection() {
             </div>
           )}
         </>
+      )}
+      {deletingHoliday && (
+        <DeleteHolidayModal
+          holiday={deletingHoliday}
+          onClose={() => setDeletingHoliday(null)}
+          onConfirm={() => remove(deletingHoliday)}
+        />
       )}
     </section>
   );
@@ -12388,6 +12412,498 @@ function useBodyScrollLock() {
       }
     };
   }, []);
+}
+
+// Modais de ação (no lugar de prompt/confirm do navegador): título, frase com o efeito, campos do
+// dado pedido e "Voltar"/"Confirmar" (destrutivas em danger-button). Esc fecha; Enter envia o
+// formulário — o foco abre no primeiro campo ou, sem campos, no botão de confirmar. A validação e
+// os erros da API aparecem no próprio modal (form-error).
+function ActionModal({
+  eyebrow,
+  title,
+  subtitle,
+  effect,
+  confirmLabel = "Confirmar",
+  danger = false,
+  validate,
+  onConfirm,
+  onClose,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  effect: ReactNode;
+  confirmLabel?: string;
+  danger?: boolean;
+  validate?: () => string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+  children?: ReactNode;
+}) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, saving]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    const problem = validate?.() ?? "";
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      await onConfirm();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal eyebrow={eyebrow} title={title} subtitle={subtitle} onClose={onClose}>
+      <form className="form-grid" noValidate onSubmit={(event) => void submit(event)}>
+        <p className="span-2">{effect}</p>
+        {children}
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Voltar
+          </button>
+          <button
+            type="submit"
+            className={danger ? "danger-button" : "primary-button"}
+            disabled={saving}
+            autoFocus={!children}
+          >
+            {saving ? "Salvando…" : confirmLabel}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Valor digitado em reais (campo numérico) → centavos; null se vazio, inválido ou negativo.
+function reaisToCents(value: string) {
+  const amount = Number(value.replace(",", "."));
+  if (value.trim() === "" || !Number.isFinite(amount) || amount < 0) return null;
+  return Math.round(amount * 100);
+}
+
+function LeadLostModal({
+  lead,
+  onClose,
+  onConfirm,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <ActionModal
+      eyebrow="CRM comercial"
+      title="Marcar lead como perdido"
+      subtitle={lead.fullName}
+      effect={`${lead.fullName} sai das oportunidades abertas e vai para a coluna Perdidos, com o motivo registrado no cartão.`}
+      danger
+      validate={() => (reason.trim() ? "" : "Informe o motivo da perda.")}
+      onConfirm={() => onConfirm(reason.trim())}
+      onClose={onClose}
+    >
+      <label className="span-2">
+        Motivo da perda
+        <input
+          autoFocus
+          maxLength={500}
+          placeholder="Ex.: achou o valor acima do orçamento"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+    </ActionModal>
+  );
+}
+
+function LeadConvertModal({
+  lead,
+  onClose,
+  onConfirm,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <ActionModal
+      eyebrow="CRM comercial"
+      title="Converter lead em cliente"
+      subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
+      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone ou e-mail, o lead é ligado a ele; senão, um cadastro novo é criado com nome, telefone e e-mail do lead. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna Ganhos.`}
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
+
+function PlanCancelModal({
+  plan,
+  onClose,
+  onConfirm,
+}: {
+  plan: PatientPlan;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <ActionModal
+      eyebrow="Planos"
+      title="Cancelar plano"
+      subtitle={`${plan.patientName} · ${plan.name}`}
+      effect={`As parcelas em aberto deste plano são canceladas no Financeiro${plan.remainingSessions === 1 ? " e a sessão restante não poderá mais ser usada" : plan.remainingSessions > 1 ? ` e as ${plan.remainingSessions} sessões restantes não poderão mais ser usadas` : ""}. Um plano cancelado não pode ser reativado.`}
+      danger
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
+
+function ReceivableAdjustModal({
+  receivable,
+  onClose,
+  onConfirm,
+}: {
+  receivable: Receivable;
+  onClose: () => void;
+  onConfirm: (amountInCents: number, reason: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(String(receivable.amountInCents / 100));
+  const [reason, setReason] = useState("");
+  return (
+    <ActionModal
+      eyebrow="Financeiro"
+      title="Ajustar valor da parcela"
+      subtitle={`${receivable.patientName} · ${receivable.description}`}
+      effect={`Hoje a parcela vale ${currency.format(receivable.amountInCents / 100)}. O novo valor substitui o atual e a justificativa fica registrada no histórico.`}
+      validate={() => {
+        if (reaisToCents(value) === null) return "Informe o novo valor em reais (zero ou mais).";
+        if (reason.trim().length < 5) return "Escreva a justificativa do ajuste (pelo menos 5 caracteres).";
+        return "";
+      }}
+      onConfirm={() => onConfirm(reaisToCents(value) ?? 0, reason.trim())}
+      onClose={onClose}
+    >
+      <label>
+        Novo valor (R$)
+        <input
+          autoFocus
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <label className="span-2">
+        Justificativa
+        <input
+          maxLength={500}
+          placeholder="Ex.: desconto combinado com o cliente"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+    </ActionModal>
+  );
+}
+
+function FinanceRegistryModal({
+  kind,
+  onClose,
+  onConfirm,
+}: {
+  kind: "category" | "costCenter";
+  onClose: () => void;
+  onConfirm: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const isCategory = kind === "category";
+  return (
+    <ActionModal
+      eyebrow="Financeiro"
+      title={isCategory ? "Nova categoria de despesa" : "Novo centro de custo"}
+      subtitle="Cadastros do Financeiro"
+      effect={
+        isCategory
+          ? "A categoria passa a aparecer na lista ao lançar uma despesa, para agrupar os gastos da clínica."
+          : "O centro de custo passa a aparecer na lista ao lançar uma despesa, para separar os gastos por área."
+      }
+      confirmLabel="Salvar"
+      validate={() =>
+        name.trim().length >= 2 ? "" : "Informe um nome com pelo menos 2 caracteres."
+      }
+      onConfirm={() => onConfirm(name.trim())}
+      onClose={onClose}
+    >
+      <label className="span-2">
+        Nome
+        <input
+          autoFocus
+          maxLength={100}
+          placeholder={isCategory ? "Ex.: Material de limpeza" : "Ex.: Estúdio de Pilates"}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+    </ActionModal>
+  );
+}
+
+function RenegotiateModal({
+  receivables,
+  onClose,
+  onConfirm,
+}: {
+  receivables: Receivable[];
+  onClose: () => void;
+  onConfirm: (input: {
+    totalAmountInCents: number;
+    installments: number;
+    firstDueDate: string;
+    reason: string;
+  }) => Promise<void>;
+}) {
+  const total = receivables.reduce((sum, item) => sum + item.amountInCents, 0);
+  const [value, setValue] = useState(String(total / 100));
+  const [installments, setInstallments] = useState(String(receivables.length));
+  const [firstDueDate, setFirstDueDate] = useState(saoPauloToday());
+  const [reason, setReason] = useState("");
+  const names = [...new Set(receivables.map((item) => item.patientName))].join(", ");
+  const count = Number(installments);
+  return (
+    <ActionModal
+      eyebrow="Financeiro"
+      title="Renegociar parcelas"
+      subtitle={`${names} · ${receivables.length} parcela${receivables.length === 1 ? "" : "s"} · ${currency.format(total / 100)}`}
+      effect="As parcelas selecionadas são canceladas e substituídas pelas novas, com o valor total dividido igualmente e vencimentos mensais a partir da primeira data."
+      validate={() => {
+        if (reaisToCents(value) === null) return "Informe o novo valor total em reais (zero ou mais).";
+        if (!Number.isInteger(count) || count < 1 || count > 36) return "Informe de 1 a 36 parcelas.";
+        if (!firstDueDate) return "Escolha a data do primeiro vencimento.";
+        if (reason.trim().length < 5) return "Escreva o motivo da renegociação (pelo menos 5 caracteres).";
+        return "";
+      }}
+      onConfirm={() =>
+        onConfirm({
+          totalAmountInCents: reaisToCents(value) ?? 0,
+          installments: count,
+          firstDueDate,
+          reason: reason.trim(),
+        })
+      }
+      onClose={onClose}
+    >
+      <label>
+        Novo valor total (R$)
+        <input
+          autoFocus
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <label>
+        Número de parcelas
+        <input
+          type="number"
+          min="1"
+          max="36"
+          step="1"
+          value={installments}
+          onChange={(event) => setInstallments(event.target.value)}
+        />
+      </label>
+      <label>
+        Primeiro vencimento
+        <input
+          type="date"
+          value={firstDueDate}
+          onChange={(event) => setFirstDueDate(event.target.value)}
+        />
+      </label>
+      <label className="span-2">
+        Motivo da renegociação
+        <input
+          maxLength={500}
+          placeholder="Ex.: cliente pediu para parcelar o saldo"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+    </ActionModal>
+  );
+}
+
+function CommissionRuleModal({
+  professionals,
+  onClose,
+  onConfirm,
+}: {
+  professionals: Professional[];
+  onClose: () => void;
+  onConfirm: (input: {
+    professionalId: string;
+    percentage: number;
+    effectiveFrom: string;
+  }) => Promise<void>;
+}) {
+  const [professionalId, setProfessionalId] = useState(professionals[0]?.id ?? "");
+  const [percentage, setPercentage] = useState("30");
+  const [effectiveFrom, setEffectiveFrom] = useState(saoPauloToday());
+  const value = Number(percentage.replace(",", "."));
+  return (
+    <ActionModal
+      eyebrow="Comissões"
+      title="Nova regra de comissão"
+      subtitle="Percentual do profissional sobre os atendimentos"
+      effect="A partir da data escolhida, a comissão do profissional é calculada com este percentual sobre a base de cálculo de cada atendimento concluído."
+      confirmLabel="Salvar"
+      validate={() => {
+        if (!professionalId) return "Cadastre um profissional na agenda antes de criar uma regra.";
+        if (percentage.trim() === "" || !Number.isFinite(value) || value < 0 || value > 100) return "Informe um percentual entre 0 e 100.";
+        if (!effectiveFrom) return "Informe a data em que a regra passa a valer.";
+        return "";
+      }}
+      onConfirm={() => onConfirm({ professionalId, percentage: value, effectiveFrom })}
+      onClose={onClose}
+    >
+      <label className="span-2">
+        Profissional
+        <select
+          autoFocus
+          value={professionalId}
+          onChange={(event) => setProfessionalId(event.target.value)}
+        >
+          {professionals.length === 0 && <option value="">Nenhum profissional cadastrado</option>}
+          {professionals.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.fullName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Percentual (%)
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          inputMode="decimal"
+          value={percentage}
+          onChange={(event) => setPercentage(event.target.value)}
+        />
+      </label>
+      <label>
+        Vale a partir de
+        <input
+          type="date"
+          value={effectiveFrom}
+          onChange={(event) => setEffectiveFrom(event.target.value)}
+        />
+      </label>
+    </ActionModal>
+  );
+}
+
+function FinalizeRecordModal({
+  record,
+  onClose,
+  onConfirm,
+}: {
+  record: ClinicalRecord;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const startsAt = new Date(record.appointmentStartsAt);
+  return (
+    <ActionModal
+      eyebrow="Prontuários"
+      title="Finalizar evolução"
+      subtitle={`${record.patientName} · ${shortDate.format(startsAt)} às ${timeLabel.format(startsAt)}`}
+      effect="Depois de finalizada, a evolução fica fechada e não poderá mais ser editada. Confira o texto antes de confirmar."
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
+
+function CancelBlockModal({
+  block,
+  onClose,
+  onConfirm,
+}: {
+  block: ScheduleBlock;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const startsAt = new Date(block.startsAt);
+  const endsAt = new Date(block.endsAt);
+  const who = block.professionalName ?? block.roomName;
+  return (
+    <ActionModal
+      eyebrow="Agenda"
+      title="Cancelar bloqueio"
+      subtitle={`${block.reason} · ${shortDate.format(startsAt)}, ${timeLabel.format(startsAt)}–${timeLabel.format(endsAt)}`}
+      effect={`O horário de ${shortDate.format(startsAt)}, das ${timeLabel.format(startsAt)} às ${timeLabel.format(endsAt)}${who ? ` (${who})` : ""}, volta a ficar livre para novos agendamentos.`}
+      danger
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
+}
+
+function DeleteHolidayModal({
+  holiday,
+  onClose,
+  onConfirm,
+}: {
+  holiday: Holiday;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <ActionModal
+      eyebrow="Feriados"
+      title="Excluir feriado"
+      subtitle={`${holiday.name} · ${formatIsoDate(holiday.date)}`}
+      effect={`A agenda volta a aceitar atendimentos em ${formatIsoDate(holiday.date)}.`}
+      danger
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
+  );
 }
 
 export function Modal({

@@ -2117,7 +2117,6 @@ describe("application shell", () => {
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = (await screen.findByRole("heading", { name: "Feriados" })).closest("section")!;
     expect(await within(section).findByText("Natal")).toBeInTheDocument();
@@ -2138,13 +2137,23 @@ describe("application shell", () => {
     fireEvent.click(within(section).getByRole("button", { name: "Adicionar feriado" }));
     expect(await within(section).findByText("Já existe um feriado cadastrado nesta data.")).toBeInTheDocument();
 
+    // Excluir pede confirmação num modal próprio (antes era window.confirm); Voltar não exclui.
     fireEvent.click(within(section).getByRole("button", { name: "Excluir feriado Natal" }));
-    expect(confirm).toHaveBeenCalled();
+    let dialog = await screen.findByRole("dialog", { name: "Excluir feriado" });
+    expect(within(dialog).getByText("Natal · 25/12/2026")).toBeInTheDocument();
+    expect(within(dialog).getByText("A agenda volta a aceitar atendimentos em 25/12/2026.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "DELETE")).toBe(false);
+    fireEvent.click(within(section).getByRole("button", { name: "Excluir feriado Natal" }));
+    dialog = await screen.findByRole("dialog", { name: "Excluir feriado" });
+    expect(within(dialog).getByRole("button", { name: "Confirmar" })).toHaveClass("danger-button");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
     await vi.waitFor(() => expect(within(section).queryByText("Natal")).not.toBeInTheDocument());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const deleteCall = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "DELETE");
     expect(deleteCall?.[0]).toContain(`/holidays/${existing.id}`);
     expect(within(section).getByText("Proclamação da República")).toBeInTheDocument();
-    confirm.mockRestore();
   });
 
   it("shows an empty state when there are no holidays", async () => {
@@ -2843,15 +2852,138 @@ describe("application shell", () => {
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument();
 
-      // Ajuste de valor.
+      // Ajuste de valor (no modal próprio, antes eram dois window.prompt).
       selectBoth();
-      const prompt = vi.spyOn(window, "prompt").mockReturnValueOnce("200").mockReturnValueOnce("Desconto combinado");
       loads = workspaceLoads();
       fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      const adjust = await screen.findByRole("dialog", { name: "Ajustar valor da parcela" });
+      fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), { target: { value: "200" } });
+      fireEvent.change(within(adjust).getByLabelText("Justificativa"), { target: { value: "Desconto combinado" } });
+      fireEvent.click(within(adjust).getByRole("button", { name: "Confirmar" }));
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument();
       expect(vi.mocked(fetch).mock.calls.some(([url, options]) => options?.method === "PATCH" && String(url).includes("/finance/receivables/a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1/adjust"))).toBe(true);
-      prompt.mockRestore();
+    });
+
+    const writes = () => vi.mocked(fetch).mock.calls.filter(([, options]) => options?.method && options.method !== "GET");
+    const bodyOf = (path: string) => {
+      const call = writes().find(([url]) => String(url).includes(path));
+      return call ? JSON.parse(String(call[1]?.body)) as Record<string, unknown> : undefined;
+    };
+
+    it("adjusts an installment in a modal with the current value, validation and Voltar", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      let dialog = await screen.findByRole("dialog", { name: "Ajustar valor da parcela" });
+      const value = within(dialog).getByLabelText("Novo valor (R$)");
+      // Abre com o valor atual e o foco no primeiro campo.
+      expect(value).toHaveValue(250);
+      expect(value).toHaveFocus();
+      expect(within(dialog).getByText(/Hoje a parcela vale R\$\s250,00/)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      dialog = await screen.findByRole("dialog", { name: "Ajustar valor da parcela" });
+      fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), { target: { value: "" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(within(dialog).getByText("Informe o novo valor em reais (zero ou mais).")).toHaveClass("form-error");
+      fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), { target: { value: "199.9" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(within(dialog).getByText("Escreva a justificativa do ajuste (pelo menos 5 caracteres).")).toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Justificativa"), { target: { value: "  Desconto combinado " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(bodyOf("/finance/receivables/a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1/adjust")).toEqual({ amountInCents: 19990, reason: "Desconto combinado" });
+    });
+
+    it("closes an action modal with Esc and confirms with the submit button of its form", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }));
+      const dialog = await screen.findByRole("dialog", { name: "Ajustar valor da parcela" });
+      // Enter num campo envia o formulário do modal: o botão Confirmar é o submit dele.
+      const confirm = within(dialog).getByRole("button", { name: "Confirmar" });
+      expect(confirm).toHaveAttribute("type", "submit");
+      expect(confirm.closest("form")).toBe(within(dialog).getByLabelText("Justificativa").closest("form"));
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+    });
+
+    it("renegotiates the selected installments in a single form", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar parcela de Ana Souza" }));
+      fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+      let dialog = await screen.findByRole("dialog", { name: "Renegociar parcelas" });
+      expect(within(dialog).getByText(/Ana Souza · 1 parcela · R\$\s250,00/)).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("Novo valor total (R$)")).toHaveValue(250);
+      expect(within(dialog).getByLabelText("Novo valor total (R$)")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Número de parcelas")).toHaveValue(1);
+      expect(within(dialog).getByLabelText("Primeiro vencimento")).toHaveAttribute("type", "date");
+      expect(within(dialog).getByLabelText("Primeiro vencimento")).toHaveValue(saoPauloToday());
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Renegociar" }));
+      dialog = await screen.findByRole("dialog", { name: "Renegociar parcelas" });
+      fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), { target: { value: "300" } });
+      fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), { target: { value: "40" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(within(dialog).getByText("Informe de 1 a 36 parcelas.")).toHaveClass("form-error");
+      fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), { target: { value: "3" } });
+      fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), { target: { value: "2026-11-10" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(within(dialog).getByText("Escreva o motivo da renegociação (pelo menos 5 caracteres).")).toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Motivo da renegociação"), { target: { value: "Cliente pediu para parcelar" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(writes()).toHaveLength(1);
+      expect(bodyOf("/finance/renegotiations")).toEqual({
+        receivableIds: ["a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1"],
+        totalAmountInCents: 30000,
+        installments: 3,
+        firstDueDate: "2026-11-10",
+        reason: "Cliente pediu para parcelar",
+      });
+      await vi.waitFor(() => expect(screen.queryByText(/parcelas? selecionadas?$/)).not.toBeInTheDocument());
+    });
+
+    it("creates an expense category and a cost center in their own modals", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(screen.getByRole("button", { name: "Nova categoria" }));
+      let dialog = await screen.findByRole("dialog", { name: "Nova categoria de despesa" });
+      expect(within(dialog).getByLabelText("Nome")).toHaveFocus();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Nova categoria" }));
+      dialog = await screen.findByRole("dialog", { name: "Nova categoria de despesa" });
+      fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: " a " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      expect(within(dialog).getByText("Informe um nome com pelo menos 2 caracteres.")).toHaveClass("form-error");
+      expect(writes()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: " Material de limpeza " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(bodyOf("/finance/categories")).toEqual({ name: "Material de limpeza", kind: "expense" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Novo centro de custo" }));
+      dialog = await screen.findByRole("dialog", { name: "Novo centro de custo" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      expect(within(dialog).getByText("Informe um nome com pelo menos 2 caracteres.")).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "Estúdio" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(bodyOf("/finance/cost-centers")).toEqual({ name: "Estúdio" });
     });
   });
 
@@ -2966,6 +3098,48 @@ describe("application shell", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Comissões (0)" }));
       expect(await screen.findByText("Nenhuma comissão gerada")).toBeInTheDocument();
       expect(screen.getByText(/Cadastre uma regra de comissão e use “Gerar comissões do mês”/)).toBeInTheDocument();
+    });
+
+    it("creates a commission rule in a modal with professional, percentage and start date", async () => {
+      const workspace = financeWorkspace();
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+      const professionals = [
+        { id: "33333333-3333-4333-8333-333333333333", fullName: "Juliana Prado", color: "#5c6f68", active: true },
+        { id: "34343434-3434-4343-8343-343434343434", fullName: "Rafael Costa", color: "#336699", active: true },
+      ];
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({}) } as Response;
+        const body = url.includes("/finance/workspace") ? workspace : url.endsWith("/professionals") ? professionals : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(<MemoryRouter initialEntries={["/financeiro"]}><App /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: "Comissões (2)" }));
+      const posts = () => vi.mocked(fetch).mock.calls.filter(([url, options]) => options?.method === "POST" && String(url).includes("/finance/commission-rules"));
+
+      fireEvent.click(await screen.findByRole("button", { name: "Nova regra" }));
+      let dialog = await screen.findByRole("dialog", { name: "Nova regra de comissão" });
+      expect(within(dialog).getByLabelText("Profissional")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Profissional")).toHaveValue(professionals[0]!.id);
+      expect(within(dialog).getByLabelText("Vale a partir de")).toHaveValue(saoPauloToday());
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(posts()).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Nova regra" }));
+      dialog = await screen.findByRole("dialog", { name: "Nova regra de comissão" });
+      fireEvent.change(within(dialog).getByLabelText("Profissional"), { target: { value: professionals[1]!.id } });
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), { target: { value: "120" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      expect(within(dialog).getByText("Informe um percentual entre 0 e 100.")).toHaveClass("form-error");
+      expect(posts()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), { target: { value: "27.5" } });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), { target: { value: "2026-11-01" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(posts()).toHaveLength(1);
+      expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({ professionalId: professionals[1]!.id, percentage: 27.5, effectiveFrom: "2026-11-01" });
     });
   });
 
@@ -3512,6 +3686,26 @@ describe("users and permissions", () => {
       expect(within(section).getByText("Agenda: Maria Pilates · Comissão 12,5%")).toBeInTheDocument();
     });
 
+    it("saves only the commission when Enter is pressed in the commission fields", async () => {
+      const withRule = { ...otherUser, commissionPercentage: 40, commissionEffectiveFrom: saoPauloToday() };
+      mockCommission((url, init) => (init?.method === "PUT" && url.endsWith("/commission") ? withRule : undefined));
+      const dialog = await openEditor("Bruno Lima");
+      const percentage = await within(dialog).findByLabelText("Percentual de comissão (%)");
+      fireEvent.change(percentage, { target: { value: "40" } });
+      // Enter é consumido pela seção (default impedido): o formulário do usuário não é enviado.
+      expect(fireEvent.keyDown(percentage, { key: "Enter" })).toBe(false);
+      expect(await within(dialog).findByText("Comissão de 40% salva.")).toBeInTheDocument();
+      const writes = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method && init.method !== "GET");
+      expect(writes).toHaveLength(1);
+      expect(String(writes[0]![0])).toContain(`/admin/users/${otherUser.id}/commission`);
+      expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({ percentage: 40, effectiveFrom: saoPauloToday() });
+      expect(screen.getByRole("dialog", { name: "Editar Bruno Lima" })).toBeInTheDocument();
+      // Na data também.
+      expect(fireEvent.keyDown(within(dialog).getByLabelText("Vale a partir de"), { key: "Enter" })).toBe(false);
+      await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(2));
+      expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+    });
+
     it("warns when the rule starts in the future", async () => {
       const linked = { ...customUser, professionalId: pilatesId, professionalName: "Maria Pilates", commissionPercentage: 30, commissionEffectiveFrom: "2026-01-01" };
       mockCommission((url, init) => {
@@ -3978,5 +4172,196 @@ describe("screens without loose elements", () => {
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
     expect(screen.getByRole("dialog", { name: "Nova matrícula" })).toBeInTheDocument();
+  });
+});
+
+describe("action modals instead of browser dialogs", () => {
+  const owner = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
+  const writes = () => vi.mocked(fetch).mock.calls.filter(([, options]) => options?.method && options.method !== "GET");
+
+  /** Responde GETs com `bodyFor(url)` (ou []) e escritas com `writeBody(url)` (ou {}). */
+  function mockApi(bodyFor: (url: string) => unknown, writeBody: (url: string) => unknown = () => ({})) {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const body = init?.method && init.method !== "GET" ? writeBody(url) : bodyFor(url);
+      return { ok: true, status: 200, json: async () => body ?? [] } as Response;
+    });
+  }
+
+  describe("CRM", () => {
+    const leadBase = { clinicId: "11111111-1111-4111-8111-111111111111", phone: "11987654321", source: "Instagram", interest: "Pilates", tags: [], openTasks: 0, overdueTasks: 0, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
+    const lead = { ...leadBase, id: "44444444-4444-4444-8444-444444444444", fullName: "Bruna Lead", stage: "contacted" };
+    const cardOf = async (name: string) => (await screen.findByRole("heading", { name })).closest("article") as HTMLElement;
+
+    it("asks the loss reason in a modal and sends it with the stage", async () => {
+      mockApi((url) => (url.endsWith("/leads") ? [lead] : undefined), () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }));
+      render(<MemoryRouter initialEntries={["/comercial"]}><App /></MemoryRouter>);
+      let card = await cardOf("Bruna Lead");
+      fireEvent.change(within(card).getByRole("combobox"), { target: { value: "lost" } });
+      let dialog = await screen.findByRole("dialog", { name: "Marcar lead como perdido" });
+      expect(within(dialog).getByText(/Bruna Lead sai das oportunidades abertas/)).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("Motivo da perda")).toHaveFocus();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+      // Sem confirmar, o lead continua na etapa de antes.
+      expect(within(card).getByRole("combobox")).toHaveValue("contacted");
+
+      fireEvent.change(within(card).getByRole("combobox"), { target: { value: "lost" } });
+      dialog = await screen.findByRole("dialog", { name: "Marcar lead como perdido" });
+      fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), { target: { value: "   " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(within(dialog).getByText("Informe o motivo da perda.")).toHaveClass("form-error");
+      expect(writes()).toHaveLength(0);
+      expect(within(dialog).getByRole("button", { name: "Confirmar" })).toHaveClass("danger-button");
+      fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), { target: { value: " Achou caro " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(writes()).toHaveLength(1);
+      expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/stage`);
+      expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ stage: "lost", lostReason: "Achou caro" });
+      card = await cardOf("Bruna Lead");
+      expect(within(card).getByText("Achou caro")).toBeInTheDocument();
+    });
+
+    it("confirms the conversion of a lead in a modal that explains the effect", async () => {
+      const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Bruna Lead" };
+      mockApi((url) => (url.endsWith("/leads") ? [lead] : undefined), () => ({ lead: { ...lead, stage: "won", convertedPatientId: patient.id }, patient, reusedExisting: false }));
+      render(<MemoryRouter initialEntries={["/comercial"]}><App /></MemoryRouter>);
+      fireEvent.click(within(await cardOf("Bruna Lead")).getByRole("button", { name: "Converter" }));
+      let dialog = await screen.findByRole("dialog", { name: "Converter lead em cliente" });
+      expect(within(dialog).getByText(/Bruna Lead passa a ser cliente/)).toBeInTheDocument();
+      expect(within(dialog).getByText("Bruna Lead · (11) 98765-4321")).toBeInTheDocument();
+      // Sem campos, o foco vai para Confirmar: Enter confirma.
+      expect(within(dialog).getByRole("button", { name: "Confirmar" })).toHaveFocus();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(writes()).toHaveLength(0);
+
+      fireEvent.click(within(await cardOf("Bruna Lead")).getByRole("button", { name: "Converter" }));
+      dialog = await screen.findByRole("dialog", { name: "Converter lead em cliente" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(writes()).toHaveLength(1);
+      expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
+      expect(writes()[0]![1]?.method).toBe("POST");
+      expect(writes()[0]![1]?.body).toBeUndefined();
+    });
+
+    it("keeps the modal open with the API error", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(owner));
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        if (init?.method === "POST") return { ok: false, status: 409, json: async () => ({ code: "LEAD_CONFLICT", message: "Não foi possível converter este lead." }) } as Response;
+        return { ok: true, status: 200, json: async () => (String(input).endsWith("/leads") ? [lead] : []) } as Response;
+      });
+      render(<MemoryRouter initialEntries={["/comercial"]}><App /></MemoryRouter>);
+      fireEvent.click(within(await cardOf("Bruna Lead")).getByRole("button", { name: "Converter" }));
+      const dialog = await screen.findByRole("dialog", { name: "Converter lead em cliente" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+      expect(await within(dialog).findByText("Não foi possível converter este lead.")).toHaveClass("form-error");
+      expect(screen.getByRole("dialog", { name: "Converter lead em cliente" })).toBeInTheDocument();
+    });
+  });
+
+  it("cancels a plan after a confirmation that shows the effect on installments and sessions", async () => {
+    const plan = {
+      id: "55555555-5555-4555-8555-555555555555", clinicId: "11111111-1111-4111-8111-111111111111",
+      patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida",
+      serviceId: "77777777-7777-4777-8777-777777777777", serviceName: "Pilates", name: "Mensalidade Pilates",
+      kind: "recurring", totalSessions: 8, remainingSessions: 2, validFrom: "2026-09-01", validUntil: "2026-09-30",
+      totalValueInCents: 40000, installments: 1, firstDueDate: "2026-09-05", status: "active", autoRenew: true,
+      createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z",
+    };
+    mockApi((url) => (url.includes("/plans") ? [plan] : undefined), () => ({ ...plan, status: "cancelled" }));
+    render(<MemoryRouter initialEntries={["/planos"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    let dialog = await screen.findByRole("dialog", { name: "Cancelar plano" });
+    expect(within(dialog).getByText("Helena Almeida · Mensalidade Pilates")).toBeInTheDocument();
+    expect(within(dialog).getByText(/parcelas em aberto deste plano são canceladas no Financeiro e as 2 sessões restantes não poderão mais ser usadas/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    dialog = await screen.findByRole("dialog", { name: "Cancelar plano" });
+    expect(within(dialog).getByRole("button", { name: "Confirmar" })).toHaveClass("danger-button");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes()).toHaveLength(1);
+    expect(String(writes()[0]![0])).toContain(`/plans/${plan.id}/status`);
+    expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ status: "cancelled" });
+  });
+
+  it("finalizes a clinical record after a confirmation saying it cannot be edited anymore", async () => {
+    const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", recordNumber: 12 };
+    const record = {
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientId: patient.id, professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", status: "draft", version: 1,
+      authorName: "Aryana Dutra", patientName: "Helena Almeida", professionalName: "Dra. Ana Martins",
+      professionalCrefito: "CREFITO-3 123456-F", appointmentStartsAt: new Date().toISOString(),
+      subjective: "Relato", objective: "Exame", assessment: "Evolução positiva", plan: "Manter",
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    mockApi(
+      (url) => (url.includes("/clinical-workspace/")
+        ? { patient, records: [record], templates: [], assessments: [], goals: [], measurements: [], closures: [], attachments: [], addenda: [] }
+        : url.includes("/clinical-records") ? [record]
+          : url.includes("/patients") ? [patient]
+            : undefined),
+      () => ({ ...record, status: "finalized", finalizedAt: new Date().toISOString() }),
+    );
+    render(<MemoryRouter initialEntries={["/prontuarios"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
+    let dialog = await screen.findByRole("dialog", { name: "Finalizar evolução" });
+    expect(within(dialog).getByText(/não poderá mais ser editada/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/^Helena Almeida · /)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
+    dialog = await screen.findByRole("dialog", { name: "Finalizar evolução" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes()).toHaveLength(1);
+    expect(String(writes()[0]![0])).toContain(`/clinical-records/${record.id}/finalize`);
+    expect(writes()[0]![1]?.method).toBe("POST");
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Finalizar" })).not.toBeInTheDocument());
+  });
+
+  it("cancels a schedule block after a confirmation with the reason and the time", async () => {
+    const at = (hours: number) => {
+      const value = new Date();
+      value.setHours(hours, 0, 0, 0);
+      return value;
+    };
+    const block = {
+      id: "abababab-abab-4bab-8bab-abababababab", clinicId: "11111111-1111-4111-8111-111111111111",
+      professionalId: "33333333-3333-4333-8333-333333333333", professionalName: "Dra. Ana Martins",
+      startsAt: at(14).toISOString(), endsAt: at(16).toISOString(), reason: "Curso externo", status: "active",
+      createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z",
+    };
+    mockApi((url) => (url.includes("/schedule-blocks?") ? [block] : undefined), () => ({ ...block, status: "cancelled" }));
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar bloqueio" }));
+    let dialog = await screen.findByRole("dialog", { name: "Cancelar bloqueio" });
+    expect(within(dialog).getByText(/^Curso externo · /)).toBeInTheDocument();
+    expect(within(dialog).getByText(/das 14:00 às 16:00 \(Dra\. Ana Martins\), volta a ficar livre/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar bloqueio" }));
+    dialog = await screen.findByRole("dialog", { name: "Cancelar bloqueio" });
+    expect(within(dialog).getByRole("button", { name: "Confirmar" })).toHaveClass("danger-button");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes()).toHaveLength(1);
+    expect(String(writes()[0]![0])).toContain(`/schedule-blocks/${block.id}/cancel`);
+    expect(writes()[0]![1]?.method).toBe("POST");
+    expect(screen.queryByText("Curso externo")).not.toBeInTheDocument();
   });
 });

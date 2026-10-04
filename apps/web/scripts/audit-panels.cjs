@@ -522,4 +522,95 @@ if (buttonProblems.length) {
 } else {
   console.log("Nenhum <button> sem className em App.tsx.");
 }
+
+// Sexta verificação (janelas nativas): nenhum arquivo .ts/.tsx de apps/web/src usa as janelas do
+// navegador — cada ação tem um `Modal` próprio. Reprova:
+//   - acesso a `prompt`/`confirm`/`alert` em `window`, `globalThis` ou `self` (ponto ou colchetes,
+//     chamado ou não: `window.confirm(...)`, `const ask = window.prompt`);
+//   - chamada global `prompt(...)`, `confirm(...)`, `alert(...)`.
+// Falso positivo tratado: uma função/variável/parâmetro/import LOCAL com esse nome (ex.:
+// `async function confirm()` dentro de um componente, chamada como `void confirm()`) não é a
+// janela nativa. A chamada só é aceita se o nome estiver declarado num escopo que a envolve
+// (bloco, corpo de função, parâmetros ou o próprio arquivo); a mesma chamada fora desse escopo é
+// reprovada. Métodos de objetos (`dialog.confirm()`) não são globais e ficam de fora.
+// Com AUDIT_APP_TSX, esse arquivo entra no lugar do App.tsx (testes sintéticos).
+const NATIVE = new Set(["prompt", "confirm", "alert"]);
+const GLOBAL_OBJECTS = new Set(["window", "globalThis", "self"]);
+const sourceFiles = [];
+const collect = (dir) => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collect(full);
+    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) sourceFiles.push(full);
+  }
+};
+collect(webSrc);
+const defaultApp = path.join(webSrc, "App.tsx");
+const nativeFiles = sourceFiles.map((file) => (file === defaultApp ? appPath : file));
+if (!nativeFiles.includes(appPath)) nativeFiles.push(appPath);
+const bindingNames = (name, out) => {
+  if (ts.isIdentifier(name)) out.push(name.text);
+  else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    for (const element of name.elements) if (!ts.isOmittedExpression(element)) bindingNames(element.name, out);
+  }
+  return out;
+};
+// Nomes declarados diretamente num nó que abre escopo.
+const declaredIn = (scope) => {
+  const names = [];
+  if (ts.isFunctionLike(scope)) {
+    for (const param of scope.parameters ?? []) bindingNames(param.name, names);
+    // Expressão de função nomeada enxerga o próprio nome.
+    if ((ts.isFunctionExpression(scope)) && scope.name) names.push(scope.name.text);
+  }
+  if (ts.isCatchClause(scope) && scope.variableDeclaration) bindingNames(scope.variableDeclaration.name, names);
+  if (ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) {
+    const init = scope.initializer;
+    if (init && ts.isVariableDeclarationList(init)) for (const decl of init.declarations) bindingNames(decl.name, names);
+  }
+  const statements = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : [];
+  for (const statement of statements) {
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.push(statement.name.text);
+    if (ts.isVariableStatement(statement)) for (const decl of statement.declarationList.declarations) bindingNames(decl.name, names);
+    if (ts.isImportDeclaration(statement) && statement.importClause) {
+      const clause = statement.importClause;
+      if (clause.name) names.push(clause.name.text);
+      const bindings = clause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) names.push(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings)) for (const spec of bindings.elements) names.push(spec.name.text);
+    }
+  }
+  return names;
+};
+const isLocalBinding = (node, name) => {
+  for (let scope = node.parent; scope; scope = scope.parent) {
+    if (declaredIn(scope).includes(name)) return true;
+  }
+  return false;
+};
+const nativeProblems = [];
+for (const file of nativeFiles) {
+  const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const where = (node) => `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+  const visitNative = (node) => {
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text) && NATIVE.has(node.name.text)) {
+      nativeProblems.push(`${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`);
+    }
+    if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text) && ts.isStringLiteralLike(node.argumentExpression) && NATIVE.has(node.argumentExpression.text)) {
+      nativeProblems.push(`${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`);
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && NATIVE.has(node.expression.text) && !isLocalBinding(node, node.expression.text)) {
+      nativeProblems.push(`${where(node)} ${node.expression.text}(...) global (janela nativa do navegador; use um Modal)`);
+    }
+    ts.forEachChild(node, visitNative);
+  };
+  visitNative(source);
+}
+
+if (nativeProblems.length) {
+  console.error(`${nativeProblems.length} janela(s) nativa(s) do navegador (prompt/confirm/alert):\n` + nativeProblems.join("\n"));
+  failed = true;
+} else {
+  console.log("Nenhum prompt/confirm/alert do navegador em apps/web/src.");
+}
 if (failed) process.exit(1);

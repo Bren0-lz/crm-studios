@@ -804,7 +804,7 @@ profissional; criar modais personalizados para cada opção".
     para o Enter da comissão.
 - **Gate:** `node apps/web/scripts/audit-panels.cjs` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** D07
-- **Status:** TODO
+- **Status:** DONE
 
 ### D11 — Telas que funcionam com permissões personalizadas
 - **Escopo:** GET /relationship/settings passa a exigir ver `relationship` **ou** `settings` (mapa
