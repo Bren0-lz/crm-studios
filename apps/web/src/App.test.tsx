@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { saoPauloToday } from "@crm/contracts";
+import { effectiveEditModules, effectiveModules, saoPauloToday, type UserRole } from "@crm/contracts";
 import { useState } from "react";
 import App, { Modal } from "./App";
 
 vi.stubGlobal("fetch", vi.fn());
+
+/** Usuário logado gravado no localStorage, com os módulos padrão do perfil (como login e /me devolvem). */
+function storedUser(user: { id: string; fullName: string; email: string; role: string }) {
+  const role = user.role as UserRole;
+  return JSON.stringify({ ...user, modules: effectiveModules(role), editModules: effectiveEditModules(role) });
+}
 afterEach(() => {
   cleanup();
   vi.mocked(fetch).mockReset();
@@ -68,7 +74,7 @@ describe("modal scroll lock", () => {
 describe("application shell", () => {
   it("edits group capacity and weekly hours in a drawer", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const group = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       name: "Pilates Turma A",
@@ -119,7 +125,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -184,7 +190,7 @@ describe("application shell", () => {
 
   it("lists appointments and group classes in chronological order", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const at = (hours: number) => {
       const value = new Date();
       value.setHours(hours, 0, 0, 0);
@@ -240,7 +246,7 @@ describe("application shell", () => {
 
   it("shows patient and booking details before cancelling an appointment", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -301,7 +307,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -373,7 +379,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -424,7 +430,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -486,7 +492,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -531,7 +537,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -604,7 +610,7 @@ describe("application shell", () => {
 
   it("filters patients by status, tags and record data", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const month = String(new Date().getMonth() + 1).padStart(2, "0");
     const otherMonth = String((new Date().getMonth() + 1) % 12 + 1).padStart(2, "0");
     const patient = (id: string, fullName: string, extra: Record<string, unknown>) => ({
@@ -664,7 +670,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -709,7 +715,7 @@ describe("application shell", () => {
 
   it("shows the patient history with values and a filter by type", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
     const timeline = [
       { id: "appointment:1", kind: "appointment", occurredAt: "2026-09-20T13:00:00.000Z", title: "Atendimento de Pilates", detail: "Com Dra. Ana Martins", status: "completed" },
@@ -742,7 +748,7 @@ describe("application shell", () => {
 
   it("does not load the patient history for physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
@@ -756,7 +762,7 @@ describe("application shell", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
-      JSON.stringify({
+      storedUser({
         id: "22222222-2222-4222-8222-222222222222",
         fullName: "Aryana Dutra",
         email: "admin@movimenta.local",
@@ -822,7 +828,7 @@ describe("application shell", () => {
 
   it("lists suggested contacts, opens WhatsApp and records a contact", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const suggestions = [
       {
         patientId: "99999999-9999-4999-8999-999999999999",
@@ -920,7 +926,7 @@ describe("application shell", () => {
 
   it("shows upcoming birthdays on the dashboard with congratulations and a sent marker", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const suggestions = [
       { patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida", phone: "11987654321", whatsapp: "11911112222", reason: "birthday", referenceKey: "99999999-9999-4999-8999-999999999999:2026", detail: "Aniversário hoje", dueDate: "2026-10-10", priority: 1 },
       { patientId: "77777777-7777-4777-8777-777777777777", patientName: "Carla Dias", phone: "11933334444", reason: "birthday", referenceKey: "77777777-7777-4777-8777-777777777777:2026", detail: "Aniversário em 3 dias (13/10)", dueDate: "2026-10-13", priority: 2 },
@@ -963,7 +969,7 @@ describe("application shell", () => {
 
   it("does not load birthdays on the dashboard for physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     vi.mocked(fetch).mockImplementation(async (input) => ({
       ok: true,
       status: 200,
@@ -977,7 +983,7 @@ describe("application shell", () => {
 
   it("lists the month's birthdays in the relationship page with a month picker", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).slice(0, 7);
     const entries = [
       { patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida", phone: "11987654321", whatsapp: "11911112222", birthDate: "1990-02-03", date: "2027-02-03", day: 3, ageTurning: 37, referenceKey: "99999999-9999-4999-8999-999999999999:2027", congratulated: false },
@@ -1024,7 +1030,7 @@ describe("application shell", () => {
 
   it("hides suggested contacts from physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as unknown as Response);
     render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
     expect(screen.queryByRole("link", { name: /Contatos sugeridos/ })).not.toBeInTheDocument();
@@ -1033,7 +1039,7 @@ describe("application shell", () => {
   });
   it("lets the owner edit relationship deadlines and messages in settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const settings = relationshipSettingsFixture();
     let putBody: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
@@ -1067,7 +1073,7 @@ describe("application shell", () => {
 
   it("shows relationship settings read-only to reception", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const settings = relationshipSettingsFixture();
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
@@ -1088,7 +1094,7 @@ describe("application shell", () => {
 
   it("does not show relationship settings to physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as unknown as Response);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     expect(screen.queryByRole("heading", { name: "Prazos e mensagens" })).not.toBeInTheDocument();
@@ -1097,7 +1103,7 @@ describe("application shell", () => {
 
   it("shows the professional CREFITO in the clinical list and print summary", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", recordNumber: 12 };
     const record = {
       id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -1135,7 +1141,7 @@ describe("application shell", () => {
 
   it("offers the contracts page in the menu and redirects the old documents route", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
     render(<MemoryRouter initialEntries={["/documentos"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("link", { name: "Contratos" })).toHaveAttribute("href", "/contratos");
@@ -1150,7 +1156,7 @@ describe("application shell", () => {
 
   it("hides the contracts page from physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Fisio", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Fisio", email: "fisio@movimenta.local", role: "physiotherapist" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("link", { name: "Agenda" })).toBeInTheDocument();
@@ -1160,7 +1166,7 @@ describe("application shell", () => {
 
   it("issues a document with an optional professional", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const template = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Contrato padrão", kind: "contract", version: 1, body: "Contrato", active: true, createdAt: new Date().toISOString() };
     const patient = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida" };
     const professional = { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", fullName: "Dra. Ana Martins", crefito: "CREFITO-3 123456-F", active: true };
@@ -1195,7 +1201,7 @@ describe("application shell", () => {
 
   it("issues a draft document and prints the issued content", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     const snapshot = "CONTRATO\n\nStudios Aryana e Helena Almeida firmam o presente instrumento.";
     const draft = { id: "d-1", clinicId: "c-1", templateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", patientId: "99999999-9999-4999-8999-999999999999", title: "Contrato de prestação de serviços", templateName: "Contrato padrão", templateVersion: 1, patientName: "Helena Almeida", snapshotBody: snapshot, status: "draft", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -1224,7 +1230,7 @@ describe("application shell", () => {
 
   it("creates a new template version in a modal keeping line breaks", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const template = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Contrato padrão", kind: "contract", version: 1, body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam.", active: true, createdAt: new Date().toISOString() };
     const posted: Array<{ url: string; body: unknown }> = [];
     let failNext = true;
@@ -1262,7 +1268,7 @@ describe("application shell", () => {
 
   it("cancels a document after confirming in a modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const draft = { id: "d-1", clinicId: "c-1", templateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", patientId: "99999999-9999-4999-8999-999999999999", title: "Contrato de prestação de serviços", templateName: "Contrato padrão", templateVersion: 1, patientName: "Helena Almeida", snapshotBody: "Contrato", status: "draft", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     const patched: unknown[] = [];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
@@ -1292,7 +1298,7 @@ describe("application shell", () => {
 
   it("records patient satisfaction on a completed appointment and hides the button afterwards", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1356,7 +1362,7 @@ describe("application shell", () => {
 
   it("hides the satisfaction button when the appointment already has a survey", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1394,7 +1400,7 @@ describe("application shell", () => {
 
   it("does not offer satisfaction on appointments that are not completed", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1427,7 +1433,7 @@ describe("application shell", () => {
 
   it("shows the NPS card on the reports page for the filtered period", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1461,7 +1467,7 @@ describe("application shell", () => {
 
   it("shows the trials card with the conversion of the filtered period", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1514,7 +1520,7 @@ describe("application shell", () => {
 
   it("shows retention, rankings and age bands for the filtered period", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1611,7 +1617,7 @@ describe("application shell", () => {
 
   it("shows the retention error in its card without hiding the client rankings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1656,7 +1662,7 @@ describe("application shell", () => {
 
   it("tells when the trials card could not be loaded", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({
+    localStorage.setItem("crm.auth.user", storedUser({
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
@@ -1673,7 +1679,7 @@ describe("application shell", () => {
 
   it("previews a patient spreadsheet, imports the same file and reloads the list", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const existing = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
     const imported = { ...existing, id: "88888888-8888-4888-8888-888888888888", recordNumber: "PAC-00002", fullName: "Ana Lima", phone: "11999990000" };
     let patients = [existing];
@@ -1730,7 +1736,7 @@ describe("application shell", () => {
 
   it("shows general spreadsheet errors and keeps import disabled", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/patients/import/preview")
         ? { rows: [], errors: ["A planilha precisa de uma coluna de nome."], totals: { valid: 0, error: 0, duplicate: 0 } }
@@ -1750,19 +1756,20 @@ describe("application shell", () => {
 
   it("does not offer patient import to physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
-    expect(screen.getByRole("button", { name: /Novo cliente/ })).toBeInTheDocument();
+    // Desde a T053 a fisioterapeuta só consulta Clientes: sem criar nem importar.
+    expect(screen.queryByRole("button", { name: /Novo cliente/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/import"))).toBe(false);
   });
 
   it("exports the patient base with the screen filters, chosen format and columns", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: ["pilates"], status: "active", createdAt: "2026-01-10T12:00:00.000Z" };
     vi.mocked(fetch).mockImplementation(async (input) => {
       if (String(input).includes("/patients/export")) {
@@ -1823,7 +1830,7 @@ describe("application shell", () => {
 
   it("requires a column, explains filters without export support and shows API errors", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", email: "helena@exemplo.com", tags: [], status: "active", createdAt: "2026-01-10T12:00:00.000Z" };
     vi.mocked(fetch).mockImplementation(async (input) => {
       if (String(input).includes("/patients/export")) {
@@ -1861,7 +1868,7 @@ describe("application shell", () => {
 
   it.each(["reception", "finance", "physiotherapist"])("does not offer patient export to %s", async (role) => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Silva", email: "equipe@movimenta.local", role }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Silva", email: "equipe@movimenta.local", role }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
@@ -1871,7 +1878,7 @@ describe("application shell", () => {
 
   it("paginates the patient list 20 at a time and resets to page 1 on search and filters", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patients = Array.from({ length: 45 }, (_, index) => {
       const number = String(index + 1).padStart(2, "0");
       return {
@@ -1966,7 +1973,7 @@ describe("application shell", () => {
 
   it("previews a segmented broadcast, shows skipped clients and queues it after confirmation", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patients = [
       { id: "99999999-9999-4999-8999-999999999991", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", email: "helena@exemplo.com", tags: ["pilates"], status: "active" },
       { id: "99999999-9999-4999-8999-999999999992", recordNumber: "PAC-00002", fullName: "Bruno Lima", phone: "11987654322", tags: ["pilates", "vip"], status: "active" },
@@ -2034,7 +2041,7 @@ describe("application shell", () => {
 
   it("requires broadcast text, discards a stale preview and shows preview errors", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "reception" }));
     let failPreview = false;
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
@@ -2067,7 +2074,7 @@ describe("application shell", () => {
 
   it("hides the patient pagination when every patient fits on one page", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const patients = Array.from({ length: 20 }, (_, index) => ({
       id: `99999999-9999-4999-8999-9999999999${String(index + 10)}`,
       recordNumber: `PAC-000${index + 10}`,
@@ -2086,7 +2093,7 @@ describe("application shell", () => {
 
   it("lets the owner list, create and delete holidays in settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const existing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clinicId: "11111111-1111-4111-8111-111111111111", date: "2026-12-25", name: "Natal", createdAt: "2026-09-01T12:00:00.000Z" };
     const created = { ...existing, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", date: "2026-11-15", name: "Proclamação da República" };
     let postBody: Record<string, unknown> | undefined;
@@ -2142,7 +2149,7 @@ describe("application shell", () => {
 
   it("shows an empty state when there are no holidays", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
       const body = url.includes("/relationship/settings") ? relationshipSettingsFixture()
@@ -2157,7 +2164,7 @@ describe("application shell", () => {
 
   it("does not show the holidays section to reception", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).includes("/relationship/settings") ? relationshipSettingsFixture() : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -2170,7 +2177,7 @@ describe("application shell", () => {
 
   it("marks holidays in the day, week and month agenda and shows the API error when booking on one", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const holiday = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clinicId: "11111111-1111-4111-8111-111111111111", date: today, name: "Aniversário da cidade", createdAt: "2026-09-01T12:00:00.000Z" };
@@ -2212,7 +2219,7 @@ describe("application shell", () => {
 
   it("shows trial and evaluation badges in the agenda and hides client actions on lead appointments", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const startsAt = new Date();
     startsAt.setHours(10, 0, 0, 0);
     const base = {
@@ -2257,7 +2264,7 @@ describe("application shell", () => {
 
   it("opens the SOS panel with the emergency contact from a client appointment", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const startsAt = new Date();
     startsAt.setHours(10, 0, 0, 0);
     const appointment = {
@@ -2313,7 +2320,7 @@ describe("application shell", () => {
 
   it("shows the SOS shortcuts in the client record even without an emergency contact", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", emergencyContactName: "", tags: [], status: "active" };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).includes("/timeline") ? [] : [patient];
@@ -2334,7 +2341,7 @@ describe("application shell", () => {
 
   it("does not show the SOS button when creating a new client", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }) as Response);
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: /Novo cliente/ }));
@@ -2344,7 +2351,7 @@ describe("application shell", () => {
 
   it("sends the chosen visit type when booking a new appointment", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     let posted: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
@@ -2373,7 +2380,7 @@ describe("application shell", () => {
 
   it("books a trial class for a lead from the CRM card", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const leadBase = { clinicId: "11111111-1111-4111-8111-111111111111", phone: "11987654321", source: "Instagram", interest: "Pilates", tags: [], openTasks: 0, overdueTasks: 0, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
     const lead = { ...leadBase, id: "44444444-4444-4444-8444-444444444444", fullName: "Bruna Lead", stage: "contacted" };
     const converted = { ...leadBase, id: "45454545-4545-4545-8545-454545454545", fullName: "Carla Convertida", stage: "won", convertedPatientId: "99999999-9999-4999-8999-999999999999" };
@@ -2427,7 +2434,7 @@ describe("application shell", () => {
 
   it("lists, creates, pauses, reactivates and ends fixed expenses in accounts payable", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const clinicId = "11111111-1111-4111-8111-111111111111";
     const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
     const category = { id: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", clinicId, name: "Aluguel e condomínio", kind: "expense", active: true };
@@ -2583,7 +2590,7 @@ describe("application shell", () => {
 
   it("shows the API error inside the end fixed expense modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const item = { id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1", clinicId: "11111111-1111-4111-8111-111111111111", description: "Aluguel da sala", categoryId: "c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1", costCenterId: "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1", categoryName: "Aluguel", costCenterName: "Administrativo", amountInCents: 250000, dayOfMonth: 10, startMonth: "2026-01", endMonth: "2099-12", active: false, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z" };
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
@@ -2614,7 +2621,7 @@ describe("application shell", () => {
 
   it("shows empty and error states for fixed expenses", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2646,7 +2653,7 @@ describe("application shell", () => {
 
   it("shows the daily cash with totals by payment method and movements", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
@@ -2734,7 +2741,7 @@ describe("application shell", () => {
 
   it("shows the finance forecast by month with confirmed and projected values", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "finance" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2812,7 +2819,7 @@ describe("application shell", () => {
 
   it("shows empty and error states for the finance forecast", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2849,7 +2856,7 @@ describe("application shell", () => {
 
   it("shows the API error for the daily cash", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const workspace = {
       summary: { openInCents: 0, overdueInCents: 0, paidThisMonthInCents: 0, receivables: [] },
       categories: [], costCenters: [], payables: [],
@@ -2897,3 +2904,412 @@ function relationshipSettingsFixture() {
     },
   };
 }
+
+describe("users and permissions", () => {
+  const ownerSession = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
+  const customUser = {
+    id: "33333333-3333-4333-8333-333333333333",
+    clinicId: "11111111-1111-4111-8111-111111111111",
+    fullName: "Maria Souza",
+    email: "maria@movimenta.local",
+    role: "reception",
+    jobTitle: "Instrutora de Pilates",
+    modules: [...effectiveModules("reception"), "finance"],
+    editModules: effectiveEditModules("reception"),
+    customModules: true,
+    active: true,
+    createdAt: "2026-09-01T12:00:00.000Z",
+    updatedAt: "2026-09-01T12:00:00.000Z",
+  };
+
+  function mockAdmin(handler?: (url: string, init?: RequestInit) => unknown) {
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const handled = handler?.(url, init);
+      if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
+      const body = url.includes("/admin/users") ? [customUser]
+        : url.includes("/admin/permission-matrix") ? [{ role: "physiotherapist", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
+          : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+            : url.includes("/admin/clinic-settings") ? null
+              : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+  }
+
+  function lastCall(method: string) {
+    const call = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === method).at(-1);
+    return { url: String(call?.[0]), body: JSON.parse(String(call?.[1]?.body)) as Record<string, unknown> };
+  }
+
+  it("lists users with job title and custom badge and shows each profile default", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = (await screen.findByRole("heading", { name: "Usuários" })).closest("section")!;
+    expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
+    expect(within(section).getByText(/Recepção · Instrutora de Pilates/)).toBeInTheDocument();
+    expect(within(section).getByText("Permissões personalizadas")).toBeInTheDocument();
+    const matrix = screen.getByRole("heading", { name: "Padrão de cada perfil" }).closest("section")!;
+    expect(within(matrix).getByText("Fisioterapeuta")).toBeInTheDocument();
+    expect(within(matrix).getByText("Vê: Agenda · Prontuários")).toBeInTheDocument();
+    expect(within(matrix).getByText("Edita: Prontuários")).toBeInTheDocument();
+  });
+
+  it("creates a user with job title and adjusted modules, keeping edit inside view", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((url, init) => (init?.method === "POST" && url.endsWith("/admin/users") ? { ...customUser, id: "44444444-4444-4444-8444-444444444444", fullName: "Ana Lima" } : undefined));
+    const prompt = vi.spyOn(window, "prompt");
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    // Novo usuário começa no padrão da recepção.
+    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
+    expect(within(dialog).getByLabelText("Editar Clientes")).toBeChecked();
+    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" })).toBeDisabled();
+
+    // Trocar o perfil sugere o padrão novo.
+    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "physiotherapist" } });
+    expect(within(dialog).getByLabelText("Ver Prontuários")).toBeChecked();
+    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
+    expect(within(dialog).getByLabelText("Editar Clientes")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Ver CRM comercial")).not.toBeChecked();
+
+    // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
+    fireEvent.click(within(dialog).getByLabelText("Editar Relatórios"));
+    expect(within(dialog).getByLabelText("Ver Relatórios")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
+    expect(within(dialog).getByLabelText("Editar Turmas")).not.toBeChecked();
+    expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
+
+    // Gestora: acesso total, sem checkboxes.
+    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "owner" } });
+    expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Ver Clientes")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Perfil"), { target: { value: "physiotherapist" } });
+    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
+
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), { target: { value: "SenhaForte123" } });
+    fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: " Fisioterapeuta pélvica " } });
+    fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
+    expect(await screen.findByText("Usuário Ana Lima criado.")).toBeInTheDocument();
+    const { url, body } = lastCall("POST");
+    expect(url).toContain("/admin/users");
+    expect(body).toEqual({
+      fullName: "Ana Lima",
+      email: "ana@movimenta.local",
+      password: "SenhaForte123",
+      role: "physiotherapist",
+      jobTitle: "Fisioterapeuta pélvica",
+      modules: ["agenda", "patients", "plans", "clinical"],
+      editModules: ["agenda", "patients", "clinical"],
+    });
+    expect(prompt).not.toHaveBeenCalled();
+    prompt.mockRestore();
+  });
+
+  it("edits a user and restores the profile default sending null permissions", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((_url, init) => (init?.method === "PATCH" ? { ...customUser, customModules: false } : undefined));
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    expect(within(dialog).getByLabelText("Cargo")).toHaveValue("Instrutora de Pilates");
+    expect(within(dialog).getByLabelText("Ver Financeiro")).toBeChecked();
+    expect(within(dialog).getByText("Permissões personalizadas")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Restaurar padrão do perfil" }));
+    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    expect(within(dialog).getByText("Padrão do perfil Recepção")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: "" } });
+    fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
+    expect(await screen.findByText("Alterações de Maria Souza salvas.")).toBeInTheDocument();
+    const { url, body } = lastCall("PATCH");
+    expect(url).toContain(`/admin/users/${customUser.id}`);
+    expect(body).toEqual({ fullName: "Maria Souza", role: "reception", active: true, jobTitle: "", modules: null, editModules: null });
+  });
+
+  it("sends custom lists when editing permissions of an existing user", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((_url, init) => (init?.method === "PATCH" ? customUser : undefined));
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    fireEvent.click(within(dialog).getByLabelText("Editar Financeiro"));
+    fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
+    await screen.findByText("Alterações de Maria Souza salvas.");
+    expect(lastCall("PATCH").body).toEqual({
+      fullName: "Maria Souza",
+      role: "reception",
+      active: true,
+      jobTitle: "Instrutora de Pilates",
+      modules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance", "settings"],
+      editModules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance"],
+    });
+  });
+
+  it("resets a password and deactivates a user in modals instead of browser prompts", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin((url, init) => {
+      if (url.endsWith("/reset-password")) return { updated: true };
+      if (init?.method === "PATCH") return { ...customUser, active: false };
+      return undefined;
+    });
+    const prompt = vi.spyOn(window, "prompt");
+    const confirm = vi.spyOn(window, "confirm");
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Redefinir senha" }));
+    const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
+    fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), { target: { value: "NovaSenha123" } });
+    fireEvent.submit(within(resetDialog).getByLabelText("Nova senha").closest("form")!);
+    expect(await screen.findByText("Senha de Maria Souza redefinida.")).toBeInTheDocument();
+    const reset = lastCall("POST");
+    expect(reset.url).toContain(`/admin/users/${customUser.id}/reset-password`);
+    expect(reset.body).toEqual({ password: "NovaSenha123" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Desativar" }));
+    const activeDialog = screen.getByRole("dialog", { name: "Desativar usuário" });
+    fireEvent.click(within(activeDialog).getByRole("button", { name: "Desativar" }));
+    expect(await screen.findByText("Maria Souza foi desativado(a).")).toBeInTheDocument();
+    expect(lastCall("PATCH").body).toEqual({ fullName: "Maria Souza", role: "reception", active: false });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+    prompt.mockRestore();
+    confirm.mockRestore();
+  });
+
+  it("filters the menu and routes by the user's modules and hides create actions without edit", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555",
+      fullName: "Carla Recepção",
+      email: "carla@movimenta.local",
+      role: "reception",
+      modules: ["agenda", "patients", "finance"],
+      editModules: ["agenda"],
+    }));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: [], status: "active" };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/dashboard") ? { appointmentsToday: 0, completedToday: 0, patientsActive: 1, noShowsThisMonth: 0, nextAppointments: [] } : [patient];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Editar Helena Almeida" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getByRole("link", { name: "Visão geral" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Agenda" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Clientes" })).toBeInTheDocument();
+    // Recepção com Financeiro liberado vê o Financeiro; sem CRM/Turmas/Configurações, eles somem.
+    expect(within(nav).getByRole("link", { name: "Financeiro" })).toBeInTheDocument();
+    expect(within(nav).queryByText("CRM comercial")).not.toBeInTheDocument();
+    expect(within(nav).queryByText("Turmas")).not.toBeInTheDocument();
+    expect(within(nav).queryByText("Configurações")).not.toBeInTheDocument();
+    // Só consulta em Clientes: sem criar/importar, com explicação.
+    expect(screen.queryByRole("button", { name: "Novo cliente" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Seu acesso a Clientes é só de consulta");
+    fireEvent.click(screen.getByRole("button", { name: "Editar Helena Almeida" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
+    expect(within(dialog).queryByRole("button", { name: "Salvar alterações" })).not.toBeInTheDocument();
+    cleanup();
+
+    // Rota de módulo não liberado volta para a visão geral.
+    render(<MemoryRouter initialEntries={["/comercial"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: /^Olá/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "CRM comercial" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/leads"))).toBe(false);
+  });
+
+  it("completes an old stored session without modules using /me", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception", modules: effectiveModules("reception"), editModules: effectiveEditModules("reception") };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).endsWith("/me") ? fresh : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation")).getByRole("link", { name: "CRM comercial" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+  });
+
+  it("asks for a new login when an old stored session cannot be completed", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: false, status: 401, json: async () => ({ code: "UNAUTHORIZED", message: "Sessão expirada." }) }) as Response);
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Acesse sua clínica" })).toBeInTheDocument();
+    expect(localStorage.getItem("crm.auth.user")).toBeNull();
+  });
+});
+
+describe("view-only modules", () => {
+  it("shows appointment details without cancel, reschedule or satisfaction when the agenda is view-only", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555",
+      fullName: "Carla Consulta",
+      email: "carla@movimenta.local",
+      role: "reception",
+      modules: ["agenda", "patients"],
+      editModules: [],
+    }));
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    const base = {
+      patientId: "99999999-9999-4999-8999-999999999999",
+      professionalColor: "#5c6f68",
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      serviceName: "Fisioterapia individual",
+      professionalName: "Dra. Ana Martins",
+      roomName: "Sala Movimento",
+    };
+    const scheduled = { ...base, id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", patientName: "Helena Almeida", status: "scheduled" };
+    const completed = { ...base, id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientName: "Bruno Costa", status: "completed" };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/appointments?") ? [scheduled, completed]
+        : url.includes("/satisfaction") ? { surveys: [] }
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("note")).toHaveTextContent("Seu acesso a Agenda é só de consulta");
+    expect(screen.queryByRole("button", { name: /Novo atendimento/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bloquear horário" })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("Status do atendimento")[0]).toBeDisabled();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+    let dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Sala Movimento", { exact: false })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Cancelar atendimento" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Remarcar atendimento" })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Detalhes de Bruno Costa" }));
+    dialog = screen.getByRole("dialog");
+    await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/satisfaction"))).toBe(true));
+    expect(within(dialog).queryByRole("button", { name: "Registrar satisfação" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method && init.method !== "GET")).toBe(false);
+  });
+
+  it("shows the CRM history without lead actions or activity forms when the CRM is view-only", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555",
+      fullName: "Carla Consulta",
+      email: "carla@movimenta.local",
+      role: "reception",
+      modules: ["crm"],
+      editModules: [],
+    }));
+    const lead = { id: "44444444-4444-4444-8444-444444444444", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Bruna Lead", phone: "11987654321", source: "Instagram", interest: "Pilates", stage: "contacted", tags: [], openTasks: 1, overdueTasks: 0, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
+    const activity = {
+      tasks: [{ id: "66666666-6666-4666-8666-666666666666", clinicId: lead.clinicId, leadId: lead.id, title: "Ligar de volta", dueAt: "2026-10-05T12:00:00.000Z", status: "open", createdAt: lead.createdAt, updatedAt: lead.updatedAt }],
+      contacts: [{ id: "77777777-7777-4777-8777-777777777777", clinicId: lead.clinicId, leadId: lead.id, channel: "phone", direction: "outbound", notes: "Pediu horários à noite", actorName: "Joana", occurredAt: lead.createdAt, createdAt: lead.createdAt }],
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.endsWith("/leads") ? [lead] : url.includes("/activity") ? activity : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/comercial"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("Bruna Lead")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Seu acesso a CRM comercial é só de consulta");
+    expect(screen.queryByRole("button", { name: /Novo lead/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Converter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Agendar experimental/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Atividades" }));
+    const dialog = screen.getByRole("dialog", { name: "Bruna Lead" });
+    expect(await within(dialog).findByText("Ligar de volta")).toBeInTheDocument();
+    expect(within(dialog).getByText("Aberta")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Adicionar tarefa" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Concluir" })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Contatos/ }));
+    expect(within(dialog).getByText(/Pediu horários à noite/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Registrar contato" })).not.toBeInTheDocument();
+  });
+});
+
+describe("view-only relationship", () => {
+  it("keeps the congratulations link but hides 'Marcar como enviado' on the dashboard and month birthdays", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555",
+      fullName: "Carla Consulta",
+      email: "carla@movimenta.local",
+      role: "reception",
+      modules: ["relationship", "settings"],
+      editModules: [],
+    }));
+    const suggestion = { patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida", phone: "11987654321", whatsapp: "11911112222", reason: "birthday", referenceKey: "99999999-9999-4999-8999-999999999999:2026", detail: "Aniversário hoje", dueDate: "2026-10-10", priority: 1 };
+    const entry = { patientId: "88888888-8888-4888-8888-888888888888", patientName: "Bruno Souza", phone: "11955556666", birthDate: "1990-02-03", date: "2027-02-03", day: 3, ageTurning: 37, referenceKey: "88888888-8888-4888-8888-888888888888:2027", congratulated: false };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/relationship/suggestions") ? [suggestion]
+        : url.includes("/relationship/birthdays") ? [entry]
+          : url.includes("/relationship/settings") ? relationshipSettingsFixture()
+            : url.includes("/dashboard") ? { appointmentsToday: 0, completedToday: 0, patientsActive: 3, noShowsThisMonth: 0, nextAppointments: [] }
+              : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    const card = (await screen.findByRole("heading", { name: "Aniversariantes" })).closest("section")!;
+    const helena = (await within(card).findByText("Helena Almeida")).closest(".attention-item") as HTMLElement;
+    expect(within(helena).getByRole("link", { name: /Dar parabéns/ })).toBeInTheDocument();
+    expect(within(helena).queryByRole("button", { name: "Marcar como enviado" })).not.toBeInTheDocument();
+    cleanup();
+
+    render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
+    const tabs = await screen.findByRole("group", { name: "Visão" });
+    fireEvent.click(within(tabs).getByRole("button", { name: "Aniversários do mês" }));
+    const bruno = (await screen.findByText("Bruno Souza")).closest("article")!;
+    expect(within(bruno).getByRole("link", { name: /Dar parabéns/ })).toBeInTheDocument();
+    expect(within(bruno).queryByRole("button", { name: "Marcar como enviado" })).not.toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+});
+
+describe("dashboard links by agenda access", () => {
+  const dashboard = { appointmentsToday: 0, completedToday: 0, patientsActive: 3, noShowsThisMonth: 0, nextAppointments: [] };
+  function renderDashboard(modules: string[], editModules: string[]) {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({ id: "55555555-5555-4555-8555-555555555555", fullName: "Carla Consulta", email: "carla@movimenta.local", role: "reception", modules, editModules }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = String(input).includes("/dashboard") ? dashboard : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+  }
+
+  it("shows 'Ver agenda' but not 'Novo atendimento' when the agenda is view-only", async () => {
+    renderDashboard(["agenda"], []);
+    expect(await screen.findByRole("heading", { name: "Agenda de hoje" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ver agenda/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Novo atendimento/ })).not.toBeInTheDocument();
+  });
+
+  it("shows neither agenda link without the agenda module", async () => {
+    renderDashboard(["patients"], ["patients"]);
+    expect(await screen.findByRole("heading", { name: "Agenda de hoje" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Ver agenda/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Novo atendimento/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps both agenda links for users who edit the agenda", async () => {
+    renderDashboard(["agenda"], ["agenda"]);
+    expect(await screen.findByRole("link", { name: /Ver agenda/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Novo atendimento/ })).toBeInTheDocument();
+  });
+});

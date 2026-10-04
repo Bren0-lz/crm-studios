@@ -50,6 +50,7 @@ import {
 import type {
   AdminAuditEvent,
   AdminUser,
+  AppModule,
   Appointment,
   AppointmentInput,
   AppointmentRescheduleEvent,
@@ -130,9 +131,10 @@ import type {
   Service,
   TherapeuticGoalInput,
   TreatmentClosureInput,
+  UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { broadcastSkipReasonLabels, competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, appModuleSchema, roleDefaultEditModules, roleDefaultModules, broadcastSkipReasonLabels, competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -140,6 +142,7 @@ import {
   getStoredUser,
   hasSession,
   login,
+  storeUser,
   type PatientExportParams,
 } from "./api";
 
@@ -346,71 +349,68 @@ function LoginPage({ onLogin }: { onLogin: (user: UserSummary) => void }) {
   );
 }
 
+const roleLabels: Record<UserRole, string> = {
+  owner: "Gestora",
+  reception: "Recepção",
+  physiotherapist: "Fisioterapeuta",
+  finance: "Financeiro",
+};
+
+/** Sessão gravada antes dos módulos por usuário: não traz `modules`/`editModules`. */
+function hasAccessLists(user: UserSummary) {
+  return Array.isArray(user.modules) && Array.isArray(user.editModules);
+}
+
+/** O usuário logado vê o módulo (menu, rotas e leituras). */
+function canView(module: AppModule) {
+  return Boolean(getStoredUser()?.modules?.includes(module));
+}
+
+/** O usuário logado edita o módulo (criar, editar e excluir). */
+function canEdit(...modules: AppModule[]) {
+  const editModules = getStoredUser()?.editModules ?? [];
+  return modules.every((module) => editModules.includes(module));
+}
+
+/** Aviso de acesso só de consulta, no lugar dos botões de criar/editar/excluir. */
+function ReadOnlyNotice({ module, copy }: { module: AppModule; copy?: string }) {
+  return (
+    <p className="read-only-notice" role="note">
+      <LockKeyhole size={16} aria-hidden="true" />
+      <span>
+        {copy ??
+          `Seu acesso a ${appModuleLabels[module]} é só de consulta. Para criar, editar ou excluir, peça à gestora a permissão de edição.`}
+      </span>
+    </p>
+  );
+}
+
 const navItems: Array<{
   to: string;
   label: string;
   icon: LucideIcon;
   disabled?: boolean;
-  roles?: UserSummary["role"][];
+  /** Módulo exigido; sem módulo (Visão geral) o item aparece para todos. */
+  module?: AppModule;
 }> = [
   { to: "/", label: "Visão geral", icon: LayoutDashboard },
-  { to: "/agenda", label: "Agenda", icon: CalendarDays },
-  {
-    to: "/turmas",
-    label: "Turmas",
-    icon: Users,
-    roles: ["owner", "reception", "physiotherapist"],
-  },
-  { to: "/clientes", label: "Clientes", icon: Users },
-  { to: "/planos", label: "Planos e sessões", icon: PackageOpen },
-  {
-    to: "/comercial",
-    label: "CRM comercial",
-    icon: Columns3,
-    roles: ["owner", "reception", "finance"],
-  },
+  { to: "/agenda", label: "Agenda", icon: CalendarDays, module: "agenda" },
+  { to: "/turmas", label: "Turmas", icon: Users, module: "groups" },
+  { to: "/clientes", label: "Clientes", icon: Users, module: "patients" },
+  { to: "/planos", label: "Planos e sessões", icon: PackageOpen, module: "plans" },
+  { to: "/comercial", label: "CRM comercial", icon: Columns3, module: "crm" },
   {
     to: "/relacionamento",
     label: "Contatos sugeridos",
     icon: HeartHandshake,
-    roles: ["owner", "reception", "finance"],
+    module: "relationship",
   },
-  {
-    to: "/comunicacoes",
-    label: "Comunicações",
-    icon: Bell,
-    roles: ["owner", "reception", "finance"],
-  },
-  {
-    to: "/contratos",
-    label: "Contratos",
-    icon: FileText,
-    roles: ["owner", "reception", "finance"],
-  },
-  {
-    to: "/prontuarios",
-    label: "Prontuários",
-    icon: Stethoscope,
-    roles: ["owner", "physiotherapist"],
-  },
-  {
-    to: "/financeiro",
-    label: "Financeiro",
-    icon: CircleDollarSign,
-    roles: ["owner", "finance"],
-  },
-  {
-    to: "/relatorios",
-    label: "Relatórios",
-    icon: BarChart3,
-    roles: ["owner", "finance"],
-  },
-  {
-    to: "/configuracoes",
-    label: "Configurações",
-    icon: Settings,
-    roles: ["owner", "reception", "finance"],
-  },
+  { to: "/comunicacoes", label: "Comunicações", icon: Bell, module: "communications" },
+  { to: "/contratos", label: "Contratos", icon: FileText, module: "contracts" },
+  { to: "/prontuarios", label: "Prontuários", icon: Stethoscope, module: "clinical" },
+  { to: "/financeiro", label: "Financeiro", icon: CircleDollarSign, module: "finance" },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3, module: "reports" },
+  { to: "/configuracoes", label: "Configurações", icon: Settings, module: "settings" },
 ];
 
 function Shell({
@@ -439,17 +439,15 @@ function Shell({
         </div>
         <nav className="main-nav">
           <span className="nav-caption">Rotina</span>
-          {navItems.map((item) => {
-            const restricted = Boolean(
-              item.roles && !item.roles.includes(user.role),
-            );
-            const disabled = item.disabled || restricted;
+          {navItems
+            .filter((item) => !item.module || user.modules.includes(item.module))
+            .map((item) => {
             const Icon = item.icon;
-            return disabled ? (
+            return item.disabled ? (
               <span className="nav-item disabled" key={item.to}>
                 <Icon size={19} />
                 <span>{item.label}</span>
-                <small>{restricted ? "restrito" : "em breve"}</small>
+                <small>em breve</small>
               </span>
             ) : (
               <NavLink
@@ -472,7 +470,7 @@ function Shell({
             <span className="avatar">{initials(user.fullName)}</span>
             <span className="user-copy">
               <strong>{user.fullName}</strong>
-              <small>Gestora da clínica</small>
+              <small>{user.jobTitle ?? roleLabels[user.role]}</small>
             </span>
             <LogOut size={17} />
           </button>
@@ -568,12 +566,8 @@ function DashboardPage() {
   const [error, setError] = useState("");
   const today = localIsoDate();
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
-  const canSeeSales = ["owner", "finance"].includes(
-    getStoredUser()?.role ?? "",
-  );
-  const canSeeRelationship = ["owner", "reception", "finance"].includes(
-    getStoredUser()?.role ?? "",
-  );
+  const canSeeSales = canView("reports");
+  const canSeeRelationship = canView("relationship");
 
   useEffect(() => {
     api
@@ -597,10 +591,12 @@ function DashboardPage() {
         title={firstName ? `Olá, ${firstName}.` : "Olá."}
         description={dateLabel.format(new Date())}
         action={
-          <NavLink to="/agenda" className="primary-button">
-            <Plus size={18} />
-            Novo atendimento
-          </NavLink>
+          canEdit("agenda") && (
+            <NavLink to="/agenda" className="primary-button">
+              <Plus size={18} />
+              Novo atendimento
+            </NavLink>
+          )
         }
       />
       {error && <ErrorBanner error={error} />}
@@ -688,9 +684,11 @@ function DashboardPage() {
                   <span className="eyebrow">Próximos</span>
                   <h2>Agenda de hoje</h2>
                 </div>
-                <NavLink to="/agenda" className="text-link">
-                  Ver agenda <ChevronRight size={16} />
-                </NavLink>
+                {canView("agenda") && (
+                  <NavLink to="/agenda" className="text-link">
+                    Ver agenda <ChevronRight size={16} />
+                  </NavLink>
+                )}
               </div>
               {data.nextAppointments.length === 0 ? (
                 <EmptyState
@@ -830,14 +828,16 @@ function BirthdayDashboardCard() {
                     <MessageCircle size={15} />
                     Dar parabéns
                   </a>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={saving === suggestion.referenceKey}
-                    onClick={() => void markSent(suggestion)}
-                  >
-                    Marcar como enviado
-                  </button>
+                  {canEdit("relationship") && (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={saving === suggestion.referenceKey}
+                      onClick={() => void markSent(suggestion)}
+                    >
+                      Marcar como enviado
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -921,7 +921,7 @@ function PatientsPage() {
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const canImport = ["owner", "reception", "finance"].includes(getStoredUser()?.role ?? "");
+  const canManage = canEdit("patients");
   const canExport = getStoredUser()?.role === "owner";
 
   async function load(query = search) {
@@ -991,7 +991,7 @@ function PatientsPage() {
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
           <div className="page-actions">
-            {canImport && (
+            {canManage && (
               <button className="secondary-button" onClick={() => setImportOpen(true)}>
                 <FileDown size={18} aria-hidden="true" />
                 Importar
@@ -1003,13 +1003,16 @@ function PatientsPage() {
                 Exportar
               </button>
             )}
-            <button className="primary-button" onClick={() => setModalOpen(true)}>
-              <Plus size={18} />
-              Novo cliente
-            </button>
+            {canManage && (
+              <button className="primary-button" onClick={() => setModalOpen(true)}>
+                <Plus size={18} />
+                Novo cliente
+              </button>
+            )}
           </div>
         }
       />
+      {!canManage && <ReadOnlyNotice module="patients" />}
       {error && <ErrorBanner error={error} />}
       <section className="panel patients-panel">
         <div className="list-toolbar">
@@ -1623,7 +1626,8 @@ function PatientModal({
   }));
   const [tagsText, setTagsText] = useState(() => (patient?.tags ?? []).join(", "));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
-  const showHistory = Boolean(patient) && getStoredUser()?.role !== "physiotherapist";
+  const showHistory = Boolean(patient) && canView("patients") && canView("crm");
+  const editable = canEdit("patients");
   const [sosOpen, setSosOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1754,13 +1758,20 @@ function PatientModal({
           />
         </label>
         {error && <div className="form-error span-2">{error}</div>}
+        {!editable && (
+          <p className="muted-copy span-2">
+            Seu acesso a Clientes é só de consulta: as alterações não podem ser salvas.
+          </p>
+        )}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose}>
-            Cancelar
+            {editable ? "Cancelar" : "Fechar"}
           </button>
-          <button className="primary-button" disabled={loading}>
-            {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar cliente"}
-          </button>
+          {editable && (
+            <button className="primary-button" disabled={loading}>
+              {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar cliente"}
+            </button>
+          )}
         </div>
       </form>
       {showHistory && patient && <PatientTimelineSection patientId={patient.id} />}
@@ -2109,6 +2120,7 @@ function RelationshipPage() {
                       <MessageCircle size={15} />
                       WhatsApp
                     </a>
+                    {canEdit("relationship") && (
                     <button
                       className="secondary-button"
                       onClick={() => {
@@ -2119,6 +2131,7 @@ function RelationshipPage() {
                       <PhoneCall size={15} />
                       Registrar contato
                     </button>
+                    )}
                   </div>
                 </article>
               );
@@ -2241,14 +2254,16 @@ function BirthdaysMonthPanel({
                     <MessageCircle size={15} />
                     Dar parabéns
                   </a>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={saving === entry.referenceKey}
-                    onClick={() => void markSent(entry)}
-                  >
-                    Marcar como enviado
-                  </button>
+                  {canEdit("relationship") && (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={saving === entry.referenceKey}
+                      onClick={() => void markSent(entry)}
+                    >
+                      Marcar como enviado
+                    </button>
+                  )}
                 </div>
               )}
             </article>
@@ -2366,6 +2381,7 @@ function CommunicationsPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const canManage = canEdit("communications");
 
   async function load() {
     const [communicationData, patientData] = await Promise.all([
@@ -2472,12 +2488,15 @@ function CommunicationsPage() {
         title="Central de comunicações"
         description="Prepare lembretes e mensagens sem misturar conteúdo clínico."
       />
+      {!canManage && <ReadOnlyNotice module="communications" />}
       {error && <ErrorBanner error={error} />}
       {notice && <div className="success-banner">{notice}</div>}
       {loading || !center ? (
         <LoadingBlock />
       ) : (
         <div className="communications-layout">
+          {canManage && (
+          <>
           <section className="panel communication-compose">
             <span className="eyebrow">Mensagem individual</span>
             <h2>Adicionar à fila</h2>
@@ -2580,6 +2599,8 @@ function CommunicationsPage() {
               load().catch((cause: Error) => setError(cause.message));
             }}
           />
+          </>
+          )}
           <section className="panel communication-history">
             <div className="panel-head">
               <div>
@@ -2944,6 +2965,7 @@ function DocumentsPage() {
   const [printing, setPrinting] = useState<IssuedDocument | null>(null);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
+  const canManage = canEdit("contracts");
   const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
     name: "Contrato de prestação de serviços",
     kind: "contract",
@@ -3076,12 +3098,15 @@ function DocumentsPage() {
         title="Contratos"
         description="Emita contratos e documentos administrativos com conteúdo e versão preservados."
       />
+      {!canManage && <ReadOnlyNotice module="contracts" />}
       {error && <ErrorBanner error={error} />}
       {notice && <div className="success-banner">{notice}</div>}
       {loading ? (
         <LoadingBlock />
       ) : (
         <div className="documents-layout">
+          {canManage && (
+          <>
           <section className="panel document-form-panel">
             <div className="panel-head">
               <div>
@@ -3253,6 +3278,8 @@ function DocumentsPage() {
               </button>
             </form>
           </section>
+          </>
+          )}
           <section className="panel template-library">
             <div className="panel-head">
               <div>
@@ -3282,7 +3309,7 @@ function DocumentsPage() {
                     >
                       {template.active ? "Ativa" : "Histórica"}
                     </span>
-                    {template.active && (
+                    {canManage && template.active && (
                       <button
                         className="secondary-button"
                         onClick={() => setVersioning(template)}
@@ -3339,7 +3366,7 @@ function DocumentsPage() {
                           <Printer size={15} /> Imprimir
                         </button>
                       )}
-                      {item.status === "draft" && (
+                      {canManage && item.status === "draft" && (
                         <button
                           className="primary-button"
                           onClick={() => void issueDocument(item)}
@@ -3347,7 +3374,7 @@ function DocumentsPage() {
                           Emitir
                         </button>
                       )}
-                      {item.status !== "cancelled" && (
+                      {canManage && item.status !== "cancelled" && (
                         <button
                           className="secondary-button danger"
                           onClick={() => setCancelling(item)}
@@ -4270,6 +4297,7 @@ function CommercialPage() {
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
+  const canManage = canEdit("crm");
   useEffect(() => {
     let active = true;
     api
@@ -4324,12 +4352,15 @@ function CommercialPage() {
         title="CRM comercial"
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={
-          <button className="primary-button" onClick={() => setModalOpen(true)}>
-            <Plus size={18} />
-            Novo lead
-          </button>
+          canManage ? (
+            <button className="primary-button" onClick={() => setModalOpen(true)}>
+              <Plus size={18} />
+              Novo lead
+            </button>
+          ) : undefined
         }
       />
+      {!canManage && <ReadOnlyNotice module="crm" />}
       {error && <ErrorBanner error={error} />}
       {notice && <div className="success-banner" role="status">{notice}</div>}
       {loading ? (
@@ -4405,7 +4436,7 @@ function CommercialPage() {
                         {lead.lostReason && (
                           <div className="lost-reason">{lead.lostReason}</div>
                         )}
-                        {!["won", "lost"].includes(lead.stage) && (
+                        {canManage && !["won", "lost"].includes(lead.stage) && (
                           <div className="lead-actions">
                             <select
                               value={lead.stage}
@@ -4474,6 +4505,7 @@ function CommercialPage() {
       {activityLead && (
         <LeadActivityModal
           lead={activityLead}
+          editable={canManage}
           onClose={() => setActivityLead(null)}
           onChanged={() => {
             api
@@ -4804,10 +4836,13 @@ function LeadActivityModal({
   lead,
   onClose,
   onChanged,
+  editable,
 }: {
   lead: Lead;
   onClose: () => void;
   onChanged: () => void;
+  /** Sem edição do CRM: só o histórico (sem registrar tarefa/contato nem concluir tarefa). */
+  editable: boolean;
 }) {
   const currentUser = getStoredUser();
   const tomorrow = new Date();
@@ -4926,6 +4961,7 @@ function LeadActivityModal({
         <LoadingBlock />
       ) : tab === "tasks" ? (
         <div className="lead-activity-content">
+          {editable && (
           <form className="activity-form" onSubmit={addTask}>
             <label>
               Tarefa
@@ -4961,6 +4997,7 @@ function LeadActivityModal({
               Adicionar tarefa
             </button>
           </form>
+          )}
           <div className="activity-list">
             {activity.tasks.map((item) => (
               <article key={item.id} className={item.status}>
@@ -4971,7 +5008,7 @@ function LeadActivityModal({
                     {item.assignedUserName ?? "Sem responsável"}
                   </span>
                 </div>
-                {item.status === "open" ? (
+                {item.status === "open" && editable ? (
                   <div>
                     <button
                       onClick={() => void changeTask(item.id, "completed")}
@@ -4986,7 +5023,11 @@ function LeadActivityModal({
                   </div>
                 ) : (
                   <span>
-                    {item.status === "completed" ? "Concluída" : "Cancelada"}
+                    {item.status === "open"
+                      ? "Aberta"
+                      : item.status === "completed"
+                        ? "Concluída"
+                        : "Cancelada"}
                   </span>
                 )}
               </article>
@@ -4995,6 +5036,7 @@ function LeadActivityModal({
         </div>
       ) : (
         <div className="lead-activity-content">
+          {editable && (
           <form className="activity-form" onSubmit={addContact}>
             <label>
               Canal
@@ -5046,6 +5088,7 @@ function LeadActivityModal({
               Registrar contato
             </button>
           </form>
+          )}
           <div className="activity-list contact-timeline">
             {activity.contacts.map((item) => (
               <article key={item.id}>
@@ -5671,6 +5714,7 @@ function FinancePage() {
   const [payableModal, setPayableModal] = useState(false);
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
+  const canManage = canEdit("finance");
   async function reload() {
     setData(await api.financialWorkspace());
   }
@@ -5805,6 +5849,7 @@ function FinancePage() {
         title="Financeiro"
         description="Controle entradas, despesas, pagamentos e fluxo de caixa."
         action={
+          canManage && (
           <div className="page-actions">
             <button
               className="secondary-button"
@@ -5825,8 +5870,10 @@ function FinancePage() {
               <Plus size={18} /> Nova despesa
             </button>
           </div>
+          )
         }
       />
+      {!canManage && <ReadOnlyNotice module="finance" />}
       {error && <ErrorBanner error={error} />}
       {!data ? (
         <LoadingBlock />
@@ -5931,7 +5978,7 @@ function FinancePage() {
                       : "Comissões"}
                 </h2>
               </div>
-              {tab === "receivables" && selectedReceivables.length > 0 && (
+              {canManage && tab === "receivables" && selectedReceivables.length > 0 && (
                 <button
                   className="primary-button"
                   onClick={() => void renegotiate()}
@@ -5939,7 +5986,7 @@ function FinancePage() {
                   Renegociar ({selectedReceivables.length})
                 </button>
               )}
-              {tab === "commissions" && (
+              {canManage && tab === "commissions" && (
                 <div className="page-actions">
                   <button
                     className="secondary-button"
@@ -6011,7 +6058,7 @@ function FinancePage() {
                               : "Aberta"}
                       </span>
                       <div className="finance-actions">
-                        {item.status === "open" && (
+                        {canManage && item.status === "open" && (
                           <button
                             className="secondary-button"
                             onClick={() =>
@@ -6036,6 +6083,7 @@ function FinancePage() {
                             Recibo
                           </button>
                         )}
+                        {canManage && (
                         <button
                           className={
                             item.status === "paid"
@@ -6052,6 +6100,7 @@ function FinancePage() {
                         >
                           {item.status === "paid" ? "Estornar" : "Dar baixa"}
                         </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -6092,6 +6141,7 @@ function FinancePage() {
                           : "Aberta"}
                     </span>
                     <div className="finance-actions">
+                      {canManage && (
                       <button
                         className={
                           item.status === "paid"
@@ -6107,6 +6157,7 @@ function FinancePage() {
                       >
                         {item.status === "paid" ? "Estornar" : "Pagar"}
                       </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -6132,6 +6183,7 @@ function FinancePage() {
                       {item.status === "paid" ? "Paga" : "Aberta"}
                     </span>
                     <div className="finance-actions">
+                      {canManage && (
                       <button
                         className={
                           item.status === "paid"
@@ -6147,6 +6199,7 @@ function FinancePage() {
                       >
                         {item.status === "paid" ? "Estornar" : "Pagar"}
                       </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -6156,6 +6209,7 @@ function FinancePage() {
           )}
           {tab === "payables" && (
             <RecurringPayablesSection
+              editable={canManage}
               workspace={data}
               onGenerated={reload}
             />
@@ -6548,9 +6602,12 @@ function recurringPayableInput(
 function RecurringPayablesSection({
   workspace,
   onGenerated,
+  editable,
 }: {
   workspace: FinancialWorkspace;
   onGenerated: () => Promise<void>;
+  /** Sem edição do Financeiro: lista só para consulta. */
+  editable: boolean;
 }) {
   const [items, setItems] = useState<RecurringPayable[] | null>(null);
   const [error, setError] = useState("");
@@ -6600,9 +6657,11 @@ function RecurringPayablesSection({
             <span className="eyebrow">Recorrentes</span>
             <h2>Despesas fixas</h2>
           </div>
-          <button className="primary-button" onClick={() => setModal(true)}>
-            <Plus size={18} /> Nova despesa fixa
-          </button>
+          {editable && (
+            <button className="primary-button" onClick={() => setModal(true)}>
+              <Plus size={18} /> Nova despesa fixa
+            </button>
+          )}
         </div>
         {!items ? (
           !error && <LoadingBlock />
@@ -6651,7 +6710,7 @@ function RecurringPayablesSection({
                         : "Ativa"}
                   </span>
                   <div className="finance-actions">
-                    {status !== "ended" && (
+                    {editable && status !== "ended" && (
                       <>
                         <button
                           className="secondary-button"
@@ -7145,6 +7204,7 @@ function ClinicalRecordsPage() {
   const [historyRecord, setHistoryRecord] = useState<ClinicalRecord | null>(
     null,
   );
+  const canManage = canEdit("clinical");
 
   useEffect(() => {
     let active = true;
@@ -7213,6 +7273,7 @@ function ClinicalRecordsPage() {
         title="Prontuários"
         description="Evoluções clínicas no formato SOAP, protegidas e rastreáveis."
         action={
+          canManage && (
           <button
             className="primary-button"
             onClick={() => setEditor("new")}
@@ -7226,8 +7287,10 @@ function ClinicalRecordsPage() {
             <FileText size={18} />
             Nova evolução
           </button>
+          )
         }
       />
+      {!canManage && <ReadOnlyNotice module="clinical" />}
       {error && <ErrorBanner error={error} />}
       <section className="clinical-summary">
         <div>
@@ -7304,7 +7367,7 @@ function ClinicalRecordsPage() {
                     <FileClock size={16} />
                     Histórico
                   </button>
-                  {record.status === "draft" && (
+                  {canManage && record.status === "draft" && (
                     <>
                       <button
                         className="secondary-button"
@@ -7327,7 +7390,7 @@ function ClinicalRecordsPage() {
         )}
       </section>
       {!loading && patients.length > 0 && (
-        <ClinicalWorkspacePanel patients={patients} />
+        <ClinicalWorkspacePanel patients={patients} editable={canManage} />
       )}
       {editor && (
         <ClinicalRecordModal
@@ -7350,7 +7413,14 @@ function ClinicalRecordsPage() {
   );
 }
 
-function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
+function ClinicalWorkspacePanel({
+  patients,
+  editable,
+}: {
+  patients: Patient[];
+  /** Sem edição de Prontuários: só consulta, impressão e exportação. */
+  editable: boolean;
+}) {
   const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
   const [workspace, setWorkspace] = useState<ClinicalWorkspace | null>(null);
   const [editor, setEditor] = useState<
@@ -7508,6 +7578,8 @@ function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
       ) : (
         <>
           <div className="clinical-workspace-actions">
+            {editable && (
+            <>
             <button
               className="secondary-button"
               onClick={() => setEditor("template")}
@@ -7553,6 +7625,8 @@ function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
             >
               Adicionar adendo
             </button>
+            </>
+            )}
             <button
               className="secondary-button"
               onClick={() => void exportRecord(true)}
@@ -7603,7 +7677,7 @@ function ClinicalWorkspacePanel({ patients }: { patients: Patient[] }) {
                           </small>
                         )}
                       </div>
-                      {goal.status === "active" && (
+                      {editable && goal.status === "active" && (
                         <button
                           className="text-button"
                           onClick={async () => {
@@ -8870,6 +8944,9 @@ function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const canSchedule = canEdit("agenda");
+  // Bloqueios exigem editar Agenda E Clientes (mesma regra da API).
+  const canBlock = canEdit("agenda", "patients");
   const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
   const [historyAppointment, setHistoryAppointment] = useState<Appointment | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -8977,13 +9054,17 @@ function AgendaPage() {
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
+          (canBlock || canSchedule) && (
           <div className="page-actions">
+            {canBlock && (
             <button
               className="secondary-button"
               onClick={() => setBlockModalOpen(true)}
             >
               Bloquear horário
             </button>
+            )}
+            {canSchedule && (
             <button
               className="primary-button"
               onClick={() => setModalOpen(true)}
@@ -8991,9 +9072,12 @@ function AgendaPage() {
               <Plus size={18} />
               Novo atendimento
             </button>
+            )}
           </div>
+          )
         }
       />
+      {!canSchedule && <ReadOnlyNotice module="agenda" />}
       {error && <ErrorBanner error={error} />}
       <section className="panel agenda-panel">
         <div className="agenda-toolbar">
@@ -9137,7 +9221,7 @@ function AgendaPage() {
                           compact
                           block={entry.block}
                           key={entry.block.id}
-                          onCancel={() => void cancelBlock(entry.block)}
+                          onCancel={canBlock ? () => void cancelBlock(entry.block) : undefined}
                         />
                       ) : entry.kind === "group" ? (
                         <GroupSessionCard compact session={entry.session} key={entry.session.id} />
@@ -9195,7 +9279,7 @@ function AgendaPage() {
                 <ScheduleBlockCard
                   block={entry.block}
                   key={entry.block.id}
-                  onCancel={() => void cancelBlock(entry.block)}
+                  onCancel={canBlock ? () => void cancelBlock(entry.block) : undefined}
                 />
               ) : entry.kind === "group" ? (
                 <GroupSessionCard session={entry.session} key={entry.session.id} />
@@ -9205,7 +9289,7 @@ function AgendaPage() {
                   key={entry.appointment.id}
                   onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
                   onHistory={() => setHistoryAppointment(entry.appointment)}
-                  onStatus={(status) => changeAppointmentStatus(entry.appointment, status)}
+                  onStatus={canSchedule ? (status) => changeAppointmentStatus(entry.appointment, status) : undefined}
                 />
               ),
             )}
@@ -9274,6 +9358,7 @@ function AgendaPage() {
           patient={patients.find((item) => item.id === selectedAppointment.patientId)}
           service={services.find((item) => item.id === selectedAppointment.serviceId)}
           onClose={() => setSelectedAppointmentId(null)}
+          editable={canSchedule}
           onReschedule={() => { setSelectedAppointmentId(null); setRescheduling(selectedAppointment); }}
           onCancelled={(updated) => {
             setAppointments((items) => items.map((item) => item.id === updated.id ? updated : item));
@@ -9465,7 +9550,8 @@ function ScheduleBlockCard({
 }: {
   block: ScheduleBlock;
   compact?: boolean;
-  onCancel: () => void;
+  /** Sem `onCancel` (sem permissão de edição) o botão de cancelar não aparece. */
+  onCancel?: (() => void) | undefined;
 }) {
   return (
     <article
@@ -9485,7 +9571,7 @@ function ScheduleBlockCard({
           </small>
         )}
       </div>
-      {block.status === "active" && !compact && (
+      {block.status === "active" && !compact && onCancel && (
         <button className="secondary-button danger" onClick={onCancel}>
           Cancelar bloqueio
         </button>
@@ -9502,7 +9588,8 @@ function AgendaCard({
 }: {
   appointment: Appointment;
   onOpen: () => void;
-  onStatus: (status: AppointmentStatus) => void;
+  /** Sem `onStatus` (agenda só de consulta) o status fica desabilitado. */
+  onStatus?: ((status: AppointmentStatus) => void) | undefined;
   onHistory: () => void;
 }) {
   return (
@@ -9534,8 +9621,10 @@ function AgendaCard({
           <select
             value={appointment.status}
             onChange={(event) =>
-              onStatus(event.target.value as AppointmentStatus)
+              onStatus?.(event.target.value as AppointmentStatus)
             }
+            disabled={!onStatus}
+            title={onStatus ? undefined : "Seu acesso à Agenda é só de consulta."}
             aria-label="Status do atendimento"
           >
             <option value="scheduled">Agendado</option>
@@ -9567,6 +9656,7 @@ function AppointmentDetailsModal({
   onClose,
   onReschedule,
   onCancelled,
+  editable,
 }: {
   appointment: Appointment;
   patient: Patient | undefined;
@@ -9574,6 +9664,8 @@ function AppointmentDetailsModal({
   onClose: () => void;
   onReschedule: () => void;
   onCancelled: (appointment: Appointment) => void;
+  /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
+  editable: boolean;
 }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -9695,7 +9787,7 @@ function AppointmentDetailsModal({
             </div>
           </div>
         )}
-        {!confirmCancel && canChange && (
+        {editable && !confirmCancel && canChange && (
           <div className="appointment-detail-actions">
             <button className="secondary-button danger" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>
             <button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>
@@ -9707,7 +9799,7 @@ function AppointmentDetailsModal({
         {isCompleted && !survey && alreadyRated && (
           <p className="appointment-satisfaction">Este atendimento já tem pesquisa de satisfação registrada.</p>
         )}
-        {isCompleted && surveyChecked && !survey && !alreadyRated && (
+        {editable && isCompleted && surveyChecked && !survey && !alreadyRated && (
           <div className="appointment-detail-actions">
             <button className="primary-button" onClick={() => setRating(true)}>Registrar satisfação</button>
           </div>
@@ -10346,11 +10438,15 @@ function ScheduleBlockModal({
 }
 
 function AdminPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
   const [matrix, setMatrix] = useState<PermissionMatrixItem[]>([]);
   const [audit, setAudit] = useState<AdminAuditEvent[]>([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [userForm, setUserForm] = useState<AdminUser | "new" | null>(null);
+  const [resetting, setResetting] = useState<AdminUser | null>(null);
+  const [toggling, setToggling] = useState<AdminUser | null>(null);
 
   async function load() {
     try {
@@ -10391,24 +10487,13 @@ function AdminPage() {
     };
   }, []);
 
-  async function createUser() {
-    const fullName = window.prompt("Nome completo do usuário:")?.trim();
-    const email = window.prompt("E-mail de acesso:")?.trim();
-    const password = window.prompt(
-      "Senha inicial forte (mínimo 10 caracteres):",
-    );
-    if (!fullName || !email || !password) return;
-    try {
-      await api.createAdminUser({
-        fullName,
-        email,
-        password,
-        role: "reception",
-      });
-      await load();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
+  function finish(message: string) {
+    setUserForm(null);
+    setResetting(null);
+    setToggling(null);
+    setError("");
+    setNotice(message);
+    void load();
   }
 
   return (
@@ -10418,12 +10503,23 @@ function AdminPage() {
         title="Configurações"
         description="Usuários, permissões, dados da clínica e auditoria administrativa."
         action={
-          <button className="primary-button" onClick={() => void createUser()}>
+          <button
+            className="primary-button"
+            onClick={() => {
+              setNotice("");
+              setUserForm("new");
+            }}
+          >
             <Plus size={17} /> Novo usuário
           </button>
         }
       />
       {error && <ErrorBanner error={error} />}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
       <div className="admin-grid">
         <section className="panel admin-users">
           <div className="panel-head">
@@ -10432,48 +10528,68 @@ function AdminPage() {
               <h2>Usuários</h2>
             </div>
           </div>
-          {users.map((item) => (
-            <article key={item.id}>
-              <div>
-                <strong>{item.fullName}</strong>
-                <small>
-                  {item.email} · {item.role}
-                </small>
-              </div>
-              <button
-                className="secondary-button"
-                onClick={async () => {
-                  try {
-                    await api.updateAdminUser(item.id, {
-                      fullName: item.fullName,
-                      role: item.role,
-                      active: !item.active,
-                    });
-                    await load();
-                  } catch (cause) {
-                    setError((cause as Error).message);
-                  }
-                }}
-              >
-                {item.active ? "Desativar" : "Ativar"}
-              </button>
-              <button
-                className="text-button"
-                onClick={async () => {
-                  const password = window.prompt("Nova senha forte:");
-                  if (!password) return;
-                  try {
-                    await api.resetAdminPassword(item.id, password);
-                    await load();
-                  } catch (cause) {
-                    setError((cause as Error).message);
-                  }
-                }}
-              >
-                Redefinir senha
-              </button>
-            </article>
-          ))}
+          {users === null ? (
+            !error && <LoadingBlock />
+          ) : users.length === 0 ? (
+            <EmptyState
+              title="Nenhum usuário"
+              copy="Cadastre a equipe em “Novo usuário”."
+            />
+          ) : (
+            users.map((item) => (
+              <article key={item.id}>
+                <div>
+                  <strong>{item.fullName}</strong>
+                  <small>
+                    {item.email} · {roleLabels[item.role]}
+                    {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                  </small>
+                  {(item.customModules || !item.active) && (
+                    <div className="admin-user-tags">
+                      {item.customModules && (
+                        <span className="status-pill custom-permissions">
+                          Permissões personalizadas
+                        </span>
+                      )}
+                      {!item.active && (
+                        <span className="status-pill cancelled">Inativo</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="admin-user-actions">
+                  <button
+                    className="secondary-button"
+                    aria-label={`Editar ${item.fullName}`}
+                    onClick={() => {
+                      setNotice("");
+                      setUserForm(item);
+                    }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      setNotice("");
+                      setToggling(item);
+                    }}
+                  >
+                    {item.active ? "Desativar" : "Ativar"}
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setNotice("");
+                      setResetting(item);
+                    }}
+                  >
+                    Redefinir senha
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
         </section>
         {settings && (
           <section className="panel admin-settings">
@@ -10563,15 +10679,20 @@ function AdminPage() {
         <section className="panel admin-matrix">
           <div className="panel-head">
             <div>
-              <span className="eyebrow">RBAC</span>
-              <h2>Matriz de permissões</h2>
+              <span className="eyebrow">Referência</span>
+              <h2>Padrão de cada perfil</h2>
             </div>
           </div>
+          <p className="muted-copy">
+            Ponto de partida de cada usuário. Ajustes por pessoa ficam no
+            cadastro dela, em “Editar”.
+          </p>
           {matrix.map((item) => (
             <article key={item.role}>
-              <strong>{item.role}</strong>
+              <strong>{roleLabels[item.role]}</strong>
+              <span>Vê: {item.modules.join(" · ")}</span>
               <span>
-                Vê: {item.modules.join(" · ")} — Edita:{" "}
+                Edita:{" "}
                 {item.editModules.length
                   ? item.editModules.join(" · ")
                   : "nenhum módulo"}
@@ -10601,7 +10722,436 @@ function AdminPage() {
           )}
         </section>
       </div>
+      {userForm && (
+        <UserFormModal
+          user={userForm === "new" ? null : userForm}
+          onClose={() => setUserForm(null)}
+          onSaved={(saved) =>
+            finish(
+              userForm === "new"
+                ? `Usuário ${saved.fullName} criado.`
+                : `Alterações de ${saved.fullName} salvas.`,
+            )
+          }
+        />
+      )}
+      {resetting && (
+        <ResetPasswordModal
+          user={resetting}
+          onClose={() => setResetting(null)}
+          onDone={() => finish(`Senha de ${resetting.fullName} redefinida.`)}
+        />
+      )}
+      {toggling && (
+        <UserActiveModal
+          user={toggling}
+          onClose={() => setToggling(null)}
+          onDone={(updated) =>
+            finish(
+              updated.active
+                ? `${updated.fullName} voltou a ter acesso.`
+                : `${updated.fullName} foi desativado(a).`,
+            )
+          }
+        />
+      )}
     </>
+  );
+}
+
+function sameModules(a: readonly AppModule[], b: readonly AppModule[]) {
+  return a.length === b.length && a.every((module) => b.includes(module));
+}
+
+/** Lista sem duplicatas e na ordem dos módulos (a mesma do menu). */
+function orderedModules(list: readonly AppModule[]) {
+  return appModuleSchema.options.filter((module) => list.includes(module));
+}
+
+function UserFormModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: AdminUser | null;
+  onClose: () => void;
+  onSaved: (saved: AdminUser) => void;
+}) {
+  const [fullName, setFullName] = useState(user?.fullName ?? "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<UserRole>(user?.role ?? "reception");
+  const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
+  const [modules, setModules] = useState<AppModule[]>(() =>
+    orderedModules(user ? user.modules : roleDefaultModules.reception),
+  );
+  const [editModules, setEditModules] = useState<AppModule[]>(() =>
+    orderedModules(user ? user.editModules : roleDefaultEditModules.reception),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isOwner = role === "owner";
+  const followsDefault =
+    sameModules(modules, roleDefaultModules[role]) &&
+    sameModules(editModules, roleDefaultEditModules[role]);
+
+  // Trocar o perfil (ou restaurar) sugere o padrão do perfil escolhido.
+  function applyDefault(nextRole: UserRole) {
+    setModules(orderedModules(roleDefaultModules[nextRole]));
+    setEditModules(orderedModules(roleDefaultEditModules[nextRole]));
+  }
+  function toggleView(module: AppModule, checked: boolean) {
+    if (checked) {
+      setModules((current) => orderedModules([...current, module]));
+      return;
+    }
+    // Sem ver não há editar.
+    setModules((current) => current.filter((item) => item !== module));
+    setEditModules((current) => current.filter((item) => item !== module));
+  }
+  function toggleEdit(module: AppModule, checked: boolean) {
+    if (!checked) {
+      setEditModules((current) => current.filter((item) => item !== module));
+      return;
+    }
+    // Editar implica ver.
+    setEditModules((current) => orderedModules([...current, module]));
+    setModules((current) => orderedModules([...current, module]));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    // Seguindo o padrão (ou gestora), grava `null`: o usuário acompanha o padrão do perfil.
+    const permissions =
+      isOwner || followsDefault
+        ? { modules: null, editModules: null }
+        : { modules, editModules };
+    const title = jobTitle.trim();
+    try {
+      const saved = user
+        ? await api.updateAdminUser(user.id, {
+            fullName: fullName.trim(),
+            role,
+            active: user.active,
+            jobTitle: title,
+            ...permissions,
+          })
+        : await api.createAdminUser({
+            fullName: fullName.trim(),
+            email: email.trim(),
+            password,
+            role,
+            ...(title ? { jobTitle: title } : {}),
+            ...permissions,
+          });
+      onSaved(saved);
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={user ? `Editar ${user.fullName}` : "Novo usuário"}
+      subtitle={
+        user ? user.email : "Acesso da equipe ao sistema, com cargo e módulos."
+      }
+      eyebrow="Usuários"
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Nome completo
+          <input
+            required
+            minLength={3}
+            maxLength={160}
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+          />
+        </label>
+        {!user && (
+          <>
+            <label>
+              E-mail de acesso
+              <input
+                type="email"
+                required
+                autoComplete="off"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label>
+              Senha inicial
+              <input
+                type="password"
+                required
+                minLength={10}
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+          </>
+        )}
+        <label>
+          Perfil
+          <select
+            value={role}
+            onChange={(event) => {
+              const nextRole = event.target.value as UserRole;
+              setRole(nextRole);
+              applyDefault(nextRole);
+            }}
+          >
+            {(Object.keys(roleLabels) as UserRole[]).map((item) => (
+              <option value={item} key={item}>
+                {roleLabels[item]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Cargo
+          <input
+            maxLength={80}
+            placeholder="Ex.: Instrutora de Pilates"
+            value={jobTitle}
+            onChange={(event) => setJobTitle(event.target.value)}
+          />
+        </label>
+        {!user && (
+          <p className="muted-copy span-2">
+            A senha precisa de 10 caracteres ou mais, com letra maiúscula,
+            minúscula e número. O cargo é só informativo: o acesso vem dos
+            módulos abaixo.
+          </p>
+        )}
+        <fieldset className="form-fieldset span-2">
+          <legend>Módulos</legend>
+          {isOwner ? (
+            <p className="muted-copy">
+              Acesso total: a gestora vê e edita todos os módulos, além da
+              Administração.
+            </p>
+          ) : (
+            <div className="permission-editor">
+              <div className="permission-editor-head">
+                <span
+                  className={`status-pill ${followsDefault ? "active" : "custom-permissions"}`}
+                >
+                  {followsDefault
+                    ? `Padrão do perfil ${roleLabels[role]}`
+                    : "Permissões personalizadas"}
+                </span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={followsDefault}
+                  onClick={() => applyDefault(role)}
+                >
+                  <RotateCcw size={15} aria-hidden="true" />
+                  Restaurar padrão do perfil
+                </button>
+              </div>
+              <table className="permission-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Módulo</th>
+                    <th scope="col">Ver</th>
+                    <th scope="col">Editar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appModuleSchema.options.map((module) => (
+                    <tr key={module}>
+                      <th scope="row">{appModuleLabels[module]}</th>
+                      <td>
+                        <label className="checkbox-field">
+                          <input
+                            type="checkbox"
+                            aria-label={`Ver ${appModuleLabels[module]}`}
+                            checked={modules.includes(module)}
+                            onChange={(event) =>
+                              toggleView(module, event.target.checked)
+                            }
+                          />
+                          Ver
+                        </label>
+                      </td>
+                      <td>
+                        <label className="checkbox-field">
+                          <input
+                            type="checkbox"
+                            aria-label={`Editar ${appModuleLabels[module]}`}
+                            checked={editModules.includes(module)}
+                            onChange={(event) =>
+                              toggleEdit(module, event.target.checked)
+                            }
+                          />
+                          Editar
+                        </label>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted-copy">
+                “Visão geral” aparece para todos; Administração (usuários,
+                feriados e dados da clínica) é sempre só da gestora.
+              </p>
+            </div>
+          )}
+        </fieldset>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? "Salvando…" : user ? "Salvar alterações" : "Criar usuário"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ResetPasswordModal({
+  user,
+  onClose,
+  onDone,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api.resetAdminPassword(user.id, password);
+      onDone();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title="Redefinir senha"
+      subtitle={`${user.fullName} · ${user.email}`}
+      eyebrow="Usuários"
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Nova senha
+          <input
+            type="password"
+            required
+            minLength={10}
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        <p className="muted-copy span-2">
+          Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.
+        </p>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? "Salvando…" : "Redefinir senha"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function UserActiveModal({
+  user,
+  onClose,
+  onDone,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onDone: (updated: AdminUser) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function confirm() {
+    setSaving(true);
+    setError("");
+    try {
+      onDone(
+        await api.updateAdminUser(user.id, {
+          fullName: user.fullName,
+          role: user.role,
+          active: !user.active,
+        }),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={user.active ? "Desativar usuário" : "Ativar usuário"}
+      subtitle={`${user.fullName} · ${user.email}`}
+      eyebrow="Usuários"
+      onClose={onClose}
+    >
+      <div className="form-grid">
+        <p className="span-2">
+          {user.active
+            ? `${user.fullName} perde o acesso imediatamente, inclusive nas sessões já abertas.`
+            : `${user.fullName} volta a entrar com a senha atual e as mesmas permissões.`}
+        </p>
+        {error && <div className="form-error span-2">{error}</div>}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Voltar
+          </button>
+          <button
+            type="button"
+            className={user.active ? "secondary-button danger" : "primary-button"}
+            onClick={() => void confirm()}
+            disabled={saving}
+          >
+            {saving ? "Salvando…" : user.active ? "Desativar" : "Ativar"}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -10995,6 +11545,7 @@ function GroupsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [drawer, setDrawer] = useState<"create" | "enroll" | null>(null);
+  const canManage = canEdit("groups");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
@@ -11087,8 +11638,9 @@ function GroupsPage() {
         eyebrow="Operação coletiva"
         title="Turmas"
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
-        action={<button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
+        action={canManage && <button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>}
       />
+      {!canManage && <ReadOnlyNotice module="groups" />}
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (
         <LoadingBlock />
@@ -11099,9 +11651,11 @@ function GroupsPage() {
             <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
           </div>
+          {canManage && (
           <div className="group-actions-bar">
             <button className="secondary-button" onClick={() => setDrawer("enroll")}>Matricular cliente</button>
           </div>
+          )}
           {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." onClose={closeDrawers}>
           <section className="group-drawer-content group-form-panel">
             {error && <ErrorBanner error={error} />}
@@ -11285,6 +11839,8 @@ function GroupsPage() {
           {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} onClose={closeDrawers}>
             <div className="group-drawer-content">
               {error && <ErrorBanner error={error} />}
+              {canManage && (
+              <>
               <div className="group-drawer-quick-actions">
                 <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular cliente</button>
               </div>
@@ -11301,11 +11857,13 @@ function GroupsPage() {
                   <button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button>
                 </form>
               </section>
+              </>
+              )}
               <section className="group-drawer-section">
                 <h3>Participantes</h3>
                 <div className="group-members">
                   {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
-                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span><button type="button" className="group-cancel-button" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button></div>
+                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span>{canManage && <button type="button" className="group-cancel-button" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button>}</div>
                   ))}
                   {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
                 </div>
@@ -11321,10 +11879,34 @@ function GroupsPage() {
 function App() {
   const [user, setUser] = useState<UserSummary | null>(() => getStoredUser());
   const authenticated = Boolean(user && hasSession());
+  // Sessão antiga (gravada antes dos módulos por usuário): completa com `/me` antes de montar o menu.
+  const staleSession = authenticated && !hasAccessLists(user!);
   const logout = () => {
     clearSession();
     setUser(null);
   };
+  useEffect(() => {
+    if (!staleSession) return;
+    let active = true;
+    api
+      .me()
+      .then((fresh) => {
+        if (!active) return;
+        storeUser(fresh);
+        setUser(fresh);
+      })
+      .catch(() => {
+        if (!active) return;
+        // Sem como confirmar as permissões: pede novo login.
+        clearSession();
+        setUser(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [staleSession]);
+  const allow = (module: AppModule, element: ReactNode) =>
+    user?.modules?.includes(module) ? element : <Navigate to="/" replace />;
   return (
     <Routes>
       <Route
@@ -11342,119 +11924,50 @@ function App() {
         element={
           !authenticated ? (
             <Navigate to="/login" replace />
+          ) : staleSession ? (
+            <main className="session-check">
+              <LoadingBlock />
+            </main>
           ) : (
             <Shell user={user!} onLogout={logout}>
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
-                <Route path="/agenda" element={<AgendaPage />} />
-                <Route
-                  path="/turmas"
-                  element={
-                    ["owner", "reception", "physiotherapist"].includes(
-                      user!.role,
-                    ) ? (
-                      <GroupsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
-                <Route path="/clientes" element={<PatientsPage />} />
+                <Route path="/agenda" element={allow("agenda", <AgendaPage />)} />
+                <Route path="/turmas" element={allow("groups", <GroupsPage />)} />
+                <Route path="/clientes" element={allow("patients", <PatientsPage />)} />
                 {/* Endereço antigo, mantido para links e favoritos já salvos. */}
                 <Route path="/pacientes" element={<Navigate to="/clientes" replace />} />
                 <Route
                   path="/planos"
-                  element={
-                    <PlansPage
-                      canManage={["owner", "reception", "finance"].includes(
-                        user!.role,
-                      )}
-                    />
-                  }
+                  element={allow("plans", <PlansPage canManage={canEdit("plans")} />)}
                 />
-                <Route
-                  path="/comercial"
-                  element={
-                    ["owner", "reception", "finance"].includes(user!.role) ? (
-                      <CommercialPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
+                <Route path="/comercial" element={allow("crm", <CommercialPage />)} />
                 <Route
                   path="/relacionamento"
-                  element={
-                    ["owner", "reception", "finance"].includes(user!.role) ? (
-                      <RelationshipPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
+                  element={allow("relationship", <RelationshipPage />)}
                 />
                 <Route
                   path="/comunicacoes"
-                  element={
-                    ["owner", "reception", "finance"].includes(user!.role) ? (
-                      <CommunicationsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
+                  element={allow("communications", <CommunicationsPage />)}
                 />
-                <Route
-                  path="/contratos"
-                  element={
-                    ["owner", "reception", "finance"].includes(user!.role) ? (
-                      <DocumentsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
+                <Route path="/contratos" element={allow("contracts", <DocumentsPage />)} />
                 <Route
                   path="/documentos"
                   element={<Navigate to="/contratos" replace />}
                 />
                 <Route
                   path="/prontuarios"
-                  element={
-                    ["owner", "physiotherapist"].includes(user!.role) ? (
-                      <ClinicalRecordsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
+                  element={allow("clinical", <ClinicalRecordsPage />)}
                 />
-                <Route
-                  path="/financeiro"
-                  element={
-                    ["owner", "finance"].includes(user!.role) ? (
-                      <FinancePage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
-                <Route
-                  path="/relatorios"
-                  element={
-                    ["owner", "finance"].includes(user!.role) ? (
-                      <ReportsPage />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
+                <Route path="/financeiro" element={allow("finance", <FinancePage />)} />
+                <Route path="/relatorios" element={allow("reports", <ReportsPage />)} />
                 <Route
                   path="/configuracoes"
                   element={
                     user!.role === "owner" ? (
                       <AdminPage />
-                    ) : ["reception", "finance"].includes(user!.role) ? (
-                      <RelationshipSettingsPage />
                     ) : (
-                      <Navigate to="/" replace />
+                      allow("settings", <RelationshipSettingsPage />)
                     )
                   }
                 />

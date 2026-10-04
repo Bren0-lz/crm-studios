@@ -2762,7 +2762,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 .admin-users article {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 9px;
   align-items: center;
   padding: 12px 0;
@@ -2783,6 +2783,100 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   padding: 11px 0;
   border-top: 1px solid var(--line);
   font-size: 12px;
+}
+
+.admin-matrix > .muted-copy {
+  margin: 0 0 var(--space-3);
+}
+
+/* Usuários: selos (permissões personalizadas, inativo) e ações agrupadas que quebram linha. */
+.admin-user-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.admin-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.status-pill.custom-permissions {
+  background: #e4e8f8;
+  color: #485b9a;
+}
+
+/* Formulário de usuário: tabela de módulos com colunas Ver e Editar. */
+.permission-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.permission-editor > .muted-copy {
+  margin: 0;
+}
+
+.permission-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.permission-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.permission-table th,
+.permission-table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+
+.permission-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.permission-table tbody th {
+  font-weight: 600;
+}
+
+.permission-table .checkbox-field {
+  min-height: calc(var(--space-6) + 2px);
+  padding: var(--space-1) var(--space-2);
+  background: var(--paper);
+}
+
+/* Aviso de acesso só de consulta (no lugar dos botões de criar/editar/excluir). */
+.read-only-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.read-only-notice svg {
+  flex: none;
+}
+
+/* Sessão antiga sendo completada com /me antes de montar o menu. */
+.session-check {
+  padding: var(--space-6);
 }
 
 /* Feriados (Configurações): o painel recebe o mesmo respiro dos demais de `.admin-grid`. */

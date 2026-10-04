@@ -599,7 +599,7 @@ perfil reproduz o acesso de hoje — ex.: a fisioterapeuta **vê** Clientes e Pl
   - Usar `Modal` (não `window.prompt/confirm`) nos fluxos tocados. Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T053
-- **Status:** TODO
+- **Status:** DONE
 
 ### T050 — Comissão por usuário na API
 - **Escopo:**

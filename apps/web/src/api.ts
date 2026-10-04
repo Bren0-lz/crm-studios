@@ -217,6 +217,11 @@ export function getStoredUser(): UserSummary | null {
   }
 }
 
+/** Grava o usuário logado (ex.: depois de buscar `/me` para completar uma sessão antiga). */
+export function storeUser(user: UserSummary) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
@@ -227,6 +232,7 @@ export function hasSession() {
 }
 
 export const api = {
+  me: () => request<UserSummary>("/me"),
   adminUsers: () => request<AdminUser[]>("/admin/users"),
   createAdminUser: (input: AdminUserInput) =>
     request<AdminUser>("/admin/users", {
