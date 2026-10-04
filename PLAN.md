@@ -873,7 +873,7 @@ profissional; criar modais personalizados para cada opção".
   formulário inteiro. Testes web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T056, T057
-- **Status:** TODO
+- **Status:** DONE
 
 ### T059 — Configurações em gavetas
 - **Escopo:** cada seção de Configurações (Usuários, Dados da clínica, Feriados, Prazos e
@@ -885,12 +885,25 @@ profissional; criar modais personalizados para cada opção".
 - **Depende de:** T058
 - **Status:** TODO
 
+### T060 — Corrigir a comissão no mesmo dia sem erro
+- **Escopo:** hoje, salvar a comissão de um usuário com a mesma data de vigência de uma regra que
+  ele já tem (ex.: corrigir no mesmo dia o percentual de um usuário criado hoje) devolve 409
+  COMMISSION_RULE_DUPLICATE. Para o usuário isso é uma correção, não uma vigência nova:
+  `PUT /admin/users/:id/commission` com a mesma data passa a **substituir o percentual dessa
+  vigência** (dois repositórios, transação no PG, auditoria registrando valor anterior e novo),
+  desde que essa regra ainda não tenha gerado lançamentos de comissão; se já gerou, mantém o 409
+  com mensagem pt-BR explicando que é preciso escolher outra data. Web: a mensagem aparece no
+  formulário. Testes de rota (substitui; bloqueia com lançamento) e web.
+- **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
+- **Depende de:** T058
+- **Status:** TODO
+
 ### V5 — Revisão visual da rodada 5 (manual)
 - **Tipo:** manual
 - **Escopo:** em 1440px e 390px, percorrer as 13 telas e conferir textos, botões, Financeiro,
   Prontuários, Configurações, CRM vazio e os novos modais de confirmação.
 - **Gate:** aprovação do dono no chat.
-- **Depende de:** D08, D09, D10, D11, D12, T059
+- **Depende de:** D08, D09, D10, D11, D12, T059, T060
 - **Status:** TODO
 
 ### T054 — Documentação da rodada 5

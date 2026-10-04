@@ -6115,6 +6115,11 @@ function FinancePage() {
                   concluídos: o percentual da regra sobre a base de cálculo de
                   cada atendimento.
                 </p>
+                <p className="panel-help">
+                  Para quem tem usuário ligado, vale a comissão definida no
+                  usuário (Configurações › Usuários); a regra daqui só conta
+                  enquanto o usuário não tiver uma.
+                </p>
               </div>
               {canManage && (
                 <div className="page-actions">
@@ -11396,9 +11401,11 @@ function AdminPage() {
           onUserUpdated={(updated) =>
             setUsers((current) =>
               current
-                ? current.map((item) =>
-                    item.id === updated.id ? updated : item,
-                  )
+                ? current.some((item) => item.id === updated.id)
+                  ? current.map((item) =>
+                      item.id === updated.id ? updated : item,
+                    )
+                  : [...current, updated]
                 : current,
             )
           }
@@ -11465,11 +11472,14 @@ const percentageLabel = new Intl.NumberFormat("pt-BR", {
 
 /** Resumo da lista de usuários: profissional da agenda ligado e percentual vigente hoje. */
 function userCommissionSummary(user: AdminUser) {
-  if (!user.professionalId) return "Sem profissional da agenda";
-  const name = user.professionalName ?? "profissional ligado";
-  return user.commissionPercentage === undefined
-    ? `Agenda: ${name} · Sem comissão vigente`
-    : `Agenda: ${name} · Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+  const agenda = user.professionalId
+    ? `Agenda: ${user.professionalName ?? "profissional ligado"}`
+    : "Sem profissional da agenda";
+  const commission =
+    user.commissionPercentage === undefined
+      ? "Sem comissão vigente"
+      : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+  return `${agenda} · ${commission}`;
 }
 
 function loadCommissionProfessionals(
@@ -11482,228 +11492,20 @@ function loadCommissionProfessionals(
     .catch((cause: Error) => onError(cause.message));
 }
 
-/**
- * Seção "Comissão" do cadastro de usuário (só usuário já salvo). Cada ação grava na hora
- * (PUT próprio) e devolve o usuário atualizado para a lista, sem recarregar a página.
- */
-function UserCommissionSection({
-  user,
-  users,
-  onUpdated,
-}: {
-  user: AdminUser;
-  users: AdminUser[];
-  onUpdated: (updated: AdminUser) => void;
-}) {
-  const [current, setCurrent] = useState(user);
-  const [professionals, setProfessionals] = useState<Professional[] | null>(
-    null,
-  );
-  const [loadError, setLoadError] = useState("");
-  const [selected, setSelected] = useState(user.professionalId ?? "");
-  const [percentage, setPercentage] = useState(
-    user.commissionPercentage === undefined
-      ? ""
-      : String(user.commissionPercentage),
-  );
-  const [effectiveFrom, setEffectiveFrom] = useState(saoPauloToday());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+function percentageText(value: number | undefined) {
+  return value === undefined ? "" : String(value);
+}
 
-  useEffect(() => {
-    let active = true;
-    loadCommissionProfessionals(
-      (items) => {
-        if (active) setProfessionals(items);
-      },
-      (message) => {
-        if (active) setLoadError(message);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
+function isoDateLabel(value: string) {
+  return shortDate.format(new Date(`${value}T12:00:00`));
+}
 
-  // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
-  const taken = new Set(
-    users
-      .filter((item) => item.id !== current.id && item.professionalId)
-      .map((item) => item.professionalId),
-  );
-  const options = (professionals ?? []).filter(
-    (item) =>
-      item.id === current.professionalId ||
-      (item.active && !taken.has(item.id)),
-  );
-  const linked = Boolean(current.professionalId);
-
-  function applyUpdate(updated: AdminUser) {
-    setCurrent(updated);
-    onUpdated(updated);
-  }
-
-  async function saveProfessional() {
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const updated = await api.setUserProfessional(
-        current.id,
-        selected || null,
-      );
-      applyUpdate(updated);
-      setSelected(updated.professionalId ?? "");
-      setPercentage(
-        updated.commissionPercentage === undefined
-          ? ""
-          : String(updated.commissionPercentage),
-      );
-      setNotice(
-        updated.professionalId
-          ? `Profissional ${updated.professionalName ?? ""} ligado.`
-          : "Profissional desligado.",
-      );
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveCommission() {
-    setError("");
-    setNotice("");
-    const value = Number(percentage.replace(",", "."));
-    if (percentage.trim() === "" || !Number.isFinite(value) || value < 0 || value > 100) {
-      setError("Informe um percentual entre 0 e 100.");
-      return;
-    }
-    if (!effectiveFrom) {
-      setError("Informe a data em que a comissão passa a valer.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const updated = await api.setUserCommission(current.id, {
-        percentage: value,
-        effectiveFrom,
-      });
-      applyUpdate(updated);
-      const label = `${percentageLabel.format(value)}%`;
-      if (effectiveFrom > saoPauloToday()) {
-        const now =
-          current.commissionPercentage === undefined
-            ? "sem comissão vigente"
-            : `${percentageLabel.format(current.commissionPercentage)}%`;
-        setNotice(
-          `Regra salva. A regra de ${label} vale a partir de ${shortDate.format(new Date(`${effectiveFrom}T12:00:00`))}; até lá segue ${now}.`,
-        );
-      } else {
-        setNotice(`Comissão de ${label} salva.`);
-      }
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // A seção fica dentro do formulário do usuário: Enter aqui salva só a comissão.
-  function saveCommissionOnEnter(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    if (!busy && linked) void saveCommission();
-  }
-
-  return (
-    <fieldset className="form-fieldset span-2">
-      <legend>Comissão</legend>
-      {professionals === null && !loadError ? (
-        <LoadingBlock />
-      ) : loadError ? (
-        <div className="form-error" role="alert">
-          Não foi possível carregar os profissionais da agenda: {loadError}
-        </div>
-      ) : (
-        <div className="commission-editor">
-          <div className="commission-row">
-            <label>
-              Profissional da agenda
-              <select
-                value={selected}
-                onChange={(event) => setSelected(event.target.value)}
-              >
-                <option value="">Nenhum</option>
-                {options.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.fullName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={busy || selected === (current.professionalId ?? "")}
-              onClick={() => void saveProfessional()}
-            >
-              Salvar profissional
-            </button>
-          </div>
-          <div className="form-fieldset-grid">
-            <label>
-              Percentual de comissão (%)
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-                disabled={!linked}
-                value={percentage}
-                onChange={(event) => setPercentage(event.target.value)}
-                onKeyDown={saveCommissionOnEnter}
-              />
-            </label>
-            <label>
-              Vale a partir de
-              <input
-                type="date"
-                disabled={!linked}
-                value={effectiveFrom}
-                onChange={(event) => setEffectiveFrom(event.target.value)}
-                onKeyDown={saveCommissionOnEnter}
-              />
-            </label>
-          </div>
-          <p className="muted-copy">
-            {!linked
-              ? "Ligue um profissional da agenda (e salve) para definir a comissão: ela é calculada sobre os atendimentos dele."
-              : current.commissionPercentage === undefined
-                ? "Sem comissão vigente hoje. Uma regra com data futura só passa a valer nessa data."
-                : `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${shortDate.format(new Date(`${current.commissionEffectiveFrom}T12:00:00`))}` : ""}. Uma regra com data futura só passa a valer nessa data.`}
-          </p>
-          <div className="commission-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={busy || !linked}
-              onClick={() => void saveCommission()}
-            >
-              Salvar comissão
-            </button>
-          </div>
-          {error && <div className="form-error">{error}</div>}
-          {notice && (
-            <p className="muted-copy" role="status">
-              {notice}
-            </p>
-          )}
-        </div>
-      )}
-    </fieldset>
-  );
+/** Percentual digitado: vazio = sem comissão; `NaN` = inválido. */
+function parsePercentage(text: string) {
+  const trimmed = text.trim();
+  if (trimmed === "") return undefined;
+  const value = Number(trimmed.replace(",", "."));
+  return Number.isFinite(value) ? value : Number.NaN;
 }
 
 function UserFormModal({
@@ -11719,6 +11521,9 @@ function UserFormModal({
   onClose: () => void;
   onSaved: (saved: AdminUser) => void;
 }) {
+  // Usuário já gravado (o editado ou o recém-criado numa falha parcial): a próxima tentativa
+  // é PATCH, nunca outro POST.
+  const [current, setCurrent] = useState<AdminUser | null>(user);
   const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -11733,13 +11538,66 @@ function UserFormModal({
     startsCommon ? orderedModules(user.editModules) : [],
   );
   const [copiedFrom, setCopiedFrom] = useState("");
+  // Comissão: percentual vigente e data de hoje; só vira nova vigência se algo mudar.
+  const today = saoPauloToday();
+  const [percentage, setPercentage] = useState(
+    percentageText(user?.commissionPercentage),
+  );
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [savedCommission, setSavedCommission] = useState({
+    percentage: parsePercentage(percentageText(user?.commissionPercentage)),
+    effectiveFrom: today,
+  });
+  const [professionals, setProfessionals] = useState<Professional[] | null>(
+    null,
+  );
+  const [professionalsError, setProfessionalsError] = useState("");
+  const [selectedProfessional, setSelectedProfessional] = useState(
+    user?.professionalId ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
   const copySources = users.filter(
-    (item) => item.role === "user" && item.id !== user?.id,
+    (item) => item.role === "user" && item.id !== current?.id,
   );
+
+  useEffect(() => {
+    let active = true;
+    loadCommissionProfessionals(
+      (items) => {
+        if (active) setProfessionals(items);
+      },
+      (message) => {
+        if (active) setProfessionalsError(message);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
+  const taken = new Set(
+    users
+      .filter((item) => item.id !== current?.id && item.professionalId)
+      .map((item) => item.professionalId),
+  );
+  const professionalOptions = (professionals ?? []).filter(
+    (item) =>
+      item.id === current?.professionalId ||
+      (item.active && !taken.has(item.id)),
+  );
+
+  const typedPercentage = parsePercentage(percentage);
+  const commissionChanged =
+    typedPercentage !== undefined &&
+    (Number.isNaN(typedPercentage) ||
+      typedPercentage !== savedCommission.percentage ||
+      effectiveFrom !== savedCommission.effectiveFrom);
+  const futureStart =
+    commissionChanged && Boolean(effectiveFrom) && effectiveFrom > today;
 
   function copyPermissions(sourceId: string) {
     const source = copySources.find((item) => item.id === sourceId);
@@ -11772,8 +11630,35 @@ function UserFormModal({
     setModules((current) => orderedModules([...current, module]));
   }
 
+  function commissionError() {
+    if (typedPercentage === undefined) {
+      return savedCommission.percentage === undefined
+        ? ""
+        : "A comissão não pode ficar em branco: para não pagar comissão, informe 0%.";
+    }
+    if (!commissionChanged) return "";
+    if (
+      Number.isNaN(typedPercentage) ||
+      typedPercentage < 0 ||
+      typedPercentage > 100
+    ) {
+      return "Informe um percentual de comissão entre 0 e 100.";
+    }
+    if (!effectiveFrom) return "Informe a data em que a comissão passa a valer.";
+    return "";
+  }
+
+  /**
+   * Um botão grava tudo: dados e módulos (POST/PATCH), depois a ligação com o profissional
+   * e a comissão (PUT), cada um só se mudou. Se um PUT falhar, o que já foi gravado fica.
+   */
   async function submit(event: FormEvent) {
     event.preventDefault();
+    const invalid = commissionError();
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     setSaving(true);
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
@@ -11782,12 +11667,17 @@ function UserFormModal({
         ? { modules: null, editModules: null }
         : { modules, editModules };
     const title = jobTitle.trim();
+    const commission =
+      commissionChanged && typedPercentage !== undefined
+        ? { percentage: typedPercentage, effectiveFrom }
+        : undefined;
+    let latest: AdminUser;
     try {
-      const saved = user
-        ? await api.updateAdminUser(user.id, {
+      latest = current
+        ? await api.updateAdminUser(current.id, {
             fullName: fullName.trim(),
             role,
-            active: user.active,
+            active: current.active,
             jobTitle: title,
             ...permissions,
           })
@@ -11798,19 +11688,53 @@ function UserFormModal({
             role,
             ...(title ? { jobTitle: title } : {}),
             ...permissions,
+            ...(commission ? { commission } : {}),
           });
-      onSaved(saved);
     } catch (cause) {
       setError(userSaveErrorMessage(cause));
+      setSaving(false);
+      return;
+    }
+    // Na criação a comissão já foi junto no POST.
+    const commissionByPut = current !== null ? commission : undefined;
+    if (commission && !commissionByPut) {
+      setSavedCommission({ percentage: commission.percentage, effectiveFrom });
+    }
+    let failed: "professional" | "commission" = "professional";
+    try {
+      if (selectedProfessional !== (latest.professionalId ?? "")) {
+        latest = await api.setUserProfessional(
+          latest.id,
+          selectedProfessional || null,
+        );
+      }
+      failed = "commission";
+      if (commissionByPut) {
+        latest = await api.setUserCommission(latest.id, commissionByPut);
+      }
+      onSaved(latest);
+    } catch (cause) {
+      const saved = latest;
+      setCurrent(saved);
+      onUserUpdated(saved);
+      const part =
+        failed === "professional"
+          ? "a ligação com o profissional da agenda não foi salva"
+          : "a comissão não foi salva";
+      setError(
+        `${current ? "Dados do usuário salvos" : `Usuário ${saved.fullName} criado`}, mas ${part}: ${(cause as Error).message} Ajuste e clique em “Salvar alterações” de novo.`,
+      );
       setSaving(false);
     }
   }
 
   return (
     <Modal
-      title={user ? `Editar ${user.fullName}` : "Novo usuário"}
+      title={current ? `Editar ${current.fullName}` : "Novo usuário"}
       subtitle={
-        user ? user.email : "Acesso da equipe ao sistema, com cargo e módulos."
+        current
+          ? current.email
+          : "Acesso da equipe ao sistema, com cargo e módulos."
       }
       eyebrow="Usuários"
       onClose={onClose}
@@ -11826,7 +11750,7 @@ function UserFormModal({
             onChange={(event) => setFullName(event.target.value)}
           />
         </label>
-        {!user && (
+        {!current && (
           <>
             <label>
               E-mail de acesso
@@ -11873,7 +11797,7 @@ function UserFormModal({
             onChange={(event) => setJobTitle(event.target.value)}
           />
         </label>
-        {!user && (
+        {!current && (
           <p className="muted-copy span-2">
             A senha precisa de 10 caracteres ou mais, com letra maiúscula,
             minúscula e número. O cargo é só informativo: o acesso vem dos
@@ -11962,21 +11886,75 @@ function UserFormModal({
             </div>
           )}
         </fieldset>
-        {user ? (
-          <UserCommissionSection
-            user={user}
-            users={users}
-            onUpdated={onUserUpdated}
-          />
-        ) : (
-          <fieldset className="form-fieldset span-2">
-            <legend>Comissão</legend>
+        <fieldset className="form-fieldset span-2">
+          <legend>Comissão</legend>
+          <div className="commission-editor">
+            <div className="form-fieldset-grid">
+              <label>
+                Comissão (%)
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="Sem comissão"
+                  value={percentage}
+                  onChange={(event) => setPercentage(event.target.value)}
+                />
+              </label>
+              <label>
+                Vale a partir de
+                <input
+                  type="date"
+                  value={effectiveFrom}
+                  onChange={(event) => setEffectiveFrom(event.target.value)}
+                />
+              </label>
+            </div>
             <p className="muted-copy">
-              Depois de criar o usuário, abra “Editar” para ligar o
-              profissional da agenda e definir a comissão.
+              {current?.commissionPercentage !== undefined
+                ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
+                : "Percentual sobre os atendimentos desta pessoa. Deixe em branco se ela não recebe comissão."}
             </p>
-          </fieldset>
-        )}
+            {futureStart && (
+              <p className="muted-copy" role="status">
+                {current?.commissionPercentage !== undefined
+                  ? `Data futura: o percentual atual (${percentageLabel.format(current.commissionPercentage)}%) continua valendo até ${isoDateLabel(effectiveFrom)}.`
+                  : `Data futura: a comissão só passa a valer em ${isoDateLabel(effectiveFrom)}.`}
+              </p>
+            )}
+            {professionals === null && !professionalsError ? (
+              <LoadingBlock />
+            ) : professionalsError ? (
+              <div className="form-error" role="alert">
+                Não foi possível carregar os profissionais da agenda:{" "}
+                {professionalsError}
+              </div>
+            ) : (
+              <label>
+                Profissional da agenda (opcional)
+                <select
+                  value={selectedProfessional}
+                  onChange={(event) =>
+                    setSelectedProfessional(event.target.value)
+                  }
+                >
+                  <option value="">Nenhum</option>
+                  {professionalOptions.map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <p className="muted-copy">
+              Ligue o profissional da agenda para contar os atendimentos desta
+              pessoa na comissão.
+            </p>
+          </div>
+        </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button
@@ -11988,7 +11966,11 @@ function UserFormModal({
             Cancelar
           </button>
           <button className="primary-button" disabled={saving}>
-            {saving ? "Salvando…" : user ? "Salvar alterações" : "Criar usuário"}
+            {saving
+              ? "Salvando…"
+              : current
+                ? "Salvar alterações"
+                : "Criar usuário"}
           </button>
         </div>
       </form>
