@@ -896,7 +896,7 @@ profissional; criar modais personalizados para cada opção".
   formulário. Testes de rota (substitui; bloqueia com lançamento) e web.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts` e `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T058
-- **Status:** TODO
+- **Status:** DONE
 
 ### V5 — Revisão visual da rodada 5 (manual)
 - **Tipo:** manual
@@ -904,7 +904,7 @@ profissional; criar modais personalizados para cada opção".
   Prontuários, Configurações, CRM vazio e os novos modais de confirmação.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** D08, D09, D10, D11, D12, T059, T060
-- **Status:** TODO
+- **Status:** BLOCKED
 
 ### T054 — Documentação da rodada 5
 - **Escopo:** incremento novo em `docs/STATUS_IMPLEMENTACAO.md` (escala tipográfica, botões,

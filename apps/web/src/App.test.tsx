@@ -3977,6 +3977,47 @@ describe("users and permissions", () => {
       ]);
     });
 
+    it("corrects the percentage on the same start date of the current period", async () => {
+      const createdToday = { ...otherUser, commissionPercentage: 20, commissionEffectiveFrom: saoPauloToday() };
+      const corrected = { ...createdToday, commissionPercentage: 25 };
+      let corrections = 0;
+      mockCommission((url, init) => {
+        if (init?.method === "PATCH") return createdToday;
+        if (init?.method === "PUT") {
+          corrections += 1;
+          return corrected;
+        }
+        if (url.endsWith("/admin/users")) return [customUser, corrections ? corrected : createdToday];
+        return undefined;
+      });
+      const dialog = await openEditor("Bruno Lima");
+      expect(within(dialog).queryByText("Vai corrigir o percentual desta vigência.")).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), { target: { value: "25" } });
+      expect(within(dialog).getByText("Vai corrigir o percentual desta vigência.")).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+      expect(await screen.findByText("Alterações de Bruno Lima salvas.")).toBeInTheDocument();
+      expect(lastCall("PUT").body).toEqual({ percentage: 25, effectiveFrom: saoPauloToday() });
+      const section = screen.getByRole("heading", { name: "Usuários" }).closest("section")!;
+      expect(await within(section).findByText("Agenda: Bruno Lima (agenda) · Comissão 25%")).toBeInTheDocument();
+    });
+
+    it("shows in the form why a used commission period cannot be corrected", async () => {
+      const createdToday = { ...otherUser, commissionPercentage: 20, commissionEffectiveFrom: saoPauloToday() };
+      const message = "Esta comissão já foi usada em lançamentos; escolha outra data de início.";
+      mockCommission((url, init) => {
+        if (init?.method === "PATCH") return createdToday;
+        if (init?.method === "PUT") return conflict("COMMISSION_RULE_DUPLICATE", message);
+        if (url.endsWith("/admin/users")) return [customUser, createdToday];
+        return undefined;
+      });
+      const dialog = await openEditor("Bruno Lima");
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), { target: { value: "25" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+      const error = await screen.findByText(new RegExp(message.replace(/[.;]/g, "\\$&")));
+      expect(error).toHaveClass("form-error");
+      expect(screen.getByRole("dialog", { name: "Editar Bruno Lima" })).toBeInTheDocument();
+    });
+
     it("warns that the current percentage keeps applying when the start date is in the future", async () => {
       mockCommission((_url, init) => (init?.method === "PATCH" || init?.method === "PUT" ? otherUser : undefined));
       const dialog = await openEditor("Bruno Lima");

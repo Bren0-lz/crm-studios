@@ -11659,6 +11659,11 @@ function UserFormModal({
       effectiveFrom !== savedCommission.effectiveFrom);
   const futureStart =
     commissionChanged && Boolean(effectiveFrom) && effectiveFrom > today;
+  // Mesma data da vigência atual: a API corrige o percentual dela em vez de criar outra.
+  const sameStart =
+    commissionChanged &&
+    Boolean(current?.commissionEffectiveFrom) &&
+    effectiveFrom === current?.commissionEffectiveFrom;
 
   function copyPermissions(sourceId: string) {
     const source = copySources.find((item) => item.id === sourceId);
@@ -11978,6 +11983,11 @@ function UserFormModal({
                 ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
                 : "Percentual sobre os atendimentos desta pessoa. Deixe em branco se ela não recebe comissão."}
             </p>
+            {sameStart && (
+              <p className="muted-copy" role="status">
+                Vai corrigir o percentual desta vigência.
+              </p>
+            )}
             {futureStart && (
               <p className="muted-copy" role="status">
                 {current?.commissionPercentage !== undefined

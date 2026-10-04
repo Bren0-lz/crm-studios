@@ -284,6 +284,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     createdAt: string;
   }> = [];
   private readonly commissions: CommissionEntry[] = [];
+  /** Regras (`commission_entries.rule_id` no PostgreSQL) que já geraram algum lançamento. */
+  private readonly commissionEntryRuleIds = new Set<string>();
   private readonly payables: Payable[] = [];
   private readonly recurringPayables: StoredRecurringPayable[] = [];
   private readonly financialCategories: FinancialCategory[] = [
@@ -617,19 +619,31 @@ export class MemoryClinicRepository implements ClinicRepository {
     userId: string,
     input: AdminUserCommissionInput,
   ) {
-    if (
-      this.userCommissionRules.some(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.userId === userId &&
-          item.effectiveFrom === input.effectiveFrom,
-      )
-    )
-      throw new DomainError(
-        "COMMISSION_RULE_DUPLICATE",
-        "Já existe uma regra nesta vigência.",
-        409,
-      );
+    const existing = this.userCommissionRules.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.userId === userId &&
+        item.effectiveFrom === input.effectiveFrom,
+    );
+    if (existing) {
+      // Mesma vigência: é uma correção do percentual, desde que a regra não tenha lançamentos.
+      if (existing.percentage === input.percentage) return;
+      if (this.commissionEntryRuleIds.has(existing.id))
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+          409,
+        );
+      const previousPercentage = existing.percentage;
+      existing.percentage = input.percentage;
+      this.addAdminAudit(actorUserId, "users.commission_updated", "user", userId, {
+        ruleId: existing.id,
+        percentage: existing.percentage,
+        previousPercentage,
+        effectiveFrom: existing.effectiveFrom,
+      });
+      return;
+    }
     const rule = {
       id: uuid(),
       clinicId,
@@ -4129,6 +4143,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         (item) => item.id === appointment.serviceId,
       );
       if (!rule || !service) continue;
+      this.commissionEntryRuleIds.add(rule.id);
       this.commissions.push({
         id: uuid(),
         clinicId,

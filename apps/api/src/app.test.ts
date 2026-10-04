@@ -438,12 +438,13 @@ describe("CRM API", () => {
       commissionPercentage: 40,
       commissionEffectiveFrom: "2020-01-01",
     });
-    // Regra futura não vale hoje; vigência repetida e percentual fora de 0–100 são recusados.
+    // Regra futura não vale hoje; mesma vigência com o mesmo valor não muda nada (nem audita);
+    // percentual fora de 0–100 é recusado.
     const future = await commission(userA, { percentage: 50, effectiveFrom: "2999-01-01" });
     expect(future.json()).toMatchObject({ commissionPercentage: 40, commissionEffectiveFrom: "2020-01-01" });
-    const duplicate = await commission(userA, { percentage: 45, effectiveFrom: "2020-01-01" });
-    expect(duplicate.statusCode).toBe(409);
-    expect(duplicate.json().code).toBe("COMMISSION_RULE_DUPLICATE");
+    const sameValue = await commission(userA, { percentage: 40, effectiveFrom: "2020-01-01" });
+    expect(sameValue.statusCode).toBe(200);
+    expect(sameValue.json()).toMatchObject({ commissionPercentage: 40, commissionEffectiveFrom: "2020-01-01" });
     expect((await commission(userA, { percentage: 101, effectiveFrom: "2020-01-01" })).statusCode).toBe(400);
     expect((await commission(userA, { percentage: 10, effectiveFrom: "01/01/2020" })).statusCode).toBe(400);
 
@@ -715,6 +716,98 @@ describe("CRM API", () => {
     const second = await generate();
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({ percentage: 10 });
+
+    // A regra de 15/05 já gerou lançamento: corrigir o percentual dela é bloqueado.
+    const blocked = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 40, effectiveFrom: "2031-05-15" },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json()).toMatchObject({
+      code: "COMMISSION_RULE_DUPLICATE",
+      message: "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+    });
+    // A regra de 01/05 (sem lançamentos) ainda pode ser corrigida.
+    const correctable = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 45, effectiveFrom: "2031-05-01" },
+    });
+    expect(correctable.statusCode).toBe(200);
+    expect(byAppointment((await generate()).json()).get(withUserRule)).toMatchObject({ percentage: 35 });
+    await app.close();
+  });
+
+  it("corrects the percentage of a user's commission period on the same start date", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Correção Mesmo Dia",
+        email: "correcao.mesmo.dia@movimenta.local",
+        role: "user",
+        password: "Segura@1234",
+        commission: { percentage: 20, effectiveFrom: "2020-06-01" },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const userId = created.json().id as string;
+    const commission = (payload: Record<string, unknown>, requestHeaders = headers) =>
+      app.inject({ method: "PUT", url: `/admin/users/${userId}/commission`, headers: requestHeaders, payload });
+    const auditEvents = async () =>
+      (
+        (await app.inject({ method: "GET", url: "/admin/audit-events", headers })).json() as Array<{
+          action: string;
+          entityId?: string;
+          metadata: Record<string, unknown>;
+        }>
+      ).filter((item) => item.action === "users.commission_updated" && item.entityId === userId);
+
+    // Mesma data, outro percentual: substitui a vigência (não cria outra) e audita antes/depois.
+    const replaced = await commission({ percentage: 25, effectiveFrom: "2020-06-01" });
+    expect(replaced.statusCode).toBe(200);
+    expect(replaced.json()).toMatchObject({ commissionPercentage: 25, commissionEffectiveFrom: "2020-06-01" });
+    let events = await auditEvents();
+    expect(events).toHaveLength(2);
+    expect(events.map((item) => item.metadata)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ percentage: 25, previousPercentage: 20, effectiveFrom: "2020-06-01" }),
+      ]),
+    );
+
+    // Mesmo valor: nada muda e não há auditoria.
+    const same = await commission({ percentage: 25, effectiveFrom: "2020-06-01" });
+    expect(same.statusCode).toBe(200);
+    expect(same.json()).toMatchObject({ commissionPercentage: 25, commissionEffectiveFrom: "2020-06-01" });
+    expect(await auditEvents()).toHaveLength(2);
+
+    // Outra data cria uma vigência nova; a anterior continua igual.
+    const next = await commission({ percentage: 30, effectiveFrom: "2021-01-01" });
+    expect(next.statusCode).toBe(200);
+    expect(next.json()).toMatchObject({ commissionPercentage: 30, commissionEffectiveFrom: "2021-01-01" });
+    events = await auditEvents();
+    expect(events).toHaveLength(3);
+    expect(events.map((item) => item.metadata)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ percentage: 30, effectiveFrom: "2021-01-01" })]),
+    );
+
+    // Só admin.
+    await seedRoleUsers(app);
+    const userHeaders = {
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId: "11111111-1111-4111-8111-111111111111", role: tokenRole("reception") })}`,
+    };
+    const denied = await commission({ percentage: 99, effectiveFrom: "2021-01-01" }, userHeaders);
+    expect(denied.statusCode).toBe(403);
+    const listed = (await app.inject({ method: "GET", url: "/admin/users", headers }))
+      .json()
+      .find((item: { id: string }) => item.id === userId);
+    expect(listed).toMatchObject({ commissionPercentage: 30, commissionEffectiveFrom: "2021-01-01" });
     await app.close();
   });
 

@@ -1954,6 +1954,54 @@ export class PostgresClinicRepository implements ClinicRepository {
     input: AdminUserCommissionInput,
   ) {
     // Chamado dentro de transação: um erro aqui desfaz tudo (o chamador faz ROLLBACK).
+    // Mesma vigência: é uma correção do percentual. O FOR UPDATE trava a regra e também a
+    // geração de lançamentos que a referenciam (a FK pede FOR KEY SHARE, que conflita).
+    const existing = await client.query<{ id: string; percentage: string }>(
+      `SELECT id, percentage FROM commission_rules
+       WHERE clinic_id = $1 AND user_id = $2 AND effective_from = $3
+       FOR UPDATE`,
+      [clinicId, userId, input.effectiveFrom],
+    );
+    const current = existing.rows[0];
+    if (current) {
+      const previousPercentage = Number(current.percentage);
+      if (
+        Math.round(previousPercentage * 100) ===
+        Math.round(input.percentage * 100)
+      )
+        return;
+      const used = await client.query(
+        `SELECT 1 FROM commission_entries WHERE clinic_id = $1 AND rule_id = $2 LIMIT 1`,
+        [clinicId, current.id],
+      );
+      if (used.rows[0])
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+          409,
+        );
+      const updated = await client.query<{ percentage: string }>(
+        `UPDATE commission_rules SET percentage = $3
+         WHERE clinic_id = $1 AND id = $2
+         RETURNING percentage`,
+        [clinicId, current.id, input.percentage],
+      );
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "users.commission_updated",
+        "user",
+        userId,
+        {
+          ruleId: current.id,
+          percentage: Number(updated.rows[0]!.percentage),
+          previousPercentage,
+          effectiveFrom: input.effectiveFrom,
+        },
+      );
+      return;
+    }
     let rule: { id: string; percentage: string; effectiveFrom: string };
     try {
       const result = await client.query<{

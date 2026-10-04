@@ -177,7 +177,8 @@ export interface ClinicRepository {
   /**
    * Nova regra de comissão do próprio usuário (`commission_rules.user_id`); não exige profissional
    * ligado. Na geração, prevalece sobre a regra do profissional ligado ao usuário. `null` =
-   * usuário inexistente; COMMISSION_RULE_DUPLICATE (409) se a vigência já existe para o usuário.
+   * usuário inexistente. Vigência já existente = correção do percentual dela (mesmo valor não muda
+   * nada); COMMISSION_RULE_DUPLICATE (409) se essa regra já tem lançamentos de comissão.
    */
   setAdminUserCommission(
     clinicId: string,

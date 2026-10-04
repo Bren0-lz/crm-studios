@@ -2187,12 +2187,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         commissionPercentage: 35.5,
         commissionEffectiveFrom: "2001-01-01",
       });
-      await expect(
-        repository.setAdminUserCommission(clinicId, ownerId, user.id, {
-          percentage: 40,
+      // Mesma vigência e mesmo valor: nada muda (sem auditoria).
+      expect(
+        await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+          percentage: 35.5,
           effectiveFrom: "2001-01-01",
         }),
-      ).rejects.toMatchObject({ code: "COMMISSION_RULE_DUPLICATE" });
+      ).toMatchObject({ commissionPercentage: 35.5, commissionEffectiveFrom: "2001-01-01" });
       const listed = (await repository.listAdminUsers(clinicId)).find((item) => item.id === user.id);
       expect(listed).toMatchObject({ professionalId: first, commissionPercentage: 35.5 });
 
@@ -2440,6 +2441,52 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       const second = await repository.generateCommissions(clinicId, "2097-05");
       expect(second.filter((item) => [beforeUserRule, withUserRule, unlinked].includes(item.appointmentId))).toHaveLength(3);
       expect(second).toHaveLength(first.length);
+
+      // T060: a regra de 15/05 já tem lançamento, então não pode ser corrigida na mesma data.
+      await expect(
+        repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+          percentage: 40,
+          effectiveFrom: "2097-05-15",
+        }),
+      ).rejects.toMatchObject({
+        code: "COMMISSION_RULE_DUPLICATE",
+        message: "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+      });
+      // Uma vigência sem lançamentos é corrigida no lugar (UPDATE), com auditoria antes/depois.
+      await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+        percentage: 20,
+        effectiveFrom: "2097-06-01",
+      });
+      await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+        percentage: 22.5,
+        effectiveFrom: "2097-06-01",
+      });
+      await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+        percentage: 22.5,
+        effectiveFrom: "2097-06-01",
+      });
+      const userRules = await pool.query<{ percentage: number; effective_from: string }>(
+        `SELECT percentage::float AS percentage, effective_from::text AS effective_from
+         FROM commission_rules WHERE clinic_id = $1 AND user_id = $2 ORDER BY effective_from`,
+        [clinicId, user.id],
+      );
+      expect(userRules.rows).toEqual([
+        { percentage: 35, effective_from: "2097-05-15" },
+        { percentage: 22.5, effective_from: "2097-06-01" },
+      ]);
+      const corrections = (await repository.listAdminAuditEvents(clinicId)).filter(
+        (item) => item.entityId === user.id && item.action === "users.commission_updated",
+      );
+      expect(corrections).toHaveLength(3);
+      expect(corrections.map((item) => item.metadata)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            percentage: 22.5,
+            previousPercentage: 20,
+            effectiveFrom: "2097-06-01",
+          }),
+        ]),
+      );
     } finally {
       await cleanup();
     }
