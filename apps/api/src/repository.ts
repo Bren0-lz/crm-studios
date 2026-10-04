@@ -144,6 +144,7 @@ export interface ClinicRepository {
     userId: string,
   ): Promise<AuthenticatedUser | null>;
   listAdminUsers(clinicId: string): Promise<AdminUser[]>;
+  /** Cria o usuário e, se `input.commission` vier, a regra de comissão dele (mesma transação). */
   createAdminUser(
     clinicId: string,
     actorUserId: string,
@@ -174,8 +175,9 @@ export interface ClinicRepository {
     professionalId: string | null,
   ): Promise<AdminUser | null>;
   /**
-   * Nova regra de comissão (mesma de `createCommissionRule`) para o profissional ligado ao
-   * usuário. `null` = usuário inexistente; USER_NOT_PROFESSIONAL (409) sem profissional ligado.
+   * Nova regra de comissão do próprio usuário (`commission_rules.user_id`); não exige profissional
+   * ligado. Na geração, prevalece sobre a regra do profissional ligado ao usuário. `null` =
+   * usuário inexistente; COMMISSION_RULE_DUPLICATE (409) se a vigência já existe para o usuário.
    */
   setAdminUserCommission(
     clinicId: string,

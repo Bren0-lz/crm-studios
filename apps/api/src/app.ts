@@ -644,7 +644,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return user;
     },
   );
-  // Nova regra de comissão (commission_rules) para o profissional ligado ao usuário.
+  // Nova regra de comissão do próprio usuário (não exige profissional ligado).
   app.put(
     "/admin/users/:id/commission",
     { preHandler: authenticate },

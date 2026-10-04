@@ -864,7 +864,7 @@ profissional; criar modais personalizados para cada opção".
   (migração nova, se precisar, segura para o deploy). Testes de rota, geração e PG opt-in.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T055
-- **Status:** TODO
+- **Status:** DONE
 
 ### T058 — Comissão direto no usuário na interface
 - **Escopo:** campos "Comissão (%)" e "Vale a partir de" no formulário de criar e de editar

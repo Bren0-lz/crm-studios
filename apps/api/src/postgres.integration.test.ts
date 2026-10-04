@@ -247,6 +247,19 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       `DELETE FROM audit_events WHERE clinic_id = $1 AND entity_type = 'user' AND entity_id IN (${ids})`,
       [clinicId, permissionsUserEmail],
     );
+    await pool.query(
+      `DELETE FROM commission_entries WHERE clinic_id = $1 AND rule_id IN
+         (SELECT id FROM commission_rules WHERE clinic_id = $1 AND user_id IN (${ids}))`,
+      [clinicId, permissionsUserEmail],
+    );
+    await pool.query(
+      `DELETE FROM commission_rules WHERE clinic_id = $1 AND user_id IN (${ids})`,
+      [clinicId, permissionsUserEmail],
+    );
+    await pool.query(
+      `UPDATE professionals SET user_id = NULL WHERE clinic_id = $1 AND user_id IN (${ids})`,
+      [clinicId, permissionsUserEmail],
+    );
     await pool.query("DELETE FROM users WHERE clinic_id = $1 AND email = $2", [
       clinicId,
       permissionsUserEmail,
@@ -2132,12 +2145,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         },
         "hash-de-teste",
       );
-      await expect(
-        repository.setAdminUserCommission(clinicId, ownerId, user.id, {
+      // A comissão é do usuário: não exige profissional ligado.
+      expect(
+        await repository.setAdminUserCommission(clinicId, ownerId, user.id, {
           percentage: 30,
-          effectiveFrom: "2001-01-01",
+          effectiveFrom: "2000-01-01",
         }),
-      ).rejects.toMatchObject({ code: "USER_NOT_PROFESSIONAL" });
+      ).toMatchObject({ commissionPercentage: 30, commissionEffectiveFrom: "2000-01-01" });
       await expect(
         repository.setAdminUserProfessional(
           clinicId,
@@ -2182,10 +2196,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       const listed = (await repository.listAdminUsers(clinicId)).find((item) => item.id === user.id);
       expect(listed).toMatchObject({ professionalId: first, commissionPercentage: 35.5 });
 
-      // Trocar a ligação libera o profissional anterior; desligar remove a comissão do usuário.
+      // A regra do usuário não aparece como regra do profissional no Financeiro.
+      const professionalRules = await pool.query(
+        "SELECT id FROM commission_rules WHERE professional_id = $1",
+        [first],
+      );
+      expect(professionalRules.rows).toHaveLength(0);
+
+      // Trocar a ligação libera o profissional anterior; a comissão acompanha o usuário.
       const switched = await repository.setAdminUserProfessional(clinicId, ownerId, user.id, second!);
-      expect(switched).toMatchObject({ professionalId: second });
-      expect(switched?.commissionPercentage).toBeUndefined();
+      expect(switched).toMatchObject({ professionalId: second, commissionPercentage: 35.5 });
       const links = await pool.query<{ id: string; user_id: string | null }>(
         `SELECT id, user_id FROM professionals WHERE id = ANY($1) ORDER BY crefito`,
         [[first, second]],
@@ -2193,13 +2213,233 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       expect(links.rows.map((row) => row.user_id)).toEqual([null, user.id]);
       const unlinked = await repository.setAdminUserProfessional(clinicId, ownerId, user.id, null);
       expect(unlinked?.professionalId).toBeUndefined();
+      expect(unlinked?.commissionPercentage).toBe(35.5);
 
       const events = (await repository.listAdminAuditEvents(clinicId)).filter(
         (item) =>
           item.entityId === user.id &&
           ["users.professional_updated", "users.commission_updated"].includes(item.action),
       );
-      expect(events).toHaveLength(5);
+      expect(events).toHaveLength(6);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("migration 0043 copies the linked professionals' rules to their users without losing any", async () => {
+    const sql = readFileSync(
+      fileURLToPath(new URL("../migrations/0043_user_commission_rules.sql", import.meta.url)),
+      "utf8",
+    );
+    const clinic = "11111111-1111-4111-8111-000000000043";
+    const linkedUser = "22222222-2222-4222-8222-000000000043";
+    const freeUser = "33333333-3333-4333-8333-000000000043";
+    const linkedProfessional = "44444444-4444-4444-8444-000000000043";
+    const freeProfessional = "55555555-5555-4555-8555-000000000043";
+    // Esquema temporário com as tabelas como estavam antes da 0043; tudo desfeito no ROLLBACK.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("CREATE SCHEMA t057_migration");
+      await client.query("SET LOCAL search_path TO t057_migration");
+      await client.query("CREATE TABLE users (id uuid PRIMARY KEY)");
+      await client.query(
+        `CREATE TABLE professionals (id uuid PRIMARY KEY, clinic_id uuid NOT NULL,
+           user_id uuid REFERENCES users(id))`,
+      );
+      await client.query(
+        `CREATE TABLE commission_rules (
+           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+           clinic_id uuid NOT NULL,
+           professional_id uuid NOT NULL REFERENCES professionals(id),
+           percentage numeric(5,2) NOT NULL CHECK (percentage BETWEEN 0 AND 100),
+           effective_from date NOT NULL,
+           active boolean NOT NULL DEFAULT true,
+           created_at timestamptz NOT NULL DEFAULT now(),
+           UNIQUE (clinic_id, professional_id, effective_from))`,
+      );
+      await client.query(
+        `CREATE TABLE commission_entries (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+           rule_id uuid NOT NULL REFERENCES commission_rules(id))`,
+      );
+      await client.query("INSERT INTO users (id) VALUES ($1), ($2)", [linkedUser, freeUser]);
+      await client.query(
+        "INSERT INTO professionals (id, clinic_id, user_id) VALUES ($1, $3, $4), ($2, $3, NULL)",
+        [linkedProfessional, freeProfessional, clinic, linkedUser],
+      );
+      const before = await client.query<{ id: string }>(
+        `INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from, active)
+         VALUES ($1, $2, 30, '2020-01-01', true), ($1, $2, 40.5, '2021-01-01', false),
+                ($1, $3, 20, '2020-01-01', true)
+         RETURNING id`,
+        [clinic, linkedProfessional, freeProfessional],
+      );
+      await client.query("INSERT INTO commission_entries (rule_id) VALUES ($1)", [
+        before.rows[0]!.id,
+      ]);
+      const snapshot = `SELECT id, clinic_id, professional_id, user_id, percentage::float AS percentage,
+          effective_from::text AS effective_from, active
+        FROM commission_rules ORDER BY effective_from, percentage`;
+
+      await client.query(sql);
+      const once = await client.query(snapshot);
+      await client.query(sql); // pode rodar de novo sem erro nem efeito
+      const twice = await client.query(snapshot);
+      expect(twice.rows).toEqual(once.rows);
+
+      // As regras originais continuam iguais; os lançamentos seguem apontando para elas.
+      const originals = twice.rows.filter((row) => row.professional_id !== null);
+      expect(originals.map((row) => row.id).sort()).toEqual(before.rows.map((row) => row.id).sort());
+      expect(originals.every((row) => row.user_id === null)).toBe(true);
+      const entries = await client.query("SELECT rule_id FROM commission_entries");
+      expect(entries.rows).toEqual([{ rule_id: before.rows[0]!.id }]);
+
+      // Só o profissional ligado ganha cópia no usuário (mesmo percentual, vigência e situação).
+      const copies = twice.rows.filter((row) => row.user_id !== null);
+      expect(copies.map(({ clinic_id, user_id, percentage, effective_from, active }) => ({
+        clinic_id,
+        user_id,
+        percentage,
+        effective_from,
+        active,
+      }))).toEqual([
+        { clinic_id: clinic, user_id: linkedUser, percentage: 30, effective_from: "2020-01-01", active: true },
+        { clinic_id: clinic, user_id: linkedUser, percentage: 40.5, effective_from: "2021-01-01", active: false },
+      ]);
+
+      // Exatamente um dono por regra; vigência única por usuário.
+      for (const [professionalId, userId] of [
+        [null, null],
+        [freeProfessional, freeUser],
+      ]) {
+        await client.query("SAVEPOINT owner_check");
+        await expect(
+          client.query(
+            `INSERT INTO commission_rules (clinic_id, professional_id, user_id, percentage, effective_from)
+             VALUES ($1, $2, $3, 10, '2022-01-01')`,
+            [clinic, professionalId, userId],
+          ),
+        ).rejects.toMatchObject({ code: "23514" });
+        await client.query("ROLLBACK TO SAVEPOINT owner_check");
+      }
+      await client.query("SAVEPOINT user_unique");
+      await expect(
+        client.query(
+          `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from)
+           VALUES ($1, $2, 10, '2020-01-01')`,
+          [clinic, linkedUser],
+        ),
+      ).rejects.toMatchObject({ code: "23505" });
+      await client.query("ROLLBACK TO SAVEPOINT user_unique");
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("creates a user with a commission and generates with the user's rule before the professional's", async () => {
+    const crefitos = ["PG-T057-A", "PG-T057-B"];
+    const marker = "postgres-t057-commission-test";
+    const cleanup = async () => {
+      const professionals = `SELECT id FROM professionals WHERE clinic_id = $1 AND crefito = ANY($2)`;
+      await pool.query(
+        `DELETE FROM commission_entries WHERE clinic_id = $1 AND appointment_id IN
+           (SELECT id FROM appointments WHERE clinic_id = $1 AND notes = $2)`,
+        [clinicId, marker],
+      );
+      await pool.query("DELETE FROM appointments WHERE clinic_id = $1 AND notes = $2", [
+        clinicId,
+        marker,
+      ]);
+      await pool.query(
+        `DELETE FROM commission_rules WHERE clinic_id = $1 AND professional_id IN (${professionals})`,
+        [clinicId, crefitos],
+      );
+      await cleanupPermissionsUser();
+      await pool.query(`DELETE FROM professionals WHERE clinic_id = $1 AND crefito = ANY($2)`, [
+        clinicId,
+        crefitos,
+      ]);
+    };
+    await cleanup();
+    try {
+      const [linkedProfessional, freeProfessional] = await Promise.all(
+        crefitos.map(async (crefito, index) => {
+          const inserted = await pool.query<{ id: string }>(
+            `INSERT INTO professionals (clinic_id, full_name, crefito, specialty, color)
+             VALUES ($1, $2, $3, 'Pilates', '#5c6f68') RETURNING id`,
+            [clinicId, `Profissional T057 ${index}`, crefito],
+          );
+          return inserted.rows[0]!.id;
+        }),
+      );
+      await repository.createCommissionRule(clinicId, {
+        professionalId: linkedProfessional!,
+        percentage: 10,
+        effectiveFrom: "2097-01-01",
+      });
+      await repository.createCommissionRule(clinicId, {
+        professionalId: freeProfessional!,
+        percentage: 20,
+        effectiveFrom: "2097-01-01",
+      });
+      await expect(
+        repository.createAdminUser(
+          clinicId,
+          ownerId,
+          {
+            fullName: "Teste Comissão",
+            email: permissionsUserEmail,
+            role: "user",
+            password: "Segura@1234",
+            commission: { percentage: 35, effectiveFrom: "2097-05-15" },
+          },
+          "hash-de-teste",
+        ),
+      ).resolves.toMatchObject({ email: permissionsUserEmail });
+      const user = (await repository.listAdminUsers(clinicId)).find(
+        (item) => item.email === permissionsUserEmail,
+      )!;
+      // Vigência futura: gravada, ainda não vale hoje.
+      expect(user.commissionPercentage).toBeUndefined();
+      await repository.setAdminUserProfessional(clinicId, ownerId, user.id, linkedProfessional!);
+      const audit = (await repository.listAdminAuditEvents(clinicId)).filter(
+        (item) => item.entityId === user.id && item.action === "users.commission_updated",
+      );
+      expect(audit.map((item) => item.metadata)).toEqual([
+        expect.objectContaining({ percentage: 35, effectiveFrom: "2097-05-15" }),
+      ]);
+
+      const [patients, rooms, services] = await Promise.all([
+        repository.listPatients(clinicId),
+        repository.listRooms(clinicId),
+        repository.listServices(clinicId),
+      ]);
+      const appointment = async (professionalId: string, startsAt: string) => {
+        const inserted = await pool.query<{ id: string }>(
+          `INSERT INTO appointments (clinic_id, patient_id, professional_id, room_id, service_id,
+             starts_at, ends_at, notes, status)
+           VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $6::timestamptz + interval '50 minutes', $7, 'completed')
+           RETURNING id`,
+          [clinicId, patients[0]!.id, professionalId, rooms[0]!.id, services[0]!.id, startsAt, marker],
+        );
+        return inserted.rows[0]!.id;
+      };
+      const beforeUserRule = await appointment(linkedProfessional!, "2097-05-06T15:00:00.000Z");
+      const withUserRule = await appointment(linkedProfessional!, "2097-05-20T15:00:00.000Z");
+      const unlinked = await appointment(freeProfessional!, "2097-05-20T17:00:00.000Z");
+
+      const first = await repository.generateCommissions(clinicId, "2097-05");
+      const byAppointment = new Map(first.map((item) => [item.appointmentId, item]));
+      expect(byAppointment.get(beforeUserRule)).toMatchObject({ percentage: 10 });
+      expect(byAppointment.get(withUserRule)).toMatchObject({
+        professionalId: linkedProfessional,
+        percentage: 35,
+      });
+      expect(byAppointment.get(unlinked)).toMatchObject({ percentage: 20 });
+      const second = await repository.generateCommissions(clinicId, "2097-05");
+      expect(second.filter((item) => [beforeUserRule, withUserRule, unlinked].includes(item.appointmentId))).toHaveLength(3);
+      expect(second).toHaveLength(first.length);
     } finally {
       await cleanup();
     }

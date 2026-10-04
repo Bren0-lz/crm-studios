@@ -401,10 +401,15 @@ describe("CRM API", () => {
         payload,
       });
 
-    // Sem profissional ligado não há comissão.
-    const notProfessional = await commission(userA, { percentage: 30, effectiveFrom: "2020-01-01" });
-    expect(notProfessional.statusCode).toBe(409);
-    expect(notProfessional.json().code).toBe("USER_NOT_PROFESSIONAL");
+    // A comissão é do próprio usuário: não exige profissional ligado.
+    const withoutProfessional = await commission(userA, { percentage: 30, effectiveFrom: "2019-01-01" });
+    expect(withoutProfessional.statusCode).toBe(200);
+    expect(withoutProfessional.json()).toMatchObject({
+      id: userA,
+      commissionPercentage: 30,
+      commissionEffectiveFrom: "2019-01-01",
+    });
+    expect(withoutProfessional.json().professionalId).toBeUndefined();
     expect((await link(missing, ana)).json().code).toBe("USER_NOT_FOUND");
     expect((await link(missing, ana)).statusCode).toBe(404);
     const unknownProfessional = await link(userA, missing);
@@ -419,8 +424,8 @@ describe("CRM API", () => {
       id: userA,
       professionalId: ana,
       professionalName: "Dra. Ana Martins",
+      commissionPercentage: 30,
     });
-    expect(linked.json().commissionPercentage).toBeUndefined();
 
     const taken = await link(userB, ana);
     expect(taken.statusCode).toBe(409);
@@ -442,13 +447,12 @@ describe("CRM API", () => {
     expect((await commission(userA, { percentage: 101, effectiveFrom: "2020-01-01" })).statusCode).toBe(400);
     expect((await commission(userA, { percentage: 10, effectiveFrom: "01/01/2020" })).statusCode).toBe(400);
 
-    // A regra é a mesma do Financeiro (commission_rules por profissional).
+    // A regra é do usuário: não vira regra do profissional na tela do Financeiro.
     const workspace = await app.inject({ method: "GET", url: "/finance/workspace", headers });
     const rules = (workspace.json().commissionRules as Array<{ professionalId: string; percentage: number }>)
       .filter((item) => item.professionalId === ana)
-      .map((item) => item.percentage)
-      .sort();
-    expect(rules).toEqual([40, 50]);
+      .map((item) => item.percentage);
+    expect(rules).toEqual([]);
 
     const users = await app.inject({ method: "GET", url: "/admin/users", headers });
     expect(users.json().find((item: { id: string }) => item.id === userA)).toMatchObject({
@@ -463,12 +467,16 @@ describe("CRM API", () => {
     const switched = await link(userA, other);
     expect(switched.statusCode).toBe(200);
     expect(switched.json().professionalId).toBe(other);
-    expect(switched.json().commissionPercentage).toBeUndefined();
-    expect((await link(userB, ana)).json().professionalId).toBe(ana);
+    // A comissão acompanha o usuário, não o profissional.
+    expect(switched.json().commissionPercentage).toBe(40);
+    const userBLinked = await link(userB, ana);
+    expect(userBLinked.json().professionalId).toBe(ana);
+    expect(userBLinked.json().commissionPercentage).toBeUndefined();
     const unlinked = await link(userA, null);
     expect(unlinked.statusCode).toBe(200);
     expect(unlinked.json().professionalId).toBeUndefined();
     expect(unlinked.json().professionalName).toBeUndefined();
+    expect(unlinked.json()).toMatchObject({ commissionPercentage: 40, commissionEffectiveFrom: "2020-01-01" });
 
     for (const role of ["reception", "physiotherapist", "finance"] as const) {
       const roleHeaders = {
@@ -505,12 +513,208 @@ describe("CRM API", () => {
     const commissionEvents = events.filter(
       (item) => item.action === "users.commission_updated" && item.entityId === userA,
     );
-    expect(commissionEvents).toHaveLength(2);
+    expect(commissionEvents).toHaveLength(3);
     expect(commissionEvents.map((item) => item.metadata)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ professionalId: ana, percentage: 40, effectiveFrom: "2020-01-01" }),
+        expect.objectContaining({ percentage: 30, effectiveFrom: "2019-01-01" }),
+        expect.objectContaining({ percentage: 40, effectiveFrom: "2020-01-01" }),
+        expect.objectContaining({ percentage: 50, effectiveFrom: "2999-01-01" }),
       ]),
     );
+    await app.close();
+  });
+
+  it("creates a user with a commission, without an agenda professional", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const base = { role: "user", password: "Segura@1234" };
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        ...base,
+        fullName: "Instrutora Comissão",
+        email: "instrutora.comissao@movimenta.local",
+        commission: { percentage: 25.5, effectiveFrom: "2020-03-01" },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ commissionPercentage: 25.5, commissionEffectiveFrom: "2020-03-01" });
+    expect(created.json().professionalId).toBeUndefined();
+    const userId = created.json().id as string;
+
+    // Vigência futura: gravada, mas ainda não vale hoje.
+    const future = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        ...base,
+        fullName: "Instrutora Futura",
+        email: "instrutora.futura@movimenta.local",
+        commission: { percentage: 40, effectiveFrom: "2999-01-01" },
+      },
+    });
+    expect(future.statusCode).toBe(201);
+    expect(future.json().commissionPercentage).toBeUndefined();
+    const futureUpdated = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${future.json().id}/commission`,
+      headers,
+      payload: { percentage: 15, effectiveFrom: "2021-01-01" },
+    });
+    expect(futureUpdated.json()).toMatchObject({ commissionPercentage: 15, commissionEffectiveFrom: "2021-01-01" });
+
+    for (const commission of [
+      { percentage: 101, effectiveFrom: "2020-01-01" },
+      { percentage: 10, effectiveFrom: "01/01/2020" },
+      { percentage: 10 },
+    ]) {
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/admin/users",
+        headers,
+        payload: { ...base, fullName: "Inválida", email: "invalida@movimenta.local", commission },
+      });
+      expect(invalid.statusCode).toBe(400);
+    }
+    const users = (await app.inject({ method: "GET", url: "/admin/users", headers })).json() as Array<{ email: string }>;
+    expect(users.some((item) => item.email === "invalida@movimenta.local")).toBe(false);
+
+    const listed = (await app.inject({ method: "GET", url: "/admin/users", headers }))
+      .json()
+      .find((item: { id: string }) => item.id === userId);
+    expect(listed).toMatchObject({ commissionPercentage: 25.5, commissionEffectiveFrom: "2020-03-01" });
+
+    const audit = (await app.inject({ method: "GET", url: "/admin/audit-events", headers })).json() as Array<{
+      action: string;
+      entityId?: string;
+      metadata: Record<string, unknown>;
+    }>;
+    const events = audit.filter((item) => item.action === "users.commission_updated" && item.entityId === userId);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.metadata).toMatchObject({ percentage: 25.5, effectiveFrom: "2020-03-01" });
+    await app.close();
+  });
+
+  it("generates commissions with the linked user's rule, falling back to the professional's rule", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const ana = "33333333-3333-4333-8333-333333333333";
+    const other = "44444444-4444-4444-8444-444444444444";
+    const [patients, rooms, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/rooms", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const service = services.json()[0] as { id: string; priceInCents: number };
+    const completedAppointment = async (professionalId: string, startsAt: string) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          professionalId,
+          roomId: rooms.json()[0].id,
+          serviceId: service.id,
+          startsAt,
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const done = await app.inject({
+        method: "PATCH",
+        url: `/appointments/${created.json().id}/status`,
+        headers,
+        payload: { status: "completed" },
+      });
+      expect(done.statusCode).toBe(200);
+      return created.json().id as string;
+    };
+    // Regras antigas, por profissional (Financeiro).
+    for (const [professionalId, percentage] of [
+      [ana, 10],
+      [other, 20],
+    ] as const) {
+      const rule = await app.inject({
+        method: "POST",
+        url: "/finance/commission-rules",
+        headers,
+        payload: { professionalId, percentage, effectiveFrom: "2031-01-01" },
+      });
+      expect(rule.statusCode).toBe(201);
+    }
+    // Usuária ligada à Ana com regra própria a partir de 15/05.
+    const user = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Ana Usuária",
+        email: "ana.usuaria@movimenta.local",
+        role: "user",
+        password: "Segura@1234",
+        commission: { percentage: 35, effectiveFrom: "2031-05-15" },
+      },
+    });
+    expect(user.statusCode).toBe(201);
+    const linked = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/professional`,
+      headers,
+      payload: { professionalId: ana },
+    });
+    expect(linked.statusCode).toBe(200);
+    // Usuária sem profissional ligado: a regra dela não gera nada.
+    await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers,
+      payload: {
+        fullName: "Sem Agenda",
+        email: "sem.agenda@movimenta.local",
+        role: "user",
+        password: "Segura@1234",
+        commission: { percentage: 90, effectiveFrom: "2031-01-01" },
+      },
+    });
+
+    const beforeUserRule = await completedAppointment(ana, "2031-05-06T13:00:00.000Z");
+    const withUserRule = await completedAppointment(ana, "2031-05-20T13:00:00.000Z");
+    const unlinkedProfessional = await completedAppointment(other, "2031-05-20T15:00:00.000Z");
+
+    const generate = () =>
+      app.inject({
+        method: "POST",
+        url: "/finance/commissions/generate",
+        headers,
+        payload: { competence: "2031-05" },
+      });
+    const first = await generate();
+    expect(first.statusCode).toBe(200);
+    const byAppointment = (entries: Array<{ appointmentId: string; percentage: number; amountInCents: number; professionalId: string }>) =>
+      new Map(entries.map((item) => [item.appointmentId, item]));
+    const entries = byAppointment(first.json());
+    expect(entries.size).toBe(3);
+    expect(entries.get(beforeUserRule)).toMatchObject({ professionalId: ana, percentage: 10 });
+    expect(entries.get(withUserRule)).toMatchObject({
+      professionalId: ana,
+      percentage: 35,
+      amountInCents: Math.round((service.priceInCents * 35) / 100),
+    });
+    expect(entries.get(unlinkedProfessional)).toMatchObject({ professionalId: other, percentage: 20 });
+
+    // Gerar de novo não duplica nem recalcula.
+    await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 50, effectiveFrom: "2031-05-01" },
+    });
+    const second = await generate();
+    expect(second.json()).toHaveLength(3);
+    expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({ percentage: 10 });
     await app.close();
   });
 

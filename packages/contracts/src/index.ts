@@ -132,6 +132,19 @@ const strongPasswordSchema = z
   .regex(/[a-z]/, "Inclua uma letra minúscula.")
   .regex(/[A-Z]/, "Inclua uma letra maiúscula.")
   .regex(/[0-9]/, "Inclua um número.");
+/**
+ * Regra de comissão do próprio usuário (`commission_rules.user_id`), sem exigir profissional
+ * ligado. Vale nos atendimentos do profissional da agenda ligado ao usuário a partir de
+ * `effectiveFrom` e prevalece sobre a regra do profissional (Financeiro); nova vigência cria
+ * uma regra nova (o histórico é mantido).
+ */
+export const adminUserCommissionInputSchema = z.object({
+  percentage: z.number().min(0).max(100),
+  effectiveFrom: z.iso.date(),
+});
+export type AdminUserCommissionInput = z.infer<
+  typeof adminUserCommissionInputSchema
+>;
 export const adminUserInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
   email: z.email().transform((value) => value.toLowerCase()),
@@ -143,6 +156,8 @@ export const adminUserInputSchema = z.object({
   modules: userModulesSchema.optional(),
   /** Módulos com edição; ausente ou `null` = nenhum (editar sem ver é descartado). */
   editModules: userModulesSchema.optional(),
+  /** Comissão do usuário já na criação; ausente = sem comissão. */
+  commission: adminUserCommissionInputSchema.optional(),
 });
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 export const adminUserUpdateSchema = z.object({
@@ -768,13 +783,6 @@ export const adminUserProfessionalInputSchema = z.object({
 export type AdminUserProfessionalInput = z.infer<
   typeof adminUserProfessionalInputSchema
 >;
-/** Nova regra de comissão para o profissional ligado ao usuário (mesma tabela do Financeiro). */
-export const adminUserCommissionInputSchema = commissionRuleInputSchema.omit({
-  professionalId: true,
-});
-export type AdminUserCommissionInput = z.infer<
-  typeof adminUserCommissionInputSchema
->;
 export const commissionGenerationInputSchema = z.object({
   competence: z.string().regex(/^\d{4}-\d{2}$/),
 });
@@ -1096,7 +1104,10 @@ export interface AdminUser extends UserSummary {
   /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
   professionalId?: string;
   professionalName?: string;
-  /** Percentual da regra de comissão vigente hoje (fuso da clínica) do profissional ligado. */
+  /**
+   * Percentual da regra de comissão do próprio usuário vigente hoje (fuso da clínica); não
+   * depende do profissional ligado. Regras só do profissional (Financeiro) não aparecem aqui.
+   */
   commissionPercentage?: number;
   /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
   commissionEffectiveFrom?: string;

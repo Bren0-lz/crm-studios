@@ -1022,9 +1022,9 @@ interface AdminUserRow extends UserRow {
 }
 
 /**
- * Usuários com o profissional ligado (`professionals.user_id`) e a regra de comissão vigente hoje
- * no fuso da clínica (mesma escolha da geração: ativa, maior vigência que já começou).
- * `$1` = clínica; para um só usuário, filtre por `u.id` no WHERE.
+ * Usuários com o profissional ligado (`professionals.user_id`) e a regra de comissão DO USUÁRIO
+ * (`commission_rules.user_id`) vigente hoje no fuso da clínica (ativa, maior vigência que já
+ * começou). `$1` = clínica; para um só usuário, filtre por `u.id` no WHERE.
  */
 const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "professionalName",
     cr.percentage AS "commissionPercentage", cr.effective_from::text AS "commissionEffectiveFrom"
@@ -1034,7 +1034,7 @@ const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "p
     WHERE pr.clinic_id = u."clinicId" AND pr.user_id = u.id
     ORDER BY pr.created_at, pr.id LIMIT 1) p ON true
   LEFT JOIN LATERAL (SELECT r.percentage, r.effective_from FROM commission_rules r
-    WHERE r.clinic_id = u."clinicId" AND r.professional_id = p.id AND r.active
+    WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active
       AND r.effective_from <= (now() AT TIME ZONE c.timezone)::date
     ORDER BY r.effective_from DESC LIMIT 1) cr ON true`;
 
@@ -1934,40 +1934,61 @@ export class PostgresClinicRepository implements ClinicRepository {
         [clinicId, userId],
       );
       if (!user.rows[0]) return null;
-      const professional = await client.query<{ id: string }>(
-        `SELECT id FROM professionals WHERE clinic_id = $1 AND user_id = $2
-         ORDER BY created_at, id LIMIT 1 FOR UPDATE`,
-        [clinicId, userId],
-      );
-      const professionalId = professional.rows[0]?.id;
-      if (!professionalId)
-        throw new DomainError(
-          "USER_NOT_PROFESSIONAL",
-          "Ligue o usuário a um profissional da agenda antes de definir a comissão.",
-          409,
-        );
-      // Mesma gravação de POST /finance/commission-rules (createCommissionRule).
-      const rule = await this.insertCommissionRule(client, clinicId, {
-        professionalId,
-        percentage: input.percentage,
-        effectiveFrom: input.effectiveFrom,
-      });
-      await this.addAdminAudit(
+      await this.insertUserCommissionRule(
         client,
         clinicId,
         actorUserId,
-        "users.commission_updated",
-        "user",
         userId,
-        {
-          professionalId,
-          ruleId: rule.id,
-          percentage: rule.percentage,
-          effectiveFrom: rule.effectiveFrom,
-        },
+        input,
       );
       return this.findAdminUser(client, clinicId, userId);
     });
+  }
+
+  /** Regra de comissão do próprio usuário (`commission_rules.user_id`) + auditoria. */
+  private async insertUserCommissionRule(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    // Chamado dentro de transação: um erro aqui desfaz tudo (o chamador faz ROLLBACK).
+    let rule: { id: string; percentage: string; effectiveFrom: string };
+    try {
+      const result = await client.query<{
+        id: string;
+        percentage: string;
+        effectiveFrom: string;
+      }>(
+        `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, percentage, effective_from::text AS "effectiveFrom"`,
+        [clinicId, userId, input.percentage, input.effectiveFrom],
+      );
+      rule = result.rows[0]!;
+    } catch (error) {
+      if (hasDatabaseCode(error, "23505"))
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Já existe uma regra nesta vigência.",
+          409,
+        );
+      throw error;
+    }
+    await this.addAdminAudit(
+      client,
+      clinicId,
+      actorUserId,
+      "users.commission_updated",
+      "user",
+      userId,
+      {
+        ruleId: rule.id,
+        percentage: Number(rule.percentage),
+        effectiveFrom: rule.effectiveFrom,
+      },
+    );
   }
 
   async createAdminUser(
@@ -2023,8 +2044,19 @@ export class PostgresClinicRepository implements ClinicRepository {
             custom: true,
           },
         );
+      if (input.commission)
+        await this.insertUserCommissionRule(
+          client,
+          clinicId,
+          actorUserId,
+          created.id,
+          input.commission,
+        );
+      const withCommission = input.commission
+        ? await this.findAdminUser(client, clinicId, created.id)
+        : null;
       await client.query("COMMIT");
-      return created;
+      return withCommission ?? created;
     } catch (error) {
       await client.query("ROLLBACK");
       if (hasDatabaseCode(error, "23505"))
@@ -5897,6 +5929,7 @@ export class PostgresClinicRepository implements ClinicRepository {
          WHERE py.clinic_id = $1 ORDER BY py.due_date, py.created_at`,
           [clinicId],
         ),
+        // Só regras de profissional (o JOIN exclui as do usuário, que ficam na Administração).
         this.pool.query<CommissionRuleRow>(
           `SELECT cr.id, cr.clinic_id AS "clinicId", cr.professional_id AS "professionalId",
                 p.full_name AS "professionalName", cr.percentage,
@@ -6504,10 +6537,14 @@ export class PostgresClinicRepository implements ClinicRepository {
               s.price_in_cents, rule.percentage,
               round(s.price_in_cents * rule.percentage / 100.0)::int
        FROM appointments a JOIN services s ON s.id = a.service_id
-       JOIN LATERAL (SELECT cr.* FROM commission_rules cr
-         WHERE cr.clinic_id = a.clinic_id AND cr.professional_id = a.professional_id
+       JOIN professionals pr ON pr.id = a.professional_id
+       -- Regra do usuário ligado ao profissional vigente na data; sem ela, a do profissional.
+       JOIN LATERAL (SELECT cr.id, cr.percentage FROM commission_rules cr
+         WHERE cr.clinic_id = a.clinic_id
+           AND (cr.professional_id = a.professional_id
+             OR (pr.user_id IS NOT NULL AND cr.user_id = pr.user_id))
            AND cr.active AND cr.effective_from <= a.starts_at::date
-         ORDER BY cr.effective_from DESC LIMIT 1) rule ON true
+         ORDER BY (cr.user_id IS NOT NULL) DESC, cr.effective_from DESC LIMIT 1) rule ON true
        WHERE a.clinic_id = $1 AND a.status = 'completed'
          AND a.patient_id IS NOT NULL -- atendimento de lead não gera comissão
          AND to_char(a.starts_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') = $2::text

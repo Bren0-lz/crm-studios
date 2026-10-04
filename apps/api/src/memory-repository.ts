@@ -270,6 +270,19 @@ export class MemoryClinicRepository implements ClinicRepository {
   }> = [];
   private readonly receivableRenegotiations: ReceivableRenegotiation[] = [];
   private readonly commissionRules: CommissionRule[] = [];
+  /**
+   * Regras de comissão do próprio usuário (`commission_rules.user_id` no PostgreSQL). Prevalecem
+   * sobre as do profissional ligado; não aparecem na lista de regras do Financeiro.
+   */
+  private readonly userCommissionRules: Array<{
+    id: string;
+    clinicId: string;
+    userId: string;
+    percentage: number;
+    effectiveFrom: string;
+    active: boolean;
+    createdAt: string;
+  }> = [];
   private readonly commissions: CommissionEntry[] = [];
   private readonly payables: Payable[] = [];
   private readonly recurringPayables: StoredRecurringPayable[] = [];
@@ -566,21 +579,16 @@ export class MemoryClinicRepository implements ClinicRepository {
     const { passwordHash: _, ...summary } = user;
     void _;
     const professional = this.linkedProfessional(user.clinicId, user.id);
-    if (!professional) return summary;
     const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
-    const rule = this.commissionRules
-      .filter(
-        (item) =>
-          item.clinicId === user.clinicId &&
-          item.professionalId === professional.id &&
-          item.active &&
-          item.effectiveFrom <= today,
-      )
-      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+    const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
     return {
       ...summary,
-      professionalId: professional.id,
-      professionalName: professional.fullName,
+      ...(professional
+        ? {
+            professionalId: professional.id,
+            professionalName: professional.fullName,
+          }
+        : {}),
       ...(rule
         ? {
             commissionPercentage: rule.percentage,
@@ -588,6 +596,55 @@ export class MemoryClinicRepository implements ClinicRepository {
           }
         : {}),
     };
+  }
+
+  /** Regra do usuário vigente na data (ativa, maior vigência que já começou). */
+  private userCommissionRuleOn(clinicId: string, userId: string, date: string) {
+    return this.userCommissionRules
+      .filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.userId === userId &&
+          item.active &&
+          item.effectiveFrom <= date,
+      )
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+  }
+
+  private addUserCommissionRule(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    if (
+      this.userCommissionRules.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.userId === userId &&
+          item.effectiveFrom === input.effectiveFrom,
+      )
+    )
+      throw new DomainError(
+        "COMMISSION_RULE_DUPLICATE",
+        "Já existe uma regra nesta vigência.",
+        409,
+      );
+    const rule = {
+      id: uuid(),
+      clinicId,
+      userId,
+      percentage: input.percentage,
+      effectiveFrom: input.effectiveFrom,
+      active: true,
+      createdAt: now(),
+    };
+    this.userCommissionRules.push(rule);
+    this.addAdminAudit(actorUserId, "users.commission_updated", "user", userId, {
+      ruleId: rule.id,
+      percentage: rule.percentage,
+      effectiveFrom: rule.effectiveFrom,
+    });
   }
 
   private linkedProfessional(clinicId: string, userId: string) {
@@ -653,24 +710,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       (item) => item.clinicId === clinicId && item.id === userId,
     );
     if (!user) return null;
-    const professional = this.linkedProfessional(clinicId, userId);
-    if (!professional)
-      throw new DomainError(
-        "USER_NOT_PROFESSIONAL",
-        "Ligue o usuário a um profissional da agenda antes de definir a comissão.",
-        409,
-      );
-    const rule = await this.createCommissionRule(clinicId, {
-      professionalId: professional.id,
-      percentage: input.percentage,
-      effectiveFrom: input.effectiveFrom,
-    });
-    this.addAdminAudit(actorUserId, "users.commission_updated", "user", userId, {
-      professionalId: professional.id,
-      ruleId: rule.id,
-      percentage: rule.percentage,
-      effectiveFrom: rule.effectiveFrom,
-    });
+    this.addUserCommissionRule(clinicId, actorUserId, userId, input);
     return this.toAdminUser(user);
   }
 
@@ -723,9 +763,14 @@ export class MemoryClinicRepository implements ClinicRepository {
         user.id,
         { modules: user.modules, editModules: user.editModules, custom: true },
       );
-    const { passwordHash: _, ...summary } = user;
-    void _;
-    return summary;
+    if (input.commission)
+      this.addUserCommissionRule(
+        clinicId,
+        actorUserId,
+        user.id,
+        input.commission,
+      );
+    return this.toAdminUser(user);
   }
 
   async updateAdminUser(
@@ -4061,13 +4106,25 @@ export class MemoryClinicRepository implements ClinicRepository {
         this.commissions.some((item) => item.appointmentId === appointment.id)
       )
         continue;
-      const rule = this.commissionRules
-        .filter(
-          (item) =>
-            item.professionalId === appointment.professionalId &&
-            item.effectiveFrom <= appointment.startsAt.slice(0, 10),
-        )
-        .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+      // Regra do usuário ligado ao profissional, vigente na data; sem ela, a do profissional.
+      const linkedUserId = this.professionalUsers.get(
+        appointment.professionalId,
+      );
+      const rule =
+        (linkedUserId
+          ? this.userCommissionRuleOn(
+              clinicId,
+              linkedUserId,
+              appointment.startsAt.slice(0, 10),
+            )
+          : undefined) ??
+        this.commissionRules
+          .filter(
+            (item) =>
+              item.professionalId === appointment.professionalId &&
+              item.effectiveFrom <= appointment.startsAt.slice(0, 10),
+          )
+          .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
       const service = this.services.find(
         (item) => item.id === appointment.serviceId,
       );

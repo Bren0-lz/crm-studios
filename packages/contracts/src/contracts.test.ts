@@ -544,6 +544,29 @@ describe("user edit modules", () => {
     ).toEqual(["finance"]);
   });
 
+  it("accepts an optional commission on user create", () => {
+    const base = {
+      fullName: "Bia Souza",
+      email: "bia@x.com",
+      role: "user",
+      password: "Segura@1234",
+    };
+    expect(adminUserInputSchema.parse(base).commission).toBeUndefined();
+    expect(
+      adminUserInputSchema.parse({
+        ...base,
+        commission: { percentage: 12.5, effectiveFrom: "2026-10-01" },
+      }).commission,
+    ).toEqual({ percentage: 12.5, effectiveFrom: "2026-10-01" });
+    for (const commission of [
+      { percentage: -1, effectiveFrom: "2026-10-01" },
+      { percentage: 100.1, effectiveFrom: "2026-10-01" },
+      { percentage: 10, effectiveFrom: "01/10/2026" },
+      { percentage: 10 },
+    ])
+      expect(adminUserInputSchema.safeParse({ ...base, commission }).success).toBe(false);
+  });
+
   it("accepts editModules on user create and update", () => {
     const created = adminUserInputSchema.parse({
       fullName: "Bia Souza",
