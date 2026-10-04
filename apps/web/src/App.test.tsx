@@ -48,6 +48,19 @@ async function openSettingsSection(...names: string[]) {
   }
   return section!;
 }
+
+/** Etiqueta configurada (`GET /patient-tags`, T063). */
+function patientTag(name: string, color = "#64748b", patientCount = 0) {
+  return {
+    id: `tag-${name}`,
+    clinicId: "11111111-1111-4111-8111-111111111111",
+    name,
+    color,
+    patientCount,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
 afterEach(() => {
   cleanup();
   vi.mocked(fetch).mockReset();
@@ -738,7 +751,8 @@ describe("application shell", () => {
       patient("a0000000-0000-4000-8000-000000000002", "Bruno Souza", { tags: ["Fisioterapia"], status: "inactive", birthDate: `1985-${otherMonth}-02` }),
       patient("a0000000-0000-4000-8000-000000000003", "Carla Dias", { tags: ["Pilates", "Frequente"], email: "carla@example.com", createdAt: "2026-02-01T00:00:00.000Z" }),
     ];
-    vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => patients }) as Response);
+    const tags = [patientTag("Fisioterapia", "#2563eb", 1), patientTag("Frequente", "#facc15", 1), patientTag("Pilates", "#2f855a", 2)];
+    vi.mocked(fetch).mockImplementation(async (input) => ({ ok: true, status: 200, json: async () => (String(input).includes("/patient-tags") ? tags : patients) }) as Response);
     // O endereço antigo redireciona para /clientes.
     render(<MemoryRouter initialEntries={["/pacientes"]}><App /></MemoryRouter>);
     const names = () => screen.queryAllByRole("button", { name: /^Editar / }).map((row) => row.getAttribute("aria-label"));
@@ -1889,6 +1903,9 @@ describe("application shell", () => {
       if (String(input).includes("/patients/export")) {
         return { ok: true, status: 200, blob: async () => new Blob(["nome\nHelena"]) } as Response;
       }
+      if (String(input).includes("/patient-tags")) {
+        return { ok: true, status: 200, json: async () => [patientTag("pilates", "#2f855a", 1)] } as Response;
+      }
       return { ok: true, status: 200, json: async () => [patient] } as Response;
     });
     const createObjectURL = vi.fn(() => "blob:clientes");
@@ -1915,7 +1932,11 @@ describe("application shell", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
-      expect(within(dialog).getByText("Busca: “Hel” · Situação: ativos · Aniversariantes do mês · Etiquetas: pilates")).toBeInTheDocument();
+      expect(within(dialog).getByText("Busca: “Hel” · Situação: ativos · Aniversariantes do mês")).toBeInTheDocument();
+      // A etiqueta do filtro aparece como selo na cor configurada.
+      const exportTag = within(dialog).getByText("pilates");
+      expect(exportTag).toHaveClass("tag-colored");
+      expect(exportTag.style.getPropertyValue("--tag-color")).toBe("#2f855a");
       expect(within(dialog).getByLabelText("CSV (.csv)")).toBeChecked();
       expect(within(dialog).getByLabelText("Observações")).toBeChecked();
       fireEvent.click(within(dialog).getByLabelText("Excel (.xlsx)"));
@@ -2008,6 +2029,9 @@ describe("application shell", () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       if (String(input).includes("/patients/export")) {
         return { ok: true, status: 200, blob: async () => new Blob(["nome"]) } as Response;
+      }
+      if (String(input).includes("/patient-tags")) {
+        return { ok: true, status: 200, json: async () => [patientTag("pilates", "#2f855a", 10)] } as Response;
       }
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
@@ -2108,6 +2132,7 @@ describe("application shell", () => {
       if (url.includes("/communications/broadcast/preview")) return { ok: true, status: 200, json: async () => preview } as Response;
       if (url.includes("/communications/broadcast")) return { ok: true, status: 201, json: async () => ({ ...preview, preview: false }) } as Response;
       if (url.includes("/communications")) return { ok: true, status: 200, json: async () => ({ deliveryMode: "outbox_only", preferences: [], messages: [] }) } as Response;
+      if (url.includes("/patient-tags")) return { ok: true, status: 200, json: async () => [patientTag("pilates", "#2f855a", 2), patientTag("vip", "#7c3aed", 1)] } as Response;
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
     render(<MemoryRouter initialEntries={["/comunicacoes"]}><App /></MemoryRouter>);
@@ -2115,7 +2140,8 @@ describe("application shell", () => {
     expect(within(panel).getByText(/a fila ainda não envia de fato/)).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: "Enfileirar comunicado" })).not.toBeInTheDocument();
 
-    fireEvent.click(within(panel).getByRole("button", { name: /^pilates/ }));
+    // As etiquetas configuradas chegam numa busca própria (GET /patient-tags).
+    fireEvent.click(await within(panel).findByRole("button", { name: /^pilates/ }));
     fireEvent.change(within(panel).getByLabelText("Situação"), { target: { value: "active" } });
     fireEvent.change(within(panel).getByLabelText("Plano"), { target: { value: "with" } });
     fireEvent.click(within(panel).getByLabelText("Só aniversariantes do mês"));
@@ -5138,6 +5164,7 @@ describe("screens without the patients module", () => {
       if (/\/patients(\?|$)/.test(url) || /\/plans(\?|$)/.test(url))
         return { ok: false, status: 403, json: async () => ({ code: "COMMERCIAL_ACCESS_DENIED", message: "Seu usuário não possui permissão para ver Clientes." }) } as Response;
       const body = url.includes("/patients/options") ? [option]
+        : url.includes("/patient-tags") ? [patientTag("pilates", "#2f855a", 1)]
         : url.includes("/communications") ? { deliveryMode: "outbox_only", preferences: [], messages: [] }
           : url.includes("/groups/workspace?") ? { groups: [], enrollments: [], sessions: [], attendance: [], replacementCredits: [] }
             : url.includes("/document-templates") ? [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Contrato padrão", kind: "contract", version: 1, body: "Contrato", active: true, createdAt: new Date().toISOString() }]
@@ -5183,5 +5210,184 @@ describe("screens without the patients module", () => {
     const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
     expect(await within(dialog).findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
     expectOnlyOptions();
+  });
+});
+
+describe("configured patient tags", () => {
+  const admin = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
+  function jsonResponse(body: unknown, status = 200) {
+    return { ok: status < 400, status, json: async () => body } as Response;
+  }
+
+  it("creates, edits and deletes tags in Settings, warning when the tag is in use", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    const tags = [patientTag("Pilates", "#276749", 3), patientTag("VIP", "#facc15", 0)];
+    const writes: Array<{ method: string; url: string; body: unknown }> = [];
+    let created = 0;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.includes("/patient-tags")) {
+        const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+        if (method !== "GET") writes.push({ method, url, body });
+        if (method === "POST") return jsonResponse({ ...patientTag(`nova-${++created}`), ...body }, 201);
+        if (method === "PATCH") return jsonResponse({ ...tags[0], ...body });
+        if (method === "DELETE" && url.endsWith(`/patient-tags/${tags[0]!.id}`))
+          return jsonResponse({ code: "PATIENT_TAG_IN_USE", message: "A etiqueta Pilates Solo está em uso por 4 clientes. Retire-a desses clientes antes de excluir.", details: { patientCount: 4 } }, 409);
+        if (method === "DELETE") return { ok: true, status: 204, json: async () => { throw new SyntaxError("Unexpected end of JSON input"); } } as unknown as Response;
+        return jsonResponse(tags);
+      }
+      const body = url.includes("/relationship/settings") ? relationshipSettingsFixture()
+        : url.includes("/admin/clinic-settings") ? null
+          : [];
+      return jsonResponse(body);
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = await openSettingsSection("Etiquetas");
+    const list = await within(section).findByRole("list", { name: "Etiquetas configuradas" });
+
+    // Selos na cor configurada, com texto preto ou branco conforme o contraste.
+    const pilates = within(list).getByText("Pilates");
+    expect(pilates).toHaveClass("tag-colored");
+    expect(pilates.style.getPropertyValue("--tag-color")).toBe("#276749");
+    expect(pilates.style.getPropertyValue("--tag-text")).toBe("#ffffff");
+    expect(within(list).getByText("VIP").style.getPropertyValue("--tag-text")).toBe("#000000");
+    expect(within(list).getByText("3 clientes")).toBeInTheDocument();
+    expect(within(list).getByText("0 clientes")).toBeInTheDocument();
+
+    // Criar com uma cor da paleta sugerida.
+    fireEvent.change(within(section).getByLabelText("Nome da etiqueta"), { target: { value: "Dança" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Cor Roxo" }));
+    expect(within(section).getByRole("button", { name: "Cor Roxo" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(section).getByRole("button", { name: "Adicionar etiqueta" }));
+    expect(await within(list).findByText("Dança")).toBeInTheDocument();
+    expect(writes.at(-1)).toMatchObject({ method: "POST", body: { name: "Dança", color: "#7c3aed" } });
+    expect(within(section).getByLabelText("Nome da etiqueta")).toHaveValue("");
+
+    // Criar com o seletor livre de cor.
+    fireEvent.change(within(section).getByLabelText("Nome da etiqueta"), { target: { value: "Avaliação" } });
+    fireEvent.change(within(section).getByLabelText("Outra cor"), { target: { value: "#123456" } });
+    expect(within(section).getByRole("button", { name: "Cor Roxo" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(within(section).getByRole("button", { name: "Adicionar etiqueta" }));
+    expect(await within(list).findByText("Avaliação")).toBeInTheDocument();
+    expect(writes.at(-1)).toMatchObject({ method: "POST", body: { name: "Avaliação", color: "#123456" } });
+
+    // Nome vazio não chama a API.
+    fireEvent.click(within(section).getByRole("button", { name: "Adicionar etiqueta" }));
+    expect(within(section).getByText("Informe o nome da etiqueta.")).toBeInTheDocument();
+    expect(writes).toHaveLength(2);
+
+    // Renomear e trocar a cor.
+    fireEvent.click(within(list).getByRole("button", { name: "Editar etiqueta Pilates" }));
+    let dialog = await screen.findByRole("dialog", { name: "Editar etiqueta" });
+    fireEvent.change(within(dialog).getByLabelText("Nome da etiqueta"), { target: { value: "Pilates Solo" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cor Azul" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar etiqueta" }));
+    expect(await within(list).findByText("Pilates Solo")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(writes.at(-1)).toMatchObject({ method: "PATCH", url: expect.stringContaining(`/patient-tags/${tags[0]!.id}`), body: { name: "Pilates Solo", color: "#2563eb" } });
+
+    // Excluir etiqueta em uso: o modal avisa e mostra o 409 da API, sem tirar da lista.
+    fireEvent.click(within(list).getByRole("button", { name: "Excluir etiqueta Pilates Solo" }));
+    dialog = await screen.findByRole("dialog", { name: "Excluir etiqueta" });
+    expect(within(dialog).getByText(/está em 3 clientes/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excluir etiqueta" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("A etiqueta Pilates Solo está em uso por 4 clientes.");
+    expect(within(list).getByText("Pilates Solo")).toBeInTheDocument();
+    expect(within(list).getByText("4 clientes")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Excluir etiqueta sem clientes.
+    fireEvent.click(within(list).getByRole("button", { name: "Excluir etiqueta VIP" }));
+    dialog = await screen.findByRole("dialog", { name: "Excluir etiqueta" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excluir etiqueta" }));
+    await vi.waitFor(() => expect(within(list).queryByText("VIP")).not.toBeInTheDocument());
+    expect(writes.at(-1)).toMatchObject({ method: "DELETE", url: expect.stringContaining(`/patient-tags/${tags[1]!.id}`) });
+  });
+
+  it("shows the tags read-only in Settings for who only views settings", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser({ id: "33333333-3333-4333-8333-333333333333", fullName: "Fábio Financeiro", email: "financeiro@movimenta.local", role: "finance" }));
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      jsonResponse(String(input).includes("/patient-tags") ? [patientTag("Pilates", "#276749", 3)] : relationshipSettingsFixture()),
+    );
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const section = await openSettingsSection("Etiquetas");
+    const list = await within(section).findByRole("list", { name: "Etiquetas configuradas" });
+    expect(within(list).getByText("Pilates")).toHaveClass("tag-colored");
+    expect(within(section).queryByLabelText("Nome da etiqueta")).not.toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: /Editar etiqueta|Excluir etiqueta/ })).not.toBeInTheDocument();
+  });
+
+  it("colors the client list and filters, and lets the record pick only configured tags", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", tags: ["Pilates"], status: "active" };
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/patient-tags")) return jsonResponse([patientTag("Pilates", "#276749", 1), patientTag("VIP", "#facc15", 0)]);
+      if (init?.method === "PUT") return jsonResponse({ ...patient, ...JSON.parse(String(init.body)) });
+      return jsonResponse([patient]);
+    });
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    const row = await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    const badge = within(row).getByText("Pilates");
+    expect(badge).toHaveClass("tag-colored");
+    expect(badge.style.getPropertyValue("--tag-color")).toBe("#276749");
+    expect(badge.style.getPropertyValue("--tag-text")).toBe("#ffffff");
+
+    // Filtro lista todas as etiquetas configuradas (mesmo sem clientes), com a cor.
+    fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+    const filter = await screen.findByRole("group", { name: "Etiquetas" });
+    expect(within(filter).getAllByRole("button").map((button) => button.textContent)).toEqual(["Pilates1", "VIP0"]);
+    expect(within(filter).getByRole("button", { name: /^VIP/ }).style.getPropertyValue("--tag-color")).toBe("#facc15");
+
+    fireEvent.click(row);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByLabelText(/separadas por vírgula/)).not.toBeInTheDocument();
+    const choices = within(dialog).getByRole("group", { name: "Etiquetas" });
+    expect(within(choices).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(choices).getByRole("button", { name: "Pilates" })).toHaveAttribute("aria-pressed", "true");
+    const vip = within(choices).getByRole("button", { name: "VIP" });
+    expect(vip).toHaveAttribute("aria-pressed", "false");
+    expect(vip.style.getPropertyValue("--tag-text")).toBe("#000000");
+    fireEvent.click(vip);
+    fireEvent.click(within(choices).getByRole("button", { name: "Pilates" }));
+    expect(vip).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
+    await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "PUT")).toBe(true));
+    const updateCall = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
+    expect(JSON.parse(String(updateCall?.[1]?.body)).tags).toEqual(["VIP"]);
+  });
+
+  it("tells there are no configured tags in a new client record", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse([]));
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByText(/Nenhuma etiqueta configurada/)).toBeInTheDocument();
+  });
+
+  it("shows the configured tags with their colors in the segmented broadcast", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/patient-tags")) return jsonResponse([patientTag("Pilates", "#276749", 1), patientTag("VIP", "#7c3aed", 0)]);
+      if (url.includes("/communications")) return jsonResponse({ deliveryMode: "outbox_only", preferences: [], messages: [] });
+      return jsonResponse([{ id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", tags: ["Pilates"] }]);
+    });
+    render(<MemoryRouter initialEntries={["/comunicacoes"]}><App /></MemoryRouter>);
+    const panel = (await screen.findByRole("heading", { name: "Comunicado segmentado" })).closest("section")!;
+    const group = await within(panel).findByRole("group", { name: "Etiquetas (qualquer uma)" });
+    expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual(["Pilates1", "VIP0"]);
+    const vip = within(group).getByRole("button", { name: /^VIP/ });
+    expect(vip.style.getPropertyValue("--tag-color")).toBe("#7c3aed");
+    fireEvent.click(vip);
+    expect(vip).toHaveAttribute("aria-pressed", "true");
   });
 });

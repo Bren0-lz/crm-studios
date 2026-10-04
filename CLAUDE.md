@@ -72,7 +72,8 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   `.groups-layout > .panel`, que já recebem padding.
 - **Tokens**: CSS novo usa `--space-1`…`--space-8` (4, 8, 12, 16, 24, 32, 48, 64px) e
   `--radius-sm/md/lg` (8, 12, 18px); valor fora da escala via `calc(var(--space-N) ± Xpx)`.
-  Nada de px soltos para espaçamento e nada de `style={{}}` no JSX.
+  Nada de px soltos para espaçamento e nada de `style={{}}` no JSX (exceção: cor escolhida pelo
+  usuário, só via variável CSS — `tagColorStyle()` das etiquetas, cor do profissional).
 - **Tipografia**: `font-size` só com a escala do `:root` — `--text-xs` 12px, `--text-sm` 13px,
   `--text-md` 14px, `--text-lg` 16px, `--text-xl` 18px, `--text-2xl` 22px, `--text-3xl` 30px,
   `--text-4xl` 42px e os fluidos `--text-fluid-lg`, `--text-fluid-xl`, `--text-display`. Nenhum

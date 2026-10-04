@@ -84,6 +84,9 @@ import type {
   PatientImportFileInput,
   PatientOption,
   PatientImportResult,
+  PatientTag,
+  PatientTagInput,
+  PatientTagUpdate,
   PatientTimelineEntry,
   PatientInput,
   PatientPlan,
@@ -128,6 +131,8 @@ export class ApiClientError extends Error {
     message: string,
     public readonly code: string,
     public readonly status: number,
+    /** Dados extras do erro de domínio (ex.: `patientCount` ao excluir etiqueta em uso). */
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -152,6 +157,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       body.message ?? "Não foi possível concluir a operação.",
       body.code ?? "UNKNOWN_ERROR",
       response.status,
+      body.details,
     );
   }
   return body as T;
@@ -273,6 +279,20 @@ export const api = {
     request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
   /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
   patientOptions: () => request<PatientOption[]>("/patients/options"),
+  /** Etiquetas configuradas (Configurações › Etiquetas), por nome, com a contagem de clientes. */
+  patientTags: () => request<PatientTag[]>("/patient-tags"),
+  createPatientTag: (input: PatientTagInput) =>
+    request<PatientTag>("/patient-tags", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePatientTag: (id: string, input: PatientTagUpdate) =>
+    request<PatientTag>(`/patient-tags/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deletePatientTag: (id: string) =>
+    request<void>(`/patient-tags/${id}`, { method: "DELETE" }),
   exportPatients: (params: PatientExportParams) =>
     requestBlob(`/patients/export?${patientExportQuery(params)}`),
   createPatient: (input: PatientInput) =>

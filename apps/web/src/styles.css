@@ -1228,6 +1228,40 @@ textarea:focus {
 .tag-filter[aria-pressed="true"] small { color: var(--green); }
 .clear-filters { align-self: center; }
 
+/* Etiquetas configuradas: a cor vem do cadastro em --tag-color e o texto (preto ou branco,
+   contraste AA) em --tag-text, ambos definidos por tagColorStyle(). */
+.tag.tag-colored {
+  background: var(--tag-color);
+  color: var(--tag-text);
+  font-weight: 700;
+}
+.tag-dot {
+  flex: none;
+  width: calc(var(--space-2) + 2px);
+  height: calc(var(--space-2) + 2px);
+  border-radius: 50%;
+  background: var(--tag-color);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.tag-choice[aria-pressed="true"],
+.tag-choice[aria-pressed="true"]:hover {
+  border-color: var(--tag-color);
+  background: var(--tag-color);
+  color: var(--tag-text);
+}
+.tag-choice[aria-pressed="true"] small { color: inherit; }
+.tag-choice[aria-pressed="true"] .tag-dot { box-shadow: 0 0 0 1px var(--tag-text); }
+.tag-choice:disabled { cursor: default; opacity: 0.75; }
+.patient-export-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: #24302b;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
 @media (max-width: 560px) {
   .patient-filters { padding: 14px 16px; }
   .filter-group,
@@ -3081,6 +3115,117 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   margin-top: calc(var(--space-1) - 1px);
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+/* Etiquetas (Configurações): formulário com paleta + seletor livre e lista com contagem. */
+.admin-tags .collapsible-body > .muted-copy {
+  margin: 0 0 var(--space-4);
+}
+
+.tag-form {
+  margin-bottom: var(--space-4);
+}
+
+.tag-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag-swatch {
+  width: calc(var(--space-6) + 4px);
+  height: calc(var(--space-6) + 4px);
+  padding: 0;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--tag-color);
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+
+.tag-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--green);
+}
+
+.tag-swatch:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
+.tag-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-3);
+}
+
+.tag-custom-color {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tag-custom-color input[type="color"] {
+  width: calc(var(--space-7) + 4px);
+  height: var(--space-6);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: white;
+  cursor: pointer;
+}
+
+.tag-color-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.tag-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.tag-list-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tag-list-info .tag {
+  overflow-wrap: anywhere;
+}
+
+.tag-list-info small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.tag-list-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Configurações de quem não é administrador: gavetas empilhadas. */
+.settings-stack {
+  display: grid;
+  gap: var(--space-4);
 }
 
 /* Feriado na agenda: aviso no dia e no resumo do dia, etiqueta na semana e no mês. */

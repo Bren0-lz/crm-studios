@@ -1005,7 +1005,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
   etiqueta coloridos nas listas (texto legível sobre a cor, contraste AA). Testes web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T062
-- **Status:** TODO
+- **Status:** DONE
 
 ### T064 — Cadastro guiado do cliente na API
 - **Escopo:**

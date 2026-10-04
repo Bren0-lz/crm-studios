@@ -107,6 +107,7 @@ import type {
   SalesReport,
   Patient,
   PatientOption,
+  PatientTag,
   PatientExportColumn,
   PatientImportAnalysis,
   PatientImportDuplicate,
@@ -141,7 +142,7 @@ import type {
   UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -152,6 +153,7 @@ import {
   storeUser,
   type PatientExportParams,
 } from "./api";
+import { normalizeTagColor, patientTagPalette, tagColorStyle } from "./tag-colors";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -605,6 +607,83 @@ function ErrorBanner({ error }: { error: string }) {
   );
 }
 
+/** Etiquetas configuradas (Configurações › Etiquetas): busca ao montar; `null` enquanto carrega. */
+function usePatientTags() {
+  const [tags, setTags] = useState<PatientTag[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api
+      .patientTags()
+      .then((data) => {
+        // Só aproveita itens no formato de etiqueta (nome em texto).
+        if (active) setTags(Array.isArray(data) ? data.filter((tag) => typeof tag?.name === "string") : []);
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return { tags, error };
+}
+
+/** Cor de uma etiqueta pelo nome (sem diferenciar maiúsculas/acentos); desconhecida usa a padrão. */
+function tagColorLookup(tags: readonly PatientTag[] | null) {
+  const colors = new Map((tags ?? []).map((tag) => [patientTagKey(tag.name), tag.color]));
+  return (name: string) => normalizeTagColor(colors.get(patientTagKey(name)));
+}
+
+/** Selo de etiqueta na cor configurada, com texto preto ou branco (contraste AA). */
+function PatientTagBadge({ name, color }: { name: string; color: string }) {
+  return (
+    <span className="tag tag-colored" style={tagColorStyle(color)}>
+      {name}
+    </span>
+  );
+}
+
+/** Chip de etiqueta para filtros e seleção múltipla: ponto na cor; marcado, preenche com a cor. */
+function TagChoice({
+  name,
+  color,
+  pressed,
+  count,
+  disabled,
+  onToggle,
+}: {
+  name: string;
+  color: string;
+  pressed: boolean;
+  count?: number;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="tag-filter tag-choice"
+      style={tagColorStyle(color)}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onToggle}
+    >
+      <i className="tag-dot" aria-hidden="true" />
+      {name}
+      {count !== undefined && <small>{count}</small>}
+    </button>
+  );
+}
+
+/** Contagem por etiqueta numa lista de clientes (chave sem maiúsculas/acentos). */
+function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {
+  const counts = new Map<string, number>();
+  for (const item of lists)
+    for (const tag of item.tags) counts.set(patientTagKey(tag), (counts.get(patientTagKey(tag)) ?? 0) + 1);
+  return (name: string) => counts.get(patientTagKey(name)) ?? 0;
+}
+
 function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
@@ -968,6 +1047,8 @@ function PatientsPage() {
   const [page, setPage] = useState(1);
   const canManage = canEdit("patients");
   const canExport = getStoredUser()?.role === "admin";
+  const configuredTags = usePatientTags();
+  const tagColor = tagColorLookup(configuredTags.tags);
 
   async function load(query = search) {
     setLoading(true);
@@ -1005,12 +1086,9 @@ function PatientsPage() {
   // A página guardada pode ficar além do total (ex.: depois de remover cadastros): limita no cálculo.
   const currentPage = Math.min(page, pageCount);
   const pagePatients = visiblePatients.slice((currentPage - 1) * patientsPerPage, currentPage * patientsPerPage);
-  const tagOptions = Object.entries(
-    patients.flatMap((patient) => patient.tags).reduce<Record<string, number>>((counts, tag) => {
-      counts[tag] = (counts[tag] ?? 0) + 1;
-      return counts;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"));
+  // Filtro mostra as etiquetas configuradas (com a cor), com quantos clientes da lista têm cada uma.
+  const countTag = tagCounts(patients);
+  const tagOptions = configuredTags.tags ?? [];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) + (filters.record !== "all" ? 1 : 0) + filters.tags.length;
   // Toda mudança de filtro ou ordenação volta para a primeira página.
@@ -1142,24 +1220,29 @@ function PatientsPage() {
                 Limpar filtros
               </button>
             )}
-            {tagOptions.length > 0 && (
+            {configuredTags.error ? (
               <div className="filter-group filter-tags">
-                <span className="filter-label" id="patient-tag-filter">Etiquetas</span>
-                <div className="tag-filter-list" role="group" aria-labelledby="patient-tag-filter">
-                  {tagOptions.map(([tag, count]) => (
-                    <button
-                      type="button"
-                      key={tag}
-                      className="tag-filter"
-                      aria-pressed={filters.tags.includes(tag)}
-                      onClick={() => toggleTag(tag)}
-                    >
-                      {tag}
-                      <small>{count}</small>
-                    </button>
-                  ))}
-                </div>
+                <span className="filter-label">Etiquetas</span>
+                <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
               </div>
+            ) : (
+              tagOptions.length > 0 && (
+                <div className="filter-group filter-tags">
+                  <span className="filter-label" id="patient-tag-filter">Etiquetas</span>
+                  <div className="tag-filter-list" role="group" aria-labelledby="patient-tag-filter">
+                    {tagOptions.map((tag) => (
+                      <TagChoice
+                        key={tag.id}
+                        name={tag.name}
+                        color={tag.color}
+                        count={countTag(tag.name)}
+                        pressed={filters.tags.includes(tag.name)}
+                        onToggle={() => toggleTag(tag.name)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
             )}
           </div>
         )}
@@ -1223,9 +1306,7 @@ function PatientsPage() {
                 <div className="tags-cell">
                   {patient.tags.length ? (
                     patient.tags.slice(0, 2).map((tag) => (
-                      <span className="tag" key={tag}>
-                        {tag}
-                      </span>
+                      <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
                     ))
                   ) : (
                     <small>Sem etiquetas</small>
@@ -1272,6 +1353,7 @@ function PatientsPage() {
       {(modalOpen || editingPatient) && (
         <PatientModal
           patient={editingPatient ?? undefined}
+          configuredTags={configuredTags}
           onClose={() => {
             setModalOpen(false);
             setEditingPatient(null);
@@ -1294,7 +1376,12 @@ function PatientsPage() {
         />
       )}
       {exportOpen && (
-        <PatientExportModal filters={filters} search={appliedSearch} onClose={() => setExportOpen(false)} />
+        <PatientExportModal
+          filters={filters}
+          search={appliedSearch}
+          tagColor={tagColor}
+          onClose={() => setExportOpen(false)}
+        />
       )}
     </>
   );
@@ -1330,10 +1417,12 @@ const patientRecordFilterLabels: Record<PatientRecordFilter, string> = {
 function PatientExportModal({
   filters,
   search,
+  tagColor,
   onClose,
 }: {
   filters: typeof defaultPatientFilters;
   search: string;
+  tagColor: (name: string) => string;
   onClose: () => void;
 }) {
   const [format, setFormat] = useState<PatientExportParams["format"]>("csv");
@@ -1349,7 +1438,6 @@ function PatientExportModal({
     params.search ? `Busca: “${params.search}”` : "",
     params.status ? `Situação: ${params.status === "active" ? "ativos" : "inativos"}` : "",
     params.birthdayMonth ? "Aniversariantes do mês" : "",
-    filters.tags.length ? `Etiquetas: ${filters.tags.join(", ")}` : "",
   ].filter(Boolean);
   const unsupportedRecord = filters.record === "with_email" || filters.record === "without_email";
 
@@ -1395,7 +1483,21 @@ function PatientExportModal({
       <form className="patient-export" onSubmit={(event) => void submit(event)} noValidate>
         <div className="patient-export-scope">
           <span className="filter-label">Clientes exportados</span>
-          <p>{scope.length ? scope.join(" · ") : "Nenhum filtro: todos os clientes serão exportados."}</p>
+          {(scope.length > 0 || filters.tags.length === 0) && (
+            <p>
+              {scope.length
+                ? scope.join(" · ")
+                : "Nenhum filtro: todos os clientes serão exportados."}
+            </p>
+          )}
+          {filters.tags.length > 0 && (
+            <div className="patient-export-tags">
+              <span>Etiquetas (qualquer uma):</span>
+              {filters.tags.map((tag) => (
+                <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
+              ))}
+            </div>
+          )}
           {unsupportedRecord && (
             <small>{`O filtro de cadastro “${patientRecordFilterLabels[filters.record]}” não se aplica à exportação.`}</small>
           )}
@@ -1652,10 +1754,13 @@ function PatientImportModal({
 
 function PatientModal({
   patient,
+  configuredTags,
   onClose,
   onSaved,
 }: {
   patient: Patient | undefined;
+  /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
+  configuredTags: { tags: PatientTag[] | null; error: string };
   onClose: () => void;
   onSaved: (patient: Patient) => void;
 }) {
@@ -1671,7 +1776,6 @@ function PatientModal({
     notes: patient?.notes ?? "",
     tags: patient?.tags ?? [],
   }));
-  const [tagsText, setTagsText] = useState(() => (patient?.tags ?? []).join(", "));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && canView("patients") && canView("crm");
   const editable = canEdit("patients");
@@ -1681,19 +1785,27 @@ function PatientModal({
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
+  const tagColor = tagColorLookup(configuredTags.tags);
+  const configuredKeys = new Set((configuredTags.tags ?? []).map((tag) => patientTagKey(tag.name)));
+  // Etiqueta que o cliente já tem e não está mais configurada aparece para poder ser retirada.
+  const tagChoices = [
+    ...(configuredTags.tags ?? []).map((tag) => ({ name: tag.name, color: tag.color })),
+    ...form.tags
+      .filter((tag) => !configuredKeys.has(patientTagKey(tag)))
+      .map((tag) => ({ name: tag, color: tagColor(tag) })),
+  ];
+  function toggleTag(tag: string) {
+    setForm((current) => ({
+      ...current,
+      tags: current.tags.includes(tag) ? current.tags.filter((item) => item !== tag) : [...current.tags, tag],
+    }));
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
     try {
-      const input = {
-        ...form,
-        tags: tagsText
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      };
-      onSaved(patient ? await api.updatePatient(patient.id, input) : await api.createPatient(input));
+      onSaved(patient ? await api.updatePatient(patient.id, form) : await api.createPatient(form));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -1790,13 +1902,31 @@ function PatientModal({
             </label>
           </div>
         </fieldset>
-        <label className="span-2">
-          Etiquetas (separadas por vírgula)
-          <input
-            value={tagsText}
-            onChange={(e) => setTagsText(e.target.value)}
-          />
-        </label>
+        <fieldset className="form-fieldset span-2">
+          <legend>Etiquetas</legend>
+          {configuredTags.error ? (
+            <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+          ) : configuredTags.tags === null ? (
+            <LoadingBlock />
+          ) : tagChoices.length === 0 ? (
+            <p className="muted-copy">
+              Nenhuma etiqueta configurada. Cadastre as etiquetas em Configurações › Etiquetas.
+            </p>
+          ) : (
+            <div className="tag-filter-list">
+              {tagChoices.map((tag) => (
+                <TagChoice
+                  key={tag.name}
+                  name={tag.name}
+                  color={tag.color}
+                  pressed={form.tags.includes(tag.name)}
+                  disabled={!editable}
+                  onToggle={() => toggleTag(tag.name)}
+                />
+              ))}
+            </div>
+          )}
+        </fieldset>
         <label className="span-2">
           Observações administrativas
           <textarea
@@ -2729,12 +2859,10 @@ function BroadcastPanel({
   const [error, setError] = useState("");
   const [sendError, setSendError] = useState("");
 
-  const tagOptions = Object.entries(
-    patients.flatMap((patient) => patient.tags).reduce<Record<string, number>>((counts, tag) => {
-      counts[tag] = (counts[tag] ?? 0) + 1;
-      return counts;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"));
+  // Segmento por etiqueta: as configuradas, com a cor e quantos clientes têm cada uma.
+  const configuredTags = usePatientTags();
+  const tagOptions = configuredTags.tags ?? [];
+  const countTag = tagCounts(patients);
 
   const input: BroadcastInput = {
     segment: {
@@ -2802,32 +2930,36 @@ function BroadcastPanel({
         </div>
       )}
       <form className="form-grid" onSubmit={(event) => void requestPreview(event)} noValidate>
-        {tagOptions.length > 0 && (
-          <div className="span-2 broadcast-tags">
-            <span className="filter-label" id="broadcast-tag-filter">
-              Etiquetas (qualquer uma)
-            </span>
-            <div className="tag-filter-list" role="group" aria-labelledby="broadcast-tag-filter">
-              {tagOptions.map(([tag, count]) => (
-                <button
-                  type="button"
-                  key={tag}
-                  className="tag-filter"
-                  aria-pressed={tags.includes(tag)}
-                  onClick={() =>
-                    change(() =>
-                      setTags((current) =>
-                        current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
-                      ),
-                    )
-                  }
-                >
-                  {tag}
-                  <small>{count}</small>
-                </button>
-              ))}
+        {configuredTags.error ? (
+          <p className="form-error span-2">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+        ) : (
+          tagOptions.length > 0 && (
+            <div className="span-2 broadcast-tags">
+              <span className="filter-label" id="broadcast-tag-filter">
+                Etiquetas (qualquer uma)
+              </span>
+              <div className="tag-filter-list" role="group" aria-labelledby="broadcast-tag-filter">
+                {tagOptions.map((tag) => (
+                  <TagChoice
+                    key={tag.id}
+                    name={tag.name}
+                    color={tag.color}
+                    count={countTag(tag.name)}
+                    pressed={tags.includes(tag.name)}
+                    onToggle={() =>
+                      change(() =>
+                        setTags((current) =>
+                          current.includes(tag.name)
+                            ? current.filter((item) => item !== tag.name)
+                            : [...current, tag.name],
+                        ),
+                      )
+                    }
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
         <label>
           Situação
@@ -11658,6 +11790,7 @@ function AdminPage() {
         </CollapsibleSection>
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
+        <PatientTagsSection canEdit />
         <CollapsibleSection
           className="admin-audit"
           eyebrow="Rastreabilidade"
@@ -12548,6 +12681,308 @@ function HolidaysContent() {
   );
 }
 
+function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
+  return (
+    <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas">
+      <PatientTagsContent canEdit={canEdit} />
+    </CollapsibleSection>
+  );
+}
+
+function sortPatientTags(tags: PatientTag[]) {
+  return [...tags].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/**
+ * Conteúdo da gaveta de Etiquetas: só monta (e busca a lista) quando a gaveta abre. Cada ação
+ * (criar, editar, excluir) grava na hora; não há formulário pendente ao fechar a gaveta.
+ */
+function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
+  const [tags, setTags] = useState<PatientTag[] | null>(null);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ name: "", color: DEFAULT_PATIENT_TAG_COLOR });
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<PatientTag | null>(null);
+  const [deleting, setDeleting] = useState<PatientTag | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .patientTags()
+      .then((data) => active && setTags(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const name = form.name.trim();
+    if (!name) {
+      setFormError("Informe o nome da etiqueta.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      const created = await api.createPatientTag({ name, color: form.color });
+      setTags((items) => sortPatientTags([...(items ?? []), created]));
+      setForm({ name: "", color: form.color });
+    } catch (cause) {
+      setFormError(
+        cause instanceof ApiClientError ? cause.message : "Não foi possível criar a etiqueta.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function replaceTag(updated: PatientTag) {
+    setTags((items) => sortPatientTags((items ?? []).map((item) => (item.id === updated.id ? updated : item))));
+  }
+
+  async function remove(tag: PatientTag) {
+    try {
+      await api.deletePatientTag(tag.id);
+    } catch (cause) {
+      // Em uso (409): atualiza a contagem mostrada com a que a API devolveu.
+      const count = cause instanceof ApiClientError ? cause.details?.patientCount : undefined;
+      if (typeof count === "number") replaceTag({ ...tag, patientCount: count });
+      throw new Error(
+        cause instanceof ApiClientError ? cause.message : "Não foi possível excluir a etiqueta.",
+        { cause },
+      );
+    }
+    setTags((items) => (items ?? []).filter((item) => item.id !== tag.id));
+    setDeleting(null);
+  }
+
+  return (
+    <>
+      <p className="muted-copy">
+        Só as etiquetas daqui podem ser usadas no cadastro dos clientes, nos filtros e nos
+        comunicados. Renomear atualiza os clientes que já têm a etiqueta.
+      </p>
+      {error && <ErrorBanner error={error} />}
+      {!tags ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          {canEdit && (
+            <form className="form-grid tag-form" onSubmit={(event) => void submit(event)} noValidate>
+              <label className="span-2">
+                Nome da etiqueta
+                <input
+                  maxLength={40}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </label>
+              <TagColorPicker
+                value={form.color}
+                previewName={form.name.trim() || "Nova etiqueta"}
+                onChange={(color) => setForm({ ...form, color })}
+              />
+              {formError && (
+                <div className="form-error span-2" role="alert">
+                  {formError}
+                </div>
+              )}
+              <div className="modal-actions span-2">
+                <button className="primary-button" disabled={saving}>
+                  <Plus size={17} />
+                  {saving ? "Adicionando…" : "Adicionar etiqueta"}
+                </button>
+              </div>
+            </form>
+          )}
+          {tags.length === 0 ? (
+            <EmptyState
+              title="Nenhuma etiqueta configurada"
+              copy={
+                canEdit
+                  ? "Crie as etiquetas que a equipe vai usar nos clientes."
+                  : "Peça a quem administra as configurações para criar as etiquetas."
+              }
+            />
+          ) : (
+            <ul className="tag-list" aria-label="Etiquetas configuradas">
+              {tags.map((tag) => (
+                <li key={tag.id}>
+                  <div className="tag-list-info">
+                    <PatientTagBadge name={tag.name} color={tag.color} />
+                    <small>{countLabel(tag.patientCount, "cliente", "clientes")}</small>
+                  </div>
+                  {canEdit && (
+                    <div className="tag-list-actions">
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        aria-label={`Editar etiqueta ${tag.name}`}
+                        onClick={() => setEditing(tag)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-button button-sm"
+                        aria-label={`Excluir etiqueta ${tag.name}`}
+                        onClick={() => setDeleting(tag)}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {editing && (
+        <PatientTagEditModal
+          tag={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            replaceTag(updated);
+            setEditing(null);
+          }}
+        />
+      )}
+      {deleting && (
+        <ActionModal
+          eyebrow="Etiquetas"
+          title="Excluir etiqueta"
+          subtitle={deleting.name}
+          effect={
+            deleting.patientCount > 0
+              ? `A etiqueta “${deleting.name}” está em ${countLabel(deleting.patientCount, "cliente", "clientes")}. Etiqueta em uso não pode ser excluída: retire-a desses clientes antes.`
+              : `A etiqueta “${deleting.name}” deixa de aparecer no cadastro dos clientes, nos filtros e nos comunicados.`
+          }
+          confirmLabel="Excluir etiqueta"
+          danger
+          onConfirm={() => remove(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+    </>
+  );
+}
+
+/** Cor da etiqueta: paleta sugerida, seletor livre e prévia do selo (texto preto ou branco). */
+function TagColorPicker({
+  value,
+  previewName,
+  onChange,
+}: {
+  value: string;
+  previewName: string;
+  onChange: (color: string) => void;
+}) {
+  return (
+    <fieldset className="form-fieldset span-2 tag-color-picker">
+      <legend>Cor</legend>
+      <div className="tag-palette" role="group" aria-label="Cores sugeridas">
+        {patientTagPalette.map((item) => (
+          <button
+            type="button"
+            key={item.color}
+            className="tag-swatch"
+            style={tagColorStyle(item.color)}
+            aria-label={`Cor ${item.name}`}
+            aria-pressed={value === item.color}
+            title={item.name}
+            onClick={() => onChange(item.color)}
+          />
+        ))}
+      </div>
+      <div className="tag-color-row">
+        <label className="tag-custom-color">
+          Outra cor
+          <input type="color" value={value} onChange={(e) => onChange(normalizeTagColor(e.target.value))} />
+        </label>
+        <span className="tag-color-preview">
+          Prévia
+          <PatientTagBadge name={previewName} color={value} />
+        </span>
+      </div>
+    </fieldset>
+  );
+}
+
+function PatientTagEditModal({
+  tag,
+  onClose,
+  onSaved,
+}: {
+  tag: PatientTag;
+  onClose: () => void;
+  onSaved: (tag: PatientTag) => void;
+}) {
+  const [name, setName] = useState(tag.name);
+  const [color, setColor] = useState(normalizeTagColor(tag.color));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Informe o nome da etiqueta.");
+      return;
+    }
+    const update = {
+      ...(trimmed !== tag.name ? { name: trimmed } : {}),
+      ...(color !== normalizeTagColor(tag.color) ? { color } : {}),
+    };
+    if (!update.name && !update.color) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      onSaved(await api.updatePatientTag(tag.id, update));
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : "Não foi possível salvar a etiqueta.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      eyebrow="Etiquetas"
+      title="Editar etiqueta"
+      subtitle={`${tag.name} · ${countLabel(tag.patientCount, "cliente", "clientes")}. Renomear atualiza esses clientes.`}
+      busy={saving}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)} noValidate>
+        <label className="span-2">
+          Nome da etiqueta
+          <input autoFocus maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <TagColorPicker value={color} previewName={name.trim() || tag.name} onChange={setColor} />
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? "Salvando…" : "Salvar etiqueta"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 type RelationshipDeadlineKey = Exclude<keyof RelationshipSettings, "messages">;
 
 const relationshipDeadlineFields: Array<{
@@ -12573,9 +13008,12 @@ function RelationshipSettingsPage() {
       <PageHeader
         eyebrow="Controle operacional"
         title="Configurações"
-        description="Prazos e mensagens usados nos contatos sugeridos."
+        description="Prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
       />
-      <RelationshipSettingsSection canEdit={false} />
+      <div className="settings-stack">
+        <RelationshipSettingsSection canEdit={false} />
+        <PatientTagsSection canEdit={canEdit("settings")} />
+      </div>
     </>
   );
 }
