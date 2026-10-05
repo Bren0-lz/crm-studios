@@ -115,6 +115,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /patients": view("patients"),
   "GET /patients/options": viewAny("patients", "agenda", "communications", "contracts", "groups"),
   "POST /patients": edit("patients"),
+  // Cadastro guiado (T064): a rota exige também editar o módulo do passo (agenda/plans/groups).
+  "POST /patients/guided": edit("patients"),
   "PUT /patients/:id": edit("patients"),
   "POST /patients/import/preview": edit("patients"),
   // Etiquetas configuradas (T062): leitura para quem vê clientes/etiquetas; gestão em Configurações.

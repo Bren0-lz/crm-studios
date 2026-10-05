@@ -52,6 +52,8 @@ import type {
   GroupClassInput,
   GroupClassUpdateInput,
   GroupEnrollment,
+  GuidedPatientInput,
+  GuidedPatientResult,
   GroupEnrollmentInput,
   GroupSession,
   GroupWorkspace,
@@ -1275,6 +1277,102 @@ export class MemoryClinicRepository implements ClinicRepository {
     };
     this.patients.push(patient);
     return patient;
+  }
+
+  async createPatientWithNextStep(
+    clinicId: string,
+    actorUserId: string,
+    input: GuidedPatientInput,
+  ): Promise<GuidedPatientResult> {
+    // Tudo ou nada: se um passo falhar, desfaz o que os anteriores gravaram.
+    const collections: unknown[][] = [
+      this.patients,
+      this.appointments,
+      this.patientPlans,
+      this.receivables,
+      this.sessionMovements,
+      this.groupEnrollments,
+    ];
+    const lengths = collections.map((collection) => collection.length);
+    try {
+      if (input.next === "plan" && input.groupId) {
+        const group = this.groupClasses.find(
+          (item) =>
+            item.clinicId === clinicId && item.id === input.groupId && item.active,
+        );
+        if (!group)
+          throw new DomainError(
+            "GROUP_OR_PATIENT_NOT_FOUND",
+            "Turma ou cliente ativo não encontrado.",
+            404,
+          );
+        if (group.serviceId !== input.plan.serviceId)
+          throw new DomainError(
+            "GROUP_SERVICE_MISMATCH",
+            "A turma escolhida não é do serviço do plano.",
+            400,
+          );
+      }
+      const patient = await this.createPatient(clinicId, input.patient);
+      if (input.next === "demonstration")
+        return {
+          patient,
+          appointment: await this.createAppointment(clinicId, {
+            ...input.appointment,
+            patientId: patient.id,
+            visitType: "trial",
+          }),
+        };
+      if (input.next === "none") return { patient };
+      const plan = await this.createPatientPlan(clinicId, actorUserId, {
+        ...input.plan,
+        patientId: patient.id,
+        kind: input.next === "plan" ? input.plan.kind : "single",
+      });
+      if (input.next === "plan" && input.groupId)
+        return {
+          patient,
+          plan,
+          enrollment: await this.createGroupEnrollment(clinicId, {
+            groupId: input.groupId,
+            patientId: patient.id,
+          }),
+        };
+      return { patient, plan };
+    } catch (error) {
+      collections.forEach((collection, index) => {
+        collection.length = lengths[index]!;
+      });
+      throw error;
+    }
+  }
+
+  async listSubscriberIdsWithoutGroup(clinicId: string) {
+    const currentDate = today();
+    const activeGroups = new Map(
+      this.groupClasses
+        .filter((group) => group.clinicId === clinicId && group.active)
+        .map((group) => [group.id, group]),
+    );
+    const ids = new Set<string>();
+    for (const plan of this.patientPlans) {
+      if (
+        plan.clinicId !== clinicId ||
+        plan.status !== "active" ||
+        plan.kind === "single" ||
+        (plan.validUntil && plan.validUntil < currentDate)
+      )
+        continue;
+      const enrolled = this.groupEnrollments.some(
+        (enrollment) =>
+          enrollment.clinicId === clinicId &&
+          enrollment.patientId === plan.patientId &&
+          enrollment.status === "active" &&
+          activeGroups.get(enrollment.groupId)?.serviceId === plan.serviceId,
+      );
+      if (!enrolled) ids.add(plan.patientId);
+    }
+    return [...ids];
   }
 
   async importPatients(clinicId: string, inputs: PatientInput[]) {

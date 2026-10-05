@@ -333,6 +333,7 @@ const queryBoolean = z.preprocess(
  * - `tags=a,b`: cliente com **qualquer uma** das etiquetas;
  * - `birthdayMonth=true`: nascimento no mês atual da clínica (`false`/ausente = sem filtro);
  * - `activePlan=true|false`: com / sem plano com status `active` (ausente = sem filtro);
+ * - `withoutGroup=true`: assinantes sem turma vinculada (ver `patientListQuerySchema`);
  * - `search`: mesma busca da lista de clientes;
  * - `columns=a,b`: colunas de `patientExportColumns` (ausente = todas, na ordem padrão).
  */
@@ -345,6 +346,7 @@ export const patientExportFilterSchema = z.object({
   tags: z.preprocess(queryList, z.array(z.string().max(40)).max(50).optional()),
   birthdayMonth: queryBoolean,
   activePlan: queryBoolean,
+  withoutGroup: queryBoolean,
   search: z.preprocess(emptyQueryToUndefined, z.string().trim().max(160).optional()),
   columns: z.preprocess(
     queryList,
@@ -734,6 +736,65 @@ export const planRenewalInputSchema = planTermsSchema
 export type PlanRenewalInput = z.infer<typeof planRenewalInputSchema>;
 
 export const planAutoRenewInputSchema = z.object({ autoRenew: z.boolean() });
+
+/** Plano criado no cadastro guiado: termos de `patientPlanInputSchema`, sem `patientId`. */
+const guidedPlanTermsSchema = planTermsSchema.extend({ serviceId: z.uuid() });
+/**
+ * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
+ * - `none`: só o cadastro (igual a `POST /patients`);
+ * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
+ *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
+ * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
+ *   (precisa ser do mesmo serviço do plano; turma cheia = lista de espera);
+ * - `single`: serviço avulso (plano `single`).
+ */
+export const guidedPatientInputSchema = z.discriminatedUnion("next", [
+  z.object({ next: z.literal("none"), patient: patientInputSchema }),
+  z.object({
+    next: z.literal("demonstration"),
+    patient: patientInputSchema,
+    appointment: leadAppointmentInputSchema.omit({ visitType: true }),
+  }),
+  z.object({
+    next: z.literal("plan"),
+    patient: patientInputSchema,
+    plan: guidedPlanTermsSchema
+      .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+      .refine(validPlanPeriod, planPeriodIssue)
+      .refine(renewablePlanPeriod, autoRenewIssue),
+    groupId: z
+      .uuid()
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+  }),
+  z.object({
+    next: z.literal("single"),
+    patient: patientInputSchema,
+    plan: guidedPlanTermsSchema
+      .refine(validPlanPeriod, planPeriodIssue)
+      .refine(renewablePlanPeriod, autoRenewIssue),
+  }),
+]);
+export type GuidedPatientInput = z.infer<typeof guidedPatientInputSchema>;
+export type GuidedPatientNext = GuidedPatientInput["next"];
+/** Resposta de `POST /patients/guided` (só os registros criados pelo passo escolhido). */
+export interface GuidedPatientResult {
+  patient: Patient;
+  appointment?: Appointment;
+  plan?: PatientPlan;
+  /** `status: "waitlisted"` quando a turma estava cheia. */
+  enrollment?: GroupEnrollment;
+}
+
+/**
+ * Query de `GET /patients`: `search` e `withoutGroup=true` (assinantes sem turma vinculada:
+ * plano ativo que não é avulso e sem matrícula ativa em turma do serviço desse plano).
+ */
+export const patientListQuerySchema = z.object({
+  search: z.preprocess(emptyQueryToUndefined, z.string().trim().max(160).optional()),
+  withoutGroup: queryBoolean,
+});
+export type PatientListQuery = z.infer<typeof patientListQuerySchema>;
 
 function addDaysToIsoDate(value: string, days: number): string {
   const [year, month, day] = value.split("-").map(Number);

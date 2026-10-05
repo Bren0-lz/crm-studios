@@ -51,6 +51,8 @@ import type {
   GroupClassInput,
   GroupClassUpdateInput,
   GroupEnrollment,
+  GuidedPatientInput,
+  GuidedPatientResult,
   GroupEnrollmentInput,
   GroupSession,
   GroupWorkspace,
@@ -268,6 +270,23 @@ export interface ClinicRepository {
   getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  /**
+   * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
+   * experimental, plano (com matrícula opcional em turma do mesmo serviço) ou avulso — tudo ou
+   * nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
+   * (`GROUP_OR_PATIENT_NOT_FOUND`, `GROUP_SERVICE_MISMATCH`) e plano usam as regras dos fluxos
+   * existentes.
+   */
+  createPatientWithNextStep(
+    clinicId: string,
+    actorUserId: string,
+    input: GuidedPatientInput,
+  ): Promise<GuidedPatientResult>;
+  /**
+   * Ids dos assinantes sem turma vinculada: plano ativo (dentro da validade) que não é avulso e
+   * sem matrícula ativa em turma ativa do serviço desse plano.
+   */
+  listSubscriberIdsWithoutGroup(clinicId: string): Promise<string[]>;
   /**
    * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
    * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos).

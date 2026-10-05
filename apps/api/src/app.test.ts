@@ -7294,4 +7294,417 @@ describe("CRM API", () => {
       await app.close();
     });
   });
+
+  describe("guided patient creation", () => {
+    const PROFESSIONAL_ID = "33333333-3333-4333-8333-333333333333";
+    const SERVICE_ID = "77777777-7777-4777-8777-777777777777";
+    const OTHER_SERVICE_ID = "88888888-8888-4888-8888-888888888888";
+    const planTerms = {
+      name: "Pilates mensal",
+      serviceId: SERVICE_ID,
+      totalSessions: 8,
+      validFrom: "2026-01-01",
+      validUntil: "2099-12-31",
+      totalValueInCents: 40000,
+      installments: 2,
+      firstDueDate: "2026-01-10",
+    };
+    async function setup() {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const rooms = (await app.inject({ method: "GET", url: "/rooms", headers })).json() as {
+        id: string;
+        capacity: number;
+      }[];
+      const roomId = rooms.find((room) => room.capacity >= 4)!.id;
+      const guided = (payload: Record<string, unknown>, as = headers) =>
+        app.inject({ method: "POST", url: "/patients/guided", headers: as, payload });
+      const findPatients = async (search: string) =>
+        (
+          await app.inject({
+            method: "GET",
+            url: `/patients?search=${encodeURIComponent(search)}`,
+            headers,
+          })
+        ).json() as { id: string }[];
+      let groupWeekday = 0;
+      const createGroup = async (serviceId: string, capacity = 4) => {
+        groupWeekday += 1;
+        const group = await app.inject({
+          method: "POST",
+          url: "/groups",
+          headers,
+          payload: {
+            capacity,
+            serviceId,
+            professionalId: PROFESSIONAL_ID,
+            roomId,
+            weeklySlots: [{ weekday: groupWeekday, startTime: "18:00", endTime: "19:00" }],
+          },
+        });
+        expect(group.statusCode, group.body).toBe(201);
+        return group.json().id as string;
+      };
+      const createUser = async (modules: string[], editModules: string[]) => {
+        const email = `guiado.${Math.random().toString(36).slice(2)}@teste.local`;
+        const created = await app.inject({
+          method: "POST",
+          url: "/admin/users",
+          headers,
+          payload: {
+            fullName: "Usuária Guiada",
+            email,
+            password: "SenhaForte123",
+            role: "user",
+            modules,
+            editModules,
+          },
+        });
+        expect(created.statusCode).toBe(201);
+        const login = await app.inject({
+          method: "POST",
+          url: "/auth/login",
+          payload: { email, password: "SenhaForte123" },
+        });
+        return { authorization: `Bearer ${login.json().token as string}` };
+      };
+      return { app, headers, roomId, guided, findPatients, createGroup, createUser };
+    }
+
+    it("schedules the demonstration class with holiday, conflict and tag checks, all or nothing", async () => {
+      const { app, headers, roomId, guided, findPatients } = await setup();
+      await configureTags(app, headers, ["Experimental T064"]);
+      const appointment = {
+        serviceId: SERVICE_ID,
+        professionalId: PROFESSIONAL_ID,
+        roomId,
+        startsAt: "2031-03-12T13:00:00.000Z",
+      };
+      const created = await guided({
+        next: "demonstration",
+        patient: { fullName: "Demo Guiada", phone: "11955550001", tags: ["experimental t064"] },
+        appointment: { ...appointment, notes: "Primeira aula" },
+      });
+      expect(created.statusCode).toBe(201);
+      const body = created.json();
+      expect(body.patient).toMatchObject({ fullName: "Demo Guiada", tags: ["Experimental T064"] });
+      expect(body.appointment).toMatchObject({
+        patientId: body.patient.id,
+        visitType: "trial",
+        serviceId: SERVICE_ID,
+        status: "scheduled",
+        notes: "Primeira aula",
+      });
+      expect(body.plan).toBeUndefined();
+      const agenda = await app.inject({
+        method: "GET",
+        url: "/appointments?from=2031-03-12T00:00:00.000Z&to=2031-03-13T00:00:00.000Z",
+        headers,
+      });
+      expect(agenda.json().map((item: Appointment) => item.id)).toContain(body.appointment.id);
+
+      // Conflito de agenda: nem o cliente fica gravado.
+      const conflict = await guided({
+        next: "demonstration",
+        patient: { fullName: "Conflito Guiado", phone: "11955550002" },
+        appointment,
+      });
+      expect(conflict.statusCode).toBe(409);
+      expect(conflict.json()).toMatchObject({ code: "APPOINTMENT_CONFLICT" });
+      expect(await findPatients("Conflito Guiado")).toEqual([]);
+
+      const holiday = await app.inject({
+        method: "POST",
+        url: "/holidays",
+        headers,
+        payload: { date: "2031-03-19", name: "Feriado teste" },
+      });
+      expect(holiday.statusCode).toBe(201);
+      const onHoliday = await guided({
+        next: "demonstration",
+        patient: { fullName: "Feriado Guiado", phone: "11955550003" },
+        appointment: { ...appointment, startsAt: "2031-03-19T13:00:00.000Z" },
+      });
+      expect(onHoliday.statusCode).toBe(409);
+      expect(onHoliday.json()).toMatchObject({ code: "HOLIDAY" });
+      expect(await findPatients("Feriado Guiado")).toEqual([]);
+
+      const unknownTag = await guided({
+        next: "demonstration",
+        patient: { fullName: "Etiqueta Guiada", phone: "11955550004", tags: ["vip"] },
+        appointment: { ...appointment, startsAt: "2031-03-26T13:00:00.000Z" },
+      });
+      expect(unknownTag.statusCode).toBe(400);
+      expect(unknownTag.json()).toMatchObject({
+        code: "PATIENT_TAG_UNKNOWN",
+        details: { unknownTags: ["vip"] },
+      });
+      expect(await findPatients("Etiqueta Guiada")).toEqual([]);
+
+      const missingRoom = await guided({
+        next: "demonstration",
+        patient: { fullName: "Sala Guiada", phone: "11955550005" },
+        appointment: { ...appointment, roomId: "99999999-9999-4999-8999-999999999999" },
+      });
+      expect(missingRoom.statusCode).toBe(404);
+      expect(missingRoom.json()).toMatchObject({ code: "RELATED_RECORD_NOT_FOUND" });
+      expect(await findPatients("Sala Guiada")).toEqual([]);
+
+      const onlyPatient = await guided({
+        next: "none",
+        patient: { fullName: "Só Cadastro", phone: "11955550006" },
+      });
+      expect(onlyPatient.statusCode).toBe(201);
+      expect(onlyPatient.json()).toEqual({ patient: expect.objectContaining({ fullName: "Só Cadastro" }) });
+      await app.close();
+    });
+
+    it("creates subscription and single plans, with an optional group of the same service", async () => {
+      const { app, headers, guided, findPatients, createGroup } = await setup();
+      const groupId = await createGroup(SERVICE_ID);
+      const otherGroupId = await createGroup(OTHER_SERVICE_ID);
+      const plansBefore = (await app.inject({ method: "GET", url: "/plans", headers })).json()
+        .length as number;
+
+      const withGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Assinante Com Turma", phone: "11966660001" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId,
+      });
+      expect(withGroup.statusCode).toBe(201);
+      const withGroupBody = withGroup.json();
+      expect(withGroupBody.plan).toMatchObject({
+        patientId: withGroupBody.patient.id,
+        kind: "recurring",
+        status: "active",
+        remainingSessions: 8,
+      });
+      expect(withGroupBody.enrollment).toMatchObject({
+        groupId,
+        patientId: withGroupBody.patient.id,
+        status: "active",
+      });
+
+      const withoutGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Assinante Sem Turma", phone: "11966660002" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        groupId: "",
+      });
+      expect(withoutGroup.statusCode).toBe(201);
+      expect(withoutGroup.json().plan.kind).toBe("fixed_package");
+      expect(withoutGroup.json().enrollment).toBeUndefined();
+
+      const single = await guided({
+        next: "single",
+        patient: { fullName: "Cliente Avulso", phone: "11966660003" },
+        plan: { ...planTerms, name: "Sessão avulsa", totalSessions: 1, installments: 1 },
+      });
+      expect(single.statusCode).toBe(201);
+      expect(single.json().plan).toMatchObject({ kind: "single", totalSessions: 1 });
+      const receivables = (
+        await app.inject({ method: "GET", url: "/finance/summary", headers })
+      ).json().receivables as { planId?: string }[];
+      expect(receivables.filter((item) => item.planId === withGroupBody.plan.id)).toHaveLength(2);
+
+      // Turma de outro serviço: nada fica gravado.
+      const mismatch = await guided({
+        next: "plan",
+        patient: { fullName: "Turma Errada", phone: "11966660004" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId: otherGroupId,
+      });
+      expect(mismatch.statusCode).toBe(400);
+      expect(mismatch.json()).toMatchObject({ code: "GROUP_SERVICE_MISMATCH" });
+      const missingGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Turma Errada", phone: "11966660004" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId: "99999999-9999-4999-8999-999999999999",
+      });
+      expect(missingGroup.statusCode).toBe(404);
+      expect(missingGroup.json()).toMatchObject({ code: "GROUP_OR_PATIENT_NOT_FOUND" });
+      // Serviço inexistente: o plano falha depois do cliente, que é desfeito.
+      const missingService = await guided({
+        next: "single",
+        patient: { fullName: "Turma Errada", phone: "11966660004" },
+        plan: { ...planTerms, serviceId: "99999999-9999-4999-8999-999999999999" },
+      });
+      expect(missingService.statusCode).toBe(404);
+      expect(missingService.json()).toMatchObject({ code: "PLAN_CONTEXT_NOT_FOUND" });
+      expect(await findPatients("Turma Errada")).toEqual([]);
+      const plansAfter = (await app.inject({ method: "GET", url: "/plans", headers })).json();
+      expect(plansAfter).toHaveLength(plansBefore + 3);
+
+      for (const payload of [
+        { next: "plan", patient: { fullName: "Tipo Errado", phone: "11966660005" }, plan: { ...planTerms, kind: "single" } },
+        { next: "single", patient: { fullName: "Tipo Errado", phone: "11966660005" } },
+        { next: "assinatura", patient: { fullName: "Tipo Errado", phone: "11966660005" } },
+      ]) {
+        const invalid = await guided(payload);
+        expect(invalid.statusCode, JSON.stringify(payload)).toBe(400);
+        expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+      }
+      expect(await findPatients("Tipo Errado")).toEqual([]);
+      await app.close();
+    });
+
+    it("filters subscribers without a linked group in the list and in the export", async () => {
+      const { app, headers, guided, createGroup } = await setup();
+      const groupId = await createGroup(SERVICE_ID);
+      const fullGroupId = await createGroup(SERVICE_ID, 1);
+      const otherGroupId = await createGroup(OTHER_SERVICE_ID);
+      const create = async (payload: Record<string, unknown>) => {
+        const response = await guided(payload);
+        expect(response.statusCode).toBe(201);
+        return response.json() as { patient: { id: string }; plan?: { id: string } };
+      };
+      const enrolled = await create({
+        next: "plan",
+        patient: { fullName: "Filtro Matriculada", phone: "11977771001" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId,
+      });
+      const noGroup = await create({
+        next: "plan",
+        patient: { fullName: "Filtro Sem Turma", phone: "11977771002" },
+        plan: { ...planTerms, kind: "recurring" },
+      });
+      const otherService = await create({
+        next: "plan",
+        patient: { fullName: "Filtro Outra Turma", phone: "11977771003" },
+        plan: { ...planTerms, kind: "fixed_package" },
+      });
+      const otherEnroll = await app.inject({
+        method: "POST",
+        url: "/group-enrollments",
+        headers,
+        payload: { groupId: otherGroupId, patientId: otherService.patient.id },
+      });
+      expect(otherEnroll.statusCode).toBe(201);
+      await create({
+        next: "plan",
+        patient: { fullName: "Filtro Ocupa Vaga", phone: "11977771004" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId: fullGroupId,
+      });
+      const waitlisted = await create({
+        next: "plan",
+        patient: { fullName: "Filtro Espera", phone: "11977771005" },
+        plan: { ...planTerms, kind: "recurring" },
+        groupId: fullGroupId,
+      });
+      await create({
+        next: "single",
+        patient: { fullName: "Filtro Avulso", phone: "11977771006" },
+        plan: planTerms,
+      });
+      const paused = await create({
+        next: "plan",
+        patient: { fullName: "Filtro Pausado", phone: "11977771007" },
+        plan: { ...planTerms, kind: "recurring" },
+      });
+      const pause = await app.inject({
+        method: "PATCH",
+        url: `/plans/${paused.plan!.id}/status`,
+        headers,
+        payload: { status: "paused" },
+      });
+      expect(pause.statusCode).toBe(200);
+      await create({ next: "none", patient: { fullName: "Filtro Sem Plano", phone: "11977771008" } });
+
+      const list = await app.inject({
+        method: "GET",
+        url: "/patients?search=Filtro&withoutGroup=true",
+        headers,
+      });
+      expect(list.statusCode).toBe(200);
+      const ids = list.json().map((patient: { id: string }) => patient.id);
+      expect(ids).toEqual(
+        expect.arrayContaining([noGroup.patient.id, otherService.patient.id, waitlisted.patient.id]),
+      );
+      expect(ids).toHaveLength(3);
+      expect(ids).not.toContain(enrolled.patient.id);
+      const everyone = await app.inject({ method: "GET", url: "/patients?search=Filtro", headers });
+      expect(everyone.json()).toHaveLength(8);
+      const invalid = await app.inject({ method: "GET", url: "/patients?withoutGroup=sim", headers });
+      expect(invalid.statusCode).toBe(400);
+
+      const exported = await app.inject({
+        method: "GET",
+        url: "/patients/export?search=Filtro&withoutGroup=true&columns=fullName",
+        headers,
+      });
+      expect(exported.statusCode).toBe(200);
+      expect(exported.body.slice(1).replace(/\r\n$/, "").split("\r\n")).toEqual([
+        "nome",
+        "Filtro Espera",
+        "Filtro Outra Turma",
+        "Filtro Sem Turma",
+      ]);
+      await app.close();
+    });
+
+    it("requires editing patients plus the module of the chosen step", async () => {
+      const { app, roomId, guided, findPatients, createGroup, createUser } = await setup();
+      const groupId = await createGroup(SERVICE_ID);
+      const patient = (name: string) => ({ fullName: name, phone: "11988880001" });
+      const demonstration = (name: string) => ({
+        next: "demonstration",
+        patient: patient(name),
+        appointment: {
+          serviceId: SERVICE_ID,
+          professionalId: PROFESSIONAL_ID,
+          roomId,
+          startsAt: "2031-04-02T13:00:00.000Z",
+        },
+      });
+      const plan = (name: string, withGroup = false) => ({
+        next: "plan",
+        patient: patient(name),
+        plan: { ...planTerms, kind: "recurring" },
+        ...(withGroup ? { groupId } : {}),
+      });
+
+      const viewer = await createUser(["patients", "agenda", "plans"], ["agenda", "plans"]);
+      const noEdit = await guided({ next: "none", patient: patient("Perm Sem Edição") }, viewer);
+      expect(noEdit.statusCode).toBe(403);
+      expect(noEdit.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+
+      const patientsOnly = await createUser(["patients"], ["patients"]);
+      const none = await guided({ next: "none", patient: patient("Perm Só Cadastro") }, patientsOnly);
+      expect(none.statusCode).toBe(201);
+      const demoDenied = await guided(demonstration("Perm Demo Negada"), patientsOnly);
+      expect(demoDenied.statusCode).toBe(403);
+      expect(demoDenied.json()).toMatchObject({
+        code: "AGENDA_ACCESS_DENIED",
+        message: "Seu usuário não possui permissão para editar Agenda.",
+      });
+      const planDenied = await guided(plan("Perm Plano Negado"), patientsOnly);
+      expect(planDenied.statusCode).toBe(403);
+      expect(planDenied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
+      const singleDenied = await guided(
+        { next: "single", patient: patient("Perm Avulso Negado"), plan: planTerms },
+        patientsOnly,
+      );
+      expect(singleDenied.statusCode).toBe(403);
+
+      const withPlans = await createUser(["patients", "plans"], ["patients", "plans"]);
+      const groupDenied = await guided(plan("Perm Turma Negada", true), withPlans);
+      expect(groupDenied.statusCode).toBe(403);
+      expect(groupDenied.json()).toMatchObject({ code: "GROUP_ACCESS_DENIED" });
+      expect((await guided(plan("Perm Plano Ok"), withPlans)).statusCode).toBe(201);
+
+      const full = await createUser(
+        ["patients", "plans", "groups", "agenda"],
+        ["patients", "plans", "groups", "agenda"],
+      );
+      expect((await guided(plan("Perm Turma Ok", true), full)).statusCode).toBe(201);
+      expect((await guided(demonstration("Perm Demo Ok"), full)).statusCode).toBe(201);
+      expect((await app.inject({ method: "POST", url: "/patients/guided", payload: plan("Anônimo") })).statusCode).toBe(401);
+      expect(await findPatients("Negad")).toEqual([]);
+      await app.close();
+    });
+  });
 });

@@ -66,6 +66,10 @@ import {
   planTransitionSchema,
   patientExportFilterSchema,
   patientInputSchema,
+  patientListQuerySchema,
+  guidedPatientInputSchema,
+  type GuidedPatientNext,
+  type GuidedPatientResult,
   patientImportFileSchema,
   patientTagInputSchema,
   patientTagUpdateSchema,
@@ -420,23 +424,33 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     });
   }
 
+  /** Primeiro requisito que o usuário da requisição não cumpre (403 com `moduleDenied`). */
+  function missingModule(
+    request: FastifyRequest,
+    requirements: readonly ModuleRequirement[],
+  ) {
+    const access = requestAccess.get(request);
+    return requirements.find(
+      ({ module, level }) =>
+        !(level === "edit" ? access?.editModules : access?.modules)?.includes(
+          module,
+        ),
+    );
+  }
+  function moduleDenied(missing: ModuleRequirement): ApiError {
+    return {
+      code: moduleDeniedCodes[missing.module],
+      message: `Seu usuário não possui permissão para ${
+        missing.level === "edit" ? "editar" : "ver"
+      } ${appModuleLabels[missing.module]}.`,
+    };
+  }
+
   /** Guarda por módulo e nível: exige todos os requisitos (ver `ROUTE_ACCESS`). */
   function requireModules(requirements: readonly ModuleRequirement[]) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
-      const access = requestAccess.get(request);
-      const missing = requirements.find(
-        ({ module, level }) =>
-          !(level === "edit" ? access?.editModules : access?.modules)?.includes(
-            module,
-          ),
-      );
-      if (missing)
-        return reply.status(403).send({
-          code: moduleDeniedCodes[missing.module],
-          message: `Seu usuário não possui permissão para ${
-            missing.level === "edit" ? "editar" : "ver"
-          } ${appModuleLabels[missing.module]}.`,
-        } satisfies ApiError);
+      const missing = missingModule(request, requirements);
+      if (missing) return reply.status(403).send(moduleDenied(missing));
     };
   }
 
@@ -863,8 +877,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
 
   app.get("/patients", { preHandler: authenticate }, async (request) => {
-    const query = request.query as { search?: string };
-    return repository.listPatients(request.user.clinicId, query.search);
+    const query = patientListQuerySchema.parse(request.query);
+    const clinicId = request.user.clinicId;
+    const patients = await repository.listPatients(clinicId, query.search);
+    if (!query.withoutGroup) return patients;
+    const ids = new Set(await repository.listSubscriberIdsWithoutGroup(clinicId));
+    return patients.filter((patient) => ids.has(patient.id));
   });
   // Lista mínima de apoio (D11): só id, nome e etiquetas, para telas que escolhem o cliente.
   app.get("/patients/options", { preHandler: authenticate }, async (request) => {
@@ -882,18 +900,25 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       );
       const clinicId = request.user.clinicId;
       const today = saoPauloToday();
-      const [patients, plans] = await Promise.all([
+      const [patients, plans, withoutGroupIds] = await Promise.all([
         repository.listPatients(clinicId, filters.search),
         filters.activePlan === undefined
           ? Promise.resolve([])
           : repository.listPatientPlans(clinicId),
+        filters.withoutGroup
+          ? repository.listSubscriberIdsWithoutGroup(clinicId)
+          : Promise.resolve(null),
       ]);
-      const rows = filterPatientsForExport(
+      const filtered = filterPatientsForExport(
         patients,
         plans,
         { format, columns, ...filters },
         today,
       );
+      const withoutGroup = withoutGroupIds && new Set(withoutGroupIds);
+      const rows = withoutGroup
+        ? filtered.filter((patient) => withoutGroup.has(patient.id))
+        : filtered;
       await repository.recordAdminAuditEvent(
         clinicId,
         request.user.sub,
@@ -947,6 +972,42 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         await withConfiguredTags(clinicId, patientInputSchema.parse(request.body)),
       );
       return reply.status(201).send(patient);
+    },
+  );
+  /**
+   * Cadastro guiado: o `ROUTE_ACCESS` exige editar Clientes; aqui exige também editar o módulo
+   * do passo (Agenda, Planos e, com turma, Turmas), com o mesmo 403 das guardas.
+   */
+  const guidedStepModules: Record<GuidedPatientNext, AppModule[]> = {
+    none: [],
+    demonstration: ["agenda"],
+    plan: ["plans"],
+    single: ["plans"],
+  };
+  app.post(
+    "/patients/guided",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const input = guidedPatientInputSchema.parse(request.body);
+      const modules = [
+        ...guidedStepModules[input.next],
+        ...(input.next === "plan" && input.groupId ? (["groups"] as const) : []),
+      ];
+      const missing = missingModule(
+        request,
+        modules.map((module): ModuleRequirement => ({ module, level: "edit" })),
+      );
+      if (missing) return reply.status(403).send(moduleDenied(missing));
+      const clinicId = request.user.clinicId;
+      const patient = await withConfiguredTags(clinicId, input.patient);
+      if (input.next === "demonstration")
+        await assertNoHoliday(clinicId, [input.appointment.startsAt]);
+      const result: GuidedPatientResult = await repository.createPatientWithNextStep(
+        clinicId,
+        request.user.sub,
+        { ...input, patient },
+      );
+      return reply.status(201).send(result);
     },
   );
   app.get("/patient-tags", { preHandler: authenticate }, async (request) =>

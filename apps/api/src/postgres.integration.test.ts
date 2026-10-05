@@ -2649,6 +2649,145 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("creates the client with the next step in one transaction and lists subscribers without a group", async () => {
+    const marker = "postgres-guided-t064";
+    const phones = [
+      "11955506401",
+      "11955506402",
+      "11955506403",
+      "11955506404",
+      "11955506405",
+      "11955506406",
+    ];
+    const serviceId = "77777777-7777-4777-8777-777777777777";
+    const otherServiceId = "88888888-8888-4888-8888-888888888888";
+    const professionalId = "44444444-4444-4444-8444-444444444444";
+    const day = new Date(Date.now() + 650 * 24 * 60 * 60 * 1000);
+    day.setUTCHours(12, 0, 0, 0);
+    const terms = {
+      name: marker,
+      serviceId,
+      totalSessions: 8,
+      validFrom: saoPauloToday(),
+      validUntil: "2099-12-31",
+      totalValueInCents: 40000,
+      installments: 2,
+      firstDueDate: saoPauloToday(),
+    };
+    const patients = "SELECT id FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])";
+    const plans = `SELECT id FROM patient_plans WHERE patient_id IN (${patients})`;
+    const cleanup = async () => {
+      await pool.query(`DELETE FROM appointments WHERE patient_id IN (${patients})`, [clinicId, phones]);
+      await pool.query(`DELETE FROM group_enrollments WHERE patient_id IN (${patients})`, [clinicId, phones]);
+      await pool.query(
+        `DELETE FROM financial_events WHERE receivable_id IN
+           (SELECT id FROM receivables WHERE plan_id IN (${plans}))`,
+        [clinicId, phones],
+      );
+      await pool.query(`DELETE FROM session_movements WHERE plan_id IN (${plans})`, [clinicId, phones]);
+      await pool.query(`DELETE FROM receivables WHERE plan_id IN (${plans})`, [clinicId, phones]);
+      await pool.query(`DELETE FROM patient_plans WHERE id IN (${plans})`, [clinicId, phones]);
+      await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])", [
+        clinicId,
+        phones,
+      ]);
+      await pool.query("DELETE FROM group_classes WHERE clinic_id = $1 AND name = $2", [clinicId, marker]);
+    };
+    await cleanup();
+    try {
+      const appointment = {
+        serviceId,
+        professionalId,
+        roomId: "55555555-5555-4555-8555-555555555555",
+        startsAt: day.toISOString(),
+        notes: marker,
+      };
+      const demo = await repository.createPatientWithNextStep(clinicId, ownerId, {
+        next: "demonstration",
+        patient: { fullName: "Guiada PG Demo", phone: phones[0]!, tags: [] },
+        appointment,
+      });
+      expect(demo.appointment).toMatchObject({
+        patientId: demo.patient.id,
+        visitType: "trial",
+        status: "scheduled",
+      });
+      // Conflito na agenda: o cliente gravado na mesma transação é desfeito.
+      await expect(
+        repository.createPatientWithNextStep(clinicId, ownerId, {
+          next: "demonstration",
+          patient: { fullName: "Guiada PG Conflito", phone: phones[1]!, tags: [] },
+          appointment,
+        }),
+      ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
+      expect(await repository.listPatients(clinicId, phones[1])).toEqual([]);
+
+      const group = await pool.query<{ id: string }>(
+        `INSERT INTO group_classes
+           (clinic_id, name, sequence, service_id, professional_id, room_id, capacity, weekly_slots)
+         VALUES ($1, $2, 9064, $3, $4, '66666666-6666-4666-8666-666666666666', 4, '[]'::jsonb)
+         RETURNING id`,
+        [clinicId, marker, serviceId, professionalId],
+      );
+      const groupId = group.rows[0]!.id;
+      const enrolled = await repository.createPatientWithNextStep(clinicId, ownerId, {
+        next: "plan",
+        patient: { fullName: "Guiada PG Turma", phone: phones[2]!, tags: [] },
+        plan: { ...terms, kind: "recurring" },
+        groupId,
+      });
+      expect(enrolled.plan).toMatchObject({ kind: "recurring", status: "active", remainingSessions: 8 });
+      expect(enrolled.enrollment).toMatchObject({ groupId, patientId: enrolled.patient.id, status: "active" });
+      const noGroup = await repository.createPatientWithNextStep(clinicId, ownerId, {
+        next: "plan",
+        patient: { fullName: "Guiada PG Sem Turma", phone: phones[3]!, tags: [] },
+        plan: { ...terms, kind: "fixed_package" },
+      });
+      const single = await repository.createPatientWithNextStep(clinicId, ownerId, {
+        next: "single",
+        patient: { fullName: "Guiada PG Avulso", phone: phones[4]!, tags: [] },
+        plan: { ...terms, totalSessions: 1, installments: 1 },
+      });
+      expect(single.plan?.kind).toBe("single");
+      const receivables = await pool.query(
+        "SELECT 1 FROM receivables WHERE clinic_id = $1 AND plan_id = $2",
+        [clinicId, enrolled.plan!.id],
+      );
+      expect(receivables.rowCount).toBe(2);
+
+      const withoutGroup = await repository.listSubscriberIdsWithoutGroup(clinicId);
+      expect(withoutGroup).toContain(noGroup.patient.id);
+      expect(withoutGroup).not.toContain(enrolled.patient.id);
+      expect(withoutGroup).not.toContain(single.patient.id);
+      expect(withoutGroup).not.toContain(demo.patient.id);
+
+      // Turma de outro serviço e serviço inexistente: nada fica gravado.
+      await expect(
+        repository.createPatientWithNextStep(clinicId, ownerId, {
+          next: "plan",
+          patient: { fullName: "Guiada PG Desfeita", phone: phones[5]!, tags: [] },
+          plan: { ...terms, serviceId: otherServiceId, kind: "recurring" },
+          groupId,
+        }),
+      ).rejects.toMatchObject({ code: "GROUP_SERVICE_MISMATCH", statusCode: 400 });
+      await expect(
+        repository.createPatientWithNextStep(clinicId, ownerId, {
+          next: "single",
+          patient: { fullName: "Guiada PG Desfeita", phone: phones[5]!, tags: [] },
+          plan: { ...terms, serviceId: "12121212-1212-4121-8121-121212121212" },
+        }),
+      ).rejects.toMatchObject({ code: "PLAN_CONTEXT_NOT_FOUND" });
+      expect(await repository.listPatients(clinicId, phones[5])).toEqual([]);
+      const stored = await pool.query(
+        "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND name = $2",
+        [clinicId, marker],
+      );
+      expect(stored.rowCount).toBe(3);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("migration 0044 configures the clients' existing tags without losing any", async () => {
     const sql = readFileSync(
       fileURLToPath(new URL("../migrations/0044_patient_tags.sql", import.meta.url)),

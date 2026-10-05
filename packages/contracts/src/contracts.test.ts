@@ -35,6 +35,8 @@ import {
   patientExportColumns,
   patientExportFilterSchema,
   patientInputSchema,
+  guidedPatientInputSchema,
+  patientListQuerySchema,
   patientTagInputSchema,
   patientTagKey,
   patientTagUpdateSchema,
@@ -462,6 +464,68 @@ describe("patient export filter", () => {
       { activePlan: "sim" },
     ])
       expect(patientExportFilterSchema.safeParse(query).success).toBe(false);
+  });
+
+  it("parses withoutGroup in the export and in the patient list query", () => {
+    expect(patientExportFilterSchema.parse({ withoutGroup: "true" }).withoutGroup).toBe(true);
+    expect(patientListQuerySchema.parse({ search: "", withoutGroup: "" })).toEqual({});
+    expect(patientListQuerySchema.parse({ search: " Ana ", withoutGroup: "true" })).toEqual({
+      search: "Ana",
+      withoutGroup: true,
+    });
+    expect(patientListQuerySchema.safeParse({ withoutGroup: "sim" }).success).toBe(false);
+  });
+});
+
+describe("guided patient creation", () => {
+  const patient = { fullName: "Ana Souza", phone: "11999990000" };
+  const serviceId = "10000000-0000-4000-8000-000000000001";
+  const terms = {
+    name: "Pilates 2x",
+    serviceId,
+    totalSessions: 8,
+    validFrom: "2026-10-01",
+    validUntil: "2026-10-31",
+    totalValueInCents: 40000,
+    installments: 1,
+    firstDueDate: "2026-10-05",
+  };
+
+  it("accepts each next step with its own data", () => {
+    expect(guidedPatientInputSchema.parse({ next: "none", patient }).next).toBe("none");
+    const demo = guidedPatientInputSchema.parse({
+      next: "demonstration",
+      patient,
+      appointment: {
+        serviceId,
+        professionalId: serviceId,
+        roomId: serviceId,
+        startsAt: "2026-10-06T13:00:00.000Z",
+      },
+    });
+    expect(demo.next === "demonstration" && demo.appointment.serviceId).toBe(serviceId);
+    const plan = guidedPatientInputSchema.parse({
+      next: "plan",
+      patient,
+      plan: { ...terms, kind: "recurring" },
+      groupId: "",
+    });
+    expect(plan.next === "plan" && plan.groupId).toBeUndefined();
+    expect(
+      guidedPatientInputSchema.parse({ next: "single", patient, plan: terms }).next,
+    ).toBe("single");
+  });
+
+  it("rejects a single kind as subscription, missing step data and invalid periods", () => {
+    for (const body of [
+      { next: "plan", patient, plan: { ...terms, kind: "single" } },
+      { next: "plan", patient, plan: { ...terms, kind: "custom" } },
+      { next: "demonstration", patient },
+      { next: "single", patient },
+      { next: "single", patient, plan: { ...terms, validUntil: "2026-09-01" } },
+      { next: "trial", patient },
+    ])
+      expect(guidedPatientInputSchema.safeParse(body).success).toBe(false);
   });
 });
 

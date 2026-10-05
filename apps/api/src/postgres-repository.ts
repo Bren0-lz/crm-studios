@@ -54,6 +54,8 @@ import type {
   GroupClassInput,
   GroupClassUpdateInput,
   GroupEnrollment,
+  GuidedPatientInput,
+  GuidedPatientResult,
   GroupEnrollmentInput,
   GroupSession,
   GroupWorkspace,
@@ -2947,6 +2949,114 @@ export class PostgresClinicRepository implements ClinicRepository {
     return this.insertPatient(this.pool, clinicId, input);
   }
 
+  async createPatientWithNextStep(
+    clinicId: string,
+    actorUserId: string,
+    input: GuidedPatientInput,
+  ): Promise<GuidedPatientResult> {
+    return this.inTransaction(async (client) => {
+      if (input.next === "plan" && input.groupId) {
+        const group = await client.query<{ serviceId: string }>(
+          `SELECT service_id AS "serviceId" FROM group_classes
+           WHERE clinic_id = $1 AND id = $2 AND active`,
+          [clinicId, input.groupId],
+        );
+        if (!group.rows[0])
+          throw new DomainError(
+            "GROUP_OR_PATIENT_NOT_FOUND",
+            "Turma ou cliente ativo não encontrado.",
+            404,
+          );
+        if (group.rows[0].serviceId !== input.plan.serviceId)
+          throw new DomainError(
+            "GROUP_SERVICE_MISMATCH",
+            "A turma escolhida não é do serviço do plano.",
+            400,
+          );
+      }
+      const patient = await this.insertPatient(client, clinicId, input.patient);
+      if (input.next === "none") return { patient };
+      if (input.next === "demonstration") {
+        const related = await client.query<{ durationMinutes: number }>(
+          `
+            SELECT s.duration_minutes AS "durationMinutes"
+            FROM professionals pr, rooms r, services s
+            WHERE pr.id = $2 AND pr.clinic_id = $1 AND pr.active = true
+              AND r.id = $3 AND r.clinic_id = $1 AND r.active = true
+              AND s.id = $4 AND s.clinic_id = $1 AND s.active = true
+          `,
+          [
+            clinicId,
+            input.appointment.professionalId,
+            input.appointment.roomId,
+            input.appointment.serviceId,
+          ],
+        );
+        if (!related.rows[0])
+          throw new DomainError(
+            "RELATED_RECORD_NOT_FOUND",
+            "Cliente, profissional, sala ou serviço não encontrado.",
+            404,
+          );
+        const appointment = await this.insertAppointment(
+          clinicId,
+          { ...input.appointment, visitType: "trial" },
+          related.rows[0].durationMinutes,
+          { patientId: patient.id, leadId: null },
+          client,
+        );
+        return { patient, appointment };
+      }
+      const planId = await this.insertPatientPlan(
+        client,
+        clinicId,
+        actorUserId,
+        {
+          ...input.plan,
+          patientId: patient.id,
+          kind: input.next === "plan" ? input.plan.kind : "single",
+        },
+        "Crédito inicial do plano",
+      );
+      const plan = (await this.findPatientPlan(client, clinicId, planId))!;
+      if (input.next === "plan" && input.groupId)
+        return {
+          patient,
+          plan,
+          enrollment: await this.insertGroupEnrollment(client, clinicId, {
+            groupId: input.groupId,
+            patientId: patient.id,
+          }),
+        };
+      return { patient, plan };
+    });
+  }
+
+  async listSubscriberIdsWithoutGroup(clinicId: string) {
+    const result = await this.pool.query<{ patientId: string }>(
+      `
+        SELECT DISTINCT pp.patient_id AS "patientId"
+        FROM patient_plans pp
+        WHERE pp.clinic_id = $1
+          AND pp.status = 'active'
+          AND pp.kind <> 'single'
+          AND (pp.valid_until IS NULL OR pp.valid_until >= CURRENT_DATE)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM group_enrollments e
+            JOIN group_classes g ON g.id = e.group_id AND g.clinic_id = e.clinic_id
+            WHERE e.clinic_id = $1
+              AND e.patient_id = pp.patient_id
+              AND e.status = 'active'
+              AND g.active
+              AND g.service_id = pp.service_id
+          )
+      `,
+      [clinicId],
+    );
+    return result.rows.map((row) => row.patientId);
+  }
+
   async importPatients(clinicId: string, inputs: PatientInput[]) {
     if (inputs.length === 0) return { created: 0, skipped: 0 };
     return this.inTransaction(async (client) => {
@@ -3357,12 +3467,13 @@ export class PostgresClinicRepository implements ClinicRepository {
     input: Omit<AppointmentInput, "patientId">,
     durationMinutes: number,
     owner: { patientId: string; leadId: null } | { patientId: null; leadId: string },
+    client: Pool | PoolClient = this.pool,
   ) {
     const startsAt = new Date(input.startsAt);
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     if (
       await hasGroupSessionConflict(
-        this.pool,
+        client,
         clinicId,
         input.professionalId,
         input.roomId,
@@ -3376,7 +3487,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         409,
       );
     try {
-      const inserted = await this.pool.query<{ id: string }>(
+      const inserted = await client.query<{ id: string }>(
         `
           INSERT INTO appointments (
             clinic_id, patient_id, lead_id, professional_id, room_id,
@@ -3398,7 +3509,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           input.visitType,
         ],
       );
-      return (await this.findAppointment(clinicId, inserted.rows[0]!.id))!;
+      return (await this.findAppointment(clinicId, inserted.rows[0]!.id, client))!;
     } catch (error) {
       if (hasDatabaseCode(error, "23P01") || hasDatabaseCode(error, "40P01")) {
         throw new DomainError(
@@ -3961,9 +4072,18 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async createGroupEnrollment(clinicId: string, input: GroupEnrollmentInput) {
-    const client = await this.pool.connect();
+    return this.inTransaction((client) =>
+      this.insertGroupEnrollment(client, clinicId, input),
+    );
+  }
+
+  /** Matricula (ou põe na lista de espera) dentro da transação de quem chama. */
+  private async insertGroupEnrollment(
+    client: PoolClient,
+    clinicId: string,
+    input: GroupEnrollmentInput,
+  ) {
     try {
-      await client.query("BEGIN");
       const group = await client.query<{ capacity: number }>(
         `SELECT capacity FROM group_classes WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
         [clinicId, input.groupId],
@@ -4000,10 +4120,8 @@ export class PostgresClinicRepository implements ClinicRepository {
           patient.rows[0].fullName,
         ],
       );
-      await client.query("COMMIT");
       return mapGroupEnrollment(result.rows[0]!);
     } catch (error) {
-      await client.query("ROLLBACK");
       if (hasDatabaseCode(error, "23505"))
         throw new DomainError(
           "GROUP_ENROLLMENT_EXISTS",
@@ -4011,8 +4129,6 @@ export class PostgresClinicRepository implements ClinicRepository {
           409,
         );
       throw error;
-    } finally {
-      client.release();
     }
   }
 
