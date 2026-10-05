@@ -1020,7 +1020,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
     `groups`), testes de rota e PG opt-in.
 - **Gate:** `npm exec -w @crm/api -- vitest run src/app.test.ts`
 - **Depende de:** T063
-- **Status:** DOING
+- **Status:** DONE
 
 ### T065 — Cadastro guiado do cliente na interface
 - **Escopo:** ao criar cliente, depois dos dados, a pergunta "O que o cliente vai fazer?" com três
