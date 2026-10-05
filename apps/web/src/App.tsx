@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   Bell,
   BarChart3,
@@ -45,11 +45,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  Link,
   Navigate,
   NavLink,
   Route,
   Routes,
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 import type {
   AdminAuditEvent,
@@ -94,6 +96,9 @@ import type {
   GroupClass,
   GroupSession,
   GroupWorkspace,
+  GuidedPatientInput,
+  GuidedPatientNext,
+  GuidedPatientResult,
   Holiday,
   IssuedDocument,
   Lead,
@@ -1007,6 +1012,8 @@ const defaultPatientFilters = {
   record: "all" as PatientRecordFilter,
   tags: [] as string[],
   sort: "name_asc" as PatientSort,
+  /** Assinantes sem turma vinculada: calculado na API (`GET /patients?withoutGroup=true`). */
+  withoutGroup: false,
 };
 
 function filterPatients(patients: Patient[], filters: typeof defaultPatientFilters) {
@@ -1045,16 +1052,18 @@ function PatientsPage() {
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [notice, setNotice] = useState("");
   const canManage = canEdit("patients");
+  const canEnroll = canEdit("groups");
   const canExport = getStoredUser()?.role === "admin";
   const configuredTags = usePatientTags();
   const tagColor = tagColorLookup(configuredTags.tags);
 
-  async function load(query = search) {
+  async function load(query = search, withoutGroup = filters.withoutGroup) {
     setLoading(true);
     setError("");
     try {
-      setPatients(await api.patients(query));
+      setPatients(await api.patients(query, { withoutGroup }));
       setAppliedSearch(query);
       setPage(1);
     } catch (cause) {
@@ -1090,7 +1099,10 @@ function PatientsPage() {
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
   const activeFilterCount =
-    (filters.status !== "all" ? 1 : 0) + (filters.record !== "all" ? 1 : 0) + filters.tags.length;
+    (filters.status !== "all" ? 1 : 0) +
+    (filters.record !== "all" ? 1 : 0) +
+    (filters.withoutGroup ? 1 : 0) +
+    filters.tags.length;
   // Toda mudança de filtro ou ordenação volta para a primeira página.
   function updateFilters(update: (current: typeof filters) => typeof filters) {
     setFilters(update);
@@ -1104,6 +1116,12 @@ function PatientsPage() {
   }
   function clearFilters() {
     updateFilters((current) => ({ ...defaultPatientFilters, sort: current.sort }));
+    if (filters.withoutGroup) void load(appliedSearch, false);
+  }
+  // O filtro de assinantes sem turma é da API: recarrega a lista com a busca já aplicada.
+  function toggleWithoutGroup(withoutGroup: boolean) {
+    updateFilters((current) => ({ ...current, withoutGroup }));
+    void load(appliedSearch, withoutGroup);
   }
 
   return (
@@ -1127,7 +1145,13 @@ function PatientsPage() {
               </button>
             )}
             {canManage && (
-              <button className="primary-button" onClick={() => setModalOpen(true)}>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setNotice("");
+                  setModalOpen(true);
+                }}
+              >
                 <Plus size={18} />
                 Novo cliente
               </button>
@@ -1137,6 +1161,11 @@ function PatientsPage() {
       />
       {!canManage && <ReadOnlyNotice module="patients" />}
       {error && <ErrorBanner error={error} />}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
       <section className="panel patients-panel">
         <div className="list-toolbar">
           <form
@@ -1203,6 +1232,17 @@ function PatientsPage() {
                 <option value="birthday_month">Aniversariantes do mês</option>
               </select>
             </label>
+            <div className="filter-group">
+              <span className="filter-label">Turmas</span>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={filters.withoutGroup}
+                  onChange={(event) => toggleWithoutGroup(event.target.checked)}
+                />
+                Assinantes sem turma vinculada
+              </label>
+            </div>
             <label className="filter-group">
               <span className="filter-label">Ordenar por</span>
               <select
@@ -1304,6 +1344,22 @@ function PatientsPage() {
                   <small>{patient.email || "E-mail não informado"}</small>
                 </div>
                 <div className="tags-cell">
+                  {filters.withoutGroup && (
+                    <>
+                      <span className="status-pill paused">Sem turma</span>
+                      {canEnroll && (
+                        <Link
+                          className="secondary-button button-sm"
+                          to={`/turmas?matricular=${patient.id}`}
+                          aria-label={`Matricular ${patient.fullName} em uma turma`}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <UserPlus size={14} aria-hidden="true" />
+                          Matricular
+                        </Link>
+                      )}
+                    </>
+                  )}
                   {patient.tags.length ? (
                     patient.tags.slice(0, 2).map((tag) => (
                       <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
@@ -1358,12 +1414,13 @@ function PatientsPage() {
             setModalOpen(false);
             setEditingPatient(null);
           }}
-          onSaved={(patient) => {
+          onSaved={(patient, savedNotice) => {
             setPatients((current) =>
               [...current.filter((item) => item.id !== patient.id), patient].sort((a, b) =>
                 a.fullName.localeCompare(b.fullName),
               ),
             );
+            setNotice(savedNotice ?? "");
             setModalOpen(false);
             setEditingPatient(null);
           }}
@@ -1412,7 +1469,7 @@ const patientRecordFilterLabels: Record<PatientRecordFilter, string> = {
 
 /**
  * Exporta a base com os filtros da tela que a API conhece (busca aplicada, situação,
- * aniversariantes, etiquetas). Com/sem e-mail e a ordenação existem só na tela.
+ * aniversariantes, etiquetas, assinantes sem turma). Com/sem e-mail e a ordenação existem só na tela.
  */
 function PatientExportModal({
   filters,
@@ -1434,10 +1491,12 @@ function PatientExportModal({
   if (search.trim()) params.search = search.trim();
   if (filters.status !== "all") params.status = filters.status;
   if (filters.record === "birthday_month") params.birthdayMonth = true;
+  if (filters.withoutGroup) params.withoutGroup = true;
   const scope = [
     params.search ? `Busca: “${params.search}”` : "",
     params.status ? `Situação: ${params.status === "active" ? "ativos" : "inativos"}` : "",
     params.birthdayMonth ? "Aniversariantes do mês" : "",
+    params.withoutGroup ? "Assinantes sem turma vinculada" : "",
   ].filter(Boolean);
   const unsupportedRecord = filters.record === "with_email" || filters.record === "without_email";
 
@@ -1752,6 +1811,283 @@ function PatientImportModal({
   );
 }
 
+/** Cadastro guiado: opções na ordem da pergunta ("Só cadastrar" vem sempre por último). */
+const guidedStepOrder = ["demonstration", "plan", "single"] as const;
+const guidedStepModules: Record<(typeof guidedStepOrder)[number], AppModule> = {
+  demonstration: "agenda",
+  plan: "plans",
+  single: "plans",
+};
+const guidedStepLabels: Record<GuidedPatientNext, string> = {
+  demonstration: "Aula de demonstração",
+  plan: "Assinar um plano",
+  single: "Serviço avulso",
+  none: "Só cadastrar por enquanto",
+};
+const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
+  demonstration: "Salvar e agendar demonstração",
+  plan: "Salvar e criar plano",
+  single: "Salvar e criar serviço avulso",
+  none: "Salvar cliente",
+};
+const guidedPlanKinds = ["fixed_package", "recurring"] as const;
+type GuidedSingleForm = PlanTermsForm & { serviceId: string };
+type GuidedPlanForm = GuidedSingleForm & { kind: (typeof guidedPlanKinds)[number] };
+interface GuidedDemonstrationForm {
+  serviceId: string;
+  professionalId: string;
+  roomId: string;
+  startsAt: string;
+  notes: string;
+}
+
+/** Demonstração sugerida para amanhã às 9h (serviço, profissional e sala vêm da primeira opção). */
+function defaultGuidedDemonstration(): GuidedDemonstrationForm {
+  const startsAt = new Date();
+  startsAt.setDate(startsAt.getDate() + 1);
+  startsAt.setHours(9, 0, 0, 0);
+  return { serviceId: "", professionalId: "", roomId: "", startsAt: toLocalDateTimeInput(startsAt), notes: "" };
+}
+
+/** Vagas livres de uma turma; cheia = a matrícula entra na lista de espera. */
+function groupVacancyLabel(group: GroupClass) {
+  const free = group.capacity - group.activeEnrollments;
+  if (free <= 0) return "turma cheia (lista de espera)";
+  return free === 1 ? "1 vaga" : `${free} vagas`;
+}
+
+/** Resumo do passo guiado criado junto com o cliente (vazio quando foi só o cadastro). */
+function guidedNotice(result: GuidedPatientResult, groups: GroupClass[]) {
+  const { appointment, plan, enrollment } = result;
+  if (appointment) {
+    const startsAt = new Date(appointment.startsAt);
+    return `Aula de demonstração agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
+  }
+  if (!plan) return "";
+  if (plan.kind === "single") return `Serviço avulso “${plan.name}” criado.`;
+  const created = `Plano “${plan.name}” criado.`;
+  if (!enrollment) return created;
+  const groupName = groups.find((item) => item.id === enrollment.groupId)?.name ?? "escolhida";
+  if (enrollment.status === "waitlisted")
+    return `${created} A turma ${groupName} está cheia: o cliente entrou na lista de espera${
+      enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""
+    }.`;
+  return `${created} Matrícula feita na turma ${groupName}.`;
+}
+
+/** Serviço, profissional, sala e data/hora da aula de demonstração do cadastro guiado. */
+function GuidedDemonstrationFields({
+  value,
+  setValue,
+}: {
+  value: GuidedDemonstrationForm;
+  setValue: Dispatch<SetStateAction<GuidedDemonstrationForm>>;
+}) {
+  const [options, setOptions] = useState<{ services: Service[]; professionals: Professional[]; rooms: Room[] } | null>(null);
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.services(), api.professionals(), api.rooms()])
+      .then(([services, professionals, rooms]) => {
+        if (!active) return;
+        setOptions({ services, professionals, rooms });
+        setValue((current) => ({
+          ...current,
+          serviceId: current.serviceId || (services[0]?.id ?? ""),
+          professionalId: current.professionalId || (professionals[0]?.id ?? ""),
+          roomId: current.roomId || (rooms[0]?.id ?? ""),
+        }));
+      })
+      .catch((cause: Error) => {
+        if (active) setLoadError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setValue]);
+  if (loadError) return <p className="form-error">{`Não foi possível carregar a agenda: ${loadError}`}</p>;
+  if (options === null) return <LoadingBlock />;
+  if (options.services.length === 0 || options.professionals.length === 0 || options.rooms.length === 0)
+    return (
+      <p className="muted-copy">Cadastre serviço, profissional e sala antes de agendar a aula de demonstração.</p>
+    );
+  return (
+    <div className="form-grid">
+      <label>
+        Serviço
+        <select required value={value.serviceId} onChange={(e) => setValue({ ...value, serviceId: e.target.value })}>
+          {options.services.map((item) => (
+            <option value={item.id} key={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Profissional
+        <select
+          required
+          value={value.professionalId}
+          onChange={(e) => setValue({ ...value, professionalId: e.target.value })}
+        >
+          {options.professionals.map((item) => (
+            <option value={item.id} key={item.id}>
+              {item.fullName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sala
+        <select required value={value.roomId} onChange={(e) => setValue({ ...value, roomId: e.target.value })}>
+          {options.rooms.map((item) => (
+            <option value={item.id} key={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Data e horário
+        <input
+          required
+          type="datetime-local"
+          value={value.startsAt}
+          onChange={(e) => setValue({ ...value, startsAt: e.target.value })}
+        />
+      </label>
+      <label className="span-2">
+        Observação
+        <textarea rows={2} value={value.notes} onChange={(e) => setValue({ ...value, notes: e.target.value })} />
+      </label>
+    </div>
+  );
+}
+
+/** Serviço e termos do plano (os mesmos campos de "Novo plano") no cadastro guiado. */
+function GuidedPlanFields<T extends GuidedSingleForm>({
+  form,
+  setForm,
+  onServiceChange,
+  kindField,
+  children,
+}: {
+  form: T;
+  setForm: Dispatch<SetStateAction<T>>;
+  onServiceChange?: () => void;
+  kindField?: ReactNode;
+  children?: ReactNode;
+}) {
+  const [services, setServices] = useState<Service[] | null>(null);
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api
+      .services()
+      .then((data) => {
+        if (!active) return;
+        setServices(data);
+        setForm((current) => ({ ...current, serviceId: current.serviceId || (data[0]?.id ?? "") }));
+      })
+      .catch((cause: Error) => {
+        if (active) setLoadError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setForm]);
+  if (loadError) return <p className="form-error">{`Não foi possível carregar os serviços: ${loadError}`}</p>;
+  if (services === null) return <LoadingBlock />;
+  if (services.length === 0)
+    return <p className="muted-copy">Cadastre um serviço antes de criar o plano.</p>;
+  return (
+    <div className="form-grid">
+      <label className={kindField ? undefined : "span-2"}>
+        Serviço
+        <select
+          required
+          value={form.serviceId}
+          onChange={(e) => {
+            setForm({ ...form, serviceId: e.target.value });
+            onServiceChange?.();
+          }}
+        >
+          {services.map((item) => (
+            <option value={item.id} key={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {kindField}
+      <PlanTermsFields form={form} onChange={setForm} />
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Turma opcional do plano: só turmas ativas do serviço do plano, com o responsável e as vagas.
+ * Sem edição de Turmas, fica só o aviso (a matrícula é feita depois).
+ */
+function GuidedGroupField({
+  serviceId,
+  value,
+  onChange,
+  groups,
+  setGroups,
+}: {
+  serviceId: string;
+  value: string;
+  onChange: (groupId: string) => void;
+  groups: GroupClass[] | null;
+  setGroups: Dispatch<SetStateAction<GroupClass[] | null>>;
+}) {
+  const canEnroll = canEdit("groups");
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    if (!canEnroll || groups !== null) return;
+    let active = true;
+    const dates = groupOperationRange();
+    api
+      .groupWorkspace(dates.from, dates.to)
+      .then((data) => {
+        if (active) setGroups(data.groups);
+      })
+      .catch((cause: Error) => {
+        if (active) setLoadError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canEnroll, groups, setGroups]);
+  const hint = <small className="field-hint">A turma pode ser escolhida depois com o responsável.</small>;
+  if (!canEnroll) return <div className="field-with-hint span-2">{hint}</div>;
+  const compatible = (groups ?? []).filter((item) => item.active && item.serviceId === serviceId);
+  return (
+    <div className="field-with-hint span-2">
+      {loadError ? (
+        <p className="form-error">{`Não foi possível carregar as turmas: ${loadError}`}</p>
+      ) : groups === null ? (
+        <LoadingBlock />
+      ) : (
+        <label>
+          Turma (opcional)
+          <select value={value} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Escolher depois</option>
+            {compatible.map((item) => (
+              <option value={item.id} key={item.id}>
+                {`${item.name} — ${describeGroupSchedule(item.weeklySlots ?? [])} · ${item.professionalName} · ${groupVacancyLabel(item)}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {hint}
+    </div>
+  );
+}
+
 function PatientModal({
   patient,
   configuredTags,
@@ -1762,7 +2098,8 @@ function PatientModal({
   /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
   configuredTags: { tags: PatientTag[] | null; error: string };
   onClose: () => void;
-  onSaved: (patient: Patient) => void;
+  /** `notice`: resumo do passo guiado (demonstração agendada, plano criado, turma/lista de espera). */
+  onSaved: (patient: Patient, notice?: string) => void;
 }) {
   const [form, setForm] = useState<PatientInput>(() => ({
     fullName: patient?.fullName ?? "",
@@ -1800,15 +2137,72 @@ function PatientModal({
       tags: current.tags.includes(tag) ? current.tags.filter((item) => item !== tag) : [...current.tags, tag],
     }));
   }
+  // Cadastro guiado (só na criação): cada opção aparece para quem edita o módulo afetado.
+  const guidedSteps = patient ? [] : guidedStepOrder.filter((step) => canEdit(guidedStepModules[step]));
+  const [step, setStep] = useState<GuidedPatientNext>("none");
+  const [demonstration, setDemonstration] = useState(defaultGuidedDemonstration);
+  const [planForm, setPlanForm] = useState<GuidedPlanForm>(() => ({
+    serviceId: "",
+    kind: "fixed_package",
+    ...defaultPlanTerms(),
+  }));
+  const [singleForm, setSingleForm] = useState<GuidedSingleForm>(() => ({
+    serviceId: "",
+    ...defaultPlanTerms(),
+    name: "Serviço avulso",
+    totalSessions: 1,
+    installments: 1,
+    validUntil: "",
+  }));
+  const [groupId, setGroupId] = useState("");
+  // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
+  const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  function guidedInput(): GuidedPatientInput | string {
+    if (step === "demonstration") {
+      if (!demonstration.startsAt) return "Informe a data e o horário da aula de demonstração.";
+      return {
+        next: "demonstration",
+        patient: form,
+        appointment: {
+          serviceId: demonstration.serviceId,
+          professionalId: demonstration.professionalId,
+          roomId: demonstration.roomId,
+          startsAt: new Date(demonstration.startsAt).toISOString(),
+          notes: demonstration.notes,
+        },
+      };
+    }
+    if (step === "plan")
+      return { next: "plan", patient: form, plan: planForm, ...(groupId ? { groupId } : {}) };
+    if (step === "single") return { next: "single", patient: form, plan: singleForm };
+    return { next: "none", patient: form };
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
     setError("");
+    if (patient) {
+      setLoading(true);
+      try {
+        onSaved(await api.updatePatient(patient.id, form));
+      } catch (cause) {
+        setError((cause as Error).message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    const input = guidedInput();
+    if (typeof input === "string") {
+      setError(input);
+      return;
+    }
+    setLoading(true);
     try {
-      onSaved(patient ? await api.updatePatient(patient.id, form) : await api.createPatient(form));
+      const result = await api.createGuidedPatient(input);
+      onSaved(result.patient, guidedNotice(result, groups ?? []));
     } catch (cause) {
+      // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);
-    } finally {
       setLoading(false);
     }
   }
@@ -1935,6 +2329,73 @@ function PatientModal({
             rows={3}
           />
         </label>
+        {guidedSteps.length > 0 && (
+          <fieldset className="form-fieldset span-2">
+            <legend>O que o cliente vai fazer?</legend>
+            <div className="form-fieldset-grid">
+              {[...guidedSteps, "none" as const].map((value) => (
+                <label className="checkbox-field" key={value}>
+                  <input
+                    type="radio"
+                    name="guided-next-step"
+                    value={value}
+                    checked={step === value}
+                    onChange={() => setStep(value)}
+                  />
+                  {guidedStepLabels[value]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {step === "demonstration" && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Aula de demonstração</legend>
+            <GuidedDemonstrationFields value={demonstration} setValue={setDemonstration} />
+          </fieldset>
+        )}
+        {step === "plan" && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Plano</legend>
+            <GuidedPlanFields
+              form={planForm}
+              setForm={setPlanForm}
+              onServiceChange={() => setGroupId("")}
+              kindField={
+                <label>
+                  Modelo
+                  <select
+                    value={planForm.kind}
+                    onChange={(e) => {
+                      const kind = e.target.value as GuidedPlanForm["kind"];
+                      setPlanForm({ ...planForm, kind, autoRenew: kind === "recurring" && Boolean(planForm.validUntil) });
+                    }}
+                  >
+                    {guidedPlanKinds.map((kind) => (
+                      <option value={kind} key={kind}>
+                        {planKindLabels[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              }
+            >
+              <GuidedGroupField
+                serviceId={planForm.serviceId}
+                value={groupId}
+                onChange={setGroupId}
+                groups={groups}
+                setGroups={setGroups}
+              />
+            </GuidedPlanFields>
+          </fieldset>
+        )}
+        {step === "single" && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Serviço avulso</legend>
+            <GuidedPlanFields form={singleForm} setForm={setSingleForm} />
+          </fieldset>
+        )}
         {error && <div className="form-error span-2">{error}</div>}
         {!editable && (
           <p className="muted-copy span-2">
@@ -1947,7 +2408,7 @@ function PatientModal({
           </button>
           {editable && (
             <button className="primary-button" disabled={loading}>
-              {loading ? "Salvando…" : patient ? "Salvar alterações" : "Salvar cliente"}
+              {loading ? "Salvando…" : patient ? "Salvar alterações" : guidedSubmitLabels[step]}
             </button>
           )}
         </div>
@@ -5649,6 +6110,129 @@ function PlansPage({ canManage }: { canManage: boolean }) {
   );
 }
 
+/** Termos de um plano: os campos comuns a Novo plano, Renovar plano e ao cadastro guiado. */
+type PlanTermsForm = Pick<
+  PatientPlanInput,
+  "name" | "totalSessions" | "validFrom" | "validUntil" | "totalValueInCents" | "installments" | "firstDueDate" | "autoRenew"
+>;
+
+/** Termos sugeridos para um plano novo: 10 sessões, validade de um ano, 3 parcelas a partir de hoje. */
+function defaultPlanTerms(): PlanTermsForm {
+  const currentDate = localIsoDate();
+  const nextYear = new Date();
+  nextYear.setFullYear(nextYear.getFullYear() + 1);
+  return {
+    name: "Pacote de fisioterapia",
+    totalSessions: 10,
+    validFrom: currentDate,
+    validUntil: localIsoDate(nextYear),
+    totalValueInCents: 180000,
+    installments: 3,
+    firstDueDate: currentDate,
+    autoRenew: false,
+  };
+}
+
+/** Campos dos termos do plano, para dentro de um `form-grid` (nome e renovação ocupam duas colunas). */
+function PlanTermsFields<T extends PlanTermsForm>({ form, onChange }: { form: T; onChange: (form: T) => void }) {
+  return (
+    <>
+      <label className="span-2">
+        Nome do plano
+        <input
+          required
+          value={form.name}
+          onChange={(e) => onChange({ ...form, name: e.target.value })}
+        />
+      </label>
+      <label>
+        Sessões
+        <input
+          required
+          type="number"
+          min="1"
+          value={form.totalSessions}
+          onChange={(e) =>
+            onChange({ ...form, totalSessions: Number(e.target.value) })
+          }
+        />
+      </label>
+      <label>
+        Valor total
+        <input
+          required
+          type="number"
+          min="0"
+          step="0.01"
+          value={form.totalValueInCents / 100}
+          onChange={(e) =>
+            onChange({
+              ...form,
+              totalValueInCents: Math.round(Number(e.target.value) * 100),
+            })
+          }
+        />
+      </label>
+      <label>
+        Início
+        <input
+          required
+          type="date"
+          value={form.validFrom}
+          onChange={(e) => onChange({ ...form, validFrom: e.target.value })}
+        />
+      </label>
+      <label>
+        Fim da validade
+        <input
+          type="date"
+          value={form.validUntil}
+          onChange={(e) =>
+            onChange({
+              ...form,
+              validUntil: e.target.value,
+              autoRenew: Boolean(e.target.value) && form.autoRenew,
+            })
+          }
+        />
+      </label>
+      <label>
+        Parcelas
+        <input
+          required
+          type="number"
+          min="1"
+          max="36"
+          value={form.installments}
+          onChange={(e) =>
+            onChange({ ...form, installments: Number(e.target.value) })
+          }
+        />
+      </label>
+      <label>
+        Primeiro vencimento
+        <input
+          required
+          type="date"
+          value={form.firstDueDate}
+          onChange={(e) => onChange({ ...form, firstDueDate: e.target.value })}
+        />
+      </label>
+      <label className="checkbox-field span-2">
+        <input
+          type="checkbox"
+          checked={Boolean(form.autoRenew)}
+          disabled={!form.validUntil}
+          onChange={(e) => onChange({ ...form, autoRenew: e.target.checked })}
+        />
+        {form.validUntil
+          ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+          : "Renovação automática exige o fim da validade"}
+      </label>
+    </>
+  );
+}
+
 function PlanModal({
   patients,
   services,
@@ -5663,22 +6247,13 @@ function PlanModal({
   onSaved: (plan: PatientPlan) => void;
 }) {
   const currentDate = localIsoDate();
-  const nextYear = new Date();
-  nextYear.setFullYear(nextYear.getFullYear() + 1);
   const [form, setForm] = useState<PatientPlanInput>(() => {
     if (!renewing) {
       return {
         patientId: patients[0]?.id ?? "",
         serviceId: services[0]?.id ?? "",
-        name: "Pacote de fisioterapia",
         kind: "fixed_package",
-        totalSessions: 10,
-        validFrom: currentDate,
-        validUntil: localIsoDate(nextYear),
-        totalValueInCents: 180000,
-        installments: 3,
-        firstDueDate: currentDate,
-        autoRenew: false,
+        ...defaultPlanTerms(),
       };
     }
     const period = nextPlanPeriod(renewing) ?? {
@@ -5787,98 +6362,7 @@ function PlanModal({
             </label>
           </>
         )}
-        <label className="span-2">
-          Nome do plano
-          <input
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </label>
-        <label>
-          Sessões
-          <input
-            required
-            type="number"
-            min="1"
-            value={form.totalSessions}
-            onChange={(e) =>
-              setForm({ ...form, totalSessions: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Valor total
-          <input
-            required
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.totalValueInCents / 100}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                totalValueInCents: Math.round(Number(e.target.value) * 100),
-              })
-            }
-          />
-        </label>
-        <label>
-          Início
-          <input
-            required
-            type="date"
-            value={form.validFrom}
-            onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
-          />
-        </label>
-        <label>
-          Fim da validade
-          <input
-            type="date"
-            value={form.validUntil}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                validUntil: e.target.value,
-                autoRenew: Boolean(e.target.value) && form.autoRenew,
-              })
-            }
-          />
-        </label>
-        <label>
-          Parcelas
-          <input
-            required
-            type="number"
-            min="1"
-            max="36"
-            value={form.installments}
-            onChange={(e) =>
-              setForm({ ...form, installments: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Primeiro vencimento
-          <input
-            required
-            type="date"
-            value={form.firstDueDate}
-            onChange={(e) => setForm({ ...form, firstDueDate: e.target.value })}
-          />
-        </label>
-        <label className="checkbox-field span-2">
-          <input
-            type="checkbox"
-            checked={Boolean(form.autoRenew)}
-            disabled={!form.validUntil}
-            onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
-          />
-          {form.validUntil
-            ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
-            : "Renovação automática exige o fim da validade"}
-        </label>
+        <PlanTermsFields form={form} onChange={setForm} />
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
@@ -13804,9 +14288,12 @@ function GroupsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [drawer, setDrawer] = useState<"create" | "enroll" | null>(null);
-  const [saving, setSaving] = useState(false);
   const canManage = canEdit("groups");
+  // Atalho de Clientes ("Assinantes sem turma vinculada"): `?matricular=<cliente>` abre a matrícula.
+  const [searchParams] = useSearchParams();
+  const enrollPatientId = canManage ? (searchParams.get("matricular") ?? "") : "";
+  const [drawer, setDrawer] = useState<"create" | "enroll" | null>(() => (enrollPatientId ? "enroll" : null));
+  const [saving, setSaving] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>([]);
@@ -13819,7 +14306,7 @@ function GroupsPage() {
   });
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
-    patientId: "",
+    patientId: enrollPatientId,
   });
   async function load() {
     setLoading(true);

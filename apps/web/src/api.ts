@@ -58,6 +58,8 @@ import type {
   GroupEnrollmentInput,
   GroupSession,
   GroupWorkspace,
+  GuidedPatientInput,
+  GuidedPatientResult,
   Holiday,
   HolidayInput,
   IssuedDocument,
@@ -187,6 +189,8 @@ export interface PatientExportParams {
   status?: "active" | "inactive";
   tags?: string[];
   birthdayMonth?: boolean;
+  /** Assinantes sem turma vinculada. */
+  withoutGroup?: boolean;
 }
 
 function patientExportQuery(params: PatientExportParams) {
@@ -195,6 +199,7 @@ function patientExportQuery(params: PatientExportParams) {
   if (params.status) query.set("status", params.status);
   if (params.tags?.length) query.set("tags", params.tags.join(","));
   if (params.birthdayMonth) query.set("birthdayMonth", "true");
+  if (params.withoutGroup) query.set("withoutGroup", "true");
   return query.toString();
 }
 
@@ -275,8 +280,11 @@ export const api = {
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
   dashboard: (date: string) =>
     request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
-  patients: (search = "") =>
-    request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
+  /** `withoutGroup`: só assinantes sem turma vinculada (filtro calculado na API). */
+  patients: (search = "", options: { withoutGroup?: boolean } = {}) =>
+    request<Patient[]>(
+      `/patients?search=${encodeURIComponent(search)}${options.withoutGroup ? "&withoutGroup=true" : ""}`,
+    ),
   /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
   patientOptions: () => request<PatientOption[]>("/patients/options"),
   /** Etiquetas configuradas (Configurações › Etiquetas), por nome, com a contagem de clientes. */
@@ -297,6 +305,12 @@ export const api = {
     requestBlob(`/patients/export?${patientExportQuery(params)}`),
   createPatient: (input: PatientInput) =>
     request<Patient>("/patients", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  /** Cadastro guiado: cria o cliente já com o próximo passo (tudo ou nada). */
+  createGuidedPatient: (input: GuidedPatientInput) =>
+    request<GuidedPatientResult>("/patients/guided", {
       method: "POST",
       body: JSON.stringify(input),
     }),

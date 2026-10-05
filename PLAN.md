@@ -1032,7 +1032,7 @@ Decisões do orquestrador (o dono pode mudar na V6):
   escondidas para quem não pode editar o módulo correspondente. Testes web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx`
 - **Depende de:** T064
-- **Status:** TODO
+- **Status:** DONE
 
 ### V6 — Revisão da rodada 6 (manual)
 - **Tipo:** manual
