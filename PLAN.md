@@ -1041,5 +1041,36 @@ Decisões do orquestrador (o dono pode mudar na V6):
   etiquetas coloridas.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T065
-- **Status:** BLOCKED
+- **Status:** DONE
+
+Decisões do dono na V6 (04/10/2026):
+- "Assinantes sem turma vinculada" exige plano dentro da validade: **mantido**.
+- Parcela cancelada deixa claro que foi cancelada (T070).
+- Aviso de alterações só no fechar da gaveta e no menu lateral: **mantido**.
+- Detalhe do cliente mostra as etiquetas como selos coloridos; etiquetas continuam sendo criadas
+  só em Configurações por quem tem permissão (T071).
+- Demonstração sem cadastro de serviço/profissional/sala só erra ao salvar: **mantido**.
+
+### T070 — Parcela cancelada explícita em Contas a receber
+- **Escopo:** em Financeiro › Contas a receber (e no cartão de celular), parcela com status
+  `cancelled` deixa de parecer entrada: valor sem "+" e sem a cor de entrada, em tom neutro/apagado
+  e riscado, com o selo "Cancelada" bem visível ao lado do valor e legível para leitor de tela
+  (ex.: texto "Cancelada" acessível, não só cor). Totais e seleção para renegociar não mudam de
+  regra. Teste web (cancelada: sem "+", sem `cash-in`, com "Cancelada"; aberta/paga continuam como
+  na T067).
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
+- **Depende de:** V6
+- **Status:** TODO
+
+### T071 — Etiquetas como selos coloridos no detalhe do cliente
+- **Escopo:** no detalhe do cliente (hoje texto separado por vírgula) e em qualquer outro ponto que
+  ainda mostre etiqueta de cliente como texto (procurar: Agenda › Dados do cliente, Turmas,
+  Contratos, Comunicações), usar o mesmo selo colorido da T063 (`PatientTagBadge`/`tagColorStyle`,
+  cor da etiqueta configurada; etiqueta sem configuração usa a cor padrão). As etiquetas continuam
+  sendo criadas só em Configurações › Etiquetas por quem edita `settings`; onde fizer sentido,
+  um texto curto/atalho "Gerenciar etiquetas" só para quem tem essa permissão. Sem etiquetas:
+  nada ou "Sem etiquetas". Teste web.
+- **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
+- **Depende de:** V6
+- **Status:** TODO
 

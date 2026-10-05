@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** V6
-- **Última concluída:** T065
+- **Tarefa atual:** T070
+- **Última concluída:** V6
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -143,3 +143,4 @@
 - 2026-10-04 T064 DONE (verifier PASS; contratos 39, API 171 + 35 skip, web 162). O código foi para o commit 21d6f7e "V5" feito e publicado pelo dono durante a pausa; este commit só fecha o status. POST /patients/guided → 201 GuidedPatientResult {patient, appointment?, plan?, enrollment? (waitlisted se turma cheia)}; guidedPatientInputSchema (discriminatedUnion em next): none | demonstration {serviceId, professionalId, roomId (obrigatória), startsAt, notes?} (visitType trial) | plan {termos + serviceId, kind recurring|fixed_package, groupId?: uuid|""} | single {termos + serviceId}. 403 por módulo do passo (AGENDA_ACCESS_DENIED, COMMERCIAL_ACCESS_DENIED, GROUP_ACCESS_DENIED); 400 GROUP_SERVICE_MISMATCH; tudo ou nada nos dois repositórios (createPatientWithNextStep). GET /patients?withoutGroup=true e no export (patientListQuerySchema; listSubscriberIdsWithoutGroup): plano ativo não single com validUntil >= hoje e sem matrícula active em turma ativa do mesmo serviço (lista de espera entra; pausado não). GET /patients agora valida search (máx. 160).
 - 2026-10-04 T065 DONE (verifier PASS na 1ª; contratos 39, API 171 + 35 skip, web 170). Toda criação de cliente usa POST /patients/guided (api.createGuidedPatient; "Só cadastrar" = next none); edição segue PUT. PatientModal (só criação): fieldset "O que o cliente vai fazer?" (demonstração/plano/avulso/só cadastrar), opções por canEdit(agenda/plans), turma só com canEdit(groups); PlanTermsFields + defaultPlanTerms extraídos do PlanModal; onSaved(patient, notice?) → success-banner com resumo (lista de espera com posição). Clientes: filtro "Assinantes sem turma vinculada" (api.patients(search, {withoutGroup})), selo status-pill "Sem turma" e link "Matricular" → /turmas?matricular=<id> (GroupsPage abre a matrícula com o cliente). Export envia withoutGroup. App.test.tsx está em LF na cópia de trabalho. Ressalvas: link dentro de linha role=button; demonstração sem cadastro de serviço/profissional/sala só erra na API.
 - 2026-10-04 aguardando revisão manual de V6 (T061–T065 DONE).
+- 2026-10-04 V6 DONE (aprovada pelo dono no chat). Decisões: withoutGroup exige validade (mantido); parcela cancelada explícita (T070); aviso de alterações só gaveta/menu (mantido); etiquetas como selos coloridos no detalhe do cliente e demais pontos (T071); demonstração sem cadastros só erra ao salvar (mantido).
