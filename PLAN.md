@@ -1041,5 +1041,5 @@ Decisões do orquestrador (o dono pode mudar na V6):
   etiquetas coloridas.
 - **Gate:** aprovação do dono no chat.
 - **Depende de:** T065
-- **Status:** TODO
+- **Status:** BLOCKED
 
