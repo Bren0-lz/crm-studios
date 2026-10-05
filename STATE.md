@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T071
-- **Última concluída:** T070
+- **Tarefa atual:** nenhuma (plano concluído)
+- **Última concluída:** T071
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -145,3 +145,4 @@
 - 2026-10-04 aguardando revisão manual de V6 (T061–T065 DONE).
 - 2026-10-04 V6 DONE (aprovada pelo dono no chat). Decisões: withoutGroup exige validade (mantido); parcela cancelada explícita (T070); aviso de alterações só gaveta/menu (mantido); etiquetas como selos coloridos no detalhe do cliente e demais pontos (T071); demonstração sem cadastros só erra ao salvar (mantido).
 - 2026-10-04 T070 DONE (verifier PASS na 1ª; web 168). ReceivablesList: cancelled → valor em <s> com .cancelled-amount (cinza #5d6662, ~5,9:1), sem +/cash-in/cash-out, selo status-pill cancelled "Cancelada" dentro da célula do valor (coluna Situação fica vazia nessa linha); flex-wrap à direita no desktop, à esquerda ≤700px.
+- 2026-10-04 T071 DONE (verifier PASS na 1ª; contratos 39, API 171 + 35 skip, web 174). Único ponto com etiqueta de cliente em texto era Agenda › Detalhes do atendimento › Dados do cliente: agora PatientTagBadge + tagColorLookup (cor padrão se não configurada ou se GET /patient-tags falhar), "Sem etiquetas" e atalho "Gerenciar etiquetas" (canEdit settings) → /configuracoes?secao=etiquetas (PatientTagsSection abre a gaveta pela query). usePatientTags(enabled). Plano sem tarefas TODO.

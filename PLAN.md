@@ -1072,5 +1072,5 @@ Decisões do dono na V6 (04/10/2026):
   nada ou "Sem etiquetas". Teste web.
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
 - **Depende de:** V6
-- **Status:** TODO
+- **Status:** DONE
 

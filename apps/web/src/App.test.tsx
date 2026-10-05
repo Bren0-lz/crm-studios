@@ -5416,6 +5416,85 @@ describe("configured patient tags", () => {
     fireEvent.click(vip);
     expect(vip).toHaveAttribute("aria-pressed", "true");
   });
+
+  describe("in the appointment details (Agenda › Dados do cliente)", () => {
+    const patientId = "99999999-9999-4999-8999-999999999999";
+    function mockAgenda(patientTags: string[], tagsResponse: () => Response) {
+      const startsAt = new Date();
+      startsAt.setHours(10, 0, 0, 0);
+      const appointment = {
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        patientId,
+        patientName: "Helena Almeida",
+        professionalColor: "#5c6f68",
+        startsAt: startsAt.toISOString(),
+        endsAt: new Date(startsAt.getTime() + 50 * 60_000).toISOString(),
+        serviceName: "Fisioterapia individual",
+        professionalName: "Dra. Ana Martins",
+        roomName: "Sala Movimento",
+        status: "scheduled",
+      };
+      const patient = { id: patientId, fullName: "Helena Almeida", recordNumber: "PAC-00001", phone: "11987654321", status: "active", tags: patientTags };
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes("/patient-tags")) return tagsResponse();
+        if (url.includes("/relationship/settings")) return jsonResponse(relationshipSettingsFixture());
+        if (url.includes("/admin/clinic-settings")) return jsonResponse(null);
+        if (url.includes("/appointments?")) return jsonResponse([appointment]);
+        if (url.includes("/patients")) return jsonResponse([patient]);
+        return jsonResponse([]);
+      });
+    }
+    const tagRequests = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/patient-tags"));
+
+    it("shows the client tags as colored badges and links to manage them", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(admin));
+      mockAgenda(["Retorno", "Antiga"], () => jsonResponse([patientTag("Retorno", "#2563eb", 1)]));
+      render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+      const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
+      // Cor configurada; etiqueta sem configuração usa a cor padrão.
+      await vi.waitFor(() => expect(within(dialog).getByText("Retorno").style.getPropertyValue("--tag-color")).toBe("#2563eb"));
+      expect(within(dialog).getByText("Retorno")).toHaveClass("tag-colored");
+      expect(within(dialog).getByText("Retorno").style.getPropertyValue("--tag-text")).toBe("#ffffff");
+      expect(within(dialog).getByText("Antiga")).toHaveClass("tag-colored");
+      expect(within(dialog).getByText("Antiga").style.getPropertyValue("--tag-color")).toBe("#64748b");
+      expect(within(dialog).queryByText("Retorno, Antiga")).not.toBeInTheDocument();
+      // Quem edita Configurações tem o atalho; a gaveta Etiquetas já abre.
+      const manage = within(dialog).getByRole("link", { name: "Gerenciar etiquetas" });
+      expect(manage).toHaveAttribute("href", "/configuracoes?secao=etiquetas");
+      fireEvent.click(manage);
+      expect(await screen.findByRole("list", { name: "Etiquetas configuradas" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Etiquetas" })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("uses the default color without an error when the tag colors cannot be loaded", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser({ id: "33333333-3333-4333-8333-333333333333", fullName: "Rita Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+      mockAgenda(["VIP"], () => jsonResponse({ code: "FORBIDDEN", message: "Sem permissão." }, 403));
+      render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+      const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
+      await vi.waitFor(() => expect(tagRequests()).toHaveLength(1));
+      const vip = within(dialog).getByText("VIP");
+      expect(vip).toHaveClass("tag-colored");
+      expect(vip.style.getPropertyValue("--tag-color")).toBe("#64748b");
+      expect(within(dialog).queryByText("Sem permissão.")).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("link", { name: "Gerenciar etiquetas" })).not.toBeInTheDocument();
+    });
+
+    it("tells the client has no tags without fetching the tag colors", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem("crm.auth.user", storedUser(admin));
+      mockAgenda([], () => jsonResponse([]));
+      render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
+      const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
+      expect(within(dialog).getByText("Sem etiquetas")).toBeInTheDocument();
+      expect(tagRequests()).toHaveLength(0);
+    });
+  });
 });
 
 describe("guided client registration", () => {

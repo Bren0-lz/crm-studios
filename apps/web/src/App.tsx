@@ -612,11 +612,15 @@ function ErrorBanner({ error }: { error: string }) {
   );
 }
 
-/** Etiquetas configuradas (Configurações › Etiquetas): busca ao montar; `null` enquanto carrega. */
-function usePatientTags() {
+/**
+ * Etiquetas configuradas (Configurações › Etiquetas): busca ao montar; `null` enquanto carrega.
+ * Com `enabled` falso não busca (ex.: cliente sem etiquetas não precisa das cores).
+ */
+function usePatientTags(enabled = true) {
   const [tags, setTags] = useState<PatientTag[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     api
       .patientTags()
@@ -630,7 +634,7 @@ function usePatientTags() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [enabled]);
   return { tags, error };
 }
 
@@ -11078,6 +11082,10 @@ function AppointmentDetailsModal({
   // Atendimento de lead não tem prontuário, NPS nem histórico de cliente.
   const isLead = Boolean(appointment.leadId);
   const isCompleted = appointment.status === "completed" && !isLead;
+  // Cores das etiquetas só quando o cliente tem alguma; sem acesso à lista, fica a cor padrão.
+  const patientTagNames = !isLead && patient?.tags?.length ? patient.tags : [];
+  const configuredTags = usePatientTags(patientTagNames.length > 0);
+  const tagColor = tagColorLookup(configuredTags.tags);
   const [survey, setSurvey] = useState<SatisfactionSurvey | null>(null);
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
@@ -11174,7 +11182,21 @@ function AppointmentDetailsModal({
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
               <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
-              <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
+              <div className="detail-wide">
+                <small>Etiquetas</small>
+                <div className="appointment-detail-tags">
+                  {patientTagNames.length ? (
+                    patientTagNames.map((tag) => <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />)
+                  ) : (
+                    <strong>Sem etiquetas</strong>
+                  )}
+                  {canEdit("settings") && (
+                    <Link className="text-link" to="/configuracoes?secao=etiquetas">
+                      Gerenciar etiquetas
+                    </Link>
+                  )}
+                </div>
+              </div>
               {patient.notes && <div className="detail-wide"><small>Observações do cliente</small><strong>{patient.notes}</strong></div>}
             </div>
           ) : <p>Dados cadastrais indisponíveis no momento.</p>}
@@ -13179,8 +13201,11 @@ function HolidaysContent() {
 }
 
 function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
+  // Atalho "Gerenciar etiquetas" (`?secao=etiquetas`) chega com a gaveta aberta.
+  const [searchParams] = useSearchParams();
+  const [open, setOpen] = useState(searchParams.get("secao") === "etiquetas");
   return (
-    <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas">
+    <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas" open={open} onOpenChange={setOpen}>
       <PatientTagsContent canEdit={canEdit} />
     </CollapsibleSection>
   );
