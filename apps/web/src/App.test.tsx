@@ -2887,6 +2887,32 @@ describe("application shell", () => {
       expect(diego).not.toHaveClass("cash-in");
     });
 
+    it("shows a cancelled installment as neutral, struck-through and labelled next to its value", async () => {
+      renderFinance([
+        { clinicId, installmentCount: 3, createdAt: "2026-01-01T12:00:00.000Z", updatedAt: "2026-01-01T12:00:00.000Z", id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1", patientId: "p5", patientName: "Elisa Prado", description: "Pilates 1x · parcela 3/3", installmentNumber: 3, dueDate: saoPauloToday(), amountInCents: 12000, status: "cancelled", overdue: false },
+      ]);
+      await screen.findByText("Ana Souza");
+      const elisa = rowOf("Elisa Prado");
+      expect(within(elisa).queryByText(/\+ R\$/)).not.toBeInTheDocument();
+      const value = within(elisa).getByText("R$ 120,00");
+      expect(value.tagName).toBe("S");
+      const amount = value.closest(".finance-amount") as HTMLElement;
+      expect(amount).toHaveClass("cancelled-amount");
+      expect(amount).not.toHaveClass("cash-in");
+      expect(amount).not.toHaveClass("cash-out");
+      // Selo junto ao valor, em texto (não só cor), uma única vez na linha.
+      const badge = within(amount).getByText("Cancelada");
+      expect(badge).toHaveClass("status-pill", "cancelled");
+      expect(within(elisa).getAllByText("Cancelada")).toHaveLength(1);
+      expect(amount).toHaveTextContent("R$ 120,00 Cancelada");
+      // Cancelada não entra na seleção para renegociar.
+      expect(within(elisa).queryByRole("checkbox")).not.toBeInTheDocument();
+      // Aberta e paga continuam como antes.
+      expect(within(rowOf("Ana Souza")).getByText("+ R$ 250,00")).toHaveClass("finance-amount", "cash-in");
+      expect(within(rowOf("Carla Mendes")).getByText("+ R$ 300,00")).toHaveClass("finance-amount", "cash-in");
+      expect(within(rowOf("Carla Mendes")).getByText("Paga")).toHaveClass("status-pill", "paid");
+    });
+
     it("selects installments and shows the action bar only with items selected", async () => {
       renderFinance();
       await screen.findByText("Ana Souza");

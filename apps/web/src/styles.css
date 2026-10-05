@@ -3837,6 +3837,21 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   color: var(--green-2);
 }
 
+/* Parcela cancelada: valor neutro e riscado (não é entrada), com o selo ao lado. */
+.finance-row > .finance-amount.cancelled-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  color: #5d6662;
+  font-weight: 600;
+}
+
+.cancelled-amount s {
+  text-decoration-thickness: from-font;
+}
+
 .panel-head .panel-help {
   max-width: 64ch;
   margin: var(--space-1) 0 0;
@@ -5111,6 +5126,10 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .finance-list .finance-row > .finance-amount {
     font-size: var(--text-lg);
     text-align: left;
+  }
+
+  .finance-row > .finance-amount.cancelled-amount {
+    justify-content: flex-start;
   }
 
   .finance-list .finance-actions {

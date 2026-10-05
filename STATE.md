@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** T070
-- **Última concluída:** V6
+- **Tarefa atual:** T071
+- **Última concluída:** T070
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -144,3 +144,4 @@
 - 2026-10-04 T065 DONE (verifier PASS na 1ª; contratos 39, API 171 + 35 skip, web 170). Toda criação de cliente usa POST /patients/guided (api.createGuidedPatient; "Só cadastrar" = next none); edição segue PUT. PatientModal (só criação): fieldset "O que o cliente vai fazer?" (demonstração/plano/avulso/só cadastrar), opções por canEdit(agenda/plans), turma só com canEdit(groups); PlanTermsFields + defaultPlanTerms extraídos do PlanModal; onSaved(patient, notice?) → success-banner com resumo (lista de espera com posição). Clientes: filtro "Assinantes sem turma vinculada" (api.patients(search, {withoutGroup})), selo status-pill "Sem turma" e link "Matricular" → /turmas?matricular=<id> (GroupsPage abre a matrícula com o cliente). Export envia withoutGroup. App.test.tsx está em LF na cópia de trabalho. Ressalvas: link dentro de linha role=button; demonstração sem cadastro de serviço/profissional/sala só erra na API.
 - 2026-10-04 aguardando revisão manual de V6 (T061–T065 DONE).
 - 2026-10-04 V6 DONE (aprovada pelo dono no chat). Decisões: withoutGroup exige validade (mantido); parcela cancelada explícita (T070); aviso de alterações só gaveta/menu (mantido); etiquetas como selos coloridos no detalhe do cliente e demais pontos (T071); demonstração sem cadastros só erra ao salvar (mantido).
+- 2026-10-04 T070 DONE (verifier PASS na 1ª; web 168). ReceivablesList: cancelled → valor em <s> com .cancelled-amount (cinza #5d6662, ~5,9:1), sem +/cash-in/cash-out, selo status-pill cancelled "Cancelada" dentro da célula do valor (coluna Situação fica vazia nessa linha); flex-wrap à direita no desktop, à esquerda ≤700px.

@@ -7119,15 +7119,28 @@ function ReceivablesList({
                 <span className="finance-label">Vencimento </span>
                 {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
               </span>
-              <strong
-                className={`finance-amount ${item.amountInCents < 0 ? "cash-out" : "cash-in"}`}
-              >
-                {signedCurrency(item.amountInCents)}
-              </strong>
+              {item.status === "cancelled" ? (
+                // Cancelada não é entrada: valor neutro, riscado e sem sinal,
+                // com o selo em texto logo ao lado.
+                <strong className="finance-amount cancelled-amount">
+                  <s>{currency.format(item.amountInCents / 100)}</s>{" "}
+                  <span className={`status-pill ${situation.pill}`}>
+                    {situation.label}
+                  </span>
+                </strong>
+              ) : (
+                <strong
+                  className={`finance-amount ${item.amountInCents < 0 ? "cash-out" : "cash-in"}`}
+                >
+                  {signedCurrency(item.amountInCents)}
+                </strong>
+              )}
               <span>
-                <span className={`status-pill ${situation.pill}`}>
-                  {situation.label}
-                </span>
+                {item.status !== "cancelled" && (
+                  <span className={`status-pill ${situation.pill}`}>
+                    {situation.label}
+                  </span>
+                )}
               </span>
               <div className="finance-actions">
                 {canManage && item.status === "open" && (

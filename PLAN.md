@@ -1060,7 +1060,7 @@ Decisões do dono na V6 (04/10/2026):
   na T067).
 - **Gate:** `npm exec -w @crm/web -- vitest run src/App.test.tsx` e `node apps/web/scripts/audit-panels.cjs`
 - **Depende de:** V6
-- **Status:** TODO
+- **Status:** DONE
 
 ### T071 — Etiquetas como selos coloridos no detalhe do cliente
 - **Escopo:** no detalhe do cliente (hoje texto separado por vírgula) e em qualquer outro ponto que
