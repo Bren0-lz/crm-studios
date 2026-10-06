@@ -140,7 +140,7 @@ import type {
   UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, cpfDigits, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatCpf, formatPhone, groupClassName, isValidCpf, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -210,6 +210,25 @@ function PhoneInput({ value, onChange, required }: { value: string; onChange: (d
       value={formatPhone(value)}
       onChange={(event) => onChange(phoneDigits(event.target.value))}
     />
+  );
+}
+
+function CpfInput({ value, onChange }: { value: string; onChange: (digits: string) => void }) {
+  const invalid = cpfDigits(value).length === 11 && !isValidCpf(value);
+  return (
+    <>
+      <input
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="000.000.000-00"
+        maxLength={14}
+        value={formatCpf(value)}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? "patient-cpf-error" : undefined}
+        onChange={(event) => onChange(cpfDigits(event.target.value))}
+      />
+      {invalid && <small id="patient-cpf-error" className="form-error">Informe um CPF válido.</small>}
+    </>
   );
 }
 
@@ -1799,6 +1818,10 @@ function PatientModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (form.cpf && !isValidCpf(form.cpf)) {
+      setError("Informe um CPF válido.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -1857,11 +1880,11 @@ function PatientModal({
             onChange={(e) => field("email", e.target.value)}
           />
         </label>
-        <label>
+        <label className="field-with-hint">
           CPF
-          <input
-            value={form.cpf}
-            onChange={(e) => field("cpf", e.target.value)}
+          <CpfInput
+            value={form.cpf ?? ""}
+            onChange={(digits) => field("cpf", digits)}
           />
         </label>
         <label>
@@ -10660,7 +10683,7 @@ function AppointmentDetailsModal({
               <div><small>Telefone</small><strong>{patient.phone ? formatPhone(patient.phone) : "Não informado"}</strong></div>
               <div><small>WhatsApp</small><strong>{patient.whatsapp ? formatPhone(patient.whatsapp) : "Mesmo telefone de contato"}</strong></div>
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
-              <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
+              <div><small>CPF</small><strong>{patient.cpf ? formatCpf(patient.cpf) : "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
               <div className="detail-wide emergency-contact"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>

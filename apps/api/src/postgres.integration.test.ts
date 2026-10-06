@@ -25,11 +25,11 @@ import {
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const testCpf = "98765432100";
-const duplicateCpf = "98765432101";
-const relationshipCpf = "98765432102";
-const birthdayCpf = "98765432103";
-const satisfactionCpf = "98765432104";
-const timelineCpf = "98765432105";
+const duplicateCpf = "12345678062";
+const relationshipCpf = "12345678143";
+const birthdayCpf = "12345678224";
+const satisfactionCpf = "12345678305";
+const timelineCpf = "12345678496";
 const appointmentMarker = "postgres-integration-test";
 const rescheduleMarker = "postgres-reschedule-test";
 const salesMarker = "postgres-sales-test";
@@ -1676,7 +1676,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
   it("imports patients in one transaction and skips duplicates already in the database", async () => {
     const phones = ["11955501001", "11955501002", "11955501003"];
-    const importCpf = "98765432106";
+    const importCpf = "12345678577";
     try {
       const first = await repository.importPatients(clinicId, [
         { fullName: "Importada PG Um", phone: phones[0]!, cpf: importCpf, tags: [] },
@@ -1692,7 +1692,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
       const again = await repository.importPatients(clinicId, [
         { fullName: "Importada PG Um", phone: phones[0]!, tags: [] },
-        { fullName: "Mesmo CPF", phone: phones[2]!, cpf: "987.654.321-06", tags: [] },
+        { fullName: "Mesmo CPF", phone: phones[2]!, cpf: "123.456.785-77", tags: [] },
         { fullName: "Importada PG Dois", phone: "11 95550-1002", tags: [] },
       ]);
       expect(again).toEqual({ created: 0, skipped: 3 });

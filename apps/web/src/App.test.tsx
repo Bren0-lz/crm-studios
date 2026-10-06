@@ -5507,6 +5507,25 @@ describe("configured patient tags", () => {
     expect(await within(dialog).findByText(/Nenhuma etiqueta configurada/)).toBeInTheDocument();
   });
 
+  it("formats CPF while typing and rejects invalid check digits", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse([]));
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
+    const cpf = within(dialog).getByLabelText("CPF");
+
+    fireEvent.change(cpf, { target: { value: "52998224724" } });
+    expect(cpf).toHaveValue("529.982.247-24");
+    expect(cpf).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getAllByText("Informe um CPF válido.").length).toBeGreaterThan(0);
+
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
+    expect(cpf).toHaveValue("529.982.247-25");
+    expect(cpf).not.toHaveAttribute("aria-invalid");
+  });
+
   it("shows the configured tags with their colors in the segmented broadcast", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(admin));
