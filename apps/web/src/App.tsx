@@ -10207,6 +10207,10 @@ function AgendaPage() {
           professionals={professionals}
           rooms={rooms}
           services={services}
+          onPatientCreated={(patient) => {
+            setPatients((items) => [...items.filter((item) => item.id !== patient.id), patient]);
+            setPatientRecords((items) => [...items.filter((item) => item.id !== patient.id), patient]);
+          }}
           onClose={() => setModalOpen(false)}
           onCreated={(appointment) => {
             setAppointments((items) =>
@@ -10992,6 +10996,92 @@ function AppointmentRescheduleHistoryModal({
   );
 }
 
+function AppointmentPatientPicker({ patients, value, onChange, inputRef, onAddPatient, busy }: {
+  patients: PatientOption[];
+  value: string;
+  onChange: (id: string, patient?: PatientOption) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onAddPatient: (() => void) | undefined;
+  busy: boolean;
+}) {
+  const selected = patients.find((patient) => patient.id === value);
+  const [query, setQuery] = useState<string | null>(null);
+  const [results, setResults] = useState<PatientOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [active, setActive] = useState(-1);
+  const listId = useId();
+  const term = query?.trim() ?? "";
+  const choices = term ? results : patients;
+  useEffect(() => {
+    let current = true;
+    if (!term) return;
+    const timer = window.setTimeout(() => {
+      api.patientOptions(term).then((items) => {
+        if (current) { setResults(items); setLoading(false); }
+      }).catch((cause: Error) => {
+        if (current) { setError(cause.message); setLoading(false); }
+      });
+    }, 250);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [term, query]);
+  function choose(patient: PatientOption) {
+    onChange(patient.id, patient);
+    setQuery(patient.fullName);
+    setOpen(false);
+    setActive(-1);
+  }
+  return (
+    <div className="appointment-patient-picker">
+      <div className="patient-picker-header">
+        <label htmlFor={`${listId}-input`}>Cliente</label>
+        {onAddPatient && <button type="button" className="secondary-button button-sm"
+          onClick={onAddPatient} disabled={busy}>Adicionar cliente</button>}
+      </div>
+      <input
+        id={`${listId}-input`} ref={inputRef} role="combobox" required
+        placeholder="Buscar por nome ou CPF" autoComplete="off"
+        value={query ?? selected?.fullName ?? ""}
+        aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+        aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onChange={(event) => {
+          setQuery(event.target.value); onChange(""); setOpen(true); setActive(-1);
+          setResults([]); setError(""); setLoading(Boolean(event.target.value.trim()));
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault(); setOpen(true);
+            setActive((index) => choices.length ? (event.key === "ArrowDown"
+              ? (index + 1) % choices.length
+              : (index <= 0 ? choices.length - 1 : index - 1)) : -1);
+          } else if (event.key === "Enter" && open) {
+            event.preventDefault();
+            if (choices[active]) choose(choices[active]);
+          } else if (event.key === "Escape" && open) {
+            event.stopPropagation(); setOpen(false);
+          }
+        }}
+      />
+      {open && <div className="patient-picker-results">
+        {loading ? <p role="status">Buscando clientes…</p> : error ? <p role="alert">{error}</p>
+          : choices.length === 0 ? <p role="status">Nenhum cliente encontrado</p> : null}
+        <ul id={listId} role="listbox" aria-label="Clientes encontrados">
+          {!loading && !error && choices.map((patient, index) => (
+            <li id={`${listId}-${index}`} key={patient.id} role="option"
+              aria-selected={patient.id === value} className={index === active ? "active" : ""}
+              onMouseDown={(event) => event.preventDefault()} onClick={() => choose(patient)}>
+              {patient.fullName}
+            </li>
+          ))}
+        </ul>
+      </div>}
+    </div>
+  );
+}
+
 function AppointmentModal({
   date,
   patients,
@@ -11000,6 +11090,7 @@ function AppointmentModal({
   services,
   onClose,
   onCreated,
+  onPatientCreated,
 }: {
   date: Date;
   patients: PatientOption[];
@@ -11008,6 +11099,7 @@ function AppointmentModal({
   services: Service[];
   onClose: () => void;
   onCreated: (appointment: Appointment[]) => void;
+  onPatientCreated: (patient: Patient) => void;
 }) {
   const initialTime = new Date(date);
   initialTime.setHours(9, 0, 0, 0);
@@ -11025,8 +11117,23 @@ function AppointmentModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(null);
+  const [pickerVersion, setPickerVersion] = useState(0);
+  const patientInputRef = useRef<HTMLInputElement>(null);
+  const patientChoices = selectedPatient && !patients.some((patient) => patient.id === selectedPatient.id)
+    ? [...patients, selectedPatient] : patients;
+  function closePatientModal() {
+    setPatientModalOpen(false);
+    requestAnimationFrame(() => patientInputRef.current?.focus());
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!form.patientId) {
+      setError("Selecione um cliente para confirmar o atendimento.");
+      patientInputRef.current?.focus();
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -11059,27 +11166,24 @@ function AppointmentModal({
     }
   }
   return (
+    <>
     <Modal
       title="Novo atendimento"
       subtitle="A duração e o valor seguem o serviço selecionado."
       busy={loading}
+      inactive={patientModalOpen}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
-        <label>
-          Cliente
-          <select
-            required
-            value={form.patientId}
-            onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-          >
-            {patients.map((item) => (
-              <option value={item.id} key={item.id}>
-                {item.fullName}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <AppointmentPatientPicker key={pickerVersion} patients={patientChoices}
+            value={form.patientId} inputRef={patientInputRef}
+            busy={loading} onAddPatient={canEdit("patients") ? () => setPatientModalOpen(true) : undefined}
+            onChange={(patientId, patient) => {
+              if (patient) setSelectedPatient(patient);
+              setForm((current) => ({ ...current, patientId }));
+            }} />
+        </div>
         <label>
           Tipo
           <select
@@ -11197,13 +11301,28 @@ function AppointmentModal({
           <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
             Cancelar
           </button>
-          <button className="primary-button" disabled={loading}>
+          <button className="primary-button" disabled={loading || !form.patientId}>
             {loading ? "Agendando…" : "Confirmar atendimento"}
           </button>
         </div>
       </form>
     </Modal>
+    {patientModalOpen && <AppointmentPatientCreateModal onClose={closePatientModal} onSaved={(patient) => {
+      onPatientCreated(patient);
+      setSelectedPatient(patient);
+      setPickerVersion((version) => version + 1);
+      setForm((current) => ({ ...current, patientId: patient.id }));
+      closePatientModal();
+    }} />}
+    </>
   );
+}
+
+function AppointmentPatientCreateModal({ onClose, onSaved }: {
+  onClose: () => void; onSaved: (patient: Patient) => void;
+}) {
+  const configuredTags = usePatientTags();
+  return <PatientModal patient={undefined} configuredTags={configuredTags} onClose={onClose} onSaved={onSaved} />;
 }
 
 function ScheduleBlockModal({
@@ -13720,6 +13839,7 @@ export function Modal({
   subtitle,
   eyebrow = "Cadastro rápido",
   busy = false,
+  inactive = false,
   onClose,
   children,
 }: {
@@ -13728,6 +13848,8 @@ export function Modal({
   eyebrow?: string;
   /** Salvamento em andamento: X e Esc ficam desativados. */
   busy?: boolean;
+  /** Mantém o formulário montado, mas inacessível sob outro modal. */
+  inactive?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -13735,13 +13857,31 @@ export function Modal({
   useEscapeToClose(onClose, busy);
   // Id próprio: com modal sobre modal, cada um é nomeado pelo seu título.
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const section = sectionRef.current;
+    if (!inactive && section && !section.contains(document.activeElement)) {
+      section.querySelector<HTMLElement>("input, select, textarea, button:not(:disabled)")?.focus();
+    }
+  }, [inactive]);
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop" role="presentation" inert={inactive} aria-hidden={inactive || undefined}>
       <section
+        ref={sectionRef}
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const controls = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>(
+            'input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex="0"]',
+          ) ?? []).filter((element) => !element.closest('[hidden], [inert]') && element.getAttribute("type") !== "hidden");
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }}
       >
         <div className="modal-head">
           <div>

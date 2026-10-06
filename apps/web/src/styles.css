@@ -2103,6 +2103,19 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   background: rgba(18, 35, 30, 0.52);
 }
 
+.appointment-patient-picker { position: relative; margin-bottom: 8px; }
+.patient-picker-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.appointment-patient-picker > input { width: 100%; }
+.patient-picker-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 1;
+  max-height: 240px; overflow-y: auto; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(17, 32, 27, 0.18);
+}
+.patient-picker-results ul { list-style: none; padding: 0; margin: 0; }
+.patient-picker-results li, .patient-picker-results p { padding: 10px 12px; margin: 0; }
+.patient-picker-results li { cursor: pointer; }
+.patient-picker-results li:hover, .patient-picker-results li.active { background: var(--mint); }
+
 .modal {
   width: min(100%, 650px);
   max-height: calc(100vh - 40px);

@@ -1234,6 +1234,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
       ? normalized.replace(/\D/g, "")
       : "";
+    const cpfDigits = /^[\d\s.-]+$/.test(normalized) ? normalized.replace(/\D/g, "") : "";
     return this.patients
       .filter((item) => item.clinicId === clinicId)
       .filter((item) =>
@@ -1243,7 +1244,7 @@ export class MemoryClinicRepository implements ClinicRepository {
               .some((value) =>
                 value!.toLocaleLowerCase("pt-BR").includes(normalized),
               ) ||
-            Boolean(
+            Boolean(cpfDigits && item.cpf?.replace(/\D/g, "").includes(cpfDigits)) || Boolean(
               phoneDigits &&
                 (item.phone.includes(phoneDigits) || item.whatsapp?.includes(phoneDigits)),
             )

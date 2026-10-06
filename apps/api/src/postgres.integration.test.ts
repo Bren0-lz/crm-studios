@@ -347,6 +347,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
     expect(persisted).toHaveLength(1);
     expect(persisted[0]?.id).toBe(patient.id);
+    for (const search of [testCpf, "987.654.321-00"]) {
+      expect((await anotherInstance.listPatients(clinicId, search)).map((item) => item.id)).toContain(patient.id);
+    }
     const updated = await repository.updatePatient(clinicId, patient.id, {
       fullName: "Cliente Corrigido",
       phone: "11999997777",

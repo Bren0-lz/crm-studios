@@ -278,7 +278,9 @@ export const api = {
   patients: (search = "") =>
     request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
   /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
-  patientOptions: () => request<PatientOption[]>("/patients/options"),
+  patientOptions: (search = "") => request<PatientOption[]>(search
+    ? `/patients/options?search=${encodeURIComponent(search)}`
+    : "/patients/options"),
   /** Etiquetas configuradas (Configurações › Etiquetas), por nome, com a contagem de clientes. */
   patientTags: () => request<PatientTag[]>("/patient-tags"),
   createPatientTag: (input: PatientTagInput) =>

@@ -858,6 +858,16 @@ describe("CRM API", () => {
     expect(listed.json()[0].fullName).toBe("Joana de Souza");
     expect(listed.json()[0].phone).toBe("11999990000");
 
+    for (const search of ["joana", "12345678901", "123.456.789-01"]) {
+      const options = await app.inject({ method: "GET", url: `/patients/options?search=${encodeURIComponent(search)}`, headers: { authorization: `Bearer ${token}` } });
+      expect(options.statusCode).toBe(200);
+      expect(options.json()).toEqual([{ id: created.json().id, fullName: "Joana de Souza", tags: ["Avaliação"] }]);
+    }
+    const empty = await app.inject({ method: "GET", url: "/patients/options?search=Inexistente", headers: { authorization: `Bearer ${token}` } });
+    expect(empty.json()).toEqual([]);
+    const invalidSearch = await app.inject({ method: "GET", url: `/patients/options?search=${"a".repeat(161)}`, headers: { authorization: `Bearer ${token}` } });
+    expect(invalidSearch.statusCode).toBe(400);
+
     const byFormattedPhone = await app.inject({
       method: "GET",
       url: `/patients?search=${encodeURIComponent("(11) 99999-0000")}`,
@@ -7101,6 +7111,10 @@ describe("CRM API", () => {
         const body = options.json() as Array<Record<string, unknown>>;
         expect(body).toEqual(full.map(({ id, fullName, tags }) => ({ id, fullName, tags })));
         for (const item of body) expect(Object.keys(item).sort()).toEqual(["fullName", "id", "tags"]);
+        const searched = await app.inject({ method: "GET", url: `/patients/options?search=${encodeURIComponent(full[0]!.fullName)}`, headers: user.headers });
+        expect(searched.statusCode, module).toBe(200);
+        expect(searched.json()).toContainEqual({ id: full[0]!.id, fullName: full[0]!.fullName, tags: full[0]!.tags });
+        for (const item of searched.json()) expect(Object.keys(item).sort()).toEqual(["fullName", "id", "tags"]);
         const head = await app.inject({ method: "HEAD", url: "/patients/options", headers: user.headers });
         expect(head.statusCode, module).toBe(200);
         if (module !== "patients") {

@@ -2936,11 +2936,12 @@ export class PostgresClinicRepository implements ClinicRepository {
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
             OR ($3 <> '' AND (phone LIKE '%' || $3 || '%' OR coalesce(whatsapp, '') LIKE '%' || $3 || '%'))
+            OR ($4 <> '' AND regexp_replace(coalesce(cpf, ''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%')
             OR record_number ILIKE '%' || $2 || '%'
           )
         ORDER BY full_name
       `,
-      [clinicId, term, phoneSearchDigits(term)],
+      [clinicId, term, phoneSearchDigits(term), /^[\d\s.-]+$/.test(term) ? term.replace(/\D/g, "") : ""],
     );
     return result.rows.map(mapPatient);
   }

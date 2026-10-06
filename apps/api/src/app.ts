@@ -886,7 +886,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   // Lista mínima de apoio (D11): só id, nome e etiquetas, para telas que escolhem o cliente.
   app.get("/patients/options", { preHandler: authenticate }, async (request) => {
-    const patients = await repository.listPatients(request.user.clinicId);
+    const { search } = patientListQuerySchema.pick({ search: true }).parse(request.query);
+    const patients = await repository.listPatients(request.user.clinicId, search);
     return patients.map(
       ({ id, fullName, tags }): PatientOption => ({ id, fullName, tags }),
     );
