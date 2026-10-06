@@ -2072,19 +2072,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-cancel-confirm span { color: #9b7469; font-size: var(--text-xs); }
 .appointment-satisfaction { margin: 0; color: var(--muted); font-size: var(--text-sm); font-weight: 700; }
 .appointment-detail-section .appointment-lead-note { margin-top: var(--space-4); }
-.sos-area { display: grid; gap: var(--space-3); justify-items: start; }
-.modal > .sos-area { margin-bottom: var(--space-4); }
-.secondary-button.sos-button { border-color: var(--red); color: var(--red); }
-.secondary-button.sos-button[aria-expanded="true"] { background: #fbf2ef; }
-.sos-panel { display: grid; gap: var(--space-4); justify-self: stretch; padding: var(--space-4); border: 1px solid #e8c8be; border-radius: var(--radius-md); background: #fbf2ef; }
-.sos-contact { display: grid; gap: var(--space-1); min-width: 0; }
-.sos-contact small { color: var(--muted); font-size: var(--text-xs); }
-.sos-contact strong { overflow-wrap: anywhere; color: #7f5144; }
-.sos-contact span { font-size: var(--text-sm); }
-.sos-contact p { margin: 0; color: #9b7469; font-size: var(--text-sm); }
-.sos-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.sos-contact .sos-actions { margin-top: var(--space-2); }
-.secondary-button.sos-shortcut { border-color: #e8c8be; color: #a04e45; }
+.appointment-detail-grid .emergency-contact { padding: var(--space-3); border: 1px solid var(--red); border-radius: var(--radius-sm); background: #fbf2ef; }
+.appointment-detail-grid .emergency-contact small,
+.appointment-detail-grid .emergency-contact strong { color: var(--red); }
 .agenda-main .status-pill,
 .day-event .status-pill { margin-top: var(--space-1); }
 .status-pill.visit-trial { background: #e6eef8; color: #3f5f86; }
@@ -2230,6 +2220,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: var(--text-sm);
   font-weight: 800;
 }
+
+.form-fieldset.emergency-fieldset { border-color: var(--red); background: #fbf2ef; }
+.form-fieldset.emergency-fieldset legend { color: var(--red); }
 
 .form-fieldset-grid {
   display: grid;

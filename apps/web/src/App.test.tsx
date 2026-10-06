@@ -2558,7 +2558,7 @@ describe("application shell", () => {
     expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
   });
 
-  it("opens the SOS panel with the emergency contact from a client appointment", async () => {
+  it("shows the emergency contact highlighted in the appointment details without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const startsAt = new Date();
@@ -2594,30 +2594,12 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
-    const sosButton = within(dialog).getByRole("button", { name: "SOS" });
-    expect(sosButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(sosButton);
-    expect(sosButton).toHaveAttribute("aria-expanded", "true");
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Maria Souza (mãe)")).toBeInTheDocument();
-    expect(within(sos).getByText("(11) 95555-6666")).toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /Ligar/ })).toHaveAttribute("href", "tel:11955556666");
-    const whatsapp = within(sos).getByRole("link", { name: /WhatsApp/ });
-    expect(whatsapp.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5511955556666/);
-    expect(whatsapp).toHaveAttribute("target", "_blank");
-    expect(whatsapp).toHaveClass("whatsapp-button");
-    expect(whatsapp).not.toHaveClass("secondary-button");
-    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
-    expect(within(sos).queryByText("Contato de emergência não cadastrado")).not.toBeInTheDocument();
-    fireEvent.click(sosButton);
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    const contact = within(dialog).getByText("Maria Souza (mãe) · (11) 95555-6666");
+    expect(contact.closest(".emergency-contact")).toHaveTextContent("Contato de emergência");
   });
 
-  it("shows the SOS shortcuts in the client record even without an emergency contact", async () => {
+  it("highlights the emergency contact fields in the client record without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", emergencyContactName: "", tags: [], status: "active" };
@@ -2628,14 +2610,8 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "SOS" }));
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Contato de emergência não cadastrado")).toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /Ligar/ })).not.toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /WhatsApp/ })).not.toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("group", { name: "Contato de emergência" })).toHaveClass("emergency-fieldset");
   });
 
   it("does not show the SOS button when creating a new client", async () => {

@@ -23,7 +23,6 @@ import {
   PackageOpen,
   Paperclip,
   Pause,
-  Phone,
   PhoneCall,
   Play,
   Plus,
@@ -34,7 +33,6 @@ import {
   Settings,
   Tags,
   Building2,
-  Siren,
   SlidersHorizontal,
   Star,
   Stethoscope,
@@ -1779,7 +1777,6 @@ function PatientModal({
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && canView("patients") && canView("crm");
   const editable = canEdit("patients");
-  const [sosOpen, setSosOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
@@ -1819,12 +1816,6 @@ function PatientModal({
       busy={loading}
       onClose={onClose}
     >
-      {patient && (
-        <div className="sos-area">
-          <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-          {sosOpen && <SosPanel patient={patient} />}
-        </div>
-      )}
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nome completo
@@ -1881,7 +1872,7 @@ function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <fieldset className="form-fieldset span-2">
+        <fieldset className="form-fieldset emergency-fieldset span-2">
           <legend>Contato de emergência</legend>
           <div className="form-fieldset-grid">
             <label>
@@ -10588,7 +10579,6 @@ function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
-  const [sosOpen, setSosOpen] = useState(false);
   useEffect(() => {
     if (!isCompleted) return;
     let active = true;
@@ -10638,12 +10628,6 @@ function AppointmentDetailsModal({
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} busy={cancelling} onClose={onClose}>
       <div className="appointment-details">
-        {!isLead && appointment.patientId && (
-          <div className="sos-area">
-            <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-            {sosOpen && <SosPanel patient={patient} />}
-          </div>
-        )}
         <section className="appointment-detail-section">
           <h3>Atendimento marcado</h3>
           <div className="appointment-detail-grid">
@@ -10678,7 +10662,7 @@ function AppointmentDetailsModal({
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
               <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
-              <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
+              <div className="detail-wide emergency-contact"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
               {patient.notes && <div className="detail-wide"><small>Observações do cliente</small><strong>{patient.notes}</strong></div>}
@@ -10716,60 +10700,6 @@ function AppointmentDetailsModal({
         )}
       </div>
     </Modal>
-  );
-}
-
-function SosButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button type="button" className="secondary-button sos-button" aria-expanded={open} onClick={onToggle}>
-      <Siren size={16} aria-hidden="true" /> SOS
-    </button>
-  );
-}
-
-const emergencyShortcuts: Array<[string, string]> = [
-  ["190", "Polícia"],
-  ["192", "SAMU"],
-  ["193", "Bombeiros"],
-];
-
-// Painel de emergência: contato cadastrado do cliente e atalhos para os serviços públicos.
-function SosPanel({ patient }: { patient: Patient | undefined }) {
-  const name = patient?.emergencyContactName?.trim() ?? "";
-  const phone = phoneDigits(patient?.emergencyContactPhone ?? "");
-  return (
-    <section className="sos-panel" aria-label="SOS">
-      <div className="sos-contact">
-        <small>Contato de emergência</small>
-        {!patient ? (
-          <p>Dados do cliente indisponíveis no momento.</p>
-        ) : name || phone ? (
-          <>
-            <strong>{name || "Nome não informado"}</strong>
-            {phone ? <span>{formatPhone(phone)}</span> : <p>Telefone não cadastrado.</p>}
-            {phone && (
-              <div className="sos-actions">
-                <a className="secondary-button" href={`tel:${phone}`}>
-                  <Phone size={15} aria-hidden="true" /> Ligar
-                </a>
-                <a className="whatsapp-button" href={whatsappLink(phone, "")} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle size={15} aria-hidden="true" /> WhatsApp
-                </a>
-              </div>
-            )}
-          </>
-        ) : (
-          <p>Contato de emergência não cadastrado</p>
-        )}
-      </div>
-      <div className="sos-actions">
-        {emergencyShortcuts.map(([number, label]) => (
-          <a key={number} className="secondary-button sos-shortcut" href={`tel:${number}`}>
-            <PhoneCall size={15} aria-hidden="true" /> {number} · {label}
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 
