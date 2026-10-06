@@ -10202,7 +10202,6 @@ function AgendaPage() {
       </section>
       {modalOpen && (
         <AppointmentModal
-          date={selectedDate}
           patients={patients}
           professionals={professionals}
           rooms={rooms}
@@ -11083,7 +11082,6 @@ function AppointmentPatientPicker({ patients, value, onChange, inputRef, onAddPa
 }
 
 function AppointmentModal({
-  date,
   patients,
   professionals,
   rooms,
@@ -11092,7 +11090,6 @@ function AppointmentModal({
   onCreated,
   onPatientCreated,
 }: {
-  date: Date;
   patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];
@@ -11101,15 +11098,13 @@ function AppointmentModal({
   onCreated: (appointment: Appointment[]) => void;
   onPatientCreated: (patient: Patient) => void;
 }) {
-  const initialTime = new Date(date);
-  initialTime.setHours(9, 0, 0, 0);
   const [form, setForm] = useState({
-    patientId: patients[0]?.id ?? "",
-    visitType: "regular" as AppointmentVisitType,
-    professionalId: professionals[0]?.id ?? "",
-    roomId: rooms[0]?.id ?? "",
-    serviceId: services[0]?.id ?? "",
-    startsAt: toLocalDateTimeInput(initialTime),
+    patientId: "",
+    visitType: "" as AppointmentVisitType | "",
+    professionalId: "",
+    roomId: "",
+    serviceId: "",
+    startsAt: "",
     notes: "",
     recurring: false,
     occurrences: 4,
@@ -11144,7 +11139,7 @@ function AppointmentModal({
         serviceId: form.serviceId,
         startsAt: new Date(form.startsAt).toISOString(),
         notes: form.notes,
-        visitType: form.visitType,
+        visitType: form.visitType as AppointmentVisitType,
       };
       onCreated(
         form.recurring
@@ -11187,9 +11182,11 @@ function AppointmentModal({
         <label>
           Tipo
           <select
+            required
             value={form.visitType}
             onChange={(e) => setForm({ ...form, visitType: e.target.value as AppointmentVisitType })}
           >
+            <option value="">Selecione</option>
             {appointmentVisitTypes.map((item) => (
               <option value={item} key={item}>
                 {visitTypeLabels[item]}
@@ -11244,6 +11241,7 @@ function AppointmentModal({
               setForm({ ...form, professionalId: e.target.value })
             }
           >
+            <option value="">Selecione</option>
             {professionals.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.fullName}
@@ -11258,6 +11256,7 @@ function AppointmentModal({
             value={form.roomId}
             onChange={(e) => setForm({ ...form, roomId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {rooms.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name}
@@ -11272,6 +11271,7 @@ function AppointmentModal({
             value={form.serviceId}
             onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {services.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name} · {currency.format(item.priceInCents / 100)}

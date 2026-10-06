@@ -66,6 +66,19 @@ afterEach(() => {
   vi.mocked(fetch).mockReset();
 });
 
+function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+  if (patientName) {
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+  }
+  for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
+    const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
+    if (!select.value) fireEvent.change(select, { target: { value: select.options[1]!.value } });
+  }
+  const startsAt = within(dialog).getByLabelText("Data e horário") as HTMLInputElement;
+  if (!startsAt.value) fireEvent.change(startsAt, { target: { value: "2027-01-01T09:00" } });
+}
+
 describe("appointment client search and creation", () => {
   const existing = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", tags: [] };
   const created = { ...existing, id: "88888888-8888-4888-8888-888888888888", fullName: "Nova Cliente", phone: "11999998888" };
@@ -92,8 +105,18 @@ describe("appointment client search and creation", () => {
     return screen.getByRole("dialog", { name: "Novo atendimento" });
   }
 
+  it("starts every field of a new appointment empty", async () => {
+    const appointment = await open();
+    expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue("");
+    for (const label of ["Tipo", "Profissional", "Sala", "Serviço", "Data e horário", "Observação"])
+      expect(within(appointment).getByLabelText(label)).toHaveValue("");
+    expect(within(appointment).getByLabelText("Repetir este atendimento")).not.toBeChecked();
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
+  });
+
   it("keeps appointment values, traps focus, and selects the saved client", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment);
     fireEvent.change(within(appointment).getByLabelText("Observação"), { target: { value: "Manter observação" } });
     fireEvent.click(within(appointment).getByLabelText("Repetir este atendimento"));
     fireEvent.change(within(appointment).getByLabelText("Número de ocorrências"), { target: { value: "6" } });
@@ -129,6 +152,7 @@ describe("appointment client search and creation", () => {
 
   it("closes only the client modal on Escape and keeps the previous selection", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument();
@@ -139,6 +163,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
     const client = screen.getByRole("dialog", { name: "Novo cliente" });
     fireEvent.change(within(client).getByLabelText("Nome completo"), { target: { value: created.fullName } });
@@ -2482,6 +2507,7 @@ describe("application shell", () => {
     expect(container.querySelectorAll(".month-grid .month-holiday")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
+    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Novo atendimento" })).toBeInTheDocument();
@@ -2643,9 +2669,10 @@ describe("application shell", () => {
     await screen.findByText("Dia disponível");
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
     const type = screen.getByLabelText("Tipo");
-    expect(type).toHaveValue("regular");
-    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Atendimento", "Experimental", "Avaliação"]);
+    expect(type).toHaveValue("");
+    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
+    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText("Horário ocupado.")).toBeInTheDocument();
     expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation" });
