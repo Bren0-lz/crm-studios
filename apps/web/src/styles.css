@@ -2805,50 +2805,53 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   align-items: start;
 }
 
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 110;
+.modal-wide {
   display: flex;
-  justify-content: flex-end;
-  background: rgba(18, 35, 30, 0.48);
-}
-
-.drawer {
-  display: flex;
-  width: min(100%, 560px);
-  height: 100vh;
-  height: 100dvh;
   flex-direction: column;
-  background: var(--cream);
-  box-shadow: -20px 0 60px rgba(18, 35, 30, 0.2);
+  width: min(960px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  overflow: hidden;
 }
-
-.drawer-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.modal-wide > .modal-head {
+  flex: 0 0 auto;
   gap: 16px;
-  padding: 26px 28px 20px;
+  margin: 0;
+  padding: 24px 30px 20px;
   border-bottom: 1px solid var(--line);
+}
+.modal-wide > .modal-head > div { min-width: 0; overflow-wrap: anywhere; }
+.group-modal-content { min-height: 0; overflow-y: auto; padding: 24px 30px 30px; }
+.group-modal-sections,
+.group-modal-form { display: grid; gap: 18px; }
+.group-modal-quick-actions { display: flex; justify-content: flex-end; }
+.group-modal-section { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.group-modal-section h3 { margin: 0 0 5px; font-family: "Manrope", sans-serif; font-size: var(--text-lg); }
+.group-modal-section > p { margin: 0 0 18px; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.group-modal-field-grid > label,
+.group-modal-capacity > label { min-width: 0; }
+.group-modal-field-grid select,
+.group-modal-field-grid input { width: 100%; }
+.group-modal-capacity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); align-items: end; gap: 16px; margin-bottom: 18px; }
+.group-modal-note,
+.group-next-session { padding: 12px 14px; border-radius: 10px; background: #eef4f0; color: var(--green); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-note { min-height: 44px; display: flex; align-items: center; }
+.group-modal-actions {
+  position: sticky;
+  z-index: 1;
+  bottom: -30px;
+  margin: 0 -30px -30px;
+  padding: 16px 30px;
+  border-top: 1px solid var(--line);
   background: var(--paper);
 }
-
-.drawer-head h2 { margin: 5px 0 4px; font-family: "Manrope", sans-serif; font-size: var(--text-2xl); }
-.drawer-head p { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
-.drawer-head .icon-button { flex: 0 0 auto; }
-.drawer-body { min-height: 0; overflow-y: auto; padding: 24px 28px 36px; }
-.group-drawer-content { display: grid; gap: 18px; }
-.groups-layout .drawer .group-form-panel .form-grid { grid-template-columns: 1fr; }
-.group-drawer-quick-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-start; }
-.group-drawer-content > h2,
-.group-drawer-content > .group-panel-copy { display: none; }
-.group-drawer-section { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
-.group-drawer-section h3 { margin: 0 0 5px; font-family: "Manrope", sans-serif; font-size: var(--text-lg); }
-.group-drawer-section > p { margin: 0 0 18px; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
-.group-drawer-section .form-grid { grid-template-columns: 1fr; }
-.group-drawer-note,
-.group-next-session { padding: 12px 14px; border-radius: 10px; background: #eef4f0; color: var(--green); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-section .group-modal-actions {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .group-slots-editor { display: grid; gap: 12px; padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #f7f8f5; }
 .group-slots-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .group-slots-head h4 { margin: 0 0 4px; font-family: "Manrope", sans-serif; font-size: var(--text-sm); }
@@ -2862,12 +2865,22 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .group-card > .secondary-button { justify-self: start; }
 
 @media (max-width: 600px) {
-  .drawer-head { padding: 21px 20px 17px; }
-  .drawer-body { padding: 18px 18px 28px; }
+  .modal-wide { max-height: calc(100dvh - 32px); }
+  .modal-wide > .modal-head { padding: 20px 18px 16px; }
+  .group-modal-content { padding: 18px; }
+  .group-modal-section { padding: 18px; }
+  .group-modal-field-grid,
+  .group-modal-capacity { grid-template-columns: 1fr; }
+  .group-modal-actions { bottom: -18px; margin: 0 -18px -18px; padding: 14px 18px; }
   .group-slots-head { flex-direction: column; }
   /* audit: mobile-ok dia e horários em 2 colunas de ~150px; campos de hora cabem */
   .group-slot-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .group-slot-row .icon-button { grid-column: 2; justify-self: end; }
+}
+
+@media (max-width: 420px) {
+  .group-slot-row { grid-template-columns: 1fr; }
+  .group-slot-row .icon-button { grid-column: 1; }
 }
 
 .groups-layout .group-form-panel h2,
@@ -2923,10 +2936,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .group-overview small { color: var(--muted); font-size: var(--text-xs); }
-
-.groups-layout .group-form-panel .form-grid { grid-template-columns: 1fr; gap: 16px; }
-.groups-layout .group-form-panel .form-grid > label { min-width: 0; }
-.groups-layout .groups-wide.group-form-panel .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .group-empty {
   margin: 0;
@@ -3030,7 +3039,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .group-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .group-overview > div { padding: 15px; }
   .group-overview > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .groups-layout .groups-wide.group-form-panel .form-grid { grid-template-columns: 1fr; }
 }
 
 .admin-users {

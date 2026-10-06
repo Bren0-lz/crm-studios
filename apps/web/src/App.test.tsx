@@ -320,7 +320,7 @@ describe("modal closing", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(2);
   });
 
-  it("keeps a drawer open on backdrop click and closes it with Esc", async () => {
+  it("keeps the wide group modal open on backdrop click and closes it with Esc", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
@@ -329,17 +329,22 @@ describe("modal closing", () => {
     });
     render(<MemoryRouter initialEntries={["/turmas"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    const backdrop = document.querySelector(".drawer-backdrop")!;
+    const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
-    expect(screen.getByRole("dialog", { name: "Nova turma" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Horários semanais" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Resumo da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Serviço")).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Nova turma" })).not.toBeInTheDocument();
   });
 });
 
 describe("application shell", () => {
-  it("edits group capacity and weekly hours in a drawer", async () => {
+  it("edits group capacity and weekly hours in a centered modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const group = {
@@ -371,11 +376,13 @@ describe("application shell", () => {
     expect(screen.queryByLabelText("Nome")).not.toBeInTheDocument();
     fireEvent.change(await screen.findByLabelText("Serviço"), { target: { value: group.serviceId } });
     expect(screen.getByText("Pilates Turma B")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Fechar gaveta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(screen.getByText("Turma de terça da noite")).toBeInTheDocument();
     expect(screen.getByText("Terça · 18:00–19:00")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
-    expect(screen.getByRole("dialog", { name: "Pilates Turma A" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Pilates Turma A" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Participantes" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Máximo de pessoas"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
     fireEvent.change(screen.getAllByLabelText("Dia")[1]!, { target: { value: "4" } });
@@ -5075,7 +5082,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    expect(screen.getByRole("dialog", { name: "Nova matrícula" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da matrícula" })).toBeInTheDocument();
   });
 });
 
