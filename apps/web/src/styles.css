@@ -2164,6 +2164,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: var(--space-4);
 }
 
@@ -2190,6 +2191,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .form-fieldset-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 14px;
 }
 
