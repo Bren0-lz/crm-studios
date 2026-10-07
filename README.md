@@ -4,8 +4,8 @@ CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). 
 
 ## O que já funciona
 
-- autenticação com perfis de acesso;
-- usuários com cargo e permissões por módulo (Ver e Editar), com o padrão do perfil como ponto de partida e conferidas pela API a cada requisição;
+- autenticação com Admin e Usuário comum;
+- usuários com cargo e permissões individuais por operação, agrupadas por módulo e conferidas pela API a cada requisição; veja o [mapa de permissões e instruções de migração](docs/permissoes.md);
 - comissão por usuário: ligação a um profissional da agenda e percentual com início de vigência;
 - painel com indicadores operacionais;
 - cadastro, edição e pesquisa de clientes, com lista paginada (20 por página);

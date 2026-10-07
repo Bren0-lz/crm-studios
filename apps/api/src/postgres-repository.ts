@@ -1,3 +1,4 @@
+import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, type PermissionKey } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type {
   AdminAuditEvent,
@@ -130,11 +131,9 @@ import type {
   SatisfactionSurveyInput,
 } from "@crm/contracts";
 import {
-  appModuleSchema,
   DEFAULT_PATIENT_TAG_COLOR,
   defaultRelationshipSettings,
   effectiveEditModules,
-  effectiveModules,
   groupClassName,
   nextPlanPeriod,
   patientTagKey,
@@ -156,7 +155,7 @@ import {
   weeklyOccurrences,
 } from "./group-schedule.js";
 import type { Pool, PoolClient } from "pg";
-import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { assertClinicalWritePermission, inspectClinicalAttachment } from "./clinical-integrity.js";
 import { buildSalesReport, salesReportBounds } from "./sales-report.js";
 import { buildDailyCash, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import { buildPatientTimeline } from "./patient-timeline.js";
@@ -178,6 +177,7 @@ interface UserRow {
   jobTitle: string | null;
   modules: string[] | null;
   editModules: string[] | null;
+  permissions: string[];
   passwordHash: string;
   active: boolean;
   createdAt: Date;
@@ -185,48 +185,9 @@ interface UserRow {
 }
 
 const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-  job_title AS "jobTitle", modules, edit_modules AS "editModules",
+  job_title AS "jobTitle", modules, edit_modules AS "editModules", permissions,
   password_hash AS "passwordHash", active,
   created_at AS "createdAt", updated_at AS "updatedAt"`;
-
-function knownModules(modules: string[]): AppModule[] {
-  return modules.filter((module): module is AppModule =>
-    appModuleSchema.safeParse(module).success,
-  );
-}
-
-/** Módulos gravados do usuário comum (ignora chaves desconhecidas); `null` = nenhum. */
-function storedUserModules(row: UserRow): AppModule[] | null {
-  if (row.role === "admin" || row.modules === null) return null;
-  return knownModules(row.modules);
-}
-
-/** Edição gravada do usuário comum (ignora chaves desconhecidas); `null` = nenhuma. */
-function storedUserEditModules(row: UserRow): AppModule[] | null {
-  if (row.role === "admin" || row.editModules === null) return null;
-  return knownModules(row.editModules);
-}
-
-/** Admin não guarda lista; senão a lista normalizada (ordem do enum, sem duplicatas). */
-function normalizeUserModules(
-  role: AuthenticatedUser["role"],
-  modules: readonly AppModule[] | null,
-): AppModule[] | null {
-  return role === "admin" || modules === null
-    ? null
-    : effectiveModules(role, modules);
-}
-
-/** Como `normalizeUserModules`, descartando edição de módulo sem visualização. */
-function normalizeUserEditModules(
-  role: AuthenticatedUser["role"],
-  modules: readonly AppModule[] | null,
-  editModules: readonly AppModule[] | null,
-): AppModule[] | null {
-  return role === "admin" || editModules === null
-    ? null
-    : effectiveEditModules(role, normalizeUserModules(role, modules), editModules);
-}
 
 interface PatientRow {
   id: string;
@@ -1001,6 +962,10 @@ function present(value: string | null) {
   return value ?? undefined;
 }
 
+function rowPermissions(row: UserRow): PermissionKey[] {
+  return effectivePermissions(row.role, row.permissions.filter((key): key is PermissionKey => permissionKeySchema.safeParse(key).success));
+}
+
 function mapAdminUser(row: UserRow): AdminUser {
   return {
     id: row.id,
@@ -1009,14 +974,10 @@ function mapAdminUser(row: UserRow): AdminUser {
     email: row.email,
     role: row.role,
     ...(row.jobTitle ? { jobTitle: row.jobTitle } : {}),
-    modules: effectiveModules(row.role, storedUserModules(row)),
-    editModules: effectiveEditModules(
-      row.role,
-      storedUserModules(row),
-      storedUserEditModules(row),
-    ),
-    customModules:
-      storedUserModules(row) !== null || storedUserEditModules(row) !== null,
+    permissions: rowPermissions(row),
+    modules: permissionModules(rowPermissions(row)),
+    editModules: row.role === "admin" ? effectiveEditModules("admin") : permissionEditModules(rowPermissions(row)),
+    customModules: row.role !== "admin" && row.permissions.length > 0,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -2099,10 +2060,12 @@ export class PostgresClinicRepository implements ClinicRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query("SELECT id FROM clinics WHERE id=$1 FOR UPDATE", [clinicId]);
+      const permissions = resolvePermissionInput(input.role, input);
       const result = await client.query<UserRow>(
         `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules,
-           edit_modules)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           edit_modules, permissions)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING ${userColumns}`,
         [
           clinicId,
@@ -2111,12 +2074,9 @@ export class PostgresClinicRepository implements ClinicRepository {
           input.role,
           passwordHash,
           input.jobTitle?.trim() || null,
-          normalizeUserModules(input.role, input.modules ?? null),
-          normalizeUserEditModules(
-            input.role,
-            input.modules ?? null,
-            input.editModules ?? null,
-          ),
+          input.role === "admin" ? null : permissionModules(permissions),
+          input.role === "admin" ? null : permissionEditModules(permissions),
+          input.role === "admin" ? [] : permissions,
         ],
       );
       await this.addAdminAudit(
@@ -2141,6 +2101,7 @@ export class PostgresClinicRepository implements ClinicRepository {
             modules: created.modules,
             editModules: created.editModules,
             custom: true,
+            previousPermissions: [], permissions: created.permissions,
           },
         );
       if (input.commission)
@@ -2185,6 +2146,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query("SELECT id FROM clinics WHERE id=$1 FOR UPDATE", [clinicId]);
       const current = await client.query<UserRow>(
         `SELECT ${userColumns} FROM users WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, userId],
@@ -2207,25 +2169,17 @@ export class PostgresClinicRepository implements ClinicRepository {
         );
         if (otherAdmins.rowCount === 0) throw lastAdminError();
       }
-      const previousModules = storedUserModules(current.rows[0]);
-      const previousEditModules = storedUserEditModules(current.rows[0]);
-      const requestedModules =
-        input.modules === undefined ? previousModules : input.modules;
-      const nextModules = normalizeUserModules(input.role, requestedModules);
-      const nextEditModules = normalizeUserEditModules(
-        input.role,
-        requestedModules,
-        input.editModules === undefined
-          ? previousEditModules
-          : input.editModules,
-      );
+      const previousPermissions = rowPermissions(current.rows[0]);
+      const nextPermissions = resolvePermissionInput(input.role, input, current.rows[0].role === "admin" ? [] : previousPermissions);
+      const nextModules = input.role === "admin" ? null : permissionModules(nextPermissions);
+      const nextEditModules = input.role === "admin" ? null : permissionEditModules(nextPermissions);
       const jobTitle =
         input.jobTitle === undefined
           ? current.rows[0].jobTitle
           : input.jobTitle.trim() || null;
       const result = await client.query<UserRow>(
         `UPDATE users SET full_name = $3, role = $4, active = $5, job_title = $6,
-           modules = $7, edit_modules = $8, updated_at = now()
+           modules = $7, edit_modules = $8, permissions = $9, updated_at = now()
          WHERE clinic_id = $1 AND id = $2
          RETURNING ${userColumns}`,
         [
@@ -2237,6 +2191,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           jobTitle,
           nextModules,
           nextEditModules,
+          input.role === "admin" ? [] : nextPermissions,
         ],
       );
       if (!result.rows[0]) {
@@ -2245,8 +2200,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       }
       const updated = mapAdminUser(result.rows[0]);
       if (
-        JSON.stringify([previousModules, previousEditModules]) !==
-        JSON.stringify([nextModules, nextEditModules])
+        JSON.stringify(previousPermissions) !== JSON.stringify(nextPermissions)
       )
         await this.addAdminAudit(
           client,
@@ -2259,6 +2213,7 @@ export class PostgresClinicRepository implements ClinicRepository {
             modules: updated.modules,
             editModules: updated.editModules,
             custom: updated.customModules,
+            previousPermissions, permissions: updated.permissions,
           },
         );
       await this.addAdminAudit(
@@ -4985,6 +4940,11 @@ export class PostgresClinicRepository implements ClinicRepository {
           "Atendimento de lead não tem prontuário. Converta o lead em cliente primeiro.",
           409,
         );
+      // Serialize creation/updating of the same appointment before deciding the operation.
+      await client.query("SELECT id FROM appointments WHERE clinic_id=$1 AND id=$2 FOR UPDATE", [clinicId, input.appointmentId]);
+      const current = await this.findClinicalRecordByAppointment(client, clinicId, input.appointmentId);
+      const author = await client.query<UserRow>(`SELECT ${userColumns} FROM users WHERE clinic_id=$1 AND id=$2 AND active`, [clinicId, authorUserId]);
+      assertClinicalWritePermission(author.rows[0] ? { permissions: rowPermissions(author.rows[0]) } : null, Boolean(current));
       const saved = await client.query<{ id: string }>(
         `
           INSERT INTO clinical_records (

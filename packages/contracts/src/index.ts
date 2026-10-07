@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { userPermissionsSchema, validatePermissionInput, type PermissionKey } from "./permissions.js";
+export * from "./permissions.js";
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
@@ -185,9 +187,10 @@ export const adminUserInputSchema = z.object({
   modules: userModulesSchema.optional(),
   /** Módulos com edição; ausente ou `null` = nenhum (editar sem ver é descartado). */
   editModules: userModulesSchema.optional(),
+  permissions: userPermissionsSchema.optional(),
   /** Comissão do usuário já na criação; ausente = sem comissão. */
   commission: adminUserCommissionInputSchema.optional(),
-});
+}).superRefine(validatePermissionInput);
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 export const adminUserUpdateSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
@@ -199,7 +202,8 @@ export const adminUserUpdateSchema = z.object({
   modules: userModulesSchema.optional(),
   /** Ausente = mantém os módulos com edição atuais; `null` = nenhum. */
   editModules: userModulesSchema.optional(),
-});
+  permissions: userPermissionsSchema.optional(),
+}).superRefine(validatePermissionInput);
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
 export const passwordResetSchema = z.object({ password: strongPasswordSchema });
 export const clinicSettingsInputSchema = z.object({
@@ -1257,6 +1261,7 @@ export interface UserSummary {
   modules: AppModule[];
   /** Módulos com edição efetiva (`effectiveEditModules`; sempre subconjunto de `modules`). */
   editModules: AppModule[];
+  permissions: PermissionKey[];
 }
 
 export interface AdminUser extends UserSummary {
@@ -1524,6 +1529,9 @@ export interface InventoryWorkspace {
   inventoryCostInCents: number;
   openTabsInCents: number;
 }
+
+export type DashboardViewSummary = Pick<DashboardSummary, "date"> & Partial<Omit<DashboardSummary, "date">>;
+export type ClinicalAppointmentOption = Pick<Appointment, "id" | "startsAt" | "patientName" | "professionalName" | "status">;
 
 export interface DashboardSummary {
   date: string;

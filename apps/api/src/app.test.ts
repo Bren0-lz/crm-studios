@@ -355,13 +355,13 @@ describe("CRM API", () => {
     ).filter(
       (event) => event.action === "users.permissions_updated" && event.entityId === userId,
     );
-    expect(permissionEvents).toHaveLength(4);
-    expect(permissionEvents.at(-1)!.metadata).toEqual({
+    expect(permissionEvents).toHaveLength(5);
+    expect(permissionEvents.at(-1)!.metadata).toMatchObject({
       modules: physioModules,
       editModules: [],
       custom: true,
     });
-    expect(permissionEvents.at(-2)!.metadata).toEqual({
+    expect(permissionEvents.at(-2)!.metadata).toMatchObject({
       modules: physioModules,
       editModules: ["patients", "clinical"],
       custom: true,
@@ -6535,7 +6535,7 @@ describe("CRM API", () => {
       await app.close();
     });
 
-    it("is restricted to the owner", async () => {
+    it("requires explicit export permission for common users", async () => {
       const { app } = await setup();
       await seedRoleUsers(app);
       for (const role of ["reception", "finance", "physiotherapist"] as UserRole[]) {
@@ -6545,7 +6545,7 @@ describe("CRM API", () => {
           headers: tokenHeaders(app, role),
         });
         expect(response.statusCode, role).toBe(403);
-        expect(response.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
+        expect(response.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
       }
       const anonymous = await app.inject({ method: "GET", url: "/patients/export" });
       expect(anonymous.statusCode).toBe(401);
@@ -6969,7 +6969,7 @@ describe("CRM API", () => {
       for (const [url, code] of [
         ["/admin/users", "ADMIN_ACCESS_REQUIRED"],
         ["/finance/workspace", "FINANCE_ACCESS_DENIED"],
-        ["/patients/export", "ADMIN_ACCESS_REQUIRED"],
+        ["/patients/export", "COMMERCIAL_ACCESS_DENIED"],
         ["/reports/management", "MANAGEMENT_ACCESS_DENIED"],
       ] as const) {
         const denied = await app.inject({ method: "HEAD", url, headers: reception.headers });
@@ -7227,7 +7227,7 @@ describe("CRM API", () => {
       for (const url of ["/admin/users", "/admin/clinic-settings", "/admin/audit-events", "/patients/export"]) {
         const get = await app.inject({ method: "GET", url, headers: user.headers });
         expect(get.statusCode, url).toBe(403);
-        expect(get.json(), url).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
+        expect(get.json(), url).toMatchObject({ code: url === "/patients/export" ? "COMMERCIAL_ACCESS_DENIED" : "ADMIN_ACCESS_REQUIRED" });
         expect((await app.inject({ method: "HEAD", url, headers: user.headers })).statusCode, url).toBe(403);
       }
       // Nem com todos os módulos o usuário comum entra na Administração.
@@ -7693,7 +7693,7 @@ describe("CRM API", () => {
       expect(demoDenied.statusCode).toBe(403);
       expect(demoDenied.json()).toMatchObject({
         code: "AGENDA_ACCESS_DENIED",
-        message: "Seu usuário não possui permissão para editar Agenda.",
+        details: { permission: "agenda.create" },
       });
       const planDenied = await guided(plan("Perm Plano Negado"), patientsOnly);
       expect(planDenied.statusCode).toBe(403);

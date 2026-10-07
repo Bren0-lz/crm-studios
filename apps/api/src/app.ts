@@ -1,3 +1,4 @@
+import { permissionCatalog, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
@@ -68,7 +69,6 @@ import {
   patientInputSchema,
   patientListQuerySchema,
   guidedPatientInputSchema,
-  type GuidedPatientNext,
   type GuidedPatientResult,
   patientImportFileSchema,
   patientTagInputSchema,
@@ -386,13 +386,14 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
       modules: user.modules,
       editModules: user.editModules,
+      permissions: user.permissions,
     };
   }
 
   /** Módulos e edição efetivos do usuário da requisição (lidos do repositório no `authenticate`). */
   const requestAccess = new WeakMap<
     FastifyRequest,
-    { modules: readonly AppModule[]; editModules: readonly AppModule[] }
+    { modules: readonly AppModule[]; permissions: readonly PermissionKey[] }
   >();
 
   /**
@@ -420,7 +421,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     request.user.role = user.role;
     requestAccess.set(request, {
       modules: user.modules,
-      editModules: user.editModules,
+      permissions: user.permissions,
     });
   }
 
@@ -431,15 +432,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   ) {
     const access = requestAccess.get(request);
     return requirements.find(
-      ({ module, level }) =>
-        !(level === "edit" ? access?.editModules : access?.modules)?.includes(
-          module,
-        ),
+      ({ permission }) => !access?.permissions.includes(permission),
     );
   }
   function moduleDenied(missing: ModuleRequirement): ApiError {
     return {
       code: moduleDeniedCodes[missing.module],
+      details: { permission: missing.permission ?? `${missing.module}.view` },
       message: `Seu usuário não possui permissão para ${
         missing.level === "edit" ? "editar" : "ver"
       } ${appModuleLabels[missing.module]}.`,
@@ -458,12 +457,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   function requireAnyModule(requirements: readonly ModuleRequirement[]) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       const access = requestAccess.get(request);
-      const allowed = requirements.some(({ module, level }) =>
-        (level === "edit" ? access?.editModules : access?.modules)?.includes(module),
+      const allowed = requirements.some(({ permission }) => access?.permissions.includes(permission),
       );
       if (!allowed)
         return reply.status(403).send({
           code: moduleDeniedCodes[requirements[0]!.module],
+          details: { permissions: requirements.map(item => item.permission) },
           message: `Seu usuário não possui permissão para ${
             requirements[0]!.level === "edit" ? "editar" : "ver"
           } ${requirements.map(({ module }) => appModuleLabels[module]).join(" ou ")}.`,
@@ -472,6 +471,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   }
 
   /** Administração: só usuário do tipo admin (tipo relido do repositório no `authenticate`). */
+  function assertPermissions(request: FastifyRequest, ...keys: PermissionKey[]) {
+    for (const key of keys) {
+      if (!requestAccess.get(request)?.permissions.includes(key)) {
+        const item = permissionCatalog.find(item => item.key === key)!;
+        throw new DomainError(moduleDeniedCodes[item.module], `Acesso negado: ${item.name}.`, 403, { permission: key });
+      }
+    }
+  }
+
   async function requireAdminAccess(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -873,7 +881,14 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         timeZone: "America/Sao_Paulo",
       }).format(new Date());
     await repository.renewDuePatientPlans(request.user.clinicId, request.user.sub);
-    return repository.getDashboard(request.user.clinicId, date);
+    const access = requestAccess.get(request)!;
+    if (!access.modules.includes("agenda") && !access.modules.includes("patients")) return { date } satisfies DashboardViewSummary;
+    const summary = await repository.getDashboard(request.user.clinicId, date);
+    return {
+      date,
+      ...(access.modules.includes("agenda") ? { appointmentsToday: summary.appointmentsToday, completedToday: summary.completedToday, noShowsThisMonth: summary.noShowsThisMonth, nextAppointments: summary.nextAppointments } : {}),
+      ...(access.modules.includes("patients") ? { patientsActive: summary.patientsActive } : {}),
+    } satisfies DashboardViewSummary;
   });
 
   app.get("/patients", { preHandler: authenticate }, async (request) => {
@@ -979,26 +994,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
    * Cadastro guiado: o `ROUTE_ACCESS` exige editar Clientes; aqui exige também editar o módulo
    * do passo (Agenda, Planos e, com turma, Turmas), com o mesmo 403 das guardas.
    */
-  const guidedStepModules: Record<GuidedPatientNext, AppModule[]> = {
-    none: [],
-    demonstration: ["agenda"],
-    plan: ["plans"],
-    single: ["plans"],
-  };
   app.post(
     "/patients/guided",
     { preHandler: authenticate },
     async (request, reply) => {
       const input = guidedPatientInputSchema.parse(request.body);
-      const modules = [
-        ...guidedStepModules[input.next],
-        ...(input.next === "plan" && input.groupId ? (["groups"] as const) : []),
-      ];
-      const missing = missingModule(
-        request,
-        modules.map((module): ModuleRequirement => ({ module, level: "edit" })),
-      );
-      if (missing) return reply.status(403).send(moduleDenied(missing));
+      assertPermissions(request, "patients.create",
+        ...(input.next === "demonstration" ? ["agenda.create" as const] : []),
+        ...(input.next === "plan" || input.next === "single" ? ["plans.create" as const] : []),
+        ...(input.next === "plan" && input.groupId ? ["groups.enroll" as const] : []));
       const clinicId = request.user.clinicId;
       const patient = await withConfiguredTags(clinicId, input.patient);
       if (input.next === "demonstration")
@@ -1157,7 +1161,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",
         });
-      return timeline;
+      const sourceModules: Record<string, AppModule> = {
+        appointment: "agenda", plan_created: "plans", plan_renewed: "plans", plan_cancelled: "plans",
+        payment: "finance", payment_reversal: "finance", contact: "relationship", message: "communications", satisfaction: "agenda",
+      };
+      return timeline.filter(item => requestAccess.get(request)?.modules.includes(sourceModules[item.kind]!));
     },
   );
 
@@ -1204,6 +1212,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       ),
   );
 
+  app.get("/appointments/options", { preHandler: authenticate }, async (request): Promise<ClinicalAppointmentOption[]> => {
+    const { from, to } = z.object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) }).parse(request.query);
+    const appointments = await repository.listAppointments(request.user.clinicId, from, to);
+    return appointments.filter(item => item.patientId).map(({ id, startsAt, patientName, professionalName, status }) => ({ id, startsAt, patientName, professionalName, status }));
+  });
   app.get("/appointments", { preHandler: authenticate }, async (request) => {
     const query = request.query as { from?: string; to?: string };
     if (!query.from || !query.to)
@@ -1296,6 +1309,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const { status } = appointmentStatusInputSchema.parse(request.body);
+      assertPermissions(request, status === "cancelled" ? "agenda.cancel" : "agenda.attendance");
       const appointment = await repository.updateAppointmentStatus(
         request.user.clinicId,
         id,
@@ -1856,6 +1870,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       const status = planTransitionSchema.parse(
         (request.body as { status?: unknown }).status,
       );
+
+      assertPermissions(request, status === "cancelled" ? "plans.cancel" : "plans.status");
       const plan = await repository.updatePatientPlanStatus(
         request.user.clinicId,
         request.user.sub,
@@ -2576,6 +2592,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       const status = documentTransitionSchema.parse(
         (request.body as { status?: unknown }).status,
       );
+
+      assertPermissions(request, status === "cancelled" ? "contracts.cancel" : "contracts.status");
       const document = await repository.updateIssuedDocumentStatus(
         request.user.clinicId,
         id,

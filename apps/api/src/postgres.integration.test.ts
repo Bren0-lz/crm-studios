@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { legacyPermissions, permissionKeys } from "@crm/contracts";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
@@ -64,6 +66,121 @@ const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
+
+  it("serializes draft creation and checks update permission before overwriting", async () => {
+    const user = await repository.createAdminUser(clinicId, ownerId, {
+      fullName: "Clinical Permission Test", email: `${randomUUID()}@test.local`,
+      role: "user", password: "Password123", permissions: ["clinical.view", "clinical.records_create"],
+    }, "unused-hash");
+    const [patients, professionals, rooms, services] = await Promise.all([
+      repository.listPatients(clinicId), repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId), repository.listServices(clinicId),
+    ]);
+    const appointment = await repository.createAppointment(clinicId, {
+      patientId: patients[0]!.id, professionalId: professionals[0]!.id,
+      roomId: rooms[0]!.id, serviceId: services[0]!.id,
+      startsAt: "2039-02-10T12:00:00.000Z", visitType: "regular", notes: "permission-concurrency",
+    });
+    const input = { appointmentId: appointment.id, subjective: "Original", objective: "", assessment: "", plan: "" };
+    const cleanupFixture = async () => {
+      const cleanup = await pool.connect();
+      try {
+        await cleanup.query("BEGIN");
+        // The existing clinical trigger prevents physical deletion. This setting
+        // is local to fixture cleanup in the disposable test database and transaction.
+        await cleanup.query("SET LOCAL session_replication_role = replica");
+        await cleanup.query("DELETE FROM clinical_record_revisions WHERE clinical_record_id IN (SELECT id FROM clinical_records WHERE appointment_id=$1)", [appointment.id]);
+        await cleanup.query("DELETE FROM clinical_records WHERE appointment_id=$1", [appointment.id]);
+        await cleanup.query("DELETE FROM appointments WHERE id=$1", [appointment.id]);
+        await cleanup.query("DELETE FROM audit_events WHERE entity_id=$1", [user.id]);
+        await cleanup.query("DELETE FROM users WHERE id=$1", [user.id]);
+        await cleanup.query("COMMIT");
+      } catch (error) {
+        await cleanup.query("ROLLBACK");
+        throw error;
+      } finally {
+        cleanup.release();
+      }
+    };
+    try {
+      const results = await Promise.allSettled([1, 2].map(() => repository.saveClinicalRecord(clinicId, user.id, input)));
+      expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+      expect(results.find(result => result.status === "rejected")).toMatchObject({ reason: { statusCode: 403, details: { permission: "clinical.records_update" } } });
+      expect((await pool.query("SELECT version,subjective FROM clinical_records WHERE appointment_id=$1", [appointment.id])).rows[0]).toMatchObject({ version: 1, subjective: "Original" });
+      await repository.updateAdminUser(clinicId, ownerId, user.id, { fullName: user.fullName, role: "user", active: true, permissions: ["clinical.view", "clinical.records_update"] });
+      await repository.saveClinicalRecord(clinicId, user.id, { ...input, subjective: "Changed" });
+      expect((await pool.query("SELECT version,subjective FROM clinical_records WHERE appointment_id=$1", [appointment.id])).rows[0]).toMatchObject({ version: 2, subjective: "Changed" });
+    } finally {
+      await cleanupFixture();
+    }
+  });
+
+  it("backfills operation permissions exactly once and preserves granular changes", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("CREATE SCHEMA operation_permission_migration");
+      await client.query("SET LOCAL search_path TO operation_permission_migration, public");
+      await client.query("CREATE TABLE users(id text PRIMARY KEY, role text, modules text[], edit_modules text[])");
+      const cases = [
+        { id: "empty", role: "user", modules: [], editModules: [] },
+        { id: "view", role: "user", modules: ["patients", "clinical", "reports"], editModules: [] },
+        { id: "edit", role: "user", modules: ["agenda", "patients", "finance"], editModules: ["agenda", "patients", "finance"] },
+        { id: "invalid-edit", role: "user", modules: ["agenda"], editModules: ["patients", "agenda"] },
+        { id: "admin", role: "admin", modules: [], editModules: [] },
+      ] as const;
+      for (const item of cases) await client.query("INSERT INTO users VALUES ($1,$2,$3,$4)", [item.id, item.role, item.modules, item.editModules]);
+      const sql = readFileSync(new URL("../migrations/0045_operation_permissions.sql", import.meta.url), "utf8");
+      await client.query(sql);
+      for (const item of cases) {
+        const row = await client.query("SELECT permissions FROM users WHERE id=$1", [item.id]);
+        expect(row.rows[0].permissions.sort()).toEqual((item.role === "admin" ? [] : legacyPermissions(item.role, item.modules, item.editModules)).sort());
+      }
+      await client.query("UPDATE users SET permissions=ARRAY['agenda.view'] WHERE id='edit'");
+      await client.query(sql);
+      expect((await client.query("SELECT permissions FROM users WHERE id='edit'")).rows[0].permissions).toEqual(["agenda.view"]);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("persists granular permissions, audits before/after and isolates clinics", async () => {
+    const email = `operation-${randomUUID()}@test.local`;
+    const user = await repository.createAdminUser(clinicId, "22222222-2222-4222-8222-222222222222", { fullName: "Operation User", email, role: "user", password: "Password123", permissions: ["finance.view", "finance.receive"] }, "unused-hash");
+    try {
+      expect((await repository.findUserById(clinicId, user.id))?.permissions).toEqual(["finance.view", "finance.receive"]);
+      expect(await repository.findUserById(randomUUID(), user.id)).toBeNull();
+      expect(await repository.updateAdminUser(randomUUID(), "22222222-2222-4222-8222-222222222222", user.id, { fullName: user.fullName, role: "user", active: true, permissions: [] })).toBeNull();
+      await repository.updateAdminUser(clinicId, "22222222-2222-4222-8222-222222222222", user.id, { fullName: user.fullName, role: "user", active: true });
+      expect((await repository.findUserById(clinicId, user.id))?.permissions).toEqual(["finance.view", "finance.receive"]);
+      await repository.updateAdminUser(clinicId, "22222222-2222-4222-8222-222222222222", user.id, { fullName: user.fullName, role: "user", active: true, permissions: [] });
+      expect((await pool.query("SELECT permissions FROM users WHERE id=$1", [user.id])).rows[0].permissions).toEqual([]);
+      expect((await repository.listAdminAuditEvents(clinicId)).find(event => event.entityId === user.id && event.action === "users.permissions_updated" && (event.metadata.permissions as string[]).length === 0)?.metadata).toMatchObject({ previousPermissions: ["finance.view", "finance.receive"], permissions: [] });
+    } finally {
+      await pool.query("DELETE FROM audit_events WHERE entity_id=$1", [user.id]);
+      await pool.query("DELETE FROM users WHERE id=$1", [user.id]);
+    }
+  });
+
+  it("serializes simultaneous demotions and retains one active administrator", async () => {
+    const clinic = randomUUID();
+    const first = randomUUID();
+    const second = randomUUID();
+    await pool.query("INSERT INTO clinics(id,name,timezone) VALUES ($1,'Concurrent Permissions','America/Sao_Paulo')", [clinic]);
+    try {
+      for (const id of [first, second]) await pool.query("INSERT INTO users(id,clinic_id,full_name,email,role,password_hash) VALUES ($1,$2,'Admin Test',$3,'admin','unused')", [id, clinic, `${id}@test.local`]);
+      expect((await repository.findUserById(clinic, first))?.permissions).toEqual(permissionKeys);
+      const results = await Promise.allSettled([first, second].map(id => repository.updateAdminUser(clinic, id, id, { fullName: "Former Admin", role: "user", active: true, permissions: [] })));
+      expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+      expect(results.find(result => result.status === "rejected")).toMatchObject({ reason: { code: "LAST_ADMIN" } });
+      expect((await pool.query("SELECT count(*)::int AS count FROM users WHERE clinic_id=$1 AND active AND role='admin'", [clinic])).rows[0].count).toBe(1);
+    } finally {
+      await pool.query("DELETE FROM audit_events WHERE clinic_id=$1", [clinic]);
+      await pool.query("DELETE FROM users WHERE clinic_id=$1", [clinic]);
+      await pool.query("DELETE FROM clinics WHERE id=$1", [clinic]);
+    }
+  });
 
   async function cleanupRecurringPayables() {
     const models = `SELECT id FROM recurring_payables WHERE clinic_id = $1 AND description = $2`;
@@ -1906,7 +2023,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       const events = (await repository.listAdminAuditEvents(clinicId)).filter(
         (item) => item.action === "users.permissions_updated" && item.entityId === created.id,
       );
-      expect(events).toHaveLength(2);
+      expect(events).toHaveLength(3);
     } finally {
       await cleanupPermissionsUser();
     }

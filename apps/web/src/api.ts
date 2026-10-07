@@ -1,3 +1,4 @@
+import type { DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
 import type {
   AdminAuditEvent,
   AdminUser,
@@ -41,7 +42,6 @@ import type {
   BirthdayEntry,
   DailyCash,
   FinanceForecast,
-  DashboardSummary,
   CostCenter,
   CostCenterInput,
   DocumentStatus,
@@ -152,7 +152,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   const body = await response.json();
   if (!response.ok) {
-    if (response.status === 401 && path !== "/auth/login") clearSession();
+    if (response.status === 401 && path !== "/auth/login") { clearSession(); window.dispatchEvent(new Event("crm:session-ended")); }
+    if (response.status === 403 && path !== "/me") window.dispatchEvent(new Event("crm:access-denied"));
     throw new ApiClientError(
       body.message ?? "Não foi possível concluir a operação.",
       body.code ?? "UNKNOWN_ERROR",
@@ -169,6 +170,8 @@ async function requestBlob(path: string) {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) {
+    if (response.status === 401) { clearSession(); window.dispatchEvent(new Event("crm:session-ended")); }
+    if (response.status === 403) window.dispatchEvent(new Event("crm:access-denied"));
     const body = (await response.json()) as { message?: string; code?: string };
     throw new ApiClientError(
       body.message ?? "Não foi possível exportar o relatório.",
@@ -274,7 +277,7 @@ export const api = {
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
   dashboard: (date: string) =>
-    request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
+    request<DashboardViewSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>
     request<Patient[]>(`/patients?search=${encodeURIComponent(search)}`),
   /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
@@ -322,6 +325,8 @@ export const api = {
   professionals: () => request<Professional[]>("/professionals"),
   rooms: () => request<Room[]>("/rooms"),
   services: () => request<Service[]>("/services"),
+  clinicalAppointmentOptions: (from: string, to: string) =>
+    request<ClinicalAppointmentOption[]>(`/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   appointments: (from: string, to: string) =>
     request<Appointment[]>(
       `/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

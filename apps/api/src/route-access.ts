@@ -1,10 +1,11 @@
-import type { AppModule } from "@crm/contracts";
+import { permissionCatalog, type PermissionKey, type AppModule } from "@crm/contracts";
 
 /** Nível exigido num módulo: "view" para leituras, "edit" para gravações. */
 export type AccessLevel = "view" | "edit";
 export interface ModuleRequirement {
   module: AppModule;
   level: AccessLevel;
+  permission: PermissionKey;
 }
 /**
  * - `public`: sem login (saúde e login).
@@ -22,39 +23,17 @@ export type RouteAccess =
   | { anyOf: ModuleRequirement[] };
 
 const view = (...modules: AppModule[]): ModuleRequirement[] =>
-  modules.map((module) => ({ module, level: "view" }));
+  modules.map((module) => ({ module, level: "view", permission: `${module}.view` }));
 /** Ver qualquer um dos módulos. */
 const viewAny = (...modules: AppModule[]) => ({ anyOf: view(...modules) });
-const edit = (...modules: AppModule[]): ModuleRequirement[] =>
-  modules.map((module) => ({ module, level: "edit" }));
+const operation = (...keys: PermissionKey[]): ModuleRequirement[] => keys.map(permission => {
+  const item = permissionCatalog.find(item => item.key === permission)!;
+  return { module: item.module, level: permission.endsWith(".view") ? "view" : "edit", permission };
+});
 
-/**
- * Mapa único rota → acesso exigido (chave `MÉTODO /caminho`, como registrado no Fastify).
- * Toda rota precisa estar aqui: `buildApp` recusa subir com rota sem entrada.
- *
- * Com os padrões dos perfis antigos (`legacy-roles.ts`, gravados nos usuários pela migração
- * 0042) o acesso é o mesmo de antes dos módulos por usuário, exceto a decisão do dono: gravar clientes
- * (`POST /patients`, `PUT /patients/:id`) passa a exigir edição de Clientes — a
- * fisioterapeuta deixa de gravar clientes.
- *
- * Escolhas que preservam o acesso de antes (pontos para o dono revisar):
- * - `/schedule-blocks` (gravações): antes só comercial (gestora/recepção/financeiro); exige
- *   editar Agenda E Clientes.
- * - `/professionals`, `/rooms`, `/services` (gravações): antes bastava login; exigem editar
- *   Agenda (todos os perfis têm por padrão).
- * - `/patients/:id/timeline`: antes só comercial; exige ver Clientes E CRM (a fisioterapeuta
- *   vê Clientes, mas não CRM).
- * - `/inventory/*` e `/patient-tabs/*`: antes só comercial; ficam em Clientes. A leitura do
- *   workspace de estoque/comandas exige EDITAR Clientes (ver Clientes a liberaria para a
- *   fisioterapeuta).
- * - `/satisfaction`: antes os 4 perfis; fica em Agenda.
- * - `GET /relationship/settings`: antes só comercial; exige ver Contatos sugeridos OU
- *   Configurações (as duas telas e o cartão de aniversários da Visão geral leem os prazos).
- * - `GET /patients/options` (D11): lista mínima de clientes (id, nome e etiquetas) para as telas
- *   que só escolhem o cliente — exige ver Clientes, Agenda, Comunicações, Contratos OU Turmas.
- *   O cadastro completo (`GET /patients`) continua só com ver Clientes.
- * - `GET /patient-tags` (T062): mesmas telas de `/patients/options` (que mostram etiquetas) mais
- *   Configurações; criar, renomear/trocar cor e excluir exigem editar Configurações.
+/** Explicit authorization policy for every registered route. Startup rejects unmapped routes.
+ * View permissions authorize module reads; operation permissions authorize individual actions.
+ * Supporting selections use anyOf and minimal DTOs instead of complete module records.
  */
 export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /health": "public",
@@ -75,50 +54,51 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "DELETE /holidays/:id": "admin",
   "GET /admin/audit-events": "admin",
   "GET /admin/permission-matrix": "admin",
-  "GET /patients/export": "admin",
+  "GET /patients/export": operation("patients.export"),
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",
-  "GET /holidays": "login",
-  "GET /professionals": "login",
-  "GET /rooms": "login",
-  "GET /services": "login",
-  "GET /appointments": "login",
-  "GET /appointments/:id/reschedules": "login",
-  "GET /schedule-blocks": "login",
-  "GET /group-sessions": "login",
+  "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
+  "GET /professionals": viewAny("agenda", "groups", "clinical", "contracts", "finance", "crm"),
+  "GET /rooms": viewAny("agenda", "groups", "crm"),
+  "GET /services": viewAny("agenda", "groups", "plans", "crm"),
+  "GET /appointments/options": view("clinical"),
+  "GET /appointments": viewAny("agenda"),
+  "GET /appointments/:id/reschedules": viewAny("agenda"),
+  "GET /schedule-blocks": viewAny("agenda"),
+  "GET /group-sessions": viewAny("groups", "agenda"),
 
   // Agenda.
-  "POST /professionals": edit("agenda"),
-  "POST /rooms": edit("agenda"),
-  "POST /services": edit("agenda"),
-  "POST /appointments": edit("agenda"),
-  "POST /appointments/recurring": edit("agenda"),
-  "PUT /appointments/:id/schedule": edit("agenda"),
-  "PATCH /appointments/:id/status": edit("agenda"),
-  "POST /schedule-blocks": edit("agenda", "patients"),
-  "POST /schedule-blocks/:id/cancel": edit("agenda", "patients"),
+  "POST /professionals": operation("agenda.professionals_create"),
+  "POST /rooms": operation("agenda.rooms_create"),
+  "POST /services": operation("agenda.services_create"),
+  "POST /appointments": operation("agenda.create"),
+  "POST /appointments/recurring": operation("agenda.recurring"),
+  "PUT /appointments/:id/schedule": operation("agenda.reschedule"),
+  "PATCH /appointments/:id/status": { anyOf: operation("agenda.attendance", "agenda.cancel") },
+  "POST /schedule-blocks": operation("agenda.blocks_create"),
+  "POST /schedule-blocks/:id/cancel": operation("agenda.blocks_cancel"),
   "GET /satisfaction": view("agenda"),
-  "POST /satisfaction": edit("agenda"),
+  "POST /satisfaction": operation("agenda.satisfaction_create"),
 
   // Turmas.
   "GET /groups/workspace": view("groups"),
-  "POST /groups": edit("groups"),
-  "PUT /groups/:id": edit("groups"),
-  "POST /group-enrollments": edit("groups"),
-  "POST /group-enrollments/:id/cancel": edit("groups"),
-  "PUT /group-sessions/:sessionId/attendance/:patientId": edit("groups"),
-  "POST /group-sessions/:id/complete": edit("groups"),
-  "POST /group-replacements/book": edit("groups"),
+  "POST /groups": operation("groups.create"),
+  "PUT /groups/:id": operation("groups.update"),
+  "POST /group-enrollments": operation("groups.enroll"),
+  "POST /group-enrollments/:id/cancel": operation("groups.cancel_enrollment"),
+  "PUT /group-sessions/:sessionId/attendance/:patientId": operation("groups.attendance"),
+  "POST /group-sessions/:id/complete": operation("groups.complete"),
+  "POST /group-replacements/book": operation("groups.replacement"),
 
   // Clientes (inclui estoque e comandas).
   "GET /patients": view("patients"),
-  "GET /patients/options": viewAny("patients", "agenda", "communications", "contracts", "groups"),
-  "POST /patients": edit("patients"),
+  "GET /patients/options": viewAny("patients", "agenda", "communications", "contracts", "groups", "plans", "clinical"),
+  "POST /patients": operation("patients.create"),
   // Cadastro guiado (T064): a rota exige também editar o módulo do passo (agenda/plans/groups).
-  "POST /patients/guided": edit("patients"),
-  "PUT /patients/:id": edit("patients"),
-  "POST /patients/import/preview": edit("patients"),
+  "POST /patients/guided": operation("patients.create"),
+  "PUT /patients/:id": operation("patients.update"),
+  "POST /patients/import/preview": operation("patients.import"),
   // Etiquetas configuradas (T062): leitura para quem vê clientes/etiquetas; gestão em Configurações.
   "GET /patient-tags": viewAny(
     "patients",
@@ -128,78 +108,78 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "contracts",
     "groups",
   ),
-  "POST /patient-tags": edit("settings"),
-  "PATCH /patient-tags/:id": edit("settings"),
-  "DELETE /patient-tags/:id": edit("settings"),
-  "POST /patients/import": edit("patients"),
-  "GET /patients/:id/timeline": view("patients", "crm"),
-  "GET /inventory/workspace": edit("patients"),
-  "POST /inventory/products": edit("patients"),
-  "POST /inventory/movements": edit("patients"),
-  "POST /patient-tabs": edit("patients"),
-  "POST /patient-tabs/:id/items": edit("patients"),
-  "POST /patient-tabs/:id/close": edit("patients"),
-  "POST /patient-tabs/:id/cancel": edit("patients"),
+  "POST /patient-tags": operation("settings.tags_create"),
+  "PATCH /patient-tags/:id": operation("settings.tags_update"),
+  "DELETE /patient-tags/:id": operation("settings.tags_delete"),
+  "POST /patients/import": operation("patients.import"),
+  "GET /patients/:id/timeline": operation("patients.timeline"),
+  "GET /inventory/workspace": operation("patients.inventory_view"),
+  "POST /inventory/products": operation("patients.products_create"),
+  "POST /inventory/movements": operation("patients.stock_move"),
+  "POST /patient-tabs": operation("patients.tabs_create"),
+  "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
+  "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
+  "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
 
   // Planos e sessões.
   "GET /plans": view("plans"),
   "GET /plans/:id/movements": view("plans"),
-  "POST /plans": edit("plans"),
-  "PATCH /plans/:id/status": edit("plans"),
-  "POST /plans/:id/renew": edit("plans"),
-  "PATCH /plans/:id/auto-renew": edit("plans"),
+  "POST /plans": operation("plans.create"),
+  "PATCH /plans/:id/status": { anyOf: operation("plans.status", "plans.cancel") },
+  "POST /plans/:id/renew": operation("plans.renew"),
+  "PATCH /plans/:id/auto-renew": operation("plans.auto_renew"),
 
   // CRM comercial.
   "GET /leads": view("crm"),
   "GET /leads/:id/activity": view("crm"),
-  "POST /leads": edit("crm"),
-  "PATCH /leads/:id/stage": edit("crm"),
-  "POST /leads/:id/convert": edit("crm"),
-  "POST /leads/:id/contacts": edit("crm"),
-  "POST /leads/:id/tasks": edit("crm"),
-  "POST /leads/:id/appointments": edit("crm"),
-  "PATCH /lead-tasks/:id/status": edit("crm"),
+  "POST /leads": operation("crm.create"),
+  "PATCH /leads/:id/stage": operation("crm.stage"),
+  "POST /leads/:id/convert": operation("crm.convert", "patients.create"),
+  "POST /leads/:id/contacts": operation("crm.contacts_create"),
+  "POST /leads/:id/tasks": operation("crm.tasks_create"),
+  "POST /leads/:id/appointments": operation("crm.appointments_create", "agenda.create"),
+  "PATCH /lead-tasks/:id/status": operation("crm.tasks_status"),
 
   // Contatos sugeridos (relacionamento).
   "GET /relationship/settings": viewAny("relationship", "settings"),
   "GET /relationship/suggestions": view("relationship"),
   "GET /relationship/birthdays": view("relationship"),
   "GET /relationship/activities": view("relationship"),
-  "POST /relationship/activities": edit("relationship"),
+  "POST /relationship/activities": operation("relationship.activities_create"),
 
   // Comunicações.
   "GET /communications": view("communications"),
-  "PUT /communications/preferences": edit("communications"),
-  "POST /communications/messages": edit("communications"),
-  "POST /communications/broadcast/preview": edit("communications"),
-  "POST /communications/broadcast": edit("communications"),
-  "POST /communications/reminders/generate": edit("communications"),
+  "PUT /communications/preferences": operation("communications.preferences"),
+  "POST /communications/messages": operation("communications.messages"),
+  "POST /communications/broadcast/preview": operation("communications.broadcast"),
+  "POST /communications/broadcast": operation("communications.broadcast"),
+  "POST /communications/reminders/generate": operation("communications.reminders"),
 
   // Contratos.
   "GET /document-templates": view("contracts"),
-  "POST /document-templates": edit("contracts"),
-  "POST /document-templates/:id/versions": edit("contracts"),
+  "POST /document-templates": operation("contracts.templates_create"),
+  "POST /document-templates/:id/versions": operation("contracts.templates_version"),
   "GET /documents": view("contracts"),
-  "POST /documents": edit("contracts"),
-  "PATCH /documents/:id/status": edit("contracts"),
+  "POST /documents": operation("contracts.issue"),
+  "PATCH /documents/:id/status": { anyOf: operation("contracts.status", "contracts.cancel") },
 
   // Prontuários.
   "GET /clinical-records": view("clinical"),
   "GET /clinical-records/:id/revisions": view("clinical"),
   "GET /clinical-workspace/:patientId": view("clinical"),
-  "GET /clinical-workspace/:patientId/export": view("clinical"),
-  "GET /clinical-workspace/:patientId/access-events": view("clinical"),
-  "GET /clinical-attachments/:id/content": view("clinical"),
-  "POST /clinical-records": edit("clinical"),
-  "POST /clinical-records/:id/finalize": edit("clinical"),
-  "POST /clinical-attachments": edit("clinical"),
-  "POST /clinical-addenda": edit("clinical"),
-  "POST /assessment-templates": edit("clinical"),
-  "POST /clinical-assessments": edit("clinical"),
-  "POST /therapeutic-goals": edit("clinical"),
-  "PATCH /therapeutic-goals/:id/status": edit("clinical"),
-  "POST /clinical-measurements": edit("clinical"),
-  "POST /treatment-closures": edit("clinical"),
+  "GET /clinical-workspace/:patientId/export": operation("clinical.export"),
+  "GET /clinical-workspace/:patientId/access-events": operation("clinical.access_events"),
+  "GET /clinical-attachments/:id/content": operation("clinical.attachments_read"),
+  "POST /clinical-records": { anyOf: operation("clinical.records_create", "clinical.records_update") },
+  "POST /clinical-records/:id/finalize": operation("clinical.finalize"),
+  "POST /clinical-attachments": operation("clinical.attachments_create"),
+  "POST /clinical-addenda": operation("clinical.addenda_create"),
+  "POST /assessment-templates": operation("clinical.templates_create"),
+  "POST /clinical-assessments": operation("clinical.assessments_create"),
+  "POST /therapeutic-goals": operation("clinical.goals_create"),
+  "PATCH /therapeutic-goals/:id/status": operation("clinical.goals_status"),
+  "POST /clinical-measurements": operation("clinical.measurements_create"),
+  "POST /treatment-closures": operation("clinical.closures_create"),
 
   // Financeiro.
   "GET /finance/summary": view("finance"),
@@ -208,30 +188,30 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/daily-cash": view("finance"),
   "GET /finance/forecast": view("finance"),
   "GET /finance/recurring-payables": view("finance"),
-  "POST /finance/receivables/:id/pay": edit("finance"),
-  "PATCH /finance/receivables/:id/adjust": edit("finance"),
-  "POST /finance/recurring-payables": edit("finance"),
-  "PUT /finance/recurring-payables/:id": edit("finance"),
-  "DELETE /finance/recurring-payables/:id": edit("finance"),
-  "POST /finance/renegotiations": edit("finance"),
-  "POST /finance/commission-rules": edit("finance"),
-  "POST /finance/commissions/generate": edit("finance"),
-  "POST /finance/commissions/:id/pay": edit("finance"),
-  "POST /finance/commissions/:id/reverse": edit("finance"),
-  "POST /finance/categories": edit("finance"),
-  "POST /finance/cost-centers": edit("finance"),
-  "POST /finance/payables": edit("finance"),
-  "POST /finance/payables/:id/pay": edit("finance"),
-  "POST /finance/payables/:id/reverse": edit("finance"),
-  "POST /finance/receivables/:id/reverse": edit("finance"),
+  "POST /finance/receivables/:id/pay": operation("finance.receive"),
+  "PATCH /finance/receivables/:id/adjust": operation("finance.adjust"),
+  "POST /finance/recurring-payables": operation("finance.recurring_create"),
+  "PUT /finance/recurring-payables/:id": operation("finance.recurring_update"),
+  "DELETE /finance/recurring-payables/:id": operation("finance.recurring_delete"),
+  "POST /finance/renegotiations": operation("finance.renegotiate"),
+  "POST /finance/commission-rules": operation("finance.commission_rules"),
+  "POST /finance/commissions/generate": operation("finance.commissions_generate"),
+  "POST /finance/commissions/:id/pay": operation("finance.commissions_pay"),
+  "POST /finance/commissions/:id/reverse": operation("finance.commissions_reverse"),
+  "POST /finance/categories": operation("finance.categories_create"),
+  "POST /finance/cost-centers": operation("finance.cost_centers_create"),
+  "POST /finance/payables": operation("finance.payables_create"),
+  "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
+  "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "POST /finance/receivables/:id/reverse": operation("finance.receivables_reverse"),
 
   // Relatórios (só leitura).
-  "GET /reports/management": view("reports"),
-  "GET /reports/retention": view("reports"),
-  "GET /reports/clients": view("reports"),
-  "GET /reports/sales": view("reports"),
-  "GET /reports/sales.xlsx": view("reports"),
-  "GET /reports/management.csv": view("reports"),
+  "GET /reports/management": operation("reports.management"),
+  "GET /reports/retention": operation("reports.retention"),
+  "GET /reports/clients": operation("reports.clients"),
+  "GET /reports/sales": operation("reports.sales"),
+  "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),
+  "GET /reports/management.csv": operation("reports.management", "reports.export"),
 };
 
 /** Códigos de erro 403 por módulo (mantêm os códigos das guardas por perfil de antes). */

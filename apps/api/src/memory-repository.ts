@@ -1,3 +1,4 @@
+import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, type PermissionKey } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
 import type {
   AdminAuditEvent,
@@ -156,7 +157,7 @@ import {
   weeklyOccurrences,
   zonedTimeToUtc,
 } from "./group-schedule.js";
-import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { assertClinicalWritePermission, inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
@@ -336,12 +337,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   > = [];
   private readonly documentTemplates: DocumentTemplate[] = [];
   private readonly issuedDocuments: IssuedDocument[] = [];
-  /** Módulos gravados pelo admin para o usuário comum (ausente = nenhum). */
-  private readonly userModules = new Map<string, AppModule[]>();
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   private readonly professionalUsers = new Map<string, string>();
-  /** Módulos com edição gravados para o usuário comum (ausente = nenhum). */
-  private readonly userEditModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -349,6 +346,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "admin",
+      permissions: effectivePermissions("admin"),
       modules: effectiveModules("admin"),
       editModules: effectiveEditModules("admin"),
       customModules: false,
@@ -768,6 +766,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       email: input.email.toLowerCase(),
       role: input.role,
       ...(jobTitle ? { jobTitle } : {}),
+      permissions: [],
       modules: [],
       editModules: [],
       customModules: false,
@@ -776,7 +775,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    this.setUserModules(user, input.modules ?? null, input.editModules ?? null);
+    this.setUserPermissions(user, resolvePermissionInput(input.role, input));
     this.users.push(user);
     this.addAdminAudit(actorUserId, "user.created", "user", user.id, {
       role: user.role,
@@ -788,7 +787,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         "users.permissions_updated",
         "user",
         user.id,
-        { modules: user.modules, editModules: user.editModules, custom: true },
+        { modules: user.modules, editModules: user.editModules, custom: true, previousPermissions: [], permissions: user.permissions },
       );
     if (input.commission)
       this.addUserCommissionRule(
@@ -831,7 +830,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       )
     )
       throw lastAdminError();
-    const previousCustom = this.storedPermissions(user.id);
+    const previousPermissions = [...user.permissions];
+    const previousRole = user.role;
     user.fullName = input.fullName;
     user.role = input.role;
     user.active = input.active;
@@ -840,20 +840,13 @@ export class MemoryClinicRepository implements ClinicRepository {
       if (jobTitle) user.jobTitle = jobTitle;
       else delete user.jobTitle;
     }
-    this.setUserModules(
-      user,
-      input.modules === undefined ? previousCustom.modules : input.modules,
-      input.editModules === undefined
-        ? previousCustom.editModules
-        : input.editModules,
-    );
+    this.setUserPermissions(user, resolvePermissionInput(input.role, input, previousRole === "admin" ? [] : previousPermissions));
     user.updatedAt = now();
     this.addAdminAudit(actorUserId, "user.updated", "user", user.id, {
       role: user.role,
       active: user.active,
     });
-    const currentCustom = this.storedPermissions(user.id);
-    if (JSON.stringify(previousCustom) !== JSON.stringify(currentCustom))
+    if (JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions))
       this.addAdminAudit(
         actorUserId,
         "users.permissions_updated",
@@ -863,41 +856,17 @@ export class MemoryClinicRepository implements ClinicRepository {
           modules: user.modules,
           editModules: user.editModules,
           custom: user.customModules,
+          previousPermissions, permissions: user.permissions,
         },
       );
     return this.toAdminUser(user);
   }
 
-  private storedPermissions(userId: string) {
-    return {
-      modules: this.userModules.get(userId) ?? null,
-      editModules: this.userEditModules.get(userId) ?? null,
-    };
-  }
-
-  /**
-   * Admin não guarda lista (tem sempre todos os módulos); usuário comum: `null` = nenhum.
-   * A edição guardada já descarta módulos sem visualização.
-   */
-  private setUserModules(
-    user: AuthenticatedUser,
-    modules: readonly AppModule[] | null,
-    editModules: readonly AppModule[] | null,
-  ) {
-    const admin = user.role === "admin";
-    const custom =
-      admin || modules === null ? null : effectiveModules(user.role, modules);
-    const customEdit =
-      admin || editModules === null
-        ? null
-        : effectiveEditModules(user.role, custom, editModules);
-    if (custom) this.userModules.set(user.id, custom);
-    else this.userModules.delete(user.id);
-    if (customEdit) this.userEditModules.set(user.id, customEdit);
-    else this.userEditModules.delete(user.id);
-    user.customModules = custom !== null || customEdit !== null;
-    user.modules = effectiveModules(user.role, custom);
-    user.editModules = effectiveEditModules(user.role, custom, customEdit);
+  private setUserPermissions(user: AuthenticatedUser, permissions: readonly PermissionKey[]) {
+    user.permissions = effectivePermissions(user.role, permissions);
+    user.modules = permissionModules(user.permissions);
+    user.editModules = user.role === "admin" ? effectiveEditModules("admin") : permissionEditModules(user.permissions);
+    user.customModules = user.role !== "admin" && user.permissions.length > 0;
   }
 
   async resetAdminUserPassword(
@@ -2901,7 +2870,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       (item) => item.clinicId === clinicId && item.id === input.appointmentId,
     );
     const author = this.users.find(
-      (item) => item.clinicId === clinicId && item.id === authorUserId,
+      (item) => item.clinicId === clinicId && item.id === authorUserId && item.active,
     );
     if (!appointment || !author) {
       throw new DomainError(
@@ -2927,6 +2896,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     const existing = this.clinicalRecords.find(
       (record) => record.appointmentId === appointment.id,
     );
+    assertClinicalWritePermission(author, Boolean(existing));
     if (existing?.status === "finalized") {
       throw new DomainError(
         "CLINICAL_RECORD_FINALIZED",

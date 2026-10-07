@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "./api";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
+import { togglePermissions, permissionCatalog, legacyPermissions, effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
 import { useState } from "react";
 import App, { Modal } from "./App";
 import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
@@ -36,8 +37,27 @@ function legacyAccess(role: string): { role: UserRole; modules: AppModule[]; edi
 
 /** Usuário logado gravado no localStorage, com os módulos do perfil (como login e /me devolvem). */
 function storedUser(user: { id: string; fullName: string; email: string; role: string }) {
-  return JSON.stringify({ ...user, ...legacyAccess(user.role) });
+  return JSON.stringify(withPermissions({ ...user, ...legacyAccess(user.role) }));
 }
+
+
+function withPermissions<T extends { role?: string; modules?: readonly string[]; editModules?: readonly string[]; permissions?: readonly import("@crm/contracts").PermissionKey[] }>(user: T) {
+  const access = legacyAccess(user.role ?? "user");
+  const modules = (user.modules ?? access.modules) as AppModule[];
+  const editModules = (user.editModules ?? access.editModules) as AppModule[];
+  return { ...user, role: access.role, modules, editModules, permissions: user.permissions ?? legacyPermissions(access.role, modules, editModules) };
+}
+// Domain fixtures emulate a current /me response; session-specific tests supply their own response.
+const originalMe = api.me;
+beforeEach(() => {
+  vi.spyOn(api, "me").mockImplementation(async () => {
+    const implementation = vi.mocked(fetch).getMockImplementation()?.toString() ?? "";
+    if (implementation.includes("/me") || implementation.includes("401")) return originalMe();
+    const current = localStorage.getItem("crm.auth.user");
+    if (!current) throw new Error("Missing test session");
+    return withPermissions(JSON.parse(current));
+  });
+});
 
 /** Configurações em gavetas (T059): abre as seções pelo título antes de interagir; devolve a última. */
 async function openSettingsSection(...names: string[]) {
@@ -475,7 +495,7 @@ describe("application shell", () => {
     }) as Response);
 
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const day = await screen.findByRole("button", { name: /1 atendimentos, 1 aulas de turma, 0 bloqueios/ });
     expect(screen.getByText("Pilates Turma A")).toBeInTheDocument();
     expect(screen.getByText("18:00–19:00")).toBeInTheDocument();
@@ -546,7 +566,7 @@ describe("application shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
     await screen.findByText("Helena Almeida");
     expect(isAscending(order(container.querySelector(".week-agenda")!))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const today = await screen.findByRole("button", { name: /1 atendimentos, 2 aulas de turma/ });
     const cell = today.closest(".month-day")!;
     expect(cell).toHaveTextContent("Dançaterapia Turma A");
@@ -582,7 +602,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = options?.method === "PATCH"
         ? { ...appointment, status: "cancelled" }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : url.includes("/patients") ? [{
             id: appointment.patientId,
             fullName: appointment.patientName,
@@ -1103,7 +1123,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = options?.method === "PUT"
         ? { ...appointment, startsAt: next.toISOString() }
-        : url.includes("/appointments?")
+        : (url.includes("/appointments?") || url.includes("/appointments/options?"))
           ? [appointment]
           : url.includes("/professionals")
             ? [{ id: appointment.professionalId, fullName: appointment.professionalName, color: appointment.professionalColor }]
@@ -1207,7 +1227,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: /Contatos sugeridos/ })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Contatos sugeridos/ })).toBeInTheDocument();
     const helenaCard = (await screen.findByText("Helena Almeida")).closest("article")!;
     expect(within(helenaCard).getByText("Plano termina em 3 dias")).toBeInTheDocument();
     expect(within(helenaCard).getByText("(11) 98765-4321")).toBeInTheDocument();
@@ -1268,7 +1288,7 @@ describe("application shell", () => {
     });
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
     const card = (await screen.findByRole("heading", { name: "Aniversariantes" })).closest("section")!;
-    expect(card).toHaveTextContent("Hoje e próximos 7 dias");
+    await waitFor(() => expect(card).toHaveTextContent("Hoje e próximos 7 dias"));
     const helena = (await within(card).findByText("Helena Almeida")).closest(".attention-item") as HTMLElement;
     expect(within(helena).getByText("Aniversário hoje")).toBeInTheDocument();
     const congratulate = within(helena).getByRole("link", { name: /Dar parabéns/ });
@@ -1652,7 +1672,7 @@ describe("application shell", () => {
       }
       const body = url.includes("/satisfaction?")
         ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientId: appointment.patientId, score: 10 }], summary: { total: 1, promoters: 1, passives: 0, detractors: 0, nps: 100 } }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -1711,7 +1731,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = url.includes("/satisfaction?")
         ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: appointment.id, patientId: appointment.patientId, score: 6 }], summary: { total: 1, promoters: 0, passives: 0, detractors: 1, nps: -100 } }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -2552,7 +2572,7 @@ describe("application shell", () => {
     await vi.waitFor(() => expect(container.querySelector(".week-agenda")).toHaveTextContent("Feriado: Aniversário da cidade"));
     expect(container.querySelectorAll(".week-agenda .week-holiday")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const day = await screen.findByRole("button", { name: /feriado: Aniversário da cidade/ });
     expect(day.closest(".month-day")).toHaveTextContent("Aniversário da cidade");
     expect(container.querySelectorAll(".month-grid .month-holiday")).toHaveLength(1);
@@ -2639,7 +2659,7 @@ describe("application shell", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/appointments?") ? [appointment] : url.includes("/patients") ? [patient] : [];
+      const body = (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment] : url.includes("/patients") ? [patient] : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
@@ -3830,8 +3850,8 @@ describe("users and permissions", () => {
       const url = String(input);
       const handled = handler?.(url, init);
       if (handled && typeof handled === "object" && "ok" in handled && (handled as Response).ok === false) return handled as Response;
-      if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
-      const body = url.includes("/admin/users") ? users
+      if (handled !== undefined) return { ok: true, status: 200, json: async () => handled && typeof handled === "object" && "modules" in handled ? withPermissions(handled as typeof customUser) : handled } as Response;
+      const body = url.includes("/admin/users") ? users.map(item => withPermissions(item as typeof customUser))
         : url.includes("/admin/permission-matrix") ? [{ role: "user", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
           : url.includes("/relationship/settings") ? relationshipSettingsFixture()
             : url.includes("/admin/clinic-settings") ? null
@@ -3856,11 +3876,11 @@ describe("users and permissions", () => {
     const row = (name: string) => within(section).getByText(name).closest("article")!;
     expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
     expect(within(row("Maria Souza")).getByText("Usuário comum · Instrutora de Pilates")).toBeInTheDocument();
-    expect(within(row("Maria Souza")).getByText("Vê 10 módulos · edita 8")).toBeInTheDocument();
+    expect(within(row("Maria Souza")).getByText(`Vê 10 módulos · ${legacyPermissions("user", customUser.modules as AppModule[], customUser.editModules as AppModule[]).length} permissões`)).toBeInTheDocument();
     expect(within(row("Aryana Dutra")).getByText("Admin · Sócia")).toBeInTheDocument();
     expect(within(row("Aryana Dutra")).getByText("Acesso total")).toBeInTheDocument();
     expect(within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)")).toBeInTheDocument();
-    expect(within(row("Elisa Prado")).getByText("Vê 1 módulo · só visualiza")).toBeInTheDocument();
+    expect(within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões")).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(within(section).queryByText("Permissões personalizadas")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Padrão de cada perfil" })).not.toBeInTheDocument();
@@ -3881,31 +3901,31 @@ describe("users and permissions", () => {
     expect(within(type).getAllByRole("option").map((option) => option.textContent)).toEqual(["Admin", "Usuário comum"]);
     expect(within(dialog).queryByLabelText("Perfil")).not.toBeInTheDocument();
     for (const module of ["Agenda", "Turmas", "Clientes", "Planos e sessões", "CRM comercial", "Contatos sugeridos", "Comunicações", "Contratos", "Prontuários", "Financeiro", "Relatórios", "Configurações"]) {
-      expect(within(dialog).getByLabelText(`Ver ${module}`)).not.toBeChecked();
-      expect(within(dialog).getByLabelText(`Editar ${module}`)).not.toBeChecked();
+      expect(within(dialog).getByLabelText(`${module}: Visualizar módulo`)).not.toBeChecked();
+      expect(within(dialog).getByLabelText(`Selecionar bloco ${module}`)).not.toBeChecked();
     }
     expect(within(dialog).queryByRole("button", { name: "Restaurar padrão do perfil" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Padrão do perfil/)).not.toBeInTheDocument();
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
-    fireEvent.click(within(dialog).getByLabelText("Editar Relatórios"));
-    expect(within(dialog).getByLabelText("Ver Relatórios")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Relatórios"));
-    expect(within(dialog).getByLabelText("Editar Relatórios")).not.toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Relatórios"));
+    expect(within(dialog).getByLabelText("Relatórios: Visualizar módulo")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Relatórios: Visualizar módulo"));
+    expect(within(dialog).getByLabelText("Selecionar bloco Relatórios")).not.toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
 
     // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
     fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Ver Clientes")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Clientes: Visualizar módulo")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Copiar permissões de…")).not.toBeInTheDocument();
     fireEvent.change(type, { target: { value: "user" } });
-    expect(within(dialog).getByLabelText("Ver Turmas")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
-    fireEvent.click(within(dialog).getByLabelText("Ver Planos e sessões"));
-    fireEvent.click(within(dialog).getByLabelText("Ver Prontuários"));
+    expect(within(dialog).getByLabelText("Turmas: Visualizar módulo")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Planos e sessões: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Prontuários: Visualizar módulo"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
@@ -3921,8 +3941,7 @@ describe("users and permissions", () => {
       password: "SenhaForte123",
       role: "user",
       jobTitle: "Fisioterapeuta pélvica",
-      modules: ["agenda", "patients", "plans", "clinical"],
-      editModules: ["agenda", "patients"],
+      permissions: togglePermissions([], [...permissionCatalog.filter(item => ["agenda", "patients"].includes(item.module)).map(item => item.key), "plans.view", "clinical.view"], true),
     });
     expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
@@ -3943,14 +3962,14 @@ describe("users and permissions", () => {
     expect(within(copy).getAllByRole("option").map((option) => option.textContent)).toEqual(["Escolha um usuário", "Maria Souza", "Carla Reis"]);
     fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(within(dialog).getByText(/Permissões copiadas de Carla Reis/)).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Ver Agenda")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Agenda")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Agenda: Visualizar módulo")).toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Agenda")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Clientes: Visualizar módulo")).toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Prontuários")).toBeChecked();
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).not.toBeChecked();
     // Continua editável depois de copiar.
-    fireEvent.click(within(dialog).getByLabelText("Ver Clientes"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Clientes: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
@@ -3962,8 +3981,7 @@ describe("users and permissions", () => {
       email: "ana@movimenta.local",
       password: "SenhaForte123",
       role: "user",
-      modules: ["agenda", "clinical"],
-      editModules: ["agenda", "clinical"],
+      permissions: togglePermissions(togglePermissions(legacyPermissions("user", carlaUser.modules as AppModule[], carlaUser.editModules as AppModule[]), ["patients.view"], false), permissionCatalog.filter(item => item.module === "agenda").map(item => item.key), true),
     });
     // A pessoa copiada não muda.
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
@@ -3978,13 +3996,13 @@ describe("users and permissions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     expect(within(dialog).getByLabelText("Cargo")).toHaveValue("Instrutora de Pilates");
-    expect(within(dialog).getByLabelText("Ver Financeiro")).toBeChecked();
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).toBeChecked();
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
     expect(within(copy).queryByRole("option", { name: "Maria Souza" })).not.toBeInTheDocument();
     fireEvent.change(copy, { target: { value: carlaUser.id } });
-    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Prontuários")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: "" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await screen.findByText("Alterações de Maria Souza salvas.")).toBeInTheDocument();
@@ -3995,8 +4013,7 @@ describe("users and permissions", () => {
       role: "user",
       active: true,
       jobTitle: "",
-      modules: ["agenda", "patients", "clinical"],
-      editModules: ["patients", "clinical"],
+      permissions: togglePermissions(legacyPermissions("user", carlaUser.modules as AppModule[], carlaUser.editModules as AppModule[]), permissionCatalog.filter(item => item.module === "patients").map(item => item.key), true),
     });
   });
 
@@ -4010,10 +4027,10 @@ describe("users and permissions", () => {
     const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Ver Agenda")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Agenda: Visualizar módulo")).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
-    expect(within(dialog).getByLabelText("Ver Agenda")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Configurações")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Agenda: Visualizar módulo")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Configurações: Visualizar módulo")).not.toBeChecked();
   });
 
   it("explains in the form that the last admin cannot be demoted", async () => {
@@ -4027,7 +4044,7 @@ describe("users and permissions", () => {
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await within(dialog).findByText(/precisa de pelo menos um admin ativo/)).toHaveClass("form-error");
-    expect(lastCall("PATCH").body).toMatchObject({ role: "user", modules: null, editModules: null });
+    expect(lastCall("PATCH").body).toMatchObject({ role: "user", permissions: [] });
     expect(screen.getByRole("dialog", { name: "Editar Aryana Dutra" })).toBeInTheDocument();
   });
 
@@ -4052,7 +4069,7 @@ describe("users and permissions", () => {
     await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
-    fireEvent.click(within(dialog).getByLabelText("Editar Financeiro"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Financeiro"));
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     await screen.findByText("Alterações de Maria Souza salvas.");
     expect(lastCall("PATCH").body).toEqual({
@@ -4060,8 +4077,7 @@ describe("users and permissions", () => {
       role: "user",
       active: true,
       jobTitle: "Instrutora de Pilates",
-      modules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance", "settings"],
-      editModules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance"],
+      permissions: togglePermissions(legacyPermissions("user", customUser.modules as AppModule[], customUser.editModules as AppModule[]), permissionCatalog.filter(item => item.module === "finance").map(item => item.key), true),
     });
   });
 
@@ -4183,8 +4199,7 @@ describe("users and permissions", () => {
         email: "ana@movimenta.local",
         password: "SenhaForte123",
         role: "user",
-        modules: null,
-        editModules: null,
+        permissions: [],
         commission: { percentage: 25, effectiveFrom: saoPauloToday() },
       });
       expect(sent[1]!.url).toContain(`/admin/users/${created.id}/professional`);
@@ -4480,13 +4495,13 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/me") ? fresh : [];
+      const body = String(input).endsWith("/me") ? withPermissions(fresh) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
     expect(within(screen.getByRole("navigation")).getByRole("link", { name: "CRM comercial" })).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(withPermissions(fresh));
   });
 
   it("asks for a new login when an old stored session cannot be completed", async () => {
@@ -4512,7 +4527,7 @@ describe("users and permissions", () => {
     const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", ...legacyAccess("admin") };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/me") ? fresh
+      const body = url.endsWith("/me") ? withPermissions(fresh)
         : url.includes("/relationship/settings") ? relationshipSettingsFixture()
           : url.includes("/admin/clinic-settings") ? null
             : [];
@@ -4536,13 +4551,13 @@ describe("users and permissions", () => {
     }));
     const fresh = { id: "33333333-3333-4333-8333-333333333333", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/me") ? fresh : [];
+      const body = String(input).endsWith("/me") ? withPermissions(fresh) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
-    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(withPermissions(fresh));
     expect(screen.getByTitle("Sair")).toHaveTextContent("Usuário comum");
   });
 });
@@ -4827,7 +4842,7 @@ describe("view-only modules", () => {
     const completed = { ...base, id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientName: "Bruno Costa", status: "completed" };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/appointments?") ? [scheduled, completed]
+      const body = (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [scheduled, completed]
         : url.includes("/satisfaction") ? { surveys: [] }
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -4836,7 +4851,7 @@ describe("view-only modules", () => {
     expect(await screen.findByRole("note")).toHaveTextContent("Seu acesso a Agenda é só de consulta");
     expect(screen.queryByRole("button", { name: /Novo atendimento/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bloquear horário" })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText("Status do atendimento")[0]).toBeDisabled();
+    expect((await screen.findAllByLabelText("Status do atendimento"))[0]).toBeDisabled();
 
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     let dialog = screen.getByRole("dialog");
@@ -5382,7 +5397,7 @@ describe("screens without the patients module", () => {
     renderAs("communications", "/comunicacoes");
     expect(await screen.findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
     const panel = (await screen.findByRole("heading", { name: "Comunicado segmentado" })).closest("section")!;
-    expect(within(panel).getByRole("button", { name: /^pilates/ })).toBeInTheDocument();
+    expect(await within(panel).findByRole("button", { name: /^pilates/ })).toBeInTheDocument();
     expectOnlyOptions();
   });
 
@@ -5404,6 +5419,23 @@ describe("screens without the patients module", () => {
 });
 
 describe("configured patient tags", () => {
+  it("offers editing independently from creating and deleting tags", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555", fullName: "Limited Settings",
+      email: "limited@test.local", role: "user", modules: ["settings"], editModules: [],
+      permissions: ["settings.view", "settings.tags_update"],
+    }));
+    vi.mocked(fetch).mockImplementation(async (input) => ({
+      ok: true, status: 200,
+      json: async () => String(input).includes("/patient-tags") ? [patientTag("Pilates")] : {},
+    }) as Response);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Etiquetas");
+    expect(await screen.findByRole("button", { name: "Editar etiqueta Pilates" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adicionar etiqueta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Excluir etiqueta Pilates" })).not.toBeInTheDocument();
+  });
   const admin = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
   function jsonResponse(body: unknown, status = 200) {
     return { ok: status < 400, status, json: async () => body } as Response;
