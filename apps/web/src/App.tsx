@@ -227,7 +227,7 @@ function CpfInput({ value, onChange }: { value: string; onChange: (digits: strin
         aria-describedby={invalid ? "patient-cpf-error" : undefined}
         onChange={(event) => onChange(cpfDigits(event.target.value))}
       />
-      {invalid && <small id="patient-cpf-error" className="form-error">Informe um CPF válido.</small>}
+      {invalid && <small id="patient-cpf-error" className="field-error" aria-live="polite">Informe um CPF válido.</small>}
     </>
   );
 }
@@ -1880,7 +1880,7 @@ function PatientModal({
             onChange={(e) => field("email", e.target.value)}
           />
         </label>
-        <label className="field-with-hint">
+        <label>
           CPF
           <CpfInput
             value={form.cpf ?? ""}
