@@ -66,6 +66,19 @@ afterEach(() => {
   vi.mocked(fetch).mockReset();
 });
 
+function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+  if (patientName) {
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+  }
+  for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
+    const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
+    if (!select.value) fireEvent.change(select, { target: { value: select.options[1]!.value } });
+  }
+  const startsAt = within(dialog).getByLabelText("Data e horário") as HTMLInputElement;
+  if (!startsAt.value) fireEvent.change(startsAt, { target: { value: "2027-01-01T09:00" } });
+}
+
 describe("appointment client search and creation", () => {
   const existing = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", tags: [] };
   const created = { ...existing, id: "88888888-8888-4888-8888-888888888888", fullName: "Nova Cliente", phone: "11999998888" };
@@ -92,8 +105,18 @@ describe("appointment client search and creation", () => {
     return screen.getByRole("dialog", { name: "Novo atendimento" });
   }
 
+  it("starts every field of a new appointment empty", async () => {
+    const appointment = await open();
+    expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue("");
+    for (const label of ["Tipo", "Profissional", "Sala", "Serviço", "Data e horário", "Observação"])
+      expect(within(appointment).getByLabelText(label)).toHaveValue("");
+    expect(within(appointment).getByLabelText("Repetir este atendimento")).not.toBeChecked();
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
+  });
+
   it("keeps appointment values, traps focus, and selects the saved client", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment);
     fireEvent.change(within(appointment).getByLabelText("Observação"), { target: { value: "Manter observação" } });
     fireEvent.click(within(appointment).getByLabelText("Repetir este atendimento"));
     fireEvent.change(within(appointment).getByLabelText("Número de ocorrências"), { target: { value: "6" } });
@@ -129,6 +152,7 @@ describe("appointment client search and creation", () => {
 
   it("closes only the client modal on Escape and keeps the previous selection", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument();
@@ -139,6 +163,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
     const client = screen.getByRole("dialog", { name: "Novo cliente" });
     fireEvent.change(within(client).getByLabelText("Nome completo"), { target: { value: created.fullName } });
@@ -295,7 +320,7 @@ describe("modal closing", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(2);
   });
 
-  it("keeps a drawer open on backdrop click and closes it with Esc", async () => {
+  it("keeps the wide group modal open on backdrop click and closes it with Esc", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
@@ -304,17 +329,22 @@ describe("modal closing", () => {
     });
     render(<MemoryRouter initialEntries={["/turmas"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    const backdrop = document.querySelector(".drawer-backdrop")!;
+    const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
-    expect(screen.getByRole("dialog", { name: "Nova turma" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Horários semanais" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Resumo da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Serviço")).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Nova turma" })).not.toBeInTheDocument();
   });
 });
 
 describe("application shell", () => {
-  it("edits group capacity and weekly hours in a drawer", async () => {
+  it("edits group capacity and weekly hours in a centered modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const group = {
@@ -346,11 +376,13 @@ describe("application shell", () => {
     expect(screen.queryByLabelText("Nome")).not.toBeInTheDocument();
     fireEvent.change(await screen.findByLabelText("Serviço"), { target: { value: group.serviceId } });
     expect(screen.getByText("Pilates Turma B")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Fechar gaveta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(screen.getByText("Turma de terça da noite")).toBeInTheDocument();
     expect(screen.getByText("Terça · 18:00–19:00")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
-    expect(screen.getByRole("dialog", { name: "Pilates Turma A" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Pilates Turma A" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Participantes" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Máximo de pessoas"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
     fireEvent.change(screen.getAllByLabelText("Dia")[1]!, { target: { value: "4" } });
@@ -2482,6 +2514,7 @@ describe("application shell", () => {
     expect(container.querySelectorAll(".month-grid .month-holiday")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
+    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Novo atendimento" })).toBeInTheDocument();
@@ -2532,7 +2565,7 @@ describe("application shell", () => {
     expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
   });
 
-  it("opens the SOS panel with the emergency contact from a client appointment", async () => {
+  it("shows the emergency contact highlighted in the appointment details without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const startsAt = new Date();
@@ -2568,30 +2601,12 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
-    const sosButton = within(dialog).getByRole("button", { name: "SOS" });
-    expect(sosButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(sosButton);
-    expect(sosButton).toHaveAttribute("aria-expanded", "true");
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Maria Souza (mãe)")).toBeInTheDocument();
-    expect(within(sos).getByText("(11) 95555-6666")).toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /Ligar/ })).toHaveAttribute("href", "tel:11955556666");
-    const whatsapp = within(sos).getByRole("link", { name: /WhatsApp/ });
-    expect(whatsapp.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5511955556666/);
-    expect(whatsapp).toHaveAttribute("target", "_blank");
-    expect(whatsapp).toHaveClass("whatsapp-button");
-    expect(whatsapp).not.toHaveClass("secondary-button");
-    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
-    expect(within(sos).queryByText("Contato de emergência não cadastrado")).not.toBeInTheDocument();
-    fireEvent.click(sosButton);
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    const contact = within(dialog).getByText("Maria Souza (mãe) · (11) 95555-6666");
+    expect(contact.closest(".emergency-contact")).toHaveTextContent("Contato de emergência");
   });
 
-  it("shows the SOS shortcuts in the client record even without an emergency contact", async () => {
+  it("highlights the emergency contact fields in the client record without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", emergencyContactName: "", tags: [], status: "active" };
@@ -2602,14 +2617,8 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "SOS" }));
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Contato de emergência não cadastrado")).toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /Ligar/ })).not.toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /WhatsApp/ })).not.toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("group", { name: "Contato de emergência" })).toHaveClass("emergency-fieldset");
   });
 
   it("does not show the SOS button when creating a new client", async () => {
@@ -2643,9 +2652,10 @@ describe("application shell", () => {
     await screen.findByText("Dia disponível");
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
     const type = screen.getByLabelText("Tipo");
-    expect(type).toHaveValue("regular");
-    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Atendimento", "Experimental", "Avaliação"]);
+    expect(type).toHaveValue("");
+    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
+    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText("Horário ocupado.")).toBeInTheDocument();
     expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation" });
@@ -5072,7 +5082,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    expect(screen.getByRole("dialog", { name: "Nova matrícula" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da matrícula" })).toBeInTheDocument();
   });
 });
 
@@ -5493,6 +5505,25 @@ describe("configured patient tags", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
     const dialog = screen.getByRole("dialog");
     expect(await within(dialog).findByText(/Nenhuma etiqueta configurada/)).toBeInTheDocument();
+  });
+
+  it("formats CPF while typing and rejects invalid check digits", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse([]));
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
+    const cpf = within(dialog).getByLabelText("CPF");
+
+    fireEvent.change(cpf, { target: { value: "52998224724" } });
+    expect(cpf).toHaveValue("529.982.247-24");
+    expect(cpf).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getAllByText("Informe um CPF válido.").length).toBeGreaterThan(0);
+
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
+    expect(cpf).toHaveValue("529.982.247-25");
+    expect(cpf).not.toHaveAttribute("aria-invalid");
   });
 
   it("shows the configured tags with their colors in the segmented broadcast", async () => {

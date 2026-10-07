@@ -31,6 +31,35 @@ export function formatPhone(value: string): string {
   return `(${area}) ${number.slice(0, split)}-${number.slice(split)}`;
 }
 
+export function cpfDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+// Formata também valores parciais para uso durante a digitação.
+export function formatCpf(value: string): string {
+  const digits = cpfDigits(value);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+export function isValidCpf(value: string): boolean {
+  const digits = cpfDigits(value);
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  const checkDigit = (length: number): number => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) {
+      sum += Number(digits[index]) * (length + 1 - index);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  return checkDigit(9) === Number(digits[9]) && checkDigit(10) === Number(digits[10]);
+}
+
 const phoneSchema = z
   .string()
   .transform((value) => value.replace(/\D/g, ""))
@@ -186,7 +215,12 @@ export type ClinicSettingsInput = z.infer<typeof clinicSettingsInputSchema>;
 
 export const patientInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
-  cpf: z.string().trim().min(11).max(14).optional().or(z.literal("")),
+  cpf: z
+    .string()
+    .trim()
+    .transform(cpfDigits)
+    .refine((value) => value === "" || isValidCpf(value), "Informe um CPF válido.")
+    .optional(),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
   whatsapp: optionalPhoneSchema,

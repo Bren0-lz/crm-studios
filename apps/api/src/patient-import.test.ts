@@ -129,7 +129,7 @@ describe("validatePatientImport", () => {
       phone: "(11) 99999-0000",
       input: {
         fullName: "Ana Paula",
-        cpf: "987.654.321-00",
+        cpf: "98765432100",
         phone: "11999990000",
         whatsapp: "11999990001",
         email: "ana@example.com",
@@ -179,11 +179,11 @@ describe("validatePatientImport", () => {
   it("aponta erros por linha em pt-BR e ignora linhas vazias", () => {
     const analysis = validatePatientImport(
       [
-        ["Nome", "Telefone", "Email", "Nascimento", "WhatsApp"],
-        ["Al", "99999", "sem-arroba", "31/02/1990", "123"],
-        ["", "", "", "", ""],
-        ["Carlos Dias", "", "", "", ""],
-        ["Diana Luz", "11999990000", "", "1990/01/01", ""],
+        ["Nome", "Telefone", "Email", "Nascimento", "WhatsApp", "CPF"],
+        ["Al", "99999", "sem-arroba", "31/02/1990", "123", "529.982.247-24"],
+        ["", "", "", "", "", ""],
+        ["Carlos Dias", "", "", "", "", ""],
+        ["Diana Luz", "11999990000", "", "1990/01/01", "", ""],
       ],
       [],
     );
@@ -198,6 +198,7 @@ describe("validatePatientImport", () => {
         expect.stringMatching(/^Linha 2: e-mail/),
         expect.stringMatching(/^Linha 2: data de nascimento/),
         expect.stringMatching(/^Linha 2: WhatsApp/),
+        expect.stringMatching(/^Linha 2: CPF inválido/),
       ]),
     );
     expect(second?.line).toBe(4);
@@ -213,9 +214,9 @@ describe("validatePatientImport", () => {
         ["Nome", "CPF", "Telefone"],
         ["Maria Nova", "12345678909", "11911112222"],
         ["Outra Pessoa", "", "(11) 98888-7777"],
-        ["Pedro Primeiro", "111.222.333-44", "11922223333"],
+        ["Pedro Primeiro", "529.982.247-25", "11922223333"],
         ["Pedro Segundo", "", "11 92222-3333"],
-        ["Pedro Terceiro", "11122233344", "11944445555"],
+        ["Pedro Terceiro", "52998224725", "11944445555"],
         ["Pessoa Única", "", "11955556666"],
       ],
       [existing],

@@ -23,7 +23,6 @@ import {
   PackageOpen,
   Paperclip,
   Pause,
-  Phone,
   PhoneCall,
   Play,
   Plus,
@@ -34,7 +33,6 @@ import {
   Settings,
   Tags,
   Building2,
-  Siren,
   SlidersHorizontal,
   Star,
   Stethoscope,
@@ -142,7 +140,7 @@ import type {
   UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, cpfDigits, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatCpf, formatPhone, groupClassName, isValidCpf, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
@@ -212,6 +210,25 @@ function PhoneInput({ value, onChange, required }: { value: string; onChange: (d
       value={formatPhone(value)}
       onChange={(event) => onChange(phoneDigits(event.target.value))}
     />
+  );
+}
+
+function CpfInput({ value, onChange }: { value: string; onChange: (digits: string) => void }) {
+  const invalid = cpfDigits(value).length === 11 && !isValidCpf(value);
+  return (
+    <>
+      <input
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="000.000.000-00"
+        maxLength={14}
+        value={formatCpf(value)}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? "patient-cpf-error" : undefined}
+        onChange={(event) => onChange(cpfDigits(event.target.value))}
+      />
+      {invalid && <small id="patient-cpf-error" className="form-error">Informe um CPF válido.</small>}
+    </>
   );
 }
 
@@ -1779,7 +1796,6 @@ function PatientModal({
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && canView("patients") && canView("crm");
   const editable = canEdit("patients");
-  const [sosOpen, setSosOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
@@ -1802,6 +1818,10 @@ function PatientModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (form.cpf && !isValidCpf(form.cpf)) {
+      setError("Informe um CPF válido.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -1819,12 +1839,6 @@ function PatientModal({
       busy={loading}
       onClose={onClose}
     >
-      {patient && (
-        <div className="sos-area">
-          <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-          {sosOpen && <SosPanel patient={patient} />}
-        </div>
-      )}
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nome completo
@@ -1866,11 +1880,11 @@ function PatientModal({
             onChange={(e) => field("email", e.target.value)}
           />
         </label>
-        <label>
+        <label className="field-with-hint">
           CPF
-          <input
-            value={form.cpf}
-            onChange={(e) => field("cpf", e.target.value)}
+          <CpfInput
+            value={form.cpf ?? ""}
+            onChange={(digits) => field("cpf", digits)}
           />
         </label>
         <label>
@@ -1881,7 +1895,7 @@ function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <fieldset className="form-fieldset span-2">
+        <fieldset className="form-fieldset emergency-fieldset span-2">
           <legend>Contato de emergência</legend>
           <div className="form-fieldset-grid">
             <label>
@@ -10202,7 +10216,6 @@ function AgendaPage() {
       </section>
       {modalOpen && (
         <AppointmentModal
-          date={selectedDate}
           patients={patients}
           professionals={professionals}
           rooms={rooms}
@@ -10589,7 +10602,6 @@ function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
-  const [sosOpen, setSosOpen] = useState(false);
   useEffect(() => {
     if (!isCompleted) return;
     let active = true;
@@ -10639,12 +10651,6 @@ function AppointmentDetailsModal({
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} busy={cancelling} onClose={onClose}>
       <div className="appointment-details">
-        {!isLead && appointment.patientId && (
-          <div className="sos-area">
-            <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-            {sosOpen && <SosPanel patient={patient} />}
-          </div>
-        )}
         <section className="appointment-detail-section">
           <h3>Atendimento marcado</h3>
           <div className="appointment-detail-grid">
@@ -10677,9 +10683,9 @@ function AppointmentDetailsModal({
               <div><small>Telefone</small><strong>{patient.phone ? formatPhone(patient.phone) : "Não informado"}</strong></div>
               <div><small>WhatsApp</small><strong>{patient.whatsapp ? formatPhone(patient.whatsapp) : "Mesmo telefone de contato"}</strong></div>
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
-              <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
+              <div><small>CPF</small><strong>{patient.cpf ? formatCpf(patient.cpf) : "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
-              <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
+              <div className="detail-wide emergency-contact"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div><small>Etiquetas</small><strong>{patient.tags?.length ? patient.tags.join(", ") : "Nenhuma"}</strong></div>
               {patient.notes && <div className="detail-wide"><small>Observações do cliente</small><strong>{patient.notes}</strong></div>}
@@ -10717,60 +10723,6 @@ function AppointmentDetailsModal({
         )}
       </div>
     </Modal>
-  );
-}
-
-function SosButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button type="button" className="secondary-button sos-button" aria-expanded={open} onClick={onToggle}>
-      <Siren size={16} aria-hidden="true" /> SOS
-    </button>
-  );
-}
-
-const emergencyShortcuts: Array<[string, string]> = [
-  ["190", "Polícia"],
-  ["192", "SAMU"],
-  ["193", "Bombeiros"],
-];
-
-// Painel de emergência: contato cadastrado do cliente e atalhos para os serviços públicos.
-function SosPanel({ patient }: { patient: Patient | undefined }) {
-  const name = patient?.emergencyContactName?.trim() ?? "";
-  const phone = phoneDigits(patient?.emergencyContactPhone ?? "");
-  return (
-    <section className="sos-panel" aria-label="SOS">
-      <div className="sos-contact">
-        <small>Contato de emergência</small>
-        {!patient ? (
-          <p>Dados do cliente indisponíveis no momento.</p>
-        ) : name || phone ? (
-          <>
-            <strong>{name || "Nome não informado"}</strong>
-            {phone ? <span>{formatPhone(phone)}</span> : <p>Telefone não cadastrado.</p>}
-            {phone && (
-              <div className="sos-actions">
-                <a className="secondary-button" href={`tel:${phone}`}>
-                  <Phone size={15} aria-hidden="true" /> Ligar
-                </a>
-                <a className="whatsapp-button" href={whatsappLink(phone, "")} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle size={15} aria-hidden="true" /> WhatsApp
-                </a>
-              </div>
-            )}
-          </>
-        ) : (
-          <p>Contato de emergência não cadastrado</p>
-        )}
-      </div>
-      <div className="sos-actions">
-        {emergencyShortcuts.map(([number, label]) => (
-          <a key={number} className="secondary-button sos-shortcut" href={`tel:${number}`}>
-            <PhoneCall size={15} aria-hidden="true" /> {number} · {label}
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -11083,7 +11035,6 @@ function AppointmentPatientPicker({ patients, value, onChange, inputRef, onAddPa
 }
 
 function AppointmentModal({
-  date,
   patients,
   professionals,
   rooms,
@@ -11092,7 +11043,6 @@ function AppointmentModal({
   onCreated,
   onPatientCreated,
 }: {
-  date: Date;
   patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];
@@ -11101,15 +11051,13 @@ function AppointmentModal({
   onCreated: (appointment: Appointment[]) => void;
   onPatientCreated: (patient: Patient) => void;
 }) {
-  const initialTime = new Date(date);
-  initialTime.setHours(9, 0, 0, 0);
   const [form, setForm] = useState({
-    patientId: patients[0]?.id ?? "",
-    visitType: "regular" as AppointmentVisitType,
-    professionalId: professionals[0]?.id ?? "",
-    roomId: rooms[0]?.id ?? "",
-    serviceId: services[0]?.id ?? "",
-    startsAt: toLocalDateTimeInput(initialTime),
+    patientId: "",
+    visitType: "" as AppointmentVisitType | "",
+    professionalId: "",
+    roomId: "",
+    serviceId: "",
+    startsAt: "",
     notes: "",
     recurring: false,
     occurrences: 4,
@@ -11144,7 +11092,7 @@ function AppointmentModal({
         serviceId: form.serviceId,
         startsAt: new Date(form.startsAt).toISOString(),
         notes: form.notes,
-        visitType: form.visitType,
+        visitType: form.visitType as AppointmentVisitType,
       };
       onCreated(
         form.recurring
@@ -11187,9 +11135,11 @@ function AppointmentModal({
         <label>
           Tipo
           <select
+            required
             value={form.visitType}
             onChange={(e) => setForm({ ...form, visitType: e.target.value as AppointmentVisitType })}
           >
+            <option value="">Selecione</option>
             {appointmentVisitTypes.map((item) => (
               <option value={item} key={item}>
                 {visitTypeLabels[item]}
@@ -11244,6 +11194,7 @@ function AppointmentModal({
               setForm({ ...form, professionalId: e.target.value })
             }
           >
+            <option value="">Selecione</option>
             {professionals.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.fullName}
@@ -11258,6 +11209,7 @@ function AppointmentModal({
             value={form.roomId}
             onChange={(e) => setForm({ ...form, roomId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {rooms.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name}
@@ -11272,6 +11224,7 @@ function AppointmentModal({
             value={form.serviceId}
             onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {services.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name} · {currency.format(item.priceInCents / 100)}
@@ -13838,6 +13791,8 @@ export function Modal({
   title,
   subtitle,
   eyebrow = "Cadastro rápido",
+  wide = false,
+  initialFocus,
   busy = false,
   inactive = false,
   onClose,
@@ -13846,6 +13801,10 @@ export function Modal({
   title: string;
   subtitle: string;
   eyebrow?: string;
+  /** Variante ampla para formulários com várias seções. */
+  wide?: boolean;
+  /** Seletor do primeiro campo a receber foco ao abrir. */
+  initialFocus?: string;
   /** Salvamento em andamento: X e Esc ficam desativados. */
   busy?: boolean;
   /** Mantém o formulário montado, mas inacessível sob outro modal. */
@@ -13861,14 +13820,15 @@ export function Modal({
   useLayoutEffect(() => {
     const section = sectionRef.current;
     if (!inactive && section && !section.contains(document.activeElement)) {
-      section.querySelector<HTMLElement>("input, select, textarea, button:not(:disabled)")?.focus();
+      const firstField = initialFocus ? section.querySelector<HTMLElement>(initialFocus) : null;
+      (firstField ?? section.querySelector<HTMLElement>("input, select, textarea, button:not(:disabled)"))?.focus();
     }
-  }, [inactive]);
+  }, [inactive, initialFocus]);
   return (
     <div className="modal-backdrop" role="presentation" inert={inactive} aria-hidden={inactive || undefined}>
       <section
         ref={sectionRef}
-        className="modal"
+        className={wide ? "modal modal-wide" : "modal"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -13899,16 +13859,11 @@ export function Modal({
   );
 }
 
-function Drawer({ title, subtitle, busy = false, onClose, children }: { title: string; subtitle: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
-  useBodyScrollLock();
-  useEscapeToClose(onClose, busy);
+function GroupModal({ title, subtitle, busy = false, onClose, children }: { title: string; subtitle: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="drawer-backdrop">
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
-        <header className="drawer-head"><div><span className="eyebrow">Turmas</span><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" onClick={onClose} aria-label="Fechar gaveta" autoFocus disabled={busy}><X size={20} /></button></header>
-        <div className="drawer-body">{children}</div>
-      </aside>
-    </div>
+    <Modal eyebrow="Turmas" title={title} subtitle={subtitle} wide initialFocus="input, select, textarea" busy={busy} onClose={onClose}>
+      <div className="group-modal-content">{children}</div>
+    </Modal>
   );
 }
 
@@ -13944,7 +13899,7 @@ function GroupsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [drawer, setDrawer] = useState<"create" | "enroll" | null>(null);
+  const [groupDialog, setGroupDialog] = useState<"create" | "enroll" | null>(null);
   const [saving, setSaving] = useState(false);
   const canManage = canEdit("groups");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -14032,8 +13987,8 @@ function GroupsPage() {
     setEditingCapacity(group.capacity);
     setEditingSlots(group.weeklySlots ?? []);
   }
-  function closeDrawers() {
-    setDrawer(null);
+  function closeGroupDialogs() {
+    setGroupDialog(null);
     setSelectedGroupId(null);
   }
   return (
@@ -14044,8 +13999,8 @@ function GroupsPage() {
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
         action={canManage && (
           <div className="page-actions">
-            <button className="secondary-button" onClick={() => setDrawer("enroll")}><UserPlus size={18} /> Matricular cliente</button>
-            <button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>
+            <button className="secondary-button" onClick={() => setGroupDialog("enroll")}><UserPlus size={18} /> Matricular cliente</button>
+            <button className="primary-button" onClick={() => setGroupDialog("create")}><Plus size={18} /> Nova turma</button>
           </div>
         )}
       />
@@ -14060,18 +14015,20 @@ function GroupsPage() {
             <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
           </div>
-          {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." busy={saving} onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
+          {groupDialog === "create" && <GroupModal title="Nova turma" subtitle="Configure os dados e horários fixos." busy={saving} onClose={closeGroupDialogs}>
+          <section className="group-modal-sections group-form-panel">
             {error && <ErrorBanner error={error} />}
-            <h2>Nova turma</h2>
-            <p className="group-panel-copy">Defina o serviço, o profissional, a sala e o número de vagas. O nome é gerado automaticamente por serviço.</p>
             <form
-              className="form-grid"
+              className="group-modal-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(async () => { await api.createGroupClass(groupForm); setGroupForm({ serviceId: "", professionalId: "", roomId: "", capacity: 1, weeklySlots: [] }); closeDrawers(); });
+                void run(async () => { await api.createGroupClass(groupForm); setGroupForm({ serviceId: "", professionalId: "", roomId: "", capacity: 1, weeklySlots: [] }); closeGroupDialogs(); });
               }}
             >
+              <section className="group-modal-section">
+                <h3>Dados da turma</h3>
+                <p>Escolha o serviço, quem conduz a turma, a sala e o número de vagas.</p>
+                <div className="group-modal-field-grid">
               <label>
                 Serviço
                 <select
@@ -14144,28 +14101,39 @@ function GroupsPage() {
                   }
                 />
               </label>
+                </div>
+              </section>
+              <section className="group-modal-section">
+                <h3>Horários semanais</h3>
+                <p>Adicione os dias e horários em que a turma se reúne.</p>
               <GroupSlotsEditor slots={groupForm.weeklySlots} onChange={(weeklySlots) => setGroupForm({ ...groupForm, weeklySlots })} weekDayNames={weekDayNames} />
+              </section>
+              <section className="group-modal-section">
+                <h3>Resumo da turma</h3>
               <div className="group-next-session" aria-live="polite">
                 {newGroupService ? <strong>{groupClassName(newGroupService.name, nextGroupSequence)}</strong> : "Selecione o serviço para ver o nome da turma"}
                 <br />
                 {describeGroupSchedule(groupForm.weeklySlots)}
               </div>
-              <div className="modal-actions span-2"><button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button></div>
+              </section>
+              <div className="modal-actions group-modal-actions"><button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button></div>
             </form>
           </section>
-          </Drawer>}
-          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o cliente." busy={saving} onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
+          </GroupModal>}
+          {groupDialog === "enroll" && <GroupModal title="Nova matrícula" subtitle="Escolha a turma e o cliente." busy={saving} onClose={closeGroupDialogs}>
+          <section className="group-modal-sections group-form-panel">
             {error && <ErrorBanner error={error} />}
-            <h2>Matrícula</h2>
-            <p className="group-panel-copy">Inclua um cliente em uma turma com vagas disponíveis.</p>
             <form
-              className="form-grid"
+              className="group-modal-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(async () => { await api.createGroupEnrollment(enrollmentForm); closeDrawers(); });
+                void run(async () => { await api.createGroupEnrollment(enrollmentForm); closeGroupDialogs(); });
               }}
             >
+              <section className="group-modal-section">
+                <h3>Dados da matrícula</h3>
+                <p>Escolha uma turma ativa e o cliente que deseja matricular.</p>
+                <div className="group-modal-field-grid">
               <label>
                 Turma
                 <select
@@ -14208,15 +14176,17 @@ function GroupsPage() {
                   ))}
                 </select>
               </label>
-              <div className="modal-actions span-2"><button className="primary-button">Matricular</button></div>
+                </div>
+              </section>
+              <div className="modal-actions group-modal-actions"><button className="primary-button">Matricular</button></div>
             </form>
           </section>
-          </Drawer>}
+          </GroupModal>}
 
           <section className="panel groups-wide">
             <h2>Turmas</h2>
             <p className="group-panel-copy">Acompanhe ocupação, participantes e lista de espera.</p>
-            {workspace?.groups.length === 0 && <p className="group-empty">Nenhuma turma cadastrada. Crie a primeira turma no formulário acima.</p>}
+            {workspace?.groups.length === 0 && <p className="group-empty">Nenhuma turma cadastrada. Use “Nova turma” para criar a primeira.</p>}
             <div className="group-card-grid">
               {workspace?.groups.map((group) => (
                 <article className="group-card" key={group.id}>
@@ -14240,30 +14210,32 @@ function GroupsPage() {
             </div>
           </section>
 
-          {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} busy={saving} onClose={closeDrawers}>
-            <div className="group-drawer-content">
+          {selectedGroup && <GroupModal title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} busy={saving} onClose={closeGroupDialogs}>
+            <div className="group-modal-sections">
               {error && <ErrorBanner error={error} />}
               {canManage && (
               <>
-              <div className="group-drawer-quick-actions">
-                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular cliente</button>
+              <div className="group-modal-quick-actions">
+                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setGroupDialog("enroll"); }}>Matricular cliente</button>
               </div>
-              <section className="group-drawer-section">
+              <section className="group-modal-section">
                 <h3>Capacidade e horários</h3>
                 <p>Ao salvar, os próximos encontros são refeitos nos novos horários. Encontros com presença registrada são mantidos.</p>
-                <form className="form-grid" onSubmit={(event) => {
+                <form className="group-modal-form" onSubmit={(event) => {
                   event.preventDefault();
-                  void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeDrawers(); });
+                  void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeGroupDialogs(); });
                 }}>
-                  <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
-                  <div className="group-drawer-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
+                  <div className="group-modal-capacity">
+                    <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
+                    <div className="group-modal-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
+                  </div>
                   <GroupSlotsEditor slots={editingSlots} onChange={setEditingSlots} weekDayNames={weekDayNames} />
-                  <div className="modal-actions span-2"><button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button></div>
+                  <div className="modal-actions group-modal-actions"><button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button></div>
                 </form>
               </section>
               </>
               )}
-              <section className="group-drawer-section">
+              <section className="group-modal-section">
                 <h3>Participantes</h3>
                 <div className="group-members">
                   {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
@@ -14273,7 +14245,7 @@ function GroupsPage() {
                 </div>
               </section>
             </div>
-          </Drawer>}
+          </GroupModal>}
         </div>
       )}
     </>

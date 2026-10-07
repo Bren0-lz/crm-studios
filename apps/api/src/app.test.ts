@@ -843,7 +843,7 @@ describe("CRM API", () => {
       payload: {
         fullName: "Joana de Souza",
         phone: "11999990000",
-        cpf: "12345678901",
+        cpf: "12345678909",
         tags: ["Avaliação"],
       },
     });
@@ -858,7 +858,7 @@ describe("CRM API", () => {
     expect(listed.json()[0].fullName).toBe("Joana de Souza");
     expect(listed.json()[0].phone).toBe("11999990000");
 
-    for (const search of ["joana", "12345678901", "123.456.789-01"]) {
+    for (const search of ["joana", "12345678909", "123.456.789-09"]) {
       const options = await app.inject({ method: "GET", url: `/patients/options?search=${encodeURIComponent(search)}`, headers: { authorization: `Bearer ${token}` } });
       expect(options.statusCode).toBe(200);
       expect(options.json()).toEqual([{ id: created.json().id, fullName: "Joana de Souza", tags: ["Avaliação"] }]);
@@ -889,7 +889,7 @@ describe("CRM API", () => {
         payload: {
           fullName: "Joana de Souza",
           phone: "11999990000",
-          cpf: "12345678901",
+          cpf: "12345678909",
           tags: [],
         },
       })

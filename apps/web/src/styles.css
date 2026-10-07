@@ -312,6 +312,103 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(38, 112, 95, 0.1);
 }
 
+/* Listas suspensas: seta própria (igual em todos os navegadores), espaço para ela à direita e
+   estados de hover, foco, desabilitado e "nenhuma opção escolhida" (opção vazia em cinza). */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: calc(var(--space-6) + var(--space-1));
+  overflow: hidden;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23748079' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right var(--space-3) center;
+  background-repeat: no-repeat;
+  background-size: var(--space-4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+select::-ms-expand {
+  display: none;
+}
+select:hover:not(:disabled):not(:focus) {
+  border-color: #c9d3cd;
+}
+select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2326705f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+select:disabled {
+  background-color: #f8f7f3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b5bdb8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  color: var(--muted);
+  cursor: not-allowed;
+}
+select:has(option[value=""]:checked) {
+  color: var(--muted);
+}
+/* Opções sempre legíveis, mesmo com o tema escuro do sistema no Windows. */
+select option {
+  background: white;
+  color: var(--ink);
+}
+select option:disabled {
+  color: var(--muted);
+}
+
+/* Lista aberta estilizada nos navegadores com select personalizável (Chrome/Edge 135+);
+   nos demais continua a lista nativa do sistema. */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    display: flex;
+    align-items: center;
+  }
+  select::picker-icon {
+    display: none;
+  }
+  select::picker(select) {
+    max-block-size: calc(var(--space-8) * 5);
+    margin-block: var(--space-1);
+    padding: var(--space-1);
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: var(--shadow);
+  }
+  select option {
+    gap: var(--space-2);
+    min-block-size: calc(var(--space-6) + var(--space-1));
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-md);
+    cursor: pointer;
+  }
+  select option:hover:not(:disabled),
+  select option:focus-visible {
+    outline: none;
+    background: #f0f7f3;
+    color: var(--green);
+  }
+  select option:checked {
+    background: var(--mint);
+    color: var(--green);
+    font-weight: 700;
+  }
+  select option::checkmark {
+    color: var(--green-2);
+  }
+  select option[value=""] {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  select option:disabled {
+    cursor: not-allowed;
+  }
+}
+
 .date-button,
 .icon-button,
 .menu-button {
@@ -1184,7 +1281,7 @@ textarea:focus {
   background: #fbfaf6;
 }
 .filter-group { display: grid; gap: 6px; min-width: 0; }
-.filter-group select { min-width: 190px; min-height: 38px; font-size: var(--text-md); }
+.filter-group select { min-width: 190px; min-height: 38px; background-position: right var(--space-2) center; font-size: var(--text-md); }
 .filter-label { color: #4d5b55; font-size: var(--text-xs); font-weight: 800; }
 .filter-tags { flex: 1 1 100%; }
 .plans-panel > .filter-tags { padding: 16px 23px 0; }
@@ -2030,19 +2127,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-cancel-confirm span { color: #9b7469; font-size: var(--text-xs); }
 .appointment-satisfaction { margin: 0; color: var(--muted); font-size: var(--text-sm); font-weight: 700; }
 .appointment-detail-section .appointment-lead-note { margin-top: var(--space-4); }
-.sos-area { display: grid; gap: var(--space-3); justify-items: start; }
-.modal > .sos-area { margin-bottom: var(--space-4); }
-.secondary-button.sos-button { border-color: var(--red); color: var(--red); }
-.secondary-button.sos-button[aria-expanded="true"] { background: #fbf2ef; }
-.sos-panel { display: grid; gap: var(--space-4); justify-self: stretch; padding: var(--space-4); border: 1px solid #e8c8be; border-radius: var(--radius-md); background: #fbf2ef; }
-.sos-contact { display: grid; gap: var(--space-1); min-width: 0; }
-.sos-contact small { color: var(--muted); font-size: var(--text-xs); }
-.sos-contact strong { overflow-wrap: anywhere; color: #7f5144; }
-.sos-contact span { font-size: var(--text-sm); }
-.sos-contact p { margin: 0; color: #9b7469; font-size: var(--text-sm); }
-.sos-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.sos-contact .sos-actions { margin-top: var(--space-2); }
-.secondary-button.sos-shortcut { border-color: #e8c8be; color: #a04e45; }
+.appointment-detail-grid .emergency-contact { padding: var(--space-3); border: 1px solid var(--red); border-radius: var(--radius-sm); background: #fbf2ef; }
+.appointment-detail-grid .emergency-contact small,
+.appointment-detail-grid .emergency-contact strong { color: var(--red); }
 .agenda-main .status-pill,
 .day-event .status-pill { margin-top: var(--space-1); }
 .status-pill.visit-trial { background: #e6eef8; color: #3f5f86; }
@@ -2059,6 +2146,8 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   width: auto;
   max-width: 100%;
   min-height: 34px;
+  padding-right: calc(var(--space-5) + var(--space-2));
+  background-position: right var(--space-2) center;
   font-size: var(--text-sm);
 }
 
@@ -2187,6 +2276,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: var(--text-sm);
   font-weight: 800;
 }
+
+.form-fieldset.emergency-fieldset { border-color: var(--red); background: #fbf2ef; }
+.form-fieldset.emergency-fieldset legend { color: var(--red); }
 
 .form-fieldset-grid {
   display: grid;
@@ -2715,50 +2807,53 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   align-items: start;
 }
 
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 110;
+.modal-wide {
   display: flex;
-  justify-content: flex-end;
-  background: rgba(18, 35, 30, 0.48);
-}
-
-.drawer {
-  display: flex;
-  width: min(100%, 560px);
-  height: 100vh;
-  height: 100dvh;
   flex-direction: column;
-  background: var(--cream);
-  box-shadow: -20px 0 60px rgba(18, 35, 30, 0.2);
+  width: min(960px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  overflow: hidden;
 }
-
-.drawer-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.modal-wide > .modal-head {
+  flex: 0 0 auto;
   gap: 16px;
-  padding: 26px 28px 20px;
+  margin: 0;
+  padding: 24px 30px 20px;
   border-bottom: 1px solid var(--line);
+}
+.modal-wide > .modal-head > div { min-width: 0; overflow-wrap: anywhere; }
+.group-modal-content { min-height: 0; overflow-y: auto; padding: 24px 30px 30px; }
+.group-modal-sections,
+.group-modal-form { display: grid; gap: 18px; }
+.group-modal-quick-actions { display: flex; justify-content: flex-end; }
+.group-modal-section { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.group-modal-section h3 { margin: 0 0 5px; font-family: "Manrope", sans-serif; font-size: var(--text-lg); }
+.group-modal-section > p { margin: 0 0 18px; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.group-modal-field-grid > label,
+.group-modal-capacity > label { min-width: 0; }
+.group-modal-field-grid select,
+.group-modal-field-grid input { width: 100%; }
+.group-modal-capacity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); align-items: end; gap: 16px; margin-bottom: 18px; }
+.group-modal-note,
+.group-next-session { padding: 12px 14px; border-radius: 10px; background: #eef4f0; color: var(--green); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-note { min-height: 44px; display: flex; align-items: center; }
+.group-modal-actions {
+  position: sticky;
+  z-index: 1;
+  bottom: -30px;
+  margin: 0 -30px -30px;
+  padding: 16px 30px;
+  border-top: 1px solid var(--line);
   background: var(--paper);
 }
-
-.drawer-head h2 { margin: 5px 0 4px; font-family: "Manrope", sans-serif; font-size: var(--text-2xl); }
-.drawer-head p { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
-.drawer-head .icon-button { flex: 0 0 auto; }
-.drawer-body { min-height: 0; overflow-y: auto; padding: 24px 28px 36px; }
-.group-drawer-content { display: grid; gap: 18px; }
-.groups-layout .drawer .group-form-panel .form-grid { grid-template-columns: 1fr; }
-.group-drawer-quick-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-start; }
-.group-drawer-content > h2,
-.group-drawer-content > .group-panel-copy { display: none; }
-.group-drawer-section { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
-.group-drawer-section h3 { margin: 0 0 5px; font-family: "Manrope", sans-serif; font-size: var(--text-lg); }
-.group-drawer-section > p { margin: 0 0 18px; color: var(--muted); font-size: var(--text-xs); line-height: 1.5; }
-.group-drawer-section .form-grid { grid-template-columns: 1fr; }
-.group-drawer-note,
-.group-next-session { padding: 12px 14px; border-radius: 10px; background: #eef4f0; color: var(--green); font-size: var(--text-xs); line-height: 1.5; }
+.group-modal-section .group-modal-actions {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .group-slots-editor { display: grid; gap: 12px; padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #f7f8f5; }
 .group-slots-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .group-slots-head h4 { margin: 0 0 4px; font-family: "Manrope", sans-serif; font-size: var(--text-sm); }
@@ -2772,12 +2867,22 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .group-card > .secondary-button { justify-self: start; }
 
 @media (max-width: 600px) {
-  .drawer-head { padding: 21px 20px 17px; }
-  .drawer-body { padding: 18px 18px 28px; }
+  .modal-wide { max-height: calc(100dvh - 32px); }
+  .modal-wide > .modal-head { padding: 20px 18px 16px; }
+  .group-modal-content { padding: 18px; }
+  .group-modal-section { padding: 18px; }
+  .group-modal-field-grid,
+  .group-modal-capacity { grid-template-columns: 1fr; }
+  .group-modal-actions { bottom: -18px; margin: 0 -18px -18px; padding: 14px 18px; }
   .group-slots-head { flex-direction: column; }
   /* audit: mobile-ok dia e horários em 2 colunas de ~150px; campos de hora cabem */
   .group-slot-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .group-slot-row .icon-button { grid-column: 2; justify-self: end; }
+}
+
+@media (max-width: 420px) {
+  .group-slot-row { grid-template-columns: 1fr; }
+  .group-slot-row .icon-button { grid-column: 1; }
 }
 
 .groups-layout .group-form-panel h2,
@@ -2833,10 +2938,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .group-overview small { color: var(--muted); font-size: var(--text-xs); }
-
-.groups-layout .group-form-panel .form-grid { grid-template-columns: 1fr; gap: 16px; }
-.groups-layout .group-form-panel .form-grid > label { min-width: 0; }
-.groups-layout .groups-wide.group-form-panel .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .group-empty {
   margin: 0;
@@ -2940,7 +3041,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .group-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .group-overview > div { padding: 15px; }
   .group-overview > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .groups-layout .groups-wide.group-form-panel .form-grid { grid-template-columns: 1fr; }
 }
 
 .admin-users {
@@ -4263,7 +4363,9 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .lead-actions select {
-  padding: 0 7px;
+  padding: 0 calc(var(--space-5) + var(--space-1)) 0 var(--space-2);
+  background-position: right var(--space-2) center;
+  background-size: var(--space-3);
 }
 
 /* Exceção aceita: largura total de propósito no cartão estreito do kanban (botão de linha inteira). */
