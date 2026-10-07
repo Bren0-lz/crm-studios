@@ -2315,7 +2315,8 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-date-placeholder { color: var(--muted); }
 .appointment-date-fields .appointment-time-field { margin: 0; display: block; }
 .appointment-time-field input { width: 100%; min-height: 43px; }
-.appointment-calendar { position: fixed; inset: auto; z-index: 110; width: min(340px, calc(100vw - 24px)); min-width: 0; max-height: calc(100dvh - 24px); margin: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px; border: 1px solid #e1e6e0; border-radius: 16px; background: #fffefa; color: var(--ink); box-shadow: 0 16px 48px rgba(26, 45, 36, .14), 0 2px 8px rgba(26, 45, 36, .05); }
+/* Preserve usable width when occupied days introduce vertical scrolling. */
+.appointment-calendar { position: fixed; inset: auto; z-index: 110; width: min(340px, calc(100vw - 24px)); min-width: 0; max-height: calc(100dvh - 24px); margin: 0; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; padding: 18px; border: 1px solid #e1e6e0; border-radius: 16px; background: #fffefa; color: var(--ink); box-shadow: 0 16px 48px rgba(26, 45, 36, .14), 0 2px 8px rgba(26, 45, 36, .05); }
 .appointment-calendar::backdrop { background: transparent; pointer-events: none; }
 .appointment-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 .appointment-calendar-head strong { font-size: var(--text-md); font-weight: 600; }
@@ -2346,10 +2347,11 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-calendar-summary > strong, .appointment-calendar-summary > small { display: block; }
 .appointment-calendar-summary > strong { font-weight: 600; }
 .appointment-calendar-summary > small { margin-top: 4px; color: #68766f; font-size: var(--text-xs); line-height: 1.5; }
-.appointment-calendar-summary .appointment-calendar-time-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 10px 12px; border-radius: 9px; background: #f0f3ee; font-size: var(--text-sm); font-weight: 500; }
-.appointment-calendar-time-field input { width: 112px; min-height: 40px; flex-shrink: 0; background: white; }
+.appointment-calendar-summary .appointment-calendar-time-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 10px 12px; border-radius: 9px; background: #f0f3ee; color: #4d5b55; font-family: "DM Sans", system-ui, sans-serif; font-size: var(--text-sm); font-weight: 500; line-height: 1.4; }
+.appointment-calendar-time-field > span { flex-shrink: 0; white-space: nowrap; }
+.appointment-calendar-time-field input { width: 112px; height: 40px; min-height: 40px; flex-shrink: 0; margin: 0; padding: 0 12px; border: 1px solid #dcd9d0; border-radius: 11px; background: white; color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; font-size: var(--text-md); font-weight: 400; line-height: 1.4; }
 .appointment-calendar-summary p { margin: 10px 0 2px; }
-.appointment-calendar-summary ul { list-style: none; padding: 0 2px; margin: 12px -2px 0; max-height: 144px; overflow-y: auto; overscroll-behavior: contain; }
+.appointment-calendar-summary ul { list-style: none; padding: 0 2px; margin: 12px -2px 0; max-height: 144px; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
 .appointment-calendar-summary li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eff1ec; }
 .appointment-calendar-summary li:last-child { border-bottom: 0; }
 .appointment-calendar-summary time { font-variant-numeric: tabular-nums; font-weight: 500; }
@@ -2360,6 +2362,10 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 @media (max-width: 480px) {
   .appointment-calendar { padding: 16px; }
   .appointment-date-fields { grid-template-columns: minmax(0, 1fr) 100px; }
+}
+@media (max-width: 360px) {
+  .appointment-calendar-summary .appointment-calendar-time-field { flex-direction: column; align-items: stretch; gap: 8px; }
+  .appointment-calendar-time-field input { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .appointment-calendar-day { transition: none; }
