@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
 import { useState } from "react";
 import App, { Modal } from "./App";
+import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
 
 vi.stubGlobal("fetch", vi.fn());
 
@@ -276,6 +277,32 @@ describe("modal scroll lock", () => {
 });
 
 describe("modal closing", () => {
+  it("keeps the floating calendar in the modal focus boundary and consumes its first Escape", async () => {
+    const onClose = vi.fn();
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => [] } as Response);
+    function CalendarModal() {
+      const [value, setValue] = useState("2026-10-07T09:00");
+      return <Modal title="Agendamento" subtitle="Escolha a data" onClose={onClose}>
+        <form><AppointmentDateTimePicker value={value} onChange={setValue} professionalId="" roomId="" />
+          <button type="button">Salvar atendimento</button></form>
+      </Modal>;
+    }
+    render(<CalendarModal />);
+    const dialog = screen.getByRole("dialog", { name: "Agendamento" });
+    const date = within(dialog).getByRole("button", { name: "Data" });
+    fireEvent.click(date);
+    await within(dialog).findByText("Nenhum compromisso registrado.");
+    const panel = within(dialog).getByRole("region", { name: "Calendário de agendamento" });
+    expect(dialog).toContainElement(panel);
+    expect(panel.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(date).toHaveFocus();
+    expect(within(dialog).queryByRole("region")).not.toBeInTheDocument();
+    fireEvent.keyDown(date, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   function StackedModals({ busy = false }: { busy?: boolean }) {
     const [first, setFirst] = useState(false);
     const [second, setSecond] = useState(false);

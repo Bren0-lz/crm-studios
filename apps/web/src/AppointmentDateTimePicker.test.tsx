@@ -51,7 +51,9 @@ beforeEach(() => {
   vi.mocked(api.scheduleBlocks).mockResolvedValue([]);
   vi.mocked(api.holidays).mockResolvedValue([]);
 });
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+afterEach(() => {
+  cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.resetAllMocks();
+});
 
 describe("appointment calendar", () => {
   it("preserves the time when choosing a date and keeps time editable", async () => {
@@ -88,6 +90,8 @@ describe("appointment calendar", () => {
     vi.mocked(api.holidays).mockResolvedValue([{ id: "holiday", clinicId: "clinic", date: "2026-10-07", name: "Feriado local", createdAt: stamp } as Holiday]);
     render(<Harness />); open();
     const list = await screen.findByRole("list", { name: "Horários ocupados" });
+    expect(screen.getByText("Outubro de 2026")).toBeInTheDocument();
+    expect(screen.getByText("Quarta, 7 de outubro")).toBeInTheDocument();
     expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "08:00–09:00Turma", "10:00–11:00Atendimento", "12:00–13:00Bloqueio",
     ]);
@@ -206,5 +210,82 @@ describe("appointment calendar", () => {
     expect(screen.getByRole("button", { name: "Data" })).toBeDisabled();
     expect(screen.getByLabelText("Horário")).toBeDisabled();
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
+  it("opens in the native top layer within the form and toggles from the date field", async () => {
+    const showPopover = vi.spyOn(HTMLElement.prototype, "showPopover");
+    render(<Harness />); open();
+    const panel = screen.getByRole("region", { name: "Calendário de agendamento" });
+    expect(panel).toHaveAttribute("popover", "manual");
+    expect(screen.getByRole("form")).toContainElement(panel);
+    expect(showPopover).toHaveBeenCalledTimes(1);
+    await screen.findByText("Nenhum compromisso registrado.");
+    open();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+    open();
+    await screen.findByText("Nenhum compromisso registrado.");
+    expect(showPopover).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays open when selecting a day and dismisses on outside pointer interaction", async () => {
+    render(<><Harness /><button type="button">Outro campo</button></>); open();
+    await screen.findByText("Nenhum compromisso registrado.");
+    fireEvent.pointerDown(day("2026-10-08"));
+    fireEvent.click(day("2026-10-08"));
+    expect(screen.getByRole("region")).toBeInTheDocument();
+    const outside = screen.getByRole("button", { name: "Outro campo" });
+    fireEvent.pointerDown(outside);
+    outside.focus();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(outside).toHaveFocus();
+  });
+
+  it("keeps the panel inside horizontal bounds and switches above a low field", async () => {
+    vi.stubGlobal("innerWidth", 650);
+    vi.stubGlobal("innerHeight", 600);
+    let anchor = new DOMRect(600, 70, 170, 43);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("appointment-calendar")
+        ? new DOMRect(0, 0, parseFloat(this.style.width), Math.min(460, parseFloat(this.style.maxHeight))) : anchor;
+    });
+    render(<Harness />); open();
+    const panel = screen.getByRole("region");
+    expect(panel).toHaveStyle({ width: "340px", left: "298px", top: "121px", maxHeight: "467px" });
+    anchor = new DOMRect(600, 480, 170, 43);
+    fireEvent.scroll(document);
+    expect(panel).toHaveStyle({ left: "298px", top: "12px", maxHeight: "460px" });
+    await screen.findByText("Nenhum compromisso registrado.");
+  });
+
+  it("constrains a long panel on mobile and repositions after viewport and content changes", async () => {
+    vi.stubGlobal("innerWidth", 320);
+    vi.stubGlobal("innerHeight", 360);
+    let contentHeight = 460;
+    let resizePanel!: () => void;
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { resizePanel = callback; }
+      observe = vi.fn();
+      disconnect = disconnect;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("appointment-calendar")
+        ? new DOMRect(0, 0, parseFloat(this.style.width), Math.min(contentHeight, parseFloat(this.style.maxHeight)))
+        : new DOMRect(5, 150, 170, 43);
+    });
+    render(<Harness />); open();
+    const panel = screen.getByRole("region");
+    expect(panel).toHaveStyle({ width: "296px", left: "12px", top: "201px", maxHeight: "147px" });
+    vi.stubGlobal("innerHeight", 300);
+    fireEvent(window, new Event("resize"));
+    expect(panel).toHaveStyle({ top: "12px", maxHeight: "130px" });
+    contentHeight = 70;
+    act(() => resizePanel());
+    expect(panel).toHaveStyle({ top: "201px", maxHeight: "87px" });
+    await screen.findByText("Nenhum compromisso registrado.");
+    fireEvent.click(screen.getByRole("button", { name: "Fechar calendário" }));
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
   });
 });

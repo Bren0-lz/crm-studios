@@ -23,7 +23,12 @@ type CalendarData = {
 const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 const fullDateLabel = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+const summaryDateLabel = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 const timeLabel = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -92,6 +97,71 @@ export function AppointmentDateTimePicker({
     });
     return () => { active = false; };
   }, [expanded, from, to, holidayFrom, holidayTo, requestKey]);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const trigger = triggerRef.current;
+    if (!expanded || !panel || !trigger) return;
+
+    // The native top layer escapes the modal's scrolling area without moving the
+    // panel out of its DOM subtree (and therefore out of the modal's focus trap).
+    panel.showPopover?.();
+
+    function positionPanel() {
+      if (!panel || !trigger) return;
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportWidth = viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth);
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const margin = 12;
+      const gap = 8;
+      const width = Math.max(0, Math.min(340, viewportWidth - margin * 2));
+      const maxHeight = Math.max(0, viewportHeight - margin * 2);
+      panel.style.width = `${width}px`;
+      panel.style.maxHeight = `${maxHeight}px`;
+
+      const anchor = trigger.getBoundingClientRect();
+      const height = panel.getBoundingClientRect().height;
+      const below = viewportTop + viewportHeight - margin - anchor.bottom - gap;
+      const above = anchor.top - gap - viewportTop - margin;
+      const placeAbove = height > below && above > below;
+      const available = Math.max(0, Math.min(maxHeight, placeAbove ? above : below));
+      panel.style.maxHeight = `${available}px`;
+      const panelHeight = Math.min(height, available);
+      const top = placeAbove ? anchor.top - gap - panelHeight : anchor.bottom + gap;
+      panel.style.left = `${Math.max(viewportLeft + margin, Math.min(anchor.left, viewportLeft + viewportWidth - margin - width))}px`;
+      panel.style.top = `${Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - margin - panelHeight))}px`;
+    }
+
+    function onScroll(event: Event) {
+      if (event.target instanceof Node && panel?.contains(event.target)) return;
+      positionPanel();
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && !panel?.contains(event.target) && !trigger?.contains(event.target)) setOpen(false);
+    }
+
+    positionPanel();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(positionPanel);
+    observer?.observe(panel);
+    observer?.observe(trigger);
+    window.addEventListener("resize", positionPanel);
+    document.addEventListener("scroll", onScroll, true);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.visualViewport?.addEventListener("resize", positionPanel);
+    window.visualViewport?.addEventListener("scroll", positionPanel);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", positionPanel);
+      document.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.visualViewport?.removeEventListener("resize", positionPanel);
+      window.visualViewport?.removeEventListener("scroll", positionPanel);
+      if (panel.isConnected) panel.hidePopover?.();
+    };
+  }, [expanded]);
 
   useLayoutEffect(() => {
     if (expanded && focusDay.current) {
@@ -198,12 +268,14 @@ export function AppointmentDateTimePicker({
             onChange={(event) => onChange(`${date}T${event.target.value}`)} />
         </label>
       </div>
-      {expanded && <div ref={panelRef} id={`${id}-panel`} className="appointment-calendar" role="region" aria-label="Calendário de agendamento">
+      {expanded && <div ref={panelRef} id={`${id}-panel`} popover="manual" className="appointment-calendar" role="region" aria-label="Calendário de agendamento">
         <div className="appointment-calendar-head">
-          <button type="button" className="icon-button" aria-label="Mês anterior" onClick={() => moveMonth(-1)}><ChevronLeft size={18} /></button>
-          <strong aria-live="polite">{monthLabel.format(month)}</strong>
-          <button type="button" className="icon-button" aria-label="Próximo mês" onClick={() => moveMonth(1)}><ChevronRight size={18} /></button>
-          <button type="button" className="icon-button" aria-label="Fechar calendário" onClick={closeCalendar}><X size={16} /></button>
+          <strong aria-live="polite">{capitalize(monthLabel.format(month))}</strong>
+          <div className="appointment-calendar-nav">
+            <button type="button" className="icon-button" aria-label="Mês anterior" onClick={() => moveMonth(-1)}><ChevronLeft size={17} /></button>
+            <button type="button" className="icon-button" aria-label="Próximo mês" onClick={() => moveMonth(1)}><ChevronRight size={17} /></button>
+            <button type="button" className="icon-button" aria-label="Fechar calendário" onClick={closeCalendar}><X size={16} /></button>
+          </div>
         </div>
         <table className="appointment-calendar-grid" aria-label={monthLabel.format(month)}>
           <thead><tr>{["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((day) => <th key={day} scope="col">{day}</th>)}</tr></thead>
@@ -225,7 +297,7 @@ export function AppointmentDateTimePicker({
                     setMonth(firstOfMonth(day));
                   }
                 }}>
-                <span>{day.getDate()}</span>
+                <span className="appointment-calendar-day-number">{day.getDate()}</span>
                 <span className="appointment-calendar-markers" aria-hidden="true">{count > 0 && <i />}{holiday && <i className="holiday" />}</span>
               </button></td>;
             })}
@@ -233,7 +305,7 @@ export function AppointmentDateTimePicker({
         </table>
         <div className="appointment-calendar-legend"><span><i /> Compromissos</span><span><i className="holiday" /> Feriado</span></div>
         <div className="appointment-calendar-summary" aria-live="polite" aria-busy={!data && !error}>
-          <strong>{selectedDay ? `Horários de ${dateLabel.format(selectedDay)}` : "Escolha uma data"}</strong>
+          <strong>{selectedDay ? capitalize(summaryDateLabel.format(selectedDay).replace("-feira", "")) : "Escolha uma data"}</strong>
           <small>{professionalId || roomId ? "Do profissional ou da sala selecionados" : "Resumo geral da agenda"}</small>
           {error ? <div role="alert"><p>{error}</p><button type="button" className="secondary-button button-sm" onClick={() => setRetry((current) => current + 1)}>Tentar novamente</button></div>
             : !data ? <p role="status">Consultando agenda…</p>
@@ -246,7 +318,7 @@ export function AppointmentDateTimePicker({
                     // Show the portion occupying this day, including overnight reservations.
                     const startsBefore = dateKey(start) < date;
                     const endsAfter = dateKey(end) > date;
-                    return <li key={`${item.kind}-${item.id}`}><time>{startsBefore ? "00:00" : timeLabel.format(start)}–{endsAfter ? "24:00" : timeLabel.format(end)}</time><span>{item.kind}</span></li>;
+                    return <li key={`${item.kind}-${item.id}`}><time>{startsBefore ? "00:00" : timeLabel.format(start)}–{endsAfter ? "24:00" : timeLabel.format(end)}</time><span className="appointment-calendar-event-kind">{item.kind}</span></li>;
                   })}</ul>}
               </>}
         </div>
