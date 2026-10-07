@@ -2346,6 +2346,8 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-calendar-summary > strong, .appointment-calendar-summary > small { display: block; }
 .appointment-calendar-summary > strong { font-weight: 600; }
 .appointment-calendar-summary > small { margin-top: 4px; color: #68766f; font-size: var(--text-xs); line-height: 1.5; }
+.appointment-calendar-summary .appointment-calendar-time-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 10px 12px; border-radius: 9px; background: #f0f3ee; font-size: var(--text-sm); font-weight: 500; }
+.appointment-calendar-time-field input { width: 112px; min-height: 40px; flex-shrink: 0; background: white; }
 .appointment-calendar-summary p { margin: 10px 0 2px; }
 .appointment-calendar-summary ul { list-style: none; padding: 0 2px; margin: 12px -2px 0; max-height: 144px; overflow-y: auto; overscroll-behavior: contain; }
 .appointment-calendar-summary li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eff1ec; }

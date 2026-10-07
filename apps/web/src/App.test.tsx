@@ -1128,8 +1128,9 @@ describe("application shell", () => {
     fireEvent.click(within(reschedule).getByRole("button", { name: "Data" }));
     expect(await within(reschedule).findByText("Nenhum compromisso registrado.")).toBeInTheDocument();
     expect(reschedule.querySelector('[data-date][aria-pressed="true"]')).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
+    fireEvent.change(within(reschedule).getByLabelText("Horário do atendimento"), { target: { value: "11:00" } });
+    expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
     fireEvent.click(within(reschedule).getByRole("button", { name: "Fechar calendário" }));
-    fireEvent.change(within(reschedule).getByLabelText("Horário"), { target: { value: "11:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar reagendamento" }));
     const updateCall = await vi.waitFor(() => {
       const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
@@ -2698,10 +2699,16 @@ describe("application shell", () => {
     expect(type).toHaveValue("");
     expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
-    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
+    const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
+    fillAppointmentForm(dialog, "Helena Almeida");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
+    const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][aria-pressed="true"]')!.dataset.date!;
+    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "14:30" } });
+    expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText("Horário ocupado.")).toBeInTheDocument();
-    expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation" });
+    expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation", startsAt: new Date(`${chosenDate}T14:30`).toISOString() });
   });
 
   it("books a trial class for a lead from the CRM card", async () => {
@@ -2743,8 +2750,9 @@ describe("application shell", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!.dataset.date!;
     fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
+    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "09:00" } });
+    expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
-    fireEvent.change(within(dialog).getByLabelText("Horário"), { target: { value: "09:00" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar agendamento" }));
     expect(await within(dialog).findByText("Profissional já tem atendimento neste horário.")).toBeInTheDocument();
     expect(posted?.url).toContain(`/leads/${lead.id}/appointments`);

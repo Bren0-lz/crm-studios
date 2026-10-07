@@ -56,6 +56,79 @@ afterEach(() => {
 });
 
 describe("appointment calendar", () => {
+  it("edits time in the panel while keeping occupied intervals visible and both fields synchronized", async () => {
+    vi.mocked(api.appointments).mockResolvedValue([appointment("visit", "10:00")]);
+    render(<Harness />); open();
+    const list = await screen.findByRole("list", { name: "Horários ocupados" });
+    const inside = screen.getByLabelText("Horário do atendimento");
+    const outside = screen.getByLabelText("Horário");
+    expect(inside).toHaveValue("15:30");
+    fireEvent.pointerDown(inside);
+    act(() => inside.focus());
+    fireEvent.change(inside, { target: { value: "16:45" } });
+    expect(inside).toHaveFocus();
+    expect(outside).toHaveValue("16:45");
+    expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent("2026-10-07T16:45");
+    expect(list).toBeInTheDocument();
+    expect(screen.getByText("10:00–11:00")).toBeInTheDocument();
+    fireEvent.pointerDown(outside);
+    act(() => outside.focus());
+    fireEvent.change(outside, { target: { value: "17:15" } });
+    expect(outside).toHaveFocus();
+    expect(inside).toHaveValue("17:15");
+    expect(list).toBeInTheDocument();
+    expect(api.appointments).toHaveBeenCalledTimes(1);
+    fireEvent.click(day("2026-10-08"));
+    expect(inside).toHaveValue("17:15");
+    expect(outside).toHaveValue("17:15");
+    expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent("2026-10-08T17:15");
+    fireEvent.click(screen.getByRole("button", { name: "Fechar calendário" }));
+    expect(outside).toHaveValue("17:15");
+  });
+
+  it("opens the calendar on external time focus without stealing focus or reopening it while editing", async () => {
+    render(<><Harness /><button type="button">Outro campo</button></>);
+    const outside = screen.getByLabelText("Horário");
+    fireEvent.pointerDown(outside);
+    act(() => outside.focus());
+    await screen.findByText("Nenhum compromisso registrado.");
+    expect(outside).toHaveFocus();
+    const inside = screen.getByLabelText("Horário do atendimento");
+    act(() => inside.focus());
+    expect(screen.getByRole("region")).toBeInTheDocument();
+    act(() => outside.focus());
+    expect(outside).toHaveFocus();
+    expect(api.appointments).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(outside, { key: "Escape" });
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+    act(() => outside.focus());
+    await screen.findByText("Nenhum compromisso registrado.");
+    expect(outside).toHaveFocus();
+    const other = screen.getByRole("button", { name: "Outro campo" });
+    fireEvent.pointerDown(other);
+    act(() => other.focus());
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(other).toHaveFocus();
+  });
+
+  it("validates synchronized time while open and after closing the panel", async () => {
+    render(<Harness initial="2026-10-07T" />);
+    const form = screen.getByRole("form") as HTMLFormElement;
+    expect(form.checkValidity()).toBe(false);
+    open(); await screen.findByText("Nenhum compromisso registrado.");
+    expect(form.checkValidity()).toBe(false);
+    const inside = screen.getByLabelText("Horário do atendimento");
+    fireEvent.change(inside, { target: { value: "09:30" } });
+    expect(form.checkValidity()).toBe(true);
+    fireEvent.change(inside, { target: { value: "" } });
+    expect(form.checkValidity()).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Fechar calendário" }));
+    expect(form.checkValidity()).toBe(false);
+    fireEvent.change(screen.getByLabelText("Horário"), { target: { value: "09:30" } });
+    expect(form.checkValidity()).toBe(true);
+  });
+
   it("preserves the time when choosing a date and keeps time editable", async () => {
     render(<Harness />);
     expect(screen.getByRole("button", { name: "Data" })).toHaveTextContent("07/10/2026");

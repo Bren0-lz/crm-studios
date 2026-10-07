@@ -54,6 +54,7 @@ export function AppointmentDateTimePicker({
   const [focusedDate, setFocusedDate] = useState(date || today);
   const [result, setResult] = useState<{ key: string; data: CalendarData | null; error: string } | null>(null);
   const [retry, setRetry] = useState(0);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -140,7 +141,7 @@ export function AppointmentDateTimePicker({
     }
 
     function onPointerDown(event: PointerEvent) {
-      if (event.target instanceof Node && !panel?.contains(event.target) && !trigger?.contains(event.target)) setOpen(false);
+      if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) setOpen(false);
     }
 
     positionPanel();
@@ -170,12 +171,12 @@ export function AppointmentDateTimePicker({
     }
   }, [expanded, focusedDate, month]);
 
-  function showCalendar() {
+  function showCalendar(focusCalendarDay = true) {
     const initial = date || today;
     setMonth(firstOfMonth(localDate(initial)));
     setFocusedDate(initial);
     setRetry((current) => current + 1);
-    focusDay.current = true;
+    focusDay.current = focusCalendarDay;
     setOpen(true);
   }
 
@@ -243,7 +244,7 @@ export function AppointmentDateTimePicker({
   const selectedEvents = selectedDay ? eventsOnDay(selectedDay) : [];
 
   return (
-    <div className="appointment-date-picker" onKeyDown={(event) => {
+    <div ref={pickerRef} className="appointment-date-picker" onKeyDown={(event) => {
       if (event.key === "Escape" && expanded) {
         event.preventDefault(); event.stopPropagation(); closeCalendar();
       }
@@ -265,6 +266,7 @@ export function AppointmentDateTimePicker({
         <label className="appointment-time-field">
           <span className="sr-only">Horário</span>
           <input ref={timeRef} type="time" required disabled={disabled} value={time}
+            onFocus={() => { if (!expanded && !disabled) showCalendar(false); }}
             onChange={(event) => onChange(`${date}T${event.target.value}`)} />
         </label>
       </div>
@@ -307,6 +309,11 @@ export function AppointmentDateTimePicker({
         <div className="appointment-calendar-summary" aria-live="polite" aria-busy={!data && !error}>
           <strong>{selectedDay ? capitalize(summaryDateLabel.format(selectedDay).replace("-feira", "")) : "Escolha uma data"}</strong>
           <small>{professionalId || roomId ? "Do profissional ou da sala selecionados" : "Resumo geral da agenda"}</small>
+          <label className="appointment-calendar-time-field">
+            <span>Horário do atendimento</span>
+            <input type="time" required disabled={disabled} value={time}
+              onChange={(event) => onChange(`${date}T${event.target.value}`)} />
+          </label>
           {error ? <div role="alert"><p>{error}</p><button type="button" className="secondary-button button-sm" onClick={() => setRetry((current) => current + 1)}>Tentar novamente</button></div>
             : !data ? <p role="status">Consultando agenda…</p>
               : selectedDay && <>
