@@ -1833,14 +1833,16 @@ function PatientModal({
         <fieldset className="form-fieldset span-2">
           <legend>Contato</legend>
           <div className="form-fieldset-grid">
-            <label>
-              Telefone
-              <PhoneInput
-                required
-                value={form.phone}
-                onChange={(digits) => field("phone", digits)}
-              />
-            </label>
+            <div className="field-with-hint">
+              <label>
+                Telefone
+                <PhoneInput
+                  required
+                  value={form.phone}
+                  onChange={(digits) => field("phone", digits)}
+                />
+              </label>
+            </div>
             <div className="field-with-hint">
               <label>
                 WhatsApp
