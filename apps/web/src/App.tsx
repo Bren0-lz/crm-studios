@@ -1942,7 +1942,7 @@ function PatientModal({
           )}
         </fieldset>
         <label className="span-2">
-          Observações administrativas
+          Observações
           <textarea
             value={form.notes}
             onChange={(e) => field("notes", e.target.value)}
