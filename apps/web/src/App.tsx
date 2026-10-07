@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
 import {
   Bell,
   BarChart3,
@@ -4915,15 +4916,12 @@ function LeadAppointmentModal({
               ))}
             </select>
           </label>
-          <label className="span-2">
-            Data e horário
-            <input
-              required
-              type="datetime-local"
-              value={form.startsAt}
-              onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-            />
-          </label>
+          <div className="span-2">
+            <AppointmentDateTimePicker value={form.startsAt}
+              onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+              professionalId={form.professionalId} roomId={form.roomId}
+              disabled={saving} />
+          </div>
           <label className="span-2">
             Observação
             <textarea
@@ -10874,15 +10872,12 @@ function AppointmentRescheduleModal({
             ))}
           </select>
         </label>
-        <label className="span-2">
-          Nova data e horário
-          <input
-            required
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-          />
-        </label>
+        <div className="span-2">
+          <AppointmentDateTimePicker value={form.startsAt}
+            onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+            professionalId={form.professionalId} roomId={form.roomId}
+            disabled={loading} excludeAppointmentId={appointment.id} label="Nova data e horário" />
+        </div>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
@@ -11232,15 +11227,12 @@ function AppointmentModal({
             ))}
           </select>
         </label>
-        <label>
-          Data e horário
-          <input
-            required
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-          />
-        </label>
+        <div>
+          <AppointmentDateTimePicker value={form.startsAt}
+            onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+            professionalId={form.professionalId} roomId={form.roomId}
+            disabled={loading} />
+        </div>
         <label className="span-2">
           Observação
           <textarea

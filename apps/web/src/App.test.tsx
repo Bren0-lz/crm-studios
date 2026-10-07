@@ -75,8 +75,14 @@ function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
     if (!select.value) fireEvent.change(select, { target: { value: select.options[1]!.value } });
   }
-  const startsAt = within(dialog).getByLabelText("Data e horário") as HTMLInputElement;
-  if (!startsAt.value) fireEvent.change(startsAt, { target: { value: "2027-01-01T09:00" } });
+  const date = within(dialog).getByRole("button", { name: "Data" });
+  if (date.textContent?.includes("Selecionar")) {
+    fireEvent.click(date);
+    fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
+  }
+  const time = within(dialog).getByLabelText("Horário");
+  if (!(time as HTMLInputElement).value) fireEvent.change(time, { target: { value: "09:00" } });
 }
 
 describe("appointment client search and creation", () => {
@@ -108,8 +114,9 @@ describe("appointment client search and creation", () => {
   it("starts every field of a new appointment empty", async () => {
     const appointment = await open();
     expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue("");
-    for (const label of ["Tipo", "Profissional", "Sala", "Serviço", "Data e horário", "Observação"])
+    for (const label of ["Tipo", "Profissional", "Sala", "Serviço", "Horário", "Observação"])
       expect(within(appointment).getByLabelText(label)).toHaveValue("");
+    expect(within(appointment).getByRole("button", { name: "Data" })).toHaveTextContent("Selecionar data");
     expect(within(appointment).getByLabelText("Repetir este atendimento")).not.toBeChecked();
     expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
   });
@@ -120,7 +127,8 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(appointment).getByLabelText("Observação"), { target: { value: "Manter observação" } });
     fireEvent.click(within(appointment).getByLabelText("Repetir este atendimento"));
     fireEvent.change(within(appointment).getByLabelText("Número de ocorrências"), { target: { value: "6" } });
-    const startsAt = within(appointment).getByLabelText("Data e horário") as HTMLInputElement;
+    const startsAt = within(appointment).getByLabelText("Horário") as HTMLInputElement;
+    const originalDate = within(appointment).getByRole("button", { name: "Data" }).textContent;
     const originalTime = startsAt.value;
     fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
     const client = screen.getByRole("dialog", { name: "Novo cliente" });
@@ -143,6 +151,7 @@ describe("appointment client search and creation", () => {
     await waitFor(() => expect(picker).toHaveFocus());
     expect(within(appointment).getByLabelText("Observação")).toHaveValue("Manter observação");
     expect(startsAt).toHaveValue(originalTime);
+    expect(within(appointment).getByRole("button", { name: "Data" })).toHaveTextContent(originalDate!);
     expect(within(appointment).getByLabelText("Número de ocorrências")).toHaveValue(6);
     fireEvent.click(within(appointment).getByRole("button", { name: "Confirmar atendimento" }));
     await screen.findByText("Horário ocupado.");
@@ -1088,6 +1097,12 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     fireEvent.click(screen.getByRole("button", { name: "Remarcar atendimento" }));
     expect(screen.getByRole("heading", { name: "Reagendar atendimento" })).toBeInTheDocument();
+    const reschedule = screen.getByRole("dialog", { name: "Reagendar atendimento" });
+    fireEvent.click(within(reschedule).getByRole("button", { name: "Data" }));
+    expect(await within(reschedule).findByText("Nenhum compromisso registrado.")).toBeInTheDocument();
+    expect(reschedule.querySelector('[data-date][aria-pressed="true"]')).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
+    fireEvent.click(within(reschedule).getByRole("button", { name: "Fechar calendário" }));
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), { target: { value: "11:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar reagendamento" }));
     const updateCall = await vi.waitFor(() => {
       const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
@@ -1098,6 +1113,7 @@ describe("application shell", () => {
     expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
       professionalId: appointment.professionalId,
       roomId: appointment.roomId,
+      startsAt: next.toISOString(),
     });
   });
 
@@ -2697,7 +2713,11 @@ describe("application shell", () => {
     expect(type).toHaveValue("trial");
     expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
-    fireEvent.change(within(dialog).getByLabelText("Data e horário"), { target: { value: "2026-10-05T09:00" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
+    const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!.dataset.date!;
+    fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
+    fireEvent.change(within(dialog).getByLabelText("Horário"), { target: { value: "09:00" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar agendamento" }));
     expect(await within(dialog).findByText("Profissional já tem atendimento neste horário.")).toBeInTheDocument();
     expect(posted?.url).toContain(`/leads/${lead.id}/appointments`);
@@ -2705,7 +2725,7 @@ describe("application shell", () => {
       professionalId: "33333333-3333-4333-8333-333333333333",
       roomId: "55555555-5555-4555-8555-555555555555",
       serviceId: "77777777-7777-4777-8777-777777777777",
-      startsAt: new Date("2026-10-05T09:00").toISOString(),
+      startsAt: new Date(`${chosenDate}T09:00`).toISOString(),
       notes: "",
       visitType: "evaluation",
     });
