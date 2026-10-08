@@ -316,7 +316,7 @@ describe("per-operation API authorization", () => {
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
         // History was introduced after 0045 and must not be backfilled into old users.
-        .filter((item) => !item.legacyAdmin && item.module !== "history")
+        .filter((item) => !item.legacyAdmin && !item.explicitGrantOnly && item.module !== "history")
         .map((item) => item.key)
         .sort(),
     );

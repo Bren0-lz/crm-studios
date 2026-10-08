@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { legacyPermissions, permissionKeys } from "@crm/contracts";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
 import { runMigrations, seedDemoData } from "./database.js";
 import { databaseConnectionConfig } from "./database-connection.js";
@@ -66,6 +66,132 @@ const dailyCashDay = new Date(Date.now() + 640 * 24 * 60 * 60 * 1000)
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
+  const templateIds: string[] = [];
+  async function configuredPlan<T extends { name: string; totalValueInCents: number }>(input: T): Promise<T & { planTemplateId: string }> {
+    const template = await repository.createPlanTemplate(clinicId, ownerId, { name: input.name, totalValueInCents: input.totalValueInCents });
+    templateIds.push(template.id);
+    return { ...input, planTemplateId: template.id };
+  }
+
+  it("persists catalog defaults and negotiated snapshots, rejects foreign plans atomically and renews legacy contracts", async () => {
+    const isolatedClinic = randomUUID();
+    const foreignClinic = randomUUID();
+    const marker = `catalog-${randomUUID()}`;
+    let saleId: string | undefined;
+    try {
+      await pool.query("INSERT INTO clinics (id,name) VALUES ($1,$3),($2,$3)", [isolatedClinic, foreignClinic, marker]);
+      const service = await repository.createService(isolatedClinic, { name: marker, priceInCents: 0, durationMinutes: 60, color: "#64748b" });
+      const patient = await repository.createPatient(isolatedClinic, { fullName: marker, phone: "11987654321", tags: [] });
+      const template = await repository.createPlanTemplate(isolatedClinic, ownerId, { name: marker, totalValueInCents: 45000, serviceId: service.id, kind: "recurring", totalSessions: 8 });
+      const foreign = await repository.createPlanTemplate(foreignClinic, ownerId, { name: marker, totalValueInCents: 0 });
+      const input = { planTemplateId: template.id, patientId: patient.id, serviceId: service.id, name: "Nome adulterado",
+        kind: "fixed_package" as const, totalSessions: 10, totalValueInCents: 10001, installments: 3,
+        validFrom: "2035-01-01", firstDueDate: "2035-01-05" };
+      const transition = await pool.connect();
+      try {
+        await transition.query("BEGIN");
+        await transition.query("UPDATE plan_templates SET active=false WHERE id=$1", [template.id]);
+        const rejectedSale = expect(repository.createPatientPlan(isolatedClinic, ownerId, input)).rejects.toMatchObject({ code: "PLAN_TEMPLATE_NOT_FOUND" });
+        await vi.waitFor(async () => {
+          const waiting = await pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT name FROM plan_templates%'");
+          expect(waiting.rowCount).toBe(1);
+        }, { timeout: 5000 });
+        await transition.query("COMMIT");
+        await rejectedSale;
+      } finally {
+        await transition.query("ROLLBACK");
+        transition.release();
+      }
+      await pool.query("UPDATE plan_templates SET active=true WHERE id=$1", [template.id]);
+      expect(await repository.updatePlanTemplate(isolatedClinic, ownerId, foreign.id, { active: false })).toBeNull();
+      await expect(repository.createPlanTemplate(isolatedClinic, ownerId, { name: marker, totalValueInCents: 0, serviceId: "77777777-7777-4777-8777-777777777777" })).rejects.toMatchObject({ code: "PLAN_TEMPLATE_SERVICE_NOT_FOUND" });
+      const sale = await repository.createPatientPlan(isolatedClinic, ownerId, input);
+      saleId = sale.id;
+      expect(sale).toMatchObject({ name: marker, planTemplateId: template.id, totalValueInCents: 10001, totalSessions: 10 });
+      const installments = await pool.query<{ total: number; count: number }>("SELECT sum(amount_in_cents)::int AS total,count(*)::int AS count FROM receivables WHERE plan_id=$1", [sale.id]);
+      expect(installments.rows[0]).toEqual({ total: 10001, count: 3 });
+      const updated = await repository.updatePlanTemplate(isolatedClinic, ownerId, template.id, { name: `${marker}-edited`, totalValueInCents: 55000, serviceId: null, kind: null, totalSessions: null, active: false });
+      expect(updated).toMatchObject({ serviceId: null, kind: null, totalSessions: null, active: false });
+      expect((await repository.listPatientPlans(isolatedClinic))[0]).toMatchObject({ name: marker, totalValueInCents: 10001 });
+      for (const planTemplateId of [foreign.id, template.id]) await expect(repository.createPatientPlan(isolatedClinic, ownerId, { ...input, planTemplateId })).rejects.toMatchObject({ code: "PLAN_TEMPLATE_NOT_FOUND" });
+      await expect(repository.createPatientWithNextStep(isolatedClinic, ownerId, { next: "single", patient: { fullName: "Desfeito catálogo", phone: "11987654322", tags: [] }, plan: { ...input, planTemplateId: foreign.id } })).rejects.toMatchObject({ code: "PLAN_TEMPLATE_NOT_FOUND" });
+      expect(await repository.listPatients(isolatedClinic, "11987654322")).toEqual([]);
+      const successor = await repository.renewPatientPlan(isolatedClinic, ownerId, sale.id, { ...input, name: marker, validFrom: "2035-02-01", firstDueDate: "2035-02-05" });
+      expect(successor).toMatchObject({ planTemplateId: template.id, name: marker, totalValueInCents: 10001 });
+      // Simulate an existing contract from before the additive migration.
+      await pool.query("UPDATE patient_plans SET plan_template_id=NULL WHERE id=$1", [successor!.id]);
+      const legacyRenewal = await repository.renewPatientPlan(isolatedClinic, ownerId, successor!.id, { ...input, name: marker, validFrom: "2035-03-01", firstDueDate: "2035-03-05" });
+      expect(legacyRenewal).not.toHaveProperty("planTemplateId");
+      const today = saoPauloToday();
+      const monthStart = `${today.slice(0, 7)}-01`;
+      const previousEnd = new Date(`${monthStart}T12:00:00Z`);
+      previousEnd.setUTCDate(0);
+      const lastDay = previousEnd.toISOString().slice(0, 10);
+      await pool.query("UPDATE plan_templates SET active=true WHERE id=$1", [template.id]);
+      const auto = await repository.createPatientPlan(isolatedClinic, ownerId, { ...input, kind: "recurring", autoRenew: true,
+        validFrom: `${lastDay.slice(0, 7)}-01`, validUntil: lastDay, firstDueDate: `${lastDay.slice(0, 7)}-05` });
+      await pool.query("UPDATE plan_templates SET active=false WHERE id=$1", [template.id]);
+      expect(await repository.renewDuePatientPlans(isolatedClinic, ownerId)).toBe(1);
+      const automatic = (await repository.listPatientPlans(isolatedClinic)).find((item) => item.renewedFromPlanId === auto.id);
+      expect(automatic).toMatchObject({ name: `${marker}-edited`, totalValueInCents: input.totalValueInCents, planTemplateId: template.id, validFrom: monthStart });
+      expect(await repository.renewDuePatientPlans(isolatedClinic, ownerId)).toBe(0);
+      const events = await repository.listAdminAuditPage(isolatedClinic, undefined, { module: "settings" });
+      expect(events.items.filter((item) => item.entityId === template.id).map((item) => item.action).sort()).toEqual(["plan_template.created", "plan_template.updated"]);
+      expect(await repository.listPlanTemplates(clinicId)).not.toContainEqual(expect.objectContaining({ id: template.id }));
+    } finally {
+      const ids = [isolatedClinic, foreignClinic];
+      await pool.query("DELETE FROM financial_events WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM session_movements WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM receivables WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      // Break successor links only in the isolated test clinics before cleanup.
+      if (saleId) await pool.query("UPDATE patient_plans SET renewed_from_plan_id=NULL WHERE clinic_id=$1", [isolatedClinic]);
+      await pool.query("DELETE FROM patient_plans WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM plan_templates WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM patients WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM services WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM audit_events WHERE clinic_id=ANY($1::uuid[])", [ids]);
+      await pool.query("DELETE FROM clinics WHERE id=ANY($1::uuid[])", [ids]);
+    }
+  });
+
+  it("imports historical sources once, redacts clinical contents and journals row changes atomically", async () => {
+    const isolatedClinic = randomUUID();
+    const patientId = randomUUID();
+    const revisionId = randomUUID();
+    const marker = `history-source-${randomUUID()}`;
+    try {
+      await pool.query("INSERT INTO clinics (id,name) VALUES ($1,$2)", [isolatedClinic, marker]);
+      await pool.query("INSERT INTO patients (id,clinic_id,full_name,record_number,phone) VALUES ($1,$2,$3,'HISTORY','11900000000')", [patientId, isolatedClinic, marker]);
+      let page = await repository.listAdminAuditPage(isolatedClinic, undefined, { search: marker, module: "patients" });
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0]).toMatchObject({ action: "patient.created", entityId: patientId });
+      await pool.query("UPDATE patients SET full_name=$2 WHERE id=$1", [patientId, `${marker}-changed`]);
+      page = await repository.listAdminAuditPage(isolatedClinic, undefined, { module: "patients" });
+      expect(page.items.some((event) => event.action === "patients.updated")).toBe(true);
+      const snapshot = { id: revisionId, clinic_id: isolatedClinic, author_user_id: ownerId,
+        clinical_record_id: randomUUID(), version: 2, created_at: "2025-01-01T12:00:00Z",
+        snapshot: { subjective: "DO_NOT_COPY_CLINICAL_CONTENT" } };
+      for (let i = 0; i < 2; i++) await pool.query(
+        "SELECT project_system_history('clinical_record_revisions','clinical','clinical.revision','Versão de prontuário registrada',true,$1::jsonb,true)", [JSON.stringify(snapshot)],
+      );
+      page = await repository.listAdminAuditPage(isolatedClinic, undefined, { module: "clinical" });
+      expect(page.items).toHaveLength(1);
+      expect(JSON.stringify(page)).not.toContain("DO_NOT_COPY_CLINICAL_CONTENT");
+      expect((await repository.listAdminAuditPage(clinicId)).items.every((event) => event.clinicId !== isolatedClinic)).toBe(true);
+      const before = (await repository.listAdminAuditPage(isolatedClinic)).items.length;
+      const transaction = await pool.connect();
+      try {
+        await transaction.query("BEGIN");
+        await transaction.query("UPDATE patients SET full_name='rolled back' WHERE id=$1", [patientId]);
+        await transaction.query("ROLLBACK");
+      } finally { transaction.release(); }
+      expect((await repository.listAdminAuditPage(isolatedClinic)).items).toHaveLength(before);
+    } finally {
+      await pool.query("DELETE FROM patients WHERE clinic_id=$1", [isolatedClinic]);
+      await pool.query("DELETE FROM audit_events WHERE clinic_id=$1", [isolatedClinic]);
+      await pool.query("DELETE FROM clinics WHERE id=$1", [isolatedClinic]);
+    }
+  });
 
   it("paginates all audit events with timestamp ties and clinic-scoped cursors", async () => {
     const marker = `history-${randomUUID()}`;
@@ -478,6 +604,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.query("DELETE FROM relationship_settings WHERE clinic_id = $1", [
       clinicId,
     ]);
+    await pool.query("DELETE FROM plan_templates WHERE id = ANY($1::uuid[]) AND NOT EXISTS (SELECT 1 FROM patient_plans WHERE plan_template_id=plan_templates.id)", [templateIds]);
     await pool.end();
   });
 
@@ -921,7 +1048,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     };
     const day = trialConversionDay.toISOString().slice(0, 10);
     const createPlanAt = async (patientId: string, createdAt: string) => {
-      const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      const plan = await repository.createPatientPlan(clinicId, ownerId, await configuredPlan({
         patientId,
         serviceId: input.serviceId,
         name: trialConversionMarker,
@@ -931,7 +1058,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         totalValueInCents: 40000,
         installments: 1,
         firstDueDate: day,
-      });
+      }));
       await pool.query("UPDATE patient_plans SET created_at = $2 WHERE id = $1", [
         plan.id,
         createdAt,
@@ -1021,7 +1148,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const plan = await repository.createPatientPlan(
       clinicId,
       "22222222-2222-4222-8222-222222222222",
-      {
+      await configuredPlan({
         patientId: patients[0]!.id,
         serviceId: services[0]!.id,
         name: salesMarker,
@@ -1031,7 +1158,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         totalValueInCents: 24000,
         installments: 2,
         firstDueDate: date,
-      },
+      }),
     );
     const receivable = await pool.query<{ id: string }>(
       "SELECT id FROM receivables WHERE plan_id=$1 ORDER BY installment_number LIMIT 1",
@@ -1073,7 +1200,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const partial = await repository.createPatientPlan(
       clinicId,
       "22222222-2222-4222-8222-222222222222",
-      {
+      await configuredPlan({
         patientId: patients[0]!.id,
         serviceId: services[0]!.id,
         name: salesMarker,
@@ -1083,7 +1210,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         totalValueInCents: 24000,
         installments: 2,
         firstDueDate: date,
-      },
+      }),
     );
     const partialReceivable = await pool.query<{ id: string }>(
       "SELECT id FROM receivables WHERE plan_id=$1 ORDER BY installment_number LIMIT 1",
@@ -1129,7 +1256,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       repository.listServices(clinicId),
     ]);
     const [category, costCenter] = await testFinanceClassification();
-    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+    const plan = await repository.createPatientPlan(clinicId, ownerId, await configuredPlan({
       patientId: patients[0]!.id,
       serviceId: services[0]!.id,
       name: dailyCashMarker,
@@ -1139,7 +1266,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       totalValueInCents: 12_000,
       installments: 1,
       firstDueDate: dailyCashDay,
-    });
+    }));
     const receivable = await pool.query<{ id: string }>(
       "SELECT id FROM receivables WHERE plan_id = $1",
       [plan.id],
@@ -1213,7 +1340,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       repository.listPatients(clinicId),
       repository.listServices(clinicId),
     ]);
-    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+    const plan = await repository.createPatientPlan(clinicId, ownerId, await configuredPlan({
       patientId: patients[0]!.id,
       serviceId: services[0]!.id,
       name: dailyCashMarker,
@@ -1223,7 +1350,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       totalValueInCents: 12_000,
       installments: 1,
       firstDueDate: dailyCashDay,
-    });
+    }));
     const receivable = await pool.query<{ id: string }>(
       "SELECT id FROM receivables WHERE plan_id = $1",
       [plan.id],
@@ -1294,7 +1421,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, day))
         .toISOString()
         .slice(0, 10);
-    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+    const plan = await repository.createPatientPlan(clinicId, ownerId, await configuredPlan({
       patientId: patients[0]!.id,
       serviceId: services[0]!.id,
       name: renewalMarker,
@@ -1305,7 +1432,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       totalValueInCents: 30000,
       installments: 1,
       firstDueDate: month(-2, 1),
-    });
+    }));
     expect(plan.autoRenew).toBe(true);
     await Promise.all([
       repository.renewDuePatientPlans(clinicId, ownerId),
@@ -1605,7 +1732,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     });
     await repository.updateAppointmentStatus(clinicId, appointment.id, "completed");
     const date = saoPauloToday();
-    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+    const plan = await repository.createPatientPlan(clinicId, ownerId, await configuredPlan({
       patientId: patient.id,
       serviceId: services[0]!.id,
       name: timelineMarker,
@@ -1615,7 +1742,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       totalValueInCents: 20000,
       installments: 1,
       firstDueDate: date,
-    });
+    }));
     const receivable = await pool.query<{ id: string }>(
       "SELECT id FROM receivables WHERE plan_id=$1",
       [plan.id],
@@ -2820,7 +2947,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const professionalId = "44444444-4444-4444-8444-444444444444";
     const day = new Date(Date.now() + 650 * 24 * 60 * 60 * 1000);
     day.setUTCHours(12, 0, 0, 0);
-    const terms = {
+    const terms = await configuredPlan({
       name: marker,
       serviceId,
       totalSessions: 8,
@@ -2829,7 +2956,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       totalValueInCents: 40000,
       installments: 2,
       firstDueDate: saoPauloToday(),
-    };
+    });
     const patients = "SELECT id FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])";
     const plans = `SELECT id FROM patient_plans WHERE patient_id IN (${patients})`;
     const cleanup = async () => {

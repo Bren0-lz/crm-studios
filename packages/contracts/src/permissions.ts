@@ -111,6 +111,8 @@ const operations = {
     export: "Exportar relatórios",
   },
   settings: {
+    plans_create: "Cadastrar plano do catálogo",
+    plans_update: "Editar e ativar ou desativar plano do catálogo",
     tags_create: "Criar etiqueta",
     tags_update: "Editar etiqueta",
     tags_delete: "Excluir etiqueta",
@@ -134,6 +136,8 @@ export interface PermissionDefinition {
   legacyView: readonly AppModule[];
   legacyEdit: readonly AppModule[];
   legacyAdmin?: boolean;
+  /** New operations that must not be inferred from the old module flags. */
+  explicitGrantOnly?: boolean;
 }
 
 export const permissionCatalog: readonly PermissionDefinition[] =
@@ -183,6 +187,7 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView,
             legacyEdit,
             ...(key === "patients.export" ? { legacyAdmin: true } : {}),
+            ...((key === "settings.plans_create" || key === "settings.plans_update") ? { explicitGrantOnly: true } : {}),
           };
         },
       ),
@@ -233,6 +238,7 @@ export function legacyPermissions(
       .filter(
         (item) =>
           !item.legacyAdmin &&
+          !item.explicitGrantOnly &&
           item.legacyView.every((module) => modules.includes(module)) &&
           item.legacyEdit.every(
             (module) =>

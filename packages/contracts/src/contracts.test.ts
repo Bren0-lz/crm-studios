@@ -217,6 +217,7 @@ describe("shared contracts", () => {
 
   it("validates plan dates and installment limits", () => {
     const base = {
+      planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
       name: "Pacote trimestral",
@@ -238,6 +239,7 @@ describe("shared contracts", () => {
 
   it("requires an end date for automatic renewal", () => {
     const base = {
+      planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
       name: "Mensalidade",
@@ -495,6 +497,7 @@ describe("guided patient creation", () => {
   const patient = { fullName: "Ana Souza", phone: "11999990000" };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {
+    planTemplateId: "aa000000-0000-4000-8000-000000000001",
     name: "Pilates 2x",
     serviceId,
     totalSessions: 8,

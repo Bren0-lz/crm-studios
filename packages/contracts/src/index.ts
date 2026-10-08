@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { userPermissionsSchema, validatePermissionInput, type PermissionKey } from "./permissions.js";
 export * from "./permissions.js";
+export * from "./history.js";
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
@@ -728,6 +729,28 @@ export const planKindSchema = z.enum([
   "recurring",
   "custom",
 ]);
+export const planTemplateInputSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+  serviceId: z.uuid().nullable().optional(),
+  kind: planKindSchema.nullable().optional(),
+  totalSessions: z.number().int().min(1).max(1000).nullable().optional(),
+});
+export const planTemplateUpdateSchema = planTemplateInputSchema
+  .partial()
+  .extend({
+    active: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.");
+export type PlanTemplateInput = z.infer<typeof planTemplateInputSchema>;
+export type PlanTemplateUpdate = z.infer<typeof planTemplateUpdateSchema>;
+export interface PlanTemplate extends PlanTemplateInput {
+  id: string;
+  clinicId: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 export const planStatusSchema = z.enum([
   "active",
   "paused",
@@ -741,7 +764,7 @@ const planTermsSchema = z.object({
   totalSessions: z.number().int().min(1).max(1000),
   validFrom: z.iso.date(),
   validUntil: z.iso.date().optional().or(z.literal("")),
-  totalValueInCents: z.number().int().min(0),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
   installments: z.number().int().min(1).max(36),
   firstDueDate: z.iso.date(),
   autoRenew: z.boolean().optional(),
@@ -762,6 +785,7 @@ const autoRenewIssue = {
 
 export const patientPlanInputSchema = planTermsSchema
   .extend({
+    planTemplateId: z.uuid(),
     patientId: z.uuid(),
     serviceId: z.uuid(),
     kind: planKindSchema,
@@ -778,7 +802,7 @@ export type PlanRenewalInput = z.infer<typeof planRenewalInputSchema>;
 export const planAutoRenewInputSchema = z.object({ autoRenew: z.boolean() });
 
 /** Plano criado no cadastro guiado: termos de `patientPlanInputSchema`, sem `patientId`. */
-const guidedPlanTermsSchema = planTermsSchema.extend({ serviceId: z.uuid() });
+const guidedPlanTermsSchema = planTermsSchema.extend({ serviceId: z.uuid(), planTemplateId: z.uuid() });
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
@@ -1292,6 +1316,9 @@ export interface ClinicSettings extends ClinicSettingsInput {
 
 export interface AdminAuditEvent {
   id: string;
+  module?: AppModule;
+  description?: string;
+  detailsRestricted?: boolean;
   clinicId?: string;
   actorUserId?: string;
   ipAddress?: string;
@@ -1307,6 +1334,21 @@ export interface AdminAuditPage {
   items: AdminAuditEvent[];
   nextCursor: string | null;
 }
+
+export const auditHistoryQuerySchema = z.object({
+  cursor: z.uuid().optional(),
+  search: z.string().trim().max(160).optional(),
+  module: appModuleSchema.optional(),
+  action: z.string().trim().min(1).max(120).optional(),
+  actorUserId: z.uuid().optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+}).refine((value) => !value.from || !value.to || value.from <= value.to, {
+  path: ["to"], message: "A data final deve ser igual ou posterior à data inicial.",
+});
+export type AuditHistoryQuery = z.infer<typeof auditHistoryQuerySchema>;
+export type AuditHistoryFilters = Omit<AuditHistoryQuery, "cursor">;
+export interface HistoryActor { id: string; name: string }
 
 export interface PermissionMatrixItem {
   role: UserRole;
@@ -1669,7 +1711,8 @@ export interface ClinicalWorkspace {
   addenda: ClinicalAddendum[];
 }
 
-export interface PatientPlan extends PatientPlanInput {
+export interface PatientPlan extends Omit<PatientPlanInput, "planTemplateId"> {
+  planTemplateId?: string;
   id: string;
   clinicId: string;
   patientName: string;

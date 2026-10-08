@@ -1,6 +1,7 @@
 import { AuthorizationProvider } from "./authorization";
 import { useAuthorization } from "./authorization-context";
 import { PermissionEditor } from "./PermissionEditor";
+import { auditHistoryQuerySchema, historyActions, type AuditHistoryFilters, type HistoryActor } from "@crm/contracts";
 import { formatAuditEvent, type AuditField } from "./audit-history";
 import { legacyPermissions, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
@@ -56,6 +57,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
   AdminAuditEvent,
   AdminUser,
   AppModule,
@@ -5685,21 +5688,22 @@ function PlanModal({
   onClose: () => void;
   onSaved: (plan: PatientPlan) => void;
 }) {
- const { can } = useAuthorization();
+  const { can, canView } = useAuthorization();
   const currentDate = localIsoDate();
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
   const [form, setForm] = useState<PatientPlanInput>(() => {
     if (!renewing) {
       return {
+        planTemplateId: "",
         patientId: patients[0]?.id ?? "",
         serviceId: services[0]?.id ?? "",
-        name: "Pacote de fisioterapia",
+        name: "",
         kind: "fixed_package",
         totalSessions: 10,
         validFrom: currentDate,
         validUntil: localIsoDate(nextYear),
-        totalValueInCents: 180000,
+        totalValueInCents: 0,
         installments: 3,
         firstDueDate: currentDate,
         autoRenew: false,
@@ -5711,6 +5715,7 @@ function PlanModal({
       firstDueDate: currentDate,
     };
     return {
+      planTemplateId: renewing.planTemplateId ?? "",
       patientId: renewing.patientId,
       serviceId: renewing.serviceId,
       name: renewing.name,
@@ -5724,8 +5729,33 @@ function PlanModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  useEffect(() => {
+    if (renewing) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then((items) => {
+        if (active) setTemplates(items.filter((item) => item.active));
+      })
+      .catch((cause: Error) => {
+        if (active) setCatalogError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [renewing, catalogAttempt]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (
+      !renewing &&
+      !templates?.some((item) => item.id === form.planTemplateId)
+    ) {
+      setError("Selecione um plano cadastrado.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -5762,163 +5792,245 @@ function PlanModal({
       busy={loading}
       onClose={onClose}
     >
-      {(renewing ? can("plans.renew") : can("plans.create")) && (<form className="form-grid" onSubmit={submit}>
-        {!renewing && (
-          <>
+      {(renewing ? can("plans.renew") : can("plans.create")) && (
+        <form className="form-grid" onSubmit={submit}>
+          {!renewing && (
+            <>
+              <label className="span-2">
+                Cliente
+                <select
+                  required
+                  value={form.patientId}
+                  onChange={(e) =>
+                    setForm({ ...form, patientId: e.target.value })
+                  }
+                >
+                  {patients.map((patient) => (
+                    <option value={patient.id} key={patient.id}>
+                      {patient.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Serviço
+                <select
+                  required
+                  value={form.serviceId}
+                  onChange={(e) =>
+                    setForm({ ...form, serviceId: e.target.value })
+                  }
+                >
+                  {services.map((service) => (
+                    <option value={service.id} key={service.id}>
+                      {service.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Modelo
+                <select
+                  value={form.kind}
+                  onChange={(e) => {
+                    const kind = e.target.value as PatientPlan["kind"];
+                    setForm({ ...form, kind, autoRenew: kind === "recurring" });
+                  }}
+                >
+                  {Object.entries(planKindLabels).map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {renewing ? (
             <label className="span-2">
-              Cliente
-              <select
+              Nome do plano
+              <input
                 required
-                value={form.patientId}
-                onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-              >
-                {patients.map((patient) => (
-                  <option value={patient.id} key={patient.id}>
-                    {patient.fullName}
-                  </option>
-                ))}
-              </select>
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </label>
-            <label>
-              Serviço
-              <select
-                required
-                value={form.serviceId}
-                onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-              >
-                {services.map((service) => (
-                  <option value={service.id} key={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Modelo
-              <select
-                value={form.kind}
-                onChange={(e) => {
-                  const kind = e.target.value as PatientPlan["kind"];
-                  setForm({ ...form, kind, autoRenew: kind === "recurring" });
-                }}
-              >
-                {Object.entries(planKindLabels).map(([value, label]) => (
-                  <option value={value} key={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-        <label className="span-2">
-          Nome do plano
-          <input
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </label>
-        <label>
-          Sessões
-          <input
-            required
-            type="number"
-            min="1"
-            value={form.totalSessions}
-            onChange={(e) =>
-              setForm({ ...form, totalSessions: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Valor total
-          <input
-            required
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.totalValueInCents / 100}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                totalValueInCents: Math.round(Number(e.target.value) * 100),
-              })
-            }
-          />
-        </label>
-        <label>
-          Início
-          <input
-            required
-            type="date"
-            value={form.validFrom}
-            onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
-          />
-        </label>
-        <label>
-          Fim da validade
-          <input
-            type="date"
-            value={form.validUntil}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                validUntil: e.target.value,
-                autoRenew: Boolean(e.target.value) && form.autoRenew,
-              })
-            }
-          />
-        </label>
-        <label>
-          Parcelas
-          <input
-            required
-            type="number"
-            min="1"
-            max="36"
-            value={form.installments}
-            onChange={(e) =>
-              setForm({ ...form, installments: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Primeiro vencimento
-          <input
-            required
-            type="date"
-            value={form.firstDueDate}
-            onChange={(e) => setForm({ ...form, firstDueDate: e.target.value })}
-          />
-        </label>
-        <label className="checkbox-field span-2">
-          <input
-            type="checkbox"
-            checked={Boolean(form.autoRenew)}
-            disabled={!form.validUntil}
-            onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
-          />
-          {form.validUntil
-            ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
-            : "Renovação automática exige o fim da validade"}
-        </label>
-        {error && <div className="form-error span-2">{error}</div>}
-        <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={loading}>
-            {renewing
-              ? loading
-                ? "Renovando…"
-                : "Renovar plano e gerar parcelas"
-              : loading
-                ? "Criando…"
-                : "Criar plano e parcelas"}
-          </button>
-        </div>
-      </form>)}
+          ) : (
+            <div className="span-2">
+              <label>
+                Plano cadastrado
+                <select
+                  required
+                  value={form.planTemplateId}
+                  disabled={!templates?.length || loading}
+                  onChange={(event) => {
+                    const template = templates?.find(
+                      (item) => item.id === event.target.value,
+                    );
+                    setForm({
+                      ...form,
+                      planTemplateId: template?.id ?? "",
+                      name: template?.name ?? "",
+                      totalValueInCents: template?.totalValueInCents ?? 0,
+                      serviceId: template?.serviceId ?? services[0]?.id ?? "",
+                      kind: template?.kind ?? "fixed_package",
+                      totalSessions: template?.totalSessions ?? 10,
+                    });
+                  }}
+                >
+                  <option value="">Selecione um plano</option>
+                  {templates?.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ·{" "}
+                      {currency.format(item.totalValueInCents / 100)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {catalogError ? (
+                <div className="form-error" role="alert">
+                  {catalogError}{" "}
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    onClick={() => {
+                      setCatalogError("");
+                      setTemplates(null);
+                      setCatalogAttempt((attempt) => attempt + 1);
+                    }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              ) : templates === null ? (
+                <LoadingBlock />
+              ) : templates.length === 0 ? (
+                <p className="muted-copy">
+                  Nenhum plano ativo cadastrado. Cadastre um plano em
+                  Configurações › Planos.
+                  {canView("settings") && (
+                    <>
+                      {" "}
+                      <NavLink to="/configuracoes">Abrir configurações</NavLink>
+                    </>
+                  )}
+                </p>
+              ) : null}
+            </div>
+          )}
+          <label>
+            Sessões
+            <input
+              required
+              type="number"
+              min="1"
+              value={form.totalSessions}
+              onChange={(e) =>
+                setForm({ ...form, totalSessions: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Valor total
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.totalValueInCents / 100}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  totalValueInCents: Math.round(Number(e.target.value) * 100),
+                })
+              }
+            />
+          </label>
+          <label>
+            Início
+            <input
+              required
+              type="date"
+              value={form.validFrom}
+              onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+            />
+          </label>
+          <label>
+            Fim da validade
+            <input
+              type="date"
+              value={form.validUntil}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  validUntil: e.target.value,
+                  autoRenew: Boolean(e.target.value) && form.autoRenew,
+                })
+              }
+            />
+          </label>
+          <label>
+            Parcelas
+            <input
+              required
+              type="number"
+              min="1"
+              max="36"
+              value={form.installments}
+              onChange={(e) =>
+                setForm({ ...form, installments: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Primeiro vencimento
+            <input
+              required
+              type="date"
+              value={form.firstDueDate}
+              onChange={(e) =>
+                setForm({ ...form, firstDueDate: e.target.value })
+              }
+            />
+          </label>
+          <label className="checkbox-field span-2">
+            <input
+              type="checkbox"
+              checked={Boolean(form.autoRenew)}
+              disabled={!form.validUntil}
+              onChange={(e) =>
+                setForm({ ...form, autoRenew: e.target.checked })
+              }
+            />
+            {form.validUntil
+              ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+              : "Renovação automática exige o fim da validade"}
+          </label>
+          {error && <div className="form-error span-2">{error}</div>}
+          <div className="modal-actions span-2">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              className="primary-button"
+              disabled={loading || (!renewing && !form.planTemplateId)}
+            >
+              {renewing
+                ? loading
+                  ? "Renovando…"
+                  : "Renovar plano e gerar parcelas"
+                : loading
+                  ? "Criando…"
+                  : "Criar plano e parcelas"}
+            </button>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }
@@ -11703,69 +11815,112 @@ function HistoryDetailsModal({ event, onClose }: { event: AdminAuditEvent; onClo
 }
 
 function HistoryPage() {
+  const emptyFilters = { search: "", module: "", action: "", actorUserId: "", from: "", to: "" };
+  const [draft, setDraft] = useState(emptyFilters);
+  const [request, setRequest] = useState({ cursor: undefined as string | undefined, page: 1,
+    trail: [undefined] as (string | undefined)[], filters: {} as AuditHistoryFilters });
   const [items, setItems] = useState<AdminAuditEvent[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<string>();
+  const [pageNumber, setPageNumber] = useState(1);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [actors, setActors] = useState<HistoryActor[]>([]);
+  const [actorsError, setActorsError] = useState(false);
+  const [actorsAttempt, setActorsAttempt] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(null);
   const detailsTrigger = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let active = true;
-    api.auditHistory(cursor)
+    api.auditHistory(request.cursor, request.filters)
       .then((page) => {
         if (!active) return;
-        setItems((current) => cursor === undefined ? page.items : [...(current ?? []), ...page.items]);
+        setItems(page.items);
         setNextCursor(page.nextCursor);
+        setPageNumber(request.page);
       })
-      .catch((cause: Error) => {
-        if (active) setError(cause.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .catch((cause: Error) => { if (active) setError(cause.message); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [cursor, attempt]);
+  }, [request, attempt]);
+
+  useEffect(() => {
+    let active = true;
+    api.historyActors().then((values) => {
+      if (active) { setActors(Array.isArray(values) ? values : []); setActorsError(false); }
+    }).catch(() => { if (active) setActorsError(true); });
+    return () => { active = false; };
+  }, [actorsAttempt]);
+
+  function applyFilters(values: typeof draft) {
+    const parsed = auditHistoryQuerySchema.safeParse(Object.fromEntries(Object.entries(values).filter(([, value]) => value)));
+    if (!parsed.success) { setFilterError(parsed.error.issues[0]?.message ?? "Verifique os filtros."); return; }
+    const filters: AuditHistoryFilters = parsed.data;
+    setFilterError(""); setError(""); setLoading(true); setItems(null); setNextCursor(null);
+    setPageNumber(1); setSelectedEvent(null);
+    setRequest({ cursor: undefined, page: 1, trail: [undefined], filters });
+  }
+
+  function navigatePage(direction: "previous" | "next") {
+    setLoading(true); setError(""); setSelectedEvent(null);
+    if (direction === "next" && nextCursor) {
+      setRequest({ ...request, cursor: nextCursor, page: pageNumber + 1,
+        trail: [...request.trail.slice(0, pageNumber), nextCursor] });
+    } else {
+      setRequest({ ...request, cursor: request.trail[pageNumber - 2], page: pageNumber - 1 });
+    }
+  }
 
   return (
     <>
-      <PageHeader eyebrow="Atividades da clínica" title="Histórico" description="Veja o que mudou na clínica, quem fez a alteração e quando." />
-      <section className="panel admin-audit" aria-label="Alterações administrativas" aria-busy={loading}>
+      <PageHeader eyebrow="Atividades da clínica" title="Histórico" description="Consulte as atividades de todos os módulos. Use a pesquisa e os filtros para encontrar uma alteração." />
+      <form className="panel history-filters" onSubmit={(event) => { event.preventDefault(); applyFilters(draft); }}>
+        <label>Pesquisar<input type="search" maxLength={160} value={draft.search} placeholder="Ex.: pagamento, etiqueta ou comissão" onChange={(event) => setDraft({ ...draft, search: event.target.value })} /></label>
+        <label>Área<select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value, action: "" })}>
+          <option value="">Todas as áreas</option>{Object.entries(appModuleLabels).filter(([module]) => module !== "history").map(([module, label]) => <option key={module} value={module}>{label}</option>)}
+        </select></label>
+        <label>Tipo de atividade<select value={draft.action} onChange={(event) => setDraft({ ...draft, action: event.target.value })}>
+          <option value="">Todos os tipos</option>{historyActions.filter((item) => !draft.module || item.module === draft.module).map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
+        </select></label>
+        <label>Responsável<select value={draft.actorUserId} onChange={(event) => setDraft({ ...draft, actorUserId: event.target.value })}>
+          <option value="">Todos os responsáveis</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}
+        </select></label>
+        <label>De<input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
+        <label>Até<input type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label>
+        <div className="history-filter-actions">
+          <button type="submit" className="primary-button">Pesquisar e filtrar</button>
+          <button type="button" className="secondary-button" onClick={() => { setDraft(emptyFilters); applyFilters(emptyFilters); }}>Limpar filtros</button>
+        </div>
+        {filterError && <ErrorBanner error={filterError} />}
+        {actorsError && <p className="muted-copy">Não foi possível carregar os responsáveis. <button type="button" className="secondary-button button-sm" onClick={() => setActorsAttempt((value) => value + 1)}>Tentar carregar responsáveis</button></p>}
+      </form>
+      <section className="panel admin-audit" aria-label="Atividades do sistema" aria-busy={loading}>
         {items?.map((item) => {
           const summary = formatAuditEvent(item);
           return (
             <article className="audit-entry" key={item.id}>
               <div>
-                <h2>{summary.title}</h2>
-                <p className="audit-category">{summary.category}</p>
+                <h2>{summary.title}</h2><p className="audit-category">{summary.category}</p>
                 <p className="audit-byline">Quem realizou: {summary.actor} · Quando: <time dateTime={item.createdAt}>{summary.date}</time></p>
                 {summary.details.length > 0 && <AuditFields fields={summary.details} />}
               </div>
-              <button type="button" className="secondary-button button-sm" onClick={(clickEvent) => {
-                detailsTrigger.current = clickEvent.currentTarget;
-                setSelectedEvent(item);
-              }}>Ver detalhes</button>
+              {item.detailsRestricted ? <p className="muted-copy">Detalhes disponíveis para quem tem acesso aos Prontuários.</p> :
+                <button type="button" className="secondary-button button-sm" onClick={(event) => { detailsTrigger.current = event.currentTarget; setSelectedEvent(item); }}>Ver detalhes</button>}
             </article>
           );
         })}
-        {items?.length === 0 && !loading && <p className="muted-copy">Nenhuma alteração administrativa.</p>}
+        {items?.length === 0 && !loading && <p className="muted-copy">Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.</p>}
         {loading && <LoadingBlock />}
-        {error && (
-          <>
-            <ErrorBanner error={error} />
-            <button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(""); setAttempt((value) => value + 1); }}>Tentar novamente</button>
-          </>
-        )}
-        {nextCursor && !error && (
-          <button type="button" className="secondary-button" disabled={loading} onClick={() => { setLoading(true); setCursor(nextCursor); }}>Carregar mais</button>
-        )}
+        {error && <><ErrorBanner error={error} /><button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(""); setAttempt((value) => value + 1); }}>Tentar novamente</button></>}
+        <nav className="history-pagination" aria-label="Paginação do histórico">
+          <button type="button" className="secondary-button" disabled={pageNumber === 1 || loading || Boolean(error)} onClick={() => navigatePage("previous")}>Anterior</button>
+          <p role="status">Página {pageNumber} · {items?.length ?? 0} registros</p>
+          <button type="button" className="secondary-button" disabled={!nextCursor || loading || Boolean(error)} onClick={() => navigatePage("next")}>Próxima</button>
+        </nav>
       </section>
-      {selectedEvent && <HistoryDetailsModal event={selectedEvent} onClose={() => {
-        setSelectedEvent(null);
-        detailsTrigger.current?.focus();
-      }} />}
+      {selectedEvent && <HistoryDetailsModal event={selectedEvent} onClose={() => { setSelectedEvent(null); detailsTrigger.current?.focus(); }} />}
     </>
   );
 }
@@ -11848,7 +12003,7 @@ function AdminPage() {
       <PageHeader
         eyebrow="Controle operacional"
         title="Configurações"
-        description="Usuários, permissões e dados da clínica."
+        description="Usuários, permissões, planos e dados da clínica."
         action={
           <button
             className="primary-button"
@@ -12029,6 +12184,7 @@ function AdminPage() {
         </CollapsibleSection>
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
+        <PlanTemplatesSection />
         <PatientTagsSection canEdit />
       </div>
       {clinicPrompt.modal}
@@ -12817,6 +12973,320 @@ function HolidaysContent() {
   );
 }
 
+function PlanTemplatesSection() {
+  return (
+    <CollapsibleSection
+      className="admin-plan-templates"
+      eyebrow="Jornada contratada"
+      title="Planos"
+    >
+      <PlanTemplatesContent />
+    </CollapsibleSection>
+  );
+}
+
+function PlanTemplatesContent() {
+  const { can } = useAuthorization();
+  const [items, setItems] = useState<PlanTemplate[] | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [editing, setEditing] = useState<PlanTemplate | "new" | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.planTemplates(), api.services()])
+      .then(([templates, serviceData]) => {
+        if (active) {
+          setItems(templates);
+          setServices(serviceData);
+        }
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+  function replace(item: PlanTemplate) {
+    setItems((current) =>
+      [
+        item,
+        ...(current ?? []).filter((existing) => existing.id !== item.id),
+      ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    );
+  }
+  async function toggle(item: PlanTemplate) {
+    setSavingId(item.id);
+    setError("");
+    try {
+      replace(await api.updatePlanTemplate(item.id, { active: !item.active }));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSavingId(null);
+    }
+  }
+  return (
+    <>
+      <p className="muted-copy">
+        Defina os planos disponíveis para novas vendas. Alterações não afetam
+        contratos já vendidos.
+      </p>
+      {error && (
+        <div className="form-error" role="alert">
+          {error}{" "}
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            onClick={() => {
+              setError("");
+              setAttempt((current) => current + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+      {items === null ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          {can("settings.plans_create") && (
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => setEditing("new")}
+            >
+              <Plus size={17} /> Cadastrar plano
+            </button>
+          )}
+          {items.length === 0 ? (
+            <EmptyState
+              title="Nenhum plano cadastrado"
+              copy="Cadastre nome e valor para disponibilizar um plano nas novas vendas."
+            />
+          ) : (
+            <div className="plan-template-list">
+              {items.map((item) => (
+                <article key={item.id} className="admin-user-row">
+                  <div className="admin-user-info">
+                    <strong>{item.name}</strong>
+                    <small>
+                      {currency.format(item.totalValueInCents / 100)}
+                    </small>
+                    <small>
+                      {[
+                        item.serviceId
+                          ? services.find(
+                              (service) => service.id === item.serviceId,
+                            )?.name
+                          : null,
+                        item.kind ? planKindLabels[item.kind] : null,
+                        item.totalSessions
+                          ? `${item.totalSessions} sessões`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                    {!item.active && (
+                      <span className="status-pill cancelled">Inativo</span>
+                    )}
+                  </div>
+                  {can("settings.plans_update") && (
+                    <div className="admin-user-actions">
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        disabled={savingId !== null}
+                        onClick={() => setEditing(item)}
+                        aria-label={`Editar plano ${item.name}`}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          item.active
+                            ? "danger-button button-sm"
+                            : "secondary-button button-sm"
+                        }
+                        disabled={savingId !== null}
+                        onClick={() => void toggle(item)}
+                        aria-label={`${item.active ? "Desativar" : "Ativar"} plano ${item.name}`}
+                      >
+                        {item.active ? "Desativar" : "Ativar"}
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {editing && (
+        <PlanTemplateModal
+          item={editing === "new" ? null : editing}
+          services={services}
+          onClose={() => setEditing(null)}
+          onSaved={(item) => {
+            replace(item);
+            setEditing(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function PlanTemplateModal({
+  item,
+  services,
+  onClose,
+  onSaved,
+}: {
+  item: PlanTemplate | null;
+  services: Service[];
+  onClose: () => void;
+  onSaved: (item: PlanTemplate) => void;
+}) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    value: item ? String(item.totalValueInCents / 100) : "",
+    serviceId: item?.serviceId ?? "",
+    kind: item?.kind ?? "",
+    sessions: item?.totalSessions ? String(item.totalSessions) : "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (!form.name.trim() || form.value === "") {
+      setError("Informe o nome e o valor do plano.");
+      return;
+    }
+    const input: PlanTemplateInput = {
+      name: form.name.trim(),
+      totalValueInCents: Math.round(Number(form.value) * 100),
+      serviceId: form.serviceId || null,
+      kind: (form.kind || null) as PlanTemplateInput["kind"],
+      totalSessions: form.sessions === "" ? null : Number(form.sessions),
+    };
+    setSaving(true);
+    try {
+      onSaved(
+        item
+          ? await api.updatePlanTemplate(item.id, input)
+          : await api.createPlanTemplate(input),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
+      subtitle="Nome e valor são obrigatórios. As demais informações são padrões opcionais para a venda."
+      busy={saving}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Nome do plano
+          <input
+            required
+            minLength={3}
+            maxLength={120}
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+        </label>
+        <label>
+          Valor total
+          <input
+            required
+            type="number"
+            min="0"
+            max="21474836.47"
+            step="0.01"
+            value={form.value}
+            onChange={(event) =>
+              setForm({ ...form, value: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Sessões (opcional)
+          <input
+            type="number"
+            min="1"
+            max="1000"
+            step="1"
+            value={form.sessions}
+            onChange={(event) =>
+              setForm({ ...form, sessions: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Serviço (opcional)
+          <select
+            value={form.serviceId}
+            onChange={(event) =>
+              setForm({ ...form, serviceId: event.target.value })
+            }
+          >
+            <option value="">Definir na venda</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Modelo (opcional)
+          <select
+            value={form.kind}
+            onChange={(event) => setForm({ ...form, kind: event.target.value })}
+          >
+            <option value="">Definir na venda</option>
+            {Object.entries(planKindLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? "Salvando…" : "Salvar plano"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
   return (
     <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas">
@@ -13147,10 +13617,11 @@ function RelationshipSettingsPage() {
       <PageHeader
         eyebrow="Controle operacional"
         title="Configurações"
-        description="Prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
+        description="Planos, etiquetas dos clientes e configurações dos contatos sugeridos."
       />
       <div className="settings-stack">
         <RelationshipSettingsSection canEdit={false} />
+        <PlanTemplatesSection />
         <PatientTagsSection canEdit={canEdit("settings")} />
       </div>
     </>

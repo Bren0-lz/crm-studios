@@ -3124,11 +3124,12 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .group-overview > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 
-.admin-users {
+.admin-users,
+.admin-plan-templates {
   container-type: inline-size;
 }
 
-.admin-users article {
+.admin-user-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-2) var(--space-4);
@@ -3152,6 +3153,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .admin-users small,
+.admin-plan-templates small,
 .admin-audit span {
   display: block;
   margin-top: 3px;
@@ -3238,6 +3240,30 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   overflow-wrap: anywhere;
 }
 
+.history-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: var(--space-4);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.history-filters label,
+.history-filters select {
+  min-width: 0;
+}
+
+.history-filter-actions,
+.history-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.history-filter-actions { grid-column: 1 / -1; }
+.history-pagination { justify-content: space-between; margin-top: var(--space-4); }
+
 /* Usuários: selo de inativo e ações agrupadas que quebram linha. */
 .admin-user-tags {
   display: flex;
@@ -3260,7 +3286,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 /* Painel estreito (metade da grade de Configurações): ações descem para baixo dos dados. */
 @container (max-width: 460px) {
-  .admin-users article {
+  .admin-user-row {
     grid-template-columns: 1fr;
   }
 
@@ -5329,7 +5355,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     padding: var(--space-3) var(--space-4);
   }
 
-  .admin-users article {
+  .admin-user-row {
     grid-template-columns: 1fr;
     justify-items: start;
   }

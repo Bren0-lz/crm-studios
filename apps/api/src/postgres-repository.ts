@@ -1,8 +1,13 @@
-import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, type PermissionKey } from "@crm/contracts";
+import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate,
   AdminAuditEvent,
   AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -546,7 +551,16 @@ interface ClinicalAccessEventRow {
   createdAt: Date;
 }
 
+type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & { createdAt: Date; updatedAt: Date };
+const planTemplateColumns = `id, clinic_id AS "clinicId", name,
+  total_value_in_cents AS "totalValueInCents", service_id AS "serviceId", kind,
+  total_sessions AS "totalSessions", active, created_at AS "createdAt", updated_at AS "updatedAt"`;
+function mapPlanTemplate(row: PlanTemplateRow): PlanTemplate {
+  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+}
+
 interface PatientPlanRow {
+  planTemplateId: string | null;
   id: string;
   clinicId: string;
   patientId: string;
@@ -882,7 +896,7 @@ const patientPlanColumns = `
   pp.valid_from::text AS "validFrom", pp.valid_until::text AS "validUntil",
   pp.total_value_in_cents AS "totalValueInCents", pp.installments,
   pp.first_due_date::text AS "firstDueDate", pp.status,
-  pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
+  pp.plan_template_id AS "planTemplateId", pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
   (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
   p.full_name AS "patientName", s.name AS "serviceName",
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
@@ -1452,6 +1466,7 @@ function mapClinicalAccessEvent(
 
 function mapPatientPlan(row: PatientPlanRow): PatientPlan {
   return {
+    ...(row.planTemplateId ? { planTemplateId: row.planTemplateId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     patientId: row.patientId,
@@ -2774,6 +2789,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     action: string,
     entityType: string,
     metadata: Record<string, unknown> = {},
+    entityId?: string,
   ) {
     await this.addAdminAudit(
       this.pool,
@@ -2781,7 +2797,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       actorUserId,
       action,
       entityType,
-      undefined,
+      entityId,
       metadata,
     );
   }
@@ -2790,7 +2806,14 @@ export class PostgresClinicRepository implements ClinicRepository {
     return this.readAdminAuditEvents(clinicId, 200);
   }
 
-  async listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage> {
+  async listHistoryActors(clinicId: string): Promise<HistoryActor[]> {
+    const result = await this.pool.query<HistoryActor>(
+      'SELECT id, full_name AS name FROM users WHERE clinic_id = $1 ORDER BY full_name, id', [clinicId],
+    );
+    return result.rows;
+  }
+
+  async listAdminAuditPage(clinicId: string, cursor?: string, filters: AuditHistoryFilters = {}): Promise<AdminAuditPage> {
     if (cursor !== undefined) {
       const anchor = await this.pool.query(
         "SELECT id FROM audit_events WHERE clinic_id = $1 AND id = $2",
@@ -2799,17 +2822,28 @@ export class PostgresClinicRepository implements ClinicRepository {
       if (!anchor.rowCount)
         throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
     }
-    const events = await this.readAdminAuditEvents(clinicId, 51, cursor);
+    const events = await this.readAdminAuditEvents(clinicId, 51, cursor, filters);
     const items = events.slice(0, 50);
     return { items, nextCursor: events.length > 50 ? items.at(-1)!.id : null };
   }
 
-  private async readAdminAuditEvents(clinicId: string, limit: number, cursor?: string) {
+  private async readAdminAuditEvents(clinicId: string, limit: number, cursor?: string, filters: AuditHistoryFilters = {}) {
+    const values: unknown[] = [clinicId, cursor ?? null, limit];
+    const predicates: string[] = [];
+    const parameter = (value: unknown) => { values.push(value); return `$${values.length}`; };
+    if (filters.module) predicates.push(`ae.module = ${parameter(filters.module)}`);
+    if (filters.action) predicates.push(`ae.action = ${parameter(filters.action)}`);
+    if (filters.actorUserId) predicates.push(`ae.actor_user_id = ${parameter(filters.actorUserId)}::uuid`);
+    if (filters.search) predicates.push(`ae.search_document @@ plainto_tsquery('portuguese', ${parameter(filters.search)})`);
+    if (filters.from) predicates.push(`ae.created_at >= (${parameter(filters.from)}::date::timestamp AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$1))`);
+    if (filters.to) predicates.push(`ae.created_at < ((${parameter(filters.to)}::date + 1)::timestamp AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$1))`);
     const result = await this.pool.query<{
       id: string;
       clinicId: string;
       actorUserId: string | null;
       ipAddress: string | null;
+      module: AppModule;
+      description: string;
       action: string;
       entityType: string;
       entityId: string | null;
@@ -2818,20 +2852,23 @@ export class PostgresClinicRepository implements ClinicRepository {
       createdAt: Date;
     }>(
       `SELECT ae.id, ae.clinic_id AS "clinicId", ae.actor_user_id AS "actorUserId",
-              host(ae.ip_address) AS "ipAddress", ae.action, ae.entity_type AS "entityType",
+              host(ae.ip_address) AS "ipAddress", ae.module, ae.description, ae.action, ae.entity_type AS "entityType",
               ae.entity_id AS "entityId", u.full_name AS "actorName",
               ae.metadata, ae.created_at AS "createdAt"
        FROM audit_events ae LEFT JOIN users u ON u.id = ae.actor_user_id
        WHERE ae.clinic_id = $1
+         ${predicates.map((predicate) => `AND ${predicate}`).join("\n")}
          AND ($2::uuid IS NULL OR (ae.created_at, ae.id) < (
            SELECT created_at, id FROM audit_events WHERE clinic_id = $1 AND id = $2::uuid
          ))
        ORDER BY ae.created_at DESC, ae.id DESC LIMIT $3`,
-      [clinicId, cursor ?? null, limit],
+      values,
     );
     return result.rows.map((row): AdminAuditEvent => ({
       id: row.id,
       clinicId: row.clinicId,
+      module: row.module,
+      description: row.description,
       ...(row.actorUserId ? { actorUserId: row.actorUserId } : {}),
       ...(row.ipAddress ? { ipAddress: row.ipAddress } : {}),
       action: row.action,
@@ -3158,6 +3195,112 @@ export class PostgresClinicRepository implements ClinicRepository {
         );
       throw error;
     }
+  }
+
+  async listPlanTemplates(clinicId: string) {
+    const result = await this.pool.query<PlanTemplateRow>(
+      `SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1`,
+      [clinicId],
+    );
+    return result.rows
+      .map((row) => mapPlanTemplate(row))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
+
+  private async assertTemplateService(
+    client: PoolClient,
+    clinicId: string,
+    serviceId?: string | null,
+  ) {
+    if (!serviceId) return;
+    const service = await client.query(
+      "SELECT 1 FROM services WHERE clinic_id=$1 AND id=$2 AND active FOR SHARE",
+      [clinicId, serviceId],
+    );
+    if (!service.rowCount)
+      throw new DomainError(
+        "PLAN_TEMPLATE_SERVICE_NOT_FOUND",
+        "Serviço ativo não encontrado nesta clínica.",
+        404,
+      );
+  }
+
+  async createPlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanTemplateInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      await this.assertTemplateService(client, clinicId, input.serviceId);
+      const result = await client.query<PlanTemplateRow>(
+        `INSERT INTO plan_templates
+        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions) VALUES ($1,$2,$3,$4,$5,$6)
+        RETURNING ${planTemplateColumns}`,
+        [
+          clinicId,
+          input.name,
+          input.totalValueInCents,
+          input.serviceId ?? null,
+          input.kind ?? null,
+          input.totalSessions ?? null,
+        ],
+      );
+      const item = mapPlanTemplate(result.rows[0]!);
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "plan_template.created",
+        "plan_template",
+        item.id,
+        { ...item },
+      );
+      return item;
+    });
+  }
+
+  async updatePlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanTemplateUpdate,
+  ) {
+    return this.inTransaction(async (client) => {
+      const result = await client.query<PlanTemplateRow>(
+        `SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
+        [clinicId, id],
+      );
+      if (!result.rows[0]) return null;
+      const previous = mapPlanTemplate(result.rows[0]);
+      if (input.serviceId)
+        await this.assertTemplateService(client, clinicId, input.serviceId);
+      const item = { ...previous, ...input };
+      const updated = await client.query<PlanTemplateRow>(
+        `UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,updated_at=now()
+        WHERE clinic_id=$1 AND id=$2 RETURNING ${planTemplateColumns}`,
+        [
+          clinicId,
+          id,
+          item.name,
+          item.totalValueInCents,
+          item.serviceId ?? null,
+          item.kind ?? null,
+          item.totalSessions ?? null,
+          item.active,
+        ],
+      );
+      const saved = mapPlanTemplate(updated.rows[0]!);
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "plan_template.updated",
+        "plan_template",
+        id,
+        { ...saved, previous },
+      );
+      return saved;
+    });
   }
 
   async listPatientTags(clinicId: string) {
@@ -5740,10 +5883,18 @@ export class PostgresClinicRepository implements ClinicRepository {
     client: PoolClient,
     clinicId: string,
     actorUserId: string,
-    input: PatientPlanInput,
+    input: Omit<PatientPlanInput, "planTemplateId"> & { planTemplateId?: string | undefined },
     creditReason: string,
     renewedFromPlanId?: string,
   ) {
+    if (!renewedFromPlanId) {
+      const template = await client.query<{ name: string }>(
+        "SELECT name FROM plan_templates WHERE clinic_id=$1 AND id=$2 AND active FOR SHARE",
+        [clinicId, input.planTemplateId ?? null],
+      );
+      if (!template.rows[0]) throw new DomainError("PLAN_TEMPLATE_NOT_FOUND", "Selecione um plano ativo cadastrado nesta clínica.", 404);
+      input = { ...input, name: template.rows[0].name };
+    }
     const context = await client.query(
       `SELECT 1 FROM patients p, services s
        WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
@@ -5764,8 +5915,8 @@ export class PostgresClinicRepository implements ClinicRepository {
       `INSERT INTO patient_plans (
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
-         installments, first_due_date, auto_renew, renewed_from_plan_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+         installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [
         clinicId,
         input.patientId,
@@ -5780,6 +5931,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         input.firstDueDate,
         autoRenew,
         renewedFromPlanId ?? null,
+        input.planTemplateId ?? null,
       ],
     );
     const planId = inserted.rows[0]!.id;
@@ -5864,6 +6016,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           patientId: current.patientId,
           serviceId: current.serviceId,
           kind: current.kind,
+          planTemplateId: current.planTemplateId,
         },
         "Crédito da renovação do plano",
         current.id,
@@ -5959,6 +6112,7 @@ export class PostgresClinicRepository implements ClinicRepository {
               patientId: plan.patientId,
               serviceId: plan.serviceId,
               name: plan.name,
+              ...(plan.planTemplateId ? { planTemplateId: plan.planTemplateId } : {}),
               kind: plan.kind,
               totalSessions: plan.totalSessions,
               totalValueInCents: plan.totalValueInCents,
@@ -8383,9 +8537,11 @@ export class PostgresClinicRepository implements ClinicRepository {
   ) {
     await client.query(
       `INSERT INTO audit_events
-         (clinic_id, actor_user_id, action, entity_type, entity_id, metadata)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [clinicId, actorUserId, action, entityType, entityId ?? null, metadata],
+         (clinic_id, actor_user_id, action, entity_type, entity_id, metadata, module, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [clinicId, actorUserId, action, entityType, entityId ?? null, metadata,
+        historyAction(action)?.module ?? appModuleSchema.safeParse(metadata._module).data ?? "settings",
+        historyAction(action)?.label ?? (typeof metadata._description === "string" ? metadata._description : "Alteração registrada")],
     );
   }
 

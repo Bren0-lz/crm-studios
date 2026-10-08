@@ -3,26 +3,15 @@ import {
   patientExportColumnLabels,
   permissionCatalog,
   userRoleLabels,
+  historyAction,
   type AdminAuditEvent,
 } from "@crm/contracts";
 
-const actionLabels: Record<string, string> = {
-  "user.created": "Usuário cadastrado",
-  "user.updated": "Usuário atualizado",
-  "user.password_reset": "Senha redefinida",
-  "users.permissions_updated": "Permissões de acesso alteradas",
-  "users.commission_updated": "Comissão alterada",
-  "users.professional_updated": "Vínculo com profissional alterado",
-  "clinic.updated": "Dados da clínica atualizados",
-  "patient_tag.created": "Etiqueta criada",
-  "patient_tag.updated": "Etiqueta alterada",
-  "patient_tag.deleted": "Etiqueta excluída",
-  "patients.exported": "Lista de clientes exportada",
-};
 const categoryLabels: Record<string, string> = {
   user: "Usuários",
   clinic: "Dados da clínica",
   patient_tag: "Etiquetas de clientes",
+  plan_template: "Catálogo de planos",
   patient: "Clientes",
 };
 
@@ -59,6 +48,14 @@ export function formatAuditEvent(event: AdminAuditEvent) {
     add(label, values.length ? values.map(describe).join("; ") : "Nenhum");
 
   switch (event.action) {
+    case "plan_template.created":
+    case "plan_template.updated": {
+      add("Plano", metadata.name);
+      if (typeof metadata.totalValueInCents === "number" && Number.isSafeInteger(metadata.totalValueInCents))
+        add("Valor", (metadata.totalValueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+      if (typeof metadata.active === "boolean") add("Situação", metadata.active ? "Ativo" : "Inativo");
+      break;
+    }
     case "user.created":
     case "user.updated":
       add("E-mail do usuário", metadata.email);
@@ -119,10 +116,11 @@ export function formatAuditEvent(event: AdminAuditEvent) {
   }
 
   const date = new Date(event.createdAt);
+  if (event.module !== "clinical") add("Registro", metadata.subjectName);
   return {
-    title: labelFor(actionLabels, event.action, "Alteração registrada"),
-    category: labelFor(categoryLabels, event.entityType, "Outros registros"),
-    actor: event.actorName?.trim() || (event.actorUserId ? "Usuário não identificado" : "Sistema"),
+    title: historyAction(event.action)?.label ?? event.description ?? "Alteração registrada",
+    category: event.module ? appModuleLabels[event.module] : labelFor(categoryLabels, event.entityType, "Outros registros"),
+    actor: event.actorName?.trim() || (event.actorUserId ? "Usuário não identificado" : metadata.importedHistory || metadata.actorUnavailable ? "Responsável não registrado" : "Sistema"),
     date: Number.isFinite(date.getTime()) ? date.toLocaleString("pt-BR") : "Não registrado",
     details,
   };

@@ -1,8 +1,13 @@
-import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, type PermissionKey } from "@crm/contracts";
+import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate,
   AdminAuditEvent,
   AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -207,6 +212,7 @@ function dateAt(hour: number, minute = 0, addDays = 0) {
 }
 
 export class MemoryClinicRepository implements ClinicRepository {
+  private readonly planTemplates: PlanTemplate[] = [];
   private readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
   private readonly clinicalRecords: ClinicalRecord[] = [];
   private readonly clinicalRecordRevisions: ClinicalRecordRevision[] = [];
@@ -1132,18 +1138,98 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   async listAdminAuditEvents(clinicId: string) {
-    return clinicId === CLINIC_ID ? [...this.adminAuditEvents].reverse() : [];
+    return this.adminAuditEvents.filter((event) => event.clinicId === clinicId).reverse();
   }
 
-  async listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage> {
-    const events = clinicId === CLINIC_ID ? [...this.adminAuditEvents].sort((a, b) =>
+  async listHistoryActors(clinicId: string): Promise<HistoryActor[]> {
+    return this.users.filter((user) => user.clinicId === clinicId)
+      .map((user) => ({ id: user.id, name: user.fullName })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private systemHistoryEvents(clinicId: string): AdminAuditEvent[] {
+    if (clinicId !== CLINIC_ID) return [];
+    const sources: { records: readonly object[]; module: AppModule; action: string; event?: boolean }[] = [
+      { records: this.patients, module: "patients", action: "patient.created" },
+      { records: this.appointments, module: "agenda", action: "appointment.created" },
+      { records: this.patientPlans, module: "plans", action: "plan.created" },
+      { records: this.sessionMovements, module: "plans", action: "session.movement", event: true },
+      { records: this.receiptEvents, module: "finance", action: "financial", event: true },
+      { records: this.appointmentReschedules, module: "agenda", action: "appointment.rescheduled", event: true },
+      { records: this.leads, module: "crm", action: "lead.created" },
+      { records: this.leadContacts, module: "crm", action: "lead.contact", event: true },
+      { records: this.leadTasks, module: "crm", action: "lead.task_created" },
+      { records: this.products, module: "patients", action: "product.created" },
+      { records: this.stockMovements, module: "patients", action: "stock.movement", event: true },
+      { records: this.patientTabs, module: "patients", action: "tab.created" },
+      { records: this.groupClasses, module: "groups", action: "group.created" },
+      { records: this.groupEnrollments, module: "groups", action: "group.enrolled" },
+      { records: this.groupAttendance, module: "groups", action: "group.attendance", event: true },
+      { records: this.replacementCredits, module: "groups", action: "group.replacement_created" },
+      { records: this.groupSessions, module: "groups", action: "group.session_created" },
+      { records: this.scheduleBlocks, module: "agenda", action: "schedule.block_created" },
+      { records: this.contactActivities, module: "relationship", action: "relationship.contact", event: true },
+      { records: this.outboundMessages, module: "communications", action: "message.created", event: true },
+      { records: this.satisfactionSurveys, module: "agenda", action: "satisfaction.created", event: true },
+      { records: this.clinicalRecords, module: "clinical", action: "clinical.record_created" },
+      { records: this.clinicalRecordRevisions, module: "clinical", action: "clinical.revision", event: true },
+      { records: this.clinicalAccessEvents, module: "clinical", action: "clinical.access", event: true },
+      { records: this.clinicalAttachments, module: "clinical", action: "clinical.attachment_created" },
+      { records: this.clinicalAddenda, module: "clinical", action: "clinical.addendum_created" },
+      { records: this.clinicalAssessments, module: "clinical", action: "clinical.assessment_created" },
+      { records: this.assessmentTemplates, module: "clinical", action: "clinical.template_created" },
+      { records: this.therapeuticGoals, module: "clinical", action: "clinical.goal_created" },
+      { records: this.clinicalMeasurements, module: "clinical", action: "clinical.measurement_created" },
+      { records: this.treatmentClosures, module: "clinical", action: "clinical.closure_created" },
+      { records: this.receivableRenegotiations, module: "finance", action: "finance.renegotiated" },
+      { records: this.commissionRules, module: "finance", action: "commission.rule_created" },
+      { records: this.commissions, module: "finance", action: "commission.created" },
+      { records: this.recurringPayables, module: "finance", action: "recurring_payable.created" },
+      { records: this.documentTemplates, module: "contracts", action: "contract.template_created" },
+      { records: this.issuedDocuments, module: "contracts", action: "contract.created" },
+    ];
+    return sources.flatMap((source) => source.records.flatMap((record) => {
+      const data = record as Record<string, unknown>;
+      const createdAt = data.createdAt ?? data.occurredAt ?? data.enrolledAt ?? data.recordedAt;
+      if (typeof data.id !== "string" || typeof createdAt !== "string" || (data.clinicId && data.clinicId !== clinicId)) return [];
+      const action = source.action === "financial" ? `financial.${data.kind}`
+        : source.action === "clinical.access" ? `clinical.access.${data.action}` : source.action;
+      const actorUserId = source.event && typeof data.actorUserId === "string" ? data.actorUserId : undefined;
+      const actorName = source.event ? (data.actorName ?? data.authorName ?? this.users.find((user) => user.id === actorUserId)?.fullName) : undefined;
+      const metadata: Record<string, unknown> = { source: source.action, importedHistory: true };
+      if (source.module === "clinical") {
+        for (const key of ["clinicalRecordId", "patientId", "version", "entityId", "entityType"])
+          if (data[key] !== undefined) metadata[key] = data[key];
+      } else if (source.event) {
+        for (const [key, value] of Object.entries(data))
+          if (!["body", "contentBase64", "snapshotBody", "idempotencyKey"].includes(key)) metadata[key] = value;
+      }
+      return [{ id: data.id, clinicId, module: source.module, action, entityType: source.action, entityId: data.id,
+        description: historyAction(action)?.label ?? "Atividade registrada", createdAt, metadata,
+        ...(actorUserId ? { actorUserId } : {}), ...(typeof actorName === "string" ? { actorName } : {}),
+      }];
+    }));
+  }
+
+  async listAdminAuditPage(clinicId: string, cursor?: string, filters: AuditHistoryFilters = {}): Promise<AdminAuditPage> {
+    const allEvents = [...this.adminAuditEvents.filter((event) => event.clinicId === clinicId), ...this.systemHistoryEvents(clinicId)];
+    const anchor = cursor ? allEvents.find((event) => event.id === cursor) : undefined;
+    if (cursor && !anchor) throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
+    const words = filters.search?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/\s+/).filter(Boolean) ?? [];
+    const events = allEvents.filter((event) => {
+      if (anchor && !(event.createdAt < anchor.createdAt || (event.createdAt === anchor.createdAt && event.id < anchor.id))) return false;
+      if (filters.module && event.module !== filters.module) return false;
+      if (filters.action && event.action !== filters.action) return false;
+      if (filters.actorUserId && event.actorUserId !== filters.actorUserId) return false;
+      const day = saoPauloToday(new Date(event.createdAt));
+      if ((filters.from && day < filters.from) || (filters.to && day > filters.to)) return false;
+      const text = `${event.action} ${event.description ?? ""} ${event.module === "clinical" ? "" : JSON.stringify(event.metadata)}`
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return words.every((word) => text.includes(word));
+    }).sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
-    ) : [];
-    const cursorIndex = cursor === undefined ? -1 : events.findIndex((event) => event.id === cursor);
-    if (cursor !== undefined && cursorIndex === -1)
-      throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
-    const items = events.slice(cursorIndex + 1, cursorIndex + 51);
-    return { items, nextCursor: events.length > cursorIndex + 51 ? items.at(-1)!.id : null };
+    );
+    const items = events.slice(0, 50);
+    return { items, nextCursor: events.length > 50 ? items.at(-1)!.id : null };
   }
 
   async recordAdminAuditEvent(
@@ -1152,9 +1238,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     action: string,
     entityType: string,
     metadata: Record<string, unknown> = {},
+    entityId?: string,
   ) {
     if (clinicId !== CLINIC_ID) return;
-    this.addAdminAudit(actorUserId, action, entityType, undefined, metadata);
+    this.addAdminAudit(actorUserId, action, entityType, entityId, metadata);
   }
 
   private addAdminAudit(
@@ -1163,13 +1250,16 @@ export class MemoryClinicRepository implements ClinicRepository {
     entityType: string,
     entityId?: string,
     metadata: Record<string, unknown> = {},
+    clinicId = CLINIC_ID,
   ) {
     const actorName = this.users.find(
       (user) => user.id === actorUserId,
     )?.fullName;
     this.adminAuditEvents.push({
       id: uuid(),
-      clinicId: CLINIC_ID,
+      clinicId,
+      module: historyAction(action)?.module ?? appModuleSchema.safeParse(metadata._module).data ?? "settings",
+      description: historyAction(action)?.label ?? (typeof metadata._description === "string" ? metadata._description : "Alteração registrada"),
       actorUserId,
       action,
       entityType,
@@ -1276,6 +1366,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.receivables,
       this.sessionMovements,
       this.groupEnrollments,
+      this.adminAuditEvents,
     ];
     const lengths = collections.map((collection) => collection.length);
     try {
@@ -1446,6 +1537,79 @@ export class MemoryClinicRepository implements ClinicRepository {
         (patient) => patient.clinicId === tag.clinicId && patient.tags.includes(tag.name),
       ).length,
     };
+  }
+
+  async listPlanTemplates(clinicId: string) {
+    return this.planTemplates
+      .filter((item) => item.clinicId === clinicId)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((item) => ({ ...item }));
+  }
+
+  private assertTemplateService(clinicId: string, serviceId?: string | null) {
+    if (
+      serviceId &&
+      !this.services.some(
+        (item) =>
+          item.id === serviceId && item.clinicId === clinicId && item.active,
+      )
+    )
+      throw new DomainError(
+        "PLAN_TEMPLATE_SERVICE_NOT_FOUND",
+        "Serviço ativo não encontrado nesta clínica.",
+        404,
+      );
+  }
+
+  async createPlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanTemplateInput,
+  ) {
+    this.assertTemplateService(clinicId, input.serviceId);
+    const timestamp = now();
+    const item: PlanTemplate = {
+      ...input,
+      id: uuid(),
+      clinicId,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.planTemplates.push(item);
+    this.addAdminAudit(
+      actorUserId,
+      "plan_template.created",
+      "plan_template",
+      item.id,
+      { ...item },
+      clinicId,
+    );
+    return { ...item };
+  }
+
+  async updatePlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanTemplateUpdate,
+  ) {
+    const item = this.planTemplates.find(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    if (!item) return null;
+    if (input.serviceId) this.assertTemplateService(clinicId, input.serviceId);
+    const previous = { ...item };
+    Object.assign(item, input, { updatedAt: now() });
+    this.addAdminAudit(
+      actorUserId,
+      "plan_template.updated",
+      "plan_template",
+      id,
+      { ...item, previous },
+      clinicId,
+    );
+    return { ...item };
   }
 
   async listPatientTags(clinicId: string) {
@@ -3460,11 +3624,13 @@ export class MemoryClinicRepository implements ClinicRepository {
     _actorUserId: string,
     input: PatientPlanInput,
   ) {
+    const template = this.planTemplates.find((item) => item.clinicId === clinicId && item.id === input.planTemplateId && item.active);
+    if (!template) throw new DomainError("PLAN_TEMPLATE_NOT_FOUND", "Selecione um plano ativo cadastrado nesta clínica.", 404);
     const patient = this.patients.find(
-      (item) => item.clinicId === clinicId && item.id === input.patientId,
+      (item) => item.clinicId === clinicId && item.id === input.patientId && item.status === "active",
     );
     const service = this.services.find(
-      (item) => item.clinicId === clinicId && item.id === input.serviceId,
+      (item) => item.clinicId === clinicId && item.id === input.serviceId && item.active,
     );
     if (!patient || !service) {
       throw new DomainError(
@@ -3477,7 +3643,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       clinicId,
       patient,
       service,
-      input,
+      { ...input, name: template.name },
       "Crédito inicial do plano",
     );
   }
@@ -3486,13 +3652,15 @@ export class MemoryClinicRepository implements ClinicRepository {
     clinicId: string,
     patient: Patient,
     service: Service,
-    input: PatientPlanInput,
+    input: Omit<PatientPlanInput, "planTemplateId"> & { planTemplateId?: string | undefined },
     creditReason: string,
     renewedFrom?: PatientPlan,
   ) {
     const timestamp = now();
+    const { planTemplateId, ...terms } = input;
     const plan: PatientPlan = {
-      ...input,
+      ...terms,
+      ...(planTemplateId ? { planTemplateId } : {}),
       id: uuid(),
       clinicId,
       patientName: patient.fullName,
@@ -3569,6 +3737,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         patientId: current.patientId,
         serviceId: current.serviceId,
         kind: current.kind,
+        planTemplateId: current.planTemplateId,
       },
       "Crédito da renovação do plano",
       current,
@@ -3654,6 +3823,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           patientId: plan.patientId,
           serviceId: plan.serviceId,
           name: plan.name,
+          ...(plan.planTemplateId ? { planTemplateId: plan.planTemplateId } : {}),
           kind: plan.kind,
           totalSessions: plan.totalSessions,
           totalValueInCents: plan.totalValueInCents,

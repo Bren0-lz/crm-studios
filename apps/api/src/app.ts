@@ -1,4 +1,6 @@
-import { permissionCatalog, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
+import {
+  planTemplateInputSchema,
+  planTemplateUpdateSchema, permissionCatalog, auditHistoryQuerySchema, historyAction, type AdminAuditEvent, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
@@ -519,6 +521,55 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     ];
   });
 
+  // Record successful business commands, never request bodies, credentials or clinical text.
+  // Domain journals remain transactional; this entry records the authenticated API action.
+  app.addHook("onSend", async (request, reply, payload) => {
+    const route = request.routeOptions.url;
+    if (!route || !requestAccess.has(request) || !["POST", "PUT", "PATCH", "DELETE"].includes(request.method)
+      || reply.statusCode < 200 || reply.statusCode >= 300
+      || route.startsWith("/admin/users") || route === "/admin/clinic-settings" || route.startsWith("/patient-tags") || route.startsWith("/plan-templates")
+      || route.endsWith("/preview")) return payload;
+    const access = ROUTE_ACCESS[`${request.method} ${route}`];
+    const requirements = Array.isArray(access) ? access : typeof access === "object" && "anyOf" in access ? access.anyOf : [];
+    const requirement = requirements.find((item) => requestAccess.get(request)?.permissions.includes(item.permission));
+    const module = requirement?.module ?? "settings";
+    const action = requirement ? `operation.${requirement.permission}` : `operation.${request.method.toLowerCase()}.${route}`;
+    const metadata: Record<string, unknown> = {
+      _module: module, _description: historyAction(action)?.label ?? "Configuração alterada",
+      method: request.method, route, params: request.params, statusCode: reply.statusCode,
+    };
+    const params = request.params as Record<string, unknown>;
+    let entityId = z.uuid().safeParse(params.id).data;
+    if (typeof payload === "string" && payload.startsWith("{")) {
+      try {
+        const result = JSON.parse(payload);
+        entityId = z.uuid().safeParse(result.id).data ?? entityId;
+        if (module !== "clinical") {
+          const name = result.fullName ?? result.name ?? result.title;
+          if (typeof name === "string") metadata.subjectName = name;
+        }
+      } catch { /* Non-JSON responses have no result ID. */ }
+    }
+    try {
+      await repository.recordAdminAuditEvent(request.user.clinicId, request.user.sub, action, module, metadata, entityId);
+    } catch (error) {
+      // The business operation has committed: do not turn it into a retryable 500.
+      request.log.error({ err: error, action, clinicId: request.user.clinicId }, "Failed to record system history");
+    }
+    return payload;
+  });
+
+  function visibleHistory(request: FastifyRequest, event: AdminAuditEvent): AdminAuditEvent {
+    if (event.module !== "clinical") return event;
+    const permissions = requestAccess.get(request)?.permissions ?? [];
+    const allowed = permissions.includes("clinical.view") &&
+      (!event.action.startsWith("clinical.access.") || permissions.includes("clinical.access_events"));
+    if (allowed) return event;
+    const summary = { ...event };
+    delete summary.entityId;
+    return { ...summary, entityType: "clinical", metadata: event.metadata.actorUnavailable ? { actorUnavailable: true } : {}, detailsRestricted: true };
+  }
+
   /** Recusa (409 `HOLIDAY`) horários cuja data, no fuso da clínica, é feriado. */
   async function assertNoHoliday(clinicId: string, startsAtList: string[]) {
     const dates = startsAtList.map((value) => saoPauloToday(new Date(value)));
@@ -859,15 +910,17 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     "/history/audit-events",
     { preHandler: authenticate },
     async (request) => {
-      const { cursor } = z.object({ cursor: z.string().uuid().optional() }).parse(request.query);
-      return repository.listAdminAuditPage(request.user.clinicId, cursor);
+      const { cursor, ...filters } = auditHistoryQuerySchema.parse(request.query);
+      const page = await repository.listAdminAuditPage(request.user.clinicId, cursor, filters);
+      return { ...page, items: page.items.map((event) => visibleHistory(request, event)) };
     },
   );
   app.get(
     "/admin/audit-events",
     { preHandler: authenticate },
-    async (request) => repository.listAdminAuditEvents(request.user.clinicId),
+    async (request) => (await repository.listAdminAuditEvents(request.user.clinicId)).map((event) => visibleHistory(request, event)),
   );
+  app.get("/history/actors", { preHandler: authenticate }, async (request) => repository.listHistoryActors(request.user.clinicId));
   app.get(
     "/admin/permission-matrix",
     { preHandler: authenticate },
@@ -1023,6 +1076,16 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return reply.status(201).send(result);
     },
   );
+  app.get("/plan-templates", { preHandler: authenticate }, async (request) => repository.listPlanTemplates(request.user.clinicId));
+  app.post("/plan-templates", { preHandler: authenticate }, async (request, reply) =>
+    reply.status(201).send(await repository.createPlanTemplate(request.user.clinicId, request.user.sub, planTemplateInputSchema.parse(request.body))));
+  app.patch("/plan-templates/:id", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const input = planTemplateUpdateSchema.parse(request.body);
+    const item = z.uuid().safeParse(id).success ? await repository.updatePlanTemplate(request.user.clinicId, request.user.sub, id, input) : null;
+    if (!item) return reply.status(404).send({ code: "PLAN_TEMPLATE_NOT_FOUND", message: "Plano do catálogo não encontrado." } satisfies ApiError);
+    return item;
+  });
   app.get("/patient-tags", { preHandler: authenticate }, async (request) =>
     repository.listPatientTags(request.user.clinicId),
   );

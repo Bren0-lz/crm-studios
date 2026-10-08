@@ -54,6 +54,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "DELETE /holidays/:id": "admin",
   "GET /admin/audit-events": view("history"),
   "GET /history/audit-events": view("history"),
+  "GET /history/actors": view("history"),
   "GET /admin/permission-matrix": "admin",
   "GET /patients/export": operation("patients.export"),
 
@@ -62,7 +63,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny("agenda", "groups", "clinical", "contracts", "finance", "crm"),
   "GET /rooms": viewAny("agenda", "groups", "crm"),
-  "GET /services": viewAny("agenda", "groups", "plans", "crm"),
+  "GET /services": viewAny("agenda", "groups", "plans", "crm", "settings"),
   "GET /appointments/options": view("clinical"),
   "GET /appointments": viewAny("agenda"),
   "GET /appointments/:id/reschedules": viewAny("agenda"),
@@ -121,6 +122,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+
+  "GET /plan-templates": viewAny("settings", "plans"),
+  "POST /plan-templates": operation("settings.plans_create"),
+  "PATCH /plan-templates/:id": operation("settings.plans_update"),
 
   // Planos e sessões.
   "GET /plans": view("plans"),

@@ -1,6 +1,11 @@
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate,
   AdminAuditEvent,
   AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -199,7 +204,8 @@ export interface ClinicRepository {
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
-  listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage>;
+  listAdminAuditPage(clinicId: string, cursor?: string, filters?: AuditHistoryFilters): Promise<AdminAuditPage>;
+  listHistoryActors(clinicId: string): Promise<HistoryActor[]>;
   /** Registra um evento na auditoria administrativa (ex.: `patients.exported`). */
   recordAdminAuditEvent(
     clinicId: string,
@@ -207,6 +213,7 @@ export interface ClinicRepository {
     action: string,
     entityType: string,
     metadata?: Record<string, unknown>,
+    entityId?: string,
   ): Promise<void>;
   /** Devolve os padrões quando a clínica ainda não salvou configurações. */
   getRelationshipSettings(clinicId: string): Promise<RelationshipSettings>;
@@ -531,6 +538,9 @@ export interface ClinicRepository {
     clinicId: string,
     patientId: string,
   ): Promise<ClinicalAccessEvent[]>;
+  listPlanTemplates(clinicId: string): Promise<PlanTemplate[]>;
+  createPlanTemplate(clinicId: string, actorUserId: string, input: PlanTemplateInput): Promise<PlanTemplate>;
+  updatePlanTemplate(clinicId: string, actorUserId: string, id: string, input: PlanTemplateUpdate): Promise<PlanTemplate | null>;
   listPatientPlans(
     clinicId: string,
     patientId?: string,

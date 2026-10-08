@@ -9,6 +9,331 @@ import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
 
 vi.stubGlobal("fetch", vi.fn());
 
+describe("configured plan catalog", () => {
+  const first = {
+    id: "aa000000-0000-4000-8000-000000000001",
+    name: "Pilates mensal",
+    totalValueInCents: 45000,
+    serviceId: "88888888-8888-4888-8888-888888888888",
+    kind: "recurring",
+    totalSessions: 8,
+    active: true,
+  };
+  const second = {
+    id: "aa000000-0000-4000-8000-000000000002",
+    name: "Pacote básico",
+    totalValueInCents: 12050,
+    active: true,
+  };
+  function setupCatalog(
+    options: { empty?: boolean; failOnce?: boolean; role?: string } = {},
+  ) {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Usuária catálogo",
+        email: "catalog@test.local",
+        role: options.role ?? "owner",
+      }),
+    );
+    let catalogReads = 0;
+    let savedTemplate = { ...first };
+    const writes: Record<string, unknown>[] = [];
+    const templates = options.empty
+      ? []
+      : [
+          first,
+          second,
+          {
+            ...first,
+            id: "aa000000-0000-4000-8000-000000000003",
+            name: "Plano inativo",
+            active: false,
+          },
+        ];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (
+        url.includes("/plan-templates") &&
+        (!init?.method || init.method === "GET")
+      ) {
+        catalogReads += 1;
+        if (options.failOnce && catalogReads === 1)
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ message: "Falha ao carregar catálogo" }),
+          } as Response;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => templates,
+        } as Response;
+      }
+      if (init?.method === "POST" || init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        writes.push(body);
+        savedTemplate = { ...savedTemplate, ...body };
+        return {
+          ok: true,
+          status: init.method === "POST" ? 201 : 200,
+          json: async () => ({
+            ...savedTemplate,
+            id: first.id,
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            patientName: "Cliente teste",
+            serviceName: "Pilates",
+            remainingSessions: body.totalSessions ?? 8,
+            status: "active",
+            createdAt: "2035-01-01T12:00:00Z",
+            updatedAt: "2035-01-01T12:00:00Z",
+          }),
+        } as Response;
+      }
+      const body = url.includes("/patients/options")
+        ? [
+            {
+              id: "99999999-9999-4999-8999-999999999999",
+              fullName: "Cliente teste",
+            },
+          ]
+        : url.includes("/services")
+          ? [
+              {
+                id: "77777777-7777-4777-8777-777777777777",
+                name: "Fisioterapia",
+              },
+              { id: first.serviceId, name: "Pilates" },
+            ]
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    return writes;
+  }
+
+  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+    const writes = setupCatalog();
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    const selector = await screen.findByLabelText("Plano cadastrado");
+    await screen.findByRole("option", { name: /Pilates mensal/ });
+    expect(selector).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("option", { name: /Plano inativo/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: first.id } });
+    expect(screen.getByLabelText("Valor total")).toHaveValue(450);
+    expect(screen.getByLabelText("Sessões")).toHaveValue(8);
+    expect(screen.getByLabelText("Serviço")).toHaveValue(first.serviceId);
+    expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
+    fireEvent.change(screen.getByLabelText("Valor total"), {
+      target: { value: "390" },
+    });
+    fireEvent.change(selector, { target: { value: second.id } });
+    expect(screen.getByLabelText("Valor total")).toHaveValue(120.5);
+    expect(screen.getByLabelText("Sessões")).toHaveValue(10);
+    expect(screen.getByLabelText("Serviço")).toHaveValue(
+      "77777777-7777-4777-8777-777777777777",
+    );
+    expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
+    fireEvent.change(screen.getByLabelText("Valor total"), {
+      target: { value: "99.99" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      name: second.name,
+      planTemplateId: second.id,
+      totalValueInCents: 9999,
+    });
+  });
+
+  it("blocks empty catalogs and links to settings only when the user can open them", async () => {
+    setupCatalog({ empty: true });
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Nenhum plano ativo cadastrado/);
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("link", { name: "Abrir configurações" }),
+    ).toHaveAttribute("href", "/configuracoes");
+    cleanup();
+    setupCatalog({ empty: true });
+    localStorage.setItem(
+      "crm.auth.user",
+      JSON.stringify(
+        withPermissions({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Vendedor",
+          email: "sales@test.local",
+          role: "user",
+          modules: ["plans"],
+          editModules: ["plans"],
+        }),
+      ),
+    );
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Nenhum plano ativo cadastrado/);
+    expect(
+      screen.queryByRole("link", { name: "Abrir configurações" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retries a catalog read failure without falling back to manual creation", async () => {
+    setupCatalog({ failOnce: true });
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Falha ao carregar catálogo/);
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByRole("option", { name: /Pilates mensal/ });
+    expect(
+      screen.queryByText(/Falha ao carregar catálogo/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates a catalog item with only required fields and edits, clears defaults and deactivates it", async () => {
+    const writes = setupCatalog();
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Planos" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cadastrar plano" }),
+    );
+    let dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
+      target: { value: "Plano gratuito" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Valor total"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      name: "Plano gratuito",
+      totalValueInCents: 0,
+      serviceId: null,
+      kind: null,
+      totalSessions: null,
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar plano Plano gratuito" }),
+    );
+    dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
+      target: { value: "Plano editado" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Valor total"), {
+      target: { value: "125.50" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Serviço (opcional)"), {
+      target: { value: first.serviceId },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo (opcional)"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Sessões (opcional)"), {
+      target: { value: "8" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toMatchObject({
+      totalValueInCents: 12550,
+      serviceId: first.serviceId,
+      kind: "recurring",
+      totalSessions: 8,
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar plano Plano editado" }),
+    );
+    dialog = screen.getByRole("dialog");
+    for (const label of [
+      "Serviço (opcional)",
+      "Modelo (opcional)",
+      "Sessões (opcional)",
+    ])
+      fireEvent.change(within(dialog).getByLabelText(label), {
+        target: { value: "" },
+      });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(3));
+    expect(writes[2]).toMatchObject({
+      serviceId: null,
+      kind: null,
+      totalSessions: null,
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Desativar plano Plano editado" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(4));
+    expect(writes[3]).toEqual({ active: false });
+    await screen.findByRole("button", { name: "Ativar plano Plano editado" });
+  });
+
+  it("shows the catalog read-only without settings operation permissions", async () => {
+    setupCatalog({ role: "reception" });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Planos" }));
+    await screen.findByText(first.name);
+    expect(
+      screen.queryByRole("button", { name: "Cadastrar plano" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Editar plano ${first.name}` }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 /**
  * Módulos dos perfis antigos, usados como atalho nos testes: a migração 0042 gravou exatamente
  * esses módulos nos usuários de recepção, fisioterapia e financeiro (que viraram "user").
@@ -5637,6 +5962,7 @@ describe("configured patient tags", () => {
 
 
 describe("history page", () => {
+  beforeEach(() => { vi.spyOn(api, "auditHistory").mockReset(); vi.spyOn(api, "historyActors").mockResolvedValue([]); });
   const event = { id: "event-1", action: "clinic.updated", entityType: "clinic", metadata: {}, createdAt: "2026-10-07T12:00:00.000Z", actorName: "Maria Souza" };
   function session(role: "admin" | "user" = "user", allowed = true) {
     const user = withPermissions({ id: "history-reader", fullName: "History Reader", email: "history@test.local", role,
@@ -5658,17 +5984,17 @@ describe("history page", () => {
     expect(await screen.findByRole("heading", { name: "Histórico" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Histórico" })).toHaveAttribute("href", "/historico");
     expect(screen.queryByRole("link", { name: "Configurações" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alterações administrativas" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("region", { name: "Atividades do sistema" })).toHaveAttribute("aria-busy", "true");
     resolve({ items: [], nextCursor: null });
-    expect(await screen.findByText("Nenhuma alteração administrativa.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
   });
   it("allows administrators and displays the responsible person, time and system fallback", async () => {
     session("admin");
     const systemEvent = { id: "event-2", action: "user.updated", entityType: "user", metadata: {}, createdAt: event.createdAt };
     vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event, systemEvent], nextCursor: null });
     const { container } = open();
-    expect(await screen.findByText("Dados da clínica atualizados")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
     expect(screen.getByText(/Maria Souza ·/)).toBeInTheDocument();
     expect(screen.getByText(/Sistema ·/)).toBeInTheDocument();
     expect(container.querySelector("time")).toHaveAttribute("datetime", event.createdAt);
@@ -5680,8 +6006,8 @@ describe("history page", () => {
     open();
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao carregar");
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    expect(await screen.findByText("Dados da clínica atualizados")).toBeInTheDocument();
-    expect(history).toHaveBeenNthCalledWith(2, undefined);
+    expect(await screen.findByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
+    expect(history).toHaveBeenNthCalledWith(2, undefined, {});
   });
   it("keeps loaded events when the next page fails and retries the same cursor", async () => {
     session();
@@ -5690,16 +6016,16 @@ describe("history page", () => {
       .mockRejectedValueOnce(new Error("Falha na próxima página"))
       .mockResolvedValueOnce({ items: [{ ...event, id: "event-2", action: "user.created" }], nextCursor: null });
     open();
-    await screen.findByText("Dados da clínica atualizados");
-    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha na próxima página");
-    expect(screen.getByText("Dados da clínica atualizados")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    expect(await screen.findByText("Usuário cadastrado")).toBeInTheDocument();
-    expect(screen.getAllByText("Dados da clínica atualizados")).toHaveLength(1);
-    expect(history).toHaveBeenNthCalledWith(2, event.id);
-    expect(history).toHaveBeenNthCalledWith(3, event.id);
-    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Usuário cadastrado" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
+    expect(history).toHaveBeenNthCalledWith(2, event.id, {});
+    expect(history).toHaveBeenNthCalledWith(3, event.id, {});
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
   });
   it("hides history and redirects direct access without its permission", async () => {
     session("user", false);
@@ -5717,11 +6043,11 @@ describe("history page", () => {
     vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: null });
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
     open();
-    await screen.findByText("Dados da clínica atualizados");
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
     fresh = { ...fresh, modules: [], permissions: [] };
     fireEvent(window, new Event("focus"));
     await waitFor(() => expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument());
-    expect(screen.queryByText("Dados da clínica atualizados")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
   });
   it("opens the readable summary and preserves all technical values in the details tab", async () => {
     session();
@@ -5780,6 +6106,62 @@ describe("history page", () => {
     expect(trigger).toHaveFocus();
     fireEvent.click(trigger);
     expect(screen.getByRole("tab", { name: "Resumo" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("applies search and combined filters on submit and resets the page", async () => {
+    session();
+    const actor = { id: "22222222-2222-4222-8222-222222222222", name: "Aryana Dutra" };
+    vi.spyOn(api, "historyActors").mockResolvedValue([actor]);
+    const history = vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: event.id });
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    await screen.findByRole("option", { name: actor.name });
+    fireEvent.change(screen.getByLabelText("Pesquisar"), { target: { value: "pagamento" } });
+    fireEvent.change(screen.getByLabelText("Área"), { target: { value: "finance" } });
+    fireEvent.change(screen.getByLabelText("Tipo de atividade"), { target: { value: "financial.payment" } });
+    fireEvent.change(screen.getByLabelText("Responsável"), { target: { value: actor.id } });
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-10-08" } });
+    expect(history).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Pesquisar e filtrar" }));
+    await waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+    const filters = { search: "pagamento", module: "finance", action: "financial.payment", actorUserId: actor.id, from: "2026-10-01", to: "2026-10-08" };
+    expect(history).toHaveBeenLastCalledWith(undefined, filters);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Próxima" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await waitFor(() => expect(history).toHaveBeenLastCalledWith(event.id, filters));
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    await waitFor(() => expect(history).toHaveBeenLastCalledWith(undefined, {}));
+    expect(screen.getByLabelText("Pesquisar")).toHaveValue("");
+    expect(screen.getByLabelText("Área")).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Página 1"));
+  });
+  it("keeps only the current page and retrieves the previous page again", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory")
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id })
+      .mockResolvedValueOnce({ items: [{ ...event, id: "second", action: "user.created" }], nextCursor: null })
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id });
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await screen.findByRole("heading", { name: "Usuário cadastrado" });
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Página 2");
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    expect(screen.queryByRole("heading", { name: "Usuário cadastrado" })).not.toBeInTheDocument();
+    expect(history).toHaveBeenLastCalledWith(undefined, {});
+  });
+  it("does not offer clinical technical details without the required permissions", async () => {
+    session();
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [{ ...event, action: "clinical.access.read", module: "clinical", detailsRestricted: true, metadata: {} }], nextCursor: null });
+    open();
+    expect(await screen.findByRole("heading", { name: "Prontuário consultado" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver detalhes" })).not.toBeInTheDocument();
+    expect(screen.getByText("Detalhes disponíveis para quem tem acesso aos Prontuários.")).toBeInTheDocument();
   });
 
 });
