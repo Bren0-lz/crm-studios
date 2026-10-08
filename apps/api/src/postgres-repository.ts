@@ -1,5 +1,6 @@
-import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
+import { planTemplateInputSchema, allocatePlanRevenue, effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
+import { formatPlanServices, validatePlanComposition } from "./plan-services.js";
 import type {
   PlanTemplate,
   PlanTemplateInput,
@@ -93,6 +94,7 @@ import type {
   PatientTagUpdate,
   PatientPlan,
   PatientPlanInput,
+  PatientPlanService,
   PlanRenewalInput,
   PatientTab,
   PatientTabCloseInput,
@@ -552,14 +554,16 @@ interface ClinicalAccessEventRow {
 }
 
 type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & { createdAt: Date; updatedAt: Date };
-const planTemplateColumns = `id, clinic_id AS "clinicId", name,
-  total_value_in_cents AS "totalValueInCents", service_id AS "serviceId", kind,
-  total_sessions AS "totalSessions", active, created_at AS "createdAt", updated_at AS "updatedAt"`;
+const planTemplateColumns = `id, clinic_id AS "clinicId", name, total_value_in_cents AS "totalValueInCents", kind,
+  coalesce((SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'totalSessions',x.total_sessions,'totalValueInCents',x.total_value_in_cents) ORDER BY x.position)
+    FROM plan_template_services x WHERE x.template_id=plan_templates.id),'[]'::jsonb) AS services,
+  active, created_at AS "createdAt", updated_at AS "updatedAt"`;
 function mapPlanTemplate(row: PlanTemplateRow): PlanTemplate {
   return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
 
 interface PatientPlanRow {
+  services: PatientPlanService[];
   planTemplateId: string | null;
   id: string;
   clinicId: string;
@@ -587,6 +591,8 @@ interface PatientPlanRow {
 }
 
 interface SessionMovementRow {
+  serviceId: string;
+  serviceName: string;
   id: string;
   planId: string;
   appointmentId: string | null;
@@ -898,7 +904,10 @@ const patientPlanColumns = `
   pp.first_due_date::text AS "firstDueDate", pp.status,
   pp.plan_template_id AS "planTemplateId", pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
   (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
-  p.full_name AS "patientName", s.name AS "serviceName",
+  p.full_name AS "patientName",
+  (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
+  (SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'serviceName',x.service_name,'totalSessions',x.total_sessions,'remainingSessions',x.remaining_sessions,'totalValueInCents',x.total_value_in_cents) ORDER BY x.position)
+    FROM patient_plan_services x WHERE x.plan_id=pp.id) AS services,
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
@@ -1466,6 +1475,7 @@ function mapClinicalAccessEvent(
 
 function mapPatientPlan(row: PatientPlanRow): PatientPlan {
   return {
+    services: row.services,
     ...(row.planTemplateId ? { planTemplateId: row.planTemplateId } : {}),
     id: row.id,
     clinicId: row.clinicId,
@@ -2990,7 +3000,7 @@ export class PostgresClinicRepository implements ClinicRepository {
             "Turma ou cliente ativo não encontrado.",
             404,
           );
-        if (group.rows[0].serviceId !== input.plan.serviceId)
+        if (!input.plan.services.some((item) => item.serviceId === group.rows[0]!.serviceId))
           throw new DomainError(
             "GROUP_SERVICE_MISMATCH",
             "A turma escolhida não é do serviço do plano.",
@@ -3072,7 +3082,7 @@ export class PostgresClinicRepository implements ClinicRepository {
               AND e.patient_id = pp.patient_id
               AND e.status = 'active'
               AND g.active
-              AND g.service_id = pp.service_id
+              AND EXISTS (SELECT 1 FROM patient_plan_services x WHERE x.plan_id=pp.id AND x.service_id=g.service_id)
           )
       `,
       [clinicId],
@@ -3207,98 +3217,47 @@ export class PostgresClinicRepository implements ClinicRepository {
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }
 
-  private async assertTemplateService(
-    client: PoolClient,
-    clinicId: string,
-    serviceId?: string | null,
-  ) {
-    if (!serviceId) return;
-    const service = await client.query(
-      "SELECT 1 FROM services WHERE clinic_id=$1 AND id=$2 AND active FOR SHARE",
-      [clinicId, serviceId],
-    );
-    if (!service.rowCount)
-      throw new DomainError(
-        "PLAN_TEMPLATE_SERVICE_NOT_FOUND",
-        "Serviço ativo não encontrado nesta clínica.",
-        404,
-      );
+  private async assertTemplateServices(client: PoolClient, clinicId: string, entries: PlanTemplateInput["services"]) {
+    const result = await client.query("SELECT id FROM services WHERE clinic_id=$1 AND id=ANY($2::uuid[]) AND active FOR SHARE", [clinicId, entries.map((item) => item.serviceId)]);
+    if (result.rowCount !== entries.length) throw new DomainError("PLAN_TEMPLATE_SERVICE_NOT_FOUND", "Serviço ativo não encontrado nesta clínica.", 404);
   }
-
-  async createPlanTemplate(
-    clinicId: string,
-    actorUserId: string,
-    input: PlanTemplateInput,
-  ) {
+  private async writeTemplateServices(client: PoolClient, clinicId: string, id: string, entries: PlanTemplateInput["services"]) {
+    await client.query("DELETE FROM plan_template_services WHERE clinic_id=$1 AND template_id=$2", [clinicId, id]);
+    for (const [position, entry] of entries.entries()) await client.query(
+      "INSERT INTO plan_template_services (clinic_id,template_id,service_id,position,total_sessions,total_value_in_cents) VALUES ($1,$2,$3,$4,$5,$6)",
+      [clinicId, id, entry.serviceId, position, entry.totalSessions, entry.totalValueInCents]);
+  }
+  async createPlanTemplate(clinicId: string, actorUserId: string, input: PlanTemplateInput) {
+    input = planTemplateInputSchema.parse(input);
     return this.inTransaction(async (client) => {
-      await this.assertTemplateService(client, clinicId, input.serviceId);
-      const result = await client.query<PlanTemplateRow>(
-        `INSERT INTO plan_templates
-        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions) VALUES ($1,$2,$3,$4,$5,$6)
-        RETURNING ${planTemplateColumns}`,
-        [
-          clinicId,
-          input.name,
-          input.totalValueInCents,
-          input.serviceId ?? null,
-          input.kind ?? null,
-          input.totalSessions ?? null,
-        ],
-      );
-      const item = mapPlanTemplate(result.rows[0]!);
-      await this.addAdminAudit(
-        client,
-        clinicId,
-        actorUserId,
-        "plan_template.created",
-        "plan_template",
-        item.id,
-        { ...item },
-      );
+      await this.assertTemplateServices(client, clinicId, input.services);
+      const totals = validatePlanComposition(input.services, input.totalValueInCents);
+      const result = await client.query<{ id: string }>(`INSERT INTO plan_templates
+        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [clinicId, input.name, input.totalValueInCents, totals.serviceId, input.kind ?? null, totals.totalSessions]);
+      const id = result.rows[0]!.id;
+      await this.writeTemplateServices(client, clinicId, id, input.services);
+      const saved = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
+      const item = mapPlanTemplate(saved.rows[0]!);
+      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.created", "plan_template", item.id, { ...item });
       return item;
     });
   }
-
-  async updatePlanTemplate(
-    clinicId: string,
-    actorUserId: string,
-    id: string,
-    input: PlanTemplateUpdate,
-  ) {
+  async updatePlanTemplate(clinicId: string, actorUserId: string, id: string, input: PlanTemplateUpdate) {
     return this.inTransaction(async (client) => {
-      const result = await client.query<PlanTemplateRow>(
-        `SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
-        [clinicId, id],
-      );
+      const result = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1 AND id=$2 FOR UPDATE`, [clinicId, id]);
       if (!result.rows[0]) return null;
       const previous = mapPlanTemplate(result.rows[0]);
-      if (input.serviceId)
-        await this.assertTemplateService(client, clinicId, input.serviceId);
-      const item = { ...previous, ...input };
-      const updated = await client.query<PlanTemplateRow>(
-        `UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,updated_at=now()
-        WHERE clinic_id=$1 AND id=$2 RETURNING ${planTemplateColumns}`,
-        [
-          clinicId,
-          id,
-          item.name,
-          item.totalValueInCents,
-          item.serviceId ?? null,
-          item.kind ?? null,
-          item.totalSessions ?? null,
-          item.active,
-        ],
-      );
+      const item = { ...previous, ...input, services: input.services ?? previous.services };
+      if (item.active || item.services.length) planTemplateInputSchema.parse(item);
+      if (input.services || input.active) await this.assertTemplateServices(client, clinicId, item.services);
+      const totalSessions = item.services.reduce((sum, entry) => sum + entry.totalSessions, 0);
+      await client.query(`UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,updated_at=now()
+        WHERE clinic_id=$1 AND id=$2`, [clinicId,id,item.name,item.totalValueInCents,item.services[0]?.serviceId ?? null,item.kind ?? null,totalSessions || null,item.active]);
+      if (input.services) await this.writeTemplateServices(client, clinicId, id, input.services);
+      const updated = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
       const saved = mapPlanTemplate(updated.rows[0]!);
-      await this.addAdminAudit(
-        client,
-        clinicId,
-        actorUserId,
-        "plan_template.updated",
-        "plan_template",
-        id,
-        { ...saved, previous },
-      );
+      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.updated", "plan_template", id, { ...saved, previous });
       return saved;
     });
   }
@@ -5887,27 +5846,25 @@ export class PostgresClinicRepository implements ClinicRepository {
     creditReason: string,
     renewedFromPlanId?: string,
   ) {
+    let allowed: string[];
     if (!renewedFromPlanId) {
       const template = await client.query<{ name: string }>(
-        "SELECT name FROM plan_templates WHERE clinic_id=$1 AND id=$2 AND active FOR SHARE",
-        [clinicId, input.planTemplateId ?? null],
-      );
+        "SELECT name FROM plan_templates WHERE clinic_id=$1 AND id=$2 AND active FOR SHARE", [clinicId,input.planTemplateId ?? null]);
       if (!template.rows[0]) throw new DomainError("PLAN_TEMPLATE_NOT_FOUND", "Selecione um plano ativo cadastrado nesta clínica.", 404);
       input = { ...input, name: template.rows[0].name };
+      const entries = await client.query<{ serviceId: string }>("SELECT service_id AS \"serviceId\" FROM plan_template_services WHERE clinic_id=$1 AND template_id=$2", [clinicId,input.planTemplateId]);
+      allowed = entries.rows.map((item) => item.serviceId);
+    } else {
+      const entries = await client.query<{ serviceId: string }>("SELECT service_id AS \"serviceId\" FROM patient_plan_services WHERE clinic_id=$1 AND plan_id=$2", [clinicId,renewedFromPlanId]);
+      allowed = entries.rows.map((item) => item.serviceId);
     }
-    const context = await client.query(
-      `SELECT 1 FROM patients p, services s
-       WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
-         AND s.id = $3 AND s.clinic_id = $1 AND s.active = true`,
-      [clinicId, input.patientId, input.serviceId],
-    );
-    if (!context.rowCount) {
-      throw new DomainError(
-        "PLAN_CONTEXT_NOT_FOUND",
-        "Cliente ou serviço não encontrado.",
-        404,
-      );
-    }
+    const totals = validatePlanComposition(input.services, input.totalValueInCents, allowed);
+    const patient = await client.query("SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'", [clinicId,input.patientId]);
+    const context = await client.query<{ id: string; name: string }>(
+      `SELECT s.id,coalesce((SELECT x.service_name FROM patient_plan_services x WHERE x.plan_id=$3 AND x.service_id=s.id),s.name) AS name
+       FROM services s WHERE s.clinic_id=$1 AND s.id=ANY($2::uuid[]) AND s.active FOR SHARE OF s`,
+      [clinicId,input.services.map((item) => item.serviceId),renewedFromPlanId ?? null]);
+    if (!patient.rowCount || context.rowCount !== input.services.length) throw new DomainError("PLAN_CONTEXT_NOT_FOUND", "Cliente ou serviço não encontrado.", 404);
     const autoRenew =
       Boolean(input.validUntil) &&
       (input.autoRenew ?? input.kind === "recurring");
@@ -5920,10 +5877,10 @@ export class PostgresClinicRepository implements ClinicRepository {
       [
         clinicId,
         input.patientId,
-        input.serviceId,
+        totals.serviceId,
         input.name,
         input.kind,
-        input.totalSessions,
+        totals.totalSessions,
         input.validFrom,
         input.validUntil || null,
         input.totalValueInCents,
@@ -5935,12 +5892,14 @@ export class PostgresClinicRepository implements ClinicRepository {
       ],
     );
     const planId = inserted.rows[0]!.id;
-    await client.query(
-      `INSERT INTO session_movements
-         (clinic_id, plan_id, kind, quantity, reason, actor_user_id)
-       VALUES ($1, $2, 'credit', $3, $4, $5)`,
-      [clinicId, planId, input.totalSessions, creditReason, actorUserId],
-    );
+    for (const [position, entry] of input.services.entries()) {
+      const serviceName = context.rows.find((service) => service.id === entry.serviceId)!.name;
+      await client.query(`INSERT INTO patient_plan_services
+        (clinic_id,plan_id,service_id,service_name,position,total_sessions,remaining_sessions,total_value_in_cents)
+        VALUES ($1,$2,$3,$4,$5,$6,$6,$7)`, [clinicId,planId,entry.serviceId,serviceName,position,entry.totalSessions,entry.totalValueInCents]);
+      await client.query(`INSERT INTO session_movements (clinic_id,plan_id,service_id,kind,quantity,reason,actor_user_id)
+        VALUES ($1,$2,$3,'credit',$4,$5,$6)`, [clinicId,planId,entry.serviceId,entry.totalSessions,creditReason,actorUserId]);
+    }
     for (const installment of planInstallmentSchedule(input)) {
       const amount = installment.amountInCents;
       const receivable = await client.query<{ id: string }>(
@@ -6014,7 +5973,6 @@ export class PostgresClinicRepository implements ClinicRepository {
         {
           ...input,
           patientId: current.patientId,
-          serviceId: current.serviceId,
           kind: current.kind,
           planTemplateId: current.planTemplateId,
         },
@@ -6092,8 +6050,9 @@ export class PostgresClinicRepository implements ClinicRepository {
           const eligible = await client.query(
             `SELECT 1 FROM patients p, services s
              WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
-               AND s.id = $3 AND s.clinic_id = $1 AND s.active = true`,
-            [clinicId, plan.patientId, plan.serviceId],
+               AND s.id = $3 AND s.clinic_id = $1 AND s.active = true
+               AND NOT EXISTS (SELECT 1 FROM patient_plan_services x JOIN services xs ON xs.id=x.service_id WHERE x.plan_id=$4 AND NOT xs.active)`,
+            [clinicId, plan.patientId, plan.serviceId, plan.id],
           );
           if (!eligible.rowCount) {
             // Cliente inativo ou serviço desativado: para de tentar renovar.
@@ -6110,11 +6069,10 @@ export class PostgresClinicRepository implements ClinicRepository {
             actorUserId,
             {
               patientId: plan.patientId,
-              serviceId: plan.serviceId,
               name: plan.name,
               ...(plan.planTemplateId ? { planTemplateId: plan.planTemplateId } : {}),
               kind: plan.kind,
-              totalSessions: plan.totalSessions,
+              services: plan.services.map(({ serviceId, totalSessions, totalValueInCents }) => ({ serviceId, totalSessions, totalValueInCents })),
               totalValueInCents: plan.totalValueInCents,
               installments: plan.installments,
               autoRenew: true,
@@ -6212,9 +6170,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   async listSessionMovements(clinicId: string, planId: string) {
     const result = await this.pool.query<SessionMovementRow>(
       `SELECT sm.id, sm.plan_id AS "planId", sm.appointment_id AS "appointmentId",
-              sm.kind, sm.quantity, sm.reason, sm.created_at AS "createdAt"
+              sm.kind, sm.quantity, sm.reason, sm.service_id AS "serviceId", pps.service_name AS "serviceName", sm.created_at AS "createdAt"
        FROM session_movements sm
        JOIN patient_plans pp ON pp.id = sm.plan_id
+       JOIN patient_plan_services pps ON pps.plan_id = sm.plan_id AND pps.service_id = sm.service_id
        WHERE sm.clinic_id = $1 AND sm.plan_id = $2 AND pp.clinic_id = $1
        ORDER BY sm.created_at DESC`,
       [clinicId, planId],
@@ -6225,6 +6184,8 @@ export class PostgresClinicRepository implements ClinicRepository {
       ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
       kind: row.kind,
       quantity: row.quantity,
+      serviceId: row.serviceId,
+      serviceName: row.serviceName,
       reason: row.reason,
       createdAt: row.createdAt.toISOString(),
     }));
@@ -7701,6 +7662,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       templateBody: string;
       patientName: string;
       planName: string | null;
+      planServices: PatientPlanService[] | null;
       clinicName: string;
       professionalName: string | null;
       professionalCrefito: string | null;
@@ -7708,6 +7670,7 @@ export class PostgresClinicRepository implements ClinicRepository {
       `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
               dt.body AS "templateBody", p.full_name AS "patientName",
               pp.name AS "planName", c.name AS "clinicName",
+              (SELECT jsonb_agg(jsonb_build_object('serviceName', x.service_name, 'totalSessions', x.total_sessions, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "planServices",
               pr.full_name AS "professionalName",
               pr.crefito AS "professionalCrefito"
        FROM document_templates dt
@@ -7774,6 +7737,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     const snapshot = item.templateBody
       .replaceAll("{{paciente_nome}}", item.patientName)
       .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
+      .replaceAll("{{plano_servicos}}", formatPlanServices(item.planServices ?? []) || "Não vinculado")
       .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
       .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
       .replaceAll("{{data_emissao}}", emissionDate)
@@ -7877,7 +7841,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         cancelledAt: Date | null;
       }>(
         `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
-                pp.name, s.name AS "serviceName",
+                pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
@@ -8365,7 +8329,7 @@ export class PostgresClinicRepository implements ClinicRepository {
         }>(
           `SELECT s.id,s.name,
              (SELECT count(*)::int FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "completedAppointments",
-             (SELECT coalesce(sum(r.amount_in_cents),0)::int FROM receivables r JOIN patient_plans pp ON pp.id=r.plan_id WHERE r.clinic_id=$1 AND pp.service_id=s.id AND r.status='paid' AND (r.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "revenueInCents",
+             0::int AS "revenueInCents",
              (SELECT coalesce(sum(c.amount_in_cents),0)::int FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND c.status='paid' AND (c.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1
            ORDER BY "revenueInCents" DESC`,
@@ -8421,6 +8385,18 @@ export class PostgresClinicRepository implements ClinicRepository {
         grossMargin: percentage(grossProfitInCents, row.revenueInCents),
       };
     });
+    const receivedPlans = await this.pool.query<{ amount: number; services: PatientPlanService[] }>(
+      `SELECT sum(r.amount_in_cents)::bigint AS amount,
+        (SELECT jsonb_agg(jsonb_build_object('serviceId', x.service_id, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position)
+         FROM patient_plan_services x WHERE x.plan_id = r.plan_id) AS services
+       FROM receivables r WHERE r.clinic_id=$1 AND r.plan_id IS NOT NULL AND r.status='paid'
+         AND (r.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date GROUP BY r.plan_id`, [clinicId, from, to]);
+    const serviceRevenue = new Map<string, number>();
+    for (const row of receivedPlans.rows) {
+      const shares = allocatePlanRevenue(Number(row.amount), row.services);
+      row.services.forEach((entry, index) => serviceRevenue.set(entry.serviceId, (serviceRevenue.get(entry.serviceId) ?? 0) + shares[index]!));
+    }
+    serviceProfitResult.rows.forEach((row) => { row.revenueInCents = serviceRevenue.get(row.id) ?? 0; });
     const byServiceProfitability = serviceProfitResult.rows
       .filter(
         (row) => row.completedAppointments > 0 || row.revenueInCents > 0,
@@ -8875,14 +8851,15 @@ export class PostgresClinicRepository implements ClinicRepository {
       id: string;
       remainingSessions: number;
     }>(
-      `SELECT pp.id, pp.remaining_sessions AS "remainingSessions"
+      `SELECT pp.id, pps.remaining_sessions AS "remainingSessions"
        FROM patient_plans pp JOIN clinics c ON c.id = pp.clinic_id
-       WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pp.service_id = $3
+       JOIN patient_plan_services pps ON pps.plan_id = pp.id AND pps.clinic_id = pp.clinic_id
+       WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pps.service_id = $3
          AND pp.status = 'active'
          AND pp.valid_from <= ($4::timestamptz AT TIME ZONE c.timezone)::date
          AND (pp.valid_until IS NULL OR pp.valid_until >= ($4::timestamptz AT TIME ZONE c.timezone)::date)
        ORDER BY pp.valid_until NULLS LAST, pp.created_at
-       LIMIT 1 FOR UPDATE`,
+       LIMIT 1 FOR UPDATE OF pp, pps`,
       [clinicId, patientId, serviceId, startsAt],
     );
     const plan = planResult.rows[0];
@@ -8903,14 +8880,19 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
     await client.query(
       `INSERT INTO session_movements
-         (clinic_id, plan_id, appointment_id, kind, quantity, reason)
-       VALUES ($1, $2, $3, $4, -1, 'Atendimento finalizado')`,
+         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id)
+       VALUES ($1, $2, $3, $4, -1, 'Atendimento finalizado', $5)`,
       [
         clinicId,
         plan.id,
         appointmentId,
         ledger.rows[0]?.consumed ? "adjustment" : "consumption",
+        serviceId,
       ],
+    );
+    await client.query(
+      "UPDATE patient_plan_services SET remaining_sessions = remaining_sessions - 1 WHERE plan_id = $1 AND service_id = $2",
+      [plan.id, serviceId],
     );
     await client.query(
       `UPDATE patient_plans SET remaining_sessions = remaining_sessions - 1,
@@ -8924,31 +8906,41 @@ export class PostgresClinicRepository implements ClinicRepository {
     clinicId: string,
     appointmentId: string,
   ) {
-    const planResult = await client.query<{ id: string; reversed: boolean }>(
-      `SELECT pp.id,
+    const planResult = await client.query<{
+      id: string;
+      serviceId: string;
+      reversed: boolean;
+    }>(
+      `SELECT pp.id, pps.service_id AS "serviceId",
               EXISTS (SELECT 1 FROM session_movements x
                       WHERE x.plan_id = pp.id AND x.appointment_id = $2
                         AND x.kind = 'reversal') AS reversed
        FROM patient_plans pp
+       JOIN patient_plan_services pps ON pps.plan_id = pp.id
        WHERE pp.clinic_id = $1
          AND (SELECT coalesce(sum(sm.quantity), 0)
               FROM session_movements sm
-              WHERE sm.plan_id = pp.id AND sm.appointment_id = $2) < 0
-       LIMIT 1 FOR UPDATE`,
+              WHERE sm.plan_id = pp.id AND sm.service_id = pps.service_id AND sm.appointment_id = $2) < 0
+       LIMIT 1 FOR UPDATE OF pp, pps`,
       [clinicId, appointmentId],
     );
     const plan = planResult.rows[0];
     if (!plan) return;
     await client.query(
       `INSERT INTO session_movements
-         (clinic_id, plan_id, appointment_id, kind, quantity, reason)
-       VALUES ($1, $2, $3, $4, 1, 'Reversão do atendimento finalizado')`,
+         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id)
+       VALUES ($1, $2, $3, $4, 1, 'Reversão do atendimento finalizado', $5)`,
       [
         clinicId,
         plan.id,
         appointmentId,
         plan.reversed ? "adjustment" : "reversal",
+        plan.serviceId,
       ],
+    );
+    await client.query(
+      "UPDATE patient_plan_services SET remaining_sessions = remaining_sessions + 1 WHERE plan_id = $1 AND service_id = $2",
+      [plan.id, plan.serviceId],
     );
     await client.query(
       `UPDATE patient_plans SET remaining_sessions = remaining_sessions + 1,

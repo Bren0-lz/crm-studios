@@ -59,6 +59,7 @@ function plan(overrides: Partial<PatientPlan> = {}): PatientPlan {
     createdAt: "2026-09-01T12:00:00Z",
     updatedAt: "2026-09-01T12:00:00Z",
     ...overrides,
+    services: overrides.services ?? [{ serviceId: "service", serviceName: "Pilates", totalSessions: overrides.totalSessions ?? 10, remainingSessions: overrides.remainingSessions ?? 8, totalValueInCents: overrides.totalValueInCents ?? 100000 }],
   } as PatientPlan;
 }
 
@@ -277,6 +278,13 @@ describe("buildContactSuggestions", () => {
   });
 
   describe("low_balance", () => {
+    it("identifies an exhausted service even when the contract has other available sessions", () => {
+      const result = build({ plans: [plan({ remainingSessions: 8, services: [
+        { serviceId: "a", serviceName: "Fisioterapia", totalSessions: 2, remainingSessions: 0, totalValueInCents: 100 },
+        { serviceId: "b", serviceName: "Pilates", totalSessions: 8, remainingSessions: 8, totalValueInCents: 100 },
+      ] })] });
+      expect(result[0]).toMatchObject({ reason: "low_balance", detail: "Pacote Pilates · Fisioterapia: nenhuma sessão restante" });
+    });
     it("suggests active plans with few sessions left", () => {
       expect(build({ plans: [plan({ remainingSessions: 2 })] })[0]).toMatchObject({
         reason: "low_balance",

@@ -217,6 +217,7 @@ describe("shared contracts", () => {
 
   it("validates plan dates and installment limits", () => {
     const base = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 12, totalValueInCents: 180000 }],
       planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
@@ -228,7 +229,7 @@ describe("shared contracts", () => {
       installments: 3,
       firstDueDate: "2026-09-05",
     };
-    expect(patientPlanInputSchema.parse(base).totalSessions).toBe(12);
+    expect(patientPlanInputSchema.parse(base).services[0]?.totalSessions).toBe(12);
     expect(() =>
       patientPlanInputSchema.parse({
         ...base,
@@ -239,6 +240,7 @@ describe("shared contracts", () => {
 
   it("requires an end date for automatic renewal", () => {
     const base = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000 }],
       planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
@@ -497,6 +499,7 @@ describe("guided patient creation", () => {
   const patient = { fullName: "Ana Souza", phone: "11999990000" };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {
+    services: [{ serviceId: serviceId, totalSessions: 8, totalValueInCents: 40000 }],
     planTemplateId: "aa000000-0000-4000-8000-000000000001",
     name: "Pilates 2x",
     serviceId,

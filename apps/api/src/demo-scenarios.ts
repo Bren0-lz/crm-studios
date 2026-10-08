@@ -273,6 +273,7 @@ export function buildDemoScenarios(): DemoData {
       patientName: patient.fullName,
       serviceId: service.id,
       serviceName: service.name,
+      services: [{ serviceId: service.id, serviceName: service.name, totalSessions, remainingSessions: totalSessions - consumed, totalValueInCents: totalValue }],
       name,
       kind: single
         ? "single"
@@ -296,6 +297,7 @@ export function buildDemoScenarios(): DemoData {
     movements.push({
       id: id(6, index * 100 + 1),
       planId,
+      serviceId: service.id,
       kind: "credit",
       quantity: totalSessions,
       reason: "Crédito inicial do plano",
@@ -388,6 +390,7 @@ export function buildDemoScenarios(): DemoData {
         movements.push({
           id: id(6, index * 100 + visit + 2),
           planId,
+          serviceId: service.id,
           kind: "consumption",
           quantity: -1,
           reason: "Presença em dançaterapia",
@@ -461,6 +464,7 @@ export function buildDemoScenarios(): DemoData {
           movements.push({
             id: id(6, index * 100 + visit + 2),
             planId,
+            serviceId: service.id,
             appointmentId,
             kind: "consumption",
             quantity: -1,
@@ -492,7 +496,7 @@ export function buildDemoScenarios(): DemoData {
           updatedAt: stamp(-2),
         });
       }
-      if (index % 11 === 0) plan.remainingSessions += 1; // The last visit was a no-show.
+      if (index % 11 === 0) { plan.remainingSessions += 1; plan.services[0]!.remainingSessions += 1; } // The last visit was a no-show.
     }
   }
   for (const session of sessions)

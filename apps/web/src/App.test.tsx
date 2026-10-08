@@ -17,12 +17,14 @@ describe("configured plan catalog", () => {
     serviceId: "88888888-8888-4888-8888-888888888888",
     kind: "recurring",
     totalSessions: 8,
+    services: [{ serviceId: "88888888-8888-4888-8888-888888888888", totalSessions: 8, totalValueInCents: 40000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 5000 }],
     active: true,
   };
   const second = {
     id: "aa000000-0000-4000-8000-000000000002",
     name: "Pacote básico",
     totalValueInCents: 12050,
+    services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 10, totalValueInCents: 12050 }],
     active: true,
   };
   function setupCatalog(
@@ -52,6 +54,7 @@ describe("configured plan catalog", () => {
             name: "Plano inativo",
             active: false,
           },
+          { ...second, id: "aa000000-0000-4000-8000-000000000004", name: "Plano incompleto", services: [] },
         ];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
@@ -103,9 +106,9 @@ describe("configured plan catalog", () => {
           ? [
               {
                 id: "77777777-7777-4777-8777-777777777777",
-                name: "Fisioterapia",
+                name: "Fisioterapia", active: true,
               },
-              { id: first.serviceId, name: "Pilates" },
+              { id: first.serviceId, name: "Pilates", active: true },
             ]
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -131,21 +134,24 @@ describe("configured plan catalog", () => {
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();
     fireEvent.change(selector, { target: { value: first.id } });
-    expect(screen.getByLabelText("Valor total")).toHaveValue(450);
-    expect(screen.getByLabelText("Sessões")).toHaveValue(8);
-    expect(screen.getByLabelText("Serviço")).toHaveValue(first.serviceId);
+    expect(screen.queryByRole("option", { name: /Plano incompleto/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(400);
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(50);
+    expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
+    expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
+    expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor total"), {
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
       target: { value: "390" },
     });
     fireEvent.change(selector, { target: { value: second.id } });
-    expect(screen.getByLabelText("Valor total")).toHaveValue(120.5);
-    expect(screen.getByLabelText("Sessões")).toHaveValue(10);
-    expect(screen.getByLabelText("Serviço")).toHaveValue(
-      "77777777-7777-4777-8777-777777777777",
-    );
+    expect(screen.queryByLabelText("Valor do serviço 2")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(120.5);
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
+    expect(screen.getByRole("group", { name: "Fisioterapia" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor total"), {
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
       target: { value: "99.99" },
     });
     fireEvent.click(
@@ -220,100 +226,35 @@ describe("configured plan catalog", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("creates a catalog item with only required fields and edits, clears defaults and deactivates it", async () => {
+  it("adds and removes required services, blocks mismatched totals, edits and deactivates the catalog", async () => {
     const writes = setupCatalog();
-    render(
-      <MemoryRouter initialEntries={["/configuracoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Planos" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Cadastrar plano" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar plano" }));
     let dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
-      target: { value: "Plano gratuito" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "0" },
-    });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar plano" }),
-    );
+    const fill = (label: string, value: string) => fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
+    fill("Nome do plano", "Plano completo"); fill("Valor total", "125.50");
+    fill("Serviço 1", first.serviceId); fill("Sessões do serviço 1", "8"); fill("Valor do serviço 1", "100");
+    expect(within(dialog).getByRole("button", { name: "Salvar plano" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar serviço" }));
+    fill("Serviço 2", "77777777-7777-4777-8777-777777777777"); fill("Sessões do serviço 2", "2"); fill("Valor do serviço 2", "25.50");
+    expect(within(dialog).getByRole("button", { name: "Salvar plano" })).toBeEnabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar plano" }));
     await waitFor(() => expect(writes).toHaveLength(1));
-    expect(writes[0]).toEqual({
-      name: "Plano gratuito",
-      totalValueInCents: 0,
-      serviceId: null,
-      kind: null,
-      totalSessions: null,
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Editar plano Plano gratuito" }),
-    );
+    expect(writes[0]).toMatchObject({ name: "Plano completo", totalValueInCents: 12550, kind: null, services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 2550 }] });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Editar plano Plano completo" }));
     dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
-      target: { value: "Plano editado" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "125.50" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Serviço (opcional)"), {
-      target: { value: first.serviceId },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Modelo (opcional)"), {
-      target: { value: "recurring" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Sessões (opcional)"), {
-      target: { value: "8" },
-    });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar plano" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remover serviço 2" }));
+    fill("Valor total", "100");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar plano" }));
     await waitFor(() => expect(writes).toHaveLength(2));
-    expect(writes[1]).toMatchObject({
-      totalValueInCents: 12550,
-      serviceId: first.serviceId,
-      kind: "recurring",
-      totalSessions: 8,
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Editar plano Plano editado" }),
-    );
-    dialog = screen.getByRole("dialog");
-    for (const label of [
-      "Serviço (opcional)",
-      "Modelo (opcional)",
-      "Sessões (opcional)",
-    ])
-      fireEvent.change(within(dialog).getByLabelText(label), {
-        target: { value: "" },
-      });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar plano" }),
-    );
+    expect(writes[1]).toMatchObject({ services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }] });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Desativar plano Plano completo" }));
     await waitFor(() => expect(writes).toHaveLength(3));
-    expect(writes[2]).toMatchObject({
-      serviceId: null,
-      kind: null,
-      totalSessions: null,
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Desativar plano Plano editado" }),
-    );
-    await waitFor(() => expect(writes).toHaveLength(4));
-    expect(writes[3]).toEqual({ active: false });
-    await screen.findByRole("button", { name: "Ativar plano Plano editado" });
+    expect(writes[2]).toEqual({ active: false });
+    await screen.findByRole("button", { name: "Ativar plano Plano completo" });
   });
 
   it("shows the catalog read-only without settings operation permissions", async () => {
@@ -1200,6 +1141,7 @@ describe("application shell", () => {
       }),
     );
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555",
       clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999",
@@ -1248,7 +1190,7 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Início")).toHaveValue("2026-10-01");
     expect(screen.getByLabelText("Fim da validade")).toHaveValue("2026-10-31");
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue("2026-10-05");
-    fireEvent.change(screen.getByLabelText("Valor total"), {
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
       target: { value: "420" },
     });
     fireEvent.click(
@@ -5378,6 +5320,7 @@ describe("button variants", () => {
 
   it("uses a button variant on every button of the plans page", async () => {
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555", clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida",
       serviceId: "77777777-7777-4777-8777-777777777777", serviceName: "Pilates", name: "Mensalidade Pilates",
@@ -5578,6 +5521,7 @@ describe("action modals instead of browser dialogs", () => {
 
   it("cancels a plan after a confirmation that shows the effect on installments and sessions", async () => {
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555", clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida",
       serviceId: "77777777-7777-4777-8777-777777777777", serviceName: "Pilates", name: "Mensalidade Pilates",

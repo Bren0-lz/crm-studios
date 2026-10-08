@@ -729,18 +729,38 @@ export const planKindSchema = z.enum([
   "recurring",
   "custom",
 ]);
-export const planTemplateInputSchema = z.object({
+export const planServiceInputSchema = z.object({
+  serviceId: z.uuid(),
+  totalSessions: z.number().int().min(1).max(1000),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+});
+export type PlanServiceInput = z.infer<typeof planServiceInputSchema>;
+export const planServicesSchema = z
+  .array(planServiceInputSchema)
+  .min(1)
+  .refine(
+    (items) =>
+      new Set(items.map((item) => item.serviceId)).size === items.length,
+    "Não repita serviços no plano.",
+  );
+const planTemplateFieldsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   totalValueInCents: z.number().int().min(0).max(2147483647),
-  serviceId: z.uuid().nullable().optional(),
+  services: planServicesSchema,
   kind: planKindSchema.nullable().optional(),
-  totalSessions: z.number().int().min(1).max(1000).nullable().optional(),
 });
-export const planTemplateUpdateSchema = planTemplateInputSchema
+export const planTemplateInputSchema = planTemplateFieldsSchema.refine(
+  (value) =>
+    value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+    value.totalValueInCents,
+  {
+    message: "A soma dos serviços deve corresponder ao valor total do plano.",
+    path: ["totalValueInCents"],
+  },
+);
+export const planTemplateUpdateSchema = planTemplateFieldsSchema
   .partial()
-  .extend({
-    active: z.boolean().optional(),
-  })
+  .extend({ active: z.boolean().optional() })
   .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.");
 export type PlanTemplateInput = z.infer<typeof planTemplateInputSchema>;
 export type PlanTemplateUpdate = z.infer<typeof planTemplateUpdateSchema>;
@@ -751,6 +771,55 @@ export interface PlanTemplate extends PlanTemplateInput {
   createdAt: string;
   updatedAt: string;
 }
+export interface PatientPlanService extends PlanServiceInput {
+  serviceName: string;
+  remainingSessions: number;
+}
+/** Aggregate fields are derived; services own the sold terms and balances. */
+export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
+  value: T,
+) {
+  return {
+    ...value,
+    serviceId: value.services[0]!.serviceId,
+    totalSessions: value.services.reduce(
+      (sum, item) => sum + item.totalSessions,
+      0,
+    ),
+  };
+}
+/** Largest remainders with stable service-order ties, using exact integer arithmetic. */
+export function allocatePlanRevenue(
+  amountInCents: number,
+  services: Pick<PlanServiceInput, "totalValueInCents">[],
+): number[] {
+  if (!services.length) return [];
+  // A zero-price contract can receive an adjusted receivable: distribute it
+  // evenly when no sold service has a positive weight.
+  const hasValue = services.some((item) => item.totalValueInCents > 0);
+  const weights = services.map((item) =>
+    BigInt(hasValue ? item.totalValueInCents : 1),
+  );
+  const total = weights.reduce((sum, item) => sum + item, 0n);
+  const amount = BigInt(amountInCents);
+  const shares = weights.map((weight) => Number((amount * weight) / total));
+  let remainder = amountInCents - shares.reduce((sum, share) => sum + share, 0);
+  const order = weights
+    .map((weight, index) => ({ index, remainder: (amount * weight) % total }))
+    .sort((a, b) =>
+      a.remainder === b.remainder
+        ? a.index - b.index
+        : a.remainder > b.remainder
+          ? -1
+          : 1,
+    );
+  for (const item of order) {
+    if (remainder-- <= 0) break;
+    shares[item.index]! += 1;
+  }
+  return shares;
+}
+
 export const planStatusSchema = z.enum([
   "active",
   "paused",
@@ -761,7 +830,7 @@ export const planTransitionSchema = z.enum(["active", "paused", "cancelled"]);
 export type PlanStatus = z.infer<typeof planStatusSchema>;
 const planTermsSchema = z.object({
   name: z.string().trim().min(3).max(120),
-  totalSessions: z.number().int().min(1).max(1000),
+  services: planServicesSchema,
   validFrom: z.iso.date(),
   validUntil: z.iso.date().optional().or(z.literal("")),
   totalValueInCents: z.number().int().min(0).max(2147483647),
@@ -787,29 +856,30 @@ export const patientPlanInputSchema = planTermsSchema
   .extend({
     planTemplateId: z.uuid(),
     patientId: z.uuid(),
-    serviceId: z.uuid(),
     kind: planKindSchema,
   })
   .refine(validPlanPeriod, planPeriodIssue)
-  .refine(renewablePlanPeriod, autoRenewIssue);
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] });
 export type PatientPlanInput = z.infer<typeof patientPlanInputSchema>;
 
 export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
-  .refine(renewablePlanPeriod, autoRenewIssue);
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] });
 export type PlanRenewalInput = z.infer<typeof planRenewalInputSchema>;
 
 export const planAutoRenewInputSchema = z.object({ autoRenew: z.boolean() });
 
 /** Plano criado no cadastro guiado: termos de `patientPlanInputSchema`, sem `patientId`. */
-const guidedPlanTermsSchema = planTermsSchema.extend({ serviceId: z.uuid(), planTemplateId: z.uuid() });
+const guidedPlanTermsSchema = planTermsSchema.extend({ planTemplateId: z.uuid() });
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
  *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
- *   (precisa ser do mesmo serviço do plano; turma cheia = lista de espera);
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
  * - `single`: serviço avulso (plano `single`).
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
@@ -825,7 +895,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     plan: guidedPlanTermsSchema
       .extend({ kind: z.enum(["recurring", "fixed_package"]) })
       .refine(validPlanPeriod, planPeriodIssue)
-      .refine(renewablePlanPeriod, autoRenewIssue),
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] }),
     groupId: z
       .uuid()
       .optional()
@@ -836,7 +907,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     patient: patientInputSchema,
     plan: guidedPlanTermsSchema
       .refine(validPlanPeriod, planPeriodIssue)
-      .refine(renewablePlanPeriod, autoRenewIssue),
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] }),
   }),
 ]);
 export type GuidedPatientInput = z.infer<typeof guidedPatientInputSchema>;
@@ -1711,7 +1783,10 @@ export interface ClinicalWorkspace {
   addenda: ClinicalAddendum[];
 }
 
-export interface PatientPlan extends Omit<PatientPlanInput, "planTemplateId"> {
+export interface PatientPlan extends Omit<PatientPlanInput, "planTemplateId" | "services"> {
+  serviceId: string;
+  totalSessions: number;
+  services: PatientPlanService[];
   planTemplateId?: string;
   id: string;
   clinicId: string;
@@ -1729,6 +1804,8 @@ export interface PatientPlan extends Omit<PatientPlanInput, "planTemplateId"> {
 }
 
 export interface SessionMovement {
+  serviceId: string;
+  serviceName?: string;
   id: string;
   planId: string;
   appointmentId?: string;

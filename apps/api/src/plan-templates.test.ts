@@ -14,6 +14,7 @@ const ownerId = "22222222-2222-4222-8222-222222222222";
 const serviceId = "77777777-7777-4777-8777-777777777777";
 const patientId = "99999999-9999-4999-8999-999999999999";
 const terms = {
+  services: [{ serviceId: serviceId, totalSessions: 8, totalValueInCents: 10001 }],
   name: "Nome enviado",
   patientId,
   serviceId,
@@ -47,6 +48,7 @@ describe("plan catalog", () => {
     const template = await repository.createPlanTemplate(clinicId, ownerId, {
       name: "Mensalidade original",
       totalValueInCents: 45000,
+      services: [{ serviceId, totalSessions: 8, totalValueInCents: 45000 }],
     });
     const original = await repository.createPatientPlan(clinicId, ownerId, {
       ...terms,
@@ -60,6 +62,7 @@ describe("plan catalog", () => {
       active: false,
       name: "Preço novo",
       totalValueInCents: 55000,
+      services: [{ serviceId, totalSessions: 8, totalValueInCents: 55000 }],
     });
     await repository.renewDuePatientPlans(clinicId);
     const next = (await repository.listPatientPlans(clinicId)).filter(
@@ -82,8 +85,8 @@ describe("plan catalog", () => {
   });
   it("validates required and optional fields and requires selection for both new-sale contracts", () => {
     expect(
-      planTemplateInputSchema.parse({ name: "Gratuito", totalValueInCents: 0 }),
-    ).toEqual({ name: "Gratuito", totalValueInCents: 0 });
+      planTemplateInputSchema.parse({ name: "Gratuito", totalValueInCents: 0, services: [{ serviceId, totalSessions: 1, totalValueInCents: 0 }] }),
+    ).toMatchObject({ name: "Gratuito", totalValueInCents: 0 });
     for (const input of [
       { name: "Plano" },
       { totalValueInCents: 100 },
@@ -96,13 +99,7 @@ describe("plan catalog", () => {
       expect(planTemplateInputSchema.safeParse(input).success).toBe(false);
     }
     expect(planTemplateUpdateSchema.safeParse({}).success).toBe(false);
-    expect(
-      planTemplateUpdateSchema.parse({
-        serviceId: null,
-        kind: null,
-        totalSessions: null,
-      }),
-    ).toMatchObject({ serviceId: null });
+    expect(planTemplateUpdateSchema.parse({ kind: null })).toEqual({ kind: null });
     expect(patientPlanInputSchema.safeParse(terms).success).toBe(false);
     for (const next of ["plan", "single"])
       expect(
@@ -124,11 +121,11 @@ describe("plan catalog", () => {
       url: "/plan-templates",
       headers,
       payload: {
+
         name: "Pacote configurado",
         totalValueInCents: 180000,
-        serviceId,
+        services: [{ serviceId, totalSessions: 12, totalValueInCents: 180000 }],
         kind: "recurring",
-        totalSessions: 12,
       },
     });
     expect(created.statusCode).toBe(201);
@@ -159,20 +156,18 @@ describe("plan catalog", () => {
       url: `/plan-templates/${templateId}`,
       headers,
       payload: {
+
         name: "Outro nome",
         totalValueInCents: 250000,
-        serviceId: null,
+        services: [{ serviceId, totalSessions: 12, totalValueInCents: 250000 }],
         kind: null,
-        totalSessions: null,
         active: false,
       },
     });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({
       active: false,
-      serviceId: null,
       kind: null,
-      totalSessions: null,
     });
     expect(
       (await repository.listPatientPlans(clinicId)).find(
@@ -228,10 +223,11 @@ describe("plan catalog", () => {
   it("rejects missing and foreign selections and rolls back guided creation without partial records", async () => {
     const { app, repository, headers } = await setup();
     const foreignClinic = randomUUID();
+    const foreignService = await repository.createService(foreignClinic, { name: "Serviço externo", durationMinutes: 60, priceInCents: 0, color: "#64748b" });
     const foreign = await repository.createPlanTemplate(
       foreignClinic,
       ownerId,
-      { name: "Plano outra clínica", totalValueInCents: 0 },
+      { name: "Plano outra clínica", totalValueInCents: 0, services: [{ serviceId: foreignService.id, totalSessions: 1, totalValueInCents: 0 }] },
     );
     expect(
       (await repository.listAdminAuditPage(clinicId)).items.every(
@@ -256,7 +252,7 @@ describe("plan catalog", () => {
       repository.createPlanTemplate(foreignClinic, ownerId, {
         name: "Serviço indevido",
         totalValueInCents: 0,
-        serviceId,
+        services: [{ serviceId, totalSessions: 1, totalValueInCents: 0 }],
       }),
     ).rejects.toMatchObject({ code: "PLAN_TEMPLATE_SERVICE_NOT_FOUND" });
     const before = (await repository.listPatientPlans(clinicId)).length;
@@ -289,6 +285,7 @@ describe("plan catalog", () => {
     const valid = await repository.createPlanTemplate(clinicId, ownerId, {
       name: "Plano válido",
       totalValueInCents: 0,
+      services: [{ serviceId, totalSessions: 1, totalValueInCents: 0 }],
     });
     await expect(
       repository.createPatientWithNextStep(clinicId, ownerId, {
@@ -298,9 +295,9 @@ describe("plan catalog", () => {
           phone: "11987651235",
           tags: [],
         },
-        plan: { ...terms, planTemplateId: valid.id, serviceId: randomUUID() },
+        plan: { ...terms, planTemplateId: valid.id, services: [{ serviceId: randomUUID(), totalSessions: 8, totalValueInCents: 10001 }] },
       }),
-    ).rejects.toMatchObject({ code: "PLAN_CONTEXT_NOT_FOUND" });
+    ).rejects.toMatchObject({ code: "PLAN_SERVICE_COMPOSITION_MISMATCH" });
     expect(await repository.listPatients(clinicId, "11987651235")).toEqual([]);
   });
 
@@ -336,7 +333,7 @@ describe("plan catalog", () => {
         method: "POST",
         url: "/plan-templates",
         headers,
-        payload: { name: "Plano teste", totalValueInCents: 0 },
+        payload: { name: "Plano teste", totalValueInCents: 0, services: [{ serviceId, totalSessions: 1, totalValueInCents: 0 }] },
       });
     expect((await write()).statusCode).toBe(403);
     await repository.updateAdminUser(clinicId, ownerId, user.id, {

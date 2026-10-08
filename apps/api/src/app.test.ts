@@ -22,8 +22,8 @@ const tokenRole = (role: LegacyRole): "admin" | "user" =>
   role === "owner" ? "admin" : "user";
 
 async function configuredPlan<
-  T extends { name: string; totalValueInCents: number },
->(app: TestApp, input: T): Promise<T & { planTemplateId: string }> {
+  T extends { name: string; totalValueInCents: number; serviceId: string; totalSessions: number },
+>(app: TestApp, input: T): Promise<T & { planTemplateId: string; services: { serviceId: string; totalSessions: number; totalValueInCents: number }[] }> {
   const token = app.jwt.sign({
     sub: OWNER_ID,
     clinicId: "11111111-1111-4111-8111-111111111111",
@@ -33,10 +33,10 @@ async function configuredPlan<
     method: "POST",
     url: "/plan-templates",
     headers: { authorization: `Bearer ${token}` },
-    payload: { name: input.name, totalValueInCents: input.totalValueInCents },
+    payload: { name: input.name, totalValueInCents: input.totalValueInCents, services: [{ serviceId: input.serviceId, totalSessions: input.totalSessions, totalValueInCents: input.totalValueInCents }] },
   });
   expect(response.statusCode, response.body).toBe(201);
-  return { ...input, planTemplateId: response.json().id as string };
+  return { ...input, services: [{ serviceId: input.serviceId, totalSessions: input.totalSessions, totalValueInCents: input.totalValueInCents }], planTemplateId: response.json().id as string };
 }
 
 async function authenticatedApp() {
@@ -1296,6 +1296,7 @@ describe("CRM API", () => {
           })}`,
         },
         payload: await configuredPlan(app, {
+          services: [{ serviceId: serviceId, totalSessions: 4, totalValueInCents: 40000 }],
           patientId,
           serviceId,
           name: "Pacote pós-experimental",
@@ -1800,6 +1801,7 @@ describe("CRM API", () => {
       url: "/plans",
       headers,
       payload: await configuredPlan(app, {
+        services: [{ serviceId: serviceId, totalSessions: 4, totalValueInCents: 40000 }],
         patientId,
         serviceId,
         name: "Pacote pós-experimental",
@@ -2056,6 +2058,7 @@ describe("CRM API", () => {
       url: "/plans",
       headers,
       payload: await configuredPlan(app, {
+        services: [{ serviceId: service.id, totalSessions: 5, totalValueInCents: 10001 }],
         patientId: patient.id,
         serviceId: service.id,
         name: "Pacote teste",
@@ -2161,6 +2164,7 @@ describe("CRM API", () => {
       url: "/plans",
       headers,
       payload: await configuredPlan(app, {
+        services: [{ serviceId: serviceId, totalSessions: 8, totalValueInCents: 40000 }],
         patientId,
         serviceId,
         name: "Mensalidade Pilates",
@@ -2242,6 +2246,7 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/services", headers }),
     ]);
     const payload = {
+      services: [{ serviceId: services.json()[0].id, totalSessions: 10, totalValueInCents: 150000 }],
       patientId: patients.json()[0].id,
       serviceId: services.json()[0].id,
       name: "Pacote fisioterapia",
@@ -2263,6 +2268,7 @@ describe("CRM API", () => {
     expect(withoutEnd.statusCode).toBe(409);
 
     const renewal = {
+      services: [{ serviceId: payload.serviceId, totalSessions: 12, totalValueInCents: 172000 }],
       name: "Pacote fisioterapia",
       totalSessions: 12,
       validFrom: "2026-10-01",
@@ -2858,6 +2864,7 @@ describe("CRM API", () => {
       url: "/plans",
       headers,
       payload: await configuredPlan(app, {
+        services: [{ serviceId: service.id, totalSessions: 1, totalValueInCents: 12_000 }],
         patientId: patient.id,
         serviceId: service.id,
         name: "Plano financeiro",
@@ -2987,6 +2994,7 @@ describe("CRM API", () => {
         url: "/plans",
         headers,
         payload: await configuredPlan(app, {
+          services: [{ serviceId: services.json()[0].id, totalSessions: 1, totalValueInCents: 12_000 }],
           patientId: patients.json()[0].id,
           serviceId: services.json()[0].id,
           name: "Plano do caixa",
@@ -3218,6 +3226,7 @@ describe("CRM API", () => {
         app.inject({ method: "GET", url: "/finance/workspace", headers }),
       ]);
       const planBase = {
+        services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 12_000 }],
         patientId: patients.json()[0].id,
         serviceId: services.json()[0].id,
         kind: "fixed_package",
@@ -3419,6 +3428,7 @@ describe("CRM API", () => {
           url: "/plans",
           headers,
           payload: await configuredPlan(app, {
+            services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 12_000 }],
             patientId,
             serviceId: services.json()[0].id,
             kind: "fixed_package",
@@ -3590,6 +3600,7 @@ describe("CRM API", () => {
           url: "/plans",
           headers,
           payload: await configuredPlan(app, {
+            services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 12_000 }],
             patientId,
             serviceId: services.json()[0].id,
             kind: "fixed_package",
@@ -4248,6 +4259,7 @@ describe("CRM API", () => {
       url: "/plans",
       headers,
       payload: await configuredPlan(app, {
+        services: [{ serviceId: services.json()[0].id, totalSessions: 2, totalValueInCents: 10000 }],
         patientId: patients.json()[0].id,
         serviceId: services.json()[0].id,
         name: "Plano renegociado",
@@ -4966,6 +4978,7 @@ describe("CRM API", () => {
         url: "/plans",
         headers,
         payload: await configuredPlan(app, {
+          services: [{ serviceId: service.id, totalSessions: 20, totalValueInCents: 30000 }],
           patientId: patient.id,
           serviceId: service.id,
           name: "Pacote relacionamento",
@@ -5696,6 +5709,7 @@ describe("CRM API", () => {
         url: "/plans",
         headers,
         payload: await configuredPlan(app, {
+          services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 32000 }],
           patientId: helena,
           serviceId: services.json()[0].id,
           name: "Pacote linha do tempo",
@@ -5741,6 +5755,7 @@ describe("CRM API", () => {
         headers,
         payload: {
           name: "Pacote linha do tempo",
+          services: [{ serviceId: plan.json().serviceId, totalSessions: 4, totalValueInCents: 34000 }],
           totalSessions: 4,
           validFrom: "2026-10-01",
           validUntil: "2026-10-31",
@@ -6486,6 +6501,7 @@ describe("CRM API", () => {
           url: "/plans",
           headers,
           payload: await configuredPlan(app, {
+            services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 40000 }],
             patientId: bruno.id,
             serviceId: services.json()[0].id,
             name: "Pacote exportação",
@@ -6727,6 +6743,7 @@ describe("CRM API", () => {
           url: "/plans",
           headers,
           payload: await configuredPlan(app, {
+            services: [{ serviceId: services.json()[0].id, totalSessions: 4, totalValueInCents: 40000 }],
             patientId: ana.id,
             serviceId: services.json()[0].id,
             name: "Pacote comunicado",
@@ -7332,6 +7349,7 @@ describe("CRM API", () => {
     const SERVICE_ID = "77777777-7777-4777-8777-777777777777";
     const OTHER_SERVICE_ID = "88888888-8888-4888-8888-888888888888";
     const planTerms = {
+      services: [{ serviceId: SERVICE_ID, totalSessions: 8, totalValueInCents: 40000 }],
       name: "Pilates mensal",
       serviceId: SERVICE_ID,
       totalSessions: 8,
@@ -7352,7 +7370,7 @@ describe("CRM API", () => {
       const configuredTerms = await configuredPlan(app, planTerms);
       const guided = (payload: Record<string, unknown>, as = headers) =>
         app.inject({ method: "POST", url: "/patients/guided", headers: as,
-          payload: { ...payload, ...(payload.plan ? { plan: { planTemplateId: configuredTerms.planTemplateId, ...(payload.plan as object) } } : {}) } });
+          payload: { ...payload, ...(payload.plan ? { plan: { planTemplateId: configuredTerms.planTemplateId, services: configuredTerms.services, ...(payload.plan as object) } } : {}) } });
       const findPatients = async (search: string) =>
         (
           await app.inject({
@@ -7533,7 +7551,7 @@ describe("CRM API", () => {
       const single = await guided({
         next: "single",
         patient: { fullName: "Cliente Avulso", phone: "11966660003" },
-        plan: { ...planTerms, name: "Sessão avulsa", totalSessions: 1, installments: 1 },
+        plan: { ...planTerms, services: planTerms.services.map((entry) => ({ ...entry, totalSessions: 1 })), name: "Sessão avulsa", totalSessions: 1, installments: 1 },
       });
       expect(single.statusCode).toBe(201);
       expect(single.json().plan).toMatchObject({ kind: "single", totalSessions: 1 });
@@ -7563,10 +7581,10 @@ describe("CRM API", () => {
       const missingService = await guided({
         next: "single",
         patient: { fullName: "Turma Errada", phone: "11966660004" },
-        plan: { ...planTerms, serviceId: "99999999-9999-4999-8999-999999999999" },
+        plan: { ...planTerms, services: [{ serviceId: "99999999-9999-4999-8999-999999999999", totalSessions: 8, totalValueInCents: planTerms.totalValueInCents }] },
       });
-      expect(missingService.statusCode).toBe(404);
-      expect(missingService.json()).toMatchObject({ code: "PLAN_CONTEXT_NOT_FOUND" });
+      expect(missingService.statusCode).toBe(400);
+      expect(missingService.json()).toMatchObject({ code: "PLAN_SERVICE_COMPOSITION_MISMATCH" });
       expect(await findPatients("Turma Errada")).toEqual([]);
       const plansAfter = (await app.inject({ method: "GET", url: "/plans", headers })).json();
       expect(plansAfter).toHaveLength(plansBefore + 3);

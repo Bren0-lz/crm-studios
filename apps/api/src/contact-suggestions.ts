@@ -233,7 +233,7 @@ export function buildContactSuggestions(
     }
 
     // low_balance (serviço avulso fica de fora: sempre tem saldo baixo)
-    const lowBalance = plans
+    const lowBalances = plans.flatMap((plan) => plan.services.map((service) => ({ ...plan, referenceKey: plan.services.length === 1 ? plan.id : `${plan.id}:${service.serviceId}`, remainingSessions: service.remainingSessions, name: `${plan.name} · ${service.serviceName}` })))
       .filter(
         (plan) =>
           plan.status === "active" &&
@@ -241,11 +241,11 @@ export function buildContactSuggestions(
           !plan.renewedByPlanId &&
           plan.remainingSessions <= settings.lowBalanceSessions,
       )
-      .sort((a, b) => a.remainingSessions - b.remainingSessions)[0];
-    if (lowBalance) {
+      .sort((a, b) => a.remainingSessions - b.remainingSessions);
+    for (const lowBalance of lowBalances) {
       add(
         "low_balance",
-        lowBalance.id,
+        lowBalance.referenceKey,
         `${lowBalance.name}: ${
           lowBalance.remainingSessions === 0
             ? "nenhuma sessão restante"

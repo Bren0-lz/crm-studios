@@ -3166,7 +3166,7 @@ function DocumentsPage() {
   const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
     name: "Contrato de prestação de serviços",
     kind: "contract",
-    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.",
+    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
   });
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
@@ -3359,6 +3359,7 @@ function DocumentsPage() {
               </label>
               <small>
                 Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                {"{{plano_servicos}}"},{" "}
                 {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
                 {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
               </small>
@@ -5540,6 +5541,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                     <strong>{plan.remainingSessions}</strong>
                     <span>de {plan.totalSessions} sessões restantes</span>
                   </div>
+                  {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões · {currency.format(entry.totalValueInCents / 100)}</p>)}
                   <div className="progress-track">
                     <span style={{ width: `${percent}%` }} />
                   </div>
@@ -5697,10 +5699,9 @@ function PlanModal({
       return {
         planTemplateId: "",
         patientId: patients[0]?.id ?? "",
-        serviceId: services[0]?.id ?? "",
         name: "",
         kind: "fixed_package",
-        totalSessions: 10,
+        services: [],
         validFrom: currentDate,
         validUntil: localIsoDate(nextYear),
         totalValueInCents: 0,
@@ -5717,10 +5718,15 @@ function PlanModal({
     return {
       planTemplateId: renewing.planTemplateId ?? "",
       patientId: renewing.patientId,
-      serviceId: renewing.serviceId,
       name: renewing.name,
       kind: renewing.kind,
-      totalSessions: renewing.totalSessions,
+      services: renewing.services.map(
+        ({ serviceId, totalSessions, totalValueInCents }) => ({
+          serviceId,
+          totalSessions,
+          totalValueInCents,
+        }),
+      ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.installments,
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
@@ -5738,7 +5744,10 @@ function PlanModal({
     api
       .planTemplates()
       .then((items) => {
-        if (active) setTemplates(items.filter((item) => item.active));
+        if (active)
+          setTemplates(
+            items.filter((item) => item.active && item.services.length > 0),
+          );
       })
       .catch((cause: Error) => {
         if (active) setCatalogError(cause.message);
@@ -5763,7 +5772,7 @@ function PlanModal({
         onSaved(
           await api.renewPlan(renewing.id, {
             name: form.name,
-            totalSessions: form.totalSessions,
+            services: form.services,
             validFrom: form.validFrom,
             validUntil: form.validUntil,
             totalValueInCents: form.totalValueInCents,
@@ -5813,22 +5822,6 @@ function PlanModal({
                 </select>
               </label>
               <label>
-                Serviço
-                <select
-                  required
-                  value={form.serviceId}
-                  onChange={(e) =>
-                    setForm({ ...form, serviceId: e.target.value })
-                  }
-                >
-                  {services.map((service) => (
-                    <option value={service.id} key={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
                 Modelo
                 <select
                   value={form.kind}
@@ -5872,9 +5865,9 @@ function PlanModal({
                       planTemplateId: template?.id ?? "",
                       name: template?.name ?? "",
                       totalValueInCents: template?.totalValueInCents ?? 0,
-                      serviceId: template?.serviceId ?? services[0]?.id ?? "",
+                      services:
+                        template?.services.map((entry) => ({ ...entry })) ?? [],
                       kind: template?.kind ?? "fixed_package",
-                      totalSessions: template?.totalSessions ?? 10,
                     });
                   }}
                 >
@@ -5918,32 +5911,86 @@ function PlanModal({
               ) : null}
             </div>
           )}
-          <label>
-            Sessões
-            <input
-              required
-              type="number"
-              min="1"
-              value={form.totalSessions}
-              onChange={(e) =>
-                setForm({ ...form, totalSessions: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label>
+          {form.services.map((entry, index) => (
+            <fieldset className="span-2 form-grid" key={entry.serviceId}>
+              <legend>
+                {renewing?.services.find(
+                  (item) => item.serviceId === entry.serviceId,
+                )?.serviceName ??
+                  services.find((item) => item.id === entry.serviceId)?.name ??
+                  "Serviço"}
+              </legend>
+              {renewing && (
+                <p className="span-2">
+                  Saldo atual:{" "}
+                  {
+                    renewing.services.find(
+                      (item) => item.serviceId === entry.serviceId,
+                    )?.remainingSessions
+                  }{" "}
+                  sessões. A renovação criará o novo saldo informado abaixo.
+                </p>
+              )}
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={entry.totalSessions}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? { ...item, totalSessions: Number(event.target.value) }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                    });
+                  }}
+                />
+              </label>
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="21474836.47"
+                  step="0.01"
+                  value={entry.totalValueInCents / 100}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? {
+                            ...item,
+                            totalValueInCents: Math.round(
+                              Number(event.target.value) * 100,
+                            ),
+                          }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                      totalValueInCents: entries.reduce(
+                        (sum, item) => sum + item.totalValueInCents,
+                        0,
+                      ),
+                    });
+                  }}
+                />
+              </label>
+            </fieldset>
+          ))}
+          <label className="span-2">
             Valor total
             <input
-              required
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.totalValueInCents / 100}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  totalValueInCents: Math.round(Number(e.target.value) * 100),
-                })
-              }
+              readOnly
+              value={currency.format(form.totalValueInCents / 100)}
             />
           </label>
           <label>
@@ -6035,6 +6082,7 @@ function PlanModal({
   );
 }
 
+
 function SessionMovementsModal({
   plan,
   onClose,
@@ -6060,6 +6108,7 @@ function SessionMovementsModal({
       subtitle={`${plan.remainingSessions} sessões disponíveis no momento.`}
       onClose={onClose}
     >
+      {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões restantes</p>)}
       <div className="movement-list">
         {movements.length === 0 ? (
           <LoadingBlock />
@@ -6075,7 +6124,7 @@ function SessionMovementsModal({
                 {movement.quantity}
               </span>
               <div>
-                <strong>{movement.reason}</strong>
+                <strong>{movement.reason} · {movement.serviceName}</strong>
                 <small>
                   {new Date(movement.createdAt).toLocaleString("pt-BR")}
                 </small>
@@ -13065,7 +13114,7 @@ function PlanTemplatesContent() {
           {items.length === 0 ? (
             <EmptyState
               title="Nenhum plano cadastrado"
-              copy="Cadastre nome e valor para disponibilizar um plano nas novas vendas."
+              copy="Cadastre nome, valor e serviços para disponibilizar um plano nas novas vendas."
             />
           ) : (
             <div className="plan-template-list">
@@ -13078,15 +13127,8 @@ function PlanTemplatesContent() {
                     </small>
                     <small>
                       {[
-                        item.serviceId
-                          ? services.find(
-                              (service) => service.id === item.serviceId,
-                            )?.name
-                          : null,
+                        item.services.length ? item.services.map((entry) => `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.totalSessions} sessões`).join(" · ") : "Composição incompleta — edite para corrigir",
                         item.kind ? planKindLabels[item.kind] : null,
-                        item.totalSessions
-                          ? `${item.totalSessions} sessões`
-                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -13156,12 +13198,23 @@ function PlanTemplateModal({
   const [form, setForm] = useState({
     name: item?.name ?? "",
     value: item ? String(item.totalValueInCents / 100) : "",
-    serviceId: item?.serviceId ?? "",
     kind: item?.kind ?? "",
-    sessions: item?.totalSessions ? String(item.totalSessions) : "",
+    services: item?.services.length
+      ? item.services.map((entry) => ({
+          serviceId: entry.serviceId,
+          sessions: String(entry.totalSessions),
+          value: String(entry.totalValueInCents / 100),
+        }))
+      : [{ serviceId: "", sessions: "", value: "" }],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const sum = form.services.reduce(
+    (total, entry) => total + Math.round(Number(entry.value) * 100),
+    0,
+  );
+  const total = Math.round(Number(form.value) * 100);
+  const difference = total - sum;
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -13172,10 +13225,24 @@ function PlanTemplateModal({
     const input: PlanTemplateInput = {
       name: form.name.trim(),
       totalValueInCents: Math.round(Number(form.value) * 100),
-      serviceId: form.serviceId || null,
       kind: (form.kind || null) as PlanTemplateInput["kind"],
-      totalSessions: form.sessions === "" ? null : Number(form.sessions),
+      services: form.services.map((entry) => ({
+        serviceId: entry.serviceId,
+        totalSessions: Number(entry.sessions),
+        totalValueInCents: Math.round(Number(entry.value) * 100),
+      })),
     };
+    if (difference !== 0) {
+      setError("O valor total deve corresponder à soma dos serviços.");
+      return;
+    }
+    if (
+      new Set(input.services.map((entry) => entry.serviceId)).size !==
+      input.services.length
+    ) {
+      setError("Não repita serviços no plano.");
+      return;
+    }
     setSaving(true);
     try {
       onSaved(
@@ -13192,7 +13259,7 @@ function PlanTemplateModal({
   return (
     <Modal
       title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
-      subtitle="Nome e valor são obrigatórios. As demais informações são padrões opcionais para a venda."
+      subtitle="Inclua ao menos um serviço, com quantidade de sessões e valor. O total deve corresponder à soma dos serviços."
       busy={saving}
       onClose={onClose}
     >
@@ -13221,35 +13288,129 @@ function PlanTemplateModal({
             }
           />
         </label>
-        <label>
-          Sessões (opcional)
-          <input
-            type="number"
-            min="1"
-            max="1000"
-            step="1"
-            value={form.sessions}
-            onChange={(event) =>
-              setForm({ ...form, sessions: event.target.value })
-            }
-          />
-        </label>
-        <label>
-          Serviço (opcional)
-          <select
-            value={form.serviceId}
-            onChange={(event) =>
-              setForm({ ...form, serviceId: event.target.value })
-            }
-          >
-            <option value="">Definir na venda</option>
-            {services.map((service) => (
-              <option key={service.id} value={service.id}>
-                {service.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {form.services.map((entry, index) => (
+          <fieldset className="span-2 form-grid" key={index}>
+            <legend>Serviço {index + 1}</legend>
+            <label>
+              Serviço {index + 1}
+              <select
+                required
+                value={entry.serviceId}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, serviceId: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              >
+                <option value="">Selecione um serviço</option>
+                {services
+                  .filter(
+                    (service) =>
+                      service.active || service.id === entry.serviceId,
+                  )
+                  .map((service) => (
+                    <option
+                      key={service.id}
+                      value={service.id}
+                      disabled={
+                        !service.active ||
+                        form.services.some(
+                          (row, position) =>
+                            position !== index && row.serviceId === service.id,
+                        )
+                      }
+                    >
+                      {service.name}
+                      {!service.active ? " (inativo)" : ""}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Sessões do serviço {index + 1}
+              <input
+                required
+                type="number"
+                min="1"
+                max="1000"
+                step="1"
+                value={entry.sessions}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, sessions: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <label>
+              Valor do serviço {index + 1}
+              <input
+                required
+                type="number"
+                min="0"
+                max="21474836.47"
+                step="0.01"
+                value={entry.value}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, value: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={form.services.length === 1 || saving}
+              onClick={() =>
+                setForm({
+                  ...form,
+                  services: form.services.filter(
+                    (_, position) => position !== index,
+                  ),
+                })
+              }
+            >
+              Remover serviço {index + 1}
+            </button>
+          </fieldset>
+        ))}
+        <button
+          type="button"
+          className="secondary-button span-2"
+          disabled={saving}
+          onClick={() =>
+            setForm({
+              ...form,
+              services: [
+                ...form.services,
+                { serviceId: "", sessions: "", value: "" },
+              ],
+            })
+          }
+        >
+          Adicionar serviço
+        </button>
+        <p className="span-2" role="status">
+          Soma dos serviços: {currency.format(sum / 100)} · Total informado:{" "}
+          {currency.format(total / 100)} · Diferença:{" "}
+          {currency.format(difference / 100)}
+        </p>
         <label>
           Modelo (opcional)
           <select
@@ -13278,7 +13439,10 @@ function PlanTemplateModal({
           >
             Cancelar
           </button>
-          <button className="primary-button" disabled={saving}>
+          <button
+            className="primary-button"
+            disabled={saving || difference !== 0}
+          >
             {saving ? "Salvando…" : "Salvar plano"}
           </button>
         </div>
@@ -13286,6 +13450,7 @@ function PlanTemplateModal({
     </Modal>
   );
 }
+
 
 function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
   return (

@@ -281,7 +281,7 @@ export interface ClinicRepository {
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
-   * experimental, plano (com matrícula opcional em turma do mesmo serviço) ou avulso — tudo ou
+   * experimental, plano (com matrícula opcional em turma de um serviço incluído) ou avulso — tudo ou
    * nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
    * (`GROUP_OR_PATIENT_NOT_FOUND`, `GROUP_SERVICE_MISMATCH`) e plano usam as regras dos fluxos
    * existentes.
