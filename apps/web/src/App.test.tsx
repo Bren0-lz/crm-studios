@@ -229,7 +229,7 @@ describe("configured plan catalog", () => {
   it("adds and removes required services, blocks mismatched totals, edits and deactivates the catalog", async () => {
     const writes = setupCatalog();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Planos" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
     fireEvent.click(await screen.findByRole("button", { name: "Cadastrar plano" }));
     let dialog = screen.getByRole("dialog");
     const fill = (label: string, value: string) => fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
@@ -264,7 +264,7 @@ describe("configured plan catalog", () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Planos" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
     await screen.findByText(first.name);
     expect(
       screen.queryByRole("button", { name: "Cadastrar plano" }),
@@ -325,13 +325,14 @@ beforeEach(() => {
   });
 });
 
-/** Configurações em gavetas (T059): abre as seções pelo título antes de interagir; devolve a última. */
+/** Seleciona uma aba de configurações e devolve seu painel. */
 async function openSettingsSection(...names: string[]) {
   let section: HTMLElement | null = null;
   for (const name of names) {
-    const toggle = await screen.findByRole("button", { name });
-    if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
-    section = toggle.closest("section");
+    const label = name === "Dados da clínica" ? "Clínica" : name === "Prazos e mensagens" ? "Relacionamento" : name;
+    const tab = await screen.findByRole("tab", { name: label });
+    if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
+    section = document.getElementById(tab.getAttribute("aria-controls")!);
   }
   return section!;
 }
@@ -2803,7 +2804,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    await screen.findByRole("heading", { name: "Prazos e mensagens" });
+    await openSettingsSection("Prazos e mensagens");
     expect(screen.queryByRole("heading", { name: "Feriados" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/holidays"))).toBe(false);
   });
@@ -4160,6 +4161,8 @@ describe("users and permissions", () => {
     mockAdmin((url, init) => (init?.method === "POST" && url.endsWith("/admin/users") ? { ...customUser, id: "44444444-4444-4444-8444-444444444444", fullName: "Ana Lima" } : undefined));
     const prompt = vi.spyOn(window, "prompt");
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
+    await screen.findByRole("button", { name: "Editar Maria Souza" });
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
     // Usuário comum novo começa sem nenhum módulo (T055: acabaram os padrões por perfil).
@@ -4222,6 +4225,8 @@ describe("users and permissions", () => {
       [adminUser, customUser, carlaUser],
     );
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
+    await screen.findByRole("button", { name: "Editar Maria Souza" });
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
@@ -4439,6 +4444,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(null);
@@ -4478,6 +4485,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       await within(dialog).findByLabelText(/Profissional da agenda/);
@@ -4567,6 +4576,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
@@ -4801,7 +4812,7 @@ describe("users and permissions", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Usuários" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Usuários" })).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
     expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toMatchObject({ role: "admin" });
     expect(screen.getByTitle("Sair")).toHaveTextContent("Admin");
@@ -4829,9 +4840,9 @@ describe("users and permissions", () => {
   });
 });
 
-describe("settings drawers", () => {
+describe("settings tabs", () => {
   const owner = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
-  const sections = ["Usuários", "Dados da clínica", "Prazos e mensagens", "Feriados"];
+
   const clinic = { id: "c1", name: "Studios Aryana", legalName: "", taxId: "", phone: "", email: "", address: "", timezone: "America/Sao_Paulo", updatedAt: "2026-09-01T12:00:00.000Z" };
   const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", role: "user", modules: [], editModules: [], customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
   const fetched = (path: string) => vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(path));
@@ -4848,106 +4859,186 @@ describe("settings drawers", () => {
     });
   }
 
-  it("starts every section closed and opens and closes them like drawers", async () => {
+  it("opens Clínica first, loads other tabs on demand and preserves visited panels", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    for (const name of sections) {
-      const toggle = await screen.findByRole("button", { name });
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
-      const body = document.getElementById(toggle.getAttribute("aria-controls")!)!;
-      expect(body).not.toBeNull();
-      expect(body).toBeEmptyDOMElement();
-      expect(screen.getByRole("heading", { name })).toContainElement(toggle);
-    }
-    // Fechadas, o conteúdo não existe e os dados das seções que carregam sozinhas nem são pedidos.
-    expect(screen.queryByText("Maria Souza")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Clínica", "Usuários", "Planos", "Feriados", "Etiquetas", "Relacionamento"]);
+    expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    expect(fetched("/admin/users")).toBe(false);
     expect(fetched("/holidays")).toBe(false);
     expect(fetched("/relationship/settings")).toBe(false);
     expect(fetched("/admin/audit-events")).toBe(false);
-    expect(screen.queryByRole("button", { name: "Auditoria recente" })).not.toBeInTheDocument();
-
-    const holidays = screen.getByRole("button", { name: "Feriados" });
-    fireEvent.click(holidays);
-    expect(holidays).toHaveAttribute("aria-expanded", "true");
-    const holidaySection = holidays.closest("section")!;
-    expect(await within(holidaySection).findByText("Nenhum feriado cadastrado")).toBeInTheDocument();
-    expect(fetched("/holidays")).toBe(true);
-
-    // Várias abertas ao mesmo tempo.
-    const users = screen.getByRole("button", { name: "Usuários" });
-    fireEvent.click(users);
-    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
-    expect(holidays).toHaveAttribute("aria-expanded", "true");
-    expect(within(holidaySection).getByLabelText("Nome do feriado")).toBeInTheDocument();
-
-    // Fechar tira o conteúdo do DOM (não só esconde).
-    fireEvent.click(holidays);
-    expect(holidays).toHaveAttribute("aria-expanded", "false");
-    expect(within(holidaySection).queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
-    expect(screen.getByText("Maria Souza")).toBeInTheDocument();
+    const holidays = await openSettingsSection("Feriados");
+    await within(holidays).findByText("Nenhum feriado cadastrado");
+    const users = await openSettingsSection("Usuários");
+    expect(await within(users).findByText("Maria Souza")).toBeInTheDocument();
+    expect(holidays).not.toBeVisible();
+    await openSettingsSection("Feriados");
+    expect(holidays).toBeVisible();
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/holidays"))).toHaveLength(1);
   });
 
-  it("uses a native button in the heading so the keyboard toggles it", async () => {
+  it("supports roving keyboard focus with manual tab activation", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
-    // Botão nativo type="button": Enter e Espaço disparam o clique no navegador, sem tabindex extra.
-    expect(toggle.tagName).toBe("BUTTON");
-    expect(toggle).toHaveAttribute("type", "button");
-    expect(toggle).not.toHaveAttribute("tabindex");
-    toggle.focus();
-    expect(toggle).toHaveFocus();
-    expect(toggle.closest("section")!.querySelector(".collapsible-chevron")).not.toBeNull();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByLabelText("Razão social")).not.toBeInTheDocument();
+    const clinicTab = await screen.findByRole("tab", { name: "Clínica" });
+    clinicTab.focus();
+    fireEvent.keyDown(clinicTab, { key: "ArrowRight" });
+    const users = screen.getByRole("tab", { name: "Usuários" });
+    expect(users).toHaveFocus();
+    expect(clinicTab).toHaveAttribute("aria-selected", "true");
+    expect(users).toHaveAttribute("tabindex", "-1");
+    fireEvent.click(users);
+    expect(users).toHaveAttribute("aria-selected", "true");
+    expect(users).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(users, { key: "End" });
+    expect(screen.getByRole("tab", { name: "Relacionamento" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Relacionamento" }), { key: "Home" });
+    expect(clinicTab).toHaveFocus();
   });
 
-  it("shows loading and then the error when a section loads on open", async () => {
+  it("shows loading, an error and retries only the affected section", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     let fail: (response: Response) => void = () => {};
-    mockSettings(() => new Promise<Response>((resolve) => { fail = resolve; }));
+    let first = true;
+    mockSettings(() => {
+      if (first) { first = false; return new Promise<Response>((resolve) => { fail = resolve; }); }
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = await openSettingsSection("Feriados");
     await vi.waitFor(() => expect(fetched("/holidays")).toBe(true));
     expect(section.querySelector(".loading-block")).not.toBeNull();
     fail({ ok: false, status: 500, json: async () => ({ code: "BOOM", message: "Falha ao listar feriados." }) } as Response);
     expect(await within(section).findByText(/Falha ao listar feriados\./)).toBeInTheDocument();
-    expect(section.querySelector(".loading-block")).toBeNull();
+    fireEvent.click(within(section).getByRole("button", { name: "Tentar novamente" }));
+    await within(section).findByText("Nenhum feriado cadastrado");
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/admin/clinic-settings"))).toHaveLength(1);
   });
 
-  it("opens the users drawer together with the modal from the header button", async () => {
+  it("places new user in the users tab and locks tabs while its modal is open", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const users = await screen.findByRole("button", { name: "Usuários" });
-    expect(users).toHaveAttribute("aria-expanded", "false");
+    await screen.findByRole("tab", { name: "Clínica" });
+    expect(screen.queryByRole("button", { name: "Novo usuário" })).not.toBeInTheDocument();
+    await openSettingsSection("Usuários");
+    await screen.findByText("Maria Souza");
     fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
     expect(screen.getByRole("dialog", { name: "Novo usuário" })).toBeInTheDocument();
-    expect(users).toHaveAttribute("aria-expanded", "true");
-    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Clínica" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Clínica" })).toBeEnabled());
   });
 
-  it("keeps the read-only settings page closed until opened", async () => {
+  it("opens the first available tab for reception and keeps relationship read-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: owner.id, fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("tab", { name: "Planos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Planos", "Etiquetas", "Relacionamento"]);
     expect(fetched("/relationship/settings")).toBe(false);
-    fireEvent.click(toggle);
-    expect(await screen.findByLabelText("Plano acabando: avisar quantos dias antes do fim")).toHaveAttribute("readonly");
+    await openSettingsSection("Prazos e mensagens");
+    expect(await screen.findByLabelText("Saldo baixo: sessões restantes")).toHaveAttribute("readonly");
+  });
+
+  it.each(["Feriados", "Etiquetas"])("protects the inline %s draft on tab changes and unload", async (name) => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const panel = await openSettingsSection(name);
+    const label = name === "Feriados" ? "Nome do feriado" : "Nome da etiqueta";
+    const field = await within(panel).findByLabelText(label);
+    fireEvent.change(field, { target: { value: "Rascunho" } });
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    let dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+    expect(field).toHaveValue("Rascunho");
+    expect(panel).toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Descartar alterações" }));
+    expect(panel).not.toBeVisible();
+    expect(screen.getByRole("tab", { name: "Usuários" })).toHaveFocus();
+    await openSettingsSection(name);
+    expect(field).toHaveValue("");
+    const cleanUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(cleanUnload);
+    expect(cleanUnload.defaultPrevented).toBe(false);
+  });
+
+  it.each(["Feriados", "Etiquetas"])("saves a valid inline %s draft before switching tabs", async (name) => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ ...JSON.parse(String(init.body)), id: "created", patientCount: 0 }) } as Response;
+      return original(input, init);
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const panel = await openSettingsSection(name);
+    const label = name === "Feriados" ? "Nome do feriado" : "Nome da etiqueta";
+    fireEvent.change(await within(panel).findByLabelText(label), { target: { value: "Cadastro novo" } });
+    if (name === "Feriados") fireEvent.change(within(panel).getByLabelText("Data"), { target: { value: "2026-12-25" } });
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Usuários" })).toHaveAttribute("aria-selected", "true"));
+    await openSettingsSection(name);
+    expect(await within(panel).findByText("Cadastro novo")).toBeInTheDocument();
+    expect(within(panel).getByLabelText(label)).toHaveValue("");
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  });
+
+  it("keeps a clinic draft after a failed save, blocks duplicate writes and isolates user refreshes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    let complete: (response: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).includes("/admin/clinic-settings") && init?.method === "PUT") return new Promise<Response>((resolve) => { complete = resolve; });
+      return original(input, init);
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const field = await screen.findByLabelText("Nome");
+    fireEvent.change(field, { target: { value: "Studio novo" } });
+    const form = field.closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(await screen.findByRole("button", { name: "Salvando…" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Usuários" })).toBeDisabled();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+    complete({ ok: false, status: 400, json: async () => ({ message: "Falha ao salvar a clínica." }) } as Response);
+    await screen.findByText("Falha ao salvar a clínica.");
+    expect(field).toHaveValue("Studio novo");
+    expect(screen.getByRole("button", { name: "Salvar configurações" })).toBeEnabled();
+    fireEvent.submit(form);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(2));
+    complete({ ok: true, status: 200, json: async () => ({ ...clinic, name: "Studio novo" }) } as Response);
+    await screen.findByText("Dados da clínica salvos.");
+    await openSettingsSection("Usuários");
+    fireEvent.click(await screen.findByRole("button", { name: "Redefinir senha" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nova senha"), { target: { value: "NovaSenha123" } });
+    fireEvent.submit(within(dialog).getByLabelText("Nova senha").closest("form")!);
+    await screen.findByText("Senha de Maria Souza redefinida.");
+    await openSettingsSection("Dados da clínica");
+    expect(field).toHaveValue("Studio novo");
+    expect(vi.mocked(fetch).mock.calls.filter(([input, init]) => String(input).includes("/admin/clinic-settings") && !init?.method)).toHaveLength(1);
   });
 
   describe("unsaved changes warning (T068)", () => {
@@ -4985,8 +5076,7 @@ describe("settings drawers", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(owner));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
-      fireEvent.click(toggle);
+      const toggle = await screen.findByRole("tab", { name: "Clínica" });
       const name = await screen.findByLabelText("Nome");
       fireEvent.change(name, { target: { value } });
       return toggle;
@@ -4995,21 +5085,21 @@ describe("settings drawers", () => {
     it("closes directly when nothing changed", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studios Aryana");
-      fireEvent.click(toggle);
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("keeps editing when the user chooses to continue", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
       expect(within(dialog).getByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: "Descartar alterações" })).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-selected", "true");
       expect(screen.getByLabelText("Nome")).toHaveValue("Studio Novo");
       expect(puts()).toHaveLength(0);
     });
@@ -5017,30 +5107,30 @@ describe("settings drawers", () => {
     it("discards back to the saved values and closes", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Descartar alterações" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(puts()).toHaveLength(0);
       fireEvent.click(toggle);
       expect(await screen.findByLabelText("Nome")).toHaveValue("Studios Aryana");
       // Sem alteração depois de descartar: fecha direto.
-      fireEvent.click(toggle);
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("saves with the form request, shows the error in the modal and closes only on success", async () => {
       mockClinicSave(["fail", "ok"]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog");
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
       expect(await within(dialog).findByRole("alert")).toHaveTextContent("Nome inválido.");
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-selected", "true");
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(puts()).toHaveLength(2);
       expect(JSON.parse(String(puts()[1]![1]!.body))).toMatchObject({ name: "Studio Novo" });
       fireEvent.click(toggle);
@@ -5065,18 +5155,18 @@ describe("settings drawers", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(owner));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
+      const toggle = await screen.findByRole("tab", { name: "Relacionamento" });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText("Saldo baixo: sessões restantes");
       const original = (field as HTMLInputElement).value;
       fireEvent.change(field, { target: { value: "7" } });
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
       fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
-      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-selected", "true");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Salvar alterações" }));
-      await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-selected", "false"));
       const put = vi.mocked(fetch).mock.calls.find(([input, options]) => String(input).includes("/relationship/settings") && options?.method === "PUT");
       expect(JSON.parse(String(put![1]!.body))).toMatchObject({ lowBalanceSessions: 7 });
       expect(original).not.toBe("7");
@@ -5308,9 +5398,11 @@ describe("button variants", () => {
     await within(section).findByText("Maria Souza");
     expect(within(section).getByRole("button", { name: "Redefinir senha" })).toHaveClass("secondary-button", "button-sm");
     expect(within(section).getByRole("button", { name: "Desativar" })).toHaveClass("danger-button", "button-sm");
+    await openSettingsSection("Feriados");
     expect(await screen.findByRole("button", { name: "Excluir feriado Dia da cidade" })).toHaveClass("danger-button", "button-sm");
     // Salvar dos formulários de configuração: tamanho normal, no rodapé alinhado à direita (não estica no grid).
     for (const name of ["Salvar configurações", "Salvar prazos e mensagens"]) {
+      await openSettingsSection(name === "Salvar configurações" ? "Dados da clínica" : "Prazos e mensagens");
       const save = await screen.findByRole("button", { name });
       expect(save).toHaveClass("primary-button");
       expect(save.parentElement).toHaveClass("modal-actions");
@@ -5699,7 +5791,7 @@ describe("configured patient tags", () => {
     }));
     vi.mocked(fetch).mockImplementation(async (input) => ({
       ok: true, status: 200,
-      json: async () => String(input).includes("/patient-tags") ? [patientTag("Pilates")] : {},
+      json: async () => String(input).includes("/patient-tags") ? [patientTag("Pilates")] : [],
     }) as Response);
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     await openSettingsSection("Etiquetas");
@@ -5768,7 +5860,7 @@ describe("configured patient tags", () => {
 
     // Nome vazio não chama a API.
     fireEvent.click(within(section).getByRole("button", { name: "Adicionar etiqueta" }));
-    expect(within(section).getByText("Informe o nome da etiqueta.")).toBeInTheDocument();
+    expect(await within(section).findByText("Informe o nome da etiqueta.")).toBeInTheDocument();
     expect(writes).toHaveLength(2);
 
     // Renomear e trocar a cor.
@@ -5804,7 +5896,7 @@ describe("configured patient tags", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "33333333-3333-4333-8333-333333333333", fullName: "Fábio Financeiro", email: "financeiro@movimenta.local", role: "finance" }));
     vi.mocked(fetch).mockImplementation(async (input) =>
-      jsonResponse(String(input).includes("/patient-tags") ? [patientTag("Pilates", "#276749", 3)] : relationshipSettingsFixture()),
+      jsonResponse(String(input).includes("/patient-tags") ? [patientTag("Pilates", "#276749", 3)] : String(input).includes("/relationship/settings") ? relationshipSettingsFixture() : []),
     );
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = await openSettingsSection("Etiquetas");
@@ -5929,6 +6021,7 @@ describe("history page", () => {
     expect(screen.getByRole("link", { name: "Histórico" })).toHaveAttribute("href", "/historico");
     expect(screen.queryByRole("link", { name: "Configurações" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Atividades do sistema" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
     resolve({ items: [], nextCursor: null });
     expect(await screen.findByText("Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
