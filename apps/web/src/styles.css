@@ -3165,6 +3165,79 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   font-size: var(--text-xs);
 }
 
+.admin-audit {
+  padding: var(--space-5);
+}
+
+.admin-audit .audit-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.audit-entry > div {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.audit-entry h2 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.audit-category,
+.audit-byline {
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.audit-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.audit-fields dt {
+  font-weight: 600;
+}
+
+.audit-fields dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-details {
+  min-width: 0;
+}
+
+.audit-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.audit-tabs [aria-selected="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.audit-json {
+  max-width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Usuários: selo de inativo e ações agrupadas que quebram linha. */
 .admin-user-tags {
   display: flex;

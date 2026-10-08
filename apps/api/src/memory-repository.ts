@@ -1169,6 +1169,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     )?.fullName;
     this.adminAuditEvents.push({
       id: uuid(),
+      clinicId: CLINIC_ID,
+      actorUserId,
       action,
       entityType,
       ...(entityId ? { entityId } : {}),

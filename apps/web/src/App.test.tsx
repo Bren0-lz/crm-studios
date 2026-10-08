@@ -5668,7 +5668,7 @@ describe("history page", () => {
     const systemEvent = { id: "event-2", action: "user.updated", entityType: "user", metadata: {}, createdAt: event.createdAt };
     vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event, systemEvent], nextCursor: null });
     const { container } = open();
-    expect(await screen.findByText(event.action)).toBeInTheDocument();
+    expect(await screen.findByText("Dados da clínica atualizados")).toBeInTheDocument();
     expect(screen.getByText(/Maria Souza ·/)).toBeInTheDocument();
     expect(screen.getByText(/Sistema ·/)).toBeInTheDocument();
     expect(container.querySelector("time")).toHaveAttribute("datetime", event.createdAt);
@@ -5680,7 +5680,7 @@ describe("history page", () => {
     open();
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao carregar");
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    expect(await screen.findByText(event.action)).toBeInTheDocument();
+    expect(await screen.findByText("Dados da clínica atualizados")).toBeInTheDocument();
     expect(history).toHaveBeenNthCalledWith(2, undefined);
   });
   it("keeps loaded events when the next page fails and retries the same cursor", async () => {
@@ -5690,13 +5690,13 @@ describe("history page", () => {
       .mockRejectedValueOnce(new Error("Falha na próxima página"))
       .mockResolvedValueOnce({ items: [{ ...event, id: "event-2", action: "user.created" }], nextCursor: null });
     open();
-    await screen.findByText(event.action);
+    await screen.findByText("Dados da clínica atualizados");
     fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha na próxima página");
-    expect(screen.getByText(event.action)).toBeInTheDocument();
+    expect(screen.getByText("Dados da clínica atualizados")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    expect(await screen.findByText("user.created")).toBeInTheDocument();
-    expect(screen.getAllByText(event.action)).toHaveLength(1);
+    expect(await screen.findByText("Usuário cadastrado")).toBeInTheDocument();
+    expect(screen.getAllByText("Dados da clínica atualizados")).toHaveLength(1);
     expect(history).toHaveBeenNthCalledWith(2, event.id);
     expect(history).toHaveBeenNthCalledWith(3, event.id);
     expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
@@ -5717,10 +5717,69 @@ describe("history page", () => {
     vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: null });
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
     open();
-    await screen.findByText(event.action);
+    await screen.findByText("Dados da clínica atualizados");
     fresh = { ...fresh, modules: [], permissions: [] };
     fireEvent(window, new Event("focus"));
     await waitFor(() => expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument());
-    expect(screen.queryByText(event.action)).not.toBeInTheDocument();
+    expect(screen.queryByText("Dados da clínica atualizados")).not.toBeInTheDocument();
   });
+  it("opens the readable summary and preserves all technical values in the details tab", async () => {
+    session();
+    const detailed = { ...event, clinicId: "clinic-1", actorUserId: "user-1", entityId: "record-1", ipAddress: "192.0.2.1",
+      metadata: { untouchedKey: { nested: [false, null, 0, "<script>example</script>"] }, longValue: "long".repeat(80) },
+    };
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [detailed], nextCursor: null });
+    open();
+    const trigger = await screen.findByRole("button", { name: "Ver detalhes" });
+    expect(screen.queryByText(event.action)).not.toBeInTheDocument();
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Detalhes da alteração" });
+    const summaryTab = within(dialog).getByRole("tab", { name: "Resumo" });
+    expect(summaryTab).toHaveFocus();
+    expect(summaryTab).toHaveAttribute("aria-selected", "true");
+    const summaryPanel = within(dialog).getByRole("tabpanel", { name: "Resumo" });
+    expect(within(summaryPanel).getByText("Dados da clínica atualizados")).toBeInTheDocument();
+    expect(within(summaryPanel).queryByText(event.action)).not.toBeInTheDocument();
+    const technicalTab = within(dialog).getByRole("tab", { name: "Detalhes técnicos" });
+    fireEvent.click(technicalTab);
+    const technicalPanel = within(dialog).getByRole("tabpanel", { name: "Detalhes técnicos" });
+    for (const value of [event.id, event.action, event.entityType, "record-1", "clinic-1", "user-1", event.actorName, event.createdAt, "192.0.2.1"])
+      expect(within(technicalPanel).getByText(value)).toBeInTheDocument();
+    expect(technicalPanel.querySelector("pre")!.textContent).toBe(JSON.stringify(detailed.metadata, null, 2));
+    expect(technicalPanel.querySelector("script")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+  it("supports keyboard tabs, Escape and focus restoration without technical data inventing", async () => {
+    session();
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [{ ...event, action: "future.action", entityType: "user", actorName: "", actorUserId: "removed-user" }], nextCursor: null });
+    open();
+    expect(await screen.findByRole("heading", { name: "Alteração registrada" })).toBeInTheDocument();
+    expect(screen.getByText(/Usuário não identificado/)).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Ver detalhes" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    const summary = within(dialog).getByRole("tab", { name: "Resumo" });
+    const technical = within(dialog).getByRole("tab", { name: "Detalhes técnicos" });
+    fireEvent.keyDown(summary, { key: "ArrowRight" });
+    expect(technical).toHaveFocus();
+    expect(technical).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getByRole("tabpanel", { name: "Detalhes técnicos" })).toHaveTextContent("Não registrado");
+    fireEvent.keyDown(technical, { key: "Home" });
+    expect(summary).toHaveFocus();
+    fireEvent.keyDown(summary, { key: "ArrowLeft" });
+    expect(technical).toHaveFocus();
+    fireEvent.keyDown(technical, { key: "ArrowRight" });
+    expect(summary).toHaveFocus();
+    fireEvent.keyDown(summary, { key: "End" });
+    expect(technical).toHaveFocus();
+    fireEvent.keyDown(technical, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("tab", { name: "Resumo" })).toHaveAttribute("aria-selected", "true");
+  });
+
 });

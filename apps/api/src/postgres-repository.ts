@@ -2807,6 +2807,9 @@ export class PostgresClinicRepository implements ClinicRepository {
   private async readAdminAuditEvents(clinicId: string, limit: number, cursor?: string) {
     const result = await this.pool.query<{
       id: string;
+      clinicId: string;
+      actorUserId: string | null;
+      ipAddress: string | null;
       action: string;
       entityType: string;
       entityId: string | null;
@@ -2814,7 +2817,8 @@ export class PostgresClinicRepository implements ClinicRepository {
       metadata: Record<string, unknown>;
       createdAt: Date;
     }>(
-      `SELECT ae.id, ae.action, ae.entity_type AS "entityType",
+      `SELECT ae.id, ae.clinic_id AS "clinicId", ae.actor_user_id AS "actorUserId",
+              host(ae.ip_address) AS "ipAddress", ae.action, ae.entity_type AS "entityType",
               ae.entity_id AS "entityId", u.full_name AS "actorName",
               ae.metadata, ae.created_at AS "createdAt"
        FROM audit_events ae LEFT JOIN users u ON u.id = ae.actor_user_id
@@ -2827,6 +2831,9 @@ export class PostgresClinicRepository implements ClinicRepository {
     );
     return result.rows.map((row): AdminAuditEvent => ({
       id: row.id,
+      clinicId: row.clinicId,
+      ...(row.actorUserId ? { actorUserId: row.actorUserId } : {}),
+      ...(row.ipAddress ? { ipAddress: row.ipAddress } : {}),
       action: row.action,
       entityType: row.entityType,
       ...(row.entityId ? { entityId: row.entityId } : {}),

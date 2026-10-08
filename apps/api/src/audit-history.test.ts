@@ -32,6 +32,12 @@ describe("audit history", () => {
         fullName: user.fullName, role: "user", active: true, permissions: ["history.view"],
       });
       for (const url of routes) expect((await app.inject({ url, headers })).statusCode).toBe(200);
+      const page = (await app.inject({ url: routes[0]!, headers })).json<AdminAuditPage>();
+      expect(page.items.length).toBeGreaterThan(0);
+      for (const event of page.items) {
+        expect(event).toMatchObject({ clinicId, actorUserId: ownerId });
+        expect(event).not.toHaveProperty("ipAddress");
+      }
       expect(Array.isArray((await app.inject({ url: routes[1]!, headers })).json())).toBe(true);
       for (const cursor of ["invalid", randomUUID()]) {
         expect((await app.inject({ url: `/history/audit-events?cursor=${cursor}`, headers })).statusCode).toBe(400);

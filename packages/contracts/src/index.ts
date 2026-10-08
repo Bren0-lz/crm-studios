@@ -1292,6 +1292,9 @@ export interface ClinicSettings extends ClinicSettingsInput {
 
 export interface AdminAuditEvent {
   id: string;
+  clinicId?: string;
+  actorUserId?: string;
+  ipAddress?: string;
   action: string;
   entityType: string;
   entityId?: string;

@@ -1,6 +1,7 @@
 import { AuthorizationProvider } from "./authorization";
 import { useAuthorization } from "./authorization-context";
 import { PermissionEditor } from "./PermissionEditor";
+import { formatAuditEvent, type AuditField } from "./audit-history";
 import { legacyPermissions, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
@@ -11631,6 +11632,76 @@ function CollapsibleSection({
   );
 }
 
+function AuditFields({ fields }: { fields: AuditField[] }) {
+  return (
+    <dl className="audit-fields">
+      {fields.map(({ label, value }) => (
+        <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+function HistoryDetailsModal({ event, onClose }: { event: AdminAuditEvent; onClose: () => void }) {
+  const [tab, setTab] = useState<"summary" | "technical">("summary");
+  const id = useId();
+  const summary = formatAuditEvent(event);
+  const tabs = [{ key: "summary", label: "Resumo" }, { key: "technical", label: "Detalhes técnicos" }] as const;
+  const recorded = (value: string | undefined) => value?.trim() ? value : "Não registrado";
+  const technicalFields: AuditField[] = [
+    { label: "ID do evento", value: recorded(event.id) },
+    { label: "Código da ação", value: recorded(event.action) },
+    { label: "Tipo do registro afetado", value: recorded(event.entityType) },
+    { label: "ID do registro afetado", value: recorded(event.entityId) },
+    { label: "ID da clínica", value: recorded(event.clinicId) },
+    { label: "Responsável", value: summary.actor },
+    { label: "ID do responsável", value: recorded(event.actorUserId) },
+    { label: "Data e hora originais", value: recorded(event.createdAt) },
+    { label: "Endereço IP", value: recorded(event.ipAddress) },
+  ];
+  return (
+    <Modal eyebrow="Histórico" title="Detalhes da alteração" subtitle={summary.title} initialFocus='[role="tab"][aria-selected="true"]' onClose={onClose}>
+      <div className="audit-details">
+        <div className="audit-tabs" role="tablist" aria-label="Informações da alteração">
+          {tabs.map(({ key, label }, index) => (
+            <button key={key} type="button" className="secondary-button" role="tab"
+              id={`${id}-${key}-tab`} aria-controls={`${id}-${key}-panel`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
+              onClick={() => setTab(key)}
+              onKeyDown={(keyboardEvent) => {
+                let next: number;
+                switch (keyboardEvent.key) {
+                  case "ArrowRight": next = (index + 1) % tabs.length; break;
+                  case "ArrowLeft": next = (index + tabs.length - 1) % tabs.length; break;
+                  case "Home": next = 0; break;
+                  case "End": next = tabs.length - 1; break;
+                  default: return;
+                }
+                keyboardEvent.preventDefault();
+                setTab(tabs[next]!.key);
+                document.getElementById(`${id}-${tabs[next]!.key}-tab`)?.focus();
+              }}
+            >{label}</button>
+          ))}
+        </div>
+        <div role="tabpanel" id={`${id}-summary-panel`} aria-labelledby={`${id}-summary-tab`} hidden={tab !== "summary"} tabIndex={0}>
+          <AuditFields fields={[
+            { label: "O que aconteceu", value: summary.title },
+            { label: "Área", value: summary.category },
+            { label: "Quem realizou", value: summary.actor },
+            { label: "Quando", value: summary.date },
+            ...summary.details,
+          ]} />
+        </div>
+        <div role="tabpanel" id={`${id}-technical-panel`} aria-labelledby={`${id}-technical-tab`} hidden={tab !== "technical"} tabIndex={0}>
+          <AuditFields fields={technicalFields} />
+          <h3>Metadados completos</h3>
+          <pre className="audit-json">{JSON.stringify(event.metadata, null, 2) ?? "Não registrado"}</pre>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function HistoryPage() {
   const [items, setItems] = useState<AdminAuditEvent[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -11638,6 +11709,8 @@ function HistoryPage() {
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(null);
+  const detailsTrigger = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -11658,14 +11731,25 @@ function HistoryPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Rastreabilidade" title="Histórico" description="Histórico de alterações administrativas da clínica." />
+      <PageHeader eyebrow="Atividades da clínica" title="Histórico" description="Veja o que mudou na clínica, quem fez a alteração e quando." />
       <section className="panel admin-audit" aria-label="Alterações administrativas" aria-busy={loading}>
-        {items?.map((item) => (
-          <article key={item.id}>
-            <strong>{item.action}</strong>
-            <span>{item.actorName ?? "Sistema"} · <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString("pt-BR")}</time></span>
-          </article>
-        ))}
+        {items?.map((item) => {
+          const summary = formatAuditEvent(item);
+          return (
+            <article className="audit-entry" key={item.id}>
+              <div>
+                <h2>{summary.title}</h2>
+                <p className="audit-category">{summary.category}</p>
+                <p className="audit-byline">Quem realizou: {summary.actor} · Quando: <time dateTime={item.createdAt}>{summary.date}</time></p>
+                {summary.details.length > 0 && <AuditFields fields={summary.details} />}
+              </div>
+              <button type="button" className="secondary-button button-sm" onClick={(clickEvent) => {
+                detailsTrigger.current = clickEvent.currentTarget;
+                setSelectedEvent(item);
+              }}>Ver detalhes</button>
+            </article>
+          );
+        })}
         {items?.length === 0 && !loading && <p className="muted-copy">Nenhuma alteração administrativa.</p>}
         {loading && <LoadingBlock />}
         {error && (
@@ -11678,6 +11762,10 @@ function HistoryPage() {
           <button type="button" className="secondary-button" disabled={loading} onClick={() => { setLoading(true); setCursor(nextCursor); }}>Carregar mais</button>
         )}
       </section>
+      {selectedEvent && <HistoryDetailsModal event={selectedEvent} onClose={() => {
+        setSelectedEvent(null);
+        detailsTrigger.current?.focus();
+      }} />}
     </>
   );
 }

@@ -74,12 +74,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const createdAt = "2099-10-07T12:00:00.123456Z";
     try {
       await pool.query(
-        `INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at)
-         SELECT id, $1, $2, 'clinic', $3::timestamptz FROM unnest($4::uuid[]) AS id`,
-        [clinicId, marker, createdAt, ids],
+        `INSERT INTO audit_events (id, clinic_id, actor_user_id, ip_address, action, entity_type, created_at)
+         SELECT id, $1, $5::uuid, '192.0.2.1'::inet, $2, 'clinic', $3::timestamptz FROM unnest($4::uuid[]) AS id`,
+        [clinicId, marker, createdAt, ids, ownerId],
       );
       const first = await repository.listAdminAuditPage(clinicId);
       expect(first.items).toHaveLength(50);
+      expect(first.items[0]).toMatchObject({ clinicId, actorUserId: ownerId, ipAddress: "192.0.2.1" });
       await pool.query(
         "INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at) VALUES ($1, $2, $3, 'clinic', '2100-01-01')",
         [newerId, clinicId, marker],
