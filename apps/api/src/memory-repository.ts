@@ -2,6 +2,7 @@ import { effectivePermissions, resolvePermissionInput, permissionModules, permis
 import { hashSync } from "bcryptjs";
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -1132,6 +1133,17 @@ export class MemoryClinicRepository implements ClinicRepository {
 
   async listAdminAuditEvents(clinicId: string) {
     return clinicId === CLINIC_ID ? [...this.adminAuditEvents].reverse() : [];
+  }
+
+  async listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage> {
+    const events = clinicId === CLINIC_ID ? [...this.adminAuditEvents].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    ) : [];
+    const cursorIndex = cursor === undefined ? -1 : events.findIndex((event) => event.id === cursor);
+    if (cursor !== undefined && cursorIndex === -1)
+      throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
+    const items = events.slice(cursorIndex + 1, cursorIndex + 51);
+    return { items, nextCursor: events.length > cursorIndex + 51 ? items.at(-1)!.id : null };
   }
 
   async recordAdminAuditEvent(

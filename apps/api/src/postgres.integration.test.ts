@@ -67,6 +67,41 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
   let pool: Pool;
   let repository: PostgresClinicRepository;
 
+  it("paginates all audit events with timestamp ties and clinic-scoped cursors", async () => {
+    const marker = `history-${randomUUID()}`;
+    const ids = Array.from({ length: 235 }, () => randomUUID());
+    const newerId = randomUUID();
+    const createdAt = "2099-10-07T12:00:00.123456Z";
+    try {
+      await pool.query(
+        `INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at)
+         SELECT id, $1, $2, 'clinic', $3::timestamptz FROM unnest($4::uuid[]) AS id`,
+        [clinicId, marker, createdAt, ids],
+      );
+      const first = await repository.listAdminAuditPage(clinicId);
+      expect(first.items).toHaveLength(50);
+      await pool.query(
+        "INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at) VALUES ($1, $2, $3, 'clinic', '2100-01-01')",
+        [newerId, clinicId, marker],
+      );
+      const found = first.items.filter((event) => event.action === marker).map((event) => event.id);
+      let page = first;
+      while (page.nextCursor) {
+        page = await repository.listAdminAuditPage(clinicId, page.nextCursor);
+        found.push(...page.items.filter((event) => event.action === marker).map((event) => event.id));
+      }
+      expect(found).toEqual([...ids].sort().reverse());
+      expect(new Set(found).size).toBe(235);
+      expect((await repository.listAdminAuditPage(clinicId)).items[0]!.id).toBe(newerId);
+      const otherClinic = randomUUID();
+      expect(await repository.listAdminAuditPage(otherClinic)).toEqual({ items: [], nextCursor: null });
+      await expect(repository.listAdminAuditPage(otherClinic, first.nextCursor!)).rejects.toMatchObject({ statusCode: 400 });
+      await expect(repository.listAdminAuditPage(clinicId, randomUUID())).rejects.toMatchObject({ statusCode: 400 });
+    } finally {
+      await pool.query("DELETE FROM audit_events WHERE clinic_id = $1 AND action = $2", [clinicId, marker]);
+    }
+  });
+
   it("serializes draft creation and checks update permission before overwriting", async () => {
     const user = await repository.createAdminUser(clinicId, ownerId, {
       fullName: "Clinical Permission Test", email: `${randomUUID()}@test.local`,

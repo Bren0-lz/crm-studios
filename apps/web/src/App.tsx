@@ -417,6 +417,7 @@ const navItems: Array<{
   { to: "/prontuarios", label: "Prontuários", icon: Stethoscope, module: "clinical" },
   { to: "/financeiro", label: "Financeiro", icon: CircleDollarSign, module: "finance" },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3, module: "reports" },
+  { to: "/historico", label: "Histórico", icon: FileClock, module: "history" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, module: "settings" },
 ];
 
@@ -11628,10 +11629,60 @@ function CollapsibleSection({
   );
 }
 
+function HistoryPage() {
+  const [items, setItems] = useState<AdminAuditEvent[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    api.auditHistory(cursor)
+      .then((page) => {
+        if (!active) return;
+        setItems((current) => cursor === undefined ? page.items : [...(current ?? []), ...page.items]);
+        setNextCursor(page.nextCursor);
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [cursor, attempt]);
+
+  return (
+    <>
+      <PageHeader eyebrow="Rastreabilidade" title="Histórico" description="Histórico de alterações administrativas da clínica." />
+      <section className="panel admin-audit" aria-label="Alterações administrativas" aria-busy={loading}>
+        {items?.map((item) => (
+          <article key={item.id}>
+            <strong>{item.action}</strong>
+            <span>{item.actorName ?? "Sistema"} · <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString("pt-BR")}</time></span>
+          </article>
+        ))}
+        {items?.length === 0 && !loading && <p className="muted-copy">Nenhuma alteração administrativa.</p>}
+        {loading && <LoadingBlock />}
+        {error && (
+          <>
+            <ErrorBanner error={error} />
+            <button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(""); setAttempt((value) => value + 1); }}>Tentar novamente</button>
+          </>
+        )}
+        {nextCursor && !error && (
+          <button type="button" className="secondary-button" disabled={loading} onClick={() => { setLoading(true); setCursor(nextCursor); }}>Carregar mais</button>
+        )}
+      </section>
+    </>
+  );
+}
+
 function AdminPage() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
-  const [audit, setAudit] = useState<AdminAuditEvent[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [userForm, setUserForm] = useState<AdminUser | "new" | null>(null);
@@ -11654,7 +11705,7 @@ function AdminPage() {
       const saved = await api.updateClinicSettings(settings);
       setSettings(saved);
       setSavedSettings(saved);
-      // Como o submit do formulário: recarrega (auditoria inclusa).
+      // Como o submit do formulário: recarrega os dados da página.
       void load();
     },
     discard: () => setSettings(savedSettings),
@@ -11662,15 +11713,13 @@ function AdminPage() {
 
   async function load() {
     try {
-      const [userData, settingData, auditData] = await Promise.all([
+      const [userData, settingData] = await Promise.all([
         api.adminUsers(),
         api.clinicSettings(),
-        api.adminAuditEvents(),
       ]);
       setUsers(userData);
       setSettings(settingData);
       setSavedSettings(settingData);
-      setAudit(auditData);
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -11680,14 +11729,12 @@ function AdminPage() {
     Promise.all([
       api.adminUsers(),
       api.clinicSettings(),
-      api.adminAuditEvents(),
     ])
-      .then(([userData, settingData, auditData]) => {
+      .then(([userData, settingData]) => {
         if (!active) return;
         setUsers(userData);
         setSettings(settingData);
         setSavedSettings(settingData);
-        setAudit(auditData);
       })
       .catch((cause: Error) => {
         if (active) setError(cause.message);
@@ -11711,7 +11758,7 @@ function AdminPage() {
       <PageHeader
         eyebrow="Controle operacional"
         title="Configurações"
-        description="Usuários, permissões, dados da clínica e auditoria administrativa."
+        description="Usuários, permissões e dados da clínica."
         action={
           <button
             className="primary-button"
@@ -11893,28 +11940,6 @@ function AdminPage() {
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
         <PatientTagsSection canEdit />
-        <CollapsibleSection
-          className="admin-audit"
-          eyebrow="Rastreabilidade"
-          title="Auditoria recente"
-        >
-          {users === null ? (
-            // Usuários, dados e auditoria chegam juntos no mesmo carregamento da página.
-            !error && <LoadingBlock />
-          ) : audit.length === 0 ? (
-            <p className="muted-copy">Nenhuma alteração administrativa.</p>
-          ) : (
-            audit.slice(0, 20).map((item) => (
-              <article key={item.id}>
-                <strong>{item.action}</strong>
-                <span>
-                  {item.actorName ?? "Sistema"} ·{" "}
-                  {new Date(item.createdAt).toLocaleString("pt-BR")}
-                </span>
-              </article>
-            ))
-          )}
-        </CollapsibleSection>
       </div>
       {clinicPrompt.modal}
       {userForm && (
@@ -14263,6 +14288,7 @@ function AppRoutes() {
                   element={allow("clinical", <ClinicalRecordsPage />)}
                 />
                 <Route path="/financeiro" element={allow("finance", <FinancePage />)} />
+                <Route path="/historico" element={allow("history", <HistoryPage />)} />
                 <Route path="/relatorios" element={allow("reports", <ReportsPage />)} />
                 <Route
                   path="/configuracoes"

@@ -15,6 +15,12 @@ function Editor() {
   );
 }
 describe("permission editor", () => {
+  it("offers history access independently of settings", () => {
+    render(<Editor />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Histórico: Visualizar histórico" }));
+    expect(screen.getByTestId("selection")).toHaveTextContent('["history.view"]');
+    expect(screen.getByRole("checkbox", { name: "Configurações: Visualizar módulo" })).not.toBeChecked();
+  });
   it("selects dependencies and removes dependent actions", () => {
     render(<Editor />);
     fireEvent.click(

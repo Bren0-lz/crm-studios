@@ -1,6 +1,7 @@
 import type { DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -276,6 +277,9 @@ export const api = {
       body: JSON.stringify(input),
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
+  auditHistory: (cursor?: string) => request<AdminAuditPage>(
+    `/history/audit-events${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+  ),
   dashboard: (date: string) =>
     request<DashboardViewSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>

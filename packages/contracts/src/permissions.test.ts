@@ -15,6 +15,12 @@ import {
 } from "./permissions.js";
 
 describe("operation permissions", () => {
+  it("grants history independently and gives no history access to existing settings users", () => {
+    expect(effectivePermissions("admin")).toContain("history.view");
+    expect(effectivePermissions("user")).not.toContain("history.view");
+    expect(legacyPermissions("user", ["settings"], ["settings"])).not.toContain("history.view");
+    expect(normalizePermissions(["history.view"])).toEqual(["history.view"]);
+  });
   it("has unique stable keys, known dependencies and one view permission per module", () => {
     expect(new Set(permissionKeys).size).toBe(permissionKeys.length);
     for (const module of appModuleSchema.options)

@@ -141,7 +141,7 @@ describe("CRM API", () => {
     const me = await app.inject({ method: "GET", url: "/me", headers });
     expect(me.json()).toMatchObject({ role: "admin" });
     expect(me.json().modules).toContain("settings");
-    expect(me.json().modules).toHaveLength(12);
+    expect(me.json().modules).toHaveLength(appModuleSchema.options.length);
 
     // Perfis antigos não existem mais.
     const legacy = await app.inject({
@@ -255,7 +255,7 @@ describe("CRM API", () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const me = await app.inject({ method: "GET", url: "/me", headers });
-    expect(me.json().editModules).toHaveLength(12);
+    expect(me.json().editModules).toHaveLength(appModuleSchema.options.length);
 
     const physioModules = ["agenda", "groups", "patients", "plans", "clinical"];
     const created = await app.inject({
@@ -339,7 +339,7 @@ describe("CRM API", () => {
       payload: { ...base, role: "admin", editModules: ["agenda"] },
     });
     expect(admin.json()).toMatchObject({ role: "admin", customModules: false });
-    expect(admin.json().editModules).toHaveLength(12);
+    expect(admin.json().editModules).toHaveLength(appModuleSchema.options.length);
 
     const invalid = await app.inject({
       method: "PATCH",
@@ -7227,7 +7227,7 @@ describe("CRM API", () => {
       for (const url of ["/admin/users", "/admin/clinic-settings", "/admin/audit-events", "/patients/export"]) {
         const get = await app.inject({ method: "GET", url, headers: user.headers });
         expect(get.statusCode, url).toBe(403);
-        expect(get.json(), url).toMatchObject({ code: url === "/patients/export" ? "COMMERCIAL_ACCESS_DENIED" : "ADMIN_ACCESS_REQUIRED" });
+        expect(get.json(), url).toMatchObject({ code: url === "/patients/export" ? "COMMERCIAL_ACCESS_DENIED" : url === "/admin/audit-events" ? "HISTORY_ACCESS_DENIED" : "ADMIN_ACCESS_REQUIRED" });
         expect((await app.inject({ method: "HEAD", url, headers: user.headers })).statusCode, url).toBe(403);
       }
       // Nem com todos os módulos o usuário comum entra na Administração.

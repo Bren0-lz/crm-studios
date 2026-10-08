@@ -52,7 +52,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /relationship/settings": "admin",
   "POST /holidays": "admin",
   "DELETE /holidays/:id": "admin",
-  "GET /admin/audit-events": "admin",
+  "GET /admin/audit-events": view("history"),
+  "GET /history/audit-events": view("history"),
   "GET /admin/permission-matrix": "admin",
   "GET /patients/export": operation("patients.export"),
 
@@ -225,6 +226,7 @@ export const moduleDeniedCodes: Record<AppModule, string> = {
   communications: "COMMERCIAL_ACCESS_DENIED",
   contracts: "COMMERCIAL_ACCESS_DENIED",
   settings: "COMMERCIAL_ACCESS_DENIED",
+  history: "HISTORY_ACCESS_DENIED",
   clinical: "CLINICAL_ACCESS_DENIED",
   finance: "FINANCE_ACCESS_DENIED",
   reports: "MANAGEMENT_ACCESS_DENIED",

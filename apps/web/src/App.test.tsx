@@ -4564,7 +4564,7 @@ describe("users and permissions", () => {
 
 describe("settings drawers", () => {
   const owner = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
-  const sections = ["Usuários", "Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente"];
+  const sections = ["Usuários", "Dados da clínica", "Prazos e mensagens", "Feriados"];
   const clinic = { id: "c1", name: "Studios Aryana", legalName: "", taxId: "", phone: "", email: "", address: "", timezone: "America/Sao_Paulo", updatedAt: "2026-09-01T12:00:00.000Z" };
   const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", role: "user", modules: [], editModules: [], customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
   const fetched = (path: string) => vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(path));
@@ -4599,6 +4599,8 @@ describe("settings drawers", () => {
     expect(screen.queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
     expect(fetched("/holidays")).toBe(false);
     expect(fetched("/relationship/settings")).toBe(false);
+    expect(fetched("/admin/audit-events")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Auditoria recente" })).not.toBeInTheDocument();
 
     const holidays = screen.getByRole("button", { name: "Feriados" });
     fireEvent.click(holidays);
@@ -5034,7 +5036,7 @@ describe("button variants", () => {
                 : undefined,
     );
     const { container } = render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    await openSettingsSection("Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente");
+    await openSettingsSection("Dados da clínica", "Prazos e mensagens", "Feriados");
     const section = await openSettingsSection("Usuários");
     await within(section).findByText("Maria Souza");
     expect(within(section).getByRole("button", { name: "Redefinir senha" })).toHaveClass("secondary-button", "button-sm");
@@ -5630,5 +5632,95 @@ describe("configured patient tags", () => {
     expect(vip.style.getPropertyValue("--tag-color")).toBe("#7c3aed");
     fireEvent.click(vip);
     expect(vip).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+
+describe("history page", () => {
+  const event = { id: "event-1", action: "clinic.updated", entityType: "clinic", metadata: {}, createdAt: "2026-10-07T12:00:00.000Z", actorName: "Maria Souza" };
+  function session(role: "admin" | "user" = "user", allowed = true) {
+    const user = withPermissions({ id: "history-reader", fullName: "History Reader", email: "history@test.local", role,
+      modules: allowed ? ["history"] : ["settings"], editModules: [],
+      permissions: role === "admin" ? legacyPermissions("admin") : allowed ? ["history.view" as const] : ["settings.view" as const],
+    });
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify(user));
+    return user;
+  }
+  function open() {
+    return render(<MemoryRouter initialEntries={["/historico"]}><App /></MemoryRouter>);
+  }
+  it("shows loading and the independent history menu, then the empty state", async () => {
+    session();
+    let resolve!: (value: import("@crm/contracts").AdminAuditPage) => void;
+    vi.spyOn(api, "auditHistory").mockImplementation(() => new Promise((done) => { resolve = done; }));
+    open();
+    expect(await screen.findByRole("heading", { name: "Histórico" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Histórico" })).toHaveAttribute("href", "/historico");
+    expect(screen.queryByRole("link", { name: "Configurações" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Alterações administrativas" })).toHaveAttribute("aria-busy", "true");
+    resolve({ items: [], nextCursor: null });
+    expect(await screen.findByText("Nenhuma alteração administrativa.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+  });
+  it("allows administrators and displays the responsible person, time and system fallback", async () => {
+    session("admin");
+    const systemEvent = { id: "event-2", action: "user.updated", entityType: "user", metadata: {}, createdAt: event.createdAt };
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event, systemEvent], nextCursor: null });
+    const { container } = open();
+    expect(await screen.findByText(event.action)).toBeInTheDocument();
+    expect(screen.getByText(/Maria Souza ·/)).toBeInTheDocument();
+    expect(screen.getByText(/Sistema ·/)).toBeInTheDocument();
+    expect(container.querySelector("time")).toHaveAttribute("datetime", event.createdAt);
+  });
+  it("retries a failed first load", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory").mockRejectedValueOnce(new Error("Falha ao carregar"))
+      .mockResolvedValueOnce({ items: [event], nextCursor: null });
+    open();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao carregar");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText(event.action)).toBeInTheDocument();
+    expect(history).toHaveBeenNthCalledWith(2, undefined);
+  });
+  it("keeps loaded events when the next page fails and retries the same cursor", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory")
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id })
+      .mockRejectedValueOnce(new Error("Falha na próxima página"))
+      .mockResolvedValueOnce({ items: [{ ...event, id: "event-2", action: "user.created" }], nextCursor: null });
+    open();
+    await screen.findByText(event.action);
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha na próxima página");
+    expect(screen.getByText(event.action)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("user.created")).toBeInTheDocument();
+    expect(screen.getAllByText(event.action)).toHaveLength(1);
+    expect(history).toHaveBeenNthCalledWith(2, event.id);
+    expect(history).toHaveBeenNthCalledWith(3, event.id);
+    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+  });
+  it("hides history and redirects direct access without its permission", async () => {
+    session("user", false);
+    const history = vi.spyOn(api, "auditHistory");
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    open();
+    expect(await screen.findByRole("link", { name: "Configurações" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Histórico" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument();
+    expect(history).not.toHaveBeenCalled();
+  });
+  it("removes the page and menu after a permission revocation is refreshed", async () => {
+    let fresh = session();
+    vi.spyOn(api, "me").mockImplementation(async () => fresh);
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: null });
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    open();
+    await screen.findByText(event.action);
+    fresh = { ...fresh, modules: [], permissions: [] };
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument());
+    expect(screen.queryByText(event.action)).not.toBeInTheDocument();
   });
 });

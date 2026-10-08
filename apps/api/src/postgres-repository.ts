@@ -2,6 +2,7 @@ import { effectivePermissions, resolvePermissionInput, permissionModules, permis
 import { randomUUID } from "node:crypto";
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -2786,6 +2787,24 @@ export class PostgresClinicRepository implements ClinicRepository {
   }
 
   async listAdminAuditEvents(clinicId: string) {
+    return this.readAdminAuditEvents(clinicId, 200);
+  }
+
+  async listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage> {
+    if (cursor !== undefined) {
+      const anchor = await this.pool.query(
+        "SELECT id FROM audit_events WHERE clinic_id = $1 AND id = $2",
+        [clinicId, cursor],
+      );
+      if (!anchor.rowCount)
+        throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
+    }
+    const events = await this.readAdminAuditEvents(clinicId, 51, cursor);
+    const items = events.slice(0, 50);
+    return { items, nextCursor: events.length > 50 ? items.at(-1)!.id : null };
+  }
+
+  private async readAdminAuditEvents(clinicId: string, limit: number, cursor?: string) {
     const result = await this.pool.query<{
       id: string;
       action: string;
@@ -2799,8 +2818,12 @@ export class PostgresClinicRepository implements ClinicRepository {
               ae.entity_id AS "entityId", u.full_name AS "actorName",
               ae.metadata, ae.created_at AS "createdAt"
        FROM audit_events ae LEFT JOIN users u ON u.id = ae.actor_user_id
-       WHERE ae.clinic_id = $1 ORDER BY ae.created_at DESC LIMIT 200`,
-      [clinicId],
+       WHERE ae.clinic_id = $1
+         AND ($2::uuid IS NULL OR (ae.created_at, ae.id) < (
+           SELECT created_at, id FROM audit_events WHERE clinic_id = $1 AND id = $2::uuid
+         ))
+       ORDER BY ae.created_at DESC, ae.id DESC LIMIT $3`,
+      [clinicId, cursor ?? null, limit],
     );
     return result.rows.map((row): AdminAuditEvent => ({
       id: row.id,

@@ -856,6 +856,14 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     },
   );
   app.get(
+    "/history/audit-events",
+    { preHandler: authenticate },
+    async (request) => {
+      const { cursor } = z.object({ cursor: z.string().uuid().optional() }).parse(request.query);
+      return repository.listAdminAuditPage(request.user.clinicId, cursor);
+    },
+  );
+  app.get(
     "/admin/audit-events",
     { preHandler: authenticate },
     async (request) => repository.listAdminAuditEvents(request.user.clinicId),

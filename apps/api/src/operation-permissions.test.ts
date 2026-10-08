@@ -315,7 +315,8 @@ describe("per-operation API authorization", () => {
     ];
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
-        .filter((item) => !item.legacyAdmin)
+        // History was introduced after 0045 and must not be backfilled into old users.
+        .filter((item) => !item.legacyAdmin && item.module !== "history")
         .map((item) => item.key)
         .sort(),
     );
@@ -327,6 +328,7 @@ describe("per-operation API authorization", () => {
       expect(parse(row[3]!)).toEqual(definition.legacyEdit);
     }
     expect(sql).toContain("WHERE u.permissions IS NULL");
+    expect(sql).not.toContain("history.view");
     expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
       "patients.export",
     );

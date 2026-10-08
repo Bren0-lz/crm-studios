@@ -115,6 +115,7 @@ const operations = {
     tags_update: "Editar etiqueta",
     tags_delete: "Excluir etiqueta",
   },
+  history: {},
 } as const;
 
 type OperationKey = {
@@ -142,8 +143,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
       {
         key: `${module}.view` as PermissionKey,
         module,
-        name: "Visualizar módulo",
-        description: "Abrir o módulo e consultar seus registros na clínica.",
+        name: module === "history" ? "Visualizar histórico" : "Visualizar módulo",
+        description: module === "history" ? "Consultar o histórico administrativo da clínica." : "Abrir o módulo e consultar seus registros na clínica.",
         dependencies: [],
         legacyView: [module],
         legacyEdit: [],

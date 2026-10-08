@@ -1,5 +1,6 @@
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -198,6 +199,7 @@ export interface ClinicRepository {
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
+  listAdminAuditPage(clinicId: string, cursor?: string): Promise<AdminAuditPage>;
   /** Registra um evento na auditoria administrativa (ex.: `patients.exported`). */
   recordAdminAuditEvent(
     clinicId: string,

@@ -109,6 +109,7 @@ export const appModuleSchema = z.enum([
   "finance",
   "reports",
   "settings",
+  "history",
 ]);
 export type AppModule = z.infer<typeof appModuleSchema>;
 export const appModuleLabels: Record<AppModule, string> = {
@@ -124,6 +125,7 @@ export const appModuleLabels: Record<AppModule, string> = {
   finance: "Financeiro",
   reports: "Relatórios",
   settings: "Configurações",
+  history: "Histórico",
 };
 /**
  * Módulos efetivos: admin tem sempre todos; usuário comum só os gravados (nulo/ausente =
@@ -1296,6 +1298,11 @@ export interface AdminAuditEvent {
   actorName?: string;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface AdminAuditPage {
+  items: AdminAuditEvent[];
+  nextCursor: string | null;
 }
 
 export interface PermissionMatrixItem {
