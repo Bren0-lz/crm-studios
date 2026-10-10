@@ -1,3 +1,4 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, type PermissionKey } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type {
@@ -1809,6 +1810,21 @@ export async function ensurePatientTags(
   }
 }
 
+type PlanCatalogRow = Omit<PlanCatalogEntry, "createdAt" | "updatedAt"> & {
+  createdAt: Date;
+  updatedAt: Date;
+};
+const planCatalogColumns =
+  'id, clinic_id AS "clinicId", name, total_value_in_cents AS "totalValueInCents", created_at AS "createdAt", updated_at AS "updatedAt"';
+function mapPlanCatalog(row: PlanCatalogRow): PlanCatalogEntry {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+
 export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -3128,6 +3144,91 @@ export class PostgresClinicRepository implements ClinicRepository {
         );
       throw error;
     }
+  }
+
+  async listPlanCatalog(clinicId: string) {
+    const result = await this.pool.query<PlanCatalogRow>(
+      `SELECT ${planCatalogColumns} FROM plan_catalog WHERE clinic_id = $1`,
+      [clinicId],
+    );
+    return result.rows
+      .map(mapPlanCatalog)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
+
+  async createPlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanCatalogInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      const result = await client.query<PlanCatalogRow>(
+        `INSERT INTO plan_catalog (clinic_id, name, total_value_in_cents)
+         VALUES ($1, $2, $3) RETURNING ${planCatalogColumns}`,
+        [clinicId, input.name, input.totalValueInCents],
+      );
+      const entry = mapPlanCatalog(result.rows[0]!);
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "plan_catalog.created",
+        "plan_catalog",
+        entry.id,
+        { ...input },
+      );
+      return entry;
+    });
+  }
+
+  async updatePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanCatalogInput,
+  ) {
+    return this.inTransaction(async (client) => {
+      const result = await client.query<PlanCatalogRow>(
+        `UPDATE plan_catalog SET name = $3, total_value_in_cents = $4, updated_at = now()
+         WHERE clinic_id = $1 AND id = $2 RETURNING ${planCatalogColumns}`,
+        [clinicId, id, input.name, input.totalValueInCents],
+      );
+      if (!result.rows[0]) return null;
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "plan_catalog.updated",
+        "plan_catalog",
+        id,
+        { ...input },
+      );
+      return mapPlanCatalog(result.rows[0]);
+    });
+  }
+
+  async deletePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ) {
+    return this.inTransaction(async (client) => {
+      const result = await client.query<{ name: string }>(
+        "DELETE FROM plan_catalog WHERE clinic_id = $1 AND id = $2 RETURNING name",
+        [clinicId, id],
+      );
+      if (!result.rows[0]) return false;
+      await this.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "plan_catalog.deleted",
+        "plan_catalog",
+        id,
+        { name: result.rows[0].name },
+      );
+      return true;
+    });
   }
 
   async listPatientTags(clinicId: string) {

@@ -1,3 +1,4 @@
+import { planCatalogInputSchema } from "@crm/contracts";
 import { permissionCatalog, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
@@ -890,6 +891,70 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       ...(access.modules.includes("patients") ? { patientsActive: summary.patientsActive } : {}),
     } satisfies DashboardViewSummary;
   });
+
+  app.get("/plan-catalog", { preHandler: authenticate }, async (request) =>
+    repository.listPlanCatalog(request.user.clinicId),
+  );
+  app.post(
+    "/plan-catalog",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createPlanCatalogEntry(
+            request.user.clinicId,
+            request.user.sub,
+            planCatalogInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.put(
+    "/plan-catalog/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = planCatalogInputSchema.parse(request.body);
+      const updated = z.uuid().safeParse(id).success
+        ? await repository.updatePlanCatalogEntry(
+            request.user.clinicId,
+            request.user.sub,
+            id,
+            input,
+          )
+        : null;
+      if (!updated)
+        return reply
+          .status(404)
+          .send({
+            code: "PLAN_CATALOG_NOT_FOUND",
+            message: "Plano do catálogo não encontrado.",
+          } satisfies ApiError);
+      return updated;
+    },
+  );
+  app.delete(
+    "/plan-catalog/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted =
+        z.uuid().safeParse(id).success &&
+        (await repository.deletePlanCatalogEntry(
+          request.user.clinicId,
+          request.user.sub,
+          id,
+        ));
+      if (!deleted)
+        return reply
+          .status(404)
+          .send({
+            code: "PLAN_CATALOG_NOT_FOUND",
+            message: "Plano do catálogo não encontrado.",
+          } satisfies ApiError);
+      return reply.status(204).send();
+    },
+  );
 
   app.get("/patients", { preHandler: authenticate }, async (request) => {
     const query = patientListQuerySchema.parse(request.query);

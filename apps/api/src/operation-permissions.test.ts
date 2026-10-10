@@ -315,7 +315,16 @@ describe("per-operation API authorization", () => {
     ];
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
-        .filter((item) => !item.legacyAdmin)
+        // 0045 is immutable; catalog management was introduced by 0046.
+        .filter(
+          (item) =>
+            !item.legacyAdmin &&
+            ![
+              "settings.plans_create",
+              "settings.plans_update",
+              "settings.plans_delete",
+            ].includes(item.key),
+        )
         .map((item) => item.key)
         .sort(),
     );

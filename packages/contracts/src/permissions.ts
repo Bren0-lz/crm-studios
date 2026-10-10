@@ -111,6 +111,9 @@ const operations = {
     export: "Exportar relatórios",
   },
   settings: {
+    plans_create: "Cadastrar plano no catálogo",
+    plans_update: "Editar plano do catálogo",
+    plans_delete: "Excluir plano do catálogo",
     tags_create: "Criar etiqueta",
     tags_update: "Editar etiqueta",
     tags_delete: "Excluir etiqueta",

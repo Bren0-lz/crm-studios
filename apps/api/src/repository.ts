@@ -1,3 +1,4 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import type {
   AdminAuditEvent,
   AdminUser,
@@ -301,6 +302,24 @@ export interface ClinicRepository {
     input: PatientInput,
   ): Promise<Patient | null>;
   /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
+  listPlanCatalog(clinicId: string): Promise<PlanCatalogEntry[]>;
+  createPlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanCatalogInput,
+  ): Promise<PlanCatalogEntry>;
+  updatePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanCatalogInput,
+  ): Promise<PlanCatalogEntry | null>;
+  deletePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<boolean>;
+
   listPatientTags(clinicId: string): Promise<PatientTag[]>;
   /**
    * Cria a etiqueta (auditoria `patient_tag.created`). Nome igual a outro da clínica sem

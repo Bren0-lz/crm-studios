@@ -445,6 +445,55 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await pool.end();
   });
 
+  it("persists and isolates catalog entries across repository instances", async () => {
+    const created = await repository.createPlanCatalogEntry(clinicId, ownerId, {
+      name: "Integration catalog Pilates",
+      totalValueInCents: 12345,
+    });
+    try {
+      const another = new PostgresClinicRepository(pool);
+      expect(await another.listPlanCatalog(clinicId)).toContainEqual(created);
+      const otherClinic = randomUUID();
+      expect(await another.listPlanCatalog(otherClinic)).toEqual([]);
+      expect(
+        await another.updatePlanCatalogEntry(otherClinic, ownerId, created.id, {
+          name: "Other clinic",
+          totalValueInCents: 0,
+        }),
+      ).toBeNull();
+      expect(
+        await another.deletePlanCatalogEntry(otherClinic, ownerId, created.id),
+      ).toBe(false);
+      const updated = await another.updatePlanCatalogEntry(
+        clinicId,
+        ownerId,
+        created.id,
+        { name: "Integration catalog free", totalValueInCents: 0 },
+      );
+      expect(updated).toMatchObject({
+        id: created.id,
+        name: "Integration catalog free",
+        totalValueInCents: 0,
+      });
+      expect(await repository.listPlanCatalog(clinicId)).toContainEqual(
+        updated,
+      );
+      expect(
+        await another.deletePlanCatalogEntry(clinicId, ownerId, created.id),
+      ).toBe(true);
+      expect(
+        (await repository.listPlanCatalog(clinicId)).some(
+          (item) => item.id === created.id,
+        ),
+      ).toBe(false);
+    } finally {
+      await pool.query(
+        "DELETE FROM plan_catalog WHERE clinic_id = $1 AND id = $2",
+        [clinicId, created.id],
+      );
+    }
+  });
+
   it("persists a patient across repository instances", async () => {
     await pool.query("DELETE FROM patients WHERE clinic_id = $1 AND cpf = $2", [
       clinicId,

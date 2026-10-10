@@ -1,3 +1,4 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, type PermissionKey } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
 import type {
@@ -1432,6 +1433,84 @@ export class MemoryClinicRepository implements ClinicRepository {
         (patient) => patient.clinicId === tag.clinicId && patient.tags.includes(tag.name),
       ).length,
     };
+  }
+
+  private readonly planCatalog: PlanCatalogEntry[] = [];
+
+  async listPlanCatalog(clinicId: string) {
+    return this.planCatalog
+      .filter((item) => item.clinicId === clinicId)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((item) => structuredClone(item));
+  }
+
+  async createPlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanCatalogInput,
+  ) {
+    const timestamp = now();
+    const entry: PlanCatalogEntry = {
+      ...input,
+      id: uuid(),
+      clinicId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.planCatalog.push(entry);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.created",
+        "plan_catalog",
+        entry.id,
+        { ...input },
+      );
+    return structuredClone(entry);
+  }
+
+  async updatePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanCatalogInput,
+  ) {
+    const entry = this.planCatalog.find(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    if (!entry) return null;
+    Object.assign(entry, input, { updatedAt: now() });
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.updated",
+        "plan_catalog",
+        id,
+        { ...input },
+      );
+    return structuredClone(entry);
+  }
+
+  async deletePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ) {
+    const index = this.planCatalog.findIndex(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    const entry = this.planCatalog[index];
+    if (!entry) return false;
+    this.planCatalog.splice(index, 1);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.deleted",
+        "plan_catalog",
+        id,
+        { name: entry.name },
+      );
+    return true;
   }
 
   async listPatientTags(clinicId: string) {

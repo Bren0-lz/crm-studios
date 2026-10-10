@@ -1,3 +1,4 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import type { DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
 import type {
   AdminAuditEvent,
@@ -474,6 +475,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  planCatalog: () => request<PlanCatalogEntry[]>("/plan-catalog"),
+  createPlanCatalogEntry: (input: PlanCatalogInput) =>
+    request<PlanCatalogEntry>("/plan-catalog", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePlanCatalogEntry: (id: string, input: PlanCatalogInput) =>
+    request<PlanCatalogEntry>(`/plan-catalog/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deletePlanCatalogEntry: (id: string) =>
+    request<void>(`/plan-catalog/${id}`, { method: "DELETE" }),
+
   plans: (patientId = "") =>
     request<PatientPlan[]>(`/plans?patientId=${encodeURIComponent(patientId)}`),
   createPlan: (input: PatientPlanInput) =>

@@ -1,3 +1,4 @@
+import { planCatalogInputSchema, type PlanCatalogEntry } from "@crm/contracts";
 import { AuthorizationProvider } from "./authorization";
 import { useAuthorization } from "./authorization-context";
 import { PermissionEditor } from "./PermissionEditor";
@@ -5684,6 +5685,8 @@ function PlanModal({
   onSaved: (plan: PatientPlan) => void;
 }) {
  const { can } = useAuthorization();
+  const { entries: catalog, error: catalogError, reload: reloadCatalog } = usePlanCatalog();
+  const [catalogId, setCatalogId] = useState("");
   const currentDate = localIsoDate();
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -5692,12 +5695,12 @@ function PlanModal({
       return {
         patientId: patients[0]?.id ?? "",
         serviceId: services[0]?.id ?? "",
-        name: "Pacote de fisioterapia",
+        name: "",
         kind: "fixed_package",
         totalSessions: 10,
         validFrom: currentDate,
         validUntil: localIsoDate(nextYear),
-        totalValueInCents: 180000,
+        totalValueInCents: 0,
         installments: 3,
         firstDueDate: currentDate,
         autoRenew: false,
@@ -5810,9 +5813,63 @@ function PlanModal({
           </>
         )}
         <label className="span-2">
+          Plano cadastrado
+          <select
+            value={catalogId}
+            disabled={catalog === null}
+            onChange={(event) => {
+              const id = event.target.value;
+              setCatalogId(id);
+              const entry = catalog?.find((item) => item.id === id);
+              if (entry)
+                setForm((current) => ({
+                  ...current,
+                  name: entry.name,
+                  totalValueInCents: entry.totalValueInCents,
+                }));
+            }}
+          >
+            <option value="">
+              {catalog === null && !catalogError
+                ? "Carregando planos…"
+                : "Plano personalizado"}
+            </option>
+            {(catalog ?? []).map((entry) => (
+              <option value={entry.id} key={entry.id}>
+                {entry.name} ·{" "}
+                {currency.format(entry.totalValueInCents / 100)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {catalogError && (
+          <div className="span-2">
+            <ErrorBanner error={catalogError} />
+            <p className="muted-copy">
+              Você pode preencher um plano personalizado ou tentar carregar o
+              catálogo novamente.
+            </p>
+            <button
+              type="button"
+              className="secondary-button button-sm"
+              onClick={reloadCatalog}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+        {catalog?.length === 0 && (
+          <p className="muted-copy span-2">
+            Nenhum plano cadastrado em Configurações. Preencha um plano
+            personalizado.
+          </p>
+        )}
+        <label className="span-2">
           Nome do plano
           <input
             required
+            minLength={3}
+            maxLength={120}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
@@ -11894,6 +11951,7 @@ function AdminPage() {
         </CollapsibleSection>
         <RelationshipSettingsSection canEdit />
         <HolidaysSection />
+        <PlanCatalogSection />
         <PatientTagsSection canEdit />
         <CollapsibleSection
           className="admin-audit"
@@ -12704,6 +12762,274 @@ function HolidaysContent() {
   );
 }
 
+/** Fetch when the settings drawer or sale modal mounts; retry without losing form edits. */
+function usePlanCatalog() {
+  const [entries, setEntries] = useState<PlanCatalogEntry[] | null>(null);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    api
+      .planCatalog()
+      .then((data) => {
+        if (active) {
+          setEntries(data);
+          setError("");
+        }
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [revision]);
+  const reload = () => {
+    setError("");
+    setEntries(null);
+    setRevision((value) => value + 1);
+  };
+  return { entries, setEntries, error, reload };
+}
+
+function PlanCatalogSection() {
+  return (
+    <CollapsibleSection eyebrow="Planos e sessões" title="Planos">
+      <PlanCatalogContent />
+    </CollapsibleSection>
+  );
+}
+
+function sortPlanCatalog(entries: PlanCatalogEntry[]) {
+  return [...entries].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+function PlanCatalogContent() {
+  const { can } = useAuthorization();
+  const { entries, setEntries, error, reload } = usePlanCatalog();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<PlanCatalogEntry | null>(null);
+  const [deleting, setDeleting] = useState<PlanCatalogEntry | null>(null);
+  return (
+    <>
+      <p className="muted-copy">
+        Cadastre o nome e o valor dos planos para preencher as novas vendas
+        automaticamente. O valor pode ser ajustado em cada venda. Alterar ou
+        excluir um item daqui preserva os planos já vendidos.
+      </p>
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            onClick={reload}
+          >
+            Tentar novamente
+          </button>
+        </>
+      )}
+      {entries === null ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          {can("settings.plans_create") && (
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus size={17} />
+                Adicionar plano
+              </button>
+            </div>
+          )}
+          {entries.length === 0 ? (
+            <EmptyState
+              title="Nenhum plano configurado"
+              copy="Cadastre planos e valores para a equipe selecionar nas vendas."
+            />
+          ) : (
+            <ul className="tag-list" aria-label="Planos configurados">
+              {entries.map((entry) => (
+                <li key={entry.id}>
+                  <div className="tag-list-info">
+                    <strong>{entry.name}</strong>
+                    <small>
+                      {currency.format(entry.totalValueInCents / 100)}
+                    </small>
+                  </div>
+                  <div className="tag-list-actions">
+                    {can("settings.plans_update") && (
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        aria-label={`Editar plano ${entry.name}`}
+                        onClick={() => {
+                          setEditing(entry);
+                          setFormOpen(true);
+                        }}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {can("settings.plans_delete") && (
+                      <button
+                        type="button"
+                        className="danger-button button-sm"
+                        aria-label={`Excluir plano ${entry.name}`}
+                        onClick={() => setDeleting(entry)}
+                      >
+                        Excluir
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {formOpen && (
+        <PlanCatalogEditModal
+          entry={editing}
+          onClose={() => setFormOpen(false)}
+          onSaved={(saved) => {
+            setEntries((items) =>
+              sortPlanCatalog([
+                ...(items ?? []).filter((item) => item.id !== saved.id),
+                saved,
+              ]),
+            );
+            setFormOpen(false);
+          }}
+        />
+      )}
+      {deleting && (
+        <ActionModal
+          eyebrow="Planos"
+          title="Excluir plano do catálogo"
+          subtitle={deleting.name}
+          effect="Este plano deixa de aparecer nas opções de novas vendas. Os planos já vendidos e suas parcelas serão preservados."
+          confirmLabel="Excluir plano"
+          danger
+          onClose={() => setDeleting(null)}
+          onConfirm={async () => {
+            await api.deletePlanCatalogEntry(deleting.id);
+            setEntries((items) =>
+              (items ?? []).filter((item) => item.id !== deleting.id),
+            );
+            setDeleting(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function PlanCatalogEditModal({
+  entry,
+  onClose,
+  onSaved,
+}: {
+  entry: PlanCatalogEntry | null;
+  onClose: () => void;
+  onSaved: (entry: PlanCatalogEntry) => void;
+}) {
+  const [name, setName] = useState(entry?.name ?? "");
+  const [value, setValue] = useState(
+    entry ? String(entry.totalValueInCents / 100) : "",
+  );
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    const input = planCatalogInputSchema.safeParse({
+      name,
+      totalValueInCents: reaisToCents(value),
+    });
+    if (!input.success) {
+      setError(
+        name.trim().length < 3 || name.trim().length > 120
+          ? "Informe um nome entre 3 e 120 caracteres."
+          : "Informe um valor válido, maior ou igual a zero.",
+      );
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      onSaved(
+        entry
+          ? await api.updatePlanCatalogEntry(entry.id, input.data)
+          : await api.createPlanCatalogEntry(input.data),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={entry ? "Editar plano do catálogo" : "Adicionar plano ao catálogo"}
+      subtitle="Nome e valor para preencher novas vendas."
+      busy={saving}
+      onClose={onClose}
+    >
+      <form
+        className="form-grid"
+        noValidate
+        onSubmit={(event) => void submit(event)}
+      >
+        <label className="span-2">
+          Nome do plano
+          <input
+            required
+            minLength={3}
+            maxLength={120}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label className="span-2">
+          Valor total
+          <input
+            required
+            type="number"
+            min="0"
+            step="0.01"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </label>
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Voltar
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? "Salvando…" : "Salvar plano"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
   return (
     <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas">
@@ -13034,10 +13360,11 @@ function RelationshipSettingsPage() {
       <PageHeader
         eyebrow="Controle operacional"
         title="Configurações"
-        description="Prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
+        description="Planos e valores, prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
       />
       <div className="settings-stack">
         <RelationshipSettingsSection canEdit={false} />
+        <PlanCatalogSection />
         <PatientTagsSection canEdit={canEdit("settings")} />
       </div>
     </>

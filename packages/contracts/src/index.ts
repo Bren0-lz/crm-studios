@@ -720,6 +720,19 @@ export const clinicalAddendumInputSchema = z.object({
 });
 export type ClinicalAddendumInput = z.infer<typeof clinicalAddendumInputSchema>;
 
+/** Reusable name and price; sold plans keep their own independent terms. */
+export const planCatalogInputSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+});
+export type PlanCatalogInput = z.infer<typeof planCatalogInputSchema>;
+export interface PlanCatalogEntry extends PlanCatalogInput {
+  id: string;
+  clinicId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const planKindSchema = z.enum([
   "single",
   "fixed_package",
