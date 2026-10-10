@@ -1,7 +1,17 @@
+<<<<<<< HEAD
 import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import type { DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
+=======
+import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate, DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -277,6 +287,13 @@ export const api = {
       body: JSON.stringify(input),
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
+  auditHistory: (cursor?: string, filters: AuditHistoryFilters = {}) => {
+    const query = new URLSearchParams();
+    if (cursor) query.set("cursor", cursor);
+    for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+    return request<AdminAuditPage>(`/history/audit-events${query.size ? `?${query}` : ""}`);
+  },
+  historyActors: () => request<HistoryActor[]>("/history/actors"),
   dashboard: (date: string) =>
     request<DashboardViewSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   patients: (search = "") =>
@@ -475,6 +492,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+<<<<<<< HEAD
   planCatalog: () => request<PlanCatalogEntry[]>("/plan-catalog"),
   createPlanCatalogEntry: (input: PlanCatalogInput) =>
     request<PlanCatalogEntry>("/plan-catalog", {
@@ -489,6 +507,11 @@ export const api = {
   deletePlanCatalogEntry: (id: string) =>
     request<void>(`/plan-catalog/${id}`, { method: "DELETE" }),
 
+=======
+  planTemplates: () => request<PlanTemplate[]>("/plan-templates"),
+  createPlanTemplate: (input: PlanTemplateInput) => request<PlanTemplate>("/plan-templates", { method: "POST", body: JSON.stringify(input) }),
+  updatePlanTemplate: (id: string, input: PlanTemplateUpdate) => request<PlanTemplate>(`/plan-templates/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   plans: (patientId = "") =>
     request<PatientPlan[]>(`/plans?patientId=${encodeURIComponent(patientId)}`),
   createPlan: (input: PatientPlanInput) =>

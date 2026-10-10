@@ -39,6 +39,10 @@ export async function seedDemoScenarios(client: PoolClient) {
     [JSON.stringify(data.plans)],
   );
   await client.query(
+    `INSERT INTO patient_plan_services (clinic_id,plan_id,service_id,position,service_name,total_sessions,remaining_sessions,total_value_in_cents)
+     SELECT pp.clinic_id,pp.id,pp.service_id,0,s.name,pp.total_sessions,pp.remaining_sessions,pp.total_value_in_cents
+     FROM patient_plans pp JOIN services s ON s.id=pp.service_id WHERE pp.id=ANY($1::uuid[]) ON CONFLICT DO NOTHING`, [data.plans.map((plan) => plan.id)]);
+  await client.query(
     `INSERT INTO appointments (id, clinic_id, patient_id, professional_id, room_id, service_id, starts_at, ends_at, status, created_at, updated_at)
     SELECT id, "clinicId", "patientId", "professionalId", "roomId", "serviceId", "startsAt"::timestamptz, "endsAt"::timestamptz, status::appointment_status, "createdAt"::timestamptz, "updatedAt"::timestamptz
     FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "professionalId" uuid, "roomId" uuid, "serviceId" uuid, "startsAt" text, "endsAt" text, status text, "createdAt" text, "updatedAt" text)
@@ -46,9 +50,9 @@ export async function seedDemoScenarios(client: PoolClient) {
     [JSON.stringify(data.appointments)],
   );
   await client.query(
-    `INSERT INTO session_movements (id, clinic_id, plan_id, appointment_id, kind, quantity, reason, actor_user_id, created_at)
-    SELECT id, $2::uuid, "planId", "appointmentId", kind::session_movement_kind, quantity, reason, $3::uuid, "createdAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "planId" uuid, "appointmentId" uuid, kind text, quantity integer, reason text, "createdAt" text)
+    `INSERT INTO session_movements (id, clinic_id, plan_id, service_id, appointment_id, kind, quantity, reason, actor_user_id, created_at)
+    SELECT id, $2::uuid, "planId", "serviceId", "appointmentId", kind::session_movement_kind, quantity, reason, $3::uuid, "createdAt"::timestamptz
+    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "planId" uuid, "serviceId" uuid, "appointmentId" uuid, kind text, quantity integer, reason text, "createdAt" text)
     ON CONFLICT DO NOTHING`,
     [JSON.stringify(data.movements), data.plans[0]!.clinicId, demoUserId],
   );

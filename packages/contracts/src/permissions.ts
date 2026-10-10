@@ -111,13 +111,19 @@ const operations = {
     export: "Exportar relatórios",
   },
   settings: {
+<<<<<<< HEAD
     plans_create: "Cadastrar plano no catálogo",
     plans_update: "Editar plano do catálogo",
     plans_delete: "Excluir plano do catálogo",
+=======
+    plans_create: "Cadastrar plano do catálogo",
+    plans_update: "Editar e ativar ou desativar plano do catálogo",
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
     tags_create: "Criar etiqueta",
     tags_update: "Editar etiqueta",
     tags_delete: "Excluir etiqueta",
   },
+  history: {},
 } as const;
 
 type OperationKey = {
@@ -136,6 +142,8 @@ export interface PermissionDefinition {
   legacyView: readonly AppModule[];
   legacyEdit: readonly AppModule[];
   legacyAdmin?: boolean;
+  /** New operations that must not be inferred from the old module flags. */
+  explicitGrantOnly?: boolean;
 }
 
 export const permissionCatalog: readonly PermissionDefinition[] =
@@ -145,8 +153,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
       {
         key: `${module}.view` as PermissionKey,
         module,
-        name: "Visualizar módulo",
-        description: "Abrir o módulo e consultar seus registros na clínica.",
+        name: module === "history" ? "Visualizar histórico" : "Visualizar módulo",
+        description: module === "history" ? "Consultar o histórico administrativo da clínica." : "Abrir o módulo e consultar seus registros na clínica.",
         dependencies: [],
         legacyView: [module],
         legacyEdit: [],
@@ -185,6 +193,7 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView,
             legacyEdit,
             ...(key === "patients.export" ? { legacyAdmin: true } : {}),
+            ...((key === "settings.plans_create" || key === "settings.plans_update") ? { explicitGrantOnly: true } : {}),
           };
         },
       ),
@@ -235,6 +244,7 @@ export function legacyPermissions(
       .filter(
         (item) =>
           !item.legacyAdmin &&
+          !item.explicitGrantOnly &&
           item.legacyView.every((module) => modules.includes(module)) &&
           item.legacyEdit.every(
             (module) =>

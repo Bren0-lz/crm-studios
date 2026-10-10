@@ -2850,37 +2850,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   display: none;
 }
 
-.admin-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-
-.admin-grid > .panel {
-  padding: var(--space-5);
-}
-
-.admin-grid > .panel > .panel-head {
-  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);
-}
-
-.admin-relationship > .muted-copy,
-.admin-relationship > .clinical-form {
-  margin-right: 23px;
-  margin-left: 23px;
-}
-
-.admin-relationship > .clinical-form {
-  margin-bottom: 23px;
-}
-
-.admin-grid > .admin-relationship > .muted-copy,
-.admin-grid > .admin-relationship > .clinical-form {
-  margin-right: 0;
-  margin-left: 0;
-  margin-bottom: 0;
-}
-
 .groups-layout {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3124,11 +3093,12 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .group-overview > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 
-.admin-users {
+.admin-users,
+.admin-plan-templates {
   container-type: inline-size;
 }
 
-.admin-users article {
+.admin-user-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-2) var(--space-4);
@@ -3152,6 +3122,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 
 .admin-users small,
+.admin-plan-templates small,
 .admin-audit span {
   display: block;
   margin-top: 3px;
@@ -3164,6 +3135,103 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   border-top: 1px solid var(--line);
   font-size: var(--text-xs);
 }
+
+.admin-audit {
+  padding: var(--space-5);
+}
+
+.admin-audit .audit-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.audit-entry > div {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.audit-entry h2 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.audit-category,
+.audit-byline {
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.audit-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.audit-fields dt {
+  font-weight: 600;
+}
+
+.audit-fields dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-details {
+  min-width: 0;
+}
+
+.audit-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.audit-tabs [aria-selected="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.audit-json {
+  max-width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.history-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: var(--space-4);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.history-filters label,
+.history-filters select {
+  min-width: 0;
+}
+
+.history-filter-actions,
+.history-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.history-filter-actions { grid-column: 1 / -1; }
+.history-pagination { justify-content: space-between; margin-top: var(--space-4); }
 
 /* Usuários: selo de inativo e ações agrupadas que quebram linha. */
 .admin-user-tags {
@@ -3187,7 +3255,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
 /* Painel estreito (metade da grade de Configurações): ações descem para baixo dos dados. */
 @container (max-width: 460px) {
-  .admin-users article {
+  .admin-user-row {
     grid-template-columns: 1fr;
   }
 
@@ -3276,15 +3344,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 /* Sessão antiga sendo completada com /me antes de montar o menu. */
 .session-check {
   padding: var(--space-6);
-}
-
-/* Feriados (Configurações): o painel recebe o mesmo respiro dos demais de `.admin-grid`. */
-.admin-grid > .admin-holidays {
-  padding: var(--space-5);
-}
-
-.admin-holidays .collapsible-body > .muted-copy {
-  margin: 0 0 var(--space-4);
 }
 
 .holiday-form {
@@ -3416,12 +3475,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .tag-list-actions {
   display: flex;
   gap: var(--space-2);
-}
-
-/* Configurações de quem não é administrador: gavetas empilhadas. */
-.settings-stack {
-  display: grid;
-  gap: var(--space-4);
 }
 
 /* Feriado na agenda: aviso no dia e no resumo do dia, etiqueta na semana e no mês. */
@@ -5169,10 +5222,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     grid-template-columns: 1fr;
   }
 
-  .admin-grid {
-    grid-template-columns: 1fr;
-  }
-
   .plan-metrics {
     grid-template-columns: 1fr;
   }
@@ -5218,7 +5267,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   .sales-detail-grid,
   .clinical-summary,
   .clinical-workspace-grid,
-  .admin-grid,
   .plan-metrics,
   .plans-grid,
   .receipt-content dl,
@@ -5256,7 +5304,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
     padding: var(--space-3) var(--space-4);
   }
 
-  .admin-users article {
+  .admin-user-row {
     grid-template-columns: 1fr;
     justify-items: start;
   }
@@ -5581,84 +5629,6 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .patient-export-scope small { color: var(--muted); font-size: var(--text-xs); }
 .patient-export-bulk { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-3); }
 
-/* Gaveta (CollapsibleSection, Configurações): cabeçalho do painel inteiro clicável pelo botão do
-   título; fechada, some a linha do cabeçalho e o corpo (vazio) fica oculto. */
-.collapsible-head {
-  position: relative;
-}
-
-.collapsible-section:not(.is-open) > .collapsible-head {
-  border-bottom: 0;
-}
-
-/* Variante text-button (padrão de botões) ajustada para virar o próprio título do painel. */
-.text-button.collapsible-toggle,
-.text-button.collapsible-toggle:hover:not(:disabled) {
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  text-align: left;
-}
-
-/* O botão cobre o cabeçalho todo (eyebrow e seta incluídos) sem deixar de ser o título. */
-.collapsible-toggle::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-
-.text-button.collapsible-toggle:focus-visible {
-  outline: none;
-}
-
-.collapsible-toggle:focus-visible::after {
-  outline: 2px solid var(--green-2);
-  outline-offset: -2px;
-}
-
-.collapsible-head:hover {
-  background: #f7f8f5;
-}
-
-.collapsible-chevron {
-  flex-shrink: 0;
-  color: var(--muted);
-  transition: transform 160ms ease;
-}
-
-.collapsible-section.is-open .collapsible-chevron {
-  transform: rotate(180deg);
-}
-
-.collapsible-body {
-  padding: var(--space-4) calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
-}
-
-.collapsible-body > :first-child {
-  margin-top: 0;
-}
-
-/* Na grade de Configurações o respiro vem do corpo da gaveta, não do painel. */
-.admin-grid > .collapsible-section {
-  align-self: start;
-  padding: 0;
-}
-
-.admin-grid > .collapsible-section > .panel-head {
-  margin: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .collapsible-chevron {
-    transition: none;
-  }
-}
-
 /* Operation permission editor */
 .operation-permissions { display: grid; gap: 16px; }
 .permission-toolbar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
@@ -5673,3 +5643,305 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .permission-option > span { display: grid; gap: 4px; }
 .permission-option small { color: var(--text-muted, #596474); font-weight: 400; line-height: 1.4; }
 .permission-option:focus-within { outline: 2px solid var(--accent, #3d7c78); outline-offset: 2px; }
+
+/* Configurações: navegação persistente e uma área de trabalho por vez. */
+.settings-page {
+  min-width: 0;
+}
+.settings-page .page-header {
+  margin-bottom: var(--space-5);
+}
+.settings-page .page-header h1 {
+  font-family: "Manrope", "DM Sans", sans-serif;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -1px;
+}
+.settings-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: var(--space-2);
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+.text-button.settings-tab {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 46px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: #59665f;
+  white-space: nowrap;
+  font-weight: 600;
+  text-decoration: none;
+}
+.text-button.settings-tab:hover:not(:disabled) {
+  background: #f0f4f0;
+  color: var(--green);
+}
+.text-button.settings-tab[aria-selected="true"] {
+  background: var(--mint);
+  color: var(--green);
+  border-color: #c7dfd3;
+}
+.settings-tab:focus-visible,
+.settings-panel:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+.settings-panel {
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(34, 50, 44, 0.025);
+}
+.settings-panel[hidden] {
+  display: none;
+}
+.settings-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+.settings-section-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--green);
+  background: #f4f6f1;
+}
+.settings-panel-heading h2 {
+  margin: 0 0 var(--space-1);
+  font-family: "Manrope", "DM Sans", sans-serif;
+  font-size: var(--text-xl);
+  letter-spacing: -0.3px;
+}
+.settings-panel-heading p {
+  margin: 0;
+  color: #647169;
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+.settings-panel-content {
+  padding: var(--space-6);
+}
+.settings-panel-content > .muted-copy:first-child {
+  margin-top: 0;
+}
+.settings-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.settings-toolbar p {
+  margin: 0;
+}
+.settings-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--space-5);
+  min-width: 0;
+}
+.settings-fieldset legend {
+  font-weight: 700;
+  font-size: var(--text-lg);
+  padding: 0;
+  margin-bottom: var(--space-3);
+}
+.settings-fieldset > .muted-copy {
+  margin: 0 0 var(--space-4);
+}
+.settings-fieldset + .settings-fieldset {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-5);
+}
+.settings-fieldset + .settings-fieldset legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+.settings-fieldset + .settings-fieldset > :nth-child(2) {
+  clear: both;
+}
+.settings-panel .form-grid {
+  gap: var(--space-4) var(--space-5);
+}
+.settings-panel label {
+  color: #46554c;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.settings-panel input,
+.settings-panel select,
+.settings-panel textarea {
+  margin-top: var(--space-2);
+  background: #fff;
+  border-color: #d8dfd7;
+  border-radius: var(--radius-sm);
+  font-weight: 400;
+}
+.settings-panel input:focus,
+.settings-panel textarea:focus,
+.settings-panel select:focus {
+  border-color: var(--green-2);
+}
+.settings-panel input[readonly],
+.settings-panel textarea[readonly] {
+  background: #f4f5f1;
+}
+.settings-save-bar {
+  flex-wrap: wrap;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.settings-dirty {
+  margin-right: auto;
+  font-size: var(--text-sm);
+  color: #637268;
+  font-weight: 500;
+}
+.settings-inline-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f6f7f3;
+}
+.settings-inline-fields legend {
+  padding: 0 var(--space-2);
+  font-weight: 700;
+  color: var(--ink);
+}
+.settings-messages {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.settings-messages > .muted-copy {
+  grid-column: 1 / -1;
+}
+.settings-messages textarea {
+  min-height: 112px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.settings-page .admin-user-row {
+  padding: var(--space-5) 0;
+  gap: var(--space-5);
+}
+.settings-page .admin-user-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.settings-page .admin-user-info strong {
+  font-size: var(--text-lg);
+}
+.settings-page .admin-user-info small {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+}
+.settings-page .holiday-list article,
+.settings-page .tag-list > li {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+.settings-page .holiday-list,
+.settings-page .tag-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.settings-plans {
+  container-type: inline-size;
+}
+.settings-plans .admin-user-info small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.settings-modal {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.settings-modal .modal-head {
+  background: #f6f7f3;
+}
+.settings-modal .modal-head h2 {
+  font-family: "Manrope", "DM Sans", sans-serif;
+  font-size: var(--text-2xl);
+}
+.settings-modal .permission-group {
+  border-color: var(--line);
+  background: var(--paper);
+}
+.settings-modal .permission-option {
+  background: #f2f5ef;
+}
+.settings-modal .permission-group-head h3 {
+  font-size: var(--text-lg);
+}
+@media (max-width: 700px) {
+  .settings-tabs {
+    margin-bottom: var(--space-4);
+  }
+  .text-button.settings-tab {
+    flex-grow: 0;
+  }
+  .settings-panel-heading {
+    padding: var(--space-5) var(--space-4);
+    gap: var(--space-3);
+  }
+  .settings-panel-content {
+    padding: var(--space-5) var(--space-4);
+  }
+  .settings-panel .form-grid,
+  .settings-messages,
+  .settings-inline-fields {
+    grid-template-columns: 1fr;
+  }
+  .settings-panel .span-2,
+  .settings-messages > .muted-copy {
+    grid-column: 1 / -1;
+  }
+  .settings-inline-fields {
+    padding: var(--space-4);
+  }
+  .settings-save-bar > .settings-dirty {
+    width: 100%;
+  }
+  .settings-save-bar > button {
+    flex: 1 1 auto;
+  }
+  .settings-page .admin-user-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .settings-toolbar {
+    flex-wrap: wrap;
+  }
+  .settings-modal .permission-toolbar > label {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+}

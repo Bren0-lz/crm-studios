@@ -2,6 +2,8 @@ import { planCatalogInputSchema, type PlanCatalogEntry } from "@crm/contracts";
 import { AuthorizationProvider } from "./authorization";
 import { useAuthorization } from "./authorization-context";
 import { PermissionEditor } from "./PermissionEditor";
+import { auditHistoryQuerySchema, historyActions, type AuditHistoryFilters, type HistoryActor } from "@crm/contracts";
+import { formatAuditEvent, type AuditField } from "./audit-history";
 import { legacyPermissions, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
@@ -9,7 +11,6 @@ import {
   Bell,
   BarChart3,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -56,6 +57,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
   AdminAuditEvent,
   AdminUser,
   AppModule,
@@ -418,6 +421,7 @@ const navItems: Array<{
   { to: "/prontuarios", label: "Prontuários", icon: Stethoscope, module: "clinical" },
   { to: "/financeiro", label: "Financeiro", icon: CircleDollarSign, module: "finance" },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3, module: "reports" },
+  { to: "/historico", label: "Histórico", icon: FileClock, module: "history" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, module: "settings" },
 ];
 
@@ -3162,7 +3166,7 @@ function DocumentsPage() {
   const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
     name: "Contrato de prestação de serviços",
     kind: "contract",
-    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.",
+    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
   });
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
@@ -3355,6 +3359,7 @@ function DocumentsPage() {
               </label>
               <small>
                 Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                {"{{plano_servicos}}"},{" "}
                 {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
                 {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
               </small>
@@ -5536,6 +5541,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                     <strong>{plan.remainingSessions}</strong>
                     <span>de {plan.totalSessions} sessões restantes</span>
                   </div>
+                  {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões · {currency.format(entry.totalValueInCents / 100)}</p>)}
                   <div className="progress-track">
                     <span style={{ width: `${percent}%` }} />
                   </div>
@@ -5684,20 +5690,28 @@ function PlanModal({
   onClose: () => void;
   onSaved: (plan: PatientPlan) => void;
 }) {
+<<<<<<< HEAD
  const { can } = useAuthorization();
   const { entries: catalog, error: catalogError, reload: reloadCatalog } = usePlanCatalog();
   const [catalogId, setCatalogId] = useState("");
+=======
+  const { can, canView } = useAuthorization();
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   const currentDate = localIsoDate();
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
   const [form, setForm] = useState<PatientPlanInput>(() => {
     if (!renewing) {
       return {
+        planTemplateId: "",
         patientId: patients[0]?.id ?? "",
+<<<<<<< HEAD
         serviceId: services[0]?.id ?? "",
+=======
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
         name: "",
         kind: "fixed_package",
-        totalSessions: 10,
+        services: [],
         validFrom: currentDate,
         validUntil: localIsoDate(nextYear),
         totalValueInCents: 0,
@@ -5712,11 +5726,17 @@ function PlanModal({
       firstDueDate: currentDate,
     };
     return {
+      planTemplateId: renewing.planTemplateId ?? "",
       patientId: renewing.patientId,
-      serviceId: renewing.serviceId,
       name: renewing.name,
       kind: renewing.kind,
-      totalSessions: renewing.totalSessions,
+      services: renewing.services.map(
+        ({ serviceId, totalSessions, totalValueInCents }) => ({
+          serviceId,
+          totalSessions,
+          totalValueInCents,
+        }),
+      ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.installments,
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
@@ -5725,8 +5745,36 @@ function PlanModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  useEffect(() => {
+    if (renewing) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then((items) => {
+        if (active)
+          setTemplates(
+            items.filter((item) => item.active && item.services.length > 0),
+          );
+      })
+      .catch((cause: Error) => {
+        if (active) setCatalogError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [renewing, catalogAttempt]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (
+      !renewing &&
+      !templates?.some((item) => item.id === form.planTemplateId)
+    ) {
+      setError("Selecione um plano cadastrado.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -5734,7 +5782,7 @@ function PlanModal({
         onSaved(
           await api.renewPlan(renewing.id, {
             name: form.name,
-            totalSessions: form.totalSessions,
+            services: form.services,
             validFrom: form.validFrom,
             validUntil: form.validUntil,
             totalValueInCents: form.totalValueInCents,
@@ -5763,23 +5811,54 @@ function PlanModal({
       busy={loading}
       onClose={onClose}
     >
-      {(renewing ? can("plans.renew") : can("plans.create")) && (<form className="form-grid" onSubmit={submit}>
-        {!renewing && (
-          <>
+      {(renewing ? can("plans.renew") : can("plans.create")) && (
+        <form className="form-grid" onSubmit={submit}>
+          {!renewing && (
+            <>
+              <label className="span-2">
+                Cliente
+                <select
+                  required
+                  value={form.patientId}
+                  onChange={(e) =>
+                    setForm({ ...form, patientId: e.target.value })
+                  }
+                >
+                  {patients.map((patient) => (
+                    <option value={patient.id} key={patient.id}>
+                      {patient.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Modelo
+                <select
+                  value={form.kind}
+                  onChange={(e) => {
+                    const kind = e.target.value as PatientPlan["kind"];
+                    setForm({ ...form, kind, autoRenew: kind === "recurring" });
+                  }}
+                >
+                  {Object.entries(planKindLabels).map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {renewing ? (
             <label className="span-2">
-              Cliente
-              <select
+              Nome do plano
+              <input
                 required
-                value={form.patientId}
-                onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-              >
-                {patients.map((patient) => (
-                  <option value={patient.id} key={patient.id}>
-                    {patient.fullName}
-                  </option>
-                ))}
-              </select>
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </label>
+<<<<<<< HEAD
             <label>
               Serviço
               <select
@@ -5974,9 +6053,242 @@ function PlanModal({
           </button>
         </div>
       </form>)}
+=======
+          ) : (
+            <div className="span-2">
+              <label>
+                Plano cadastrado
+                <select
+                  required
+                  value={form.planTemplateId}
+                  disabled={!templates?.length || loading}
+                  onChange={(event) => {
+                    const template = templates?.find(
+                      (item) => item.id === event.target.value,
+                    );
+                    setForm({
+                      ...form,
+                      planTemplateId: template?.id ?? "",
+                      name: template?.name ?? "",
+                      totalValueInCents: template?.totalValueInCents ?? 0,
+                      services:
+                        template?.services.map((entry) => ({ ...entry })) ?? [],
+                      kind: template?.kind ?? "fixed_package",
+                    });
+                  }}
+                >
+                  <option value="">Selecione um plano</option>
+                  {templates?.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ·{" "}
+                      {currency.format(item.totalValueInCents / 100)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {catalogError ? (
+                <div className="form-error" role="alert">
+                  {catalogError}{" "}
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    onClick={() => {
+                      setCatalogError("");
+                      setTemplates(null);
+                      setCatalogAttempt((attempt) => attempt + 1);
+                    }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              ) : templates === null ? (
+                <LoadingBlock />
+              ) : templates.length === 0 ? (
+                <p className="muted-copy">
+                  Nenhum plano ativo cadastrado. Cadastre um plano em
+                  Configurações › Planos.
+                  {canView("settings") && (
+                    <>
+                      {" "}
+                      <NavLink to="/configuracoes">Abrir configurações</NavLink>
+                    </>
+                  )}
+                </p>
+              ) : null}
+            </div>
+          )}
+          {form.services.map((entry, index) => (
+            <fieldset className="span-2 form-grid" key={entry.serviceId}>
+              <legend>
+                {renewing?.services.find(
+                  (item) => item.serviceId === entry.serviceId,
+                )?.serviceName ??
+                  services.find((item) => item.id === entry.serviceId)?.name ??
+                  "Serviço"}
+              </legend>
+              {renewing && (
+                <p className="span-2">
+                  Saldo atual:{" "}
+                  {
+                    renewing.services.find(
+                      (item) => item.serviceId === entry.serviceId,
+                    )?.remainingSessions
+                  }{" "}
+                  sessões. A renovação criará o novo saldo informado abaixo.
+                </p>
+              )}
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={entry.totalSessions}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? { ...item, totalSessions: Number(event.target.value) }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                    });
+                  }}
+                />
+              </label>
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="21474836.47"
+                  step="0.01"
+                  value={entry.totalValueInCents / 100}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? {
+                            ...item,
+                            totalValueInCents: Math.round(
+                              Number(event.target.value) * 100,
+                            ),
+                          }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                      totalValueInCents: entries.reduce(
+                        (sum, item) => sum + item.totalValueInCents,
+                        0,
+                      ),
+                    });
+                  }}
+                />
+              </label>
+            </fieldset>
+          ))}
+          <label className="span-2">
+            Valor total
+            <input
+              readOnly
+              value={currency.format(form.totalValueInCents / 100)}
+            />
+          </label>
+          <label>
+            Início
+            <input
+              required
+              type="date"
+              value={form.validFrom}
+              onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+            />
+          </label>
+          <label>
+            Fim da validade
+            <input
+              type="date"
+              value={form.validUntil}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  validUntil: e.target.value,
+                  autoRenew: Boolean(e.target.value) && form.autoRenew,
+                })
+              }
+            />
+          </label>
+          <label>
+            Parcelas
+            <input
+              required
+              type="number"
+              min="1"
+              max="36"
+              value={form.installments}
+              onChange={(e) =>
+                setForm({ ...form, installments: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Primeiro vencimento
+            <input
+              required
+              type="date"
+              value={form.firstDueDate}
+              onChange={(e) =>
+                setForm({ ...form, firstDueDate: e.target.value })
+              }
+            />
+          </label>
+          <label className="checkbox-field span-2">
+            <input
+              type="checkbox"
+              checked={Boolean(form.autoRenew)}
+              disabled={!form.validUntil}
+              onChange={(e) =>
+                setForm({ ...form, autoRenew: e.target.checked })
+              }
+            />
+            {form.validUntil
+              ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+              : "Renovação automática exige o fim da validade"}
+          </label>
+          {error && <div className="form-error span-2">{error}</div>}
+          <div className="modal-actions span-2">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              className="primary-button"
+              disabled={loading || (!renewing && !form.planTemplateId)}
+            >
+              {renewing
+                ? loading
+                  ? "Renovando…"
+                  : "Renovar plano e gerar parcelas"
+                : loading
+                  ? "Criando…"
+                  : "Criar plano e parcelas"}
+            </button>
+          </div>
+        </form>
+      )}
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
     </Modal>
   );
 }
+
 
 function SessionMovementsModal({
   plan,
@@ -6003,6 +6315,7 @@ function SessionMovementsModal({
       subtitle={`${plan.remainingSessions} sessões disponíveis no momento.`}
       onClose={onClose}
     >
+      {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões restantes</p>)}
       <div className="movement-list">
         {movements.length === 0 ? (
           <LoadingBlock />
@@ -6018,7 +6331,7 @@ function SessionMovementsModal({
                 {movement.quantity}
               </span>
               <div>
-                <strong>{movement.reason}</strong>
+                <strong>{movement.reason} · {movement.serviceName}</strong>
                 <small>
                   {new Date(movement.createdAt).toLocaleString("pt-BR")}
                 </small>
@@ -11509,7 +11822,7 @@ function ScheduleBlockModal({
 }
 
 /**
- * Aviso de edição não salva (fechar gaveta ou sair pelo menu): Salvar (só segue se der certo; o
+ * Aviso de edição não salva (trocar de aba ou sair pelo menu): Salvar (só segue se der certo; o
  * erro fica no modal), Descartar (volta aos valores salvos e segue) ou Continuar editando.
  */
 function UnsavedChangesModal({
@@ -11587,31 +11900,48 @@ function UnsavedChangesModal({
 function useUnsavedChangesPrompt({
   section,
   dirty,
+  busy = false,
   save,
   discard,
 }: {
   section: string;
   dirty: boolean;
+  busy?: boolean;
   save: () => Promise<void>;
   discard: () => void;
 }) {
   const [pending, setPending] = useState<{ proceed: () => void } | null>(null);
   const navigate = useNavigate();
+  const registerTabGuard = useContext(SettingsPanelContext)?.registerGuard;
   const registerGuard = useContext(NavigationGuardContext);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !busy) return;
     return registerGuard((to) => {
+      if (busy) return true;
       setPending({ proceed: () => void navigate(to) });
       return true;
     });
-  }, [dirty, registerGuard, navigate]);
+  }, [dirty, busy, registerGuard, navigate]);
   const confirmLeave = useCallback(
     (proceed: () => void) => {
+      if (busy) return;
       if (dirty) setPending({ proceed });
       else proceed();
     },
-    [dirty],
+    [dirty, busy],
   );
+  useEffect(() => {
+    if (registerTabGuard) return registerTabGuard(confirmLeave);
+  }, [registerTabGuard, confirmLeave]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const modal = pending && (
     <UnsavedChangesModal
       section={section}
@@ -11631,122 +11961,444 @@ function useUnsavedChangesPrompt({
   return { confirmLeave, modal };
 }
 
-/**
- * Seção recolhível (gaveta) com o visual de `.panel`/`panel-head`: começa fechada e abre pelo
- * título — botão nativo dentro do `h2` (Enter/Espaço), com `aria-expanded`/`aria-controls`.
- * Fechada, o conteúdo não é montado: componentes que buscam os próprios dados só buscam ao abrir
- * (e mostram carregando/erro nesse momento). Pode ser controlada (`open` + `onOpenChange`).
- */
-function CollapsibleSection({
-  title,
-  eyebrow,
-  className,
-  open: controlledOpen,
-  onOpenChange,
+type SettingsTabKey =
+  "clinic" | "users" | "plans" | "holidays" | "tags" | "relationship";
+type CloseGuard = (proceed: () => void) => void;
+
+const SettingsPanelContext = createContext<{
+  registerGuard: (guard: CloseGuard) => () => void;
+  registerBusy: () => () => void;
+} | null>(null);
+
+function useSettingsBusy(busy: boolean) {
+  const register = useContext(SettingsPanelContext)?.registerBusy;
+  useEffect(() => {
+    if (busy && register) return register();
+  }, [busy, register]);
+}
+
+const settingsTabs: Array<{
+  key: SettingsTabKey;
+  label: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+}> = [
+  {
+    key: "clinic",
+    label: "Clínica",
+    title: "Dados da clínica",
+    description:
+      "Mantenha a identificação e os canais de contato da sua clínica atualizados.",
+    icon: Building2,
+    adminOnly: true,
+  },
+  {
+    key: "users",
+    label: "Usuários",
+    title: "Usuários",
+    description: "Gerencie a equipe, os acessos e as permissões individuais.",
+    icon: Users,
+    adminOnly: true,
+  },
+  {
+    key: "plans",
+    label: "Planos",
+    title: "Planos",
+    description: "Organize o catálogo de planos disponíveis para novas vendas.",
+    icon: PackageOpen,
+  },
+  {
+    key: "holidays",
+    label: "Feriados",
+    title: "Feriados",
+    description: "Defina as datas em que a clínica não realiza atendimentos.",
+    icon: CalendarDays,
+    adminOnly: true,
+  },
+  {
+    key: "tags",
+    label: "Etiquetas",
+    title: "Etiquetas",
+    description:
+      "Organize os clientes com etiquetas para filtros e comunicações.",
+    icon: Tags,
+  },
+  {
+    key: "relationship",
+    label: "Relacionamento",
+    title: "Prazos e mensagens",
+    description:
+      "Configure quando entrar em contato e as mensagens sugeridas para cada situação.",
+    icon: HeartHandshake,
+  },
+];
+
+function SettingsPanel({
+  tab,
+  active,
+  baseId,
+  registerGuard,
+  registerBusy,
   children,
 }: {
-  title: string;
-  eyebrow?: string;
-  className?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  tab: (typeof settingsTabs)[number];
+  active: boolean;
+  baseId: string;
+  registerGuard: (key: SettingsTabKey, guard: CloseGuard) => () => void;
+  registerBusy: () => () => void;
   children: ReactNode;
 }) {
-  const [innerOpen, setInnerOpen] = useState(false);
-  const open = controlledOpen ?? innerOpen;
-  const bodyId = useId();
-  function toggle() {
-    if (controlledOpen === undefined) setInnerOpen(!open);
-    onOpenChange?.(!open);
-  }
+  const register = useCallback(
+    (guard: CloseGuard) => registerGuard(tab.key, guard),
+    [registerGuard, tab.key],
+  );
   return (
-    <section
-      className={`panel collapsible-section${open ? " is-open" : ""}${className ? ` ${className}` : ""}`}
+    <SettingsPanelContext.Provider
+      value={{ registerGuard: register, registerBusy }}
     >
-      <div className="panel-head collapsible-head">
-        <div>
-          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-          <h2>
-            <button
-              type="button"
-              className="text-button collapsible-toggle"
-              aria-expanded={open}
-              aria-controls={bodyId}
-              onClick={toggle}
-            >
-              {title}
-            </button>
-          </h2>
+      <section
+        className={"panel settings-panel settings-" + tab.key}
+        role="tabpanel"
+        id={baseId + "-" + tab.key + "-panel"}
+        aria-labelledby={baseId + "-" + tab.key + "-tab"}
+        hidden={!active}
+        tabIndex={0}
+      >
+        <div className="settings-panel-heading">
+          <span className="settings-section-icon">
+            <tab.icon size={22} aria-hidden="true" />
+          </span>
+          <div>
+            <h2>{tab.title}</h2>
+            <p>{tab.description}</p>
+          </div>
         </div>
-        <ChevronDown className="collapsible-chevron" size={20} aria-hidden="true" />
-      </div>
-      <div id={bodyId} className="collapsible-body" hidden={!open}>
-        {open ? children : null}
-      </div>
-    </section>
+        <div className="settings-panel-content">{children}</div>
+      </section>
+    </SettingsPanelContext.Provider>
   );
 }
 
-function AdminPage() {
+function SettingsPage() {
+  const { user, canEdit } = useAuthorization();
+  const admin = user?.role === "admin";
+  const tabs = settingsTabs.filter((tab) => admin || !tab.adminOnly);
+  const [active, setActive] = useState<SettingsTabKey>(
+    admin ? "clinic" : "plans",
+  );
+  const [visited, setVisited] = useState<SettingsTabKey[]>([active]);
+  const [busyCount, setBusyCount] = useState(0);
+  const guards = useRef(new Map<SettingsTabKey, CloseGuard>());
+  const baseId = useId();
+  const focusTarget = useRef<SettingsTabKey | null>(null);
+  const selected = tabs.some((tab) => tab.key === active)
+    ? active
+    : tabs[0]!.key;
+  useLayoutEffect(() => {
+    if (busyCount === 0 && focusTarget.current) {
+      document
+        .getElementById(baseId + "-" + focusTarget.current + "-tab")
+        ?.focus();
+      focusTarget.current = null;
+    }
+  }, [selected, busyCount, baseId]);
+  const registerGuard = useCallback(
+    (key: SettingsTabKey, guard: CloseGuard) => {
+      guards.current.set(key, guard);
+      return () => {
+        if (guards.current.get(key) === guard) guards.current.delete(key);
+      };
+    },
+    [],
+  );
+  const registerBusy = useCallback(() => {
+    setBusyCount((count) => count + 1);
+    return () => setBusyCount((count) => count - 1);
+  }, []);
+  function select(key: SettingsTabKey) {
+    if (key === selected || busyCount > 0) return;
+    const proceed = () => {
+      focusTarget.current = key;
+      setActive(key);
+      setVisited((current) =>
+        current.includes(key) ? current : [...current, key],
+      );
+    };
+    const guard = guards.current.get(selected);
+    if (guard) guard(proceed);
+    else proceed();
+  }
+  function moveFocus(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let next: number;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft")
+      next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    document.getElementById(baseId + "-" + tabs[next]!.key + "-tab")?.focus();
+  }
+  return (
+    <div className="settings-page">
+      <PageHeader
+        eyebrow="Gestão da clínica"
+        title="Configurações"
+        description="Organize sua operação e personalize os detalhes da clínica."
+      />
+      <div
+        className="settings-tabs"
+        role="tablist"
+        aria-label="Seções de configurações"
+      >
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.key}
+            id={baseId + "-" + tab.key + "-tab"}
+            type="button"
+            role="tab"
+            className="text-button settings-tab"
+            aria-selected={selected === tab.key}
+            aria-controls={baseId + "-" + tab.key + "-panel"}
+            tabIndex={selected === tab.key ? 0 : -1}
+            disabled={busyCount > 0}
+            onClick={() => select(tab.key)}
+            onKeyDown={(event) => moveFocus(event, index)}
+          >
+            <tab.icon size={18} aria-hidden="true" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {tabs.map((tab) => (
+        <SettingsPanel
+          key={tab.key}
+          tab={tab}
+          active={selected === tab.key}
+          baseId={baseId}
+          registerGuard={registerGuard}
+          registerBusy={registerBusy}
+        >
+          {(visited.includes(tab.key) || selected === tab.key) &&
+            (tab.key === "clinic" ? (
+              <ClinicSettingsContent />
+            ) : tab.key === "users" ? (
+              <AdminUsersContent />
+            ) : tab.key === "plans" ? (
+              <PlanTemplatesContent />
+            ) : tab.key === "holidays" ? (
+              <HolidaysContent />
+            ) : tab.key === "tags" ? (
+              <PatientTagsContent canEdit={canEdit("settings")} />
+            ) : (
+              <RelationshipSettingsContent canEdit={admin} />
+            ))}
+        </SettingsPanel>
+      ))}
+    </div>
+  );
+}
+
+function AuditFields({ fields }: { fields: AuditField[] }) {
+  return (
+    <dl className="audit-fields">
+      {fields.map(({ label, value }) => (
+        <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+function HistoryDetailsModal({ event, onClose }: { event: AdminAuditEvent; onClose: () => void }) {
+  const [tab, setTab] = useState<"summary" | "technical">("summary");
+  const id = useId();
+  const summary = formatAuditEvent(event);
+  const tabs = [{ key: "summary", label: "Resumo" }, { key: "technical", label: "Detalhes técnicos" }] as const;
+  const recorded = (value: string | undefined) => value?.trim() ? value : "Não registrado";
+  const technicalFields: AuditField[] = [
+    { label: "ID do evento", value: recorded(event.id) },
+    { label: "Código da ação", value: recorded(event.action) },
+    { label: "Tipo do registro afetado", value: recorded(event.entityType) },
+    { label: "ID do registro afetado", value: recorded(event.entityId) },
+    { label: "ID da clínica", value: recorded(event.clinicId) },
+    { label: "Responsável", value: summary.actor },
+    { label: "ID do responsável", value: recorded(event.actorUserId) },
+    { label: "Data e hora originais", value: recorded(event.createdAt) },
+    { label: "Endereço IP", value: recorded(event.ipAddress) },
+  ];
+  return (
+    <Modal eyebrow="Histórico" title="Detalhes da alteração" subtitle={summary.title} initialFocus='[role="tab"][aria-selected="true"]' onClose={onClose}>
+      <div className="audit-details">
+        <div className="audit-tabs" role="tablist" aria-label="Informações da alteração">
+          {tabs.map(({ key, label }, index) => (
+            <button key={key} type="button" className="secondary-button" role="tab"
+              id={`${id}-${key}-tab`} aria-controls={`${id}-${key}-panel`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
+              onClick={() => setTab(key)}
+              onKeyDown={(keyboardEvent) => {
+                let next: number;
+                switch (keyboardEvent.key) {
+                  case "ArrowRight": next = (index + 1) % tabs.length; break;
+                  case "ArrowLeft": next = (index + tabs.length - 1) % tabs.length; break;
+                  case "Home": next = 0; break;
+                  case "End": next = tabs.length - 1; break;
+                  default: return;
+                }
+                keyboardEvent.preventDefault();
+                setTab(tabs[next]!.key);
+                document.getElementById(`${id}-${tabs[next]!.key}-tab`)?.focus();
+              }}
+            >{label}</button>
+          ))}
+        </div>
+        <div role="tabpanel" id={`${id}-summary-panel`} aria-labelledby={`${id}-summary-tab`} hidden={tab !== "summary"} tabIndex={0}>
+          <AuditFields fields={[
+            { label: "O que aconteceu", value: summary.title },
+            { label: "Área", value: summary.category },
+            { label: "Quem realizou", value: summary.actor },
+            { label: "Quando", value: summary.date },
+            ...summary.details,
+          ]} />
+        </div>
+        <div role="tabpanel" id={`${id}-technical-panel`} aria-labelledby={`${id}-technical-tab`} hidden={tab !== "technical"} tabIndex={0}>
+          <AuditFields fields={technicalFields} />
+          <h3>Metadados completos</h3>
+          <pre className="audit-json">{JSON.stringify(event.metadata, null, 2) ?? "Não registrado"}</pre>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function HistoryPage() {
+  const emptyFilters = { search: "", module: "", action: "", actorUserId: "", from: "", to: "" };
+  const [draft, setDraft] = useState(emptyFilters);
+  const [request, setRequest] = useState({ cursor: undefined as string | undefined, page: 1,
+    trail: [undefined] as (string | undefined)[], filters: {} as AuditHistoryFilters });
+  const [items, setItems] = useState<AdminAuditEvent[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [actors, setActors] = useState<HistoryActor[]>([]);
+  const [actorsError, setActorsError] = useState(false);
+  const [actorsAttempt, setActorsAttempt] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(null);
+  const detailsTrigger = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.auditHistory(request.cursor, request.filters)
+      .then((page) => {
+        if (!active) return;
+        setItems(page.items);
+        setNextCursor(page.nextCursor);
+        setPageNumber(request.page);
+      })
+      .catch((cause: Error) => { if (active) setError(cause.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [request, attempt]);
+
+  useEffect(() => {
+    let active = true;
+    api.historyActors().then((values) => {
+      if (active) { setActors(Array.isArray(values) ? values : []); setActorsError(false); }
+    }).catch(() => { if (active) setActorsError(true); });
+    return () => { active = false; };
+  }, [actorsAttempt]);
+
+  function applyFilters(values: typeof draft) {
+    const parsed = auditHistoryQuerySchema.safeParse(Object.fromEntries(Object.entries(values).filter(([, value]) => value)));
+    if (!parsed.success) { setFilterError(parsed.error.issues[0]?.message ?? "Verifique os filtros."); return; }
+    const filters: AuditHistoryFilters = parsed.data;
+    setFilterError(""); setError(""); setLoading(true); setItems(null); setNextCursor(null);
+    setPageNumber(1); setSelectedEvent(null);
+    setRequest({ cursor: undefined, page: 1, trail: [undefined], filters });
+  }
+
+  function navigatePage(direction: "previous" | "next") {
+    setLoading(true); setError(""); setSelectedEvent(null);
+    if (direction === "next" && nextCursor) {
+      setRequest({ ...request, cursor: nextCursor, page: pageNumber + 1,
+        trail: [...request.trail.slice(0, pageNumber), nextCursor] });
+    } else {
+      setRequest({ ...request, cursor: request.trail[pageNumber - 2], page: pageNumber - 1 });
+    }
+  }
+
+  return (
+    <>
+      <PageHeader eyebrow="Atividades da clínica" title="Histórico" description="Consulte as atividades de todos os módulos. Use a pesquisa e os filtros para encontrar uma alteração." />
+      <form className="panel history-filters" onSubmit={(event) => { event.preventDefault(); applyFilters(draft); }}>
+        <label>Pesquisar<input type="search" maxLength={160} value={draft.search} placeholder="Ex.: pagamento, etiqueta ou comissão" onChange={(event) => setDraft({ ...draft, search: event.target.value })} /></label>
+        <label>Área<select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value, action: "" })}>
+          <option value="">Todas as áreas</option>{Object.entries(appModuleLabels).filter(([module]) => module !== "history").map(([module, label]) => <option key={module} value={module}>{label}</option>)}
+        </select></label>
+        <label>Tipo de atividade<select value={draft.action} onChange={(event) => setDraft({ ...draft, action: event.target.value })}>
+          <option value="">Todos os tipos</option>{historyActions.filter((item) => !draft.module || item.module === draft.module).map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
+        </select></label>
+        <label>Responsável<select value={draft.actorUserId} onChange={(event) => setDraft({ ...draft, actorUserId: event.target.value })}>
+          <option value="">Todos os responsáveis</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}
+        </select></label>
+        <label>De<input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
+        <label>Até<input type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label>
+        <div className="history-filter-actions">
+          <button type="submit" className="primary-button">Pesquisar e filtrar</button>
+          <button type="button" className="secondary-button" onClick={() => { setDraft(emptyFilters); applyFilters(emptyFilters); }}>Limpar filtros</button>
+        </div>
+        {filterError && <ErrorBanner error={filterError} />}
+        {actorsError && <p className="muted-copy">Não foi possível carregar os responsáveis. <button type="button" className="secondary-button button-sm" onClick={() => setActorsAttempt((value) => value + 1)}>Tentar carregar responsáveis</button></p>}
+      </form>
+      <section className="panel admin-audit" aria-label="Atividades do sistema" aria-busy={loading}>
+        {items?.map((item) => {
+          const summary = formatAuditEvent(item);
+          return (
+            <article className="audit-entry" key={item.id}>
+              <div>
+                <h2>{summary.title}</h2><p className="audit-category">{summary.category}</p>
+                <p className="audit-byline">Quem realizou: {summary.actor} · Quando: <time dateTime={item.createdAt}>{summary.date}</time></p>
+                {summary.details.length > 0 && <AuditFields fields={summary.details} />}
+              </div>
+              {item.detailsRestricted ? <p className="muted-copy">Detalhes disponíveis para quem tem acesso aos Prontuários.</p> :
+                <button type="button" className="secondary-button button-sm" onClick={(event) => { detailsTrigger.current = event.currentTarget; setSelectedEvent(item); }}>Ver detalhes</button>}
+            </article>
+          );
+        })}
+        {items?.length === 0 && !loading && <p className="muted-copy">Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.</p>}
+        {loading && <LoadingBlock />}
+        {error && <><ErrorBanner error={error} /><button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(""); setAttempt((value) => value + 1); }}>Tentar novamente</button></>}
+        <nav className="history-pagination" aria-label="Paginação do histórico">
+          <button type="button" className="secondary-button" disabled={pageNumber === 1 || loading || Boolean(error)} onClick={() => navigatePage("previous")}>Anterior</button>
+          <p role="status">Página {pageNumber} · {items?.length ?? 0} registros</p>
+          <button type="button" className="secondary-button" disabled={!nextCursor || loading || Boolean(error)} onClick={() => navigatePage("next")}>Próxima</button>
+        </nav>
+      </section>
+      {selectedEvent && <HistoryDetailsModal event={selectedEvent} onClose={() => { setSelectedEvent(null); detailsTrigger.current?.focus(); }} />}
+    </>
+  );
+}
+
+function AdminUsersContent() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [settings, setSettings] = useState<ClinicSettings | null>(null);
-  const [audit, setAudit] = useState<AdminAuditEvent[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [userForm, setUserForm] = useState<AdminUser | "new" | null>(null);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [toggling, setToggling] = useState<AdminUser | null>(null);
-  // Gaveta de Usuários controlada aqui: "Novo usuário" abre a gaveta junto com o modal.
-  const [usersOpen, setUsersOpen] = useState(false);
-  // Dados da clínica: valores salvos (base do "descartar") e gaveta controlada para avisar ao fechar.
-  const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(null);
-  const [clinicOpen, setClinicOpen] = useState(false);
-  const clinicDirty =
-    settings !== null &&
-    savedSettings !== null &&
-    JSON.stringify(settings) !== JSON.stringify(savedSettings);
-  const clinicPrompt = useUnsavedChangesPrompt({
-    section: "Dados da clínica",
-    dirty: clinicDirty,
-    save: async () => {
-      if (!settings) return;
-      const saved = await api.updateClinicSettings(settings);
-      setSettings(saved);
-      setSavedSettings(saved);
-      // Como o submit do formulário: recarrega (auditoria inclusa).
-      void load();
-    },
-    discard: () => setSettings(savedSettings),
-  });
-
-  async function load() {
-    try {
-      const [userData, settingData, auditData] = await Promise.all([
-        api.adminUsers(),
-        api.clinicSettings(),
-        api.adminAuditEvents(),
-      ]);
-      setUsers(userData);
-      setSettings(settingData);
-      setSavedSettings(settingData);
-      setAudit(auditData);
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
   useEffect(() => {
     let active = true;
-    Promise.all([
-      api.adminUsers(),
-      api.clinicSettings(),
-      api.adminAuditEvents(),
-    ])
-      .then(([userData, settingData, auditData]) => {
-        if (!active) return;
-        setUsers(userData);
-        setSettings(settingData);
-        setSavedSettings(settingData);
-        setAudit(auditData);
+    api
+      .adminUsers()
+      .then((data) => {
+        if (active) setUsers(data);
       })
       .catch((cause: Error) => {
         if (active) setError(cause.message);
@@ -11754,198 +12406,115 @@ function AdminPage() {
     return () => {
       active = false;
     };
-  }, []);
-
+  }, [attempt]);
   function finish(message: string) {
     setUserForm(null);
     setResetting(null);
     setToggling(null);
     setError("");
     setNotice(message);
-    void load();
+    setAttempt((value) => value + 1);
   }
-
   return (
     <>
-      <PageHeader
-        eyebrow="Controle operacional"
-        title="Configurações"
-        description="Usuários, permissões, dados da clínica e auditoria administrativa."
-        action={
+      <div className="settings-toolbar">
+        <p className="muted-copy">
+          {users
+            ? countLabel(users.length, "usuário", "usuários") + " na equipe"
+            : "Acessos da equipe"}
+        </p>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            setNotice("");
+            setUserForm("new");
+          }}
+        >
+          <Plus size={17} /> Novo usuário
+        </button>
+      </div>
+      {error && (
+        <>
+          <ErrorBanner error={error} />
           <button
-            className="primary-button"
+            className="secondary-button"
+            type="button"
             onClick={() => {
-              setNotice("");
-              setUsersOpen(true);
-              setUserForm("new");
+              setError("");
+              setAttempt((value) => value + 1);
             }}
           >
-            <Plus size={17} /> Novo usuário
+            Tentar novamente
           </button>
-        }
-      />
-      {error && <ErrorBanner error={error} />}
+        </>
+      )}
       {notice && (
         <div className="success-banner" role="status">
           {notice}
         </div>
       )}
-      <div className="admin-grid">
-        <CollapsibleSection
-          className="admin-users"
-          eyebrow="Acessos"
-          title="Usuários"
-          open={usersOpen}
-          onOpenChange={setUsersOpen}
-        >
-          {users === null ? (
-            !error && <LoadingBlock />
-          ) : users.length === 0 ? (
-            <EmptyState
-              title="Nenhum usuário"
-              copy="Cadastre a equipe em “Novo usuário”."
-            />
-          ) : (
-            users.map((item) => (
-              <article key={item.id} className="admin-user-row">
-                <div className="admin-user-info">
-                  <strong>{item.fullName}</strong>
-                  <small>
-                    {roleLabels[item.role]}
-                    {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                  </small>
-                  <small className="admin-user-email">{item.email}</small>
-                  <small>{userAccessSummary(item)}</small>
-                  <small>{userCommissionSummary(item)}</small>
-                  {!item.active && (
-                    <div className="admin-user-tags">
-                      <span className="status-pill cancelled">Inativo</span>
-                    </div>
-                  )}
-                </div>
-                <div className="admin-user-actions">
-                  <button
-                    className="secondary-button button-sm"
-                    aria-label={`Editar ${item.fullName}`}
-                    onClick={() => {
-                      setNotice("");
-                      setUserForm(item);
-                    }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className={item.active ? "danger-button button-sm" : "secondary-button button-sm"}
-                    onClick={() => {
-                      setNotice("");
-                      setToggling(item);
-                    }}
-                  >
-                    {item.active ? "Desativar" : "Ativar"}
-                  </button>
-                  <button
-                    className="secondary-button button-sm"
-                    onClick={() => {
-                      setNotice("");
-                      setResetting(item);
-                    }}
-                  >
-                    Redefinir senha
-                  </button>
-                </div>
-              </article>
-            ))
-          )}
-        </CollapsibleSection>
-        <CollapsibleSection
-          className="admin-settings"
-          eyebrow="Organização"
-          title="Dados da clínica"
-          open={clinicOpen}
-          onOpenChange={(next) => {
-            if (next) setClinicOpen(true);
-            else clinicPrompt.confirmLeave(() => setClinicOpen(false));
-          }}
-        >
-          {!settings ? (
-            !error && <LoadingBlock />
-          ) : (
-            <form
-              className="clinical-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                try {
-                  const saved = await api.updateClinicSettings(settings);
-                  setSettings(saved);
-                  setSavedSettings(saved);
-                  await load();
-                } catch (cause) {
-                  setError((cause as Error).message);
-                }
-              }}
-            >
-              <label>
-                Nome
-                <input
-                  required
-                  value={settings.name}
-                  onChange={(e) =>
-                    setSettings({ ...settings, name: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Razão social
-                <input
-                  value={settings.legalName}
-                  onChange={(e) =>
-                    setSettings({ ...settings, legalName: e.target.value })
-                  }
-                />
-              </label>
-              <div className="clinical-form-row">
-                <label>
-                  CNPJ/CPF
-                  <input
-                    value={settings.taxId}
-                    onChange={(e) =>
-                      setSettings({ ...settings, taxId: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Telefone
-                  <PhoneInput
-                    value={settings.phone ?? ""}
-                    onChange={(digits) =>
-                      setSettings({ ...settings, phone: digits })
-                    }
-                  />
-                </label>
+      <div className="admin-users">
+        {users === null ? (
+          !error && <LoadingBlock />
+        ) : users.length === 0 ? (
+          <EmptyState
+            title="Nenhum usuário"
+            copy="Cadastre a equipe em “Novo usuário”."
+          />
+        ) : (
+          users.map((item) => (
+            <article key={item.id} className="admin-user-row">
+              <div className="admin-user-info">
+                <strong>{item.fullName}</strong>
+                <small>
+                  {roleLabels[item.role]}
+                  {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                </small>
+                <small className="admin-user-email">{item.email}</small>
+                <small>{userAccessSummary(item)}</small>
+                <small>{userCommissionSummary(item)}</small>
+                {!item.active && (
+                  <div className="admin-user-tags">
+                    <span className="status-pill cancelled">Inativo</span>
+                  </div>
+                )}
               </div>
-              <label>
-                E-mail
-                <input
-                  type="email"
-                  value={settings.email}
-                  onChange={(e) =>
-                    setSettings({ ...settings, email: e.target.value })
+              <div className="admin-user-actions">
+                <button
+                  className="secondary-button button-sm"
+                  aria-label={`Editar ${item.fullName}`}
+                  onClick={() => {
+                    setNotice("");
+                    setUserForm(item);
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  className={
+                    item.active
+                      ? "danger-button button-sm"
+                      : "secondary-button button-sm"
                   }
-                />
-              </label>
-              <label>
-                Endereço
-                <textarea
-                  rows={2}
-                  value={settings.address}
-                  onChange={(e) =>
-                    setSettings({ ...settings, address: e.target.value })
-                  }
-                />
-              </label>
-              <div className="modal-actions">
-                <button className="primary-button">Salvar configurações</button>
+                  onClick={() => {
+                    setNotice("");
+                    setToggling(item);
+                  }}
+                >
+                  {item.active ? "Desativar" : "Ativar"}
+                </button>
+                <button
+                  className="secondary-button button-sm"
+                  onClick={() => {
+                    setNotice("");
+                    setResetting(item);
+                  }}
+                >
+                  Redefinir senha
+                </button>
               </div>
+<<<<<<< HEAD
             </form>
           )}
         </CollapsibleSection>
@@ -11975,8 +12544,12 @@ function AdminPage() {
             ))
           )}
         </CollapsibleSection>
+=======
+            </article>
+          ))
+        )}
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
       </div>
-      {clinicPrompt.modal}
       {userForm && (
         <UserFormModal
           user={userForm === "new" ? null : userForm}
@@ -12022,6 +12595,196 @@ function AdminPage() {
           }
         />
       )}
+    </>
+  );
+}
+
+function ClinicSettingsContent() {
+  const [settings, setSettings] = useState<ClinicSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(
+    null,
+  );
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  const dirty =
+    settings !== null &&
+    savedSettings !== null &&
+    JSON.stringify(settings) !== JSON.stringify(savedSettings);
+  useSettingsBusy(saving);
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicSettings()
+      .then((data) => {
+        if (active) {
+          setSettings(data);
+          setSavedSettings(data);
+        }
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+  async function save() {
+    if (savingRef.current || !settings) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise os campos obrigatórios antes de salvar.");
+    savingRef.current = true;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const saved = await api.updateClinicSettings(settings);
+      setSettings(saved);
+      setSavedSettings(saved);
+      setNotice("Dados da clínica salvos.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+  const prompt = useUnsavedChangesPrompt({
+    section: "Dados da clínica",
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setSettings(savedSettings);
+      setError("");
+      setNotice("");
+    },
+  });
+  return (
+    <>
+      {error && <ErrorBanner error={error} />}
+      {!settings ? (
+        error ? (
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        ) : (
+          <LoadingBlock />
+        )
+      ) : (
+        <form
+          ref={formRef}
+          className="clinical-form settings-clinic-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save().catch((cause: Error) => setError(cause.message));
+          }}
+          onChange={() => setNotice("")}
+        >
+          <fieldset disabled={saving} className="settings-fieldset">
+            <legend>Identificação</legend>
+            <p className="muted-copy">
+              Informações utilizadas nos documentos da clínica.
+            </p>
+            <div className="form-grid">
+              <label>
+                Nome
+                <input
+                  required
+                  value={settings.name}
+                  onChange={(event) =>
+                    setSettings({ ...settings, name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Razão social
+                <input
+                  value={settings.legalName}
+                  onChange={(event) =>
+                    setSettings({ ...settings, legalName: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                CNPJ/CPF
+                <input
+                  value={settings.taxId}
+                  onChange={(event) =>
+                    setSettings({ ...settings, taxId: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset disabled={saving} className="settings-fieldset">
+            <legend>Contato e localização</legend>
+            <div className="form-grid">
+              <label>
+                Telefone
+                <PhoneInput
+                  value={settings.phone ?? ""}
+                  onChange={(phone) => setSettings({ ...settings, phone })}
+                />
+              </label>
+              <label>
+                E-mail
+                <input
+                  type="email"
+                  value={settings.email}
+                  onChange={(event) =>
+                    setSettings({ ...settings, email: event.target.value })
+                  }
+                />
+              </label>
+              <label className="span-2">
+                Endereço
+                <textarea
+                  rows={2}
+                  value={settings.address}
+                  onChange={(event) =>
+                    setSettings({ ...settings, address: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
+          {notice && (
+            <div className="success-banner" role="status">
+              {notice}
+            </div>
+          )}
+          <div className="modal-actions settings-save-bar">
+            <span className="settings-dirty" role="status">
+              {dirty ? "Alterações não salvas" : "Dados atualizados"}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!dirty || saving}
+              onClick={() => {
+                setSettings(savedSettings);
+                setError("");
+                setNotice("");
+              }}
+            >
+              Descartar alterações
+            </button>
+            <button className="primary-button" disabled={!dirty || saving}>
+              {saving ? "Salvando…" : "Salvar configurações"}
+            </button>
+          </div>
+        </form>
+      )}
+      {prompt.modal}
     </>
   );
 }
@@ -12205,6 +12968,7 @@ function UserFormModal({
    */
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const invalid = commissionError();
     if (invalid) {
       setError(invalid);
@@ -12505,6 +13269,7 @@ function ResetPasswordModal({
   const [error, setError] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -12569,6 +13334,7 @@ function UserActiveModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   async function confirm() {
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -12622,21 +13388,17 @@ function UserActiveModal({
   );
 }
 
-function HolidaysSection() {
-  return (
-    <CollapsibleSection className="admin-holidays" eyebrow="Agenda" title="Feriados">
-      <HolidaysContent />
-    </CollapsibleSection>
-  );
-}
-
-/** Conteúdo da gaveta de Feriados: só monta (e busca a lista) quando a gaveta abre. */
 function HolidaysContent() {
   const [holidays, setHolidays] = useState<Holiday[] | null>(null);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({ date: "", name: "" });
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
   const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
 
   useEffect(() => {
@@ -12648,26 +13410,49 @@ function HolidaysContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function save() {
+    if (savingRef.current) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise a data e o nome do feriado.");
+    savingRef.current = true;
     setSaving(true);
+    setNotice("");
     setFormError("");
     try {
-      const created = await api.createHoliday({ date: form.date, name: form.name.trim() });
+      const created = await api.createHoliday({
+        date: form.date,
+        name: form.name.trim(),
+      });
       setHolidays((items) =>
-        [...(items ?? []), created].sort((a, b) => a.date.localeCompare(b.date)),
+        [...(items ?? []), created].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        ),
       );
       setForm({ date: "", name: "" });
-    } catch (cause) {
-      setFormError(
-        cause instanceof ApiClientError
-          ? cause.message
-          : "Não foi possível adicionar o feriado.",
-      );
+      setNotice("Feriado adicionado.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
+    }
+  }
+  const prompt = useUnsavedChangesPrompt({
+    section: "Feriados",
+    dirty: Boolean(form.date || form.name),
+    busy: saving,
+    save,
+    discard: () => {
+      setForm({ date: "", name: "" });
+      setFormError("");
+    },
+  });
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
+    } catch (cause) {
+      setFormError((cause as Error).message);
     }
   }
 
@@ -12682,8 +13467,11 @@ function HolidaysContent() {
         { cause },
       );
     }
-    setHolidays((items) => (items ?? []).filter((item) => item.id !== holiday.id));
+    setHolidays((items) =>
+      (items ?? []).filter((item) => item.id !== holiday.id),
+    );
     setDeletingHoliday(null);
+    setNotice("Feriado excluído.");
   }
 
   return (
@@ -12691,38 +13479,84 @@ function HolidaysContent() {
       <p className="muted-copy">
         Nos feriados a agenda não aceita novos atendimentos.
       </p>
-      {error && <ErrorBanner error={error} />}
+      {prompt.modal}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </>
+      )}
       {!holidays ? (
         !error && <LoadingBlock />
       ) : (
         <>
-          <form className="form-grid holiday-form" onSubmit={(event) => void submit(event)}>
-            <label>
-              Data
-              <input
-                type="date"
-                required
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </label>
-            <label>
-              Nome do feriado
-              <input
-                required
-                minLength={2}
-                maxLength={120}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </label>
-            {formError && <div className="form-error span-2">{formError}</div>}
-            <div className="modal-actions span-2">
-              <button className="primary-button" disabled={saving}>
-                <Plus size={17} />
-                {saving ? "Adicionando…" : "Adicionar feriado"}
-              </button>
-            </div>
+          <form
+            ref={formRef}
+            onChange={() => setNotice("")}
+            className="form-grid holiday-form"
+            onSubmit={(event) => void submit(event)}
+          >
+            <fieldset className="settings-inline-fields" disabled={saving}>
+              <legend>Cadastrar feriado</legend>
+              <label>
+                Data
+                <input
+                  type="date"
+                  required
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </label>
+              <label>
+                Nome do feriado
+                <input
+                  required
+                  minLength={2}
+                  maxLength={120}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </label>
+              {formError && (
+                <div className="form-error span-2">{formError}</div>
+              )}
+              <div className="modal-actions span-2">
+                {(form.date || form.name) && (
+                  <span className="settings-dirty" role="status">
+                    Alterações não salvas
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!form.date && !form.name}
+                  onClick={() => {
+                    setForm({ date: "", name: "" });
+                    setFormError("");
+                  }}
+                >
+                  Descartar alterações
+                </button>
+                <button className="primary-button" disabled={saving}>
+                  <Plus size={17} />
+                  {saving ? "Adicionando…" : "Adicionar feriado"}
+                </button>
+              </div>
+            </fieldset>
           </form>
           {holidays.length === 0 ? (
             <EmptyState
@@ -12762,6 +13596,7 @@ function HolidaysContent() {
   );
 }
 
+<<<<<<< HEAD
 /** Fetch when the settings drawer or sale modal mounts; retry without losing form edits. */
 function usePlanCatalog() {
   const [entries, setEntries] = useState<PlanCatalogEntry[] | null>(null);
@@ -12775,6 +13610,24 @@ function usePlanCatalog() {
         if (active) {
           setEntries(data);
           setError("");
+=======
+function PlanTemplatesContent() {
+  const { can } = useAuthorization();
+  const [items, setItems] = useState<PlanTemplate[] | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [editing, setEditing] = useState<PlanTemplate | "new" | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.planTemplates(), api.services()])
+      .then(([templates, serviceData]) => {
+        if (active) {
+          setItems(templates);
+          setServices(serviceData);
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
         }
       })
       .catch((cause: Error) => {
@@ -12783,6 +13636,7 @@ function usePlanCatalog() {
     return () => {
       active = false;
     };
+<<<<<<< HEAD
   }, [revision]);
   const reload = () => {
     setError("");
@@ -13031,28 +13885,432 @@ function PlanCatalogEditModal({
 }
 
 function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
+=======
+  }, [attempt]);
+  function replace(item: PlanTemplate) {
+    setItems((current) =>
+      [
+        item,
+        ...(current ?? []).filter((existing) => existing.id !== item.id),
+      ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    );
+  }
+  useSettingsBusy(savingId !== null);
+  async function toggle(item: PlanTemplate) {
+    if (savingId) return;
+    setSavingId(item.id);
+    setError(""); setNotice("");
+    try {
+      replace(await api.updatePlanTemplate(item.id, { active: !item.active }));
+      setNotice(item.active ? "Plano desativado." : "Plano ativado.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSavingId(null);
+    }
+  }
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   return (
-    <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas">
-      <PatientTagsContent canEdit={canEdit} />
-    </CollapsibleSection>
+    <>
+      <p className="muted-copy">
+        Defina os planos disponíveis para novas vendas. Alterações não afetam
+        contratos já vendidos.
+      </p>
+      {notice && <div className="success-banner" role="status">{notice}</div>}
+      {error && (
+        <div className="form-error" role="alert">
+          {error}{" "}
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            onClick={() => {
+              setError("");
+              setAttempt((current) => current + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+      {items === null ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          {can("settings.plans_create") && (
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => setEditing("new")}
+            >
+              <Plus size={17} /> Cadastrar plano
+            </button>
+          )}
+          {items.length === 0 ? (
+            <EmptyState
+              title="Nenhum plano cadastrado"
+              copy="Cadastre nome, valor e serviços para disponibilizar um plano nas novas vendas."
+            />
+          ) : (
+            <div className="plan-template-list">
+              {items.map((item) => (
+                <article key={item.id} className="admin-user-row">
+                  <div className="admin-user-info">
+                    <strong>{item.name}</strong>
+                    <small>
+                      {currency.format(item.totalValueInCents / 100)}
+                    </small>
+                    <small>
+                      {[
+                        item.services.length ? item.services.map((entry) => `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.totalSessions} sessões`).join(" · ") : "Composição incompleta — edite para corrigir",
+                        item.kind ? planKindLabels[item.kind] : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                    {!item.active && (
+                      <span className="status-pill cancelled">Inativo</span>
+                    )}
+                  </div>
+                  {can("settings.plans_update") && (
+                    <div className="admin-user-actions">
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        disabled={savingId !== null}
+                        onClick={() => setEditing(item)}
+                        aria-label={`Editar plano ${item.name}`}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          item.active
+                            ? "danger-button button-sm"
+                            : "secondary-button button-sm"
+                        }
+                        disabled={savingId !== null}
+                        onClick={() => void toggle(item)}
+                        aria-label={`${item.active ? "Desativar" : "Ativar"} plano ${item.name}`}
+                      >
+                        {item.active ? "Desativar" : "Ativar"}
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {editing && (
+        <PlanTemplateModal
+          item={editing === "new" ? null : editing}
+          services={services}
+          onClose={() => setEditing(null)}
+          onSaved={(item) => {
+            replace(item);
+            setNotice("Plano salvo.");
+            setEditing(null);
+          }}
+        />
+      )}
+    </>
   );
 }
+
+function PlanTemplateModal({
+  item,
+  services,
+  onClose,
+  onSaved,
+}: {
+  item: PlanTemplate | null;
+  services: Service[];
+  onClose: () => void;
+  onSaved: (item: PlanTemplate) => void;
+}) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    value: item ? String(item.totalValueInCents / 100) : "",
+    kind: item?.kind ?? "",
+    services: item?.services.length
+      ? item.services.map((entry) => ({
+          serviceId: entry.serviceId,
+          sessions: String(entry.totalSessions),
+          value: String(entry.totalValueInCents / 100),
+        }))
+      : [{ serviceId: "", sessions: "", value: "" }],
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const sum = form.services.reduce(
+    (total, entry) => total + Math.round(Number(entry.value) * 100),
+    0,
+  );
+  const total = Math.round(Number(form.value) * 100);
+  const difference = total - sum;
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setError("");
+    if (!form.name.trim() || form.value === "") {
+      setError("Informe o nome e o valor do plano.");
+      return;
+    }
+    const input: PlanTemplateInput = {
+      name: form.name.trim(),
+      totalValueInCents: Math.round(Number(form.value) * 100),
+      kind: (form.kind || null) as PlanTemplateInput["kind"],
+      services: form.services.map((entry) => ({
+        serviceId: entry.serviceId,
+        totalSessions: Number(entry.sessions),
+        totalValueInCents: Math.round(Number(entry.value) * 100),
+      })),
+    };
+    if (difference !== 0) {
+      setError("O valor total deve corresponder à soma dos serviços.");
+      return;
+    }
+    if (
+      new Set(input.services.map((entry) => entry.serviceId)).size !==
+      input.services.length
+    ) {
+      setError("Não repita serviços no plano.");
+      return;
+    }
+    setSaving(true);
+    try {
+      onSaved(
+        item
+          ? await api.updatePlanTemplate(item.id, input)
+          : await api.createPlanTemplate(input),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
+      subtitle="Inclua ao menos um serviço, com quantidade de sessões e valor. O total deve corresponder à soma dos serviços."
+      busy={saving}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Nome do plano
+          <input
+            required
+            minLength={3}
+            maxLength={120}
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+        </label>
+        <label>
+          Valor total
+          <input
+            required
+            type="number"
+            min="0"
+            max="21474836.47"
+            step="0.01"
+            value={form.value}
+            onChange={(event) =>
+              setForm({ ...form, value: event.target.value })
+            }
+          />
+        </label>
+        {form.services.map((entry, index) => (
+          <fieldset className="span-2 form-grid" key={index}>
+            <legend>Serviço {index + 1}</legend>
+            <label>
+              Serviço {index + 1}
+              <select
+                required
+                value={entry.serviceId}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, serviceId: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              >
+                <option value="">Selecione um serviço</option>
+                {services
+                  .filter(
+                    (service) =>
+                      service.active || service.id === entry.serviceId,
+                  )
+                  .map((service) => (
+                    <option
+                      key={service.id}
+                      value={service.id}
+                      disabled={
+                        !service.active ||
+                        form.services.some(
+                          (row, position) =>
+                            position !== index && row.serviceId === service.id,
+                        )
+                      }
+                    >
+                      {service.name}
+                      {!service.active ? " (inativo)" : ""}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Sessões do serviço {index + 1}
+              <input
+                required
+                type="number"
+                min="1"
+                max="1000"
+                step="1"
+                value={entry.sessions}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, sessions: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <label>
+              Valor do serviço {index + 1}
+              <input
+                required
+                type="number"
+                min="0"
+                max="21474836.47"
+                step="0.01"
+                value={entry.value}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    services: form.services.map((row, position) =>
+                      position === index
+                        ? { ...row, value: event.target.value }
+                        : row,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={form.services.length === 1 || saving}
+              onClick={() =>
+                setForm({
+                  ...form,
+                  services: form.services.filter(
+                    (_, position) => position !== index,
+                  ),
+                })
+              }
+            >
+              Remover serviço {index + 1}
+            </button>
+          </fieldset>
+        ))}
+        <button
+          type="button"
+          className="secondary-button span-2"
+          disabled={saving}
+          onClick={() =>
+            setForm({
+              ...form,
+              services: [
+                ...form.services,
+                { serviceId: "", sessions: "", value: "" },
+              ],
+            })
+          }
+        >
+          Adicionar serviço
+        </button>
+        <p className="span-2" role="status">
+          Soma dos serviços: {currency.format(sum / 100)} · Total informado:{" "}
+          {currency.format(total / 100)} · Diferença:{" "}
+          {currency.format(difference / 100)}
+        </p>
+        <label>
+          Modelo (opcional)
+          <select
+            value={form.kind}
+            onChange={(event) => setForm({ ...form, kind: event.target.value })}
+          >
+            <option value="">Definir na venda</option>
+            {Object.entries(planKindLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button
+            className="primary-button"
+            disabled={saving || difference !== 0}
+          >
+            {saving ? "Salvando…" : "Salvar plano"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 
 function sortPatientTags(tags: PatientTag[]) {
   return [...tags].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
 /**
- * Conteúdo da gaveta de Etiquetas: só monta (e busca a lista) quando a gaveta abre. Cada ação
- * (criar, editar, excluir) grava na hora; não há formulário pendente ao fechar a gaveta.
+ * Etiquetas: carrega na primeira visita e preserva a lista e o rascunho entre abas.
+ * As operações gravam individualmente; a criação pendente usa a guarda de saída.
  */
 function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
- const { can } = useAuthorization();
+  const { can } = useAuthorization();
   const [tags, setTags] = useState<PatientTag[] | null>(null);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", color: DEFAULT_PATIENT_TAG_COLOR });
+  const [form, setForm] = useState({
+    name: "",
+    color: DEFAULT_PATIENT_TAG_COLOR,
+  });
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [baselineColor, setBaselineColor] = useState(DEFAULT_PATIENT_TAG_COLOR);
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
   const [editing, setEditing] = useState<PatientTag | null>(null);
   const [deleting, setDeleting] = useState<PatientTag | null>(null);
 
@@ -13065,32 +14323,56 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function save() {
+    if (savingRef.current) return;
     const name = form.name.trim();
-    if (!name) {
-      setFormError("Informe o nome da etiqueta.");
-      return;
-    }
+    if (!name) throw new Error("Informe o nome da etiqueta.");
+    savingRef.current = true;
     setSaving(true);
+    setNotice("");
     setFormError("");
     try {
       const created = await api.createPatientTag({ name, color: form.color });
       setTags((items) => sortPatientTags([...(items ?? []), created]));
       setForm({ name: "", color: form.color });
-    } catch (cause) {
-      setFormError(
-        cause instanceof ApiClientError ? cause.message : "Não foi possível criar a etiqueta.",
-      );
+      setBaselineColor(form.color);
+      setNotice("Etiqueta criada.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
+    }
+  }
+  const dirty =
+    canEdit &&
+    can("settings.tags_create") &&
+    Boolean(form.name || form.color !== baselineColor);
+  const prompt = useUnsavedChangesPrompt({
+    section: "Etiquetas",
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setForm({ name: "", color: baselineColor });
+      setFormError("");
+    },
+  });
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
+    } catch (cause) {
+      setFormError((cause as Error).message);
     }
   }
 
   function replaceTag(updated: PatientTag) {
-    setTags((items) => sortPatientTags((items ?? []).map((item) => (item.id === updated.id ? updated : item))));
+    setTags((items) =>
+      sortPatientTags(
+        (items ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      ),
+    );
   }
 
   async function remove(tag: PatientTag) {
@@ -13098,55 +14380,107 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
       await api.deletePatientTag(tag.id);
     } catch (cause) {
       // Em uso (409): atualiza a contagem mostrada com a que a API devolveu.
-      const count = cause instanceof ApiClientError ? cause.details?.patientCount : undefined;
-      if (typeof count === "number") replaceTag({ ...tag, patientCount: count });
+      const count =
+        cause instanceof ApiClientError
+          ? cause.details?.patientCount
+          : undefined;
+      if (typeof count === "number")
+        replaceTag({ ...tag, patientCount: count });
       throw new Error(
-        cause instanceof ApiClientError ? cause.message : "Não foi possível excluir a etiqueta.",
+        cause instanceof ApiClientError
+          ? cause.message
+          : "Não foi possível excluir a etiqueta.",
         { cause },
       );
     }
     setTags((items) => (items ?? []).filter((item) => item.id !== tag.id));
     setDeleting(null);
+    setNotice("Etiqueta excluída.");
   }
 
   return (
     <>
       <p className="muted-copy">
-        Só as etiquetas daqui podem ser usadas no cadastro dos clientes, nos filtros e nos
-        comunicados. Renomear atualiza os clientes que já têm a etiqueta.
+        Só as etiquetas daqui podem ser usadas no cadastro dos clientes, nos
+        filtros e nos comunicados. Renomear atualiza os clientes que já têm a
+        etiqueta.
       </p>
-      {error && <ErrorBanner error={error} />}
+      {prompt.modal}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </>
+      )}
       {!tags ? (
         !error && <LoadingBlock />
       ) : (
         <>
-          {canEdit && (
-            (can("settings.tags_create") && (<form className="form-grid tag-form" onSubmit={(event) => void submit(event)} noValidate>
-              <label className="span-2">
-                Nome da etiqueta
-                <input
-                  maxLength={40}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+          {canEdit && can("settings.tags_create") && (
+            <form
+              onChange={() => setNotice("")}
+              className="form-grid tag-form"
+              onSubmit={(event) => void submit(event)}
+              noValidate
+            >
+              <fieldset className="settings-inline-fields" disabled={saving}>
+                <legend>Cadastrar etiqueta</legend>
+                <label className="span-2">
+                  Nome da etiqueta
+                  <input
+                    maxLength={40}
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </label>
+                <TagColorPicker
+                  value={form.color}
+                  previewName={form.name.trim() || "Nova etiqueta"}
+                  onChange={(color) => setForm({ ...form, color })}
                 />
-              </label>
-              <TagColorPicker
-                value={form.color}
-                previewName={form.name.trim() || "Nova etiqueta"}
-                onChange={(color) => setForm({ ...form, color })}
-              />
-              {formError && (
-                <div className="form-error span-2" role="alert">
-                  {formError}
+                {formError && (
+                  <div className="form-error span-2" role="alert">
+                    {formError}
+                  </div>
+                )}
+                <div className="modal-actions span-2">
+                  {dirty && (
+                    <span className="settings-dirty" role="status">
+                      Alterações não salvas
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={!dirty}
+                    onClick={() => {
+                      setForm({ name: "", color: baselineColor });
+                      setFormError("");
+                    }}
+                  >
+                    Descartar alterações
+                  </button>
+                  <button className="primary-button" disabled={saving}>
+                    <Plus size={17} />
+                    {saving ? "Adicionando…" : "Adicionar etiqueta"}
+                  </button>
                 </div>
-              )}
-              <div className="modal-actions span-2">
-                <button className="primary-button" disabled={saving}>
-                  <Plus size={17} />
-                  {saving ? "Adicionando…" : "Adicionar etiqueta"}
-                </button>
-              </div>
-            </form>))
+              </fieldset>
+            </form>
           )}
           {tags.length === 0 ? (
             <EmptyState
@@ -13163,26 +14497,32 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                 <li key={tag.id}>
                   <div className="tag-list-info">
                     <PatientTagBadge name={tag.name} color={tag.color} />
-                    <small>{countLabel(tag.patientCount, "cliente", "clientes")}</small>
+                    <small>
+                      {countLabel(tag.patientCount, "cliente", "clientes")}
+                    </small>
                   </div>
                   {canEdit && (
                     <div className="tag-list-actions">
-                      {can("settings.tags_update") && (<button
-                        type="button"
-                        className="secondary-button button-sm"
-                        aria-label={`Editar etiqueta ${tag.name}`}
-                        onClick={() => setEditing(tag)}
-                      >
-                        Editar
-                      </button>)}
-                      {can("settings.tags_delete") && (<button
-                        type="button"
-                        className="danger-button button-sm"
-                        aria-label={`Excluir etiqueta ${tag.name}`}
-                        onClick={() => setDeleting(tag)}
-                      >
-                        Excluir
-                      </button>)}
+                      {can("settings.tags_update") && (
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          aria-label={`Editar etiqueta ${tag.name}`}
+                          onClick={() => setEditing(tag)}
+                        >
+                          Editar
+                        </button>
+                      )}
+                      {can("settings.tags_delete") && (
+                        <button
+                          type="button"
+                          className="danger-button button-sm"
+                          aria-label={`Excluir etiqueta ${tag.name}`}
+                          onClick={() => setDeleting(tag)}
+                        >
+                          Excluir
+                        </button>
+                      )}
                     </div>
                   )}
                 </li>
@@ -13197,6 +14537,7 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             replaceTag(updated);
+            setNotice("Etiqueta atualizada.");
             setEditing(null);
           }}
         />
@@ -13222,6 +14563,7 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
 }
 
 /** Cor da etiqueta: paleta sugerida, seletor livre e prévia do selo (texto preto ou branco). */
+
 function TagColorPicker({
   value,
   previewName,
@@ -13279,6 +14621,7 @@ function PatientTagEditModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Informe o nome da etiqueta.");
@@ -13353,6 +14696,7 @@ const relationshipDeadlineFields: Array<{
   { key: "formerClientMaxDays", label: "Ex-cliente: cancelou há no máximo (dias)", min: 1 },
 ];
 
+<<<<<<< HEAD
 function RelationshipSettingsPage() {
   const { canEdit } = useAuthorization();
   return (
@@ -13405,31 +14749,35 @@ function RelationshipSettingsContent({
   canEdit: boolean;
   registerCloseGuard: (guard: CloseGuard | null) => void;
 }) {
+=======
+function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
+>>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
-  const [savedSettings, setSavedSettings] = useState<RelationshipSettings | null>(null);
+  const [savedSettings, setSavedSettings] =
+    useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
+  const dirty =
+    canEdit &&
+    settings !== null &&
+    savedSettings !== null &&
+    JSON.stringify(settings) !== JSON.stringify(savedSettings);
   const prompt = useUnsavedChangesPrompt({
     section: "Prazos e mensagens",
-    dirty:
-      canEdit &&
-      settings !== null &&
-      savedSettings !== null &&
-      JSON.stringify(settings) !== JSON.stringify(savedSettings),
-    save: async () => {
-      if (!settings) return;
-      const saved = await api.updateRelationshipSettings(settings);
-      setSettings(saved);
-      setSavedSettings(saved);
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setSettings(savedSettings);
+      setError("");
+      setNotice("");
     },
-    discard: () => setSettings(savedSettings),
   });
-  const { confirmLeave } = prompt;
-  useEffect(() => {
-    registerCloseGuard(confirmLeave);
-    return () => registerCloseGuard(null);
-  }, [registerCloseGuard, confirmLeave]);
 
   useEffect(() => {
     let active = true;
@@ -13444,11 +14792,13 @@ function RelationshipSettingsContent({
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!settings) return;
+  async function save() {
+    if (savingRef.current || !settings || !canEdit) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise os prazos e as mensagens antes de salvar.");
+    savingRef.current = true;
     setSaving(true);
     setError("");
     setNotice("");
@@ -13457,16 +14807,39 @@ function RelationshipSettingsContent({
       setSettings(saved);
       setSavedSettings(saved);
       setNotice("Prazos e mensagens salvos.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
     } catch (cause) {
       setError((cause as Error).message);
-    } finally {
-      setSaving(false);
     }
   }
 
   return (
     <>
-      {error && <ErrorBanner error={error} />}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          {!settings && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setError("");
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Tentar novamente
+            </button>
+          )}
+        </>
+      )}
       {!canEdit && (
         <p className="muted-copy">
           Somente um admin pode alterar estes valores.
@@ -13475,53 +14848,97 @@ function RelationshipSettingsContent({
       {!settings ? (
         !error && <LoadingBlock />
       ) : (
-        <form className="clinical-form" onSubmit={(event) => void submit(event)}>
-          <div className="form-grid">
-            {relationshipDeadlineFields.map((field) => (
-              <label key={field.key}>
-                {field.label}
-                <input
-                  type="number"
-                  min={field.min}
-                  step={1}
-                  required
-                  readOnly={!canEdit}
-                  value={settings[field.key]}
-                  onChange={(e) =>
-                    setSettings({ ...settings, [field.key]: Number(e.target.value) })
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          <p className="muted-copy">
-            Variáveis disponíveis nas mensagens: <code>{"{{nome}}"}</code> — é
-            substituída pelo primeiro nome do cliente ao abrir o WhatsApp.
-          </p>
-          {(Object.keys(contactReasonLabels) as ContactReason[]).map((reason) => (
-            <label key={reason}>
-              Mensagem: {contactReasonLabels[reason]}
-              <textarea
-                rows={2}
-                required
-                maxLength={1000}
-                readOnly={!canEdit}
-                value={settings.messages[reason]}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    messages: { ...settings.messages, [reason]: e.target.value },
-                  })
-                }
-              />
-            </label>
-          ))}
-          {notice && <p className="muted-copy">{notice}</p>}
+        <form
+          ref={formRef}
+          className="clinical-form"
+          onChange={() => setNotice("")}
+          onSubmit={(event) => void submit(event)}
+        >
+          <fieldset className="settings-fieldset" disabled={saving}>
+            <legend>Regras de contato</legend>
+            <p className="muted-copy">
+              Defina os limites que geram sugestões de acompanhamento.
+            </p>
+            <div className="form-grid settings-deadlines">
+              {relationshipDeadlineFields.map((field) => (
+                <label key={field.key}>
+                  {field.label}
+                  <input
+                    type="number"
+                    min={field.min}
+                    step={1}
+                    required
+                    readOnly={!canEdit}
+                    value={settings[field.key]}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        [field.key]: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset
+            className="settings-fieldset settings-messages"
+            disabled={saving}
+          >
+            <legend>Modelos de mensagem</legend>
+            <p className="muted-copy">
+              Variáveis disponíveis nas mensagens: <code>{"{{nome}}"}</code> — é
+              substituída pelo primeiro nome do cliente ao abrir o WhatsApp.
+            </p>
+            {(Object.keys(contactReasonLabels) as ContactReason[]).map(
+              (reason) => (
+                <label key={reason}>
+                  Mensagem: {contactReasonLabels[reason]}
+                  <textarea
+                    rows={2}
+                    required
+                    maxLength={1000}
+                    readOnly={!canEdit}
+                    value={settings.messages[reason]}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        messages: {
+                          ...settings.messages,
+                          [reason]: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ),
+            )}
+          </fieldset>
+          {notice && (
+            <div className="success-banner" role="status">
+              {notice}
+            </div>
+          )}
           {canEdit && (
-            <div className="modal-actions">
-            <button className="primary-button" disabled={saving}>
-              {saving ? "Salvando…" : "Salvar prazos e mensagens"}
-            </button>
+            <div className="modal-actions settings-save-bar">
+              <span className="settings-dirty" role="status">
+                {dirty ? "Alterações não salvas" : "Dados atualizados"}
+              </span>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!dirty || saving}
+                onClick={() => {
+                  setSettings(savedSettings);
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                Descartar alterações
+              </button>
+              <button className="primary-button" disabled={!dirty || saving}>
+                {saving ? "Salvando…" : "Salvar prazos e mensagens"}
+              </button>
             </div>
           )}
         </form>
@@ -14093,7 +15510,9 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const settingsPanel = useContext(SettingsPanelContext);
   useBodyScrollLock();
+  useSettingsBusy(true);
   useEscapeToClose(onClose, busy);
   // Id próprio: com modal sobre modal, cada um é nomeado pelo seu título.
   const titleId = useId();
@@ -14109,7 +15528,7 @@ export function Modal({
     <div className="modal-backdrop" role="presentation" inert={inactive} aria-hidden={inactive || undefined}>
       <section
         ref={sectionRef}
-        className={wide ? "modal modal-wide" : "modal"}
+        className={(wide ? "modal modal-wide" : "modal") + (settingsPanel ? " settings-modal" : "")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -14592,15 +16011,12 @@ function AppRoutes() {
                   element={allow("clinical", <ClinicalRecordsPage />)}
                 />
                 <Route path="/financeiro" element={allow("finance", <FinancePage />)} />
+                <Route path="/historico" element={allow("history", <HistoryPage />)} />
                 <Route path="/relatorios" element={allow("reports", <ReportsPage />)} />
                 <Route
                   path="/configuracoes"
                   element={
-                    user!.role === "admin" ? (
-                      <AdminPage />
-                    ) : (
-                      allow("settings", <RelationshipSettingsPage />)
-                    )
+                    allow("settings", <SettingsPage />)
                   }
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
