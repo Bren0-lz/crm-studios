@@ -374,3 +374,24 @@ describe("plan catalog", () => {
     ).toBe(403);
   });
 });
+
+describe("periodic plan templates", () => {
+  it("persists weekly sessions, rejects inconsistent quantities and preserves sold balances", async () => {
+    const { app, repository, headers } = await setup();
+    const payload = { name: "Dançaterapia semestral", planType: "semiannual", kind: "fixed_package", totalValueInCents: 16000,
+      services: [{ serviceId, sessionsPerWeek: 2, totalSessions: 48, totalValueInCents: 16000 }] };
+    const created = await app.inject({ method: "POST", url: "/plan-templates", headers, payload });
+    expect(created.statusCode).toBe(201);
+    const template = created.json();
+    expect((await repository.listPlanTemplates(clinicId)).find(item => item.id === template.id)).toMatchObject(payload);
+    const sale = await app.inject({ method: "POST", url: "/plans", headers, payload: { ...terms, name: payload.name, planTemplateId: template.id,
+      services: payload.services, totalValueInCents: 16000, validFrom: "2035-01-01", validUntil: "2035-06-30" } });
+    expect(sale.statusCode).toBe(201);
+    expect(sale.json().totalSessions).toBe(48);
+    const bad = await app.inject({ method: "PATCH", url: `/plan-templates/${template.id}`, headers, payload: { services: [{ serviceId, sessionsPerWeek: 3, totalSessions: 48, totalValueInCents: 16000 }] } });
+    expect(bad.statusCode).toBe(400);
+    const update = await app.inject({ method: "PATCH", url: `/plan-templates/${template.id}`, headers, payload: { services: [{ serviceId, sessionsPerWeek: 3, totalSessions: 72, totalValueInCents: 16000 }] } });
+    expect(update.statusCode).toBe(200);
+    expect((await repository.listPatientPlans(clinicId)).find(item => item.id === sale.json().id)).toMatchObject({ totalSessions: 48, remainingSessions: 48, totalValueInCents: 16000 });
+  });
+});

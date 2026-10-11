@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
-import { effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, type PermissionKey } from "@crm/contracts";
-=======
 import { planTemplateInputSchema, allocatePlanRevenue, effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, permissionKeySchema, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
 import { randomUUID } from "node:crypto";
 import { formatPlanServices, validatePlanComposition } from "./plan-services.js";
 import type {
@@ -559,8 +555,8 @@ interface ClinicalAccessEventRow {
 }
 
 type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & { createdAt: Date; updatedAt: Date };
-const planTemplateColumns = `id, clinic_id AS "clinicId", name, total_value_in_cents AS "totalValueInCents", kind,
-  coalesce((SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'totalSessions',x.total_sessions,'totalValueInCents',x.total_value_in_cents) ORDER BY x.position)
+const planTemplateColumns = `id, clinic_id AS "clinicId", name, total_value_in_cents AS "totalValueInCents", kind, plan_type AS "planType",
+  coalesce((SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'totalSessions',x.total_sessions,'totalValueInCents',x.total_value_in_cents,'sessionsPerWeek',x.sessions_per_week) ORDER BY x.position)
     FROM plan_template_services x WHERE x.template_id=plan_templates.id),'[]'::jsonb) AS services,
   active, created_at AS "createdAt", updated_at AS "updatedAt"`;
 function mapPlanTemplate(row: PlanTemplateRow): PlanTemplate {
@@ -3227,7 +3223,61 @@ export class PostgresClinicRepository implements ClinicRepository {
     }
   }
 
-<<<<<<< HEAD
+  async listPlanTemplates(clinicId: string) {
+    const result = await this.pool.query<PlanTemplateRow>(
+      `SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1`,
+      [clinicId],
+    );
+    return result.rows
+      .map((row) => mapPlanTemplate(row))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
+
+  private async assertTemplateServices(client: PoolClient, clinicId: string, entries: PlanTemplateInput["services"]) {
+    const result = await client.query("SELECT id FROM services WHERE clinic_id=$1 AND id=ANY($2::uuid[]) AND active FOR SHARE", [clinicId, entries.map((item) => item.serviceId)]);
+    if (result.rowCount !== entries.length) throw new DomainError("PLAN_TEMPLATE_SERVICE_NOT_FOUND", "Serviço ativo não encontrado nesta clínica.", 404);
+  }
+  private async writeTemplateServices(client: PoolClient, clinicId: string, id: string, entries: PlanTemplateInput["services"]) {
+    await client.query("DELETE FROM plan_template_services WHERE clinic_id=$1 AND template_id=$2", [clinicId, id]);
+    for (const [position, entry] of entries.entries()) await client.query(
+      "INSERT INTO plan_template_services (clinic_id,template_id,service_id,position,total_sessions,total_value_in_cents,sessions_per_week) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+      [clinicId, id, entry.serviceId, position, entry.totalSessions, entry.totalValueInCents, entry.sessionsPerWeek ?? null]);
+  }
+  async createPlanTemplate(clinicId: string, actorUserId: string, input: PlanTemplateInput) {
+    input = planTemplateInputSchema.parse(input);
+    return this.inTransaction(async (client) => {
+      await this.assertTemplateServices(client, clinicId, input.services);
+      const totals = validatePlanComposition(input.services, input.totalValueInCents);
+      const result = await client.query<{ id: string }>(`INSERT INTO plan_templates
+        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions,plan_type) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [clinicId, input.name, input.totalValueInCents, totals.serviceId, input.kind ?? null, totals.totalSessions, input.planType ?? null]);
+      const id = result.rows[0]!.id;
+      await this.writeTemplateServices(client, clinicId, id, input.services);
+      const saved = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
+      const item = mapPlanTemplate(saved.rows[0]!);
+      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.created", "plan_template", item.id, { ...item });
+      return item;
+    });
+  }
+  async updatePlanTemplate(clinicId: string, actorUserId: string, id: string, input: PlanTemplateUpdate) {
+    return this.inTransaction(async (client) => {
+      const result = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1 AND id=$2 FOR UPDATE`, [clinicId, id]);
+      if (!result.rows[0]) return null;
+      const previous = mapPlanTemplate(result.rows[0]);
+      const item = { ...previous, ...input, services: input.services ?? previous.services };
+      if (item.active || item.services.length) planTemplateInputSchema.parse(item);
+      if (input.services || input.active) await this.assertTemplateServices(client, clinicId, item.services);
+      const totalSessions = item.services.reduce((sum, entry) => sum + entry.totalSessions, 0);
+      await client.query(`UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,plan_type=$9,updated_at=now()
+        WHERE clinic_id=$1 AND id=$2`, [clinicId,id,item.name,item.totalValueInCents,item.services[0]?.serviceId ?? null,item.kind ?? null,totalSessions || null,item.active,item.planType ?? null]);
+      if (input.services) await this.writeTemplateServices(client, clinicId, id, input.services);
+      const updated = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
+      const saved = mapPlanTemplate(updated.rows[0]!);
+      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.updated", "plan_template", id, { ...saved, previous });
+      return saved;
+    });
+  }
+
   async listPlanCatalog(clinicId: string) {
     const result = await this.pool.query<PlanCatalogRow>(
       `SELECT ${planCatalogColumns} FROM plan_catalog WHERE clinic_id = $1`,
@@ -3310,60 +3360,6 @@ export class PostgresClinicRepository implements ClinicRepository {
         { name: result.rows[0].name },
       );
       return true;
-=======
-  async listPlanTemplates(clinicId: string) {
-    const result = await this.pool.query<PlanTemplateRow>(
-      `SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1`,
-      [clinicId],
-    );
-    return result.rows
-      .map((row) => mapPlanTemplate(row))
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }
-
-  private async assertTemplateServices(client: PoolClient, clinicId: string, entries: PlanTemplateInput["services"]) {
-    const result = await client.query("SELECT id FROM services WHERE clinic_id=$1 AND id=ANY($2::uuid[]) AND active FOR SHARE", [clinicId, entries.map((item) => item.serviceId)]);
-    if (result.rowCount !== entries.length) throw new DomainError("PLAN_TEMPLATE_SERVICE_NOT_FOUND", "Serviço ativo não encontrado nesta clínica.", 404);
-  }
-  private async writeTemplateServices(client: PoolClient, clinicId: string, id: string, entries: PlanTemplateInput["services"]) {
-    await client.query("DELETE FROM plan_template_services WHERE clinic_id=$1 AND template_id=$2", [clinicId, id]);
-    for (const [position, entry] of entries.entries()) await client.query(
-      "INSERT INTO plan_template_services (clinic_id,template_id,service_id,position,total_sessions,total_value_in_cents) VALUES ($1,$2,$3,$4,$5,$6)",
-      [clinicId, id, entry.serviceId, position, entry.totalSessions, entry.totalValueInCents]);
-  }
-  async createPlanTemplate(clinicId: string, actorUserId: string, input: PlanTemplateInput) {
-    input = planTemplateInputSchema.parse(input);
-    return this.inTransaction(async (client) => {
-      await this.assertTemplateServices(client, clinicId, input.services);
-      const totals = validatePlanComposition(input.services, input.totalValueInCents);
-      const result = await client.query<{ id: string }>(`INSERT INTO plan_templates
-        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-        [clinicId, input.name, input.totalValueInCents, totals.serviceId, input.kind ?? null, totals.totalSessions]);
-      const id = result.rows[0]!.id;
-      await this.writeTemplateServices(client, clinicId, id, input.services);
-      const saved = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
-      const item = mapPlanTemplate(saved.rows[0]!);
-      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.created", "plan_template", item.id, { ...item });
-      return item;
-    });
-  }
-  async updatePlanTemplate(clinicId: string, actorUserId: string, id: string, input: PlanTemplateUpdate) {
-    return this.inTransaction(async (client) => {
-      const result = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE clinic_id=$1 AND id=$2 FOR UPDATE`, [clinicId, id]);
-      if (!result.rows[0]) return null;
-      const previous = mapPlanTemplate(result.rows[0]);
-      const item = { ...previous, ...input, services: input.services ?? previous.services };
-      if (item.active || item.services.length) planTemplateInputSchema.parse(item);
-      if (input.services || input.active) await this.assertTemplateServices(client, clinicId, item.services);
-      const totalSessions = item.services.reduce((sum, entry) => sum + entry.totalSessions, 0);
-      await client.query(`UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,updated_at=now()
-        WHERE clinic_id=$1 AND id=$2`, [clinicId,id,item.name,item.totalValueInCents,item.services[0]?.serviceId ?? null,item.kind ?? null,totalSessions || null,item.active]);
-      if (input.services) await this.writeTemplateServices(client, clinicId, id, input.services);
-      const updated = await client.query<PlanTemplateRow>(`SELECT ${planTemplateColumns} FROM plan_templates WHERE id=$1`, [id]);
-      const saved = mapPlanTemplate(updated.rows[0]!);
-      await this.addAdminAudit(client, clinicId, actorUserId, "plan_template.updated", "plan_template", id, { ...saved, previous });
-      return saved;
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
     });
   }
 

@@ -2261,6 +2261,48 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   grid-column: span 2;
 }
 
+.form-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fixed-patient {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  overflow-wrap: anywhere;
+}
+
+.fixed-patient span { color: var(--muted); font-size: var(--text-sm); }
+.fixed-patient strong { font-size: var(--text-lg); }
+.next-step-content { display: grid; gap: var(--space-5); }
+.next-step-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.next-step-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+.next-step-card > svg { color: var(--green); }
+.next-step-card h3 { margin: 0; font-size: var(--text-lg); }
+.next-step-card p { margin: 0; color: var(--muted); font-size: var(--text-md); line-height: 1.5; }
+.next-step-card > button { margin-top: auto; }
+
+@media (max-width: 700px) {
+  .next-step-options { grid-template-columns: 1fr; }
+  .next-step-card { align-items: stretch; }
+}
+
 .form-fieldset {
   min-width: 0;
   margin: 0;
@@ -2361,7 +2403,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .appointment-date-trigger:disabled { cursor: default; opacity: .6; }
 @media (max-width: 480px) {
   .appointment-calendar { padding: 16px; }
-  .appointment-date-fields { grid-template-columns: minmax(0, 1fr) 100px; }
+  .appointment-date-fields { grid-template-columns: 1fr; }
 }
 @media (max-width: 360px) {
   .appointment-calendar-summary .appointment-calendar-time-field { flex-direction: column; align-items: stretch; gap: 8px; }
@@ -5633,7 +5675,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .operation-permissions { display: grid; gap: 16px; }
 .permission-toolbar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
 .permission-toolbar > label { flex: 1; min-width: 220px; }
-.permission-toolbar > span { font-size: .85rem; color: var(--text-muted, #596474); }
+.permission-toolbar > span { font-size: var(--text-sm); color: var(--muted); }
 .permission-group { border: 1px solid var(--border, #dce1e6); border-radius: 12px; padding: 16px; }
 .permission-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .permission-group-head h3 { margin: 0; }
@@ -5641,7 +5683,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 .permission-option { display: flex; align-items: start; gap: 10px; padding: 10px; border-radius: 8px; background: var(--surface-muted, #f4f6f8); cursor: pointer; }
 .permission-option > input { width: 18px; min-width: 18px; height: 18px; margin: 2px 0 0; }
 .permission-option > span { display: grid; gap: 4px; }
-.permission-option small { color: var(--text-muted, #596474); font-weight: 400; line-height: 1.4; }
+.permission-option small { color: var(--muted); font-weight: 400; line-height: 1.4; }
 .permission-option:focus-within { outline: 2px solid var(--accent, #3d7c78); outline-offset: 2px; }
 
 /* Configurações: navegação persistente e uma área de trabalho por vez. */
@@ -5653,7 +5695,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 }
 .settings-page .page-header h1 {
   font-family: "Manrope", "DM Sans", sans-serif;
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: var(--text-3xl);
   letter-spacing: -1px;
 }
 .settings-tabs {

@@ -121,11 +121,14 @@ describe("plan catalog API", () => {
       ownerId,
       input,
     );
+    const template = await repository.createPlanTemplate(clinicId, ownerId, { ...input, services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 10, totalValueInCents: input.totalValueInCents }] });
     const response = await app.inject({
       method: "POST",
       url: "/plans",
       headers,
       payload: {
+        planTemplateId: template.id,
+        services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 10, totalValueInCents: 12345 }],
         patientId: "99999999-9999-4999-8999-999999999999",
         serviceId: "77777777-7777-4777-8777-777777777777",
         name: entry.name,

@@ -1,11 +1,7 @@
-<<<<<<< HEAD
 import { planCatalogInputSchema } from "@crm/contracts";
-import { permissionCatalog, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
-=======
 import {
   planTemplateInputSchema,
   planTemplateUpdateSchema, permissionCatalog, auditHistoryQuerySchema, historyAction, type AdminAuditEvent, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";

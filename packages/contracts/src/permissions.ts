@@ -111,14 +111,9 @@ const operations = {
     export: "Exportar relatórios",
   },
   settings: {
-<<<<<<< HEAD
-    plans_create: "Cadastrar plano no catálogo",
-    plans_update: "Editar plano do catálogo",
-    plans_delete: "Excluir plano do catálogo",
-=======
+    plans_delete: "Excluir plano do catálogo antigo",
     plans_create: "Cadastrar plano do catálogo",
     plans_update: "Editar e ativar ou desativar plano do catálogo",
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
     tags_create: "Criar etiqueta",
     tags_update: "Editar etiqueta",
     tags_delete: "Excluir etiqueta",
@@ -193,7 +188,7 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView,
             legacyEdit,
             ...(key === "patients.export" ? { legacyAdmin: true } : {}),
-            ...((key === "settings.plans_create" || key === "settings.plans_update") ? { explicitGrantOnly: true } : {}),
+            ...((key === "settings.plans_create" || key === "settings.plans_update" || key === "settings.plans_delete") ? { explicitGrantOnly: true } : {}),
           };
         },
       ),

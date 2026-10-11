@@ -74,6 +74,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     return { ...input, services, planTemplateId: template.id };
   }
 
+  it("persists the plan period and weekly frequency across repository instances", async () => {
+    const template = await repository.createPlanTemplate(clinicId, ownerId, { name: "Integration periodic plan", planType: "semiannual", kind: "fixed_package", totalValueInCents: 16000,
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", sessionsPerWeek: 2, totalSessions: 48, totalValueInCents: 16000 }] });
+    templateIds.push(template.id);
+    const another = new PostgresClinicRepository(pool);
+    expect((await another.listPlanTemplates(clinicId)).find(item => item.id === template.id)).toMatchObject({ planType: "semiannual", services: [{ sessionsPerWeek: 2, totalSessions: 48 }] });
+    await another.updatePlanTemplate(clinicId, ownerId, template.id, { planType: "annual", services: [{ serviceId: "77777777-7777-4777-8777-777777777777", sessionsPerWeek: 2, totalSessions: 96, totalValueInCents: 16000 }] });
+    expect((await repository.listPlanTemplates(clinicId)).find(item => item.id === template.id)).toMatchObject({ planType: "annual", services: [{ sessionsPerWeek: 2, totalSessions: 96 }] });
+  });
+
   it("migrates legacy service terms, balances and movements and deactivates incomplete templates", async () => {
     const client = await pool.connect();
     try {
@@ -622,6 +632,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       `DELETE FROM outbound_messages WHERE patient_id IN
        (SELECT id FROM patients WHERE clinic_id = $1 AND cpf = $2)`,
       [clinicId, timelineCpf],
+    );
+    // Surveys can belong to other seeded patients; remove references to these
+    // fixture appointments before deleting the appointments themselves.
+    await pool.query(
+      `DELETE FROM satisfaction_surveys WHERE appointment_id IN
+       (SELECT id FROM appointments WHERE clinic_id = $1 AND notes = ANY($2::text[]))`,
+      [clinicId, [appointmentMarker, rescheduleMarker, satisfactionMarker, timelineMarker]],
     );
     await pool.query("DELETE FROM appointments WHERE notes = ANY($1::text[])", [
       [appointmentMarker, rescheduleMarker, satisfactionMarker, timelineMarker],

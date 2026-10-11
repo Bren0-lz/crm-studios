@@ -756,21 +756,111 @@ export const planServicesSchema = z
       new Set(items.map((item) => item.serviceId)).size === items.length,
     "Não repita serviços no plano.",
   );
+export const planTypeSchema = z.enum([
+  "single",
+  "monthly",
+  "quarterly",
+  "semiannual",
+  "annual",
+  "promotional",
+]);
+export type PlanType = z.infer<typeof planTypeSchema>;
+export const planTypeLabels: Record<PlanType, string> = {
+  single: "Plano avulso",
+  monthly: "Plano mensal",
+  quarterly: "Plano trimestral",
+  semiannual: "Plano semestral",
+  annual: "Plano anual",
+  promotional: "Plano promocional",
+};
+export function planPeriodMonths(type?: PlanType | null): number {
+  return type
+    ? {
+        single: 0,
+        monthly: 1,
+        quarterly: 3,
+        semiannual: 6,
+        annual: 12,
+        promotional: 0,
+      }[type]
+    : 0;
+}
+export function planSessionsForPeriod(
+  type: PlanType,
+  sessionsPerWeek: number,
+): number {
+  return planPeriodMonths(type) * 4 * sessionsPerWeek;
+}
+export function planTypeKind(type: PlanType): z.infer<typeof planKindSchema> {
+  return type === "single"
+    ? "single"
+    : type === "monthly"
+      ? "recurring"
+      : type === "promotional"
+        ? "custom"
+        : "fixed_package";
+}
+export function planPeriodEnd(type: PlanType, validFrom: string): string {
+  if (!z.iso.date().safeParse(validFrom).success) return "";
+  const months = planPeriodMonths(type);
+  return months
+    ? addDaysToIsoDate(addMonthsToIsoDate(validFrom, months), -1)
+    : "";
+}
+const planTemplateServicesSchema = z
+  .array(
+    planServiceInputSchema.extend({
+      sessionsPerWeek: z.number().int().min(1).max(7).nullable().optional(),
+    }),
+  )
+  .min(1)
+  .refine(
+    (items) =>
+      new Set(items.map((item) => item.serviceId)).size === items.length,
+    "Não repita serviços no plano.",
+  );
 const planTemplateFieldsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   totalValueInCents: z.number().int().min(0).max(2147483647),
-  services: planServicesSchema,
+  services: planTemplateServicesSchema,
+  planType: planTypeSchema.nullable().optional(),
   kind: planKindSchema.nullable().optional(),
 });
-export const planTemplateInputSchema = planTemplateFieldsSchema.refine(
-  (value) =>
-    value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
-    value.totalValueInCents,
-  {
-    message: "A soma dos serviços deve corresponder ao valor total do plano.",
-    path: ["totalValueInCents"],
-  },
-);
+export const planTemplateInputSchema = planTemplateFieldsSchema
+  .superRefine((value, ctx) => validateTemplatePeriod(value, ctx))
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total do plano.",
+      path: ["totalValueInCents"],
+    },
+  );
+// Weekly frequencies become a contracted balance; dates remain calendar months.
+function validateTemplatePeriod(
+  value: z.infer<typeof planTemplateFieldsSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (!planPeriodMonths(value.planType)) return;
+  value.services.forEach((entry, index) => {
+    if (!entry.sessionsPerWeek)
+      ctx.addIssue({
+        code: "custom",
+        path: ["services", index, "sessionsPerWeek"],
+        message: "Informe as sessões por semana.",
+      });
+    else if (
+      entry.totalSessions !==
+      planSessionsForPeriod(value.planType!, entry.sessionsPerWeek)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["services", index, "totalSessions"],
+        message: "O saldo deve corresponder à frequência semanal e ao período.",
+      });
+  });
+}
 export const planTemplateUpdateSchema = planTemplateFieldsSchema
   .partial()
   .extend({ active: z.boolean().optional() })

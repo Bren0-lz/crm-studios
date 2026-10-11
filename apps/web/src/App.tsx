@@ -1,4 +1,4 @@
-import { planCatalogInputSchema, type PlanCatalogEntry } from "@crm/contracts";
+import { planTypeLabels, planPeriodMonths, planSessionsForPeriod, planPeriodEnd, planTypeKind, planTemplateInputSchema, type PlanType } from "@crm/contracts";
 import { AuthorizationProvider } from "./authorization";
 import { useAuthorization } from "./authorization-context";
 import { PermissionEditor } from "./PermissionEditor";
@@ -7,6 +7,7 @@ import { formatAuditEvent, type AuditField } from "./audit-history";
 import { legacyPermissions, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
+import { createPortal } from "react-dom";
 import {
   Bell,
   BarChart3,
@@ -58,7 +59,6 @@ import {
 } from "react-router-dom";
 import type {
   PlanTemplate,
-  PlanTemplateInput,
   AdminAuditEvent,
   AdminUser,
   AppModule,
@@ -98,6 +98,7 @@ import type {
   DocumentTemplateInput,
   FinancialWorkspace,
   GroupClass,
+  GroupEnrollment,
   GroupSession,
   GroupWorkspace,
   Holiday,
@@ -1040,6 +1041,8 @@ function PatientsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [createdPatient, setCreatedPatient] = useState<Patient | null>(null);
+  const newPatientButton = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
@@ -1127,7 +1130,7 @@ function PatientsPage() {
               </button>))
             )}
             {canManage && (
-              (can("patients.create") && (<button className="primary-button" onClick={() => setModalOpen(true)}>
+              (can("patients.create") && (<button ref={newPatientButton} className="primary-button" onClick={() => setModalOpen(true)}>
                 <Plus size={18} />
                 Novo cliente
               </button>))
@@ -1365,9 +1368,16 @@ function PatientsPage() {
               ),
             );
             setModalOpen(false);
+            if (!editingPatient) setCreatedPatient(patient);
             setEditingPatient(null);
           }}
         />
+      )}
+      {createdPatient && (
+        <PatientNextSteps patient={createdPatient} onClose={() => {
+          setCreatedPatient(null);
+          requestAnimationFrame(() => newPatientButton.current?.focus());
+        }} />
       )}
       {importOpen && (
         <PatientImportModal
@@ -1384,6 +1394,241 @@ function PatientsPage() {
         />
       )}
     </>
+  );
+}
+
+function FixedPatient({ patient }: { patient: PatientOption }) {
+  return <div className="fixed-patient span-2"><span>Cliente</span><strong>{patient.fullName}</strong></div>;
+}
+
+function PlanGroupPicker({ groups, services, value, onChange, disabled = false }: {
+  groups: GroupChoices;
+  services: { serviceId: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const choices = groups.items?.filter(group => group.active && services.some(item => item.serviceId === group.serviceId)) ?? [];
+  const selected = choices.find(group => group.id === value);
+  const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  return (
+    <fieldset className="form-fieldset span-2">
+      <legend>Turma opcional</legend>
+      <label>
+        Turma
+        <select value={value} disabled={disabled || !choices.length || Boolean(groups.error)}
+          onChange={event => onChange(event.target.value)}>
+          <option value="">Escolher depois</option>
+          {choices.map(group => {
+            const vacancies = Math.max(0, group.capacity - group.activeEnrollments);
+            const schedule = group.weeklySlots.map(slot => `${weekdays[slot.weekday]} ${slot.startTime}–${slot.endTime}`).join(", ");
+            return <option key={group.id} value={group.id}>
+              {`${group.name} · ${group.professionalName} · ${schedule} · ${vacancies ? `${vacancies} ${vacancies === 1 ? "vaga" : "vagas"}` : "Sem vagas · lista de espera"}`}
+            </option>;
+          })}
+        </select>
+      </label>
+      {groups.error ? (
+        <div className="form-error" role="alert">
+          {`Não foi possível carregar as turmas: ${groups.error}`} {" "}
+          <button type="button" className="secondary-button button-sm" disabled={disabled} onClick={groups.retry}>Tentar carregar turmas</button>
+        </div>
+      ) : groups.items === null ? <LoadingBlock /> : choices.length === 0 ? (
+        <p className="muted-copy">Nenhuma turma compatível disponível. Você pode vincular o plano e escolher uma turma depois.</p>
+      ) : null}
+      {selected && selected.activeEnrollments >= selected.capacity && (
+        <p className="muted-copy">Esta turma está cheia. O cliente será incluído na lista de espera.</p>
+      )}
+      <p className="field-hint">A turma pode ser escolhida depois com o responsável.</p>
+    </fieldset>
+  );
+}
+
+type NextStepResources = { services: Service[]; professionals: Professional[]; rooms: Room[] };
+
+function PatientNextSteps({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+  const { can } = useAuthorization();
+  const canPlan = can("plans.create");
+  const canAppointment = can("agenda.create") || can("agenda.recurring");
+  const canEnroll = can("groups.enroll");
+  const [step, setStep] = useState<"choice" | "plan" | "appointment" | "enrollment">("choice");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const setFlowBusy = useCallback((value: boolean) => { busyRef.current = value; setBusy(value); }, []);
+  const [plan, setPlan] = useState<PatientPlan | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
+  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(null);
+  const [enrollmentGroup, setEnrollmentGroup] = useState<GroupClass | null>(null);
+  const [pendingGroup, setPendingGroup] = useState("");
+  const [enrollmentError, setEnrollmentError] = useState("");
+  const [resourceAttempt, setResourceAttempt] = useState(0);
+  const [resourceResult, setResourceResult] = useState<{ key: string; data?: NextStepResources; error?: string } | null>(null);
+  const resourceKey = `${step}/${resourceAttempt}`;
+  const resources = resourceResult?.key === resourceKey ? resourceResult.data : undefined;
+  const resourceError = resourceResult?.key === resourceKey ? resourceResult.error : undefined;
+  useEffect(() => {
+    if (!((step === "plan" && canPlan) || (step === "appointment" && canAppointment))) return;
+    let active = true;
+    const request = step === "plan"
+      ? api.services().then(services => ({ services, professionals: [], rooms: [] }))
+      : Promise.all([api.services(), api.professionals(), api.rooms()])
+          .then(([services, professionals, rooms]) => ({ services, professionals, rooms }));
+    request.then(data => {
+      if (active) setResourceResult({ key: resourceKey, data });
+    }).catch((cause: Error) => {
+      if (active) setResourceResult({ key: resourceKey, error: cause.message });
+    });
+    return () => { active = false; };
+  }, [step, canPlan, canAppointment, resourceKey]);
+
+  const [groupAttempt, setGroupAttempt] = useState(0);
+  const [groupResult, setGroupResult] = useState<{ attempt: number; items?: GroupClass[]; error?: string } | null>(null);
+  useEffect(() => {
+    if (!canEnroll || !((step === "plan" && canPlan) || step === "enrollment")) return;
+    let active = true;
+    const range = groupOperationRange();
+    api.groupWorkspace(range.from, range.to).then(data => {
+      if (active) setGroupResult({ attempt: groupAttempt, items: data.groups });
+    }).catch((cause: Error) => {
+      if (active) setGroupResult({ attempt: groupAttempt, error: cause.message });
+    });
+    return () => { active = false; };
+  }, [step, canPlan, canEnroll, groupAttempt]);
+  const groups: GroupChoices = {
+    items: groupResult?.attempt === groupAttempt ? groupResult.items ?? null : null,
+    error: groupResult?.attempt === groupAttempt ? groupResult.error ?? "" : "",
+    retry: () => setGroupAttempt(value => value + 1),
+  };
+
+  function back() { if (!busyRef.current) setStep("choice"); }
+  function close() { if (!busyRef.current) onClose(); }
+  async function saveEnrollment(savedPlan: PatientPlan, groupId: string) {
+    const group = groups.items?.find(item => item.id === groupId && item.active && savedPlan.services.some(service => service.serviceId === item.serviceId));
+    if (!canEnroll || !group) throw new Error("Escolha uma turma compatível disponível para concluir a matrícula.");
+    const saved = await api.createGroupEnrollment({ patientId: patient.id, groupId });
+    setEnrollment(saved);
+    setEnrollmentGroup(group);
+    setPendingGroup("");
+    setEnrollmentError("");
+    setStep("choice");
+  }
+  async function retryEnrollment(event: FormEvent) {
+    event.preventDefault();
+    if (busyRef.current || !plan) return;
+    setFlowBusy(true);
+    setEnrollmentError("");
+    try {
+      await saveEnrollment(plan, pendingGroup);
+    } catch (cause) {
+      setEnrollmentError((cause as Error).message);
+    } finally {
+      setFlowBusy(false);
+    }
+  }
+  const allowed = step === "plan" ? canPlan : step === "appointment" ? canAppointment : step === "enrollment" ? canEnroll : true;
+  const title = { choice: "Cliente cadastrado", plan: "Vincular a plano", appointment: "Agendar atendimento", enrollment: "Concluir matrícula" }[step];
+  return (
+    <Modal key={step} title={title} eyebrow="Próximos passos" subtitle={step === "choice"
+      ? "Escolha como continuar. O cadastro já está salvo."
+      : "O cliente já está cadastrado. Você pode voltar para escolher outra ação."}
+      initialFocus={step === "choice" ? "[data-next-step-action]" : "select:not(:disabled), input:not(:disabled), button[type=submit]:not(:disabled)"}
+      busy={busy} onClose={close}>
+      {step === "choice" ? (
+        <div className="next-step-content">
+          <FixedPatient patient={patient} />
+          <div className="next-step-options">
+            {(canPlan || plan) && <section className="next-step-card">
+              <PackageOpen size={24} aria-hidden="true" />
+              <h3>{plan ? "Plano vinculado" : "Vincular a plano"}</h3>
+              {plan ? <>
+                <p>{plan.name} · {currency.format(plan.totalValueInCents / 100)}</p>
+                {enrollment && <p role="status">{enrollment.status === "waitlisted"
+                  ? `Na lista de espera de ${enrollmentGroup?.name ?? "turma"}${enrollment.queuePosition ? ` · posição ${enrollment.queuePosition}` : ""}`
+                  : `Matriculado na turma ${enrollmentGroup?.name ?? "escolhida"}`}</p>}
+                {pendingGroup && <>
+                  <p>Matrícula não concluída.</p>
+                  {canEnroll && <button type="button" className="secondary-button" data-next-step-action
+                    onClick={() => setStep("enrollment")}>Retomar matrícula</button>}
+                </>}
+              </> : <>
+                <p>Escolha um plano e, se quiser, uma turma para o cliente.</p>
+                <button type="button" className="secondary-button" data-next-step-action
+                  onClick={() => setStep("plan")}>Vincular a plano</button>
+              </>}
+            </section>}
+            {(canAppointment || appointments) && <section className="next-step-card">
+              <CalendarDays size={24} aria-hidden="true" />
+              <h3>{appointments ? "Atendimento agendado" : "Agendar atendimento"}</h3>
+              {appointments ? <div role="status">
+                {appointments.map(appointment => <p key={appointment.id}>
+                  {appointment.serviceName} · {shortDate.format(new Date(appointment.startsAt))} às {timeLabel.format(new Date(appointment.startsAt))}
+                </p>)}
+              </div> : <>
+                <p>Marque um atendimento, uma avaliação ou uma aula experimental.</p>
+                <button type="button" className="secondary-button" data-next-step-action
+                  onClick={() => setStep("appointment")}>Agendar atendimento</button>
+              </>}
+            </section>}
+          </div>
+          <div className="modal-actions"><button type="button" className="primary-button" data-next-step-action onClick={close}>Concluir</button></div>
+        </div>
+      ) : !allowed ? (
+        <div className="next-step-content"><p className="muted-copy">Seu acesso não permite mais esta ação.</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={back}>Voltar</button></div></div>
+      ) : step === "enrollment" && plan ? (
+        <form className="form-grid" onSubmit={retryEnrollment}>
+          <FixedPatient patient={patient} />
+          <p className="success-banner span-2" role="status">Plano vinculado; matrícula não concluída. {plan.name}</p>
+          <PlanGroupPicker groups={groups} services={plan.services} value={pendingGroup}
+            onChange={setPendingGroup} disabled={busy} />
+          {enrollmentError && <p className="form-error span-2" role="alert">{enrollmentError}</p>}
+          <div className="modal-actions span-2">
+            <button type="button" className="secondary-button" disabled={busy} onClick={back}>Voltar</button>
+            <button type="button" className="secondary-button" disabled={busy} onClick={() => {
+              setPendingGroup(""); setEnrollmentError(""); setStep("choice");
+            }}>Continuar sem turma</button>
+            <button type="submit" className="primary-button" disabled={busy || Boolean(groups.error) || !groups.items?.some(group => group.id === pendingGroup && group.active && plan.services.some(item => item.serviceId === group.serviceId))}>
+              {busy ? "Matriculando…" : "Tentar matrícula novamente"}
+            </button>
+          </div>
+        </form>
+      ) : resourceError || !resources ? (
+        <div className="next-step-content">
+          <FixedPatient patient={patient} />
+          {resourceError ? <div className="form-error" role="alert">{resourceError} {" "}
+            <button type="button" className="secondary-button button-sm" onClick={() => setResourceAttempt(value => value + 1)}>Tentar novamente</button>
+          </div> : <LoadingBlock />}
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={back}>Voltar</button></div>
+        </div>
+      ) : step === "plan" ? (
+        <PlanForm patients={[patient]} fixedPatient={patient} services={resources.services}
+          groups={canEnroll ? groups : undefined} onCancel={back} onBusyChange={setFlowBusy}
+          onSubmit={async (input, groupId) => {
+            const saved = await api.createPlan(input);
+            setPlan(saved);
+            if (groupId) {
+              setPendingGroup(groupId);
+              try { await saveEnrollment(saved, groupId); }
+              catch (cause) { setEnrollmentError((cause as Error).message); setStep("enrollment"); }
+            } else setStep("choice");
+          }} />
+      ) : !resources.services.length || !resources.professionals.length || !resources.rooms.length ? (
+        <div className="next-step-content"><FixedPatient patient={patient} />
+          <p className="muted-copy">Para agendar, é necessário ter um serviço, um profissional e uma sala ativos cadastrados.</p>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={back}>Voltar</button>
+            <button type="button" className="secondary-button" onClick={() => setResourceAttempt(value => value + 1)}>Tentar novamente</button>
+          </div>
+        </div>
+      ) : (
+        <AppointmentForm patients={[patient]} fixedPatient={patient} professionals={resources.professionals}
+          rooms={resources.rooms} services={resources.services} onCancel={back} onBusyChange={setFlowBusy}
+          onSubmit={async (input, recurrence) => {
+            const saved = recurrence ? await api.createRecurringAppointments({ ...input, ...recurrence }) : [await api.createAppointment(input)];
+            setAppointments(saved); setStep("choice");
+          }} />
+      )}
+    </Modal>
   );
 }
 
@@ -1784,6 +2029,7 @@ function PatientModal({
   const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -1804,10 +2050,12 @@ function PatientModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
     if (form.cpf && !isValidCpf(form.cpf)) {
       setError("Informe um CPF válido.");
       return;
     }
+    submitting.current = true;
     setLoading(true);
     setError("");
     try {
@@ -1815,6 +2063,7 @@ function PatientModal({
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -5677,26 +5926,59 @@ function PlansPage({ canManage }: { canManage: boolean }) {
   );
 }
 
-function PlanModal({
-  patients,
-  services,
-  renewing,
-  onClose,
-  onSaved,
-}: {
+type PlanModalProps = {
   patients: PatientOption[];
   services: Service[];
   renewing?: PatientPlan;
   onClose: () => void;
   onSaved: (plan: PatientPlan) => void;
+};
+
+function PlanModal({ patients, services, renewing, onClose, onSaved }: PlanModalProps) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      title={renewing ? "Renovar plano" : "Novo plano"}
+      subtitle={renewing
+        ? `${renewing.patientName} ? ${renewing.serviceName}. O novo per?odo recebe saldo e parcelas pr?prios; as sess?es restantes do plano atual n?o s?o transferidas.`
+        : "O saldo e as contas a receber ser?o criados na mesma opera??o."}
+      busy={busy} onClose={onClose}
+    >
+      <PlanForm patients={patients} services={services} renewing={renewing}
+        onCancel={onClose} onBusyChange={setBusy} onSubmit={async (input) => {
+          const plan = renewing
+            ? await api.renewPlan(renewing.id, {
+                name: input.name, services: input.services, validFrom: input.validFrom,
+                validUntil: input.validUntil, totalValueInCents: input.totalValueInCents,
+                installments: input.installments, firstDueDate: input.firstDueDate,
+                autoRenew: Boolean(input.autoRenew),
+              })
+            : await api.createPlan(input);
+          onSaved(plan);
+        }} />
+    </Modal>
+  );
+}
+
+type GroupChoices = {
+  items: GroupClass[] | null;
+  error: string;
+  retry: () => void;
+};
+
+function PlanForm({ patients, services, renewing, fixedPatient, groups,
+  onCancel, onBusyChange, onSubmit,
+}: {
+  patients: PatientOption[];
+  services: Service[];
+  renewing?: PatientPlan | undefined;
+  fixedPatient?: PatientOption;
+  groups?: GroupChoices | undefined;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
 }) {
-<<<<<<< HEAD
- const { can } = useAuthorization();
-  const { entries: catalog, error: catalogError, reload: reloadCatalog } = usePlanCatalog();
-  const [catalogId, setCatalogId] = useState("");
-=======
   const { can, canView } = useAuthorization();
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   const currentDate = localIsoDate();
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -5704,11 +5986,7 @@ function PlanModal({
     if (!renewing) {
       return {
         planTemplateId: "",
-        patientId: patients[0]?.id ?? "",
-<<<<<<< HEAD
-        serviceId: services[0]?.id ?? "",
-=======
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
+        patientId: fixedPatient?.id ?? patients[0]?.id ?? "",
         name: "",
         kind: "fixed_package",
         services: [],
@@ -5745,6 +6023,8 @@ function PlanModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
+  const [groupId, setGroupId] = useState("");
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
@@ -5768,6 +6048,7 @@ function PlanModal({
   }, [renewing, catalogAttempt]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
     if (
       !renewing &&
       !templates?.some((item) => item.id === form.planTemplateId)
@@ -5775,47 +6056,28 @@ function PlanModal({
       setError("Selecione um plano cadastrado.");
       return;
     }
+    submitting.current = true;
     setLoading(true);
+    onBusyChange(true);
     setError("");
     try {
-      if (renewing) {
-        onSaved(
-          await api.renewPlan(renewing.id, {
-            name: form.name,
-            services: form.services,
-            validFrom: form.validFrom,
-            validUntil: form.validUntil,
-            totalValueInCents: form.totalValueInCents,
-            installments: form.installments,
-            firstDueDate: form.firstDueDate,
-            autoRenew: Boolean(form.autoRenew),
-          }),
-        );
-      } else {
-        onSaved(await api.createPlan(form));
-      }
+      await onSubmit(form, form.kind !== "single" ? groupId || undefined : undefined);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
+      onBusyChange(false);
     }
   }
   return (
-    <Modal
-      title={renewing ? "Renovar plano" : "Novo plano"}
-      subtitle={
-        renewing
-          ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
-          : "O saldo e as contas a receber serão criados na mesma operação."
-      }
-      busy={loading}
-      onClose={onClose}
-    >
+    <>
       {(renewing ? can("plans.renew") : can("plans.create")) && (
         <form className="form-grid" onSubmit={submit}>
+          <fieldset className="form-fields form-grid span-2" disabled={loading}>
           {!renewing && (
             <>
-              <label className="span-2">
+              {fixedPatient ? <FixedPatient patient={fixedPatient} /> : <label className="span-2">
                 Cliente
                 <select
                   required
@@ -5830,14 +6092,16 @@ function PlanModal({
                     </option>
                   ))}
                 </select>
-              </label>
+              </label>}
               <label>
                 Modelo
                 <select
+                  autoFocus={Boolean(fixedPatient)}
                   value={form.kind}
                   onChange={(e) => {
                     const kind = e.target.value as PatientPlan["kind"];
                     setForm({ ...form, kind, autoRenew: kind === "recurring" });
+                    if (kind === "single") setGroupId("");
                   }}
                 >
                   {Object.entries(planKindLabels).map(([value, label]) => (
@@ -5858,202 +6122,6 @@ function PlanModal({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </label>
-<<<<<<< HEAD
-            <label>
-              Serviço
-              <select
-                required
-                value={form.serviceId}
-                onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-              >
-                {services.map((service) => (
-                  <option value={service.id} key={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Modelo
-              <select
-                value={form.kind}
-                onChange={(e) => {
-                  const kind = e.target.value as PatientPlan["kind"];
-                  setForm({ ...form, kind, autoRenew: kind === "recurring" });
-                }}
-              >
-                {Object.entries(planKindLabels).map(([value, label]) => (
-                  <option value={value} key={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-        <label className="span-2">
-          Plano cadastrado
-          <select
-            value={catalogId}
-            disabled={catalog === null}
-            onChange={(event) => {
-              const id = event.target.value;
-              setCatalogId(id);
-              const entry = catalog?.find((item) => item.id === id);
-              if (entry)
-                setForm((current) => ({
-                  ...current,
-                  name: entry.name,
-                  totalValueInCents: entry.totalValueInCents,
-                }));
-            }}
-          >
-            <option value="">
-              {catalog === null && !catalogError
-                ? "Carregando planos…"
-                : "Plano personalizado"}
-            </option>
-            {(catalog ?? []).map((entry) => (
-              <option value={entry.id} key={entry.id}>
-                {entry.name} ·{" "}
-                {currency.format(entry.totalValueInCents / 100)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {catalogError && (
-          <div className="span-2">
-            <ErrorBanner error={catalogError} />
-            <p className="muted-copy">
-              Você pode preencher um plano personalizado ou tentar carregar o
-              catálogo novamente.
-            </p>
-            <button
-              type="button"
-              className="secondary-button button-sm"
-              onClick={reloadCatalog}
-            >
-              Tentar novamente
-            </button>
-          </div>
-        )}
-        {catalog?.length === 0 && (
-          <p className="muted-copy span-2">
-            Nenhum plano cadastrado em Configurações. Preencha um plano
-            personalizado.
-          </p>
-        )}
-        <label className="span-2">
-          Nome do plano
-          <input
-            required
-            minLength={3}
-            maxLength={120}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </label>
-        <label>
-          Sessões
-          <input
-            required
-            type="number"
-            min="1"
-            value={form.totalSessions}
-            onChange={(e) =>
-              setForm({ ...form, totalSessions: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Valor total
-          <input
-            required
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.totalValueInCents / 100}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                totalValueInCents: Math.round(Number(e.target.value) * 100),
-              })
-            }
-          />
-        </label>
-        <label>
-          Início
-          <input
-            required
-            type="date"
-            value={form.validFrom}
-            onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
-          />
-        </label>
-        <label>
-          Fim da validade
-          <input
-            type="date"
-            value={form.validUntil}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                validUntil: e.target.value,
-                autoRenew: Boolean(e.target.value) && form.autoRenew,
-              })
-            }
-          />
-        </label>
-        <label>
-          Parcelas
-          <input
-            required
-            type="number"
-            min="1"
-            max="36"
-            value={form.installments}
-            onChange={(e) =>
-              setForm({ ...form, installments: Number(e.target.value) })
-            }
-          />
-        </label>
-        <label>
-          Primeiro vencimento
-          <input
-            required
-            type="date"
-            value={form.firstDueDate}
-            onChange={(e) => setForm({ ...form, firstDueDate: e.target.value })}
-          />
-        </label>
-        <label className="checkbox-field span-2">
-          <input
-            type="checkbox"
-            checked={Boolean(form.autoRenew)}
-            disabled={!form.validUntil}
-            onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
-          />
-          {form.validUntil
-            ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
-            : "Renovação automática exige o fim da validade"}
-        </label>
-        {error && <div className="form-error span-2">{error}</div>}
-        <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={loading}>
-            {renewing
-              ? loading
-                ? "Renovando…"
-                : "Renovar plano e gerar parcelas"
-              : loading
-                ? "Criando…"
-                : "Criar plano e parcelas"}
-          </button>
-        </div>
-      </form>)}
-=======
           ) : (
             <div className="span-2">
               <label>
@@ -6066,6 +6134,10 @@ function PlanModal({
                     const template = templates?.find(
                       (item) => item.id === event.target.value,
                     );
+                    if (!template || (template.planType ? planTypeKind(template.planType) : template.kind) === "single" ||
+                      !template.services.some(entry => groups?.items?.some(group => group.id === groupId && group.serviceId === entry.serviceId))) {
+                      setGroupId("");
+                    }
                     setForm({
                       ...form,
                       planTemplateId: template?.id ?? "",
@@ -6073,7 +6145,8 @@ function PlanModal({
                       totalValueInCents: template?.totalValueInCents ?? 0,
                       services:
                         template?.services.map((entry) => ({ ...entry })) ?? [],
-                      kind: template?.kind ?? "fixed_package",
+                      kind: template?.planType ? planTypeKind(template.planType) : template?.kind ?? "fixed_package",
+                      ...(template?.planType ? { validUntil: planPeriodEnd(template.planType, form.validFrom), autoRenew: Boolean(planPeriodMonths(template.planType)) && form.autoRenew } : {}),
                     });
                   }}
                 >
@@ -6117,6 +6190,9 @@ function PlanModal({
               ) : null}
             </div>
           )}
+          {!renewing && templates?.find(item => item.id === form.planTemplateId)?.planType && <p className="span-2 muted-copy">
+            {planTypeLabels[templates.find(item => item.id === form.planTemplateId)!.planType!]} · Valor total do período.
+          </p>}
           {form.services.map((entry, index) => (
             <fieldset className="span-2 form-grid" key={entry.serviceId}>
               <legend>
@@ -6205,7 +6281,12 @@ function PlanModal({
               required
               type="date"
               value={form.validFrom}
-              onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+              onChange={(e) => {
+                const selected = templates?.find(item => item.id === form.planTemplateId);
+                setForm({ ...form, validFrom: e.target.value,
+                  ...(!renewing && selected?.planType && planPeriodMonths(selected.planType) ? { validUntil: planPeriodEnd(selected.planType, e.target.value) } : {}),
+                });
+              }}
             />
           </label>
           <label>
@@ -6259,15 +6340,20 @@ function PlanModal({
               ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
               : "Renovação automática exige o fim da validade"}
           </label>
-          {error && <div className="form-error span-2">{error}</div>}
+          {groups && form.kind !== "single" && form.services.length > 0 && (
+            <PlanGroupPicker groups={groups} services={form.services} value={groupId}
+              onChange={setGroupId} disabled={loading} />
+          )}
+          </fieldset>
+          {error && <div className="form-error span-2" role="alert">{error}</div>}
           <div className="modal-actions span-2">
             <button
               type="button"
               className="secondary-button"
-              onClick={onClose}
+              onClick={onCancel}
               disabled={loading}
             >
-              Cancelar
+              {fixedPatient ? "Voltar" : "Cancelar"}
             </button>
             <button
               className="primary-button"
@@ -6284,8 +6370,7 @@ function PlanModal({
           </div>
         </form>
       )}
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
-    </Modal>
+    </>
   );
 }
 
@@ -11436,26 +11521,49 @@ function AppointmentPatientPicker({ patients, value, onChange, inputRef, onAddPa
   );
 }
 
-function AppointmentModal({
-  patients,
-  professionals,
-  rooms,
-  services,
-  onClose,
-  onCreated,
-  onPatientCreated,
-}: {
+type AppointmentModalProps = {
   patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];
   services: Service[];
   onClose: () => void;
-  onCreated: (appointment: Appointment[]) => void;
+  onCreated: (appointments: Appointment[]) => void;
   onPatientCreated: (patient: Patient) => void;
+};
+
+function AppointmentModal({ onClose, onCreated, ...props }: AppointmentModalProps) {
+  const [busy, setBusy] = useState(false);
+  const [inactive, setInactive] = useState(false);
+  return (
+    <Modal title="Novo atendimento" subtitle="A dura??o e o valor seguem o servi?o selecionado."
+      busy={busy} inactive={inactive} onClose={onClose}>
+      <AppointmentForm {...props} onCancel={onClose} onBusyChange={setBusy}
+        onNestedModalChange={setInactive} onSubmit={async (input, recurrence) => {
+          onCreated(recurrence
+            ? await api.createRecurringAppointments({ ...input, ...recurrence })
+            : [await api.createAppointment(input)]);
+        }} />
+    </Modal>
+  );
+}
+
+function AppointmentForm({ patients, professionals, rooms, services, fixedPatient,
+  onCancel, onBusyChange, onSubmit, onPatientCreated, onNestedModalChange,
+}: {
+  patients: PatientOption[];
+  professionals: Professional[];
+  rooms: Room[];
+  services: Service[];
+  fixedPatient?: PatientOption;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onSubmit: (input: AppointmentInput, recurrence?: { occurrences: number; intervalWeeks: number }) => Promise<void>;
+  onPatientCreated?: (patient: Patient) => void;
+  onNestedModalChange?: (open: boolean) => void;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState({
-    patientId: "",
+    patientId: fixedPatient?.id ?? "",
     visitType: "" as AppointmentVisitType | "",
     professionalId: "",
     roomId: "",
@@ -11468,6 +11576,7 @@ function AppointmentModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(null);
   const [pickerVersion, setPickerVersion] = useState(0);
@@ -11476,16 +11585,20 @@ function AppointmentModal({
     ? [...patients, selectedPatient] : patients;
   function closePatientModal() {
     setPatientModalOpen(false);
+    onNestedModalChange?.(false);
     requestAnimationFrame(() => patientInputRef.current?.focus());
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
     if (!form.patientId) {
       setError("Selecione um cliente para confirmar o atendimento.");
       patientInputRef.current?.focus();
       return;
     }
+    submitting.current = true;
     setLoading(true);
+    onBusyChange(true);
     setError("");
     try {
       const input: AppointmentInput = {
@@ -11497,15 +11610,9 @@ function AppointmentModal({
         notes: form.notes,
         visitType: form.visitType as AppointmentVisitType,
       };
-      onCreated(
-        form.recurring
-          ? await api.createRecurringAppointments({
-              ...input,
-              occurrences: form.occurrences,
-              intervalWeeks: form.intervalWeeks,
-            })
-          : [await api.createAppointment(input)],
-      );
+      await onSubmit(input, form.recurring
+        ? { occurrences: form.occurrences, intervalWeeks: form.intervalWeeks }
+        : undefined);
     } catch (cause) {
       setError(
         cause instanceof ApiClientError
@@ -11513,31 +11620,28 @@ function AppointmentModal({
           : "Não foi possível agendar.",
       );
     } finally {
+      submitting.current = false;
       setLoading(false);
+      onBusyChange(false);
     }
   }
   return (
     <>
-    <Modal
-      title="Novo atendimento"
-      subtitle="A duração e o valor seguem o serviço selecionado."
-      busy={loading}
-      inactive={patientModalOpen}
-      onClose={onClose}
-    >
       {(can("agenda.create") || can("agenda.recurring")) && (<form className="form-grid" onSubmit={submit}>
-        <div>
+        <fieldset className="form-fields form-grid span-2" disabled={loading}>
+        {fixedPatient ? <FixedPatient patient={fixedPatient} /> : <div>
           <AppointmentPatientPicker key={pickerVersion} patients={patientChoices}
             value={form.patientId} inputRef={patientInputRef}
-            busy={loading} onAddPatient={can("patients.create") ? () => setPatientModalOpen(true) : undefined}
+            busy={loading} onAddPatient={can("patients.create") && onPatientCreated ? () => { setPatientModalOpen(true); onNestedModalChange?.(true); } : undefined}
             onChange={(patientId, patient) => {
               if (patient) setSelectedPatient(patient);
               setForm((current) => ({ ...current, patientId }));
             }} />
-        </div>
+        </div>}
         <label>
           Tipo
           <select
+            autoFocus={Boolean(fixedPatient)}
             required
             value={form.visitType}
             onChange={(e) => setForm({ ...form, visitType: e.target.value as AppointmentVisitType })}
@@ -11650,24 +11754,24 @@ function AppointmentModal({
             rows={3}
           />
         </label>
-        {error && <div className="form-error span-2">{error}</div>}
+        </fieldset>
+        {error && <div className="form-error span-2" role="alert">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancelar
+          <button type="button" className="secondary-button" onClick={onCancel} disabled={loading}>
+            {fixedPatient ? "Voltar" : "Cancelar"}
           </button>
           <button className="primary-button" disabled={loading || !form.patientId}>
             {loading ? "Agendando…" : "Confirmar atendimento"}
           </button>
         </div>
       </form>)}
-    </Modal>
-    {patientModalOpen && <AppointmentPatientCreateModal onClose={closePatientModal} onSaved={(patient) => {
-      onPatientCreated(patient);
+    {patientModalOpen && createPortal(<AppointmentPatientCreateModal onClose={closePatientModal} onSaved={(patient) => {
+      onPatientCreated?.(patient);
       setSelectedPatient(patient);
       setPickerVersion((version) => version + 1);
       setForm((current) => ({ ...current, patientId: patient.id }));
       closePatientModal();
-    }} />}
+    }} />, document.body)}
     </>
   );
 }
@@ -12514,41 +12618,9 @@ function AdminUsersContent() {
                   Redefinir senha
                 </button>
               </div>
-<<<<<<< HEAD
-            </form>
-          )}
-        </CollapsibleSection>
-        <RelationshipSettingsSection canEdit />
-        <HolidaysSection />
-        <PlanCatalogSection />
-        <PatientTagsSection canEdit />
-        <CollapsibleSection
-          className="admin-audit"
-          eyebrow="Rastreabilidade"
-          title="Auditoria recente"
-        >
-          {users === null ? (
-            // Usuários, dados e auditoria chegam juntos no mesmo carregamento da página.
-            !error && <LoadingBlock />
-          ) : audit.length === 0 ? (
-            <p className="muted-copy">Nenhuma alteração administrativa.</p>
-          ) : (
-            audit.slice(0, 20).map((item) => (
-              <article key={item.id}>
-                <strong>{item.action}</strong>
-                <span>
-                  {item.actorName ?? "Sistema"} ·{" "}
-                  {new Date(item.createdAt).toLocaleString("pt-BR")}
-                </span>
-              </article>
-            ))
-          )}
-        </CollapsibleSection>
-=======
             </article>
           ))
         )}
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
       </div>
       {userForm && (
         <UserFormModal
@@ -13596,21 +13668,6 @@ function HolidaysContent() {
   );
 }
 
-<<<<<<< HEAD
-/** Fetch when the settings drawer or sale modal mounts; retry without losing form edits. */
-function usePlanCatalog() {
-  const [entries, setEntries] = useState<PlanCatalogEntry[] | null>(null);
-  const [error, setError] = useState("");
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    let active = true;
-    api
-      .planCatalog()
-      .then((data) => {
-        if (active) {
-          setEntries(data);
-          setError("");
-=======
 function PlanTemplatesContent() {
   const { can } = useAuthorization();
   const [items, setItems] = useState<PlanTemplate[] | null>(null);
@@ -13627,7 +13684,6 @@ function PlanTemplatesContent() {
         if (active) {
           setItems(templates);
           setServices(serviceData);
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
         }
       })
       .catch((cause: Error) => {
@@ -13636,256 +13692,6 @@ function PlanTemplatesContent() {
     return () => {
       active = false;
     };
-<<<<<<< HEAD
-  }, [revision]);
-  const reload = () => {
-    setError("");
-    setEntries(null);
-    setRevision((value) => value + 1);
-  };
-  return { entries, setEntries, error, reload };
-}
-
-function PlanCatalogSection() {
-  return (
-    <CollapsibleSection eyebrow="Planos e sessões" title="Planos">
-      <PlanCatalogContent />
-    </CollapsibleSection>
-  );
-}
-
-function sortPlanCatalog(entries: PlanCatalogEntry[]) {
-  return [...entries].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-}
-
-function PlanCatalogContent() {
-  const { can } = useAuthorization();
-  const { entries, setEntries, error, reload } = usePlanCatalog();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<PlanCatalogEntry | null>(null);
-  const [deleting, setDeleting] = useState<PlanCatalogEntry | null>(null);
-  return (
-    <>
-      <p className="muted-copy">
-        Cadastre o nome e o valor dos planos para preencher as novas vendas
-        automaticamente. O valor pode ser ajustado em cada venda. Alterar ou
-        excluir um item daqui preserva os planos já vendidos.
-      </p>
-      {error && (
-        <>
-          <ErrorBanner error={error} />
-          <button
-            type="button"
-            className="secondary-button button-sm"
-            onClick={reload}
-          >
-            Tentar novamente
-          </button>
-        </>
-      )}
-      {entries === null ? (
-        !error && <LoadingBlock />
-      ) : (
-        <>
-          {can("settings.plans_create") && (
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                <Plus size={17} />
-                Adicionar plano
-              </button>
-            </div>
-          )}
-          {entries.length === 0 ? (
-            <EmptyState
-              title="Nenhum plano configurado"
-              copy="Cadastre planos e valores para a equipe selecionar nas vendas."
-            />
-          ) : (
-            <ul className="tag-list" aria-label="Planos configurados">
-              {entries.map((entry) => (
-                <li key={entry.id}>
-                  <div className="tag-list-info">
-                    <strong>{entry.name}</strong>
-                    <small>
-                      {currency.format(entry.totalValueInCents / 100)}
-                    </small>
-                  </div>
-                  <div className="tag-list-actions">
-                    {can("settings.plans_update") && (
-                      <button
-                        type="button"
-                        className="secondary-button button-sm"
-                        aria-label={`Editar plano ${entry.name}`}
-                        onClick={() => {
-                          setEditing(entry);
-                          setFormOpen(true);
-                        }}
-                      >
-                        Editar
-                      </button>
-                    )}
-                    {can("settings.plans_delete") && (
-                      <button
-                        type="button"
-                        className="danger-button button-sm"
-                        aria-label={`Excluir plano ${entry.name}`}
-                        onClick={() => setDeleting(entry)}
-                      >
-                        Excluir
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-      {formOpen && (
-        <PlanCatalogEditModal
-          entry={editing}
-          onClose={() => setFormOpen(false)}
-          onSaved={(saved) => {
-            setEntries((items) =>
-              sortPlanCatalog([
-                ...(items ?? []).filter((item) => item.id !== saved.id),
-                saved,
-              ]),
-            );
-            setFormOpen(false);
-          }}
-        />
-      )}
-      {deleting && (
-        <ActionModal
-          eyebrow="Planos"
-          title="Excluir plano do catálogo"
-          subtitle={deleting.name}
-          effect="Este plano deixa de aparecer nas opções de novas vendas. Os planos já vendidos e suas parcelas serão preservados."
-          confirmLabel="Excluir plano"
-          danger
-          onClose={() => setDeleting(null)}
-          onConfirm={async () => {
-            await api.deletePlanCatalogEntry(deleting.id);
-            setEntries((items) =>
-              (items ?? []).filter((item) => item.id !== deleting.id),
-            );
-            setDeleting(null);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
-function PlanCatalogEditModal({
-  entry,
-  onClose,
-  onSaved,
-}: {
-  entry: PlanCatalogEntry | null;
-  onClose: () => void;
-  onSaved: (entry: PlanCatalogEntry) => void;
-}) {
-  const [name, setName] = useState(entry?.name ?? "");
-  const [value, setValue] = useState(
-    entry ? String(entry.totalValueInCents / 100) : "",
-  );
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (saving) return;
-    const input = planCatalogInputSchema.safeParse({
-      name,
-      totalValueInCents: reaisToCents(value),
-    });
-    if (!input.success) {
-      setError(
-        name.trim().length < 3 || name.trim().length > 120
-          ? "Informe um nome entre 3 e 120 caracteres."
-          : "Informe um valor válido, maior ou igual a zero.",
-      );
-      return;
-    }
-    setError("");
-    setSaving(true);
-    try {
-      onSaved(
-        entry
-          ? await api.updatePlanCatalogEntry(entry.id, input.data)
-          : await api.createPlanCatalogEntry(input.data),
-      );
-    } catch (cause) {
-      setError((cause as Error).message);
-      setSaving(false);
-    }
-  }
-  return (
-    <Modal
-      title={entry ? "Editar plano do catálogo" : "Adicionar plano ao catálogo"}
-      subtitle="Nome e valor para preencher novas vendas."
-      busy={saving}
-      onClose={onClose}
-    >
-      <form
-        className="form-grid"
-        noValidate
-        onSubmit={(event) => void submit(event)}
-      >
-        <label className="span-2">
-          Nome do plano
-          <input
-            required
-            minLength={3}
-            maxLength={120}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label className="span-2">
-          Valor total
-          <input
-            required
-            type="number"
-            min="0"
-            step="0.01"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-          />
-        </label>
-        {error && (
-          <div className="form-error span-2" role="alert">
-            {error}
-          </div>
-        )}
-        <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={saving}
-            onClick={onClose}
-          >
-            Voltar
-          </button>
-          <button className="primary-button" disabled={saving}>
-            {saving ? "Salvando…" : "Salvar plano"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
-=======
   }, [attempt]);
   function replace(item: PlanTemplate) {
     setItems((current) =>
@@ -13909,7 +13715,6 @@ function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
       setSavingId(null);
     }
   }
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   return (
     <>
       <p className="muted-copy">
@@ -13961,8 +13766,8 @@ function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
                     </small>
                     <small>
                       {[
-                        item.services.length ? item.services.map((entry) => `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.totalSessions} sessões`).join(" · ") : "Composição incompleta — edite para corrigir",
-                        item.kind ? planKindLabels[item.kind] : null,
+                        item.services.length ? item.services.map((entry) => `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.sessionsPerWeek ? `${entry.sessionsPerWeek}x por semana · ` : ""}${entry.totalSessions} sessões`).join(" · ") : "Composição incompleta — edite para corrigir",
+                        item.planType ? planTypeLabels[item.planType] : item.kind ? planKindLabels[item.kind] : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -14033,58 +13838,75 @@ function PlanTemplateModal({
   const [form, setForm] = useState({
     name: item?.name ?? "",
     value: item ? String(item.totalValueInCents / 100) : "",
-    kind: item?.kind ?? "",
+    planType: item?.planType ?? (item ? "" : "monthly"),
     services: item?.services.length
       ? item.services.map((entry) => ({
           serviceId: entry.serviceId,
           sessions: String(entry.totalSessions),
+          sessionsPerWeek: entry.sessionsPerWeek
+            ? String(entry.sessionsPerWeek)
+            : "",
           value: String(entry.totalValueInCents / 100),
         }))
-      : [{ serviceId: "", sessions: "", value: "" }],
+      : [{ serviceId: "", sessions: "1", sessionsPerWeek: "", value: "" }],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const months = planPeriodMonths(form.planType as PlanType);
+  const periodSessions = (entry: (typeof form.services)[number]) =>
+    months
+      ? planSessionsForPeriod(
+          form.planType as PlanType,
+          Number(entry.sessionsPerWeek),
+        )
+      : Number(entry.sessions);
+  const total = reaisToCents(form.value);
   const sum = form.services.reduce(
-    (total, entry) => total + Math.round(Number(entry.value) * 100),
+    (value, entry) => value + (reaisToCents(entry.value) ?? 0),
     0,
   );
-  const total = Math.round(Number(form.value) * 100);
-  const difference = total - sum;
+  function updateRow(
+    index: number,
+    patch: Partial<(typeof form.services)[number]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      services: current.services.map((row, position) =>
+        position === index ? { ...row, ...patch } : row,
+      ),
+    }));
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    setError("");
-    if (!form.name.trim() || form.value === "") {
-      setError("Informe o nome e o valor do plano.");
-      return;
-    }
-    const input: PlanTemplateInput = {
-      name: form.name.trim(),
-      totalValueInCents: Math.round(Number(form.value) * 100),
-      kind: (form.kind || null) as PlanTemplateInput["kind"],
+    const parsed = planTemplateInputSchema.safeParse({
+      name: form.name,
+      totalValueInCents: total,
+      planType: form.planType || null,
+      kind: form.planType
+        ? planTypeKind(form.planType as PlanType)
+        : (item?.kind ?? null),
       services: form.services.map((entry) => ({
         serviceId: entry.serviceId,
-        totalSessions: Number(entry.sessions),
-        totalValueInCents: Math.round(Number(entry.value) * 100),
+        totalSessions: periodSessions(entry),
+        totalValueInCents:
+          form.services.length === 1 ? total : reaisToCents(entry.value),
+        sessionsPerWeek: months ? Number(entry.sessionsPerWeek) : null,
       })),
-    };
-    if (difference !== 0) {
-      setError("O valor total deve corresponder à soma dos serviços.");
+    });
+    if (!parsed.success) {
+      setError(
+        "Informe nome, tipo, serviço, sessões e valor válidos. A soma dos serviços deve corresponder ao total.",
+      );
       return;
     }
-    if (
-      new Set(input.services.map((entry) => entry.serviceId)).size !==
-      input.services.length
-    ) {
-      setError("Não repita serviços no plano.");
-      return;
-    }
+    setError("");
     setSaving(true);
     try {
       onSaved(
         item
-          ? await api.updatePlanTemplate(item.id, input)
-          : await api.createPlanTemplate(input),
+          ? await api.updatePlanTemplate(item.id, parsed.data)
+          : await api.createPlanTemplate(parsed.data),
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -14095,7 +13917,7 @@ function PlanTemplateModal({
   return (
     <Modal
       title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
-      subtitle="Inclua ao menos um serviço, com quantidade de sessões e valor. O total deve corresponder à soma dos serviços."
+      subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
       busy={saving}
       onClose={onClose}
     >
@@ -14111,6 +13933,25 @@ function PlanTemplateModal({
           />
         </label>
         <label>
+          Tipo de plano
+          <select
+            required={!item}
+            value={form.planType}
+            onChange={(event) =>
+              setForm({ ...form, planType: event.target.value })
+            }
+          >
+            {item && !item.planType && (
+              <option value="">Manter modelo existente</option>
+            )}
+            {Object.entries(planTypeLabels).map(([type, label]) => (
+              <option value={type} key={type}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Valor total
           <input
             required
@@ -14119,11 +13960,26 @@ function PlanTemplateModal({
             max="21474836.47"
             step="0.01"
             value={form.value}
-            onChange={(event) =>
-              setForm({ ...form, value: event.target.value })
-            }
+            onChange={(event) => {
+              const value = event.target.value;
+              setForm({
+                ...form,
+                value,
+                services:
+                  form.services.length === 1
+                    ? [{ ...form.services[0]!, value }]
+                    : form.services,
+              });
+            }}
           />
         </label>
+        {months > 0 && (
+          <p className="span-2 muted-copy">
+            Período de {months} {months === 1 ? "mês" : "meses"}. Saldo
+            calculado com 4 semanas por mês. O valor informado é o total desse
+            período.
+          </p>
+        )}
         {form.services.map((entry, index) => (
           <fieldset className="span-2 form-grid" key={index}>
             <legend>Serviço {index + 1}</legend>
@@ -14133,14 +13989,7 @@ function PlanTemplateModal({
                 required
                 value={entry.serviceId}
                 onChange={(event) =>
-                  setForm({
-                    ...form,
-                    services: form.services.map((row, position) =>
-                      position === index
-                        ? { ...row, serviceId: event.target.value }
-                        : row,
-                    ),
-                  })
+                  updateRow(index, { serviceId: event.target.value })
                 }
               >
                 <option value="">Selecione um serviço</option>
@@ -14167,48 +14016,63 @@ function PlanTemplateModal({
                   ))}
               </select>
             </label>
-            <label>
-              Sessões do serviço {index + 1}
-              <input
-                required
-                type="number"
-                min="1"
-                max="1000"
-                step="1"
-                value={entry.sessions}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    services: form.services.map((row, position) =>
-                      position === index
-                        ? { ...row, sessions: event.target.value }
-                        : row,
-                    ),
-                  })
-                }
-              />
-            </label>
-            <label>
-              Valor do serviço {index + 1}
-              <input
-                required
-                type="number"
-                min="0"
-                max="21474836.47"
-                step="0.01"
-                value={entry.value}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    services: form.services.map((row, position) =>
-                      position === index
-                        ? { ...row, value: event.target.value }
-                        : row,
-                    ),
-                  })
-                }
-              />
-            </label>
+            {months ? (
+              <>
+                <label>
+                  Sessões por semana do serviço {index + 1}
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="7"
+                    step="1"
+                    value={entry.sessionsPerWeek}
+                    onChange={(event) =>
+                      updateRow(index, { sessionsPerWeek: event.target.value })
+                    }
+                  />
+                </label>
+                <p className="span-2" role="status">
+                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
+                  período
+                  {entry.sessionsPerWeek
+                    ? ` · ${entry.sessionsPerWeek}x por semana`
+                    : ""}
+                  .
+                </p>
+              </>
+            ) : (
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={entry.sessions}
+                  onChange={(event) =>
+                    updateRow(index, { sessions: event.target.value })
+                  }
+                />
+              </label>
+            )}
+            {form.services.length > 1 && (
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="21474836.47"
+                  step="0.01"
+                  value={entry.value}
+                  onChange={(event) =>
+                    updateRow(index, { value: event.target.value })
+                  }
+                />
+              </label>
+            )}
             <button
               type="button"
               className="secondary-button"
@@ -14235,32 +14099,24 @@ function PlanTemplateModal({
               ...form,
               services: [
                 ...form.services,
-                { serviceId: "", sessions: "", value: "" },
+                {
+                  serviceId: "",
+                  sessions: "1",
+                  sessionsPerWeek: "",
+                  value: "",
+                },
               ],
             })
           }
         >
           Adicionar serviço
         </button>
-        <p className="span-2" role="status">
-          Soma dos serviços: {currency.format(sum / 100)} · Total informado:{" "}
-          {currency.format(total / 100)} · Diferença:{" "}
-          {currency.format(difference / 100)}
-        </p>
-        <label>
-          Modelo (opcional)
-          <select
-            value={form.kind}
-            onChange={(event) => setForm({ ...form, kind: event.target.value })}
-          >
-            <option value="">Definir na venda</option>
-            {Object.entries(planKindLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {form.services.length > 1 && (
+          <p className="span-2" role="status">
+            Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}
+            {currency.format(((total ?? 0) - sum) / 100)}
+          </p>
+        )}
         {error && (
           <div className="form-error span-2" role="alert">
             {error}
@@ -14275,10 +14131,7 @@ function PlanTemplateModal({
           >
             Cancelar
           </button>
-          <button
-            className="primary-button"
-            disabled={saving || difference !== 0}
-          >
+          <button className="primary-button" disabled={saving || (form.services.length > 1 && total !== sum)}>
             {saving ? "Salvando…" : "Salvar plano"}
           </button>
         </div>
@@ -14286,7 +14139,6 @@ function PlanTemplateModal({
     </Modal>
   );
 }
-
 
 function sortPatientTags(tags: PatientTag[]) {
   return [...tags].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
@@ -14696,62 +14548,7 @@ const relationshipDeadlineFields: Array<{
   { key: "formerClientMaxDays", label: "Ex-cliente: cancelou há no máximo (dias)", min: 1 },
 ];
 
-<<<<<<< HEAD
-function RelationshipSettingsPage() {
-  const { canEdit } = useAuthorization();
-  return (
-    <>
-      <PageHeader
-        eyebrow="Controle operacional"
-        title="Configurações"
-        description="Planos e valores, prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
-      />
-      <div className="settings-stack">
-        <RelationshipSettingsSection canEdit={false} />
-        <PlanCatalogSection />
-        <PatientTagsSection canEdit={canEdit("settings")} />
-      </div>
-    </>
-  );
-}
-
-type CloseGuard = (proceed: () => void) => void;
-
-function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
-  const [open, setOpen] = useState(false);
-  // O conteúdo (que guarda a edição) registra aqui o aviso de alteração não salva.
-  const closeGuard = useRef<CloseGuard | null>(null);
-  const registerCloseGuard = useCallback((guard: CloseGuard | null) => {
-    closeGuard.current = guard;
-  }, []);
-  return (
-    <CollapsibleSection
-      className="admin-relationship"
-      eyebrow="Relacionamento"
-      title="Prazos e mensagens"
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setOpen(true);
-        else if (closeGuard.current) closeGuard.current(() => setOpen(false));
-        else setOpen(false);
-      }}
-    >
-      <RelationshipSettingsContent canEdit={canEdit} registerCloseGuard={registerCloseGuard} />
-    </CollapsibleSection>
-  );
-}
-
-/** Conteúdo da gaveta de Prazos e mensagens: só monta (e busca os valores) quando a gaveta abre. */
-function RelationshipSettingsContent({
-  canEdit,
-  registerCloseGuard,
-}: {
-  canEdit: boolean;
-  registerCloseGuard: (guard: CloseGuard | null) => void;
-}) {
-=======
 function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
->>>>>>> 69036ba1c9336140320fedc9f30a027be6448301
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [savedSettings, setSavedSettings] =
     useState<RelationshipSettings | null>(null);
