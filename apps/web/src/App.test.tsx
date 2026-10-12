@@ -1,11 +1,282 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "./api";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
+import { togglePermissions, permissionCatalog, legacyPermissions, effectiveEditModules, effectiveModules, saoPauloToday, type AppModule, type UserRole } from "@crm/contracts";
 import { useState } from "react";
 import App, { Modal } from "./App";
+import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
 
 vi.stubGlobal("fetch", vi.fn());
+
+describe("configured plan catalog", () => {
+  const first = {
+    id: "aa000000-0000-4000-8000-000000000001",
+    name: "Pilates mensal",
+    totalValueInCents: 45000,
+    serviceId: "88888888-8888-4888-8888-888888888888",
+    kind: "recurring",
+    totalSessions: 8,
+    services: [{ serviceId: "88888888-8888-4888-8888-888888888888", totalSessions: 8, totalValueInCents: 40000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 5000 }],
+    active: true,
+  };
+  const second = {
+    id: "aa000000-0000-4000-8000-000000000002",
+    name: "Pacote básico",
+    totalValueInCents: 12050,
+    services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 10, totalValueInCents: 12050 }],
+    active: true,
+  };
+  function setupCatalog(
+    options: { empty?: boolean; failOnce?: boolean; role?: string } = {},
+  ) {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Usuária catálogo",
+        email: "catalog@test.local",
+        role: options.role ?? "owner",
+      }),
+    );
+    let catalogReads = 0;
+    let savedTemplate = { ...first };
+    const writes: Record<string, unknown>[] = [];
+    const templates = options.empty
+      ? []
+      : [
+          first,
+          second,
+          {
+            ...first,
+            id: "aa000000-0000-4000-8000-000000000003",
+            name: "Plano inativo",
+            active: false,
+          },
+          { ...second, id: "aa000000-0000-4000-8000-000000000004", name: "Plano incompleto", services: [] },
+        ];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (
+        url.includes("/plan-templates") &&
+        (!init?.method || init.method === "GET")
+      ) {
+        catalogReads += 1;
+        if (options.failOnce && catalogReads === 1)
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ message: "Falha ao carregar catálogo" }),
+          } as Response;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => templates,
+        } as Response;
+      }
+      if (init?.method === "POST" || init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        writes.push(body);
+        savedTemplate = { ...savedTemplate, ...body };
+        return {
+          ok: true,
+          status: init.method === "POST" ? 201 : 200,
+          json: async () => ({
+            ...savedTemplate,
+            id: first.id,
+            clinicId: "11111111-1111-4111-8111-111111111111",
+            patientName: "Cliente teste",
+            serviceName: "Pilates",
+            remainingSessions: body.totalSessions ?? 8,
+            status: "active",
+            createdAt: "2035-01-01T12:00:00Z",
+            updatedAt: "2035-01-01T12:00:00Z",
+          }),
+        } as Response;
+      }
+      const body = url.includes("/patients/options")
+        ? [
+            {
+              id: "99999999-9999-4999-8999-999999999999",
+              fullName: "Cliente teste",
+            },
+          ]
+        : url.includes("/services")
+          ? [
+              {
+                id: "77777777-7777-4777-8777-777777777777",
+                name: "Fisioterapia", active: true,
+              },
+              { id: first.serviceId, name: "Pilates", active: true },
+            ]
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    return writes;
+  }
+
+  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+    const writes = setupCatalog();
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    const selector = await screen.findByLabelText("Plano cadastrado");
+    await screen.findByRole("option", { name: /Pilates mensal/ });
+    expect(selector).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(screen.getByRole("option", { name: "Cliente teste" }));
+    expect(
+      screen.queryByRole("option", { name: /Plano inativo/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: first.id } });
+    expect(screen.queryByRole("option", { name: /Plano incompleto/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(400);
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(50);
+    expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
+    expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
+    expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
+      target: { value: "390" },
+    });
+    fireEvent.change(selector, { target: { value: second.id } });
+    expect(screen.queryByLabelText("Valor do serviço 2")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(120.5);
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
+    expect(screen.getByRole("group", { name: "Fisioterapia" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
+      target: { value: "99.99" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      name: second.name,
+      planTemplateId: second.id,
+      totalValueInCents: 9999,
+    });
+  });
+
+  it("blocks empty catalogs and links to settings only when the user can open them", async () => {
+    setupCatalog({ empty: true });
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Nenhum plano ativo cadastrado/);
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("link", { name: "Abrir configurações" }),
+    ).toHaveAttribute("href", "/configuracoes");
+    cleanup();
+    setupCatalog({ empty: true });
+    localStorage.setItem(
+      "crm.auth.user",
+      JSON.stringify(
+        withPermissions({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Vendedor",
+          email: "sales@test.local",
+          role: "user",
+          modules: ["plans"],
+          editModules: ["plans"],
+        }),
+      ),
+    );
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Nenhum plano ativo cadastrado/);
+    expect(
+      screen.queryByRole("link", { name: "Abrir configurações" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retries a catalog read failure without falling back to manual creation", async () => {
+    setupCatalog({ failOnce: true });
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    await screen.findByText(/Falha ao carregar catálogo/);
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByRole("option", { name: /Pilates mensal/ });
+    expect(
+      screen.queryByText(/Falha ao carregar catálogo/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds and removes required services, blocks mismatched totals, edits and deactivates the catalog", async () => {
+    const writes = setupCatalog();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar plano" }));
+    let dialog = screen.getByRole("dialog");
+    const fill = (label: string, value: string) => fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
+    fill("Nome do plano", "Plano completo"); fill("Tipo de plano", "promotional"); fill("Valor total", "125.50");
+    fill("Serviço 1", first.serviceId); fill("Sessões do serviço 1", "8");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar serviço" }));
+    fill("Valor do serviço 1", "100");
+    expect(within(dialog).getByRole("button", { name: "Salvar plano" })).toBeDisabled();
+    fill("Serviço 2", "77777777-7777-4777-8777-777777777777"); fill("Sessões do serviço 2", "2"); fill("Valor do serviço 2", "25.50");
+    expect(within(dialog).getByRole("button", { name: "Salvar plano" })).toBeEnabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar plano" }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({ name: "Plano completo", totalValueInCents: 12550, kind: "custom", planType: "promotional", services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 2550 }] });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Editar plano Plano completo" }));
+    dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remover serviço 2" }));
+    fill("Valor total", "100");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar plano" }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toMatchObject({ services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }] });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Desativar plano Plano completo" }));
+    await waitFor(() => expect(writes).toHaveLength(3));
+    expect(writes[2]).toEqual({ active: false });
+    await screen.findByRole("button", { name: "Ativar plano Plano completo" });
+  });
+
+  it("shows the catalog read-only without settings operation permissions", async () => {
+    setupCatalog({ role: "reception" });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    await screen.findByText(first.name);
+    expect(
+      screen.queryByRole("button", { name: "Cadastrar plano" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Editar plano ${first.name}` }),
+    ).not.toBeInTheDocument();
+  });
+});
 
 /**
  * Módulos dos perfis antigos, usados como atalho nos testes: a migração 0042 gravou exatamente
@@ -35,16 +306,36 @@ function legacyAccess(role: string): { role: UserRole; modules: AppModule[]; edi
 
 /** Usuário logado gravado no localStorage, com os módulos do perfil (como login e /me devolvem). */
 function storedUser(user: { id: string; fullName: string; email: string; role: string }) {
-  return JSON.stringify({ ...user, ...legacyAccess(user.role) });
+  return JSON.stringify(withPermissions({ ...user, ...legacyAccess(user.role) }));
 }
 
-/** Configurações em gavetas (T059): abre as seções pelo título antes de interagir; devolve a última. */
+
+function withPermissions<T extends { role?: string; modules?: readonly string[]; editModules?: readonly string[]; permissions?: readonly import("@crm/contracts").PermissionKey[] }>(user: T) {
+  const access = legacyAccess(user.role ?? "user");
+  const modules = (user.modules ?? access.modules) as AppModule[];
+  const editModules = (user.editModules ?? access.editModules) as AppModule[];
+  return { ...user, role: access.role, modules, editModules, permissions: user.permissions ?? legacyPermissions(access.role, modules, editModules) };
+}
+// Domain fixtures emulate a current /me response; session-specific tests supply their own response.
+const originalMe = api.me;
+beforeEach(() => {
+  vi.spyOn(api, "me").mockImplementation(async () => {
+    const implementation = vi.mocked(fetch).getMockImplementation()?.toString() ?? "";
+    if (implementation.includes("/me") || implementation.includes("401")) return originalMe();
+    const current = localStorage.getItem("crm.auth.user");
+    if (!current) throw new Error("Missing test session");
+    return withPermissions(JSON.parse(current));
+  });
+});
+
+/** Seleciona uma aba de configurações e devolve seu painel. */
 async function openSettingsSection(...names: string[]) {
   let section: HTMLElement | null = null;
   for (const name of names) {
-    const toggle = await screen.findByRole("button", { name });
-    if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
-    section = toggle.closest("section");
+    const label = name === "Dados da clínica" ? "Clínica" : name === "Prazos e mensagens" ? "Relacionamento" : name;
+    const tab = await screen.findByRole("tab", { name: label });
+    if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
+    section = document.getElementById(tab.getAttribute("aria-controls")!);
   }
   return section!;
 }
@@ -64,6 +355,161 @@ function patientTag(name: string, color = "#64748b", patientCount = 0) {
 afterEach(() => {
   cleanup();
   vi.mocked(fetch).mockReset();
+});
+
+function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+  if (patientName) {
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+  }
+  for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
+    const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
+    if (!select.value) fireEvent.change(select, { target: { value: select.options[1]!.value } });
+  }
+  const date = within(dialog).getByRole("button", { name: "Data" });
+  if (date.textContent?.includes("Selecionar")) {
+    fireEvent.click(date);
+    fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
+  }
+  const time = within(dialog).getByLabelText("Horário");
+  if (!(time as HTMLInputElement).value) fireEvent.change(time, { target: { value: "09:00" } });
+}
+
+describe("appointment client search and creation", () => {
+  const existing = { id: "99999999-9999-4999-8999-999999999999", fullName: "Helena Almeida", tags: [] };
+  const created = { ...existing, id: "88888888-8888-4888-8888-888888888888", fullName: "Nova Cliente", phone: "11999998888" };
+  function response(body: unknown, status = 200) {
+    return { ok: status < 400, status, json: async () => body } as Response;
+  }
+  async function open() {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Recepção", email: "r@test.local", role: "reception" }));
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST") return url.endsWith("/patients") ? response(created, 201)
+        : response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
+      return response(url.includes("/patients/options?") ? [created]
+        : url.includes("/patients") ? [existing]
+        : url.includes("/professionals") ? [{ id: "33333333-3333-4333-8333-333333333333", fullName: "Ana", color: "#5c6f68" }]
+        : url.includes("/rooms") ? [{ id: "55555555-5555-4555-8555-555555555555", name: "Sala" }]
+        : url.includes("/services") ? [{ id: "77777777-7777-4777-8777-777777777777", name: "Pilates", priceInCents: 10000 }]
+        : []);
+    });
+    render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
+    await screen.findByText("Dia disponível");
+    fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
+    return screen.getByRole("dialog", { name: "Novo atendimento" });
+  }
+
+  it("starts every field of a new appointment empty", async () => {
+    const appointment = await open();
+    expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue("");
+    for (const label of ["Tipo", "Profissional", "Sala", "Serviço", "Horário", "Observação"])
+      expect(within(appointment).getByLabelText(label)).toHaveValue("");
+    expect(within(appointment).getByRole("button", { name: "Data" })).toHaveTextContent("Selecionar data");
+    expect(within(appointment).getByLabelText("Repetir este atendimento")).not.toBeChecked();
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
+  });
+
+  it("keeps appointment values, traps focus, and selects the saved client", async () => {
+    const appointment = await open();
+    fillAppointmentForm(appointment);
+    fireEvent.change(within(appointment).getByLabelText("Observação"), { target: { value: "Manter observação" } });
+    fireEvent.click(within(appointment).getByLabelText("Repetir este atendimento"));
+    fireEvent.change(within(appointment).getByLabelText("Número de ocorrências"), { target: { value: "6" } });
+    const startsAt = within(appointment).getByLabelText("Horário") as HTMLInputElement;
+    const originalDate = within(appointment).getByRole("button", { name: "Data" }).textContent;
+    const originalTime = startsAt.value;
+    fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
+    const client = screen.getByRole("dialog", { name: "Novo cliente" });
+    expect(appointment).toBeInTheDocument();
+    expect(appointment.parentElement).toHaveAttribute("inert");
+    expect(client.closest("form")).toBeNull();
+    await within(client).findByText(/Nenhuma etiqueta configurada/);
+    const save = within(client).getByRole("button", { name: "Salvar cliente" });
+    save.focus();
+    expect(save).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(client.contains(document.activeElement)).toBe(true);
+    expect(save).not.toHaveFocus();
+    fireEvent.change(within(client).getByLabelText("Nome completo"), { target: { value: created.fullName } });
+    fireEvent.change(within(within(client).getByRole("group", { name: /^Contato$/ })).getByLabelText("Telefone"), { target: { value: created.phone } });
+    fireEvent.submit(client.querySelector("form")!);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument());
+    const picker = within(appointment).getByRole("combobox", { name: "Cliente" });
+    expect(picker).toHaveValue(created.fullName);
+    await waitFor(() => expect(picker).toHaveFocus());
+    expect(within(appointment).getByLabelText("Observação")).toHaveValue("Manter observação");
+    expect(startsAt).toHaveValue(originalTime);
+    expect(within(appointment).getByRole("button", { name: "Data" })).toHaveTextContent(originalDate!);
+    expect(within(appointment).getByLabelText("Número de ocorrências")).toHaveValue(6);
+    fireEvent.click(within(appointment).getByRole("button", { name: "Confirmar atendimento" }));
+    await screen.findByText("Horário ocupado.");
+    const call = vi.mocked(fetch).mock.calls.find(([url, init]) => String(url).includes("/appointments") && init?.method === "POST");
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({ patientId: created.id, notes: "Manter observação", occurrences: 6 });
+  });
+
+  it("closes only the client modal on Escape and keeps the previous selection", async () => {
+    const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument();
+    expect(appointment).toBeInTheDocument();
+    expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue(existing.fullName);
+    expect(document.body).toHaveClass("modal-open");
+  });
+
+  it("keeps both forms and the entered data when client creation fails", async () => {
+    const appointment = await open();
+    fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.click(within(appointment).getByRole("button", { name: "Adicionar cliente" }));
+    const client = screen.getByRole("dialog", { name: "Novo cliente" });
+    fireEvent.change(within(client).getByLabelText("Nome completo"), { target: { value: created.fullName } });
+    vi.mocked(fetch).mockResolvedValue(response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409));
+    fireEvent.submit(client.querySelector("form")!);
+    await within(client).findByText("CPF já cadastrado.");
+    expect(appointment).toBeInTheDocument();
+    expect(within(client).getByLabelText("Nome completo")).toHaveValue(created.fullName);
+    fireEvent.click(within(client).getByRole("button", { name: "Cancelar" }));
+    expect(within(appointment).getByRole("combobox", { name: "Cliente" })).toHaveValue(existing.fullName);
+  });
+
+  it("searches CPF and selects a result by keyboard, clearing selection when edited", async () => {
+    const appointment = await open();
+    const picker = within(appointment).getByRole("combobox", { name: "Cliente" });
+    fireEvent.change(picker, { target: { value: "123.456.789-01" } });
+    fireEvent.change(picker, { target: { value: "123.456.789-01 " } });
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
+    await screen.findByRole("option", { name: created.fullName });
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("search=123.456.789-01"))).toBe(true);
+    fireEvent.keyDown(picker, { key: "ArrowDown" });
+    fireEvent.keyDown(picker, { key: "Enter" });
+    expect(picker).toHaveValue(created.fullName);
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeEnabled();
+    fireEvent.change(picker, { target: { value: "Outro" } });
+    expect(within(appointment).getByRole("button", { name: "Confirmar atendimento" })).toBeDisabled();
+  });
+
+  it("ignores stale searches and distinguishes empty results from errors", async () => {
+    const appointment = await open();
+    const picker = within(appointment).getByRole("combobox", { name: "Cliente" });
+    let resolveOld: (result: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation((input) => String(input).includes("search=Antigo")
+      ? new Promise<Response>((resolve) => { resolveOld = resolve; })
+      : Promise.resolve(String(input).includes("search=Erro")
+        ? response({ code: "FAILED", message: "Falha na consulta" }, 500) : response([])));
+    fireEvent.change(picker, { target: { value: "Antigo" } });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("search=Antigo"))).toBe(true));
+    fireEvent.change(picker, { target: { value: "Novo" } });
+    await screen.findByText("Nenhum cliente encontrado");
+    resolveOld(response([existing]));
+    await waitFor(() => expect(screen.queryByRole("option", { name: existing.fullName })).not.toBeInTheDocument());
+    fireEvent.change(picker, { target: { value: "Erro" } });
+    await screen.findByText("Falha na consulta");
+    expect(screen.queryByText("Nenhum cliente encontrado")).not.toBeInTheDocument();
+  });
 });
 
 describe("modal scroll lock", () => {
@@ -121,6 +567,32 @@ describe("modal scroll lock", () => {
 });
 
 describe("modal closing", () => {
+  it("keeps the floating calendar in the modal focus boundary and consumes its first Escape", async () => {
+    const onClose = vi.fn();
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => [] } as Response);
+    function CalendarModal() {
+      const [value, setValue] = useState("2026-10-07T09:00");
+      return <Modal title="Agendamento" subtitle="Escolha a data" onClose={onClose}>
+        <form><AppointmentDateTimePicker value={value} onChange={setValue} professionalId="" roomId="" />
+          <button type="button">Salvar atendimento</button></form>
+      </Modal>;
+    }
+    render(<CalendarModal />);
+    const dialog = screen.getByRole("dialog", { name: "Agendamento" });
+    const date = within(dialog).getByRole("button", { name: "Data" });
+    fireEvent.click(date);
+    await within(dialog).findByText("Nenhum compromisso registrado.");
+    const panel = within(dialog).getByRole("region", { name: "Calendário de agendamento" });
+    expect(dialog).toContainElement(panel);
+    expect(panel.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(date).toHaveFocus();
+    expect(within(dialog).queryByRole("region")).not.toBeInTheDocument();
+    fireEvent.keyDown(date, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   function StackedModals({ busy = false }: { busy?: boolean }) {
     const [first, setFirst] = useState(false);
     const [second, setSecond] = useState(false);
@@ -174,7 +646,7 @@ describe("modal closing", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(2);
   });
 
-  it("keeps a drawer open on backdrop click and closes it with Esc", async () => {
+  it("keeps the wide group modal open on backdrop click and closes it with Esc", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     vi.mocked(fetch).mockImplementation(async (input) => {
@@ -183,17 +655,22 @@ describe("modal closing", () => {
     });
     render(<MemoryRouter initialEntries={["/turmas"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    const backdrop = document.querySelector(".drawer-backdrop")!;
+    const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
-    expect(screen.getByRole("dialog", { name: "Nova turma" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Horários semanais" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Resumo da turma" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Serviço")).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Nova turma" })).not.toBeInTheDocument();
   });
 });
 
 describe("application shell", () => {
-  it("edits group capacity and weekly hours in a drawer", async () => {
+  it("edits group capacity and weekly hours in a centered modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" }));
     const group = {
@@ -225,11 +702,13 @@ describe("application shell", () => {
     expect(screen.queryByLabelText("Nome")).not.toBeInTheDocument();
     fireEvent.change(await screen.findByLabelText("Serviço"), { target: { value: group.serviceId } });
     expect(screen.getByText("Pilates Turma B")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Fechar gaveta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(screen.getByText("Turma de terça da noite")).toBeInTheDocument();
     expect(screen.getByText("Terça · 18:00–19:00")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
-    expect(screen.getByRole("dialog", { name: "Pilates Turma A" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Pilates Turma A" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Participantes" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Máximo de pessoas"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
     fireEvent.change(screen.getAllByLabelText("Dia")[1]!, { target: { value: "4" } });
@@ -286,7 +765,7 @@ describe("application shell", () => {
     }) as Response);
 
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const day = await screen.findByRole("button", { name: /1 atendimentos, 1 aulas de turma, 0 bloqueios/ });
     expect(screen.getByText("Pilates Turma A")).toBeInTheDocument();
     expect(screen.getByText("18:00–19:00")).toBeInTheDocument();
@@ -357,7 +836,7 @@ describe("application shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
     await screen.findByText("Helena Almeida");
     expect(isAscending(order(container.querySelector(".week-agenda")!))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const today = await screen.findByRole("button", { name: /1 atendimentos, 2 aulas de turma/ });
     const cell = today.closest(".month-day")!;
     expect(cell).toHaveTextContent("Dançaterapia Turma A");
@@ -393,7 +872,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = options?.method === "PATCH"
         ? { ...appointment, status: "cancelled" }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : url.includes("/patients") ? [{
             id: appointment.patientId,
             fullName: appointment.patientName,
@@ -649,9 +1128,11 @@ describe("application shell", () => {
     expect(
       screen.getByRole("heading", { name: "Novo plano" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Cliente")).toHaveValue(
-      "99999999-9999-4999-8999-999999999999",
-    );
+    const picker = screen.getByRole("combobox", { name: "Cliente" });
+    expect(picker).toHaveValue("");
+    fireEvent.focus(picker);
+    fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
+    expect(picker).toHaveValue("Helena Almeida");
   });
 
   it("renews a plan with the next period already filled in", async () => {
@@ -666,6 +1147,7 @@ describe("application shell", () => {
       }),
     );
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555",
       clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999",
@@ -714,7 +1196,7 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Início")).toHaveValue("2026-10-01");
     expect(screen.getByLabelText("Fim da validade")).toHaveValue("2026-10-31");
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue("2026-10-05");
-    fireEvent.change(screen.getByLabelText("Valor total"), {
+    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
       target: { value: "420" },
     });
     fireEvent.click(
@@ -914,7 +1396,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = options?.method === "PUT"
         ? { ...appointment, startsAt: next.toISOString() }
-        : url.includes("/appointments?")
+        : (url.includes("/appointments?") || url.includes("/appointments/options?"))
           ? [appointment]
           : url.includes("/professionals")
             ? [{ id: appointment.professionalId, fullName: appointment.professionalName, color: appointment.professionalColor }]
@@ -935,6 +1417,13 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     fireEvent.click(screen.getByRole("button", { name: "Remarcar atendimento" }));
     expect(screen.getByRole("heading", { name: "Reagendar atendimento" })).toBeInTheDocument();
+    const reschedule = screen.getByRole("dialog", { name: "Reagendar atendimento" });
+    fireEvent.click(within(reschedule).getByRole("button", { name: "Data" }));
+    expect(await within(reschedule).findByText("Nenhum compromisso registrado.")).toBeInTheDocument();
+    expect(reschedule.querySelector('[data-date][aria-pressed="true"]')).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
+    fireEvent.change(within(reschedule).getByLabelText("Horário do atendimento"), { target: { value: "11:00" } });
+    expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
+    fireEvent.click(within(reschedule).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar reagendamento" }));
     const updateCall = await vi.waitFor(() => {
       const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PUT");
@@ -945,6 +1434,7 @@ describe("application shell", () => {
     expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
       professionalId: appointment.professionalId,
       roomId: appointment.roomId,
+      startsAt: next.toISOString(),
     });
   });
 
@@ -1010,7 +1500,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/relacionamento"]}><App /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: /Contatos sugeridos/ })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Contatos sugeridos/ })).toBeInTheDocument();
     const helenaCard = (await screen.findByText("Helena Almeida")).closest("article")!;
     expect(within(helenaCard).getByText("Plano termina em 3 dias")).toBeInTheDocument();
     expect(within(helenaCard).getByText("(11) 98765-4321")).toBeInTheDocument();
@@ -1071,7 +1561,7 @@ describe("application shell", () => {
     });
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
     const card = (await screen.findByRole("heading", { name: "Aniversariantes" })).closest("section")!;
-    expect(card).toHaveTextContent("Hoje e próximos 7 dias");
+    await waitFor(() => expect(card).toHaveTextContent("Hoje e próximos 7 dias"));
     const helena = (await within(card).findByText("Helena Almeida")).closest(".attention-item") as HTMLElement;
     expect(within(helena).getByText("Aniversário hoje")).toBeInTheDocument();
     const congratulate = within(helena).getByRole("link", { name: /Dar parabéns/ });
@@ -1317,6 +1807,9 @@ describe("application shell", () => {
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(within(select).getByRole("option", { name: "Dra. Ana Martins · CREFITO-3 123456-F" })).toBeInTheDocument();
     const issue = screen.getByRole("button", { name: "Criar rascunho" });
+    expect(issue).toBeDisabled();
+    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.click(screen.getByRole("option", { name: patient.fullName }));
     fireEvent.click(issue);
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");
@@ -1455,7 +1948,7 @@ describe("application shell", () => {
       }
       const body = url.includes("/satisfaction?")
         ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientId: appointment.patientId, score: 10 }], summary: { total: 1, promoters: 1, passives: 0, detractors: 0, nps: 100 } }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -1514,7 +2007,7 @@ describe("application shell", () => {
       const url = String(input);
       const body = url.includes("/satisfaction?")
         ? { from: "2026-09-01", to: "2026-09-30", surveys: [{ id: "s-0", appointmentId: appointment.id, patientId: appointment.patientId, score: 6 }], summary: { total: 1, promoters: 0, passives: 0, detractors: 1, nps: -100 } }
-        : url.includes("/appointments?") ? [appointment]
+        : (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment]
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -2319,7 +2812,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    await screen.findByRole("heading", { name: "Prazos e mensagens" });
+    await openSettingsSection("Prazos e mensagens");
     expect(screen.queryByRole("heading", { name: "Feriados" })).not.toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/holidays"))).toBe(false);
   });
@@ -2355,12 +2848,13 @@ describe("application shell", () => {
     await vi.waitFor(() => expect(container.querySelector(".week-agenda")).toHaveTextContent("Feriado: Aniversário da cidade"));
     expect(container.querySelectorAll(".week-agenda .week-holiday")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mês" }));
     const day = await screen.findByRole("button", { name: /feriado: Aniversário da cidade/ });
     expect(day.closest(".month-day")).toHaveTextContent("Aniversário da cidade");
     expect(container.querySelectorAll(".month-grid .month-holiday")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
+    fillAppointmentForm(screen.getByRole("dialog", { name: "Novo atendimento" }), "Helena Almeida");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Novo atendimento" })).toBeInTheDocument();
@@ -2411,7 +2905,7 @@ describe("application shell", () => {
     expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
   });
 
-  it("opens the SOS panel with the emergency contact from a client appointment", async () => {
+  it("shows the emergency contact highlighted in the appointment details without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Ana Martins", email: "fisio@movimenta.local", role: "physiotherapist" }));
     const startsAt = new Date();
@@ -2441,36 +2935,18 @@ describe("application shell", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/appointments?") ? [appointment] : url.includes("/patients") ? [patient] : [];
+      const body = (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [appointment] : url.includes("/patients") ? [patient] : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/agenda"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Detalhes do atendimento" });
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
-    const sosButton = within(dialog).getByRole("button", { name: "SOS" });
-    expect(sosButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(sosButton);
-    expect(sosButton).toHaveAttribute("aria-expanded", "true");
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Maria Souza (mãe)")).toBeInTheDocument();
-    expect(within(sos).getByText("(11) 95555-6666")).toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /Ligar/ })).toHaveAttribute("href", "tel:11955556666");
-    const whatsapp = within(sos).getByRole("link", { name: /WhatsApp/ });
-    expect(whatsapp.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5511955556666/);
-    expect(whatsapp).toHaveAttribute("target", "_blank");
-    expect(whatsapp).toHaveClass("whatsapp-button");
-    expect(whatsapp).not.toHaveClass("secondary-button");
-    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
-    expect(within(sos).queryByText("Contato de emergência não cadastrado")).not.toBeInTheDocument();
-    fireEvent.click(sosButton);
-    expect(within(dialog).queryByRole("region", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    const contact = within(dialog).getByText("Maria Souza (mãe) · (11) 95555-6666");
+    expect(contact.closest(".emergency-contact")).toHaveTextContent("Contato de emergência");
   });
 
-  it("shows the SOS shortcuts in the client record even without an emergency contact", async () => {
+  it("highlights the emergency contact fields in the client record without an SOS button", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Paula Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const patient = { id: "99999999-9999-4999-8999-999999999999", recordNumber: "PAC-00001", fullName: "Helena Almeida", phone: "11987654321", emergencyContactName: "", tags: [], status: "active" };
@@ -2481,14 +2957,8 @@ describe("application shell", () => {
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "Editar Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "SOS" }));
-    const sos = within(dialog).getByRole("region", { name: "SOS" });
-    expect(within(sos).getByText("Contato de emergência não cadastrado")).toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /Ligar/ })).not.toBeInTheDocument();
-    expect(within(sos).queryByRole("link", { name: /WhatsApp/ })).not.toBeInTheDocument();
-    expect(within(sos).getByRole("link", { name: /190/ })).toHaveAttribute("href", "tel:190");
-    expect(within(sos).getByRole("link", { name: /192/ })).toHaveAttribute("href", "tel:192");
-    expect(within(sos).getByRole("link", { name: /193/ })).toHaveAttribute("href", "tel:193");
+    expect(within(dialog).queryByRole("button", { name: "SOS" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("group", { name: "Contato de emergência" })).toHaveClass("emergency-fieldset");
   });
 
   it("does not show the SOS button when creating a new client", async () => {
@@ -2522,12 +2992,19 @@ describe("application shell", () => {
     await screen.findByText("Dia disponível");
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
     const type = screen.getByLabelText("Tipo");
-    expect(type).toHaveValue("regular");
-    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Atendimento", "Experimental", "Avaliação"]);
+    expect(type).toHaveValue("");
+    expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
+    const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
+    fillAppointmentForm(dialog, "Helena Almeida");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
+    const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][aria-pressed="true"]')!.dataset.date!;
+    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "14:30" } });
+    expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
     expect(await screen.findByText("Horário ocupado.")).toBeInTheDocument();
-    expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation" });
+    expect(posted).toMatchObject({ patientId: "99999999-9999-4999-8999-999999999999", visitType: "evaluation", startsAt: new Date(`${chosenDate}T14:30`).toISOString() });
   });
 
   it("books a trial class for a lead from the CRM card", async () => {
@@ -2566,7 +3043,12 @@ describe("application shell", () => {
     expect(type).toHaveValue("trial");
     expect(within(type).getAllByRole("option").map((item) => item.textContent)).toEqual(["Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
-    fireEvent.change(within(dialog).getByLabelText("Data e horário"), { target: { value: "2026-10-05T09:00" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
+    const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!.dataset.date!;
+    fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
+    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "09:00" } });
+    expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar agendamento" }));
     expect(await within(dialog).findByText("Profissional já tem atendimento neste horário.")).toBeInTheDocument();
     expect(posted?.url).toContain(`/leads/${lead.id}/appointments`);
@@ -2574,7 +3056,7 @@ describe("application shell", () => {
       professionalId: "33333333-3333-4333-8333-333333333333",
       roomId: "55555555-5555-4555-8555-555555555555",
       serviceId: "77777777-7777-4777-8777-777777777777",
-      startsAt: new Date("2026-10-05T09:00").toISOString(),
+      startsAt: new Date(`${chosenDate}T09:00`).toISOString(),
       notes: "",
       visitType: "evaluation",
     });
@@ -3670,8 +4152,8 @@ describe("users and permissions", () => {
       const url = String(input);
       const handled = handler?.(url, init);
       if (handled && typeof handled === "object" && "ok" in handled && (handled as Response).ok === false) return handled as Response;
-      if (handled !== undefined) return { ok: true, status: 200, json: async () => handled } as Response;
-      const body = url.includes("/admin/users") ? users
+      if (handled !== undefined) return { ok: true, status: 200, json: async () => handled && typeof handled === "object" && "modules" in handled ? withPermissions(handled as typeof customUser) : handled } as Response;
+      const body = url.includes("/admin/users") ? users.map(item => withPermissions(item as typeof customUser))
         : url.includes("/admin/permission-matrix") ? [{ role: "user", modules: ["Agenda", "Prontuários"], editModules: ["Prontuários"] }]
           : url.includes("/relationship/settings") ? relationshipSettingsFixture()
             : url.includes("/admin/clinic-settings") ? null
@@ -3696,11 +4178,11 @@ describe("users and permissions", () => {
     const row = (name: string) => within(section).getByText(name).closest("article")!;
     expect(await within(section).findByText("Maria Souza")).toBeInTheDocument();
     expect(within(row("Maria Souza")).getByText("Usuário comum · Instrutora de Pilates")).toBeInTheDocument();
-    expect(within(row("Maria Souza")).getByText("Vê 10 módulos · edita 8")).toBeInTheDocument();
+    expect(within(row("Maria Souza")).getByText(`Vê 10 módulos · ${legacyPermissions("user", customUser.modules as AppModule[], customUser.editModules as AppModule[]).length} permissões`)).toBeInTheDocument();
     expect(within(row("Aryana Dutra")).getByText("Admin · Sócia")).toBeInTheDocument();
     expect(within(row("Aryana Dutra")).getByText("Acesso total")).toBeInTheDocument();
     expect(within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)")).toBeInTheDocument();
-    expect(within(row("Elisa Prado")).getByText("Vê 1 módulo · só visualiza")).toBeInTheDocument();
+    expect(within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões")).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(within(section).queryByText("Permissões personalizadas")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Padrão de cada perfil" })).not.toBeInTheDocument();
@@ -3713,6 +4195,8 @@ describe("users and permissions", () => {
     mockAdmin((url, init) => (init?.method === "POST" && url.endsWith("/admin/users") ? { ...customUser, id: "44444444-4444-4444-8444-444444444444", fullName: "Ana Lima" } : undefined));
     const prompt = vi.spyOn(window, "prompt");
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
+    await screen.findByRole("button", { name: "Editar Maria Souza" });
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
     // Usuário comum novo começa sem nenhum módulo (T055: acabaram os padrões por perfil).
@@ -3721,31 +4205,31 @@ describe("users and permissions", () => {
     expect(within(type).getAllByRole("option").map((option) => option.textContent)).toEqual(["Admin", "Usuário comum"]);
     expect(within(dialog).queryByLabelText("Perfil")).not.toBeInTheDocument();
     for (const module of ["Agenda", "Turmas", "Clientes", "Planos e sessões", "CRM comercial", "Contatos sugeridos", "Comunicações", "Contratos", "Prontuários", "Financeiro", "Relatórios", "Configurações"]) {
-      expect(within(dialog).getByLabelText(`Ver ${module}`)).not.toBeChecked();
-      expect(within(dialog).getByLabelText(`Editar ${module}`)).not.toBeChecked();
+      expect(within(dialog).getByLabelText(`${module}: Visualizar módulo`)).not.toBeChecked();
+      expect(within(dialog).getByLabelText(`Selecionar bloco ${module}`)).not.toBeChecked();
     }
     expect(within(dialog).queryByRole("button", { name: "Restaurar padrão do perfil" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Padrão do perfil/)).not.toBeInTheDocument();
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
-    fireEvent.click(within(dialog).getByLabelText("Editar Relatórios"));
-    expect(within(dialog).getByLabelText("Ver Relatórios")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Relatórios"));
-    expect(within(dialog).getByLabelText("Editar Relatórios")).not.toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Relatórios"));
+    expect(within(dialog).getByLabelText("Relatórios: Visualizar módulo")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Relatórios: Visualizar módulo"));
+    expect(within(dialog).getByLabelText("Selecionar bloco Relatórios")).not.toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
 
     // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
     fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Ver Clientes")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Clientes: Visualizar módulo")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Copiar permissões de…")).not.toBeInTheDocument();
     fireEvent.change(type, { target: { value: "user" } });
-    expect(within(dialog).getByLabelText("Ver Turmas")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Ver Turmas"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
-    fireEvent.click(within(dialog).getByLabelText("Ver Planos e sessões"));
-    fireEvent.click(within(dialog).getByLabelText("Ver Prontuários"));
+    expect(within(dialog).getByLabelText("Turmas: Visualizar módulo")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Planos e sessões: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Prontuários: Visualizar módulo"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
@@ -3761,8 +4245,7 @@ describe("users and permissions", () => {
       password: "SenhaForte123",
       role: "user",
       jobTitle: "Fisioterapeuta pélvica",
-      modules: ["agenda", "patients", "plans", "clinical"],
-      editModules: ["agenda", "patients"],
+      permissions: togglePermissions([], [...permissionCatalog.filter(item => ["agenda", "patients"].includes(item.module)).map(item => item.key), "plans.view", "clinical.view"], true),
     });
     expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
@@ -3776,6 +4259,8 @@ describe("users and permissions", () => {
       [adminUser, customUser, carlaUser],
     );
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Usuários");
+    await screen.findByRole("button", { name: "Editar Maria Souza" });
     fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
     const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
@@ -3783,14 +4268,14 @@ describe("users and permissions", () => {
     expect(within(copy).getAllByRole("option").map((option) => option.textContent)).toEqual(["Escolha um usuário", "Maria Souza", "Carla Reis"]);
     fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(within(dialog).getByText(/Permissões copiadas de Carla Reis/)).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Ver Agenda")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Agenda")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Clientes")).toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Agenda: Visualizar módulo")).toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Agenda")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Clientes: Visualizar módulo")).toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Prontuários")).toBeChecked();
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).not.toBeChecked();
     // Continua editável depois de copiar.
-    fireEvent.click(within(dialog).getByLabelText("Ver Clientes"));
-    fireEvent.click(within(dialog).getByLabelText("Editar Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Clientes: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
     fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), { target: { value: "ana@movimenta.local" } });
@@ -3802,8 +4287,7 @@ describe("users and permissions", () => {
       email: "ana@movimenta.local",
       password: "SenhaForte123",
       role: "user",
-      modules: ["agenda", "clinical"],
-      editModules: ["agenda", "clinical"],
+      permissions: togglePermissions(togglePermissions(legacyPermissions("user", carlaUser.modules as AppModule[], carlaUser.editModules as AppModule[]), ["patients.view"], false), permissionCatalog.filter(item => item.module === "agenda").map(item => item.key), true),
     });
     // A pessoa copiada não muda.
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
@@ -3818,13 +4302,13 @@ describe("users and permissions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     expect(within(dialog).getByLabelText("Cargo")).toHaveValue("Instrutora de Pilates");
-    expect(within(dialog).getByLabelText("Ver Financeiro")).toBeChecked();
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).toBeChecked();
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
     expect(within(copy).queryByRole("option", { name: "Maria Souza" })).not.toBeInTheDocument();
     fireEvent.change(copy, { target: { value: carlaUser.id } });
-    expect(within(dialog).getByLabelText("Ver Financeiro")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Editar Prontuários")).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Editar Clientes"));
+    expect(within(dialog).getByLabelText("Financeiro: Visualizar módulo")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Selecionar bloco Prontuários")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), { target: { value: "" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await screen.findByText("Alterações de Maria Souza salvas.")).toBeInTheDocument();
@@ -3835,8 +4319,7 @@ describe("users and permissions", () => {
       role: "user",
       active: true,
       jobTitle: "",
-      modules: ["agenda", "patients", "clinical"],
-      editModules: ["patients", "clinical"],
+      permissions: togglePermissions(legacyPermissions("user", carlaUser.modules as AppModule[], carlaUser.editModules as AppModule[]), permissionCatalog.filter(item => item.module === "patients").map(item => item.key), true),
     });
   });
 
@@ -3850,10 +4333,10 @@ describe("users and permissions", () => {
     const dialog = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Ver Agenda")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Agenda: Visualizar módulo")).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
-    expect(within(dialog).getByLabelText("Ver Agenda")).not.toBeChecked();
-    expect(within(dialog).getByLabelText("Ver Configurações")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Agenda: Visualizar módulo")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Configurações: Visualizar módulo")).not.toBeChecked();
   });
 
   it("explains in the form that the last admin cannot be demoted", async () => {
@@ -3867,7 +4350,7 @@ describe("users and permissions", () => {
     fireEvent.change(within(dialog).getByLabelText("Tipo"), { target: { value: "user" } });
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     expect(await within(dialog).findByText(/precisa de pelo menos um admin ativo/)).toHaveClass("form-error");
-    expect(lastCall("PATCH").body).toMatchObject({ role: "user", modules: null, editModules: null });
+    expect(lastCall("PATCH").body).toMatchObject({ role: "user", permissions: [] });
     expect(screen.getByRole("dialog", { name: "Editar Aryana Dutra" })).toBeInTheDocument();
   });
 
@@ -3892,7 +4375,7 @@ describe("users and permissions", () => {
     await openSettingsSection("Usuários");
     fireEvent.click(await screen.findByRole("button", { name: "Editar Maria Souza" }));
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
-    fireEvent.click(within(dialog).getByLabelText("Editar Financeiro"));
+    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Financeiro"));
     fireEvent.submit(within(dialog).getByLabelText("Nome completo").closest("form")!);
     await screen.findByText("Alterações de Maria Souza salvas.");
     expect(lastCall("PATCH").body).toEqual({
@@ -3900,8 +4383,7 @@ describe("users and permissions", () => {
       role: "user",
       active: true,
       jobTitle: "Instrutora de Pilates",
-      modules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance", "settings"],
-      editModules: ["agenda", "groups", "patients", "plans", "crm", "relationship", "communications", "contracts", "finance"],
+      permissions: togglePermissions(legacyPermissions("user", customUser.modules as AppModule[], customUser.editModules as AppModule[]), permissionCatalog.filter(item => item.module === "finance").map(item => item.key), true),
     });
   });
 
@@ -3996,6 +4478,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(null);
@@ -4023,8 +4507,7 @@ describe("users and permissions", () => {
         email: "ana@movimenta.local",
         password: "SenhaForte123",
         role: "user",
-        modules: null,
-        editModules: null,
+        permissions: [],
         commission: { percentage: 25, effectiveFrom: saoPauloToday() },
       });
       expect(sent[1]!.url).toContain(`/admin/users/${created.id}/professional`);
@@ -4036,6 +4519,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       await within(dialog).findByLabelText(/Profissional da agenda/);
@@ -4125,6 +4610,8 @@ describe("users and permissions", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+      await openSettingsSection("Usuários");
+      await screen.findByRole("button", { name: "Editar Maria Souza" });
       fireEvent.click(await screen.findByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Ana Lima" } });
@@ -4320,13 +4807,13 @@ describe("users and permissions", () => {
     localStorage.setItem("crm.auth.user", JSON.stringify({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/me") ? fresh : [];
+      const body = String(input).endsWith("/me") ? withPermissions(fresh) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
     expect(within(screen.getByRole("navigation")).getByRole("link", { name: "CRM comercial" })).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(withPermissions(fresh));
   });
 
   it("asks for a new login when an old stored session cannot be completed", async () => {
@@ -4352,14 +4839,14 @@ describe("users and permissions", () => {
     const fresh = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", ...legacyAccess("admin") };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/me") ? fresh
+      const body = url.endsWith("/me") ? withPermissions(fresh)
         : url.includes("/relationship/settings") ? relationshipSettingsFixture()
           : url.includes("/admin/clinic-settings") ? null
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Usuários" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Usuários" })).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
     expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toMatchObject({ role: "admin" });
     expect(screen.getByTitle("Sair")).toHaveTextContent("Admin");
@@ -4376,20 +4863,20 @@ describe("users and permissions", () => {
     }));
     const fresh = { id: "33333333-3333-4333-8333-333333333333", fullName: "Joana Recepção", email: "recepcao@movimenta.local", ...legacyAccess("reception") };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/me") ? fresh : [];
+      const body = String(input).endsWith("/me") ? withPermissions(fresh) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("button", { name: "Novo cliente" })).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith("/me"))).toBe(true);
-    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(fresh);
+    expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(withPermissions(fresh));
     expect(screen.getByTitle("Sair")).toHaveTextContent("Usuário comum");
   });
 });
 
-describe("settings drawers", () => {
+describe("settings tabs", () => {
   const owner = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
-  const sections = ["Usuários", "Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente"];
+
   const clinic = { id: "c1", name: "Studios Aryana", legalName: "", taxId: "", phone: "", email: "", address: "", timezone: "America/Sao_Paulo", updatedAt: "2026-09-01T12:00:00.000Z" };
   const user = { id: "33333333-3333-4333-8333-333333333333", clinicId: "11111111-1111-4111-8111-111111111111", fullName: "Maria Souza", email: "maria@movimenta.local", role: "user", modules: [], editModules: [], customModules: false, active: true, createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z" };
   const fetched = (path: string) => vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes(path));
@@ -4406,104 +4893,186 @@ describe("settings drawers", () => {
     });
   }
 
-  it("starts every section closed and opens and closes them like drawers", async () => {
+  it("opens Clínica first, loads other tabs on demand and preserves visited panels", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    for (const name of sections) {
-      const toggle = await screen.findByRole("button", { name });
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
-      const body = document.getElementById(toggle.getAttribute("aria-controls")!)!;
-      expect(body).not.toBeNull();
-      expect(body).toBeEmptyDOMElement();
-      expect(screen.getByRole("heading", { name })).toContainElement(toggle);
-    }
-    // Fechadas, o conteúdo não existe e os dados das seções que carregam sozinhas nem são pedidos.
-    expect(screen.queryByText("Maria Souza")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Clínica", "Usuários", "Planos", "Feriados", "Etiquetas", "Relacionamento"]);
+    expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    expect(fetched("/admin/users")).toBe(false);
     expect(fetched("/holidays")).toBe(false);
     expect(fetched("/relationship/settings")).toBe(false);
-
-    const holidays = screen.getByRole("button", { name: "Feriados" });
-    fireEvent.click(holidays);
-    expect(holidays).toHaveAttribute("aria-expanded", "true");
-    const holidaySection = holidays.closest("section")!;
-    expect(await within(holidaySection).findByText("Nenhum feriado cadastrado")).toBeInTheDocument();
-    expect(fetched("/holidays")).toBe(true);
-
-    // Várias abertas ao mesmo tempo.
-    const users = screen.getByRole("button", { name: "Usuários" });
-    fireEvent.click(users);
-    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
-    expect(holidays).toHaveAttribute("aria-expanded", "true");
-    expect(within(holidaySection).getByLabelText("Nome do feriado")).toBeInTheDocument();
-
-    // Fechar tira o conteúdo do DOM (não só esconde).
-    fireEvent.click(holidays);
-    expect(holidays).toHaveAttribute("aria-expanded", "false");
-    expect(within(holidaySection).queryByLabelText("Nome do feriado")).not.toBeInTheDocument();
-    expect(screen.getByText("Maria Souza")).toBeInTheDocument();
+    expect(fetched("/admin/audit-events")).toBe(false);
+    const holidays = await openSettingsSection("Feriados");
+    await within(holidays).findByText("Nenhum feriado cadastrado");
+    const users = await openSettingsSection("Usuários");
+    expect(await within(users).findByText("Maria Souza")).toBeInTheDocument();
+    expect(holidays).not.toBeVisible();
+    await openSettingsSection("Feriados");
+    expect(holidays).toBeVisible();
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/holidays"))).toHaveLength(1);
   });
 
-  it("uses a native button in the heading so the keyboard toggles it", async () => {
+  it("supports roving keyboard focus with manual tab activation", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
-    // Botão nativo type="button": Enter e Espaço disparam o clique no navegador, sem tabindex extra.
-    expect(toggle.tagName).toBe("BUTTON");
-    expect(toggle).toHaveAttribute("type", "button");
-    expect(toggle).not.toHaveAttribute("tabindex");
-    toggle.focus();
-    expect(toggle).toHaveFocus();
-    expect(toggle.closest("section")!.querySelector(".collapsible-chevron")).not.toBeNull();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByLabelText("Razão social")).not.toBeInTheDocument();
+    const clinicTab = await screen.findByRole("tab", { name: "Clínica" });
+    clinicTab.focus();
+    fireEvent.keyDown(clinicTab, { key: "ArrowRight" });
+    const users = screen.getByRole("tab", { name: "Usuários" });
+    expect(users).toHaveFocus();
+    expect(clinicTab).toHaveAttribute("aria-selected", "true");
+    expect(users).toHaveAttribute("tabindex", "-1");
+    fireEvent.click(users);
+    expect(users).toHaveAttribute("aria-selected", "true");
+    expect(users).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(users, { key: "End" });
+    expect(screen.getByRole("tab", { name: "Relacionamento" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Relacionamento" }), { key: "Home" });
+    expect(clinicTab).toHaveFocus();
   });
 
-  it("shows loading and then the error when a section loads on open", async () => {
+  it("shows loading, an error and retries only the affected section", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     let fail: (response: Response) => void = () => {};
-    mockSettings(() => new Promise<Response>((resolve) => { fail = resolve; }));
+    let first = true;
+    mockSettings(() => {
+      if (first) { first = false; return new Promise<Response>((resolve) => { fail = resolve; }); }
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = await openSettingsSection("Feriados");
     await vi.waitFor(() => expect(fetched("/holidays")).toBe(true));
     expect(section.querySelector(".loading-block")).not.toBeNull();
     fail({ ok: false, status: 500, json: async () => ({ code: "BOOM", message: "Falha ao listar feriados." }) } as Response);
     expect(await within(section).findByText(/Falha ao listar feriados\./)).toBeInTheDocument();
-    expect(section.querySelector(".loading-block")).toBeNull();
+    fireEvent.click(within(section).getByRole("button", { name: "Tentar novamente" }));
+    await within(section).findByText("Nenhum feriado cadastrado");
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/admin/clinic-settings"))).toHaveLength(1);
   });
 
-  it("opens the users drawer together with the modal from the header button", async () => {
+  it("places new user in the users tab and locks tabs while its modal is open", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const users = await screen.findByRole("button", { name: "Usuários" });
-    expect(users).toHaveAttribute("aria-expanded", "false");
+    await screen.findByRole("tab", { name: "Clínica" });
+    expect(screen.queryByRole("button", { name: "Novo usuário" })).not.toBeInTheDocument();
+    await openSettingsSection("Usuários");
+    await screen.findByText("Maria Souza");
     fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
     expect(screen.getByRole("dialog", { name: "Novo usuário" })).toBeInTheDocument();
-    expect(users).toHaveAttribute("aria-expanded", "true");
-    expect(await within(users.closest("section")!).findByText("Maria Souza")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Clínica" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Clínica" })).toBeEnabled());
   });
 
-  it("keeps the read-only settings page closed until opened", async () => {
+  it("opens the first available tab for reception and keeps relationship read-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", storedUser({ id: "22222222-2222-4222-8222-222222222222", fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
+    localStorage.setItem("crm.auth.user", storedUser({ id: owner.id, fullName: "Joana Recepção", email: "recepcao@movimenta.local", role: "reception" }));
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("tab", { name: "Planos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Planos", "Etiquetas", "Relacionamento"]);
     expect(fetched("/relationship/settings")).toBe(false);
-    fireEvent.click(toggle);
-    expect(await screen.findByLabelText("Plano acabando: avisar quantos dias antes do fim")).toHaveAttribute("readonly");
+    await openSettingsSection("Prazos e mensagens");
+    expect(await screen.findByLabelText("Saldo baixo: sessões restantes")).toHaveAttribute("readonly");
+  });
+
+  it.each(["Feriados", "Etiquetas"])("protects the inline %s draft on tab changes and unload", async (name) => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const panel = await openSettingsSection(name);
+    const label = name === "Feriados" ? "Nome do feriado" : "Nome da etiqueta";
+    const field = await within(panel).findByLabelText(label);
+    fireEvent.change(field, { target: { value: "Rascunho" } });
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    let dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
+    expect(field).toHaveValue("Rascunho");
+    expect(panel).toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Descartar alterações" }));
+    expect(panel).not.toBeVisible();
+    expect(screen.getByRole("tab", { name: "Usuários" })).toHaveFocus();
+    await openSettingsSection(name);
+    expect(field).toHaveValue("");
+    const cleanUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(cleanUnload);
+    expect(cleanUnload.defaultPrevented).toBe(false);
+  });
+
+  it.each(["Feriados", "Etiquetas"])("saves a valid inline %s draft before switching tabs", async (name) => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ ...JSON.parse(String(init.body)), id: "created", patientCount: 0 }) } as Response;
+      return original(input, init);
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const panel = await openSettingsSection(name);
+    const label = name === "Feriados" ? "Nome do feriado" : "Nome da etiqueta";
+    fireEvent.change(await within(panel).findByLabelText(label), { target: { value: "Cadastro novo" } });
+    if (name === "Feriados") fireEvent.change(within(panel).getByLabelText("Data"), { target: { value: "2026-12-25" } });
+    fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Usuários" })).toHaveAttribute("aria-selected", "true"));
+    await openSettingsSection(name);
+    expect(await within(panel).findByText("Cadastro novo")).toBeInTheDocument();
+    expect(within(panel).getByLabelText(label)).toHaveValue("");
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  });
+
+  it("keeps a clinic draft after a failed save, blocks duplicate writes and isolates user refreshes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    let complete: (response: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).includes("/admin/clinic-settings") && init?.method === "PUT") return new Promise<Response>((resolve) => { complete = resolve; });
+      return original(input, init);
+    });
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    const field = await screen.findByLabelText("Nome");
+    fireEvent.change(field, { target: { value: "Studio novo" } });
+    const form = field.closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(await screen.findByRole("button", { name: "Salvando…" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Usuários" })).toBeDisabled();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+    complete({ ok: false, status: 400, json: async () => ({ message: "Falha ao salvar a clínica." }) } as Response);
+    await screen.findByText("Falha ao salvar a clínica.");
+    expect(field).toHaveValue("Studio novo");
+    expect(screen.getByRole("button", { name: "Salvar configurações" })).toBeEnabled();
+    fireEvent.submit(form);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(2));
+    complete({ ok: true, status: 200, json: async () => ({ ...clinic, name: "Studio novo" }) } as Response);
+    await screen.findByText("Dados da clínica salvos.");
+    await openSettingsSection("Usuários");
+    fireEvent.click(await screen.findByRole("button", { name: "Redefinir senha" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Nova senha"), { target: { value: "NovaSenha123" } });
+    fireEvent.submit(within(dialog).getByLabelText("Nova senha").closest("form")!);
+    await screen.findByText("Senha de Maria Souza redefinida.");
+    await openSettingsSection("Dados da clínica");
+    expect(field).toHaveValue("Studio novo");
+    expect(vi.mocked(fetch).mock.calls.filter(([input, init]) => String(input).includes("/admin/clinic-settings") && !init?.method)).toHaveLength(1);
   });
 
   describe("unsaved changes warning (T068)", () => {
@@ -4541,8 +5110,7 @@ describe("settings drawers", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(owner));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const toggle = await screen.findByRole("button", { name: "Dados da clínica" });
-      fireEvent.click(toggle);
+      const toggle = await screen.findByRole("tab", { name: "Clínica" });
       const name = await screen.findByLabelText("Nome");
       fireEvent.change(name, { target: { value } });
       return toggle;
@@ -4551,21 +5119,21 @@ describe("settings drawers", () => {
     it("closes directly when nothing changed", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studios Aryana");
-      fireEvent.click(toggle);
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("keeps editing when the user chooses to continue", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
       expect(within(dialog).getByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: "Descartar alterações" })).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-selected", "true");
       expect(screen.getByLabelText("Nome")).toHaveValue("Studio Novo");
       expect(puts()).toHaveLength(0);
     });
@@ -4573,30 +5141,30 @@ describe("settings drawers", () => {
     it("discards back to the saved values and closes", async () => {
       mockClinicSave([]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Descartar alterações" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(puts()).toHaveLength(0);
       fireEvent.click(toggle);
       expect(await screen.findByLabelText("Nome")).toHaveValue("Studios Aryana");
       // Sem alteração depois de descartar: fecha direto.
-      fireEvent.click(toggle);
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     it("saves with the form request, shows the error in the modal and closes only on success", async () => {
       mockClinicSave(["fail", "ok"]);
       const toggle = await editClinicName("Studio Novo");
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog");
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
       expect(await within(dialog).findByRole("alert")).toHaveTextContent("Nome inválido.");
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(toggle).toHaveAttribute("aria-selected", "true");
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveAttribute("aria-selected", "false");
       expect(puts()).toHaveLength(2);
       expect(JSON.parse(String(puts()[1]![1]!.body))).toMatchObject({ name: "Studio Novo" });
       fireEvent.click(toggle);
@@ -4621,18 +5189,18 @@ describe("settings drawers", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(owner));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const toggle = await screen.findByRole("button", { name: "Prazos e mensagens" });
+      const toggle = await screen.findByRole("tab", { name: "Relacionamento" });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText("Saldo baixo: sessões restantes");
       const original = (field as HTMLInputElement).value;
       fireEvent.change(field, { target: { value: "7" } });
-      fireEvent.click(toggle);
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       const dialog = screen.getByRole("dialog", { name: "Salvar as alterações?" });
       fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
-      expect(toggle).toHaveAttribute("aria-expanded", "true");
-      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-selected", "true");
+      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
       fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Salvar alterações" }));
-      await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-selected", "false"));
       const put = vi.mocked(fetch).mock.calls.find(([input, options]) => String(input).includes("/relationship/settings") && options?.method === "PUT");
       expect(JSON.parse(String(put![1]!.body))).toMatchObject({ lowBalanceSessions: 7 });
       expect(original).not.toBe("7");
@@ -4667,7 +5235,7 @@ describe("view-only modules", () => {
     const completed = { ...base, id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", patientName: "Bruno Costa", status: "completed" };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/appointments?") ? [scheduled, completed]
+      const body = (url.includes("/appointments?") || url.includes("/appointments/options?")) ? [scheduled, completed]
         : url.includes("/satisfaction") ? { surveys: [] }
           : [];
       return { ok: true, status: 200, json: async () => body } as Response;
@@ -4676,7 +5244,7 @@ describe("view-only modules", () => {
     expect(await screen.findByRole("note")).toHaveTextContent("Seu acesso a Agenda é só de consulta");
     expect(screen.queryByRole("button", { name: /Novo atendimento/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bloquear horário" })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText("Status do atendimento")[0]).toBeDisabled();
+    expect((await screen.findAllByLabelText("Status do atendimento"))[0]).toBeDisabled();
 
     fireEvent.click(await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }));
     let dialog = screen.getByRole("dialog");
@@ -4859,14 +5427,16 @@ describe("button variants", () => {
                 : undefined,
     );
     const { container } = render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-    await openSettingsSection("Dados da clínica", "Prazos e mensagens", "Feriados", "Auditoria recente");
+    await openSettingsSection("Dados da clínica", "Prazos e mensagens", "Feriados");
     const section = await openSettingsSection("Usuários");
     await within(section).findByText("Maria Souza");
     expect(within(section).getByRole("button", { name: "Redefinir senha" })).toHaveClass("secondary-button", "button-sm");
     expect(within(section).getByRole("button", { name: "Desativar" })).toHaveClass("danger-button", "button-sm");
+    await openSettingsSection("Feriados");
     expect(await screen.findByRole("button", { name: "Excluir feriado Dia da cidade" })).toHaveClass("danger-button", "button-sm");
     // Salvar dos formulários de configuração: tamanho normal, no rodapé alinhado à direita (não estica no grid).
     for (const name of ["Salvar configurações", "Salvar prazos e mensagens"]) {
+      await openSettingsSection(name === "Salvar configurações" ? "Dados da clínica" : "Prazos e mensagens");
       const save = await screen.findByRole("button", { name });
       expect(save).toHaveClass("primary-button");
       expect(save.parentElement).toHaveClass("modal-actions");
@@ -4876,6 +5446,7 @@ describe("button variants", () => {
 
   it("uses a button variant on every button of the plans page", async () => {
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555", clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida",
       serviceId: "77777777-7777-4777-8777-777777777777", serviceName: "Pilates", name: "Mensalidade Pilates",
@@ -4977,7 +5548,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    expect(screen.getByRole("dialog", { name: "Nova matrícula" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    expect(dialog).toHaveClass("modal-wide");
+    expect(within(dialog).getByRole("heading", { name: "Dados da matrícula" })).toBeInTheDocument();
   });
 });
 
@@ -5074,6 +5647,7 @@ describe("action modals instead of browser dialogs", () => {
 
   it("cancels a plan after a confirmation that shows the effect on installments and sessions", async () => {
     const plan = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 2, serviceName: "Pilates" }],
       id: "55555555-5555-4555-8555-555555555555", clinicId: "11111111-1111-4111-8111-111111111111",
       patientId: "99999999-9999-4999-8999-999999999999", patientName: "Helena Almeida",
       serviceId: "77777777-7777-4777-8777-777777777777", serviceName: "Pilates", name: "Mensalidade Pilates",
@@ -5210,21 +5784,27 @@ describe("screens without the patients module", () => {
     renderAs("agenda", "/agenda");
     fireEvent.click(await screen.findByRole("button", { name: /Novo atendimento/ }));
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
     expect(await within(dialog).findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Adicionar cliente" })).not.toBeInTheDocument();
     expectOnlyOptions();
   });
 
   it("opens communications with the client list and the broadcast tags", async () => {
     renderAs("communications", "/comunicacoes");
+    fireEvent.focus(await screen.findByRole("combobox", { name: "Cliente" }));
     expect(await screen.findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
     const panel = (await screen.findByRole("heading", { name: "Comunicado segmentado" })).closest("section")!;
-    expect(within(panel).getByRole("button", { name: /^pilates/ })).toBeInTheDocument();
+    expect(await within(panel).findByRole("button", { name: /^pilates/ })).toBeInTheDocument();
     expectOnlyOptions();
   });
 
   it("opens contracts without the clients and plans modules", async () => {
     renderAs("contracts", "/contratos");
+    expect(await screen.findByRole("button", { name: "Criar rascunho" })).toBeDisabled();
+    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
     expect(await screen.findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
     expect(screen.getByRole("button", { name: "Criar rascunho" })).toBeEnabled();
     expectOnlyOptions();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => /\/plans(\?|$)/.test(String(url)))).toBe(false);
@@ -5234,12 +5814,30 @@ describe("screens without the patients module", () => {
     renderAs("groups", "/turmas");
     fireEvent.click(await screen.findByRole("button", { name: "Matricular cliente" }));
     const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
     expect(await within(dialog).findByRole("option", { name: "Helena Almeida" })).toBeInTheDocument();
     expectOnlyOptions();
   });
 });
 
 describe("configured patient tags", () => {
+  it("offers editing independently from creating and deleting tags", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify({
+      id: "55555555-5555-4555-8555-555555555555", fullName: "Limited Settings",
+      email: "limited@test.local", role: "user", modules: ["settings"], editModules: [],
+      permissions: ["settings.view", "settings.tags_update"],
+    }));
+    vi.mocked(fetch).mockImplementation(async (input) => ({
+      ok: true, status: 200,
+      json: async () => String(input).includes("/patient-tags") ? [patientTag("Pilates")] : [],
+    }) as Response);
+    render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
+    await openSettingsSection("Etiquetas");
+    expect(await screen.findByRole("button", { name: "Editar etiqueta Pilates" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adicionar etiqueta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Excluir etiqueta Pilates" })).not.toBeInTheDocument();
+  });
   const admin = { id: "22222222-2222-4222-8222-222222222222", fullName: "Aryana Dutra", email: "admin@movimenta.local", role: "owner" };
   function jsonResponse(body: unknown, status = 200) {
     return { ok: status < 400, status, json: async () => body } as Response;
@@ -5301,7 +5899,7 @@ describe("configured patient tags", () => {
 
     // Nome vazio não chama a API.
     fireEvent.click(within(section).getByRole("button", { name: "Adicionar etiqueta" }));
-    expect(within(section).getByText("Informe o nome da etiqueta.")).toBeInTheDocument();
+    expect(await within(section).findByText("Informe o nome da etiqueta.")).toBeInTheDocument();
     expect(writes).toHaveLength(2);
 
     // Renomear e trocar a cor.
@@ -5337,7 +5935,7 @@ describe("configured patient tags", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser({ id: "33333333-3333-4333-8333-333333333333", fullName: "Fábio Financeiro", email: "financeiro@movimenta.local", role: "finance" }));
     vi.mocked(fetch).mockImplementation(async (input) =>
-      jsonResponse(String(input).includes("/patient-tags") ? [patientTag("Pilates", "#276749", 3)] : relationshipSettingsFixture()),
+      jsonResponse(String(input).includes("/patient-tags") ? [patientTag("Pilates", "#276749", 3)] : String(input).includes("/relationship/settings") ? relationshipSettingsFixture() : []),
     );
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     const section = await openSettingsSection("Etiquetas");
@@ -5396,6 +5994,25 @@ describe("configured patient tags", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
     const dialog = screen.getByRole("dialog");
     expect(await within(dialog).findByText(/Nenhuma etiqueta configurada/)).toBeInTheDocument();
+  });
+
+  it("formats CPF while typing and rejects invalid check digits", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse([]));
+    render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Novo cliente" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
+    const cpf = within(dialog).getByLabelText("CPF");
+
+    fireEvent.change(cpf, { target: { value: "52998224724" } });
+    expect(cpf).toHaveValue("529.982.247-24");
+    expect(cpf).toHaveAttribute("aria-invalid", "true");
+    expect(within(dialog).getAllByText("Informe um CPF válido.").length).toBeGreaterThan(0);
+
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
+    expect(cpf).toHaveValue("529.982.247-25");
+    expect(cpf).not.toHaveAttribute("aria-invalid");
   });
 
   it("shows the configured tags with their colors in the segmented broadcast", async () => {
@@ -5466,7 +6083,7 @@ describe("configured patient tags", () => {
       expect(manage).toHaveAttribute("href", "/configuracoes?secao=etiquetas");
       fireEvent.click(manage);
       expect(await screen.findByRole("list", { name: "Etiquetas configuradas" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Etiquetas" })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("tab", { name: "Etiquetas" })).toHaveAttribute("aria-selected", "true");
     });
 
     it("uses the default color without an error when the tag colors cannot be loaded", async () => {
@@ -5504,6 +6121,12 @@ describe("guided client registration", () => {
   const professionalId = "33333333-3333-4333-8333-333333333333";
   const roomId = "55555555-5555-4555-8555-555555555555";
   const created = { id: "99999999-9999-4999-8999-999999999999", clinicId: "11111111-1111-4111-8111-111111111111", recordNumber: "PAC-00042", fullName: "Marina Costa", phone: "11987654321", tags: [], status: "active", createdAt: "2026-10-04T12:00:00.000Z", updatedAt: "2026-10-04T12:00:00.000Z" };
+  const pilatesTemplate = { id: "b1111111-1111-4111-8111-111111111111", name: "Pilates 2x semana", kind: "fixed_package", active: true,
+    totalValueInCents: 48000, services: [{ serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 }] };
+  const physioTemplate = { ...pilatesTemplate, id: "b2222222-2222-4222-8222-222222222222", name: "Fisioterapia",
+    services: [{ serviceId: physioId, totalSessions: 8, totalValueInCents: 48000 }] };
+  const singleTemplate = { ...pilatesTemplate, id: "b3333333-3333-4333-8333-333333333333", name: "Serviço avulso", kind: "single",
+    totalValueInCents: 9000, services: [{ serviceId: pilatesId, totalSessions: 1, totalValueInCents: 9000 }] };
   function group(id: string, name: string, serviceId: string, extra: Record<string, unknown> = {}) {
     return { id, clinicId: created.clinicId, name, sequence: 1, serviceId, serviceName: "Pilates", professionalId, professionalName: "Dra. Ana Martins", roomId, roomName: "Sala Movimento", capacity: 4, activeEnrollments: 1, waitlistCount: 0, active: true, weeklySlots: [{ weekday: 1, startTime: "08:00", durationMinutes: 60 }], createdAt: "2026-01-01T00:00:00.000Z", ...extra };
   }
@@ -5516,7 +6139,7 @@ describe("guided client registration", () => {
   function jsonResponse(body: unknown, status = 200) {
     return { ok: status < 400, status, json: async () => body } as Response;
   }
-  /** API de Clientes; `guided` responde ao `POST /patients/guided` (corpo já interpretado). */
+  /** Cadastros simples e guiados, com os planos do catálogo vigente. */
   function mockApi(guided: (body: Record<string, unknown>) => Response) {
     const posts: Array<Record<string, unknown>> = [];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
@@ -5526,6 +6149,11 @@ describe("guided client registration", () => {
         posts.push(body);
         return guided(body);
       }
+      if (init?.method === "POST" && url.endsWith("/patients")) {
+        posts.push({ patient: JSON.parse(String(init.body)) });
+        return jsonResponse(created, 201);
+      }
+      if (url.includes("/plan-templates")) return jsonResponse([pilatesTemplate, physioTemplate, singleTemplate]);
       if (url.includes("/patient-tags")) return jsonResponse([]);
       if (url.includes("/professionals")) return jsonResponse([{ id: professionalId, fullName: "Dra. Ana Martins", color: "#5c6f68" }]);
       if (url.includes("/rooms")) return jsonResponse([{ id: roomId, name: "Sala Movimento", capacity: 6 }]);
@@ -5565,9 +6193,11 @@ describe("guided client registration", () => {
     expect(within(question).getByRole("radio", { name: "Só cadastrar por enquanto" })).toBeChecked();
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar cliente" }));
     expect(await screen.findByRole("button", { name: "Editar Marina Costa" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Cliente cadastrado" })).toBeInTheDocument();
     expect(posts).toHaveLength(1);
-    expect(posts[0]).toMatchObject({ next: "none", patient: { fullName: "Marina Costa", phone: "11987654321" } });
+    expect(posts[0]).toMatchObject({ patient: { fullName: "Marina Costa", phone: "11987654321" } });
+    expect(posts[0]).not.toHaveProperty("next");
     expect(posts[0]).not.toHaveProperty("appointment");
     expect(posts[0]).not.toHaveProperty("plan");
   });
@@ -5631,8 +6261,9 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(within(dialog).getByRole("radio", { name: "Assinar um plano" }));
-    const service = await within(dialog).findByLabelText("Serviço");
-    expect(service).toHaveValue(pilatesId);
+    const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+    expect(catalog).toHaveValue("");
+    fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
     const model = within(dialog).getByLabelText("Modelo");
     expect(within(model).getAllByRole("option").map((item) => item.textContent)).toEqual(["Pacote fixo", "Recorrente"]);
     expect(within(dialog).getByText("A turma pode ser escolhida depois com o responsável.")).toBeInTheDocument();
@@ -5645,14 +6276,13 @@ describe("guided client registration", () => {
       expect.stringMatching(/^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/),
     ]);
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
-    fireEvent.change(within(dialog).getByLabelText("Nome do plano"), { target: { value: "Pilates 2x semana" } });
-    fireEvent.change(within(dialog).getByLabelText("Sessões"), { target: { value: "8" } });
-    fireEvent.change(within(dialog).getByLabelText("Valor total"), { target: { value: "480" } });
-    // Trocar o serviço limpa a turma escolhida (ela é de outro serviço).
-    fireEvent.change(service, { target: { value: physioId } });
+    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), { target: { value: "8" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), { target: { value: "480" } });
+    // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
+    fireEvent.change(catalog, { target: { value: physioTemplate.id } });
     expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
     expect(within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole("option")).toHaveLength(2);
-    fireEvent.change(service, { target: { value: pilatesId } });
+    fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
     fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), { target: { value: groups[1]!.id } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar e criar plano" }));
     // O aviso aparece fora do modal (a opção "turma cheia (lista de espera)" some com ele).
@@ -5662,7 +6292,8 @@ describe("guided client registration", () => {
     expect(posts[0]).toMatchObject({
       next: "plan",
       groupId: groups[1]!.id,
-      plan: { serviceId: pilatesId, kind: "fixed_package", name: "Pilates 2x semana", totalSessions: 8, totalValueInCents: 48000 },
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package", name: "Pilates 2x semana",
+        services: [{ serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 }], totalValueInCents: 48000 },
     });
   });
 
@@ -5673,12 +6304,14 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(within(dialog).getByRole("radio", { name: "Serviço avulso" }));
-    await within(dialog).findByLabelText("Serviço");
+    const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+    fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Turma (opcional)")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar e criar serviço avulso" }));
     expect(await screen.findByText(/Serviço avulso .* criado/)).toBeInTheDocument();
-    expect(posts[0]).toMatchObject({ next: "single", plan: { serviceId: pilatesId } });
+    expect(posts[0]).toMatchObject({ next: "single", plan: { planTemplateId: singleTemplate.id,
+      services: [{ serviceId: pilatesId, totalSessions: 1, totalValueInCents: 9000 }] } });
     expect(posts[0]!.plan).not.toHaveProperty("kind");
     expect(posts[0]).not.toHaveProperty("groupId");
   });
@@ -5710,7 +6343,7 @@ describe("guided client registration", () => {
       "Só cadastrar por enquanto",
     ]);
     fireEvent.click(within(dialog).getByRole("radio", { name: "Assinar um plano" }));
-    await within(dialog).findByLabelText("Serviço");
+    await within(dialog).findByLabelText("Plano cadastrado");
     expect(within(dialog).queryByLabelText("Turma (opcional)")).not.toBeInTheDocument();
     expect(within(dialog).getByText("A turma pode ser escolhida depois com o responsável.")).toBeInTheDocument();
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/groups/workspace"))).toBe(false);
@@ -5741,7 +6374,7 @@ describe("guided client registration", () => {
     expect(link).toHaveAttribute("href", `/turmas?matricular=${subscriber.id}`);
     fireEvent.click(link);
     const drawer = await screen.findByRole("dialog", { name: "Nova matrícula" });
-    await waitFor(() => expect(within(drawer).getByLabelText("Cliente")).toHaveValue(subscriber.id));
+    await waitFor(() => expect(within(drawer).getByRole("combobox", { name: "Cliente" })).toHaveValue(subscriber.fullName));
   });
 
   it("clears the subscribers filter reloading the full list", async () => {
@@ -5765,4 +6398,211 @@ describe("guided client registration", () => {
     expect(await screen.findByRole("button", { name: "Editar Bruno Souza" })).toBeInTheDocument();
     expect(screen.queryByText("Sem turma")).not.toBeInTheDocument();
   });
+});
+
+
+describe("history page", () => {
+  beforeEach(() => { vi.spyOn(api, "auditHistory").mockReset(); vi.spyOn(api, "historyActors").mockResolvedValue([]); });
+  const event = { id: "event-1", action: "clinic.updated", entityType: "clinic", metadata: {}, createdAt: "2026-10-07T12:00:00.000Z", actorName: "Maria Souza" };
+  function session(role: "admin" | "user" = "user", allowed = true) {
+    const user = withPermissions({ id: "history-reader", fullName: "History Reader", email: "history@test.local", role,
+      modules: allowed ? ["history"] : ["settings"], editModules: [],
+      permissions: role === "admin" ? legacyPermissions("admin") : allowed ? ["history.view" as const] : ["settings.view" as const],
+    });
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", JSON.stringify(user));
+    return user;
+  }
+  function open() {
+    return render(<MemoryRouter initialEntries={["/historico"]}><App /></MemoryRouter>);
+  }
+  it("shows loading and the independent history menu, then the empty state", async () => {
+    session();
+    let resolve!: (value: import("@crm/contracts").AdminAuditPage) => void;
+    vi.spyOn(api, "auditHistory").mockImplementation(() => new Promise((done) => { resolve = done; }));
+    open();
+    expect(await screen.findByRole("heading", { name: "Histórico" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Histórico" })).toHaveAttribute("href", "/historico");
+    expect(screen.queryByRole("link", { name: "Configurações" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Atividades do sistema" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
+    resolve({ items: [], nextCursor: null });
+    expect(await screen.findByText("Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  });
+  it("allows administrators and displays the responsible person, time and system fallback", async () => {
+    session("admin");
+    const systemEvent = { id: "event-2", action: "user.updated", entityType: "user", metadata: {}, createdAt: event.createdAt };
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event, systemEvent], nextCursor: null });
+    const { container } = open();
+    expect(await screen.findByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
+    expect(screen.getByText(/Maria Souza ·/)).toBeInTheDocument();
+    expect(screen.getByText(/Sistema ·/)).toBeInTheDocument();
+    expect(container.querySelector("time")).toHaveAttribute("datetime", event.createdAt);
+  });
+  it("retries a failed first load", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory").mockRejectedValueOnce(new Error("Falha ao carregar"))
+      .mockResolvedValueOnce({ items: [event], nextCursor: null });
+    open();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao carregar");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
+    expect(history).toHaveBeenNthCalledWith(2, undefined, {});
+  });
+  it("keeps loaded events when the next page fails and retries the same cursor", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory")
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id })
+      .mockRejectedValueOnce(new Error("Falha na próxima página"))
+      .mockResolvedValueOnce({ items: [{ ...event, id: "event-2", action: "user.created" }], nextCursor: null });
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha na próxima página");
+    expect(screen.getByRole("heading", { name: "Dados da clínica atualizados" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByRole("heading", { name: "Usuário cadastrado" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
+    expect(history).toHaveBeenNthCalledWith(2, event.id, {});
+    expect(history).toHaveBeenNthCalledWith(3, event.id, {});
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  });
+  it("hides history and redirects direct access without its permission", async () => {
+    session("user", false);
+    const history = vi.spyOn(api, "auditHistory");
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    open();
+    expect(await screen.findByRole("link", { name: "Configurações" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Histórico" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument();
+    expect(history).not.toHaveBeenCalled();
+  });
+  it("removes the page and menu after a permission revocation is refreshed", async () => {
+    let fresh = session();
+    vi.spyOn(api, "me").mockImplementation(async () => fresh);
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: null });
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    fresh = { ...fresh, modules: [], permissions: [] };
+    fireEvent(window, new Event("focus"));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Histórico" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
+  });
+  it("opens the readable summary and preserves all technical values in the details tab", async () => {
+    session();
+    const detailed = { ...event, clinicId: "clinic-1", actorUserId: "user-1", entityId: "record-1", ipAddress: "192.0.2.1",
+      metadata: { untouchedKey: { nested: [false, null, 0, "<script>example</script>"] }, longValue: "long".repeat(80) },
+    };
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [detailed], nextCursor: null });
+    open();
+    const trigger = await screen.findByRole("button", { name: "Ver detalhes" });
+    expect(screen.queryByText(event.action)).not.toBeInTheDocument();
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Detalhes da alteração" });
+    const summaryTab = within(dialog).getByRole("tab", { name: "Resumo" });
+    expect(summaryTab).toHaveFocus();
+    expect(summaryTab).toHaveAttribute("aria-selected", "true");
+    const summaryPanel = within(dialog).getByRole("tabpanel", { name: "Resumo" });
+    expect(within(summaryPanel).getByText("Dados da clínica atualizados")).toBeInTheDocument();
+    expect(within(summaryPanel).queryByText(event.action)).not.toBeInTheDocument();
+    const technicalTab = within(dialog).getByRole("tab", { name: "Detalhes técnicos" });
+    fireEvent.click(technicalTab);
+    const technicalPanel = within(dialog).getByRole("tabpanel", { name: "Detalhes técnicos" });
+    for (const value of [event.id, event.action, event.entityType, "record-1", "clinic-1", "user-1", event.actorName, event.createdAt, "192.0.2.1"])
+      expect(within(technicalPanel).getByText(value)).toBeInTheDocument();
+    expect(technicalPanel.querySelector("pre")!.textContent).toBe(JSON.stringify(detailed.metadata, null, 2));
+    expect(technicalPanel.querySelector("script")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+  it("supports keyboard tabs, Escape and focus restoration without technical data inventing", async () => {
+    session();
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [{ ...event, action: "future.action", entityType: "user", actorName: "", actorUserId: "removed-user" }], nextCursor: null });
+    open();
+    expect(await screen.findByRole("heading", { name: "Alteração registrada" })).toBeInTheDocument();
+    expect(screen.getByText(/Usuário não identificado/)).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Ver detalhes" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    const summary = within(dialog).getByRole("tab", { name: "Resumo" });
+    const technical = within(dialog).getByRole("tab", { name: "Detalhes técnicos" });
+    fireEvent.keyDown(summary, { key: "ArrowRight" });
+    expect(technical).toHaveFocus();
+    expect(technical).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getByRole("tabpanel", { name: "Detalhes técnicos" })).toHaveTextContent("Não registrado");
+    fireEvent.keyDown(technical, { key: "Home" });
+    expect(summary).toHaveFocus();
+    fireEvent.keyDown(summary, { key: "ArrowLeft" });
+    expect(technical).toHaveFocus();
+    fireEvent.keyDown(technical, { key: "ArrowRight" });
+    expect(summary).toHaveFocus();
+    fireEvent.keyDown(summary, { key: "End" });
+    expect(technical).toHaveFocus();
+    fireEvent.keyDown(technical, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("tab", { name: "Resumo" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("applies search and combined filters on submit and resets the page", async () => {
+    session();
+    const actor = { id: "22222222-2222-4222-8222-222222222222", name: "Aryana Dutra" };
+    vi.spyOn(api, "historyActors").mockResolvedValue([actor]);
+    const history = vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [event], nextCursor: event.id });
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    await screen.findByRole("option", { name: actor.name });
+    fireEvent.change(screen.getByLabelText("Pesquisar"), { target: { value: "pagamento" } });
+    fireEvent.change(screen.getByLabelText("Área"), { target: { value: "finance" } });
+    fireEvent.change(screen.getByLabelText("Tipo de atividade"), { target: { value: "financial.payment" } });
+    fireEvent.change(screen.getByLabelText("Responsável"), { target: { value: actor.id } });
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-10-08" } });
+    expect(history).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Pesquisar e filtrar" }));
+    await waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+    const filters = { search: "pagamento", module: "finance", action: "financial.payment", actorUserId: actor.id, from: "2026-10-01", to: "2026-10-08" };
+    expect(history).toHaveBeenLastCalledWith(undefined, filters);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Próxima" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await waitFor(() => expect(history).toHaveBeenLastCalledWith(event.id, filters));
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    await waitFor(() => expect(history).toHaveBeenLastCalledWith(undefined, {}));
+    expect(screen.getByLabelText("Pesquisar")).toHaveValue("");
+    expect(screen.getByLabelText("Área")).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Página 1"));
+  });
+  it("keeps only the current page and retrieves the previous page again", async () => {
+    session();
+    const history = vi.spyOn(api, "auditHistory")
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id })
+      .mockResolvedValueOnce({ items: [{ ...event, id: "second", action: "user.created" }], nextCursor: null })
+      .mockResolvedValueOnce({ items: [event], nextCursor: event.id });
+    open();
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await screen.findByRole("heading", { name: "Usuário cadastrado" });
+    expect(screen.queryByRole("heading", { name: "Dados da clínica atualizados" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Página 2");
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+    await screen.findByRole("heading", { name: "Dados da clínica atualizados" });
+    expect(screen.queryByRole("heading", { name: "Usuário cadastrado" })).not.toBeInTheDocument();
+    expect(history).toHaveBeenLastCalledWith(undefined, {});
+  });
+  it("does not offer clinical technical details without the required permissions", async () => {
+    session();
+    vi.spyOn(api, "auditHistory").mockResolvedValue({ items: [{ ...event, action: "clinical.access.read", module: "clinical", detailsRestricted: true, metadata: {} }], nextCursor: null });
+    open();
+    expect(await screen.findByRole("heading", { name: "Prontuário consultado" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver detalhes" })).not.toBeInTheDocument();
+    expect(screen.getByText("Detalhes disponíveis para quem tem acesso aos Prontuários.")).toBeInTheDocument();
+  });
+
 });

@@ -1,6 +1,15 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
+import { planTemplateInputSchema, allocatePlanRevenue, effectivePermissions, resolvePermissionInput, permissionModules, permissionEditModules, historyAction, appModuleSchema, type PermissionKey } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
+import { formatPlanServices, validatePlanComposition } from "./plan-services.js";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate,
   AdminAuditEvent,
+  AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -156,7 +165,7 @@ import {
   weeklyOccurrences,
   zonedTimeToUtc,
 } from "./group-schedule.js";
-import { inspectClinicalAttachment } from "./clinical-integrity.js";
+import { assertClinicalWritePermission, inspectClinicalAttachment } from "./clinical-integrity.js";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals, demoRooms, demoServices } from "./demo-scenarios.js";
 import { buildSalesReport } from "./sales-report.js";
@@ -205,6 +214,7 @@ function dateAt(hour: number, minute = 0, addDays = 0) {
 }
 
 export class MemoryClinicRepository implements ClinicRepository {
+  private readonly planTemplates: PlanTemplate[] = [];
   private readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
   private readonly clinicalRecords: ClinicalRecord[] = [];
   private readonly clinicalRecordRevisions: ClinicalRecordRevision[] = [];
@@ -336,12 +346,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   > = [];
   private readonly documentTemplates: DocumentTemplate[] = [];
   private readonly issuedDocuments: IssuedDocument[] = [];
-  /** Módulos gravados pelo admin para o usuário comum (ausente = nenhum). */
-  private readonly userModules = new Map<string, AppModule[]>();
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   private readonly professionalUsers = new Map<string, string>();
-  /** Módulos com edição gravados para o usuário comum (ausente = nenhum). */
-  private readonly userEditModules = new Map<string, AppModule[]>();
   private readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -349,6 +355,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
       role: "admin",
+      permissions: effectivePermissions("admin"),
       modules: effectiveModules("admin"),
       editModules: effectiveEditModules("admin"),
       customModules: false,
@@ -768,6 +775,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       email: input.email.toLowerCase(),
       role: input.role,
       ...(jobTitle ? { jobTitle } : {}),
+      permissions: [],
       modules: [],
       editModules: [],
       customModules: false,
@@ -776,7 +784,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    this.setUserModules(user, input.modules ?? null, input.editModules ?? null);
+    this.setUserPermissions(user, resolvePermissionInput(input.role, input));
     this.users.push(user);
     this.addAdminAudit(actorUserId, "user.created", "user", user.id, {
       role: user.role,
@@ -788,7 +796,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         "users.permissions_updated",
         "user",
         user.id,
-        { modules: user.modules, editModules: user.editModules, custom: true },
+        { modules: user.modules, editModules: user.editModules, custom: true, previousPermissions: [], permissions: user.permissions },
       );
     if (input.commission)
       this.addUserCommissionRule(
@@ -831,7 +839,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       )
     )
       throw lastAdminError();
-    const previousCustom = this.storedPermissions(user.id);
+    const previousPermissions = [...user.permissions];
+    const previousRole = user.role;
     user.fullName = input.fullName;
     user.role = input.role;
     user.active = input.active;
@@ -840,20 +849,13 @@ export class MemoryClinicRepository implements ClinicRepository {
       if (jobTitle) user.jobTitle = jobTitle;
       else delete user.jobTitle;
     }
-    this.setUserModules(
-      user,
-      input.modules === undefined ? previousCustom.modules : input.modules,
-      input.editModules === undefined
-        ? previousCustom.editModules
-        : input.editModules,
-    );
+    this.setUserPermissions(user, resolvePermissionInput(input.role, input, previousRole === "admin" ? [] : previousPermissions));
     user.updatedAt = now();
     this.addAdminAudit(actorUserId, "user.updated", "user", user.id, {
       role: user.role,
       active: user.active,
     });
-    const currentCustom = this.storedPermissions(user.id);
-    if (JSON.stringify(previousCustom) !== JSON.stringify(currentCustom))
+    if (JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions))
       this.addAdminAudit(
         actorUserId,
         "users.permissions_updated",
@@ -863,41 +865,17 @@ export class MemoryClinicRepository implements ClinicRepository {
           modules: user.modules,
           editModules: user.editModules,
           custom: user.customModules,
+          previousPermissions, permissions: user.permissions,
         },
       );
     return this.toAdminUser(user);
   }
 
-  private storedPermissions(userId: string) {
-    return {
-      modules: this.userModules.get(userId) ?? null,
-      editModules: this.userEditModules.get(userId) ?? null,
-    };
-  }
-
-  /**
-   * Admin não guarda lista (tem sempre todos os módulos); usuário comum: `null` = nenhum.
-   * A edição guardada já descarta módulos sem visualização.
-   */
-  private setUserModules(
-    user: AuthenticatedUser,
-    modules: readonly AppModule[] | null,
-    editModules: readonly AppModule[] | null,
-  ) {
-    const admin = user.role === "admin";
-    const custom =
-      admin || modules === null ? null : effectiveModules(user.role, modules);
-    const customEdit =
-      admin || editModules === null
-        ? null
-        : effectiveEditModules(user.role, custom, editModules);
-    if (custom) this.userModules.set(user.id, custom);
-    else this.userModules.delete(user.id);
-    if (customEdit) this.userEditModules.set(user.id, customEdit);
-    else this.userEditModules.delete(user.id);
-    user.customModules = custom !== null || customEdit !== null;
-    user.modules = effectiveModules(user.role, custom);
-    user.editModules = effectiveEditModules(user.role, custom, customEdit);
+  private setUserPermissions(user: AuthenticatedUser, permissions: readonly PermissionKey[]) {
+    user.permissions = effectivePermissions(user.role, permissions);
+    user.modules = permissionModules(user.permissions);
+    user.editModules = user.role === "admin" ? effectiveEditModules("admin") : permissionEditModules(user.permissions);
+    user.customModules = user.role !== "admin" && user.permissions.length > 0;
   }
 
   async resetAdminUserPassword(
@@ -1162,7 +1140,98 @@ export class MemoryClinicRepository implements ClinicRepository {
   }
 
   async listAdminAuditEvents(clinicId: string) {
-    return clinicId === CLINIC_ID ? [...this.adminAuditEvents].reverse() : [];
+    return this.adminAuditEvents.filter((event) => event.clinicId === clinicId).reverse();
+  }
+
+  async listHistoryActors(clinicId: string): Promise<HistoryActor[]> {
+    return this.users.filter((user) => user.clinicId === clinicId)
+      .map((user) => ({ id: user.id, name: user.fullName })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private systemHistoryEvents(clinicId: string): AdminAuditEvent[] {
+    if (clinicId !== CLINIC_ID) return [];
+    const sources: { records: readonly object[]; module: AppModule; action: string; event?: boolean }[] = [
+      { records: this.patients, module: "patients", action: "patient.created" },
+      { records: this.appointments, module: "agenda", action: "appointment.created" },
+      { records: this.patientPlans, module: "plans", action: "plan.created" },
+      { records: this.sessionMovements, module: "plans", action: "session.movement", event: true },
+      { records: this.receiptEvents, module: "finance", action: "financial", event: true },
+      { records: this.appointmentReschedules, module: "agenda", action: "appointment.rescheduled", event: true },
+      { records: this.leads, module: "crm", action: "lead.created" },
+      { records: this.leadContacts, module: "crm", action: "lead.contact", event: true },
+      { records: this.leadTasks, module: "crm", action: "lead.task_created" },
+      { records: this.products, module: "patients", action: "product.created" },
+      { records: this.stockMovements, module: "patients", action: "stock.movement", event: true },
+      { records: this.patientTabs, module: "patients", action: "tab.created" },
+      { records: this.groupClasses, module: "groups", action: "group.created" },
+      { records: this.groupEnrollments, module: "groups", action: "group.enrolled" },
+      { records: this.groupAttendance, module: "groups", action: "group.attendance", event: true },
+      { records: this.replacementCredits, module: "groups", action: "group.replacement_created" },
+      { records: this.groupSessions, module: "groups", action: "group.session_created" },
+      { records: this.scheduleBlocks, module: "agenda", action: "schedule.block_created" },
+      { records: this.contactActivities, module: "relationship", action: "relationship.contact", event: true },
+      { records: this.outboundMessages, module: "communications", action: "message.created", event: true },
+      { records: this.satisfactionSurveys, module: "agenda", action: "satisfaction.created", event: true },
+      { records: this.clinicalRecords, module: "clinical", action: "clinical.record_created" },
+      { records: this.clinicalRecordRevisions, module: "clinical", action: "clinical.revision", event: true },
+      { records: this.clinicalAccessEvents, module: "clinical", action: "clinical.access", event: true },
+      { records: this.clinicalAttachments, module: "clinical", action: "clinical.attachment_created" },
+      { records: this.clinicalAddenda, module: "clinical", action: "clinical.addendum_created" },
+      { records: this.clinicalAssessments, module: "clinical", action: "clinical.assessment_created" },
+      { records: this.assessmentTemplates, module: "clinical", action: "clinical.template_created" },
+      { records: this.therapeuticGoals, module: "clinical", action: "clinical.goal_created" },
+      { records: this.clinicalMeasurements, module: "clinical", action: "clinical.measurement_created" },
+      { records: this.treatmentClosures, module: "clinical", action: "clinical.closure_created" },
+      { records: this.receivableRenegotiations, module: "finance", action: "finance.renegotiated" },
+      { records: this.commissionRules, module: "finance", action: "commission.rule_created" },
+      { records: this.commissions, module: "finance", action: "commission.created" },
+      { records: this.recurringPayables, module: "finance", action: "recurring_payable.created" },
+      { records: this.documentTemplates, module: "contracts", action: "contract.template_created" },
+      { records: this.issuedDocuments, module: "contracts", action: "contract.created" },
+    ];
+    return sources.flatMap((source) => source.records.flatMap((record) => {
+      const data = record as Record<string, unknown>;
+      const createdAt = data.createdAt ?? data.occurredAt ?? data.enrolledAt ?? data.recordedAt;
+      if (typeof data.id !== "string" || typeof createdAt !== "string" || (data.clinicId && data.clinicId !== clinicId)) return [];
+      const action = source.action === "financial" ? `financial.${data.kind}`
+        : source.action === "clinical.access" ? `clinical.access.${data.action}` : source.action;
+      const actorUserId = source.event && typeof data.actorUserId === "string" ? data.actorUserId : undefined;
+      const actorName = source.event ? (data.actorName ?? data.authorName ?? this.users.find((user) => user.id === actorUserId)?.fullName) : undefined;
+      const metadata: Record<string, unknown> = { source: source.action, importedHistory: true };
+      if (source.module === "clinical") {
+        for (const key of ["clinicalRecordId", "patientId", "version", "entityId", "entityType"])
+          if (data[key] !== undefined) metadata[key] = data[key];
+      } else if (source.event) {
+        for (const [key, value] of Object.entries(data))
+          if (!["body", "contentBase64", "snapshotBody", "idempotencyKey"].includes(key)) metadata[key] = value;
+      }
+      return [{ id: data.id, clinicId, module: source.module, action, entityType: source.action, entityId: data.id,
+        description: historyAction(action)?.label ?? "Atividade registrada", createdAt, metadata,
+        ...(actorUserId ? { actorUserId } : {}), ...(typeof actorName === "string" ? { actorName } : {}),
+      }];
+    }));
+  }
+
+  async listAdminAuditPage(clinicId: string, cursor?: string, filters: AuditHistoryFilters = {}): Promise<AdminAuditPage> {
+    const allEvents = [...this.adminAuditEvents.filter((event) => event.clinicId === clinicId), ...this.systemHistoryEvents(clinicId)];
+    const anchor = cursor ? allEvents.find((event) => event.id === cursor) : undefined;
+    if (cursor && !anchor) throw new DomainError("INVALID_AUDIT_CURSOR", "Cursor de histórico inválido.", 400);
+    const words = filters.search?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/\s+/).filter(Boolean) ?? [];
+    const events = allEvents.filter((event) => {
+      if (anchor && !(event.createdAt < anchor.createdAt || (event.createdAt === anchor.createdAt && event.id < anchor.id))) return false;
+      if (filters.module && event.module !== filters.module) return false;
+      if (filters.action && event.action !== filters.action) return false;
+      if (filters.actorUserId && event.actorUserId !== filters.actorUserId) return false;
+      const day = saoPauloToday(new Date(event.createdAt));
+      if ((filters.from && day < filters.from) || (filters.to && day > filters.to)) return false;
+      const text = `${event.action} ${event.description ?? ""} ${event.module === "clinical" ? "" : JSON.stringify(event.metadata)}`
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return words.every((word) => text.includes(word));
+    }).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    );
+    const items = events.slice(0, 50);
+    return { items, nextCursor: events.length > 50 ? items.at(-1)!.id : null };
   }
 
   async recordAdminAuditEvent(
@@ -1171,9 +1240,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     action: string,
     entityType: string,
     metadata: Record<string, unknown> = {},
+    entityId?: string,
   ) {
     if (clinicId !== CLINIC_ID) return;
-    this.addAdminAudit(actorUserId, action, entityType, undefined, metadata);
+    this.addAdminAudit(actorUserId, action, entityType, entityId, metadata);
   }
 
   private addAdminAudit(
@@ -1182,12 +1252,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     entityType: string,
     entityId?: string,
     metadata: Record<string, unknown> = {},
+    clinicId = CLINIC_ID,
   ) {
     const actorName = this.users.find(
       (user) => user.id === actorUserId,
     )?.fullName;
     this.adminAuditEvents.push({
       id: uuid(),
+      clinicId,
+      module: historyAction(action)?.module ?? appModuleSchema.safeParse(metadata._module).data ?? "settings",
+      description: historyAction(action)?.label ?? (typeof metadata._description === "string" ? metadata._description : "Alteração registrada"),
+      actorUserId,
       action,
       entityType,
       ...(entityId ? { entityId } : {}),
@@ -1234,6 +1309,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
       ? normalized.replace(/\D/g, "")
       : "";
+    const cpfDigits = /^[\d\s.-]+$/.test(normalized) ? normalized.replace(/\D/g, "") : "";
     return this.patients
       .filter((item) => item.clinicId === clinicId)
       .filter((item) =>
@@ -1243,7 +1319,7 @@ export class MemoryClinicRepository implements ClinicRepository {
               .some((value) =>
                 value!.toLocaleLowerCase("pt-BR").includes(normalized),
               ) ||
-            Boolean(
+            Boolean(cpfDigits && item.cpf?.replace(/\D/g, "").includes(cpfDigits)) || Boolean(
               phoneDigits &&
                 (item.phone.includes(phoneDigits) || item.whatsapp?.includes(phoneDigits)),
             )
@@ -1292,6 +1368,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.receivables,
       this.sessionMovements,
       this.groupEnrollments,
+      this.adminAuditEvents,
     ];
     const lengths = collections.map((collection) => collection.length);
     try {
@@ -1306,7 +1383,7 @@ export class MemoryClinicRepository implements ClinicRepository {
             "Turma ou cliente ativo não encontrado.",
             404,
           );
-        if (group.serviceId !== input.plan.serviceId)
+        if (!input.plan.services.some((item) => item.serviceId === group.serviceId))
           throw new DomainError(
             "GROUP_SERVICE_MISMATCH",
             "A turma escolhida não é do serviço do plano.",
@@ -1368,7 +1445,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           enrollment.clinicId === clinicId &&
           enrollment.patientId === plan.patientId &&
           enrollment.status === "active" &&
-          activeGroups.get(enrollment.groupId)?.serviceId === plan.serviceId,
+          plan.services.some((item) => item.serviceId === activeGroups.get(enrollment.groupId)?.serviceId),
       );
       if (!enrolled) ids.add(plan.patientId);
     }
@@ -1462,6 +1539,170 @@ export class MemoryClinicRepository implements ClinicRepository {
         (patient) => patient.clinicId === tag.clinicId && patient.tags.includes(tag.name),
       ).length,
     };
+  }
+
+  async listPlanTemplates(clinicId: string) {
+    return this.planTemplates
+      .filter((item) => item.clinicId === clinicId)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((item) => structuredClone(item));
+  }
+  private assertTemplateServices(
+    clinicId: string,
+    entries: PlanTemplateInput["services"],
+  ) {
+    if (
+      entries.some(
+        (entry) =>
+          !this.services.some(
+            (item) =>
+              item.id === entry.serviceId &&
+              item.clinicId === clinicId &&
+              item.active,
+          ),
+      )
+    )
+      throw new DomainError(
+        "PLAN_TEMPLATE_SERVICE_NOT_FOUND",
+        "Serviço ativo não encontrado nesta clínica.",
+        404,
+      );
+  }
+  async createPlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanTemplateInput,
+  ) {
+    input = planTemplateInputSchema.parse(input);
+    this.assertTemplateServices(clinicId, input.services);
+    const timestamp = now();
+    const item: PlanTemplate = {
+      ...structuredClone(input),
+      id: uuid(),
+      clinicId,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.planTemplates.push(item);
+    this.addAdminAudit(
+      actorUserId,
+      "plan_template.created",
+      "plan_template",
+      item.id,
+      { ...structuredClone(item) },
+      clinicId,
+    );
+    return structuredClone(item);
+  }
+  async updatePlanTemplate(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanTemplateUpdate,
+  ) {
+    const item = this.planTemplates.find(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    if (!item) return null;
+    const merged = {
+      ...item,
+      ...input,
+      services: input.services ?? item.services,
+    };
+    if (merged.active || merged.services.length)
+      planTemplateInputSchema.parse(merged);
+    if (input.services || input.active)
+      this.assertTemplateServices(clinicId, merged.services);
+    const previous = structuredClone(item);
+    Object.assign(item, structuredClone(input), { updatedAt: now() });
+    this.addAdminAudit(
+      actorUserId,
+      "plan_template.updated",
+      "plan_template",
+      id,
+      { ...structuredClone(item), previous },
+      clinicId,
+    );
+    return structuredClone(item);
+  }
+
+  private readonly planCatalog: PlanCatalogEntry[] = [];
+
+  async listPlanCatalog(clinicId: string) {
+    return this.planCatalog
+      .filter((item) => item.clinicId === clinicId)
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((item) => structuredClone(item));
+  }
+
+  async createPlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanCatalogInput,
+  ) {
+    const timestamp = now();
+    const entry: PlanCatalogEntry = {
+      ...input,
+      id: uuid(),
+      clinicId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.planCatalog.push(entry);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.created",
+        "plan_catalog",
+        entry.id,
+        { ...input },
+      );
+    return structuredClone(entry);
+  }
+
+  async updatePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanCatalogInput,
+  ) {
+    const entry = this.planCatalog.find(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    if (!entry) return null;
+    Object.assign(entry, input, { updatedAt: now() });
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.updated",
+        "plan_catalog",
+        id,
+        { ...input },
+      );
+    return structuredClone(entry);
+  }
+
+  async deletePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ) {
+    const index = this.planCatalog.findIndex(
+      (item) => item.clinicId === clinicId && item.id === id,
+    );
+    const entry = this.planCatalog[index];
+    if (!entry) return false;
+    this.planCatalog.splice(index, 1);
+    if (clinicId === CLINIC_ID)
+      this.addAdminAudit(
+        actorUserId,
+        "plan_catalog.deleted",
+        "plan_catalog",
+        id,
+        { name: entry.name },
+      );
+    return true;
   }
 
   async listPatientTags(clinicId: string) {
@@ -2900,7 +3141,7 @@ export class MemoryClinicRepository implements ClinicRepository {
       (item) => item.clinicId === clinicId && item.id === input.appointmentId,
     );
     const author = this.users.find(
-      (item) => item.clinicId === clinicId && item.id === authorUserId,
+      (item) => item.clinicId === clinicId && item.id === authorUserId && item.active,
     );
     if (!appointment || !author) {
       throw new DomainError(
@@ -2926,6 +3167,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     const existing = this.clinicalRecords.find(
       (record) => record.appointmentId === appointment.id,
     );
+    assertClinicalWritePermission(author, Boolean(existing));
     if (existing?.status === "finalized") {
       throw new DomainError(
         "CLINICAL_RECORD_FINALIZED",
@@ -3475,13 +3717,41 @@ export class MemoryClinicRepository implements ClinicRepository {
     _actorUserId: string,
     input: PatientPlanInput,
   ) {
+    const template = this.planTemplates.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === input.planTemplateId &&
+        item.active,
+    );
+    if (!template)
+      throw new DomainError(
+        "PLAN_TEMPLATE_NOT_FOUND",
+        "Selecione um plano ativo cadastrado nesta clínica.",
+        404,
+      );
+    validatePlanComposition(
+      input.services,
+      input.totalValueInCents,
+      template.services.map((item) => item.serviceId),
+    );
     const patient = this.patients.find(
-      (item) => item.clinicId === clinicId && item.id === input.patientId,
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === input.patientId &&
+        item.status === "active",
     );
-    const service = this.services.find(
-      (item) => item.clinicId === clinicId && item.id === input.serviceId,
-    );
-    if (!patient || !service) {
+    if (
+      !patient ||
+      input.services.some(
+        (entry) =>
+          !this.services.some(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === entry.serviceId &&
+              item.active,
+          ),
+      )
+    ) {
       throw new DomainError(
         "PLAN_CONTEXT_NOT_FOUND",
         "Cliente ou serviço não encontrado.",
@@ -3491,8 +3761,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     return this.insertPatientPlan(
       clinicId,
       patient,
-      service,
-      input,
+      { ...input, name: template.name },
       "Crédito inicial do plano",
     );
   }
@@ -3500,20 +3769,52 @@ export class MemoryClinicRepository implements ClinicRepository {
   private insertPatientPlan(
     clinicId: string,
     patient: Patient,
-    service: Service,
-    input: PatientPlanInput,
+    input: Omit<PatientPlanInput, "planTemplateId"> & {
+      planTemplateId?: string | undefined;
+    },
     creditReason: string,
     renewedFrom?: PatientPlan,
   ) {
+    const totals = validatePlanComposition(
+      input.services,
+      input.totalValueInCents,
+      renewedFrom?.services.map((item) => item.serviceId),
+    );
     const timestamp = now();
+    const { planTemplateId, ...terms } = input;
     const plan: PatientPlan = {
-      ...input,
+      ...terms,
+      ...totals,
+      services: input.services.map((item) => ({
+        ...item,
+        serviceName:
+          renewedFrom?.services.find(
+            (entry) => entry.serviceId === item.serviceId,
+          )?.serviceName ??
+          this.services.find(
+            (service) =>
+              service.id === item.serviceId && service.clinicId === clinicId,
+          )!.name,
+        remainingSessions: item.totalSessions,
+      })),
+      ...(planTemplateId ? { planTemplateId } : {}),
       id: uuid(),
       clinicId,
       patientName: patient.fullName,
-      serviceName: service.name,
+      serviceName: input.services
+        .map(
+          (item) =>
+            renewedFrom?.services.find(
+              (entry) => entry.serviceId === item.serviceId,
+            )?.serviceName ??
+            this.services.find(
+              (service) =>
+                service.id === item.serviceId && service.clinicId === clinicId,
+            )!.name,
+        )
+        .join(", "),
       status: "active",
-      remainingSessions: input.totalSessions,
+      remainingSessions: totals.totalSessions,
       autoRenew: input.autoRenew ?? input.kind === "recurring",
       ...(renewedFrom ? { renewedFromPlanId: renewedFrom.id } : {}),
       createdAt: timestamp,
@@ -3544,14 +3845,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     }
     this.patientPlans.push(plan);
     this.receivables.push(...installments);
-    this.sessionMovements.push({
-      id: uuid(),
-      planId: plan.id,
-      kind: "credit",
-      quantity: input.totalSessions,
-      reason: creditReason,
-      createdAt: timestamp,
-    });
+    for (const item of plan.services)
+      this.sessionMovements.push({
+        id: uuid(),
+        planId: plan.id,
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        kind: "credit",
+        quantity: item.totalSessions,
+        reason: creditReason,
+        createdAt: timestamp,
+      });
     return plan;
   }
 
@@ -3567,8 +3871,18 @@ export class MemoryClinicRepository implements ClinicRepository {
     if (!current) return null;
     this.assertRenewable(current);
     const patient = this.patients.find((item) => item.id === current.patientId);
-    const service = this.services.find((item) => item.id === current.serviceId);
-    if (!patient || !service) {
+    if (
+      patient?.status !== "active" ||
+      input.services.some(
+        (entry) =>
+          !this.services.some(
+            (item) =>
+              item.id === entry.serviceId &&
+              item.clinicId === clinicId &&
+              item.active,
+          ),
+      )
+    ) {
       throw new DomainError(
         "PLAN_CONTEXT_NOT_FOUND",
         "Cliente ou serviço não encontrado.",
@@ -3578,12 +3892,11 @@ export class MemoryClinicRepository implements ClinicRepository {
     return this.insertPatientPlan(
       clinicId,
       patient,
-      service,
       {
         ...input,
         patientId: current.patientId,
-        serviceId: current.serviceId,
         kind: current.kind,
+        planTemplateId: current.planTemplateId,
       },
       "Crédito da renovação do plano",
       current,
@@ -3654,9 +3967,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     // Um sucessor ainda vencido entra na fila de novo, recuperando períodos perdidos.
     for (let plan = this.patientPlans.find(due); plan; plan = this.patientPlans.find(due)) {
       const patient = this.patients.find((item) => item.id === plan!.patientId);
-      const service = this.services.find((item) => item.id === plan!.serviceId);
       const period = nextPlanPeriod(plan);
-      if (patient?.status !== "active" || !service?.active || !period) {
+      if (patient?.status !== "active" || !period || plan.services.some((entry) => !this.services.some((item) => item.id === entry.serviceId && item.clinicId === clinicId && item.active))) {
         plan.autoRenew = false;
         plan.updatedAt = now();
         continue;
@@ -3664,13 +3976,12 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.insertPatientPlan(
         clinicId,
         patient,
-        service,
         {
           patientId: plan.patientId,
-          serviceId: plan.serviceId,
           name: plan.name,
+          ...(plan.planTemplateId ? { planTemplateId: plan.planTemplateId } : {}),
           kind: plan.kind,
-          totalSessions: plan.totalSessions,
+          services: plan.services.map(({ serviceId, totalSessions, totalValueInCents }) => ({ serviceId, totalSessions, totalValueInCents })),
           totalValueInCents: plan.totalValueInCents,
           installments: plan.installments,
           autoRenew: true,
@@ -4461,7 +4772,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         (plan) =>
           plan.clinicId === appointment.clinicId &&
           plan.patientId === appointment.patientId &&
-          plan.serviceId === appointment.serviceId &&
+          plan.services.some((item) => item.serviceId === appointment.serviceId) &&
           plan.status === "active" &&
           plan.validFrom <= appointmentDate &&
           (!plan.validUntil || plan.validUntil >= appointmentDate),
@@ -4473,7 +4784,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       );
     const plan = plans[0];
     if (!plan) return;
-    if (plan.remainingSessions < 1) {
+    const planService = plan.services.find((item) => item.serviceId === appointment.serviceId)!;
+    if (planService.remainingSessions < 1) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui saldo de sessões para este serviço.",
@@ -4490,7 +4802,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       0,
     );
     if (netConsumption < 0) return;
-    plan.remainingSessions -= 1;
+    planService.remainingSessions -= 1;
+    plan.remainingSessions = plan.services.reduce((sum, item) => sum + item.remainingSessions, 0);
     plan.updatedAt = now();
     this.sessionMovements.push({
       id: uuid(),
@@ -4500,6 +4813,8 @@ export class MemoryClinicRepository implements ClinicRepository {
         ? "adjustment"
         : "consumption",
       quantity: -1,
+      serviceId: planService.serviceId,
+      serviceName: planService.serviceName,
       reason: "Atendimento finalizado",
       createdAt: now(),
     });
@@ -4523,7 +4838,10 @@ export class MemoryClinicRepository implements ClinicRepository {
         movement.appointmentId === appointment.id &&
         movement.kind === "reversal",
     );
-    plan.remainingSessions += 1;
+    const original = this.sessionMovements.find((movement) => movement.planId === plan.id && movement.appointmentId === appointment.id && movement.quantity < 0)!;
+    const planService = plan.services.find((item) => item.serviceId === original.serviceId)!;
+    planService.remainingSessions += 1;
+    plan.remainingSessions = plan.services.reduce((sum, item) => sum + item.remainingSessions, 0);
     plan.updatedAt = now();
     this.sessionMovements.push({
       id: uuid(),
@@ -4531,6 +4849,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       appointmentId: appointment.id,
       kind: alreadyReversed ? "adjustment" : "reversal",
       quantity: 1,
+      serviceId: planService.serviceId,
+      serviceName: planService.serviceName,
       reason: "Reversão do atendimento finalizado",
       createdAt: now(),
     });
@@ -5112,6 +5432,7 @@ export class MemoryClinicRepository implements ClinicRepository {
         patient.fullName,
         plan?.name,
         professional,
+        plan?.services,
       ),
       status: "draft",
       createdAt: timestamp,
@@ -5485,19 +5806,16 @@ export class MemoryClinicRepository implements ClinicRepository {
       })
       .filter((item) => item.unitsSold > 0)
       .sort((a, b) => b.revenueInCents - a.revenueInCents);
+    const serviceRevenue = new Map<string, number>();
+    for (const plan of this.patientPlans.filter((item) => item.clinicId === clinicId)) {
+      const received = paidInPeriod.filter((item) => item.planId === plan.id).reduce((sum, item) => sum + item.amountInCents, 0);
+      const shares = allocatePlanRevenue(received, plan.services);
+      plan.services.forEach((entry, index) => serviceRevenue.set(entry.serviceId, (serviceRevenue.get(entry.serviceId) ?? 0) + shares[index]!));
+    }
     const byServiceProfitability = this.services
       .filter((service) => service.clinicId === clinicId)
       .map((service) => {
-        const serviceReceivables = paidInPeriod.filter((receivable) => {
-          const plan = this.patientPlans.find(
-            (item) => item.id === receivable.planId,
-          );
-          return plan?.serviceId === service.id;
-        });
-        const revenueInCents = serviceReceivables.reduce(
-          (sum, item) => sum + item.amountInCents,
-          0,
-        );
+        const revenueInCents = serviceRevenue.get(service.id) ?? 0;
         const completedAppointments = appointments.filter(
           (item) =>
             item.serviceId === service.id && item.status === "completed",
@@ -5688,10 +6006,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     patientName: string,
     planName?: string,
     professional?: Professional,
+    planServices: PatientPlan["services"] = [],
   ) {
     return body
       .replaceAll("{{paciente_nome}}", patientName)
       .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
+      .replaceAll("{{plano_servicos}}", formatPlanServices(planServices) || "Não vinculado")
       .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
       .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
       .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))

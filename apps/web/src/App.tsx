@@ -1,9 +1,18 @@
+import { PatientPicker } from "./PatientPicker";
+import { planTypeLabels, planPeriodMonths, planSessionsForPeriod, planPeriodEnd, planTypeKind, planTemplateInputSchema, type PlanType } from "@crm/contracts";
+import { AuthorizationProvider } from "./authorization";
+import { useAuthorization } from "./authorization-context";
+import { PermissionEditor } from "./PermissionEditor";
+import { auditHistoryQuerySchema, historyActions, type AuditHistoryFilters, type HistoryActor } from "@crm/contracts";
+import { formatAuditEvent, type AuditField } from "./audit-history";
+import { legacyPermissions, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
+import { createPortal } from "react-dom";
 import {
   Bell,
   BarChart3,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -23,7 +32,6 @@ import {
   PackageOpen,
   Paperclip,
   Pause,
-  Phone,
   PhoneCall,
   Play,
   Plus,
@@ -34,7 +42,6 @@ import {
   Settings,
   Tags,
   Building2,
-  Siren,
   SlidersHorizontal,
   Star,
   Stethoscope,
@@ -54,6 +61,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import type {
+  PlanTemplate,
   AdminAuditEvent,
   AdminUser,
   AppModule,
@@ -88,12 +96,12 @@ import type {
   DailyCashMovement,
   DailyCashMovementKind,
   DailyCashPaymentMethod,
-  DashboardSummary,
   DocumentKind,
   DocumentTemplate,
   DocumentTemplateInput,
   FinancialWorkspace,
   GroupClass,
+  GroupEnrollment,
   GroupSession,
   GroupWorkspace,
   GuidedPatientInput,
@@ -147,15 +155,13 @@ import type {
   UserRole,
   UserSummary,
 } from "@crm/contracts";
-import { appModuleLabels, appModuleSchema, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatPhone, groupClassName, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
+import { appModuleLabels, userRoleLabels, userRoleSchema, broadcastSkipReasonLabels, competenceMonthSchema, cpfDigits, DEFAULT_PATIENT_TAG_COLOR, describeGroupSchedule, fillMessageTemplate, formatCpf, formatPhone, groupClassName, isValidCpf, nextPlanPeriod, patientExportColumns, patientTagKey, phoneDigits, saoPauloToday, whatsappLink } from "@crm/contracts";
 import {
   api,
   ApiClientError,
-  clearSession,
   getStoredUser,
   hasSession,
   login,
-  storeUser,
   type PatientExportParams,
 } from "./api";
 import { normalizeTagColor, patientTagPalette, tagColorStyle } from "./tag-colors";
@@ -217,6 +223,25 @@ function PhoneInput({ value, onChange, required }: { value: string; onChange: (d
       value={formatPhone(value)}
       onChange={(event) => onChange(phoneDigits(event.target.value))}
     />
+  );
+}
+
+function CpfInput({ value, onChange }: { value: string; onChange: (digits: string) => void }) {
+  const invalid = cpfDigits(value).length === 11 && !isValidCpf(value);
+  return (
+    <>
+      <input
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="000.000.000-00"
+        maxLength={14}
+        value={formatCpf(value)}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? "patient-cpf-error" : undefined}
+        onChange={(event) => onChange(cpfDigits(event.target.value))}
+      />
+      {invalid && <small id="patient-cpf-error" className="field-error" aria-live="polite">Informe um CPF válido.</small>}
+    </>
   );
 }
 
@@ -365,33 +390,6 @@ function LoginPage({ onLogin }: { onLogin: (user: UserSummary) => void }) {
 
 const roleLabels: Record<UserRole, string> = userRoleLabels;
 
-/**
- * Sessão gravada no formato atual. Sessões antigas (antes dos módulos por usuário, sem
- * `modules`/`editModules`, ou antes da T055, com perfil `owner`/`reception`/…) são
- * completadas com `/me`.
- */
-function hasAccessLists(user: UserSummary) {
-  return (
-    typeof user.id === "string" &&
-    typeof user.fullName === "string" &&
-    typeof user.email === "string" &&
-    userRoleSchema.safeParse(user.role).success &&
-    Array.isArray(user.modules) &&
-    Array.isArray(user.editModules)
-  );
-}
-
-/** O usuário logado vê o módulo (menu, rotas e leituras). */
-function canView(module: AppModule) {
-  return Boolean(getStoredUser()?.modules?.includes(module));
-}
-
-/** O usuário logado edita o módulo (criar, editar e excluir). */
-function canEdit(...modules: AppModule[]) {
-  const editModules = getStoredUser()?.editModules ?? [];
-  return modules.every((module) => editModules.includes(module));
-}
-
 /** Aviso de acesso só de consulta, no lugar dos botões de criar/editar/excluir. */
 function ReadOnlyNotice({ module, copy }: { module: AppModule; copy?: string }) {
   return (
@@ -430,6 +428,7 @@ const navItems: Array<{
   { to: "/prontuarios", label: "Prontuários", icon: Stethoscope, module: "clinical" },
   { to: "/financeiro", label: "Financeiro", icon: CircleDollarSign, module: "finance" },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3, module: "reports" },
+  { to: "/historico", label: "Histórico", icon: FileClock, module: "history" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, module: "settings" },
 ];
 
@@ -694,12 +693,13 @@ function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {
 }
 
 function DashboardPage() {
-  const [data, setData] = useState<DashboardSummary | null>(null);
+  const { can, canView } = useAuthorization();
+  const [data, setData] = useState<DashboardViewSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [error, setError] = useState("");
   const today = localIsoDate();
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
-  const canSeeSales = canView("reports");
+  const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
 
   useEffect(() => {
@@ -724,7 +724,7 @@ function DashboardPage() {
         title={firstName ? `Olá, ${firstName}.` : "Olá."}
         description={dateLabel.format(new Date())}
         action={
-          canEdit("agenda") && (
+          can("agenda.create") && (
             <NavLink to="/agenda" className="primary-button">
               <Plus size={18} />
               Novo atendimento
@@ -738,34 +738,34 @@ function DashboardPage() {
       ) : (
         <>
           <section className="metric-grid">
-            <article className="metric-card accent">
+            {data.appointmentsToday !== undefined && (<article className="metric-card accent">
               <div>
                 <span>Atendimentos hoje</span>
                 <strong>{data.appointmentsToday}</strong>
               </div>
               <CalendarDays size={23} />
-            </article>
-            <article className="metric-card">
+            </article>)}
+            {data.completedToday !== undefined && (<article className="metric-card">
               <div>
                 <span>Já finalizados</span>
                 <strong>{data.completedToday}</strong>
               </div>
               <span className="metric-note">de {data.appointmentsToday}</span>
-            </article>
-            <article className="metric-card">
+            </article>)}
+            {data.patientsActive !== undefined && (<article className="metric-card">
               <div>
                 <span>Clientes ativos</span>
                 <strong>{data.patientsActive}</strong>
               </div>
               <Users size={23} />
-            </article>
-            <article className="metric-card">
+            </article>)}
+            {data.noShowsThisMonth !== undefined && (<article className="metric-card">
               <div>
                 <span>Faltas no mês</span>
                 <strong>{data.noShowsThisMonth}</strong>
               </div>
               <span className="metric-note">neste mês</span>
-            </article>
+            </article>)}
           </section>
           {canSeeSales && sales && (
             <section className="dashboard-sales panel">
@@ -811,7 +811,7 @@ function DashboardPage() {
             </section>
           )}
           <section className="dashboard-grid">
-            <article className="panel schedule-panel">
+            {data.nextAppointments && (            <article className="panel schedule-panel">
               <div className="panel-head">
                 <div>
                   <span className="eyebrow">Próximos</span>
@@ -835,7 +835,7 @@ function DashboardPage() {
                   ))}
                 </div>
               )}
-            </article>
+            </article>)}
             {canSeeSales && sales && (
               <article className="panel pulse-panel">
                 <div className="panel-head">
@@ -878,6 +878,7 @@ function DashboardPage() {
 }
 
 function BirthdayDashboardCard() {
+  const { canEdit } = useAuthorization();
   const [birthdays, setBirthdays] = useState<ContactSuggestion[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
@@ -1043,6 +1044,7 @@ function filterPatients(patients: Patient[], filters: typeof defaultPatientFilte
 const patientsPerPage = 20;
 
 function PatientsPage() {
+  const { can, canEdit } = useAuthorization();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1051,6 +1053,8 @@ function PatientsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [createdPatient, setCreatedPatient] = useState<Patient | null>(null);
+  const newPatientButton = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
@@ -1058,8 +1062,8 @@ function PatientsPage() {
   const [page, setPage] = useState(1);
   const [notice, setNotice] = useState("");
   const canManage = canEdit("patients");
-  const canEnroll = canEdit("groups");
-  const canExport = getStoredUser()?.role === "admin";
+  const canEnroll = can("groups.enroll");
+  const canExport = can("patients.export");
   const configuredTags = usePatientTags();
   const tagColor = tagColorLookup(configuredTags.tags);
 
@@ -1137,28 +1141,22 @@ function PatientsPage() {
         action={
           <div className="page-actions">
             {canManage && (
-              <button className="secondary-button" onClick={() => setImportOpen(true)}>
+              (can("patients.import") && (<button className="secondary-button" onClick={() => setImportOpen(true)}>
                 <FileDown size={18} aria-hidden="true" />
                 Importar
-              </button>
+              </button>))
             )}
             {canExport && (
-              <button className="secondary-button" onClick={() => setExportOpen(true)}>
+              (can("patients.export") && (<button className="secondary-button" onClick={() => setExportOpen(true)}>
                 <FileUp size={18} aria-hidden="true" />
                 Exportar
-              </button>
+              </button>))
             )}
             {canManage && (
-              <button
-                className="primary-button"
-                onClick={() => {
-                  setNotice("");
-                  setModalOpen(true);
-                }}
-              >
+              (can("patients.create") && (<button ref={newPatientButton} className="primary-button" onClick={() => { setNotice(""); setModalOpen(true); }}>
                 <Plus size={18} />
                 Novo cliente
-              </button>
+              </button>))
             )}
           </div>
         }
@@ -1426,9 +1424,16 @@ function PatientsPage() {
             );
             setNotice(savedNotice ?? "");
             setModalOpen(false);
+            if (!editingPatient && !savedNotice) setCreatedPatient(patient);
             setEditingPatient(null);
           }}
         />
+      )}
+      {createdPatient && (
+        <PatientNextSteps patient={createdPatient} onClose={() => {
+          setCreatedPatient(null);
+          requestAnimationFrame(() => newPatientButton.current?.focus());
+        }} />
       )}
       {importOpen && (
         <PatientImportModal
@@ -1445,6 +1450,241 @@ function PatientsPage() {
         />
       )}
     </>
+  );
+}
+
+function FixedPatient({ patient }: { patient: PatientOption }) {
+  return <div className="fixed-patient span-2"><span>Cliente</span><strong>{patient.fullName}</strong></div>;
+}
+
+function PlanGroupPicker({ groups, services, value, onChange, disabled = false }: {
+  groups: GroupChoices;
+  services: { serviceId: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const choices = groups.items?.filter(group => group.active && services.some(item => item.serviceId === group.serviceId)) ?? [];
+  const selected = choices.find(group => group.id === value);
+  const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  return (
+    <fieldset className="form-fieldset span-2">
+      <legend>Turma opcional</legend>
+      <label>
+        Turma
+        <select value={value} disabled={disabled || !choices.length || Boolean(groups.error)}
+          onChange={event => onChange(event.target.value)}>
+          <option value="">Escolher depois</option>
+          {choices.map(group => {
+            const vacancies = Math.max(0, group.capacity - group.activeEnrollments);
+            const schedule = group.weeklySlots.map(slot => `${weekdays[slot.weekday]} ${slot.startTime}–${slot.endTime}`).join(", ");
+            return <option key={group.id} value={group.id}>
+              {`${group.name} · ${group.professionalName} · ${schedule} · ${vacancies ? `${vacancies} ${vacancies === 1 ? "vaga" : "vagas"}` : "Sem vagas · lista de espera"}`}
+            </option>;
+          })}
+        </select>
+      </label>
+      {groups.error ? (
+        <div className="form-error" role="alert">
+          {`Não foi possível carregar as turmas: ${groups.error}`} {" "}
+          <button type="button" className="secondary-button button-sm" disabled={disabled} onClick={groups.retry}>Tentar carregar turmas</button>
+        </div>
+      ) : groups.items === null ? <LoadingBlock /> : choices.length === 0 ? (
+        <p className="muted-copy">Nenhuma turma compatível disponível. Você pode vincular o plano e escolher uma turma depois.</p>
+      ) : null}
+      {selected && selected.activeEnrollments >= selected.capacity && (
+        <p className="muted-copy">Esta turma está cheia. O cliente será incluído na lista de espera.</p>
+      )}
+      <p className="field-hint">A turma pode ser escolhida depois com o responsável.</p>
+    </fieldset>
+  );
+}
+
+type NextStepResources = { services: Service[]; professionals: Professional[]; rooms: Room[] };
+
+function PatientNextSteps({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+  const { can } = useAuthorization();
+  const canPlan = can("plans.create");
+  const canAppointment = can("agenda.create") || can("agenda.recurring");
+  const canEnroll = can("groups.enroll");
+  const [step, setStep] = useState<"choice" | "plan" | "appointment" | "enrollment">("choice");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const setFlowBusy = useCallback((value: boolean) => { busyRef.current = value; setBusy(value); }, []);
+  const [plan, setPlan] = useState<PatientPlan | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
+  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(null);
+  const [enrollmentGroup, setEnrollmentGroup] = useState<GroupClass | null>(null);
+  const [pendingGroup, setPendingGroup] = useState("");
+  const [enrollmentError, setEnrollmentError] = useState("");
+  const [resourceAttempt, setResourceAttempt] = useState(0);
+  const [resourceResult, setResourceResult] = useState<{ key: string; data?: NextStepResources; error?: string } | null>(null);
+  const resourceKey = `${step}/${resourceAttempt}`;
+  const resources = resourceResult?.key === resourceKey ? resourceResult.data : undefined;
+  const resourceError = resourceResult?.key === resourceKey ? resourceResult.error : undefined;
+  useEffect(() => {
+    if (!((step === "plan" && canPlan) || (step === "appointment" && canAppointment))) return;
+    let active = true;
+    const request = step === "plan"
+      ? api.services().then(services => ({ services, professionals: [], rooms: [] }))
+      : Promise.all([api.services(), api.professionals(), api.rooms()])
+          .then(([services, professionals, rooms]) => ({ services, professionals, rooms }));
+    request.then(data => {
+      if (active) setResourceResult({ key: resourceKey, data });
+    }).catch((cause: Error) => {
+      if (active) setResourceResult({ key: resourceKey, error: cause.message });
+    });
+    return () => { active = false; };
+  }, [step, canPlan, canAppointment, resourceKey]);
+
+  const [groupAttempt, setGroupAttempt] = useState(0);
+  const [groupResult, setGroupResult] = useState<{ attempt: number; items?: GroupClass[]; error?: string } | null>(null);
+  useEffect(() => {
+    if (!canEnroll || !((step === "plan" && canPlan) || step === "enrollment")) return;
+    let active = true;
+    const range = groupOperationRange();
+    api.groupWorkspace(range.from, range.to).then(data => {
+      if (active) setGroupResult({ attempt: groupAttempt, items: data.groups });
+    }).catch((cause: Error) => {
+      if (active) setGroupResult({ attempt: groupAttempt, error: cause.message });
+    });
+    return () => { active = false; };
+  }, [step, canPlan, canEnroll, groupAttempt]);
+  const groups: GroupChoices = {
+    items: groupResult?.attempt === groupAttempt ? groupResult.items ?? null : null,
+    error: groupResult?.attempt === groupAttempt ? groupResult.error ?? "" : "",
+    retry: () => setGroupAttempt(value => value + 1),
+  };
+
+  function back() { if (!busyRef.current) setStep("choice"); }
+  function close() { if (!busyRef.current) onClose(); }
+  async function saveEnrollment(savedPlan: PatientPlan, groupId: string) {
+    const group = groups.items?.find(item => item.id === groupId && item.active && savedPlan.services.some(service => service.serviceId === item.serviceId));
+    if (!canEnroll || !group) throw new Error("Escolha uma turma compatível disponível para concluir a matrícula.");
+    const saved = await api.createGroupEnrollment({ patientId: patient.id, groupId });
+    setEnrollment(saved);
+    setEnrollmentGroup(group);
+    setPendingGroup("");
+    setEnrollmentError("");
+    setStep("choice");
+  }
+  async function retryEnrollment(event: FormEvent) {
+    event.preventDefault();
+    if (busyRef.current || !plan) return;
+    setFlowBusy(true);
+    setEnrollmentError("");
+    try {
+      await saveEnrollment(plan, pendingGroup);
+    } catch (cause) {
+      setEnrollmentError((cause as Error).message);
+    } finally {
+      setFlowBusy(false);
+    }
+  }
+  const allowed = step === "plan" ? canPlan : step === "appointment" ? canAppointment : step === "enrollment" ? canEnroll : true;
+  const title = { choice: "Cliente cadastrado", plan: "Vincular a plano", appointment: "Agendar atendimento", enrollment: "Concluir matrícula" }[step];
+  return (
+    <Modal key={step} title={title} eyebrow="Próximos passos" subtitle={step === "choice"
+      ? "Escolha como continuar. O cadastro já está salvo."
+      : "O cliente já está cadastrado. Você pode voltar para escolher outra ação."}
+      initialFocus={step === "choice" ? "[data-next-step-action]" : "select:not(:disabled), input:not(:disabled), button[type=submit]:not(:disabled)"}
+      busy={busy} onClose={close}>
+      {step === "choice" ? (
+        <div className="next-step-content">
+          <FixedPatient patient={patient} />
+          <div className="next-step-options">
+            {(canPlan || plan) && <section className="next-step-card">
+              <PackageOpen size={24} aria-hidden="true" />
+              <h3>{plan ? "Plano vinculado" : "Vincular a plano"}</h3>
+              {plan ? <>
+                <p>{plan.name} · {currency.format(plan.totalValueInCents / 100)}</p>
+                {enrollment && <p role="status">{enrollment.status === "waitlisted"
+                  ? `Na lista de espera de ${enrollmentGroup?.name ?? "turma"}${enrollment.queuePosition ? ` · posição ${enrollment.queuePosition}` : ""}`
+                  : `Matriculado na turma ${enrollmentGroup?.name ?? "escolhida"}`}</p>}
+                {pendingGroup && <>
+                  <p>Matrícula não concluída.</p>
+                  {canEnroll && <button type="button" className="secondary-button" data-next-step-action
+                    onClick={() => setStep("enrollment")}>Retomar matrícula</button>}
+                </>}
+              </> : <>
+                <p>Escolha um plano e, se quiser, uma turma para o cliente.</p>
+                <button type="button" className="secondary-button" data-next-step-action
+                  onClick={() => setStep("plan")}>Vincular a plano</button>
+              </>}
+            </section>}
+            {(canAppointment || appointments) && <section className="next-step-card">
+              <CalendarDays size={24} aria-hidden="true" />
+              <h3>{appointments ? "Atendimento agendado" : "Agendar atendimento"}</h3>
+              {appointments ? <div role="status">
+                {appointments.map(appointment => <p key={appointment.id}>
+                  {appointment.serviceName} · {shortDate.format(new Date(appointment.startsAt))} às {timeLabel.format(new Date(appointment.startsAt))}
+                </p>)}
+              </div> : <>
+                <p>Marque um atendimento, uma avaliação ou uma aula experimental.</p>
+                <button type="button" className="secondary-button" data-next-step-action
+                  onClick={() => setStep("appointment")}>Agendar atendimento</button>
+              </>}
+            </section>}
+          </div>
+          <div className="modal-actions"><button type="button" className="primary-button" data-next-step-action onClick={close}>Concluir</button></div>
+        </div>
+      ) : !allowed ? (
+        <div className="next-step-content"><p className="muted-copy">Seu acesso não permite mais esta ação.</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={back}>Voltar</button></div></div>
+      ) : step === "enrollment" && plan ? (
+        <form className="form-grid" onSubmit={retryEnrollment}>
+          <FixedPatient patient={patient} />
+          <p className="success-banner span-2" role="status">Plano vinculado; matrícula não concluída. {plan.name}</p>
+          <PlanGroupPicker groups={groups} services={plan.services} value={pendingGroup}
+            onChange={setPendingGroup} disabled={busy} />
+          {enrollmentError && <p className="form-error span-2" role="alert">{enrollmentError}</p>}
+          <div className="modal-actions span-2">
+            <button type="button" className="secondary-button" disabled={busy} onClick={back}>Voltar</button>
+            <button type="button" className="secondary-button" disabled={busy} onClick={() => {
+              setPendingGroup(""); setEnrollmentError(""); setStep("choice");
+            }}>Continuar sem turma</button>
+            <button type="submit" className="primary-button" disabled={busy || Boolean(groups.error) || !groups.items?.some(group => group.id === pendingGroup && group.active && plan.services.some(item => item.serviceId === group.serviceId))}>
+              {busy ? "Matriculando…" : "Tentar matrícula novamente"}
+            </button>
+          </div>
+        </form>
+      ) : resourceError || !resources ? (
+        <div className="next-step-content">
+          <FixedPatient patient={patient} />
+          {resourceError ? <div className="form-error" role="alert">{resourceError} {" "}
+            <button type="button" className="secondary-button button-sm" onClick={() => setResourceAttempt(value => value + 1)}>Tentar novamente</button>
+          </div> : <LoadingBlock />}
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={back}>Voltar</button></div>
+        </div>
+      ) : step === "plan" ? (
+        <PlanForm patients={[patient]} fixedPatient={patient} services={resources.services}
+          groups={canEnroll ? groups : undefined} onCancel={back} onBusyChange={setFlowBusy}
+          onSubmit={async (input, groupId) => {
+            const saved = await api.createPlan(input);
+            setPlan(saved);
+            if (groupId) {
+              setPendingGroup(groupId);
+              try { await saveEnrollment(saved, groupId); }
+              catch (cause) { setEnrollmentError((cause as Error).message); setStep("enrollment"); }
+            } else setStep("choice");
+          }} />
+      ) : !resources.services.length || !resources.professionals.length || !resources.rooms.length ? (
+        <div className="next-step-content"><FixedPatient patient={patient} />
+          <p className="muted-copy">Para agendar, é necessário ter um serviço, um profissional e uma sala ativos cadastrados.</p>
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={back}>Voltar</button>
+            <button type="button" className="secondary-button" onClick={() => setResourceAttempt(value => value + 1)}>Tentar novamente</button>
+          </div>
+        </div>
+      ) : (
+        <AppointmentForm patients={[patient]} fixedPatient={patient} professionals={resources.professionals}
+          rooms={resources.rooms} services={resources.services} onCancel={back} onBusyChange={setFlowBusy}
+          onSubmit={async (input, recurrence) => {
+            const saved = recurrence ? await api.createRecurringAppointments({ ...input, ...recurrence }) : [await api.createAppointment(input)];
+            setAppointments(saved); setStep("choice");
+          }} />
+      )}
+    </Modal>
   );
 }
 
@@ -1486,6 +1726,7 @@ function PatientExportModal({
   tagColor: (name: string) => string;
   onClose: () => void;
 }) {
+ const { can } = useAuthorization();
   const [format, setFormat] = useState<PatientExportParams["format"]>("csv");
   const [columns, setColumns] = useState<PatientExportColumn[]>([...patientExportColumns]);
   const [exporting, setExporting] = useState(false);
@@ -1543,7 +1784,7 @@ function PatientExportModal({
       busy={exporting}
       onClose={onClose}
     >
-      <form className="patient-export" onSubmit={(event) => void submit(event)} noValidate>
+      {can("patients.export") && (<form className="patient-export" onSubmit={(event) => void submit(event)} noValidate>
         <div className="patient-export-scope">
           <span className="filter-label">Clientes exportados</span>
           {(scope.length > 0 || filters.tags.length === 0) && (
@@ -1622,7 +1863,7 @@ function PatientExportModal({
             {exporting ? "Exportando..." : "Exportar"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -1670,6 +1911,7 @@ function PatientImportModal({
   onClose: () => void;
   onImported: () => void;
 }) {
+ const { can } = useAuthorization();
   const [file, setFile] = useState<PatientImportFileInput | null>(null);
   const [analysis, setAnalysis] = useState<PatientImportAnalysis | null>(null);
   const [result, setResult] = useState<PatientImportResult | null>(null);
@@ -1799,7 +2041,7 @@ function PatientImportModal({
             {result ? "Fechar" : "Cancelar"}
           </button>
           {!result && (
-            <button
+            (can("patients.import") && (<button
               type="button"
               className="primary-button"
               disabled={loading || !file || validCount === 0}
@@ -1807,7 +2049,7 @@ function PatientImportModal({
             >
               <FileDown size={18} aria-hidden="true" />
               {`Importar ${countLabel(validCount, "cliente", "clientes")}`}
-            </button>
+            </button>))
           )}
         </div>
       </div>
@@ -1817,10 +2059,10 @@ function PatientImportModal({
 
 /** Cadastro guiado: opções na ordem da pergunta ("Só cadastrar" vem sempre por último). */
 const guidedStepOrder = ["demonstration", "plan", "single"] as const;
-const guidedStepModules: Record<(typeof guidedStepOrder)[number], AppModule> = {
-  demonstration: "agenda",
-  plan: "plans",
-  single: "plans",
+const guidedStepPermissions: Record<(typeof guidedStepOrder)[number], PermissionKey> = {
+  demonstration: "agenda.create",
+  plan: "plans.create",
+  single: "plans.create",
 };
 const guidedStepLabels: Record<GuidedPatientNext, string> = {
   demonstration: "Aula de demonstração",
@@ -1835,7 +2077,7 @@ const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
   none: "Salvar cliente",
 };
 const guidedPlanKinds = ["fixed_package", "recurring"] as const;
-type GuidedSingleForm = PlanTermsForm & { serviceId: string };
+type GuidedSingleForm = Extract<GuidedPatientInput, { next: "single" }>["plan"];
 type GuidedPlanForm = GuidedSingleForm & { kind: (typeof guidedPlanKinds)[number] };
 interface GuidedDemonstrationForm {
   serviceId: string;
@@ -1968,7 +2210,14 @@ function GuidedDemonstrationFields({
   );
 }
 
-/** Serviço e termos do plano (os mesmos campos de "Novo plano") no cadastro guiado. */
+function defaultPlanTerms(): GuidedSingleForm {
+  const today = localIsoDate();
+  return { planTemplateId: "", name: "", services: [], validFrom: today,
+    validUntil: "", totalValueInCents: 0, installments: 3,
+    firstDueDate: today, autoRenew: false };
+}
+
+/** O cadastro guiado usa o mesmo catálogo e a composição de serviços das novas vendas. */
 function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
   setForm,
@@ -1983,15 +2232,15 @@ function GuidedPlanFields<T extends GuidedSingleForm>({
   children?: ReactNode;
 }) {
   const [services, setServices] = useState<Service[] | null>(null);
+  const [templates, setTemplates] = useState<PlanTemplate[]>([]);
   const [loadError, setLoadError] = useState("");
   useEffect(() => {
     let active = true;
-    api
-      .services()
-      .then((data) => {
+    Promise.all([api.services(), api.planTemplates()])
+      .then(([data, catalog]) => {
         if (!active) return;
         setServices(data);
-        setForm((current) => ({ ...current, serviceId: current.serviceId || (data[0]?.id ?? "") }));
+        setTemplates(catalog.filter((item) => item.active && item.services.length > 0));
       })
       .catch((cause: Error) => {
         if (active) setLoadError(cause.message);
@@ -1999,24 +2248,36 @@ function GuidedPlanFields<T extends GuidedSingleForm>({
     return () => {
       active = false;
     };
-  }, [setForm]);
-  if (loadError) return <p className="form-error">{`Não foi possível carregar os serviços: ${loadError}`}</p>;
+  }, []);
+  if (loadError) return <p className="form-error">{`Não foi possível carregar os planos: ${loadError}`}</p>;
   if (services === null) return <LoadingBlock />;
-  if (services.length === 0)
-    return <p className="muted-copy">Cadastre um serviço antes de criar o plano.</p>;
+  const compatible = templates.filter((item) => {
+    const kind = item.planType ? planTypeKind(item.planType) : item.kind;
+    return kindField ? kind !== "single" : kind === "single";
+  });
+  if (compatible.length === 0)
+    return <p className="muted-copy">Nenhum plano ativo cadastrado para esta opção. Cadastre um plano em Configurações › Planos.</p>;
   return (
     <div className="form-grid">
       <label className={kindField ? undefined : "span-2"}>
-        Serviço
+        Plano cadastrado
         <select
           required
-          value={form.serviceId}
+          value={form.planTemplateId}
           onChange={(e) => {
-            setForm({ ...form, serviceId: e.target.value });
+            const template = compatible.find((item) => item.id === e.target.value);
+            setForm({ ...form, planTemplateId: template?.id ?? "", name: template?.name ?? "",
+              services: template?.services.map((entry) => ({ ...entry })) ?? [],
+              totalValueInCents: template?.totalValueInCents ?? 0,
+              ...("kind" in form ? { kind: template?.planType ? planTypeKind(template.planType) : template?.kind ?? "fixed_package" } : {}),
+              validUntil: template?.planType ? planPeriodEnd(template.planType, form.validFrom) : "",
+              autoRenew: false,
+            });
             onServiceChange?.();
           }}
         >
-          {services.map((item) => (
+          <option value="">Selecione um plano</option>
+          {compatible.map((item) => (
             <option value={item.id} key={item.id}>
               {item.name}
             </option>
@@ -2024,7 +2285,43 @@ function GuidedPlanFields<T extends GuidedSingleForm>({
         </select>
       </label>
       {kindField}
-      <PlanTermsFields form={form} onChange={setForm} />
+      {form.services.map((entry, index) => (
+        <fieldset className="span-2 form-grid" key={entry.serviceId}>
+          <legend>{services.find((item) => item.id === entry.serviceId)?.name ?? "Serviço"}</legend>
+          <label>Sessões do serviço {index + 1}
+            <input required type="number" min="1" max="1000" value={entry.totalSessions}
+              onChange={(event) => setForm({ ...form, services: form.services.map((item, position) =>
+                position === index ? { ...item, totalSessions: Number(event.target.value) } : item) })} />
+          </label>
+          <label>Valor do serviço {index + 1}
+            <input required type="number" min="0" step="0.01" value={entry.totalValueInCents / 100}
+              onChange={(event) => {
+                const entries = form.services.map((item, position) => position === index
+                  ? { ...item, totalValueInCents: Math.round(Number(event.target.value) * 100) } : item);
+                setForm({ ...form, services: entries, totalValueInCents: entries.reduce((sum, item) => sum + item.totalValueInCents, 0) });
+              }} />
+          </label>
+        </fieldset>
+      ))}
+      <label className="span-2">Valor total<input readOnly value={currency.format(form.totalValueInCents / 100)} /></label>
+      <label>Início<input required type="date" value={form.validFrom}
+        onChange={(event) => {
+          const template = templates.find((item) => item.id === form.planTemplateId);
+          setForm({ ...form, validFrom: event.target.value,
+            ...(template?.planType && planPeriodMonths(template.planType)
+              ? { validUntil: planPeriodEnd(template.planType, event.target.value) } : {}) });
+        }} /></label>
+      <label>Fim da validade<input type="date" value={form.validUntil}
+        onChange={(event) => setForm({ ...form, validUntil: event.target.value,
+          autoRenew: Boolean(event.target.value) && form.autoRenew })} /></label>
+      <label>Parcelas<input required type="number" min="1" max="36" value={form.installments}
+        onChange={(event) => setForm({ ...form, installments: Number(event.target.value) })} /></label>
+      <label>Primeiro vencimento<input required type="date" value={form.firstDueDate}
+        onChange={(event) => setForm({ ...form, firstDueDate: event.target.value })} /></label>
+      <label className="checkbox-field span-2"><input type="checkbox" disabled={!form.validUntil}
+        checked={Boolean(form.autoRenew)} onChange={(event) => setForm({ ...form, autoRenew: event.target.checked })} />
+        Renovar automaticamente ao fim da validade, com as mesmas condições
+      </label>
       {children}
     </div>
   );
@@ -2035,19 +2332,20 @@ function GuidedPlanFields<T extends GuidedSingleForm>({
  * Sem edição de Turmas, fica só o aviso (a matrícula é feita depois).
  */
 function GuidedGroupField({
-  serviceId,
+  serviceIds,
   value,
   onChange,
   groups,
   setGroups,
 }: {
-  serviceId: string;
+  serviceIds: string[];
   value: string;
   onChange: (groupId: string) => void;
   groups: GroupClass[] | null;
   setGroups: Dispatch<SetStateAction<GroupClass[] | null>>;
 }) {
-  const canEnroll = canEdit("groups");
+  const { can } = useAuthorization();
+  const canEnroll = can("groups.enroll");
   const [loadError, setLoadError] = useState("");
   useEffect(() => {
     if (!canEnroll || groups !== null) return;
@@ -2067,7 +2365,7 @@ function GuidedGroupField({
   }, [canEnroll, groups, setGroups]);
   const hint = <small className="field-hint">A turma pode ser escolhida depois com o responsável.</small>;
   if (!canEnroll) return <div className="field-with-hint span-2">{hint}</div>;
-  const compatible = (groups ?? []).filter((item) => item.active && item.serviceId === serviceId);
+  const compatible = (groups ?? []).filter((item) => item.active && serviceIds.includes(item.serviceId));
   return (
     <div className="field-with-hint span-2">
       {loadError ? (
@@ -2105,6 +2403,7 @@ function PatientModal({
   /** `notice`: resumo do passo guiado (demonstração agendada, plano criado, turma/lista de espera). */
   onSaved: (patient: Patient, notice?: string) => void;
 }) {
+  const { can } = useAuthorization();
   const [form, setForm] = useState<PatientInput>(() => ({
     fullName: patient?.fullName ?? "",
     phone: patient?.phone ?? "",
@@ -2118,11 +2417,11 @@ function PatientModal({
     tags: patient?.tags ?? [],
   }));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
-  const showHistory = Boolean(patient) && canView("patients") && canView("crm");
-  const editable = canEdit("patients");
-  const [sosOpen, setSosOpen] = useState(false);
+  const showHistory = Boolean(patient) && can("patients.timeline");
+  const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -2142,19 +2441,16 @@ function PatientModal({
     }));
   }
   // Cadastro guiado (só na criação): cada opção aparece para quem edita o módulo afetado.
-  const guidedSteps = patient ? [] : guidedStepOrder.filter((step) => canEdit(guidedStepModules[step]));
+  const guidedSteps = patient ? [] : guidedStepOrder.filter((step) => can(guidedStepPermissions[step]));
   const [step, setStep] = useState<GuidedPatientNext>("none");
   const [demonstration, setDemonstration] = useState(defaultGuidedDemonstration);
   const [planForm, setPlanForm] = useState<GuidedPlanForm>(() => ({
-    serviceId: "",
     kind: "fixed_package",
     ...defaultPlanTerms(),
   }));
   const [singleForm, setSingleForm] = useState<GuidedSingleForm>(() => ({
-    serviceId: "",
     ...defaultPlanTerms(),
     name: "Serviço avulso",
-    totalSessions: 1,
     installments: 1,
     validUntil: "",
   }));
@@ -2176,6 +2472,7 @@ function PatientModal({
         },
       };
     }
+    if ((step === "plan" && !planForm.planTemplateId) || (step === "single" && !singleForm.planTemplateId)) return "Selecione um plano cadastrado.";
     if (step === "plan")
       return { next: "plan", patient: form, plan: planForm, ...(groupId ? { groupId } : {}) };
     if (step === "single") return { next: "single", patient: form, plan: singleForm };
@@ -2183,6 +2480,13 @@ function PatientModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
+    if (form.cpf && !isValidCpf(form.cpf)) {
+      setError("Informe um CPF válido.");
+      return;
+    }
+    submitting.current = true;
+    setLoading(true);
     setError("");
     if (patient) {
       setLoading(true);
@@ -2191,6 +2495,7 @@ function PatientModal({
       } catch (cause) {
         setError((cause as Error).message);
       } finally {
+        submitting.current = false;
         setLoading(false);
       }
       return;
@@ -2198,15 +2503,23 @@ function PatientModal({
     const input = guidedInput();
     if (typeof input === "string") {
       setError(input);
+      submitting.current = false;
+      setLoading(false);
       return;
     }
     setLoading(true);
     try {
+      if (input.next === "none") {
+        onSaved(await api.createPatient(form));
+        return;
+      }
       const result = await api.createGuidedPatient(input);
       onSaved(result.patient, guidedNotice(result, groups ?? []));
     } catch (cause) {
       // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);
+    } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -2217,12 +2530,6 @@ function PatientModal({
       busy={loading}
       onClose={onClose}
     >
-      {patient && (
-        <div className="sos-area">
-          <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-          {sosOpen && <SosPanel patient={patient} />}
-        </div>
-      )}
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nome completo
@@ -2236,14 +2543,16 @@ function PatientModal({
         <fieldset className="form-fieldset span-2">
           <legend>Contato</legend>
           <div className="form-fieldset-grid">
-            <label>
-              Telefone
-              <PhoneInput
-                required
-                value={form.phone}
-                onChange={(digits) => field("phone", digits)}
-              />
-            </label>
+            <div className="field-with-hint">
+              <label>
+                Telefone
+                <PhoneInput
+                  required
+                  value={form.phone}
+                  onChange={(digits) => field("phone", digits)}
+                />
+              </label>
+            </div>
             <div className="field-with-hint">
               <label>
                 WhatsApp
@@ -2266,9 +2575,9 @@ function PatientModal({
         </label>
         <label>
           CPF
-          <input
-            value={form.cpf}
-            onChange={(e) => field("cpf", e.target.value)}
+          <CpfInput
+            value={form.cpf ?? ""}
+            onChange={(digits) => field("cpf", digits)}
           />
         </label>
         <label>
@@ -2279,7 +2588,7 @@ function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <fieldset className="form-fieldset span-2">
+        <fieldset className="form-fieldset emergency-fieldset span-2">
           <legend>Contato de emergência</legend>
           <div className="form-fieldset-grid">
             <label>
@@ -2326,7 +2635,7 @@ function PatientModal({
           )}
         </fieldset>
         <label className="span-2">
-          Observações administrativas
+          Observações
           <textarea
             value={form.notes}
             onChange={(e) => field("notes", e.target.value)}
@@ -2385,7 +2694,7 @@ function PatientModal({
               }
             >
               <GuidedGroupField
-                serviceId={planForm.serviceId}
+                serviceIds={planForm.services.map((entry) => entry.serviceId)}
                 value={groupId}
                 onChange={setGroupId}
                 groups={groups}
@@ -2599,6 +2908,7 @@ function markBirthdaySent(patientId: string, referenceKey: string) {
 }
 
 function RelationshipPage() {
+  const { can, canEdit } = useAuthorization();
   const [view, setView] = useState<"suggestions" | "birthdays">("suggestions");
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
@@ -2764,7 +3074,7 @@ function RelationshipPage() {
                       WhatsApp
                     </a>
                     {canEdit("relationship") && (
-                    <button
+                    (can("relationship.activities_create") && (<button
                       className="secondary-button button-sm"
                       onClick={() => {
                         setNotice("");
@@ -2773,7 +3083,7 @@ function RelationshipPage() {
                     >
                       <PhoneCall size={15} />
                       Registrar contato
-                    </button>
+                    </button>))
                     )}
                   </div>
                 </article>
@@ -2799,6 +3109,7 @@ function BirthdaysMonthPanel({
 }: {
   settings: RelationshipSettings | null;
 }) {
+  const { canEdit } = useAuthorization();
   const [month, setMonth] = useState(() => saoPauloToday().slice(0, 7));
   const [entries, setEntries] = useState<BirthdayEntry[]>([]);
   const [error, setError] = useState("");
@@ -2926,6 +3237,7 @@ function ContactActivityModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const today = saoPauloToday();
   const [outcome, setOutcome] = useState<ContactOutcome>("contacted");
   const [notes, setNotes] = useState("");
@@ -2963,7 +3275,7 @@ function ContactActivityModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("relationship.activities_create") && (<form className="form-grid" onSubmit={submit}>
         <label className={outcome === "snoozed" ? undefined : "span-2"}>
           Resultado
           <select
@@ -3008,12 +3320,13 @@ function ContactActivityModal({
             {loading ? "Salvando…" : "Salvar contato"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
 
 function CommunicationsPage() {
+  const { can, canEdit } = useAuthorization();
   const [center, setCenter] = useState<CommunicationCenter | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [patientId, setPatientId] = useState("");
@@ -3034,7 +3347,7 @@ function CommunicationsPage() {
     ]);
     setCenter(communicationData);
     setPatients(patientData);
-    setPatientId((current) => current || patientData[0]?.id || "");
+
   }
 
   useEffect(() => {
@@ -3044,7 +3357,7 @@ function CommunicationsPage() {
         if (!active) return;
         setCenter(communicationData);
         setPatients(patientData);
-        setPatientId(patientData[0]?.id || "");
+
       })
       .catch((cause: Error) => active && setError(cause.message))
       .finally(() => active && setLoading(false));
@@ -3098,6 +3411,7 @@ function CommunicationsPage() {
 
   async function queueMessage(event: FormEvent) {
     event.preventDefault();
+    if (!can("communications.messages") || !patientId) return;
     setError("");
     setNotice("");
     try {
@@ -3144,26 +3458,15 @@ function CommunicationsPage() {
           <section className="panel communication-compose">
             <span className="eyebrow">Mensagem individual</span>
             <h2>Adicionar à fila</h2>
-            <form onSubmit={queueMessage}>
-              <label>
-                Cliente
-                <select
-                  value={patientId}
-                  onChange={(event) => setPatientId(event.target.value)}
-                >
-                  {patients.map((patient) => (
-                    <option value={patient.id} key={patient.id}>
-                      {patient.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {(can("communications.messages") || can("communications.preferences")) && (<form onSubmit={queueMessage}>
+              <PatientPicker required patients={patients} value={patientId} onChange={setPatientId} />
               <div className="preference-row">
                 {(["whatsapp", "email"] as const).map((item) => (
                   <label key={item}>
                     <input
                       type="checkbox"
                       checked={allowed(patientId, item)}
+                      disabled={!can("communications.preferences") || !patientId}
                       onChange={() => void togglePreference(item)}
                     />
                     {item === "whatsapp"
@@ -3198,12 +3501,12 @@ function CommunicationsPage() {
               <div className="modal-actions">
               <button
                 className="primary-button"
-                disabled={!patientId || !body.trim()}
+                disabled={!can("communications.messages") || !patientId || !body.trim()}
               >
                 Adicionar à fila
               </button>
               </div>
-            </form>
+            </form>)}
           </section>
           <section className="panel reminder-generator">
             <span className="eyebrow">Automação segura</span>
@@ -3221,12 +3524,12 @@ function CommunicationsPage() {
               />
             </label>
             <div className="modal-actions">
-            <button
+            {can("communications.reminders") && (<button
               className="primary-button"
               onClick={() => void generate()}
             >
               Gerar lembretes
-            </button>
+            </button>)}
             </div>
             <div className="outbox-note">
               <LockKeyhole size={17} />
@@ -3311,6 +3614,7 @@ function BroadcastPanel({
   outboxOnly: boolean;
   onQueued: (result: BroadcastResult) => void;
 }) {
+ const { can } = useAuthorization();
   const [tags, setTags] = useState<string[]>([]);
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
   const [activePlan, setActivePlan] = useState<"" | "with" | "without">("");
@@ -3394,7 +3698,7 @@ function BroadcastPanel({
           <span>{outboxWarning}</span>
         </div>
       )}
-      <form className="form-grid" onSubmit={(event) => void requestPreview(event)} noValidate>
+      {can("communications.broadcast") && (<form className="form-grid" onSubmit={(event) => void requestPreview(event)} noValidate>
         {configuredTags.error ? (
           <p className="form-error span-2">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
         ) : (
@@ -3489,7 +3793,7 @@ function BroadcastPanel({
             {previewing ? "Calculando…" : "Ver prévia"}
           </button>
           {preview && preview.queued > 0 && (
-            <button
+            (can("communications.broadcast") && (<button
               type="button"
               className="primary-button"
               onClick={() => {
@@ -3498,10 +3802,10 @@ function BroadcastPanel({
               }}
             >
               Enfileirar comunicado
-            </button>
+            </button>))
           )}
         </div>
-      </form>
+      </form>)}
       {preview && (
         <div className="broadcast-preview" aria-live="polite">
           <div className="broadcast-summary">
@@ -3565,14 +3869,14 @@ function BroadcastPanel({
               >
                 Voltar
               </button>
-              <button
+              {can("communications.broadcast") && (<button
                 type="button"
                 className="primary-button"
                 onClick={() => void send()}
                 disabled={sending}
               >
                 {sending ? "Enfileirando…" : "Confirmar e enfileirar"}
-              </button>
+              </button>)}
             </div>
           </div>
         </Modal>
@@ -3594,18 +3898,19 @@ const documentKindLabels: Record<DocumentKind, string> = {
   other: "Outro",
 };
 
-function fetchContractsPageData() {
+function fetchContractsPageData(canSeePlans: boolean) {
   return Promise.all([
     api.documentTemplates(),
     api.documents(),
     api.patientOptions(),
     // Planos são opcionais no documento: quem não vê Planos emite sem vincular plano.
-    canView("plans") ? api.plans() : Promise.resolve([]),
+    canSeePlans ? api.plans() : Promise.resolve([]),
     api.professionals(),
   ]);
 }
 
 function DocumentsPage() {
+  const { can, canView, canEdit } = useAuthorization();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -3621,7 +3926,7 @@ function DocumentsPage() {
   const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
     name: "Contrato de prestação de serviços",
     kind: "contract",
-    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.",
+    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
   });
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
@@ -3654,19 +3959,19 @@ function DocumentsPage() {
           current.templateId ||
           templateData.find((item) => item.active)?.id ||
           "",
-        patientId: current.patientId || patientData[0]?.id || "",
+        patientId: current.patientId,
       }));
     },
     [],
   );
 
   async function load() {
-    applyPageData(await fetchContractsPageData());
+    applyPageData(await fetchContractsPageData(canView("plans")));
   }
 
   useEffect(() => {
     let active = true;
-    fetchContractsPageData()
+    fetchContractsPageData(canView("plans"))
       .then((data) => {
         if (active) applyPageData(data);
       })
@@ -3675,7 +3980,7 @@ function DocumentsPage() {
     return () => {
       active = false;
     };
-  }, [applyPageData]);
+  }, [applyPageData, canView]);
 
   async function createTemplate(event: FormEvent) {
     event.preventDefault();
@@ -3703,6 +4008,7 @@ function DocumentsPage() {
 
   async function createDocument(event: FormEvent) {
     event.preventDefault();
+    if (!documentForm.patientId) return;
     setError("");
     setNotice("");
     try {
@@ -3766,7 +4072,7 @@ function DocumentsPage() {
                 <h2>Novo modelo</h2>
               </div>
             </div>
-            <form className="document-form" onSubmit={createTemplate}>
+            {can("contracts.templates_create") && (<form className="document-form" onSubmit={createTemplate}>
               <label>
                 Nome
                 <input
@@ -3814,13 +4120,14 @@ function DocumentsPage() {
               </label>
               <small>
                 Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                {"{{plano_servicos}}"},{" "}
                 {"{{profissional_nome}}"}, {"{{profissional_crefito}}"},{" "}
                 {"{{data_emissao}}"} e {"{{clinica_nome}}"}.
               </small>
               <div className="modal-actions">
                 <button className="primary-button">Criar modelo</button>
               </div>
-            </form>
+            </form>)}
           </section>
           <section className="panel document-form-panel">
             <div className="panel-head">
@@ -3829,7 +4136,7 @@ function DocumentsPage() {
                 <h2>Novo documento</h2>
               </div>
             </div>
-            <form className="document-form" onSubmit={createDocument}>
+            {can("contracts.issue") && (<form className="document-form" onSubmit={createDocument}>
               <label>
                 Modelo ativo
                 <select
@@ -3850,26 +4157,8 @@ function DocumentsPage() {
                   ))}
                 </select>
               </label>
-              <label>
-                Cliente
-                <select
-                  required
-                  value={documentForm.patientId}
-                  onChange={(event) =>
-                    setDocumentForm({
-                      ...documentForm,
-                      patientId: event.target.value,
-                      planId: "",
-                    })
-                  }
-                >
-                  {patients.map((patient) => (
-                    <option value={patient.id} key={patient.id}>
-                      {patient.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <PatientPicker required patients={patients} value={documentForm.patientId}
+                onChange={(patientId) => setDocumentForm({ ...documentForm, patientId, planId: "" })} />
               <label>
                 Plano vinculado
                 <select
@@ -3932,7 +4221,7 @@ function DocumentsPage() {
                 Criar rascunho
               </button>
               </div>
-            </form>
+            </form>)}
           </section>
           </>
           )}
@@ -3966,12 +4255,12 @@ function DocumentsPage() {
                       {template.active ? "Ativa" : "Histórica"}
                     </span>
                     {canManage && template.active && (
-                      <button
+                      (can("contracts.templates_version") && (<button
                         className="secondary-button button-sm"
                         onClick={() => setVersioning(template)}
                       >
                         Nova versão
-                      </button>
+                      </button>))
                     )}
                   </article>
                 ))}
@@ -4023,20 +4312,20 @@ function DocumentsPage() {
                         </button>
                       )}
                       {canManage && item.status === "draft" && (
-                        <button
+                        (can("contracts.status") && (<button
                           className="primary-button button-sm"
                           onClick={() => void issueDocument(item)}
                         >
                           Emitir
-                        </button>
+                        </button>))
                       )}
                       {canManage && item.status !== "cancelled" && (
-                        <button
+                        (can("contracts.cancel") && (<button
                           className="danger-button button-sm"
                           onClick={() => setCancelling(item)}
                         >
                           Cancelar
-                        </button>
+                        </button>))
                       )}
                     </div>
                   </article>
@@ -4106,6 +4395,7 @@ function TemplateVersionModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+ const { can } = useAuthorization();
   const [body, setBody] = useState(template.body);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -4137,7 +4427,7 @@ function TemplateVersionModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+      {can("contracts.templates_version") && (<form className="form-grid" onSubmit={(event) => void submit(event)}>
         <label className="span-2">
           Conteúdo
           <textarea
@@ -4161,7 +4451,7 @@ function TemplateVersionModal({
             {saving ? "Criando…" : "Criar versão"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -4175,6 +4465,7 @@ function CancelDocumentModal({
   onClose: () => void;
   onCancelled: (updated: IssuedDocument) => void;
 }) {
+ const { can } = useAuthorization();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   async function confirmCancel() {
@@ -4210,14 +4501,14 @@ function CancelDocumentModal({
           >
             Voltar
           </button>
-          <button
+          {can("contracts.cancel") && (<button
             type="button"
             className="danger-button"
             onClick={() => void confirmCancel()}
             disabled={saving}
           >
             {saving ? "Cancelando…" : "Cancelar documento"}
-          </button>
+          </button>)}
         </div>
       </div>
     </Modal>
@@ -4225,6 +4516,7 @@ function CancelDocumentModal({
 }
 
 function SalesInsights() {
+ const { can } = useAuthorization();
   const [month, setMonth] = useState(localIsoDate().slice(0, 7));
   const [report, setReport] = useState<SalesReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -4290,14 +4582,14 @@ function SalesInsights() {
               }}
             />
           </label>
-          <button
+          {can("reports.sales", "reports.export") && (<button
             type="button"
             className="secondary-button"
             disabled={!report || exporting || loading}
             onClick={() => void exportXlsx()}
           >
             {exporting ? "Exportando…" : "Exportar Excel detalhado"}
-          </button>
+          </button>)}
         </div>
       </div>
       {error && <ErrorBanner error={error} />}
@@ -4404,6 +4696,19 @@ function SalesInsights() {
 }
 
 function ReportsPage() {
+  const { can } = useAuthorization();
+  return <>
+    <PageHeader eyebrow="Gestão por evidências" title="Relatórios gerenciais" description="Veja o resultado do mês e encontre quem precisa de acompanhamento." />
+    {can("reports.sales") && <SalesInsights />}
+    {(can("reports.management") || can("reports.retention") || can("reports.clients")) && <ReportsDetails />}
+    {!can("reports.sales") && !can("reports.management") && !can("reports.retention") && !can("reports.clients") && <p className="muted-copy">Nenhum relatório foi liberado para seu usuário.</p>}
+  </>;
+}
+
+function ReportsDetails() {
+  const { can, canView } = useAuthorization();
+  const canManagement = can("reports.management");
+  const canAgenda = canView("agenda");
   const today = localIsoDate();
   const [filter, setFilter] = useState({
     from: `${today.slice(0, 8)}01`,
@@ -4419,7 +4724,7 @@ function ReportsPage() {
     to: today,
     version: 0,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(canManagement);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
@@ -4438,9 +4743,9 @@ function ReportsPage() {
     setReport(null);
     setError("");
     setClientPeriod((current) => ({ from, to, version: current.version + 1 }));
-    void loadSatisfaction(from, to);
+    if (canAgenda) void loadSatisfaction(from, to);
     try {
-      setReport(await api.managementReport(from, to));
+      if (canManagement) setReport(await api.managementReport(from, to));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -4452,19 +4757,19 @@ function ReportsPage() {
     let active = true;
     const initialTo = localIsoDate();
     const initialFrom = `${initialTo.slice(0, 8)}01`;
-    api
+    if (canManagement) api
       .managementReport(initialFrom, initialTo)
       .then((data) => active && setReport(data))
       .catch((cause: Error) => active && setError(cause.message))
       .finally(() => active && setLoading(false));
-    api
+    if (canAgenda) api
       .satisfaction(initialFrom, initialTo)
       .then((data) => active && setSatisfaction(data))
       .catch((cause: Error) => active && setSatisfactionError(cause.message));
     return () => {
       active = false;
     };
-  }, []);
+  }, [canManagement, canAgenda]);
 
   async function exportCsv() {
     setExporting(true);
@@ -4486,12 +4791,6 @@ function ReportsPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Gestão por evidências"
-        title="Relatórios gerenciais"
-        description="Veja o resultado do mês e encontre quem precisa de acompanhamento."
-      />
-      <SalesInsights />
       <details className="report-disclosure report-advanced">
         <summary>Ver outros indicadores da clínica</summary>
         <p>
@@ -4528,17 +4827,17 @@ function ReportsPage() {
         >
           Atualizar
         </button>
-        <button
+        {can("reports.management", "reports.export") && (<button
           className="secondary-button"
           disabled={!report || exporting}
           onClick={() => void exportCsv()}
         >
           {exporting ? "Exportando…" : "Exportar CSV"}
-        </button>
+        </button>)}
       </section>
       {error && <ErrorBanner error={error} />}
       <section className="report-metrics">
-        <article>
+        {canAgenda && (<article>
           <span>Satisfação (NPS)</span>
           {satisfaction ? (
             <>
@@ -4559,8 +4858,8 @@ function ReportsPage() {
               {satisfactionError || "Carregando pesquisas de satisfação…"}
             </small>
           )}
-        </article>
-        <article>
+        </article>)}
+        {canManagement && (<article>
           <span>Experimentais</span>
           {report ? (
             <>
@@ -4582,7 +4881,7 @@ function ReportsPage() {
                 : "Não foi possível carregar as experimentais."}
             </small>
           )}
-        </article>
+        </article>)}
       </section>
       <ClientInsights
         key={`${clientPeriod.from}-${clientPeriod.to}-${clientPeriod.version}`}
@@ -4726,6 +5025,9 @@ function formatRate(rate: number | null) {
 }
 
 function ClientInsights({ from, to }: { from: string; to: string }) {
+  const { can } = useAuthorization();
+  const canRetention = can("reports.retention");
+  const canClients = can("reports.clients");
   const [retention, setRetention] = useState<RetentionReport | null>(null);
   const [retentionError, setRetentionError] = useState("");
   const [clients, setClients] = useState<ClientReport | null>(null);
@@ -4733,18 +5035,18 @@ function ClientInsights({ from, to }: { from: string; to: string }) {
 
   useEffect(() => {
     let active = true;
-    api
+    if (canRetention) api
       .retentionReport(from, to)
       .then((data) => active && setRetention(data))
       .catch((cause: Error) => active && setRetentionError(cause.message));
-    api
+    if (canClients) api
       .clientReport(from, to)
       .then((data) => active && setClients(data))
       .catch((cause: Error) => active && setClientsError(cause.message));
     return () => {
       active = false;
     };
-  }, [from, to]);
+  }, [from, to, canRetention, canClients]);
 
   const clientsBody = (content: (report: ClientReport) => ReactNode) =>
     clientsError ? (
@@ -4757,7 +5059,7 @@ function ClientInsights({ from, to }: { from: string; to: string }) {
 
   return (
     <section className="client-insights">
-      <section className="panel report-table retention-report">
+      {canRetention && (<section className="panel report-table retention-report">
         <div className="panel-head">
           <div>
             <span className="eyebrow">Clientes</span>
@@ -4814,8 +5116,8 @@ function ClientInsights({ from, to }: { from: string; to: string }) {
             </p>
           </>
         )}
-      </section>
-      <div className="report-grid client-rankings">
+      </section>)}
+      {canClients && (<div className="report-grid client-rankings">
         <section className="panel report-table">
           <div className="panel-head">
             <div>
@@ -4907,7 +5209,7 @@ function ClientInsights({ from, to }: { from: string; to: string }) {
             ),
           )}
         </section>
-      </div>
+      </div>)}
     </section>
   );
 }
@@ -4948,6 +5250,7 @@ function ReportBreakdown({
 }
 
 function CommercialPage() {
+  const { can, canEdit } = useAuthorization();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -5012,10 +5315,10 @@ function CommercialPage() {
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={
           canManage ? (
-            <button className="primary-button" onClick={() => setModalOpen(true)}>
+            (can("crm.create") && (<button className="primary-button" onClick={() => setModalOpen(true)}>
               <Plus size={18} />
               Novo lead
-            </button>
+            </button>))
           ) : undefined
         }
       />
@@ -5063,10 +5366,10 @@ function CommercialPage() {
                 }
                 action={
                   canManage ? (
-                    <button className="primary-button" onClick={() => setModalOpen(true)}>
+                    (can("crm.create") && (<button className="primary-button" onClick={() => setModalOpen(true)}>
                       <Plus size={18} />
                       Cadastrar primeiro lead
-                    </button>
+                    </button>))
                   ) : undefined
                 }
               />
@@ -5124,6 +5427,7 @@ function CommercialPage() {
                           <div className="lead-actions">
                             <select
                               value={lead.stage}
+                              disabled={!can("crm.stage")}
                               onChange={(event) =>
                                 void move(lead, event.target.value as LeadStage)
                               }
@@ -5136,14 +5440,14 @@ function CommercialPage() {
                                   </option>
                                 ))}
                             </select>
-                            <button
+                            {can("crm.convert", "patients.create") && (<button
                               className="primary-button button-sm"
                               onClick={() => setConvertingLead(lead)}
                             >
                               Converter
-                            </button>
+                            </button>)}
                             {!lead.convertedPatientId && (
-                              <button
+                              (can("crm.appointments_create", "agenda.create") && (<button
                                 className="secondary-button button-sm lead-trial-button"
                                 onClick={() => {
                                   setNotice("");
@@ -5152,7 +5456,7 @@ function CommercialPage() {
                               >
                                 <CalendarDays size={14} />
                                 Agendar experimental
-                              </button>
+                              </button>))
                             )}
                           </div>
                         )}
@@ -5228,6 +5532,7 @@ function LeadAppointmentModal({
   onClose: () => void;
   onCreated: (appointment: Appointment) => void;
 }) {
+ const { can } = useAuthorization();
   const initialTime = new Date();
   initialTime.setDate(initialTime.getDate() + 1);
   initialTime.setHours(9, 0, 0, 0);
@@ -5308,7 +5613,7 @@ function LeadAppointmentModal({
           copy="Cadastre serviço, profissional e sala antes de agendar a experimental."
         />
       ) : (
-        <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        (can("crm.appointments_create", "agenda.create") && (<form className="form-grid" onSubmit={(event) => void submit(event)}>
           <label>
             Tipo
             <select
@@ -5366,15 +5671,12 @@ function LeadAppointmentModal({
               ))}
             </select>
           </label>
-          <label className="span-2">
-            Data e horário
-            <input
-              required
-              type="datetime-local"
-              value={form.startsAt}
-              onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-            />
-          </label>
+          <div className="span-2">
+            <AppointmentDateTimePicker value={form.startsAt}
+              onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+              professionalId={form.professionalId} roomId={form.roomId}
+              disabled={saving} />
+          </div>
           <label className="span-2">
             Observação
             <textarea
@@ -5392,7 +5694,7 @@ function LeadAppointmentModal({
               {saving ? "Agendando…" : "Confirmar agendamento"}
             </button>
           </div>
-        </form>
+        </form>))
       )}
     </Modal>
   );
@@ -5405,6 +5707,7 @@ function LeadModal({
   onClose: () => void;
   onCreated: (lead: Lead) => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<LeadInput>({
     fullName: "",
     phone: "",
@@ -5445,7 +5748,7 @@ function LeadModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("crm.create") && (<form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nome completo
           <input
@@ -5528,7 +5831,7 @@ function LeadModal({
             {loading ? "Salvando…" : "Adicionar ao funil"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -5545,6 +5848,7 @@ function LeadActivityModal({
   /** Sem edição do CRM: só o histórico (sem registrar tarefa/contato nem concluir tarefa). */
   editable: boolean;
 }) {
+ const { can } = useAuthorization();
   const currentUser = getStoredUser();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -5664,7 +5968,7 @@ function LeadActivityModal({
       ) : tab === "tasks" ? (
         <div className="lead-activity-content">
           {editable && (
-          <form className="activity-form" onSubmit={addTask}>
+          (can("crm.tasks_create") && (<form className="activity-form" onSubmit={addTask}>
             <label>
               Tarefa
               <input
@@ -5700,7 +6004,7 @@ function LeadActivityModal({
               Adicionar tarefa
             </button>
             </div>
-          </form>
+          </form>))
           )}
           <div className="activity-list">
             {activity.tasks.map((item) => (
@@ -5714,16 +6018,16 @@ function LeadActivityModal({
                 </div>
                 {item.status === "open" && editable ? (
                   <div>
-                    <button className="secondary-button button-sm"
+                    {can("crm.tasks_status") && (<button className="secondary-button button-sm"
                       onClick={() => void changeTask(item.id, "completed")}
                     >
                       Concluir
-                    </button>
-                    <button className="danger-button button-sm"
+                    </button>)}
+                    {can("crm.tasks_status") && (<button className="danger-button button-sm"
                       onClick={() => void changeTask(item.id, "cancelled")}
                     >
                       Cancelar
-                    </button>
+                    </button>)}
                   </div>
                 ) : (
                   <span>
@@ -5741,7 +6045,7 @@ function LeadActivityModal({
       ) : (
         <div className="lead-activity-content">
           {editable && (
-          <form className="activity-form" onSubmit={addContact}>
+          (can("crm.contacts_create") && (<form className="activity-form" onSubmit={addContact}>
             <label>
               Canal
               <select
@@ -5793,7 +6097,7 @@ function LeadActivityModal({
               Registrar contato
             </button>
             </div>
-          </form>
+          </form>))
           )}
           <div className="activity-list contact-timeline">
             {activity.contacts.map((item) => (
@@ -5823,8 +6127,9 @@ const planKindLabels: Record<PatientPlan["kind"], string> = {
 };
 
 function PlansPage({ canManage }: { canManage: boolean }) {
+ const { can } = useAuthorization();
   const [plans, setPlans] = useState<PatientPlan[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -5835,7 +6140,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.plans(), api.patients(), api.services()])
+    Promise.all([api.plans(), api.patientOptions(), api.services()])
       .then(([planData, patientData, serviceData]) => {
         if (!active) return;
         setPlans(planData);
@@ -5899,13 +6204,13 @@ function PlansPage({ canManage }: { canManage: boolean }) {
         description="Controle validade, saldo e consumo de cada pacote vendido."
         action={
           canManage ? (
-            <button
+            (can("plans.create") && (<button
               className="primary-button"
               onClick={() => setModalOpen(true)}
             >
               <Plus size={18} />
               Novo plano
-            </button>
+            </button>))
           ) : undefined
         }
       />
@@ -5979,6 +6284,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                     <strong>{plan.remainingSessions}</strong>
                     <span>de {plan.totalSessions} sessões restantes</span>
                   </div>
+                  {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões · {currency.format(entry.totalValueInCents / 100)}</p>)}
                   <div className="progress-track">
                     <span style={{ width: `${percent}%` }} />
                   </div>
@@ -5995,7 +6301,7 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                     <div className="plan-meta plan-renewal">
                       <span>Renovação</span>
                       <strong>{planRenewalLabel(plan)}</strong>
-                      {canManage &&
+                      {can("plans.auto_renew") &&
                         plan.validUntil &&
                         !plan.renewedByPlanId &&
                         plan.status !== "expired" && (
@@ -6021,39 +6327,39 @@ function PlansPage({ canManage }: { canManage: boolean }) {
                     {canManage &&
                       plan.status !== "cancelled" &&
                       !plan.renewedByPlanId && (
-                        <button
+                        (can("plans.renew") && (<button
                           className="secondary-button button-sm"
                           onClick={() => setRenewingPlan(plan)}
                         >
                           <RefreshCw size={15} />
                           Renovar
-                        </button>
+                        </button>))
                       )}
                     {canManage && plan.status !== "cancelled" && (
                       <>
                         {plan.status === "active" ? (
-                          <button
+                          (can("plans.status") && (<button
                             className="secondary-button button-sm"
                             onClick={() => void changeStatus(plan, "paused")}
                           >
                             <Pause size={15} />
                             Pausar
-                          </button>
+                          </button>))
                         ) : (
-                          <button
+                          (can("plans.status") && (<button
                             className="secondary-button button-sm"
                             onClick={() => void changeStatus(plan, "active")}
                           >
                             <Play size={15} />
                             Ativar
-                          </button>
+                          </button>))
                         )}
-                        <button
+                        {can("plans.cancel") && (<button
                           className="danger-button button-sm"
                           onClick={() => setCancellingPlan(plan)}
                         >
                           Cancelar
-                        </button>
+                        </button>)}
                       </>
                     )}
                   </div>
@@ -6114,150 +6420,76 @@ function PlansPage({ canManage }: { canManage: boolean }) {
   );
 }
 
-/** Termos de um plano: os campos comuns a Novo plano, Renovar plano e ao cadastro guiado. */
-type PlanTermsForm = Pick<
-  PatientPlanInput,
-  "name" | "totalSessions" | "validFrom" | "validUntil" | "totalValueInCents" | "installments" | "firstDueDate" | "autoRenew"
->;
-
-/** Termos sugeridos para um plano novo: 10 sessões, validade de um ano, 3 parcelas a partir de hoje. */
-function defaultPlanTerms(): PlanTermsForm {
-  const currentDate = localIsoDate();
-  const nextYear = new Date();
-  nextYear.setFullYear(nextYear.getFullYear() + 1);
-  return {
-    name: "Pacote de fisioterapia",
-    totalSessions: 10,
-    validFrom: currentDate,
-    validUntil: localIsoDate(nextYear),
-    totalValueInCents: 180000,
-    installments: 3,
-    firstDueDate: currentDate,
-    autoRenew: false,
-  };
-}
-
-/** Campos dos termos do plano, para dentro de um `form-grid` (nome e renovação ocupam duas colunas). */
-function PlanTermsFields<T extends PlanTermsForm>({ form, onChange }: { form: T; onChange: (form: T) => void }) {
-  return (
-    <>
-      <label className="span-2">
-        Nome do plano
-        <input
-          required
-          value={form.name}
-          onChange={(e) => onChange({ ...form, name: e.target.value })}
-        />
-      </label>
-      <label>
-        Sessões
-        <input
-          required
-          type="number"
-          min="1"
-          value={form.totalSessions}
-          onChange={(e) =>
-            onChange({ ...form, totalSessions: Number(e.target.value) })
-          }
-        />
-      </label>
-      <label>
-        Valor total
-        <input
-          required
-          type="number"
-          min="0"
-          step="0.01"
-          value={form.totalValueInCents / 100}
-          onChange={(e) =>
-            onChange({
-              ...form,
-              totalValueInCents: Math.round(Number(e.target.value) * 100),
-            })
-          }
-        />
-      </label>
-      <label>
-        Início
-        <input
-          required
-          type="date"
-          value={form.validFrom}
-          onChange={(e) => onChange({ ...form, validFrom: e.target.value })}
-        />
-      </label>
-      <label>
-        Fim da validade
-        <input
-          type="date"
-          value={form.validUntil}
-          onChange={(e) =>
-            onChange({
-              ...form,
-              validUntil: e.target.value,
-              autoRenew: Boolean(e.target.value) && form.autoRenew,
-            })
-          }
-        />
-      </label>
-      <label>
-        Parcelas
-        <input
-          required
-          type="number"
-          min="1"
-          max="36"
-          value={form.installments}
-          onChange={(e) =>
-            onChange({ ...form, installments: Number(e.target.value) })
-          }
-        />
-      </label>
-      <label>
-        Primeiro vencimento
-        <input
-          required
-          type="date"
-          value={form.firstDueDate}
-          onChange={(e) => onChange({ ...form, firstDueDate: e.target.value })}
-        />
-      </label>
-      <label className="checkbox-field span-2">
-        <input
-          type="checkbox"
-          checked={Boolean(form.autoRenew)}
-          disabled={!form.validUntil}
-          onChange={(e) => onChange({ ...form, autoRenew: e.target.checked })}
-        />
-        {form.validUntil
-          ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
-          : "Renovação automática exige o fim da validade"}
-      </label>
-    </>
-  );
-}
-
-function PlanModal({
-  patients,
-  services,
-  renewing,
-  onClose,
-  onSaved,
-}: {
-  patients: Patient[];
+type PlanModalProps = {
+  patients: PatientOption[];
   services: Service[];
   renewing?: PatientPlan;
   onClose: () => void;
   onSaved: (plan: PatientPlan) => void;
+};
+
+function PlanModal({ patients, services, renewing, onClose, onSaved }: PlanModalProps) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      title={renewing ? "Renovar plano" : "Novo plano"}
+      subtitle={renewing
+        ? `${renewing.patientName} ? ${renewing.serviceName}. O novo per?odo recebe saldo e parcelas pr?prios; as sess?es restantes do plano atual n?o s?o transferidas.`
+        : "O saldo e as contas a receber serão criados na mesma operação."}
+      busy={busy} onClose={onClose}
+    >
+      <PlanForm patients={patients} services={services} renewing={renewing}
+        onCancel={onClose} onBusyChange={setBusy} onSubmit={async (input) => {
+          const plan = renewing
+            ? await api.renewPlan(renewing.id, {
+                name: input.name, services: input.services, validFrom: input.validFrom,
+                validUntil: input.validUntil, totalValueInCents: input.totalValueInCents,
+                installments: input.installments, firstDueDate: input.firstDueDate,
+                autoRenew: Boolean(input.autoRenew),
+              })
+            : await api.createPlan(input);
+          onSaved(plan);
+        }} />
+    </Modal>
+  );
+}
+
+type GroupChoices = {
+  items: GroupClass[] | null;
+  error: string;
+  retry: () => void;
+};
+
+function PlanForm({ patients, services, renewing, fixedPatient, groups,
+  onCancel, onBusyChange, onSubmit,
+}: {
+  patients: PatientOption[];
+  services: Service[];
+  renewing?: PatientPlan | undefined;
+  fixedPatient?: PatientOption;
+  groups?: GroupChoices | undefined;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
 }) {
+  const { can, canView } = useAuthorization();
   const currentDate = localIsoDate();
+  const nextYear = new Date();
+  nextYear.setFullYear(nextYear.getFullYear() + 1);
   const [form, setForm] = useState<PatientPlanInput>(() => {
     if (!renewing) {
       return {
-        patientId: patients[0]?.id ?? "",
-        serviceId: services[0]?.id ?? "",
+        planTemplateId: "",
+        patientId: fixedPatient?.id ?? "",
+        name: "",
         kind: "fixed_package",
-        ...defaultPlanTerms(),
+        services: [],
+        validFrom: currentDate,
+        validUntil: localIsoDate(nextYear),
+        totalValueInCents: 0,
+        installments: 3,
+        firstDueDate: currentDate,
+        autoRenew: false,
       };
     }
     const period = nextPlanPeriod(renewing) ?? {
@@ -6266,11 +6498,17 @@ function PlanModal({
       firstDueDate: currentDate,
     };
     return {
+      planTemplateId: renewing.planTemplateId ?? "",
       patientId: renewing.patientId,
-      serviceId: renewing.serviceId,
       name: renewing.name,
       kind: renewing.kind,
-      totalSessions: renewing.totalSessions,
+      services: renewing.services.map(
+        ({ serviceId, totalSessions, totalValueInCents }) => ({
+          serviceId,
+          totalSessions,
+          totalValueInCents,
+        }),
+      ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.installments,
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
@@ -6279,113 +6517,343 @@ function PlanModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
+  const [groupId, setGroupId] = useState("");
+  const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  useEffect(() => {
+    if (renewing) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then((items) => {
+        if (active)
+          setTemplates(
+            items.filter((item) => item.active && item.services.length > 0),
+          );
+      })
+      .catch((cause: Error) => {
+        if (active) setCatalogError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [renewing, catalogAttempt]);
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
+    if (
+      !renewing &&
+      !templates?.some((item) => item.id === form.planTemplateId)
+    ) {
+      setError("Selecione um plano cadastrado.");
+      return;
+    }
+    submitting.current = true;
     setLoading(true);
+    onBusyChange(true);
     setError("");
     try {
-      if (renewing) {
-        onSaved(
-          await api.renewPlan(renewing.id, {
-            name: form.name,
-            totalSessions: form.totalSessions,
-            validFrom: form.validFrom,
-            validUntil: form.validUntil,
-            totalValueInCents: form.totalValueInCents,
-            installments: form.installments,
-            firstDueDate: form.firstDueDate,
-            autoRenew: Boolean(form.autoRenew),
-          }),
-        );
-      } else {
-        onSaved(await api.createPlan(form));
-      }
+      await onSubmit(form, form.kind !== "single" ? groupId || undefined : undefined);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
+      onBusyChange(false);
     }
   }
   return (
-    <Modal
-      title={renewing ? "Renovar plano" : "Novo plano"}
-      subtitle={
-        renewing
-          ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
-          : "O saldo e as contas a receber serão criados na mesma operação."
-      }
-      busy={loading}
-      onClose={onClose}
-    >
-      <form className="form-grid" onSubmit={submit}>
-        {!renewing && (
-          <>
+    <>
+      {(renewing ? can("plans.renew") : can("plans.create")) && (
+        <form className="form-grid" onSubmit={submit}>
+          <fieldset className="form-fields form-grid span-2" disabled={loading}>
+          {!renewing && (
+            <>
+              {fixedPatient ? <FixedPatient patient={fixedPatient} /> : <PatientPicker required className="span-2" patients={patients} value={form.patientId}
+                disabled={loading} onChange={(patientId) => setForm({ ...form, patientId })} />}
+              <label>
+                Modelo
+                <select
+                  autoFocus={Boolean(fixedPatient)}
+                  value={form.kind}
+                  onChange={(e) => {
+                    const kind = e.target.value as PatientPlan["kind"];
+                    setForm({ ...form, kind, autoRenew: kind === "recurring" });
+                    if (kind === "single") setGroupId("");
+                  }}
+                >
+                  {Object.entries(planKindLabels).map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {renewing ? (
             <label className="span-2">
-              Cliente
-              <select
+              Nome do plano
+              <input
                 required
-                value={form.patientId}
-                onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-              >
-                {patients.map((patient) => (
-                  <option value={patient.id} key={patient.id}>
-                    {patient.fullName}
-                  </option>
-                ))}
-              </select>
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </label>
-            <label>
-              Serviço
-              <select
-                required
-                value={form.serviceId}
-                onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-              >
-                {services.map((service) => (
-                  <option value={service.id} key={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Modelo
-              <select
-                value={form.kind}
-                onChange={(e) => {
-                  const kind = e.target.value as PatientPlan["kind"];
-                  setForm({ ...form, kind, autoRenew: kind === "recurring" });
-                }}
-              >
-                {Object.entries(planKindLabels).map(([value, label]) => (
-                  <option value={value} key={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-        <PlanTermsFields form={form} onChange={setForm} />
-        {error && <div className="form-error span-2">{error}</div>}
-        <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={loading}>
-            {renewing
-              ? loading
-                ? "Renovando…"
-                : "Renovar plano e gerar parcelas"
-              : loading
-                ? "Criando…"
-                : "Criar plano e parcelas"}
-          </button>
-        </div>
-      </form>
-    </Modal>
+          ) : (
+            <div className="span-2">
+              <label>
+                Plano cadastrado
+                <select
+                  required
+                  value={form.planTemplateId}
+                  disabled={!templates?.length || loading}
+                  onChange={(event) => {
+                    const template = templates?.find(
+                      (item) => item.id === event.target.value,
+                    );
+                    if (!template || (template.planType ? planTypeKind(template.planType) : template.kind) === "single" ||
+                      !template.services.some(entry => groups?.items?.some(group => group.id === groupId && group.serviceId === entry.serviceId))) {
+                      setGroupId("");
+                    }
+                    setForm({
+                      ...form,
+                      planTemplateId: template?.id ?? "",
+                      name: template?.name ?? "",
+                      totalValueInCents: template?.totalValueInCents ?? 0,
+                      services:
+                        template?.services.map((entry) => ({ ...entry })) ?? [],
+                      kind: template?.planType ? planTypeKind(template.planType) : template?.kind ?? "fixed_package",
+                      ...(template?.planType ? { validUntil: planPeriodEnd(template.planType, form.validFrom), autoRenew: Boolean(planPeriodMonths(template.planType)) && form.autoRenew } : {}),
+                    });
+                  }}
+                >
+                  <option value="">Selecione um plano</option>
+                  {templates?.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ·{" "}
+                      {currency.format(item.totalValueInCents / 100)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {catalogError ? (
+                <div className="form-error" role="alert">
+                  {catalogError}{" "}
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    onClick={() => {
+                      setCatalogError("");
+                      setTemplates(null);
+                      setCatalogAttempt((attempt) => attempt + 1);
+                    }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              ) : templates === null ? (
+                <LoadingBlock />
+              ) : templates.length === 0 ? (
+                <p className="muted-copy">
+                  Nenhum plano ativo cadastrado. Cadastre um plano em
+                  Configurações › Planos.
+                  {canView("settings") && (
+                    <>
+                      {" "}
+                      <NavLink to="/configuracoes">Abrir configurações</NavLink>
+                    </>
+                  )}
+                </p>
+              ) : null}
+            </div>
+          )}
+          {!renewing && templates?.find(item => item.id === form.planTemplateId)?.planType && <p className="span-2 muted-copy">
+            {planTypeLabels[templates.find(item => item.id === form.planTemplateId)!.planType!]} · Valor total do período.
+          </p>}
+          {form.services.map((entry, index) => (
+            <fieldset className="span-2 form-grid" key={entry.serviceId}>
+              <legend>
+                {renewing?.services.find(
+                  (item) => item.serviceId === entry.serviceId,
+                )?.serviceName ??
+                  services.find((item) => item.id === entry.serviceId)?.name ??
+                  "Serviço"}
+              </legend>
+              {renewing && (
+                <p className="span-2">
+                  Saldo atual:{" "}
+                  {
+                    renewing.services.find(
+                      (item) => item.serviceId === entry.serviceId,
+                    )?.remainingSessions
+                  }{" "}
+                  sessões. A renovação criará o novo saldo informado abaixo.
+                </p>
+              )}
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={entry.totalSessions}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? { ...item, totalSessions: Number(event.target.value) }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                    });
+                  }}
+                />
+              </label>
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="21474836.47"
+                  step="0.01"
+                  value={entry.totalValueInCents / 100}
+                  onChange={(event) => {
+                    const entries = form.services.map((item, position) =>
+                      position === index
+                        ? {
+                            ...item,
+                            totalValueInCents: Math.round(
+                              Number(event.target.value) * 100,
+                            ),
+                          }
+                        : item,
+                    );
+                    setForm({
+                      ...form,
+                      services: entries,
+                      totalValueInCents: entries.reduce(
+                        (sum, item) => sum + item.totalValueInCents,
+                        0,
+                      ),
+                    });
+                  }}
+                />
+              </label>
+            </fieldset>
+          ))}
+          <label className="span-2">
+            Valor total
+            <input
+              readOnly
+              value={currency.format(form.totalValueInCents / 100)}
+            />
+          </label>
+          <label>
+            Início
+            <input
+              required
+              type="date"
+              value={form.validFrom}
+              onChange={(e) => {
+                const selected = templates?.find(item => item.id === form.planTemplateId);
+                setForm({ ...form, validFrom: e.target.value,
+                  ...(!renewing && selected?.planType && planPeriodMonths(selected.planType) ? { validUntil: planPeriodEnd(selected.planType, e.target.value) } : {}),
+                });
+              }}
+            />
+          </label>
+          <label>
+            Fim da validade
+            <input
+              type="date"
+              value={form.validUntil}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  validUntil: e.target.value,
+                  autoRenew: Boolean(e.target.value) && form.autoRenew,
+                })
+              }
+            />
+          </label>
+          <label>
+            Parcelas
+            <input
+              required
+              type="number"
+              min="1"
+              max="36"
+              value={form.installments}
+              onChange={(e) =>
+                setForm({ ...form, installments: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Primeiro vencimento
+            <input
+              required
+              type="date"
+              value={form.firstDueDate}
+              onChange={(e) =>
+                setForm({ ...form, firstDueDate: e.target.value })
+              }
+            />
+          </label>
+          <label className="checkbox-field span-2">
+            <input
+              type="checkbox"
+              checked={Boolean(form.autoRenew)}
+              disabled={!form.validUntil}
+              onChange={(e) =>
+                setForm({ ...form, autoRenew: e.target.checked })
+              }
+            />
+            {form.validUntil
+              ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+              : "Renovação automática exige o fim da validade"}
+          </label>
+          {groups && form.kind !== "single" && form.services.length > 0 && (
+            <PlanGroupPicker groups={groups} services={form.services} value={groupId}
+              onChange={setGroupId} disabled={loading} />
+          )}
+          </fieldset>
+          {error && <div className="form-error span-2" role="alert">{error}</div>}
+          <div className="modal-actions span-2">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              {fixedPatient ? "Voltar" : "Cancelar"}
+            </button>
+            <button
+              className="primary-button"
+              disabled={loading || !form.patientId || (!renewing && !form.planTemplateId)}
+            >
+              {renewing
+                ? loading
+                  ? "Renovando…"
+                  : "Renovar plano e gerar parcelas"
+                : loading
+                  ? "Criando…"
+                  : "Criar plano e parcelas"}
+            </button>
+          </div>
+        </form>
+      )}
+    </>
   );
 }
+
 
 function SessionMovementsModal({
   plan,
@@ -6412,6 +6880,7 @@ function SessionMovementsModal({
       subtitle={`${plan.remainingSessions} sessões disponíveis no momento.`}
       onClose={onClose}
     >
+      {plan.services.map((entry) => <p key={entry.serviceId}>{entry.serviceName}: {entry.remainingSessions} de {entry.totalSessions} sessões restantes</p>)}
       <div className="movement-list">
         {movements.length === 0 ? (
           <LoadingBlock />
@@ -6427,7 +6896,7 @@ function SessionMovementsModal({
                 {movement.quantity}
               </span>
               <div>
-                <strong>{movement.reason}</strong>
+                <strong>{movement.reason} · {movement.serviceName}</strong>
                 <small>
                   {new Date(movement.createdAt).toLocaleString("pt-BR")}
                 </small>
@@ -6441,6 +6910,7 @@ function SessionMovementsModal({
 }
 
 function FinancePage() {
+  const { can, canEdit } = useAuthorization();
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
     "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
@@ -6591,24 +7061,24 @@ function FinancePage() {
         action={
           canManage && (
           <div className="page-actions">
-            <button
+            {can("finance.categories_create") && (<button
               className="secondary-button"
               onClick={() => setRegistry("category")}
             >
               <Tags size={18} /> Nova categoria
-            </button>
-            <button
+            </button>)}
+            {can("finance.cost_centers_create") && (<button
               className="secondary-button"
               onClick={() => setRegistry("costCenter")}
             >
               <Building2 size={18} /> Novo centro de custo
-            </button>
-            <button
+            </button>)}
+            {can("finance.payables_create") && (<button
               className="primary-button"
               onClick={() => setPayableModal(true)}
             >
               <Plus size={18} /> Nova despesa
-            </button>
+            </button>)}
           </div>
           )
         }
@@ -6786,18 +7256,18 @@ function FinancePage() {
               </div>
               {canManage && (
                 <div className="page-actions">
-                  <button
+                  {can("finance.commission_rules") && (<button
                     className="secondary-button"
                     onClick={() => setCommissionRuleOpen(true)}
                   >
                     <Plus size={18} /> Nova regra
-                  </button>
-                  <button
+                  </button>)}
+                  {can("finance.commissions_generate") && (<button
                     className="primary-button"
                     onClick={() => void generateCommissions()}
                   >
                     Gerar comissões do mês
-                  </button>
+                  </button>)}
                 </div>
               )}
             </div>
@@ -6962,6 +7432,7 @@ function ReceivablesList({
   onAdjust: (item: Receivable) => void;
   onReceipt: (id: string) => void;
 }) {
+ const { can } = useAuthorization();
   if (receivables.length === 0) {
     return (
       <EmptyState
@@ -7062,13 +7533,13 @@ function ReceivablesList({
             >
               Limpar seleção
             </button>
-            <button
+            {can("finance.renegotiate") && (<button
               type="button"
               className="primary-button button-sm"
               onClick={onRenegotiate}
             >
               Renegociar
-            </button>
+            </button>)}
           </div>
         </div>
       )}
@@ -7148,12 +7619,12 @@ function ReceivablesList({
               </span>
               <div className="finance-actions">
                 {canManage && item.status === "open" && (
-                  <button
+                  (can("finance.adjust") && (<button
                     className="secondary-button button-sm"
                     onClick={() => onAdjust(item)}
                   >
                     Ajustar
-                  </button>
+                  </button>))
                 )}
                 {item.status === "paid" && (
                   <button
@@ -7164,20 +7635,20 @@ function ReceivablesList({
                   </button>
                 )}
                 {canManage && item.status === "open" && (
-                  <button
+                  (can("finance.receive") && (<button
                     className="primary-button button-sm"
                     onClick={() => onSettle(item)}
                   >
                     Dar baixa
-                  </button>
+                  </button>))
                 )}
                 {canManage && item.status === "paid" && (
-                  <button
+                  (can("finance.receivables_reverse") && (<button
                     className="danger-button button-sm"
                     onClick={() => onReverse(item.id)}
                   >
                     Estornar
-                  </button>
+                  </button>))
                 )}
               </div>
             </div>
@@ -7206,6 +7677,7 @@ function PayablesList({
   onSettle: (item: Payable) => void;
   onReverse: (id: string) => void;
 }) {
+ const { can } = useAuthorization();
   if (payables.length === 0) {
     return (
       <div className="finance-filter-empty">
@@ -7214,9 +7686,9 @@ function PayablesList({
           copy="Lance a primeira despesa em “Nova despesa” ou cadastre uma despesa fixa logo abaixo."
         />
         {canManage && (
-          <button type="button" className="secondary-button" onClick={onCreate}>
+          (can("finance.payables_create") && (<button type="button" className="secondary-button" onClick={onCreate}>
             <Plus size={18} /> Nova despesa
-          </button>
+          </button>))
         )}
       </div>
     );
@@ -7254,22 +7726,22 @@ function PayablesList({
             </span>
             <div className="finance-actions">
               {canManage && item.status === "open" && (
-                <button
+                (can("finance.payables_pay") && (<button
                   className="primary-button button-sm"
                   aria-label={`Pagar ${item.description}`}
                   onClick={() => onSettle(item)}
                 >
                   Pagar
-                </button>
+                </button>))
               )}
               {canManage && item.status === "paid" && (
-                <button
+                (can("finance.payables_reverse") && (<button
                   className="danger-button button-sm"
                   aria-label={`Estornar ${item.description}`}
                   onClick={() => onReverse(item.id)}
                 >
                   Estornar
-                </button>
+                </button>))
               )}
             </div>
           </div>
@@ -7288,6 +7760,7 @@ function CommissionsList({
   canManage: boolean;
   onToggle: (item: CommissionEntry) => void;
 }) {
+ const { can } = useAuthorization();
   if (commissions.length === 0) {
     return (
       <EmptyState
@@ -7340,7 +7813,7 @@ function CommissionsList({
             </span>
             <div className="finance-actions">
               {canManage && (
-                <button
+                (can(item.status === "paid" ? "finance.commissions_reverse" : "finance.commissions_pay") && (<button
                   className={
                     item.status === "paid"
                       ? "danger-button button-sm"
@@ -7350,7 +7823,7 @@ function CommissionsList({
                   onClick={() => onToggle(item)}
                 >
                   {item.status === "paid" ? "Estornar" : "Pagar"}
-                </button>
+                </button>))
               )}
             </div>
           </div>
@@ -7878,6 +8351,7 @@ function RecurringPayablesSection({
   /** Sem edição do Financeiro: lista só para consulta. */
   editable: boolean;
 }) {
+ const { can } = useAuthorization();
   const [items, setItems] = useState<RecurringPayable[] | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -7931,9 +8405,9 @@ function RecurringPayablesSection({
             </p>
           </div>
           {editable && (
-            <button className="primary-button" onClick={() => setModal(true)}>
+            (can("finance.recurring_create") && (<button className="primary-button" onClick={() => setModal(true)}>
               <Plus size={18} /> Nova despesa fixa
-            </button>
+            </button>))
           )}
         </div>
         {!items ? (
@@ -7994,7 +8468,7 @@ function RecurringPayablesSection({
                   <div className="finance-actions">
                     {editable && status !== "ended" && (
                       <>
-                        <button
+                        {can("finance.recurring_update") && (<button
                           className="secondary-button button-sm"
                           aria-label={`${item.active ? "Pausar" : "Reativar"} ${item.description}`}
                           disabled={busyId === item.id}
@@ -8003,15 +8477,15 @@ function RecurringPayablesSection({
                           }
                         >
                           {item.active ? "Pausar" : "Reativar"}
-                        </button>
-                        <button
+                        </button>)}
+                        {can("finance.recurring_update") && (<button
                           className="danger-button button-sm"
                           aria-label={`Encerrar ${item.description}`}
                           disabled={busyId === item.id}
                           onClick={() => setEnding(item)}
                         >
                           Encerrar
-                        </button>
+                        </button>)}
                       </>
                     )}
                   </div>
@@ -8058,6 +8532,7 @@ function RecurringPayableEndModal({
   onClose: () => void;
   onEnded: () => void;
 }) {
+ const { can } = useAuthorization();
   const [endMonth, setEndMonth] = useState(item.endMonth ?? currentMonth);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -8093,7 +8568,7 @@ function RecurringPayableEndModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("finance.recurring_update") && (<form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Último mês
           <input
@@ -8113,7 +8588,7 @@ function RecurringPayableEndModal({
             {loading ? "Salvando…" : "Encerrar despesa fixa"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -8129,6 +8604,7 @@ function RecurringPayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+ const { can } = useAuthorization();
   const expenseCategories = workspace.categories.filter(
     (item) => item.kind === "expense" && item.active,
   );
@@ -8172,7 +8648,7 @@ function RecurringPayableModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("finance.recurring_create") && (<form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Descrição
           <input
@@ -8289,7 +8765,7 @@ function RecurringPayableModal({
             {loading ? "Salvando…" : "Cadastrar despesa fixa"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -8303,6 +8779,7 @@ function PayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+ const { can } = useAuthorization();
   const expenseCategories = workspace.categories.filter(
     (item) => item.kind === "expense",
   );
@@ -8336,7 +8813,7 @@ function PayableModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("finance.payables_create") && (<form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Descrição
           <input
@@ -8436,7 +8913,7 @@ function PayableModal({
             {loading ? "Salvando…" : "Cadastrar despesa"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -8482,9 +8959,10 @@ function ReceiptModal({
 }
 
 function ClinicalRecordsPage() {
+  const { can, canEdit } = useAuthorization();
   const [records, setRecords] = useState<ClinicalRecord[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [appointments, setAppointments] = useState<ClinicalAppointmentOption[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editor, setEditor] = useState<ClinicalRecord | "new" | null>(null);
@@ -8502,8 +8980,8 @@ function ClinicalRecordsPage() {
     to.setDate(to.getDate() + 2);
     Promise.all([
       api.clinicalRecords(),
-      api.appointments(from.toISOString(), to.toISOString()),
-      api.patients(),
+      api.clinicalAppointmentOptions(from.toISOString(), to.toISOString()),
+      api.patientOptions(),
     ])
       .then(([recordData, appointmentData, patientData]) => {
         if (!active) return;
@@ -8552,7 +9030,7 @@ function ClinicalRecordsPage() {
         description="Evoluções clínicas no formato SOAP, protegidas e rastreáveis."
         action={
           canManage && (
-          <button
+          (can("clinical.records_create") && (<button
             className="primary-button"
             onClick={() => setEditor("new")}
             disabled={availableAppointments.length === 0}
@@ -8564,7 +9042,7 @@ function ClinicalRecordsPage() {
           >
             <FileText size={18} />
             Nova evolução
-          </button>
+          </button>))
           )
         }
       />
@@ -8647,18 +9125,18 @@ function ClinicalRecordsPage() {
                   </button>
                   {canManage && record.status === "draft" && (
                     <>
-                      <button
+                      {can("clinical.records_update") && (<button
                         className="secondary-button button-sm"
                         onClick={() => setEditor(record)}
                       >
                         Editar
-                      </button>
-                      <button
+                      </button>)}
+                      {can("clinical.finalize") && (<button
                         className="primary-button button-sm"
                         onClick={() => setFinalizing(record)}
                       >
                         Finalizar
-                      </button>
+                      </button>)}
                     </>
                   )}
                 </div>
@@ -8703,10 +9181,13 @@ type ActionMenuItem = {
   onSelect: () => void;
   icon?: ReactNode;
   danger?: boolean;
+  permission?: PermissionKey;
 };
 
 /** Menu de ações secundárias acessível por teclado (setas, Esc fecha e devolve o foco ao botão). */
-function ActionMenu({ label, items }: { label: string; items: ActionMenuItem[] }) {
+function ActionMenu({ label, items: allItems }: { label: string; items: ActionMenuItem[] }) {
+  const { can } = useAuthorization();
+  const items = allItems.filter(item => !item.permission || can(item.permission));
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -8798,10 +9279,11 @@ function ClinicalWorkspacePanel({
   patients,
   editable,
 }: {
-  patients: Patient[];
+  patients: PatientOption[];
   /** Sem edição de Prontuários: só consulta, impressão e exportação. */
   editable: boolean;
 }) {
+ const { can } = useAuthorization();
   const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
   const [workspace, setWorkspace] = useState<ClinicalWorkspace | null>(null);
   const [editor, setEditor] = useState<
@@ -8817,20 +9299,16 @@ function ClinicalWorkspacePanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load(targetPatientId = patientId) {
-    if (!targetPatientId) return;
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
+  function load() {
+    setWorkspace(null);
     setLoading(true);
     setError("");
-    try {
-      setWorkspace(await api.clinicalWorkspace(targetPatientId));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    setWorkspaceVersion((version) => version + 1);
   }
 
   useEffect(() => {
+    if (!patientId) return;
     let active = true;
     api
       .clinicalWorkspace(patientId)
@@ -8846,7 +9324,7 @@ function ClinicalWorkspacePanel({
     return () => {
       active = false;
     };
-  }, [patientId]);
+  }, [patientId, workspaceVersion]);
 
   async function exportRecord(print = false) {
     setError("");
@@ -8935,45 +9413,32 @@ function ClinicalWorkspacePanel({
           <span className="eyebrow">Visão longitudinal</span>
           <h2>Acompanhamento terapêutico</h2>
         </div>
-        <label>
-          Cliente
-          <select
-            value={patientId}
-            onChange={(event) => {
-              setLoading(true);
-              setError("");
-              setPatientId(event.target.value);
-            }}
-          >
-            {patients.map((patient) => (
-              <option key={patient.id} value={patient.id}>
-                {patient.fullName}
-              </option>
-            ))}
-          </select>
-        </label>
+        <PatientPicker patients={patients} value={patientId}
+          onChange={(id) => { setWorkspace(null); setEditor(null); setLoading(Boolean(id)); setError(""); setPatientId(id); }} />
       </div>
       {error && <ErrorBanner error={error} />}
-      {loading || !workspace ? (
+      {!patientId ? (
+        <p className="muted-copy">Busque e selecione um cliente para consultar o prontuário.</p>
+      ) : error ? null : loading || !workspace ? (
         <LoadingBlock />
       ) : (
         <>
           <div className="clinical-workspace-actions">
             {editable && (
               <div className="clinical-workspace-main-actions">
-                <button
+                {can("clinical.assessments_create") && (<button
                   className="secondary-button"
                   onClick={() => setEditor("assessment")}
                 >
                   Nova avaliação
-                </button>
-                <button
+                </button>)}
+                {can("clinical.measurements_create") && (<button
                   className="secondary-button"
                   onClick={() => setEditor("measurement")}
                 >
                   Nova medição
-                </button>
-                <button
+                </button>)}
+                {can("clinical.addenda_create") && (<button
                   className="secondary-button"
                   onClick={() => setEditor("addendum")}
                   disabled={workspace.records.every(
@@ -8981,31 +9446,31 @@ function ClinicalWorkspacePanel({
                   )}
                 >
                   Adicionar adendo
-                </button>
+                </button>)}
                 <ActionMenu
                   label="Mais ações"
                   items={[
-                    { label: "Novo modelo", onSelect: () => setEditor("template") },
-                    { label: "Novo objetivo", onSelect: () => setEditor("goal") },
-                    { label: "Anexar arquivo", icon: <Paperclip size={15} />, onSelect: () => setEditor("attachment") },
-                    { label: "Encerrar tratamento", danger: true, onSelect: () => setEditor("closure") },
+                    { label: "Novo modelo", permission: "clinical.templates_create", onSelect: () => setEditor("template") },
+                    { label: "Novo objetivo", permission: "clinical.goals_create", onSelect: () => setEditor("goal") },
+                    { label: "Anexar arquivo", icon: <Paperclip size={15} />, permission: "clinical.attachments_create", onSelect: () => setEditor("attachment") },
+                    { label: "Encerrar tratamento", danger: true, permission: "clinical.closures_create", onSelect: () => setEditor("closure") },
                   ]}
                 />
               </div>
             )}
             <div className="clinical-workspace-output-actions">
-              <button
+              {can("clinical.export") && (<button
                 className="secondary-button"
                 onClick={() => void exportRecord(true)}
               >
                 <Printer size={15} /> Imprimir
-              </button>
-              <button
+              </button>)}
+              {can("clinical.export") && (<button
                 className="secondary-button"
                 onClick={() => void exportRecord()}
               >
                 <Download size={15} /> Exportar
-              </button>
+              </button>)}
             </div>
           </div>
           <div className="clinical-workspace-grid">
@@ -9046,7 +9511,7 @@ function ClinicalWorkspacePanel({
                         )}
                       </div>
                       {editable && goal.status === "active" && (
-                        <button
+                        (can("clinical.goals_status") && (<button
                           className="text-button button-sm"
                           onClick={async () => {
                             try {
@@ -9061,7 +9526,7 @@ function ClinicalWorkspacePanel({
                           }}
                         >
                           Marcar alcançado
-                        </button>
+                        </button>))
                       )}
                     </article>
                   );
@@ -9111,12 +9576,12 @@ function ClinicalWorkspacePanel({
                       {attachment.authorName}
                     </small>
                   </div>
-                  <button
+                  {can("clinical.attachments_read") && (<button
                     className="text-button button-sm"
                     onClick={() => void downloadAttachment(attachment.id)}
                   >
                     Baixar
-                  </button>
+                  </button>)}
                 </article>
               ))
             )}
@@ -9309,6 +9774,7 @@ function ClinicalAttachmentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -9352,7 +9818,7 @@ function ClinicalAttachmentModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.attachments_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Arquivo
           <input
@@ -9379,7 +9845,7 @@ function ClinicalAttachmentModal({
             {loading ? "Enviando…" : "Anexar arquivo"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -9393,6 +9859,7 @@ function ClinicalAddendumModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalAddendumInput>({
     clinicalRecordId: records[0]?.id ?? "",
     reason: "",
@@ -9422,7 +9889,7 @@ function ClinicalAddendumModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.addenda_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Evolução finalizada
           <select
@@ -9472,7 +9939,7 @@ function ClinicalAddendumModal({
             {loading ? "Salvando…" : "Registrar adendo"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -9484,6 +9951,7 @@ function AssessmentTemplateModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<AssessmentTemplateInput>({
     name: "",
     specialty: "Fisioterapia",
@@ -9532,7 +10000,7 @@ function AssessmentTemplateModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.templates_create") && (<form className="clinical-form" onSubmit={submit}>
         <div className="clinical-form-row">
           <label>
             Nome do modelo
@@ -9662,7 +10130,7 @@ function AssessmentTemplateModal({
           </button>
           <button className="primary-button" disabled={saving}>Salvar modelo</button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -9678,6 +10146,7 @@ function ClinicalAssessmentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [values, setValues] = useState<
     Record<string, string | number | boolean>
@@ -9713,7 +10182,7 @@ function ClinicalAssessmentModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.assessments_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Modelo
           <select
@@ -9793,7 +10262,7 @@ function ClinicalAssessmentModal({
             Registrar avaliação
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -9807,6 +10276,7 @@ function TherapeuticGoalModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<TherapeuticGoalInput>({
     patientId,
     title: "",
@@ -9833,7 +10303,7 @@ function TherapeuticGoalModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.goals_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Objetivo
           <input
@@ -9903,7 +10373,7 @@ function TherapeuticGoalModal({
           </button>
           <button className="primary-button" disabled={saving}>Salvar objetivo</button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -9919,6 +10389,7 @@ function ClinicalMeasurementModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalMeasurementInput>({
     patientId,
     goalId: goals[0]?.id ?? "",
@@ -9948,7 +10419,7 @@ function ClinicalMeasurementModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.measurements_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Objetivo relacionado
           <select
@@ -10022,7 +10493,7 @@ function ClinicalMeasurementModal({
           </button>
           <button className="primary-button" disabled={saving}>Registrar medição</button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -10036,6 +10507,7 @@ function TreatmentClosureModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<TreatmentClosureInput>({
     patientId,
     kind: "discharge",
@@ -10063,7 +10535,7 @@ function TreatmentClosureModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can("clinical.closures_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Motivo
           <select
@@ -10107,7 +10579,7 @@ function TreatmentClosureModal({
           </button>
           <button className="primary-button" disabled={saving}>Registrar encerramento</button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -10119,10 +10591,11 @@ function ClinicalRecordModal({
   onSaved,
 }: {
   record: ClinicalRecord | undefined;
-  appointments: Appointment[];
+  appointments: ClinicalAppointmentOption[];
   onClose: () => void;
   onSaved: (record: ClinicalRecord) => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalRecordInput>({
     appointmentId: record?.appointmentId ?? appointments[0]?.id ?? "",
     subjective: record?.subjective ?? "",
@@ -10154,7 +10627,7 @@ function ClinicalRecordModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="clinical-form" onSubmit={submit}>
+      {can(record ? "clinical.records_update" : "clinical.records_create") && (<form className="clinical-form" onSubmit={submit}>
         <label>
           Atendimento
           <select
@@ -10257,7 +10730,7 @@ function ClinicalRecordModal({
             {loading ? "Salvando…" : "Salvar rascunho"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -10324,13 +10797,14 @@ function ClinicalHistoryModal({
  * Clientes da Agenda: quem vê Clientes recebe o cadastro completo (detalhes do atendimento); os
  * demais, só a lista mínima para escolher o cliente (`GET /patients/options`).
  */
-async function fetchAgendaPatients(): Promise<{ options: PatientOption[]; records: Patient[] }> {
-  if (!canView("patients")) return { options: await api.patientOptions(), records: [] };
+async function fetchAgendaPatients(canSeePatients: boolean): Promise<{ options: PatientOption[]; records: Patient[] }> {
+  if (!canSeePatients) return { options: await api.patientOptions(), records: [] };
   const records = await api.patients();
   return { options: records, records };
 }
 
 function AgendaPage() {
+  const { can, canView, canEdit } = useAuthorization();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<"day" | "week" | "month">("day");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -10350,7 +10824,7 @@ function AgendaPage() {
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const canSchedule = canEdit("agenda");
   // Bloqueios exigem editar Agenda E Clientes (mesma regra da API).
-  const canBlock = canEdit("agenda", "patients");
+  const canBlock = can("agenda.blocks_create");
   const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
   const [historyAppointment, setHistoryAppointment] = useState<Appointment | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -10400,7 +10874,7 @@ function AgendaPage() {
       api.professionals(),
       api.rooms(),
       api.services(),
-      fetchAgendaPatients(),
+      fetchAgendaPatients(canView("patients")),
     ])
       .then(
         ([
@@ -10434,7 +10908,7 @@ function AgendaPage() {
     return () => {
       active = false;
     };
-  }, [rangeFrom, rangeTo, holidayFrom, holidayTo]);
+  }, [rangeFrom, rangeTo, holidayFrom, holidayTo, canView]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -10462,21 +10936,21 @@ function AgendaPage() {
           (canBlock || canSchedule) && (
           <div className="page-actions">
             {canBlock && (
-            <button
+            (can("agenda.blocks_create") && (<button
               className="secondary-button"
               onClick={() => setBlockModalOpen(true)}
             >
               Bloquear horário
-            </button>
+            </button>))
             )}
             {canSchedule && (
-            <button
+            (can("agenda.create") && (<button
               className="primary-button"
               onClick={() => setModalOpen(true)}
             >
               <Plus size={18} />
               Novo atendimento
-            </button>
+            </button>))
             )}
           </div>
           )
@@ -10626,7 +11100,7 @@ function AgendaPage() {
                           compact
                           block={entry.block}
                           key={entry.block.id}
-                          onCancel={canBlock ? () => setCancellingBlock(entry.block) : undefined}
+                          onCancel={can("agenda.blocks_cancel") ? () => setCancellingBlock(entry.block) : undefined}
                         />
                       ) : entry.kind === "group" ? (
                         <GroupSessionCard compact session={entry.session} key={entry.session.id} />
@@ -10684,7 +11158,7 @@ function AgendaPage() {
                 <ScheduleBlockCard
                   block={entry.block}
                   key={entry.block.id}
-                  onCancel={canBlock ? () => setCancellingBlock(entry.block) : undefined}
+                  onCancel={can("agenda.blocks_cancel") ? () => setCancellingBlock(entry.block) : undefined}
                 />
               ) : entry.kind === "group" ? (
                 <GroupSessionCard session={entry.session} key={entry.session.id} />
@@ -10694,7 +11168,7 @@ function AgendaPage() {
                   key={entry.appointment.id}
                   onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
                   onHistory={() => setHistoryAppointment(entry.appointment)}
-                  onStatus={canSchedule ? (status) => changeAppointmentStatus(entry.appointment, status) : undefined}
+                  onStatus={(can("agenda.attendance") || can("agenda.cancel")) ? (status) => changeAppointmentStatus(entry.appointment, status) : undefined}
                 />
               ),
             )}
@@ -10703,11 +11177,14 @@ function AgendaPage() {
       </section>
       {modalOpen && (
         <AppointmentModal
-          date={selectedDate}
           patients={patients}
           professionals={professionals}
           rooms={rooms}
           services={services}
+          onPatientCreated={(patient) => {
+            setPatients((items) => [...items.filter((item) => item.id !== patient.id), patient]);
+            setPatientRecords((items) => [...items.filter((item) => item.id !== patient.id), patient]);
+          }}
           onClose={() => setModalOpen(false)}
           onCreated={(appointment) => {
             setAppointments((items) =>
@@ -10961,6 +11438,7 @@ function ScheduleBlockCard({
   /** Sem `onCancel` (sem permissão de edição) o botão de cancelar não aparece. */
   onCancel?: (() => void) | undefined;
 }) {
+ const { can } = useAuthorization();
   return (
     <article
       className={`schedule-block ${compact ? "compact" : ""} ${block.status}`}
@@ -10980,9 +11458,9 @@ function ScheduleBlockCard({
         )}
       </div>
       {block.status === "active" && !compact && onCancel && (
-        <button className="danger-button button-sm" onClick={onCancel}>
+        (can("agenda.blocks_cancel") && (<button className="danger-button button-sm" onClick={onCancel}>
           Cancelar bloqueio
-        </button>
+        </button>))
       )}
     </article>
   );
@@ -11000,6 +11478,7 @@ function AgendaCard({
   onStatus?: ((status: AppointmentStatus) => void) | undefined;
   onHistory: () => void;
 }) {
+ const { can } = useAuthorization();
   return (
     <article
       className="agenda-card"
@@ -11035,13 +11514,13 @@ function AgendaCard({
             title={onStatus ? undefined : "Seu acesso à Agenda é só de consulta."}
             aria-label="Status do atendimento"
           >
-            <option value="scheduled">Agendado</option>
-            <option value="confirmed">Confirmado</option>
-            <option value="completed">Finalizado</option>
-            <option value="no_show">Não compareceu</option>
-            <option value="excused_absence">Ausência justificada</option>
-            <option value="professional_absence">Ausência profissional</option>
-            <option value="cancelled">Cancelado</option>
+            {(appointment.status === "scheduled" || can("agenda.attendance")) && (<option value="scheduled">Agendado</option>)}
+            {(appointment.status === "confirmed" || can("agenda.attendance")) && (<option value="confirmed">Confirmado</option>)}
+            {(appointment.status === "completed" || can("agenda.attendance")) && (<option value="completed">Finalizado</option>)}
+            {(appointment.status === "no_show" || can("agenda.attendance")) && (<option value="no_show">Não compareceu</option>)}
+            {(appointment.status === "excused_absence" || can("agenda.attendance")) && (<option value="excused_absence">Ausência justificada</option>)}
+            {(appointment.status === "professional_absence" || can("agenda.attendance")) && (<option value="professional_absence">Ausência profissional</option>)}
+            {(appointment.status === "cancelled" || can("agenda.cancel")) && (<option value="cancelled">Cancelado</option>)}
           </select>
           <button
             className="icon-button button-sm"
@@ -11075,6 +11554,7 @@ function AppointmentDetailsModal({
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
 }) {
+ const { can } = useAuthorization();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
@@ -11090,7 +11570,6 @@ function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
-  const [sosOpen, setSosOpen] = useState(false);
   useEffect(() => {
     if (!isCompleted) return;
     let active = true;
@@ -11140,12 +11619,6 @@ function AppointmentDetailsModal({
   return (
     <Modal title="Detalhes do atendimento" subtitle={appointment.patientName} busy={cancelling} onClose={onClose}>
       <div className="appointment-details">
-        {!isLead && appointment.patientId && (
-          <div className="sos-area">
-            <SosButton open={sosOpen} onToggle={() => setSosOpen((current) => !current)} />
-            {sosOpen && <SosPanel patient={patient} />}
-          </div>
-        )}
         <section className="appointment-detail-section">
           <h3>Atendimento marcado</h3>
           <div className="appointment-detail-grid">
@@ -11178,9 +11651,9 @@ function AppointmentDetailsModal({
               <div><small>Telefone</small><strong>{patient.phone ? formatPhone(patient.phone) : "Não informado"}</strong></div>
               <div><small>WhatsApp</small><strong>{patient.whatsapp ? formatPhone(patient.whatsapp) : "Mesmo telefone de contato"}</strong></div>
               <div><small>E-mail</small><strong>{patient.email || "Não informado"}</strong></div>
-              <div><small>CPF</small><strong>{patient.cpf || "Não informado"}</strong></div>
+              <div><small>CPF</small><strong>{patient.cpf ? formatCpf(patient.cpf) : "Não informado"}</strong></div>
               <div><small>Nascimento</small><strong>{patient.birthDate ? formatIsoDate(patient.birthDate) : "Não informado"}</strong></div>
-              <div className="detail-wide"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
+              <div className="detail-wide emergency-contact"><small>Contato de emergência</small><strong>{patient.emergencyContactName || patient.emergencyContactPhone ? [patient.emergencyContactName, patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone)].filter(Boolean).join(" · ") : "Não informado"}</strong></div>
               <div><small>Situação</small><strong>{patient.status === "active" ? "Ativo" : "Inativo"}</strong></div>
               <div className="detail-wide">
                 <small>Etiquetas</small>
@@ -11190,7 +11663,7 @@ function AppointmentDetailsModal({
                   ) : (
                     <strong>Sem etiquetas</strong>
                   )}
-                  {canEdit("settings") && (
+                  {can("settings.tags_update") && (
                     <Link className="text-link" to="/configuracoes?secao=etiquetas">
                       Gerenciar etiquetas
                     </Link>
@@ -11209,14 +11682,14 @@ function AppointmentDetailsModal({
             <span>O horário será liberado na agenda.</span>
             <div>
               <button className="secondary-button" onClick={() => setConfirmCancel(false)} disabled={cancelling}>Voltar</button>
-              <button className="danger-button" onClick={() => void cancelAppointment()} disabled={cancelling}>{cancelling ? "Cancelando…" : "Confirmar cancelamento"}</button>
+              {can("agenda.cancel") && (<button className="danger-button" onClick={() => void cancelAppointment()} disabled={cancelling}>{cancelling ? "Cancelando…" : "Confirmar cancelamento"}</button>)}
             </div>
           </div>
         )}
         {editable && !confirmCancel && canChange && (
           <div className="appointment-detail-actions">
-            <button className="danger-button" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>
-            <button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>
+            {can("agenda.cancel") && (<button className="danger-button" onClick={() => setConfirmCancel(true)}>Cancelar atendimento</button>)}
+            {can("agenda.reschedule") && (<button className="primary-button" onClick={onReschedule}>Remarcar atendimento</button>)}
           </div>
         )}
         {isCompleted && survey && (
@@ -11227,65 +11700,11 @@ function AppointmentDetailsModal({
         )}
         {editable && isCompleted && surveyChecked && !survey && !alreadyRated && (
           <div className="appointment-detail-actions">
-            <button className="primary-button" onClick={() => setRating(true)}>Registrar satisfação</button>
+            {can("agenda.satisfaction_create") && (<button className="primary-button" onClick={() => setRating(true)}>Registrar satisfação</button>)}
           </div>
         )}
       </div>
     </Modal>
-  );
-}
-
-function SosButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button type="button" className="secondary-button sos-button" aria-expanded={open} onClick={onToggle}>
-      <Siren size={16} aria-hidden="true" /> SOS
-    </button>
-  );
-}
-
-const emergencyShortcuts: Array<[string, string]> = [
-  ["190", "Polícia"],
-  ["192", "SAMU"],
-  ["193", "Bombeiros"],
-];
-
-// Painel de emergência: contato cadastrado do cliente e atalhos para os serviços públicos.
-function SosPanel({ patient }: { patient: Patient | undefined }) {
-  const name = patient?.emergencyContactName?.trim() ?? "";
-  const phone = phoneDigits(patient?.emergencyContactPhone ?? "");
-  return (
-    <section className="sos-panel" aria-label="SOS">
-      <div className="sos-contact">
-        <small>Contato de emergência</small>
-        {!patient ? (
-          <p>Dados do cliente indisponíveis no momento.</p>
-        ) : name || phone ? (
-          <>
-            <strong>{name || "Nome não informado"}</strong>
-            {phone ? <span>{formatPhone(phone)}</span> : <p>Telefone não cadastrado.</p>}
-            {phone && (
-              <div className="sos-actions">
-                <a className="secondary-button" href={`tel:${phone}`}>
-                  <Phone size={15} aria-hidden="true" /> Ligar
-                </a>
-                <a className="whatsapp-button" href={whatsappLink(phone, "")} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle size={15} aria-hidden="true" /> WhatsApp
-                </a>
-              </div>
-            )}
-          </>
-        ) : (
-          <p>Contato de emergência não cadastrado</p>
-        )}
-      </div>
-      <div className="sos-actions">
-        {emergencyShortcuts.map(([number, label]) => (
-          <a key={number} className="secondary-button sos-shortcut" href={`tel:${number}`}>
-            <PhoneCall size={15} aria-hidden="true" /> {number} · {label}
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -11300,6 +11719,7 @@ function SatisfactionSurveyModal({
   onSaved: (survey: SatisfactionSurvey) => void;
   onDuplicate: () => void;
 }) {
+ const { can } = useAuthorization();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -11335,7 +11755,7 @@ function SatisfactionSurveyModal({
   }
   return (
     <Modal title="Registrar satisfação" subtitle={appointment.patientName} eyebrow="Pesquisa NPS" busy={saving} onClose={onClose}>
-      <form className="form-grid" onSubmit={(event) => void save(event)}>
+      {can("agenda.satisfaction_create") && (<form className="form-grid" onSubmit={(event) => void save(event)}>
         <fieldset className="span-2 form-fieldset">
           <legend>De 0 a 10, quanto recomendaria a clínica a um amigo?</legend>
           <div className="tag-filter-list">
@@ -11362,7 +11782,7 @@ function SatisfactionSurveyModal({
           <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>Voltar</button>
           <button type="submit" className="primary-button" disabled={score === null || saving}>{saving ? "Salvando…" : "Salvar avaliação"}</button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -11380,6 +11800,7 @@ function AppointmentRescheduleModal({
   onClose: () => void;
   onSaved: (appointment: Appointment) => void;
 }) {
+ const { can } = useAuthorization();
   const [form, setForm] = useState({
     professionalId: appointment.professionalId,
     roomId: appointment.roomId,
@@ -11412,7 +11833,7 @@ function AppointmentRescheduleModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("agenda.reschedule") && (<form className="form-grid" onSubmit={submit}>
         <label>
           Profissional
           <select
@@ -11437,15 +11858,12 @@ function AppointmentRescheduleModal({
             ))}
           </select>
         </label>
-        <label className="span-2">
-          Nova data e horário
-          <input
-            required
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-          />
-        </label>
+        <div className="span-2">
+          <AppointmentDateTimePicker value={form.startsAt}
+            onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+            professionalId={form.professionalId} roomId={form.roomId}
+            disabled={loading} excludeAppointmentId={appointment.id} label="Nova data e horário" />
+        </div>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
@@ -11455,7 +11873,7 @@ function AppointmentRescheduleModal({
             {loading ? "Salvando…" : "Confirmar reagendamento"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -11511,42 +11929,84 @@ function AppointmentRescheduleHistoryModal({
   );
 }
 
-function AppointmentModal({
-  date,
-  patients,
-  professionals,
-  rooms,
-  services,
-  onClose,
-  onCreated,
-}: {
-  date: Date;
+type AppointmentModalProps = {
   patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];
   services: Service[];
   onClose: () => void;
-  onCreated: (appointment: Appointment[]) => void;
+  onCreated: (appointments: Appointment[]) => void;
+  onPatientCreated: (patient: Patient) => void;
+};
+
+function AppointmentModal({ onClose, onCreated, ...props }: AppointmentModalProps) {
+  const [busy, setBusy] = useState(false);
+  const [inactive, setInactive] = useState(false);
+  return (
+    <Modal title="Novo atendimento" subtitle="A dura??o e o valor seguem o servi?o selecionado."
+      busy={busy} inactive={inactive} onClose={onClose}>
+      <AppointmentForm {...props} onCancel={onClose} onBusyChange={setBusy}
+        onNestedModalChange={setInactive} onSubmit={async (input, recurrence) => {
+          onCreated(recurrence
+            ? await api.createRecurringAppointments({ ...input, ...recurrence })
+            : [await api.createAppointment(input)]);
+        }} />
+    </Modal>
+  );
+}
+
+function AppointmentForm({ patients, professionals, rooms, services, fixedPatient,
+  onCancel, onBusyChange, onSubmit, onPatientCreated, onNestedModalChange,
+}: {
+  patients: PatientOption[];
+  professionals: Professional[];
+  rooms: Room[];
+  services: Service[];
+  fixedPatient?: PatientOption;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onSubmit: (input: AppointmentInput, recurrence?: { occurrences: number; intervalWeeks: number }) => Promise<void>;
+  onPatientCreated?: (patient: Patient) => void;
+  onNestedModalChange?: (open: boolean) => void;
 }) {
-  const initialTime = new Date(date);
-  initialTime.setHours(9, 0, 0, 0);
+  const { can } = useAuthorization();
   const [form, setForm] = useState({
-    patientId: patients[0]?.id ?? "",
-    visitType: "regular" as AppointmentVisitType,
-    professionalId: professionals[0]?.id ?? "",
-    roomId: rooms[0]?.id ?? "",
-    serviceId: services[0]?.id ?? "",
-    startsAt: toLocalDateTimeInput(initialTime),
+    patientId: fixedPatient?.id ?? "",
+    visitType: "" as AppointmentVisitType | "",
+    professionalId: "",
+    roomId: "",
+    serviceId: "",
+    startsAt: "",
     notes: "",
-    recurring: false,
+    recurring: can("agenda.recurring") && !can("agenda.create"),
     occurrences: 4,
     intervalWeeks: 1,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(null);
+  const [pickerVersion, setPickerVersion] = useState(0);
+  const patientInputRef = useRef<HTMLInputElement>(null);
+  const patientChoices = selectedPatient && !patients.some((patient) => patient.id === selectedPatient.id)
+    ? [...patients, selectedPatient] : patients;
+  function closePatientModal() {
+    setPatientModalOpen(false);
+    onNestedModalChange?.(false);
+    requestAnimationFrame(() => patientInputRef.current?.focus());
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
+    if (!form.patientId) {
+      setError("Selecione um cliente para confirmar o atendimento.");
+      patientInputRef.current?.focus();
+      return;
+    }
+    submitting.current = true;
     setLoading(true);
+    onBusyChange(true);
     setError("");
     try {
       const input: AppointmentInput = {
@@ -11556,17 +12016,11 @@ function AppointmentModal({
         serviceId: form.serviceId,
         startsAt: new Date(form.startsAt).toISOString(),
         notes: form.notes,
-        visitType: form.visitType,
+        visitType: form.visitType as AppointmentVisitType,
       };
-      onCreated(
-        form.recurring
-          ? await api.createRecurringAppointments({
-              ...input,
-              occurrences: form.occurrences,
-              intervalWeeks: form.intervalWeeks,
-            })
-          : [await api.createAppointment(input)],
-      );
+      await onSubmit(input, form.recurring
+        ? { occurrences: form.occurrences, intervalWeeks: form.intervalWeeks }
+        : undefined);
     } catch (cause) {
       setError(
         cause instanceof ApiClientError
@@ -11574,37 +12028,33 @@ function AppointmentModal({
           : "Não foi possível agendar.",
       );
     } finally {
+      submitting.current = false;
       setLoading(false);
+      onBusyChange(false);
     }
   }
   return (
-    <Modal
-      title="Novo atendimento"
-      subtitle="A duração e o valor seguem o serviço selecionado."
-      busy={loading}
-      onClose={onClose}
-    >
-      <form className="form-grid" onSubmit={submit}>
-        <label>
-          Cliente
-          <select
-            required
-            value={form.patientId}
-            onChange={(e) => setForm({ ...form, patientId: e.target.value })}
-          >
-            {patients.map((item) => (
-              <option value={item.id} key={item.id}>
-                {item.fullName}
-              </option>
-            ))}
-          </select>
-        </label>
+    <>
+      {(can("agenda.create") || can("agenda.recurring")) && (<form className="form-grid" onSubmit={submit}>
+        <fieldset className="form-fields form-grid span-2" disabled={loading}>
+        {fixedPatient ? <FixedPatient patient={fixedPatient} /> : <div>
+          <PatientPicker required key={pickerVersion} patients={patientChoices}
+            value={form.patientId} inputRef={patientInputRef}
+            disabled={loading} onAddPatient={can("patients.create") && onPatientCreated ? () => { setPatientModalOpen(true); onNestedModalChange?.(true); } : undefined}
+            onChange={(patientId, patient) => {
+              if (patient) setSelectedPatient(patient);
+              setForm((current) => ({ ...current, patientId }));
+            }} />
+        </div>}
         <label>
           Tipo
           <select
+            autoFocus={Boolean(fixedPatient)}
+            required
             value={form.visitType}
             onChange={(e) => setForm({ ...form, visitType: e.target.value as AppointmentVisitType })}
           >
+            <option value="">Selecione</option>
             {appointmentVisitTypes.map((item) => (
               <option value={item} key={item}>
                 {visitTypeLabels[item]}
@@ -11616,6 +12066,7 @@ function AppointmentModal({
           <input
             type="checkbox"
             checked={form.recurring}
+            disabled={!can("agenda.create") || !can("agenda.recurring")}
             onChange={(e) => setForm({ ...form, recurring: e.target.checked })}
           />
           Repetir este atendimento
@@ -11659,6 +12110,7 @@ function AppointmentModal({
               setForm({ ...form, professionalId: e.target.value })
             }
           >
+            <option value="">Selecione</option>
             {professionals.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.fullName}
@@ -11673,6 +12125,7 @@ function AppointmentModal({
             value={form.roomId}
             onChange={(e) => setForm({ ...form, roomId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {rooms.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name}
@@ -11687,6 +12140,7 @@ function AppointmentModal({
             value={form.serviceId}
             onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
           >
+            <option value="">Selecione</option>
             {services.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name} · {currency.format(item.priceInCents / 100)}
@@ -11694,15 +12148,12 @@ function AppointmentModal({
             ))}
           </select>
         </label>
-        <label>
-          Data e horário
-          <input
-            required
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-          />
-        </label>
+        <div>
+          <AppointmentDateTimePicker value={form.startsAt}
+            onChange={(startsAt) => setForm((current) => ({ ...current, startsAt }))}
+            professionalId={form.professionalId} roomId={form.roomId}
+            disabled={loading} />
+        </div>
         <label className="span-2">
           Observação
           <textarea
@@ -11711,18 +12162,33 @@ function AppointmentModal({
             rows={3}
           />
         </label>
-        {error && <div className="form-error span-2">{error}</div>}
+        </fieldset>
+        {error && <div className="form-error span-2" role="alert">{error}</div>}
         <div className="modal-actions span-2">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancelar
+          <button type="button" className="secondary-button" onClick={onCancel} disabled={loading}>
+            {fixedPatient ? "Voltar" : "Cancelar"}
           </button>
-          <button className="primary-button" disabled={loading}>
+          <button className="primary-button" disabled={loading || !form.patientId}>
             {loading ? "Agendando…" : "Confirmar atendimento"}
           </button>
         </div>
-      </form>
-    </Modal>
+      </form>)}
+    {patientModalOpen && createPortal(<AppointmentPatientCreateModal onClose={closePatientModal} onSaved={(patient) => {
+      onPatientCreated?.(patient);
+      setSelectedPatient(patient);
+      setPickerVersion((version) => version + 1);
+      setForm((current) => ({ ...current, patientId: patient.id }));
+      closePatientModal();
+    }} />, document.body)}
+    </>
   );
+}
+
+function AppointmentPatientCreateModal({ onClose, onSaved }: {
+  onClose: () => void; onSaved: (patient: Patient) => void;
+}) {
+  const configuredTags = usePatientTags();
+  return <PatientModal patient={undefined} configuredTags={configuredTags} onClose={onClose} onSaved={onSaved} />;
 }
 
 function ScheduleBlockModal({
@@ -11738,6 +12204,7 @@ function ScheduleBlockModal({
   onClose: () => void;
   onCreated: (block: ScheduleBlock) => void;
 }) {
+ const { can } = useAuthorization();
   const initialStart = new Date(date);
   initialStart.setHours(12, 0, 0, 0);
   const initialEnd = new Date(initialStart);
@@ -11780,7 +12247,7 @@ function ScheduleBlockModal({
       busy={loading}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      {can("agenda.blocks_create") && (<form className="form-grid" onSubmit={submit}>
         <label>
           Tipo
           <select
@@ -11861,13 +12328,13 @@ function ScheduleBlockModal({
             {loading ? "Bloqueando…" : "Criar bloqueio"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
 
 /**
- * Aviso de edição não salva (fechar gaveta ou sair pelo menu): Salvar (só segue se der certo; o
+ * Aviso de edição não salva (trocar de aba ou sair pelo menu): Salvar (só segue se der certo; o
  * erro fica no modal), Descartar (volta aos valores salvos e segue) ou Continuar editando.
  */
 function UnsavedChangesModal({
@@ -11945,31 +12412,48 @@ function UnsavedChangesModal({
 function useUnsavedChangesPrompt({
   section,
   dirty,
+  busy = false,
   save,
   discard,
 }: {
   section: string;
   dirty: boolean;
+  busy?: boolean;
   save: () => Promise<void>;
   discard: () => void;
 }) {
   const [pending, setPending] = useState<{ proceed: () => void } | null>(null);
   const navigate = useNavigate();
+  const registerTabGuard = useContext(SettingsPanelContext)?.registerGuard;
   const registerGuard = useContext(NavigationGuardContext);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !busy) return;
     return registerGuard((to) => {
+      if (busy) return true;
       setPending({ proceed: () => void navigate(to) });
       return true;
     });
-  }, [dirty, registerGuard, navigate]);
+  }, [dirty, busy, registerGuard, navigate]);
   const confirmLeave = useCallback(
     (proceed: () => void) => {
+      if (busy) return;
       if (dirty) setPending({ proceed });
       else proceed();
     },
-    [dirty],
+    [dirty, busy],
   );
+  useEffect(() => {
+    if (registerTabGuard) return registerTabGuard(confirmLeave);
+  }, [registerTabGuard, confirmLeave]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const modal = pending && (
     <UnsavedChangesModal
       section={section}
@@ -11989,122 +12473,445 @@ function useUnsavedChangesPrompt({
   return { confirmLeave, modal };
 }
 
-/**
- * Seção recolhível (gaveta) com o visual de `.panel`/`panel-head`: começa fechada e abre pelo
- * título — botão nativo dentro do `h2` (Enter/Espaço), com `aria-expanded`/`aria-controls`.
- * Fechada, o conteúdo não é montado: componentes que buscam os próprios dados só buscam ao abrir
- * (e mostram carregando/erro nesse momento). Pode ser controlada (`open` + `onOpenChange`).
- */
-function CollapsibleSection({
-  title,
-  eyebrow,
-  className,
-  open: controlledOpen,
-  onOpenChange,
+type SettingsTabKey =
+  "clinic" | "users" | "plans" | "holidays" | "tags" | "relationship";
+type CloseGuard = (proceed: () => void) => void;
+
+const SettingsPanelContext = createContext<{
+  registerGuard: (guard: CloseGuard) => () => void;
+  registerBusy: () => () => void;
+} | null>(null);
+
+function useSettingsBusy(busy: boolean) {
+  const register = useContext(SettingsPanelContext)?.registerBusy;
+  useEffect(() => {
+    if (busy && register) return register();
+  }, [busy, register]);
+}
+
+const settingsTabs: Array<{
+  key: SettingsTabKey;
+  label: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+}> = [
+  {
+    key: "clinic",
+    label: "Clínica",
+    title: "Dados da clínica",
+    description:
+      "Mantenha a identificação e os canais de contato da sua clínica atualizados.",
+    icon: Building2,
+    adminOnly: true,
+  },
+  {
+    key: "users",
+    label: "Usuários",
+    title: "Usuários",
+    description: "Gerencie a equipe, os acessos e as permissões individuais.",
+    icon: Users,
+    adminOnly: true,
+  },
+  {
+    key: "plans",
+    label: "Planos",
+    title: "Planos",
+    description: "Organize o catálogo de planos disponíveis para novas vendas.",
+    icon: PackageOpen,
+  },
+  {
+    key: "holidays",
+    label: "Feriados",
+    title: "Feriados",
+    description: "Defina as datas em que a clínica não realiza atendimentos.",
+    icon: CalendarDays,
+    adminOnly: true,
+  },
+  {
+    key: "tags",
+    label: "Etiquetas",
+    title: "Etiquetas",
+    description:
+      "Organize os clientes com etiquetas para filtros e comunicações.",
+    icon: Tags,
+  },
+  {
+    key: "relationship",
+    label: "Relacionamento",
+    title: "Prazos e mensagens",
+    description:
+      "Configure quando entrar em contato e as mensagens sugeridas para cada situação.",
+    icon: HeartHandshake,
+  },
+];
+
+function SettingsPanel({
+  tab,
+  active,
+  baseId,
+  registerGuard,
+  registerBusy,
   children,
 }: {
-  title: string;
-  eyebrow?: string;
-  className?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  tab: (typeof settingsTabs)[number];
+  active: boolean;
+  baseId: string;
+  registerGuard: (key: SettingsTabKey, guard: CloseGuard) => () => void;
+  registerBusy: () => () => void;
   children: ReactNode;
 }) {
-  const [innerOpen, setInnerOpen] = useState(false);
-  const open = controlledOpen ?? innerOpen;
-  const bodyId = useId();
-  function toggle() {
-    if (controlledOpen === undefined) setInnerOpen(!open);
-    onOpenChange?.(!open);
-  }
+  const register = useCallback(
+    (guard: CloseGuard) => registerGuard(tab.key, guard),
+    [registerGuard, tab.key],
+  );
   return (
-    <section
-      className={`panel collapsible-section${open ? " is-open" : ""}${className ? ` ${className}` : ""}`}
+    <SettingsPanelContext.Provider
+      value={{ registerGuard: register, registerBusy }}
     >
-      <div className="panel-head collapsible-head">
-        <div>
-          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-          <h2>
-            <button
-              type="button"
-              className="text-button collapsible-toggle"
-              aria-expanded={open}
-              aria-controls={bodyId}
-              onClick={toggle}
-            >
-              {title}
-            </button>
-          </h2>
+      <section
+        className={"panel settings-panel settings-" + tab.key}
+        role="tabpanel"
+        id={baseId + "-" + tab.key + "-panel"}
+        aria-labelledby={baseId + "-" + tab.key + "-tab"}
+        hidden={!active}
+        tabIndex={0}
+      >
+        <div className="settings-panel-heading">
+          <span className="settings-section-icon">
+            <tab.icon size={22} aria-hidden="true" />
+          </span>
+          <div>
+            <h2>{tab.title}</h2>
+            <p>{tab.description}</p>
+          </div>
         </div>
-        <ChevronDown className="collapsible-chevron" size={20} aria-hidden="true" />
-      </div>
-      <div id={bodyId} className="collapsible-body" hidden={!open}>
-        {open ? children : null}
-      </div>
-    </section>
+        <div className="settings-panel-content">{children}</div>
+      </section>
+    </SettingsPanelContext.Provider>
   );
 }
 
-function AdminPage() {
+function SettingsPage() {
+  const { user, canEdit } = useAuthorization();
+  const admin = user?.role === "admin";
+  const tabs = settingsTabs.filter((tab) => admin || !tab.adminOnly);
+  const [searchParams] = useSearchParams();
+  const [active, setActive] = useState<SettingsTabKey>(
+    searchParams.get("secao") === "etiquetas" ? "tags" : admin ? "clinic" : "plans",
+  );
+  const [visited, setVisited] = useState<SettingsTabKey[]>([active]);
+  const [busyCount, setBusyCount] = useState(0);
+  const guards = useRef(new Map<SettingsTabKey, CloseGuard>());
+  const baseId = useId();
+  const focusTarget = useRef<SettingsTabKey | null>(null);
+  const selected = tabs.some((tab) => tab.key === active)
+    ? active
+    : tabs[0]!.key;
+  useLayoutEffect(() => {
+    if (busyCount === 0 && focusTarget.current) {
+      document
+        .getElementById(baseId + "-" + focusTarget.current + "-tab")
+        ?.focus();
+      focusTarget.current = null;
+    }
+  }, [selected, busyCount, baseId]);
+  const registerGuard = useCallback(
+    (key: SettingsTabKey, guard: CloseGuard) => {
+      guards.current.set(key, guard);
+      return () => {
+        if (guards.current.get(key) === guard) guards.current.delete(key);
+      };
+    },
+    [],
+  );
+  const registerBusy = useCallback(() => {
+    setBusyCount((count) => count + 1);
+    return () => setBusyCount((count) => count - 1);
+  }, []);
+  function select(key: SettingsTabKey) {
+    if (key === selected || busyCount > 0) return;
+    const proceed = () => {
+      focusTarget.current = key;
+      setActive(key);
+      setVisited((current) =>
+        current.includes(key) ? current : [...current, key],
+      );
+    };
+    const guard = guards.current.get(selected);
+    if (guard) guard(proceed);
+    else proceed();
+  }
+  function moveFocus(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let next: number;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft")
+      next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    document.getElementById(baseId + "-" + tabs[next]!.key + "-tab")?.focus();
+  }
+  return (
+    <div className="settings-page">
+      <PageHeader
+        eyebrow="Gestão da clínica"
+        title="Configurações"
+        description="Organize sua operação e personalize os detalhes da clínica."
+      />
+      <div
+        className="settings-tabs"
+        role="tablist"
+        aria-label="Seções de configurações"
+      >
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.key}
+            id={baseId + "-" + tab.key + "-tab"}
+            type="button"
+            role="tab"
+            className="text-button settings-tab"
+            aria-selected={selected === tab.key}
+            aria-controls={baseId + "-" + tab.key + "-panel"}
+            tabIndex={selected === tab.key ? 0 : -1}
+            disabled={busyCount > 0}
+            onClick={() => select(tab.key)}
+            onKeyDown={(event) => moveFocus(event, index)}
+          >
+            <tab.icon size={18} aria-hidden="true" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {tabs.map((tab) => (
+        <SettingsPanel
+          key={tab.key}
+          tab={tab}
+          active={selected === tab.key}
+          baseId={baseId}
+          registerGuard={registerGuard}
+          registerBusy={registerBusy}
+        >
+          {(visited.includes(tab.key) || selected === tab.key) &&
+            (tab.key === "clinic" ? (
+              <ClinicSettingsContent />
+            ) : tab.key === "users" ? (
+              <AdminUsersContent />
+            ) : tab.key === "plans" ? (
+              <PlanTemplatesContent />
+            ) : tab.key === "holidays" ? (
+              <HolidaysContent />
+            ) : tab.key === "tags" ? (
+              <PatientTagsContent canEdit={canEdit("settings")} />
+            ) : (
+              <RelationshipSettingsContent canEdit={admin} />
+            ))}
+        </SettingsPanel>
+      ))}
+    </div>
+  );
+}
+
+function AuditFields({ fields }: { fields: AuditField[] }) {
+  return (
+    <dl className="audit-fields">
+      {fields.map(({ label, value }) => (
+        <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+function HistoryDetailsModal({ event, onClose }: { event: AdminAuditEvent; onClose: () => void }) {
+  const [tab, setTab] = useState<"summary" | "technical">("summary");
+  const id = useId();
+  const summary = formatAuditEvent(event);
+  const tabs = [{ key: "summary", label: "Resumo" }, { key: "technical", label: "Detalhes técnicos" }] as const;
+  const recorded = (value: string | undefined) => value?.trim() ? value : "Não registrado";
+  const technicalFields: AuditField[] = [
+    { label: "ID do evento", value: recorded(event.id) },
+    { label: "Código da ação", value: recorded(event.action) },
+    { label: "Tipo do registro afetado", value: recorded(event.entityType) },
+    { label: "ID do registro afetado", value: recorded(event.entityId) },
+    { label: "ID da clínica", value: recorded(event.clinicId) },
+    { label: "Responsável", value: summary.actor },
+    { label: "ID do responsável", value: recorded(event.actorUserId) },
+    { label: "Data e hora originais", value: recorded(event.createdAt) },
+    { label: "Endereço IP", value: recorded(event.ipAddress) },
+  ];
+  return (
+    <Modal eyebrow="Histórico" title="Detalhes da alteração" subtitle={summary.title} initialFocus='[role="tab"][aria-selected="true"]' onClose={onClose}>
+      <div className="audit-details">
+        <div className="audit-tabs" role="tablist" aria-label="Informações da alteração">
+          {tabs.map(({ key, label }, index) => (
+            <button key={key} type="button" className="secondary-button" role="tab"
+              id={`${id}-${key}-tab`} aria-controls={`${id}-${key}-panel`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1}
+              onClick={() => setTab(key)}
+              onKeyDown={(keyboardEvent) => {
+                let next: number;
+                switch (keyboardEvent.key) {
+                  case "ArrowRight": next = (index + 1) % tabs.length; break;
+                  case "ArrowLeft": next = (index + tabs.length - 1) % tabs.length; break;
+                  case "Home": next = 0; break;
+                  case "End": next = tabs.length - 1; break;
+                  default: return;
+                }
+                keyboardEvent.preventDefault();
+                setTab(tabs[next]!.key);
+                document.getElementById(`${id}-${tabs[next]!.key}-tab`)?.focus();
+              }}
+            >{label}</button>
+          ))}
+        </div>
+        <div role="tabpanel" id={`${id}-summary-panel`} aria-labelledby={`${id}-summary-tab`} hidden={tab !== "summary"} tabIndex={0}>
+          <AuditFields fields={[
+            { label: "O que aconteceu", value: summary.title },
+            { label: "Área", value: summary.category },
+            { label: "Quem realizou", value: summary.actor },
+            { label: "Quando", value: summary.date },
+            ...summary.details,
+          ]} />
+        </div>
+        <div role="tabpanel" id={`${id}-technical-panel`} aria-labelledby={`${id}-technical-tab`} hidden={tab !== "technical"} tabIndex={0}>
+          <AuditFields fields={technicalFields} />
+          <h3>Metadados completos</h3>
+          <pre className="audit-json">{JSON.stringify(event.metadata, null, 2) ?? "Não registrado"}</pre>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function HistoryPage() {
+  const emptyFilters = { search: "", module: "", action: "", actorUserId: "", from: "", to: "" };
+  const [draft, setDraft] = useState(emptyFilters);
+  const [request, setRequest] = useState({ cursor: undefined as string | undefined, page: 1,
+    trail: [undefined] as (string | undefined)[], filters: {} as AuditHistoryFilters });
+  const [items, setItems] = useState<AdminAuditEvent[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [actors, setActors] = useState<HistoryActor[]>([]);
+  const [actorsError, setActorsError] = useState(false);
+  const [actorsAttempt, setActorsAttempt] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState<AdminAuditEvent | null>(null);
+  const detailsTrigger = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.auditHistory(request.cursor, request.filters)
+      .then((page) => {
+        if (!active) return;
+        setItems(page.items);
+        setNextCursor(page.nextCursor);
+        setPageNumber(request.page);
+      })
+      .catch((cause: Error) => { if (active) setError(cause.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [request, attempt]);
+
+  useEffect(() => {
+    let active = true;
+    api.historyActors().then((values) => {
+      if (active) { setActors(Array.isArray(values) ? values : []); setActorsError(false); }
+    }).catch(() => { if (active) setActorsError(true); });
+    return () => { active = false; };
+  }, [actorsAttempt]);
+
+  function applyFilters(values: typeof draft) {
+    const parsed = auditHistoryQuerySchema.safeParse(Object.fromEntries(Object.entries(values).filter(([, value]) => value)));
+    if (!parsed.success) { setFilterError(parsed.error.issues[0]?.message ?? "Verifique os filtros."); return; }
+    const filters: AuditHistoryFilters = parsed.data;
+    setFilterError(""); setError(""); setLoading(true); setItems(null); setNextCursor(null);
+    setPageNumber(1); setSelectedEvent(null);
+    setRequest({ cursor: undefined, page: 1, trail: [undefined], filters });
+  }
+
+  function navigatePage(direction: "previous" | "next") {
+    setLoading(true); setError(""); setSelectedEvent(null);
+    if (direction === "next" && nextCursor) {
+      setRequest({ ...request, cursor: nextCursor, page: pageNumber + 1,
+        trail: [...request.trail.slice(0, pageNumber), nextCursor] });
+    } else {
+      setRequest({ ...request, cursor: request.trail[pageNumber - 2], page: pageNumber - 1 });
+    }
+  }
+
+  return (
+    <>
+      <PageHeader eyebrow="Atividades da clínica" title="Histórico" description="Consulte as atividades de todos os módulos. Use a pesquisa e os filtros para encontrar uma alteração." />
+      <form className="panel history-filters" onSubmit={(event) => { event.preventDefault(); applyFilters(draft); }}>
+        <label>Pesquisar<input type="search" maxLength={160} value={draft.search} placeholder="Ex.: pagamento, etiqueta ou comissão" onChange={(event) => setDraft({ ...draft, search: event.target.value })} /></label>
+        <label>Área<select value={draft.module} onChange={(event) => setDraft({ ...draft, module: event.target.value, action: "" })}>
+          <option value="">Todas as áreas</option>{Object.entries(appModuleLabels).filter(([module]) => module !== "history").map(([module, label]) => <option key={module} value={module}>{label}</option>)}
+        </select></label>
+        <label>Tipo de atividade<select value={draft.action} onChange={(event) => setDraft({ ...draft, action: event.target.value })}>
+          <option value="">Todos os tipos</option>{historyActions.filter((item) => !draft.module || item.module === draft.module).map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
+        </select></label>
+        <label>Responsável<select value={draft.actorUserId} onChange={(event) => setDraft({ ...draft, actorUserId: event.target.value })}>
+          <option value="">Todos os responsáveis</option>{actors.map((actor) => <option key={actor.id} value={actor.id}>{actor.name}</option>)}
+        </select></label>
+        <label>De<input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
+        <label>Até<input type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label>
+        <div className="history-filter-actions">
+          <button type="submit" className="primary-button">Pesquisar e filtrar</button>
+          <button type="button" className="secondary-button" onClick={() => { setDraft(emptyFilters); applyFilters(emptyFilters); }}>Limpar filtros</button>
+        </div>
+        {filterError && <ErrorBanner error={filterError} />}
+        {actorsError && <p className="muted-copy">Não foi possível carregar os responsáveis. <button type="button" className="secondary-button button-sm" onClick={() => setActorsAttempt((value) => value + 1)}>Tentar carregar responsáveis</button></p>}
+      </form>
+      <section className="panel admin-audit" aria-label="Atividades do sistema" aria-busy={loading}>
+        {items?.map((item) => {
+          const summary = formatAuditEvent(item);
+          return (
+            <article className="audit-entry" key={item.id}>
+              <div>
+                <h2>{summary.title}</h2><p className="audit-category">{summary.category}</p>
+                <p className="audit-byline">Quem realizou: {summary.actor} · Quando: <time dateTime={item.createdAt}>{summary.date}</time></p>
+                {summary.details.length > 0 && <AuditFields fields={summary.details} />}
+              </div>
+              {item.detailsRestricted ? <p className="muted-copy">Detalhes disponíveis para quem tem acesso aos Prontuários.</p> :
+                <button type="button" className="secondary-button button-sm" onClick={(event) => { detailsTrigger.current = event.currentTarget; setSelectedEvent(item); }}>Ver detalhes</button>}
+            </article>
+          );
+        })}
+        {items?.length === 0 && !loading && <p className="muted-copy">Nenhum registro encontrado. Tente alterar a pesquisa ou os filtros.</p>}
+        {loading && <LoadingBlock />}
+        {error && <><ErrorBanner error={error} /><button type="button" className="secondary-button" onClick={() => { setLoading(true); setError(""); setAttempt((value) => value + 1); }}>Tentar novamente</button></>}
+        <nav className="history-pagination" aria-label="Paginação do histórico">
+          <button type="button" className="secondary-button" disabled={pageNumber === 1 || loading || Boolean(error)} onClick={() => navigatePage("previous")}>Anterior</button>
+          <p role="status">Página {pageNumber} · {items?.length ?? 0} registros</p>
+          <button type="button" className="secondary-button" disabled={!nextCursor || loading || Boolean(error)} onClick={() => navigatePage("next")}>Próxima</button>
+        </nav>
+      </section>
+      {selectedEvent && <HistoryDetailsModal event={selectedEvent} onClose={() => { setSelectedEvent(null); detailsTrigger.current?.focus(); }} />}
+    </>
+  );
+}
+
+function AdminUsersContent() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [settings, setSettings] = useState<ClinicSettings | null>(null);
-  const [audit, setAudit] = useState<AdminAuditEvent[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [userForm, setUserForm] = useState<AdminUser | "new" | null>(null);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [toggling, setToggling] = useState<AdminUser | null>(null);
-  // Gaveta de Usuários controlada aqui: "Novo usuário" abre a gaveta junto com o modal.
-  const [usersOpen, setUsersOpen] = useState(false);
-  // Dados da clínica: valores salvos (base do "descartar") e gaveta controlada para avisar ao fechar.
-  const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(null);
-  const [clinicOpen, setClinicOpen] = useState(false);
-  const clinicDirty =
-    settings !== null &&
-    savedSettings !== null &&
-    JSON.stringify(settings) !== JSON.stringify(savedSettings);
-  const clinicPrompt = useUnsavedChangesPrompt({
-    section: "Dados da clínica",
-    dirty: clinicDirty,
-    save: async () => {
-      if (!settings) return;
-      const saved = await api.updateClinicSettings(settings);
-      setSettings(saved);
-      setSavedSettings(saved);
-      // Como o submit do formulário: recarrega (auditoria inclusa).
-      void load();
-    },
-    discard: () => setSettings(savedSettings),
-  });
-
-  async function load() {
-    try {
-      const [userData, settingData, auditData] = await Promise.all([
-        api.adminUsers(),
-        api.clinicSettings(),
-        api.adminAuditEvents(),
-      ]);
-      setUsers(userData);
-      setSettings(settingData);
-      setSavedSettings(settingData);
-      setAudit(auditData);
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
   useEffect(() => {
     let active = true;
-    Promise.all([
-      api.adminUsers(),
-      api.clinicSettings(),
-      api.adminAuditEvents(),
-    ])
-      .then(([userData, settingData, auditData]) => {
-        if (!active) return;
-        setUsers(userData);
-        setSettings(settingData);
-        setSavedSettings(settingData);
-        setAudit(auditData);
+    api
+      .adminUsers()
+      .then((data) => {
+        if (active) setUsers(data);
       })
       .catch((cause: Error) => {
         if (active) setError(cause.message);
@@ -12112,228 +12919,118 @@ function AdminPage() {
     return () => {
       active = false;
     };
-  }, []);
-
+  }, [attempt]);
   function finish(message: string) {
     setUserForm(null);
     setResetting(null);
     setToggling(null);
     setError("");
     setNotice(message);
-    void load();
+    setAttempt((value) => value + 1);
   }
-
   return (
     <>
-      <PageHeader
-        eyebrow="Controle operacional"
-        title="Configurações"
-        description="Usuários, permissões, dados da clínica e auditoria administrativa."
-        action={
+      <div className="settings-toolbar">
+        <p className="muted-copy">
+          {users
+            ? countLabel(users.length, "usuário", "usuários") + " na equipe"
+            : "Acessos da equipe"}
+        </p>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            setNotice("");
+            setUserForm("new");
+          }}
+        >
+          <Plus size={17} /> Novo usuário
+        </button>
+      </div>
+      {error && (
+        <>
+          <ErrorBanner error={error} />
           <button
-            className="primary-button"
+            className="secondary-button"
+            type="button"
             onClick={() => {
-              setNotice("");
-              setUsersOpen(true);
-              setUserForm("new");
+              setError("");
+              setAttempt((value) => value + 1);
             }}
           >
-            <Plus size={17} /> Novo usuário
+            Tentar novamente
           </button>
-        }
-      />
-      {error && <ErrorBanner error={error} />}
+        </>
+      )}
       {notice && (
         <div className="success-banner" role="status">
           {notice}
         </div>
       )}
-      <div className="admin-grid">
-        <CollapsibleSection
-          className="admin-users"
-          eyebrow="Acessos"
-          title="Usuários"
-          open={usersOpen}
-          onOpenChange={setUsersOpen}
-        >
-          {users === null ? (
-            !error && <LoadingBlock />
-          ) : users.length === 0 ? (
-            <EmptyState
-              title="Nenhum usuário"
-              copy="Cadastre a equipe em “Novo usuário”."
-            />
-          ) : (
-            users.map((item) => (
-              <article key={item.id} className="admin-user-row">
-                <div className="admin-user-info">
-                  <strong>{item.fullName}</strong>
-                  <small>
-                    {roleLabels[item.role]}
-                    {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                  </small>
-                  <small className="admin-user-email">{item.email}</small>
-                  <small>{userAccessSummary(item)}</small>
-                  <small>{userCommissionSummary(item)}</small>
-                  {!item.active && (
-                    <div className="admin-user-tags">
-                      <span className="status-pill cancelled">Inativo</span>
-                    </div>
-                  )}
-                </div>
-                <div className="admin-user-actions">
-                  <button
-                    className="secondary-button button-sm"
-                    aria-label={`Editar ${item.fullName}`}
-                    onClick={() => {
-                      setNotice("");
-                      setUserForm(item);
-                    }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className={item.active ? "danger-button button-sm" : "secondary-button button-sm"}
-                    onClick={() => {
-                      setNotice("");
-                      setToggling(item);
-                    }}
-                  >
-                    {item.active ? "Desativar" : "Ativar"}
-                  </button>
-                  <button
-                    className="secondary-button button-sm"
-                    onClick={() => {
-                      setNotice("");
-                      setResetting(item);
-                    }}
-                  >
-                    Redefinir senha
-                  </button>
-                </div>
-              </article>
-            ))
-          )}
-        </CollapsibleSection>
-        <CollapsibleSection
-          className="admin-settings"
-          eyebrow="Organização"
-          title="Dados da clínica"
-          open={clinicOpen}
-          onOpenChange={(next) => {
-            if (next) setClinicOpen(true);
-            else clinicPrompt.confirmLeave(() => setClinicOpen(false));
-          }}
-        >
-          {!settings ? (
-            !error && <LoadingBlock />
-          ) : (
-            <form
-              className="clinical-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                try {
-                  const saved = await api.updateClinicSettings(settings);
-                  setSettings(saved);
-                  setSavedSettings(saved);
-                  await load();
-                } catch (cause) {
-                  setError((cause as Error).message);
-                }
-              }}
-            >
-              <label>
-                Nome
-                <input
-                  required
-                  value={settings.name}
-                  onChange={(e) =>
-                    setSettings({ ...settings, name: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Razão social
-                <input
-                  value={settings.legalName}
-                  onChange={(e) =>
-                    setSettings({ ...settings, legalName: e.target.value })
-                  }
-                />
-              </label>
-              <div className="clinical-form-row">
-                <label>
-                  CNPJ/CPF
-                  <input
-                    value={settings.taxId}
-                    onChange={(e) =>
-                      setSettings({ ...settings, taxId: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Telefone
-                  <PhoneInput
-                    value={settings.phone ?? ""}
-                    onChange={(digits) =>
-                      setSettings({ ...settings, phone: digits })
-                    }
-                  />
-                </label>
+      <div className="admin-users">
+        {users === null ? (
+          !error && <LoadingBlock />
+        ) : users.length === 0 ? (
+          <EmptyState
+            title="Nenhum usuário"
+            copy="Cadastre a equipe em “Novo usuário”."
+          />
+        ) : (
+          users.map((item) => (
+            <article key={item.id} className="admin-user-row">
+              <div className="admin-user-info">
+                <strong>{item.fullName}</strong>
+                <small>
+                  {roleLabels[item.role]}
+                  {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                </small>
+                <small className="admin-user-email">{item.email}</small>
+                <small>{userAccessSummary(item)}</small>
+                <small>{userCommissionSummary(item)}</small>
+                {!item.active && (
+                  <div className="admin-user-tags">
+                    <span className="status-pill cancelled">Inativo</span>
+                  </div>
+                )}
               </div>
-              <label>
-                E-mail
-                <input
-                  type="email"
-                  value={settings.email}
-                  onChange={(e) =>
-                    setSettings({ ...settings, email: e.target.value })
+              <div className="admin-user-actions">
+                <button
+                  className="secondary-button button-sm"
+                  aria-label={`Editar ${item.fullName}`}
+                  onClick={() => {
+                    setNotice("");
+                    setUserForm(item);
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  className={
+                    item.active
+                      ? "danger-button button-sm"
+                      : "secondary-button button-sm"
                   }
-                />
-              </label>
-              <label>
-                Endereço
-                <textarea
-                  rows={2}
-                  value={settings.address}
-                  onChange={(e) =>
-                    setSettings({ ...settings, address: e.target.value })
-                  }
-                />
-              </label>
-              <div className="modal-actions">
-                <button className="primary-button">Salvar configurações</button>
+                  onClick={() => {
+                    setNotice("");
+                    setToggling(item);
+                  }}
+                >
+                  {item.active ? "Desativar" : "Ativar"}
+                </button>
+                <button
+                  className="secondary-button button-sm"
+                  onClick={() => {
+                    setNotice("");
+                    setResetting(item);
+                  }}
+                >
+                  Redefinir senha
+                </button>
               </div>
-            </form>
-          )}
-        </CollapsibleSection>
-        <RelationshipSettingsSection canEdit />
-        <HolidaysSection />
-        <PatientTagsSection canEdit />
-        <CollapsibleSection
-          className="admin-audit"
-          eyebrow="Rastreabilidade"
-          title="Auditoria recente"
-        >
-          {users === null ? (
-            // Usuários, dados e auditoria chegam juntos no mesmo carregamento da página.
-            !error && <LoadingBlock />
-          ) : audit.length === 0 ? (
-            <p className="muted-copy">Nenhuma alteração administrativa.</p>
-          ) : (
-            audit.slice(0, 20).map((item) => (
-              <article key={item.id}>
-                <strong>{item.action}</strong>
-                <span>
-                  {item.actorName ?? "Sistema"} ·{" "}
-                  {new Date(item.createdAt).toLocaleString("pt-BR")}
-                </span>
-              </article>
-            ))
-          )}
-        </CollapsibleSection>
+            </article>
+          ))
+        )}
       </div>
-      {clinicPrompt.modal}
       {userForm && (
         <UserFormModal
           user={userForm === "new" ? null : userForm}
@@ -12383,14 +13080,202 @@ function AdminPage() {
   );
 }
 
+function ClinicSettingsContent() {
+  const [settings, setSettings] = useState<ClinicSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(
+    null,
+  );
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  const dirty =
+    settings !== null &&
+    savedSettings !== null &&
+    JSON.stringify(settings) !== JSON.stringify(savedSettings);
+  useSettingsBusy(saving);
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicSettings()
+      .then((data) => {
+        if (active) {
+          setSettings(data);
+          setSavedSettings(data);
+        }
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+  async function save() {
+    if (savingRef.current || !settings) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise os campos obrigatórios antes de salvar.");
+    savingRef.current = true;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const saved = await api.updateClinicSettings(settings);
+      setSettings(saved);
+      setSavedSettings(saved);
+      setNotice("Dados da clínica salvos.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+  const prompt = useUnsavedChangesPrompt({
+    section: "Dados da clínica",
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setSettings(savedSettings);
+      setError("");
+      setNotice("");
+    },
+  });
+  return (
+    <>
+      {error && <ErrorBanner error={error} />}
+      {!settings ? (
+        error ? (
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        ) : (
+          <LoadingBlock />
+        )
+      ) : (
+        <form
+          ref={formRef}
+          className="clinical-form settings-clinic-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save().catch((cause: Error) => setError(cause.message));
+          }}
+          onChange={() => setNotice("")}
+        >
+          <fieldset disabled={saving} className="settings-fieldset">
+            <legend>Identificação</legend>
+            <p className="muted-copy">
+              Informações utilizadas nos documentos da clínica.
+            </p>
+            <div className="form-grid">
+              <label>
+                Nome
+                <input
+                  required
+                  value={settings.name}
+                  onChange={(event) =>
+                    setSettings({ ...settings, name: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Razão social
+                <input
+                  value={settings.legalName}
+                  onChange={(event) =>
+                    setSettings({ ...settings, legalName: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                CNPJ/CPF
+                <input
+                  value={settings.taxId}
+                  onChange={(event) =>
+                    setSettings({ ...settings, taxId: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset disabled={saving} className="settings-fieldset">
+            <legend>Contato e localização</legend>
+            <div className="form-grid">
+              <label>
+                Telefone
+                <PhoneInput
+                  value={settings.phone ?? ""}
+                  onChange={(phone) => setSettings({ ...settings, phone })}
+                />
+              </label>
+              <label>
+                E-mail
+                <input
+                  type="email"
+                  value={settings.email}
+                  onChange={(event) =>
+                    setSettings({ ...settings, email: event.target.value })
+                  }
+                />
+              </label>
+              <label className="span-2">
+                Endereço
+                <textarea
+                  rows={2}
+                  value={settings.address}
+                  onChange={(event) =>
+                    setSettings({ ...settings, address: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
+          {notice && (
+            <div className="success-banner" role="status">
+              {notice}
+            </div>
+          )}
+          <div className="modal-actions settings-save-bar">
+            <span className="settings-dirty" role="status">
+              {dirty ? "Alterações não salvas" : "Dados atualizados"}
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!dirty || saving}
+              onClick={() => {
+                setSettings(savedSettings);
+                setError("");
+                setNotice("");
+              }}
+            >
+              Descartar alterações
+            </button>
+            <button className="primary-button" disabled={!dirty || saving}>
+              {saving ? "Salvando…" : "Salvar configurações"}
+            </button>
+          </div>
+        </form>
+      )}
+      {prompt.modal}
+    </>
+  );
+}
+
 /** Resumo do acesso na lista de usuários (não há padrão por perfil: só o que foi marcado). */
 function userAccessSummary(user: AdminUser) {
   if (user.role === "admin") return "Acesso total";
   const view = user.modules.length;
   if (view === 0) return "Nenhum módulo (só Visão geral)";
-  const edit = user.editModules.length;
-  const viewLabel = `Vê ${view} ${view === 1 ? "módulo" : "módulos"}`;
-  return edit === 0 ? `${viewLabel} · só visualiza` : `${viewLabel} · edita ${edit}`;
+  return `Vê ${view} ${view === 1 ? "módulo" : "módulos"} · ${user.permissions?.length ?? 0} permissões`;
 }
 
 /** Erro ao salvar usuário; o 409 LAST_ADMIN ganha explicação própria. */
@@ -12399,11 +13284,6 @@ function userSaveErrorMessage(cause: unknown) {
     return "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes de rebaixar ou desativar este.";
   }
   return (cause as Error).message;
-}
-
-/** Lista sem duplicatas e na ordem dos módulos (a mesma do menu). */
-function orderedModules(list: readonly AppModule[]) {
-  return appModuleSchema.options.filter((module) => list.includes(module));
 }
 
 const percentageLabel = new Intl.NumberFormat("pt-BR", {
@@ -12470,13 +13350,7 @@ function UserFormModal({
   const [role, setRole] = useState<UserRole>(user?.role ?? "user");
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
   // Usuário comum novo (ou admin sendo rebaixado) começa com tudo desmarcado: não há padrão.
-  const startsCommon = user?.role === "user";
-  const [modules, setModules] = useState<AppModule[]>(() =>
-    startsCommon ? orderedModules(user.modules) : [],
-  );
-  const [editModules, setEditModules] = useState<AppModule[]>(() =>
-    startsCommon ? orderedModules(user.editModules) : [],
-  );
+  const [selectedPermissions, setSelectedPermissions] = useState<PermissionKey[]>(() => user?.role === "user" ? user.permissions ?? legacyPermissions("user", user.modules, user.editModules) : []);
   const [copiedFrom, setCopiedFrom] = useState("");
   // Comissão: percentual vigente e data de hoje; só vira nova vigência se algo mudar.
   const today = saoPauloToday();
@@ -12547,32 +13421,8 @@ function UserFormModal({
   function copyPermissions(sourceId: string) {
     const source = copySources.find((item) => item.id === sourceId);
     if (!source) return;
-    const view = orderedModules(source.modules);
-    setModules(view);
-    setEditModules(
-      orderedModules(source.editModules).filter((module) =>
-        view.includes(module),
-      ),
-    );
+    setSelectedPermissions(source.permissions ?? legacyPermissions("user", source.modules, source.editModules));
     setCopiedFrom(source.fullName);
-  }
-  function toggleView(module: AppModule, checked: boolean) {
-    if (checked) {
-      setModules((current) => orderedModules([...current, module]));
-      return;
-    }
-    // Sem ver não há editar.
-    setModules((current) => current.filter((item) => item !== module));
-    setEditModules((current) => current.filter((item) => item !== module));
-  }
-  function toggleEdit(module: AppModule, checked: boolean) {
-    if (!checked) {
-      setEditModules((current) => current.filter((item) => item !== module));
-      return;
-    }
-    // Editar implica ver.
-    setEditModules((current) => orderedModules([...current, module]));
-    setModules((current) => orderedModules([...current, module]));
   }
 
   function commissionError() {
@@ -12599,6 +13449,7 @@ function UserFormModal({
    */
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const invalid = commissionError();
     if (invalid) {
       setError(invalid);
@@ -12607,10 +13458,7 @@ function UserFormModal({
     setSaving(true);
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
-    const permissions =
-      isAdmin || (modules.length === 0 && editModules.length === 0)
-        ? { modules: null, editModules: null }
-        : { modules, editModules };
+    const permissions = { permissions: isAdmin ? [] : selectedPermissions };
     const title = jobTitle.trim();
     const commission =
       commissionChanged && typedPercentage !== undefined
@@ -12751,7 +13599,7 @@ function UserFormModal({
           </p>
         )}
         <fieldset className="form-fieldset span-2">
-          <legend>Módulos</legend>
+          <legend>Permissões</legend>
           {isAdmin ? (
             <p className="muted-copy">
               Acesso total: o admin vê e edita todos os módulos, além da
@@ -12783,48 +13631,7 @@ function UserFormModal({
                   )}
                 </div>
               )}
-              <table className="permission-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Módulo</th>
-                    <th scope="col">Ver</th>
-                    <th scope="col">Editar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {appModuleSchema.options.map((module) => (
-                    <tr key={module}>
-                      <th scope="row">{appModuleLabels[module]}</th>
-                      <td>
-                        <label className="checkbox-field">
-                          <input
-                            type="checkbox"
-                            aria-label={`Ver ${appModuleLabels[module]}`}
-                            checked={modules.includes(module)}
-                            onChange={(event) =>
-                              toggleView(module, event.target.checked)
-                            }
-                          />
-                          Ver
-                        </label>
-                      </td>
-                      <td>
-                        <label className="checkbox-field">
-                          <input
-                            type="checkbox"
-                            aria-label={`Editar ${appModuleLabels[module]}`}
-                            checked={editModules.includes(module)}
-                            onChange={(event) =>
-                              toggleEdit(module, event.target.checked)
-                            }
-                          />
-                          Editar
-                        </label>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PermissionEditor value={selectedPermissions} onChange={setSelectedPermissions} />
               <p className="muted-copy">
                 “Visão geral” aparece para todos; Administração (usuários,
                 feriados e dados da clínica) é sempre só do admin.
@@ -12943,6 +13750,7 @@ function ResetPasswordModal({
   const [error, setError] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -13007,6 +13815,7 @@ function UserActiveModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   async function confirm() {
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -13060,21 +13869,17 @@ function UserActiveModal({
   );
 }
 
-function HolidaysSection() {
-  return (
-    <CollapsibleSection className="admin-holidays" eyebrow="Agenda" title="Feriados">
-      <HolidaysContent />
-    </CollapsibleSection>
-  );
-}
-
-/** Conteúdo da gaveta de Feriados: só monta (e busca a lista) quando a gaveta abre. */
 function HolidaysContent() {
   const [holidays, setHolidays] = useState<Holiday[] | null>(null);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({ date: "", name: "" });
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
   const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
 
   useEffect(() => {
@@ -13086,26 +13891,49 @@ function HolidaysContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function save() {
+    if (savingRef.current) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise a data e o nome do feriado.");
+    savingRef.current = true;
     setSaving(true);
+    setNotice("");
     setFormError("");
     try {
-      const created = await api.createHoliday({ date: form.date, name: form.name.trim() });
+      const created = await api.createHoliday({
+        date: form.date,
+        name: form.name.trim(),
+      });
       setHolidays((items) =>
-        [...(items ?? []), created].sort((a, b) => a.date.localeCompare(b.date)),
+        [...(items ?? []), created].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        ),
       );
       setForm({ date: "", name: "" });
-    } catch (cause) {
-      setFormError(
-        cause instanceof ApiClientError
-          ? cause.message
-          : "Não foi possível adicionar o feriado.",
-      );
+      setNotice("Feriado adicionado.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
+    }
+  }
+  const prompt = useUnsavedChangesPrompt({
+    section: "Feriados",
+    dirty: Boolean(form.date || form.name),
+    busy: saving,
+    save,
+    discard: () => {
+      setForm({ date: "", name: "" });
+      setFormError("");
+    },
+  });
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
+    } catch (cause) {
+      setFormError((cause as Error).message);
     }
   }
 
@@ -13120,8 +13948,11 @@ function HolidaysContent() {
         { cause },
       );
     }
-    setHolidays((items) => (items ?? []).filter((item) => item.id !== holiday.id));
+    setHolidays((items) =>
+      (items ?? []).filter((item) => item.id !== holiday.id),
+    );
     setDeletingHoliday(null);
+    setNotice("Feriado excluído.");
   }
 
   return (
@@ -13129,38 +13960,84 @@ function HolidaysContent() {
       <p className="muted-copy">
         Nos feriados a agenda não aceita novos atendimentos.
       </p>
-      {error && <ErrorBanner error={error} />}
+      {prompt.modal}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </>
+      )}
       {!holidays ? (
         !error && <LoadingBlock />
       ) : (
         <>
-          <form className="form-grid holiday-form" onSubmit={(event) => void submit(event)}>
-            <label>
-              Data
-              <input
-                type="date"
-                required
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </label>
-            <label>
-              Nome do feriado
-              <input
-                required
-                minLength={2}
-                maxLength={120}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </label>
-            {formError && <div className="form-error span-2">{formError}</div>}
-            <div className="modal-actions span-2">
-              <button className="primary-button" disabled={saving}>
-                <Plus size={17} />
-                {saving ? "Adicionando…" : "Adicionar feriado"}
-              </button>
-            </div>
+          <form
+            ref={formRef}
+            onChange={() => setNotice("")}
+            className="form-grid holiday-form"
+            onSubmit={(event) => void submit(event)}
+          >
+            <fieldset className="settings-inline-fields" disabled={saving}>
+              <legend>Cadastrar feriado</legend>
+              <label>
+                Data
+                <input
+                  type="date"
+                  required
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </label>
+              <label>
+                Nome do feriado
+                <input
+                  required
+                  minLength={2}
+                  maxLength={120}
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </label>
+              {formError && (
+                <div className="form-error span-2">{formError}</div>
+              )}
+              <div className="modal-actions span-2">
+                {(form.date || form.name) && (
+                  <span className="settings-dirty" role="status">
+                    Alterações não salvas
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!form.date && !form.name}
+                  onClick={() => {
+                    setForm({ date: "", name: "" });
+                    setFormError("");
+                  }}
+                >
+                  Descartar alterações
+                </button>
+                <button className="primary-button" disabled={saving}>
+                  <Plus size={17} />
+                  {saving ? "Adicionando…" : "Adicionar feriado"}
+                </button>
+              </div>
+            </fieldset>
           </form>
           {holidays.length === 0 ? (
             <EmptyState
@@ -13200,14 +14077,475 @@ function HolidaysContent() {
   );
 }
 
-function PatientTagsSection({ canEdit }: { canEdit: boolean }) {
-  // Atalho "Gerenciar etiquetas" (`?secao=etiquetas`) chega com a gaveta aberta.
-  const [searchParams] = useSearchParams();
-  const [open, setOpen] = useState(searchParams.get("secao") === "etiquetas");
+function PlanTemplatesContent() {
+  const { can } = useAuthorization();
+  const [items, setItems] = useState<PlanTemplate[] | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [editing, setEditing] = useState<PlanTemplate | "new" | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.planTemplates(), api.services()])
+      .then(([templates, serviceData]) => {
+        if (active) {
+          setItems(templates);
+          setServices(serviceData);
+        }
+      })
+      .catch((cause: Error) => {
+        if (active) setError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+  function replace(item: PlanTemplate) {
+    setItems((current) =>
+      [
+        item,
+        ...(current ?? []).filter((existing) => existing.id !== item.id),
+      ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    );
+  }
+  useSettingsBusy(savingId !== null);
+  async function toggle(item: PlanTemplate) {
+    if (savingId) return;
+    setSavingId(item.id);
+    setError(""); setNotice("");
+    try {
+      replace(await api.updatePlanTemplate(item.id, { active: !item.active }));
+      setNotice(item.active ? "Plano desativado." : "Plano ativado.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSavingId(null);
+    }
+  }
   return (
-    <CollapsibleSection className="admin-tags" eyebrow="Clientes" title="Etiquetas" open={open} onOpenChange={setOpen}>
-      <PatientTagsContent canEdit={canEdit} />
-    </CollapsibleSection>
+    <>
+      <p className="muted-copy">
+        Defina os planos disponíveis para novas vendas. Alterações não afetam
+        contratos já vendidos.
+      </p>
+      {notice && <div className="success-banner" role="status">{notice}</div>}
+      {error && (
+        <div className="form-error" role="alert">
+          {error}{" "}
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            onClick={() => {
+              setError("");
+              setAttempt((current) => current + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+      {items === null ? (
+        !error && <LoadingBlock />
+      ) : (
+        <>
+          {can("settings.plans_create") && (
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => setEditing("new")}
+            >
+              <Plus size={17} /> Cadastrar plano
+            </button>
+          )}
+          {items.length === 0 ? (
+            <EmptyState
+              title="Nenhum plano cadastrado"
+              copy="Cadastre nome, valor e serviços para disponibilizar um plano nas novas vendas."
+            />
+          ) : (
+            <div className="plan-template-list">
+              {items.map((item) => (
+                <article key={item.id} className="admin-user-row">
+                  <div className="admin-user-info">
+                    <strong>{item.name}</strong>
+                    <small>
+                      {currency.format(item.totalValueInCents / 100)}
+                    </small>
+                    <small>
+                      {[
+                        item.services.length ? item.services.map((entry) => `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.sessionsPerWeek ? `${entry.sessionsPerWeek}x por semana · ` : ""}${entry.totalSessions} sessões`).join(" · ") : "Composição incompleta — edite para corrigir",
+                        item.planType ? planTypeLabels[item.planType] : item.kind ? planKindLabels[item.kind] : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                    {!item.active && (
+                      <span className="status-pill cancelled">Inativo</span>
+                    )}
+                  </div>
+                  {can("settings.plans_update") && (
+                    <div className="admin-user-actions">
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        disabled={savingId !== null}
+                        onClick={() => setEditing(item)}
+                        aria-label={`Editar plano ${item.name}`}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          item.active
+                            ? "danger-button button-sm"
+                            : "secondary-button button-sm"
+                        }
+                        disabled={savingId !== null}
+                        onClick={() => void toggle(item)}
+                        aria-label={`${item.active ? "Desativar" : "Ativar"} plano ${item.name}`}
+                      >
+                        {item.active ? "Desativar" : "Ativar"}
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {editing && (
+        <PlanTemplateModal
+          item={editing === "new" ? null : editing}
+          services={services}
+          onClose={() => setEditing(null)}
+          onSaved={(item) => {
+            replace(item);
+            setNotice("Plano salvo.");
+            setEditing(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function PlanTemplateModal({
+  item,
+  services,
+  onClose,
+  onSaved,
+}: {
+  item: PlanTemplate | null;
+  services: Service[];
+  onClose: () => void;
+  onSaved: (item: PlanTemplate) => void;
+}) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    value: item ? String(item.totalValueInCents / 100) : "",
+    planType: item?.planType ?? (item ? "" : "monthly"),
+    services: item?.services.length
+      ? item.services.map((entry) => ({
+          serviceId: entry.serviceId,
+          sessions: String(entry.totalSessions),
+          sessionsPerWeek: entry.sessionsPerWeek
+            ? String(entry.sessionsPerWeek)
+            : "",
+          value: String(entry.totalValueInCents / 100),
+        }))
+      : [{ serviceId: "", sessions: "1", sessionsPerWeek: "", value: "" }],
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const months = planPeriodMonths(form.planType as PlanType);
+  const periodSessions = (entry: (typeof form.services)[number]) =>
+    months
+      ? planSessionsForPeriod(
+          form.planType as PlanType,
+          Number(entry.sessionsPerWeek),
+        )
+      : Number(entry.sessions);
+  const total = reaisToCents(form.value);
+  const sum = form.services.reduce(
+    (value, entry) => value + (reaisToCents(entry.value) ?? 0),
+    0,
+  );
+  function updateRow(
+    index: number,
+    patch: Partial<(typeof form.services)[number]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      services: current.services.map((row, position) =>
+        position === index ? { ...row, ...patch } : row,
+      ),
+    }));
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    const parsed = planTemplateInputSchema.safeParse({
+      name: form.name,
+      totalValueInCents: total,
+      planType: form.planType || null,
+      kind: form.planType
+        ? planTypeKind(form.planType as PlanType)
+        : (item?.kind ?? null),
+      services: form.services.map((entry) => ({
+        serviceId: entry.serviceId,
+        totalSessions: periodSessions(entry),
+        totalValueInCents:
+          form.services.length === 1 ? total : reaisToCents(entry.value),
+        sessionsPerWeek: months ? Number(entry.sessionsPerWeek) : null,
+      })),
+    });
+    if (!parsed.success) {
+      setError(
+        "Informe nome, tipo, serviço, sessões e valor válidos. A soma dos serviços deve corresponder ao total.",
+      );
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try {
+      onSaved(
+        item
+          ? await api.updatePlanTemplate(item.id, parsed.data)
+          : await api.createPlanTemplate(parsed.data),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Modal
+      title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
+      subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
+      busy={saving}
+      onClose={onClose}
+    >
+      <form className="form-grid" onSubmit={(event) => void submit(event)}>
+        <label className="span-2">
+          Nome do plano
+          <input
+            required
+            minLength={3}
+            maxLength={120}
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+        </label>
+        <label>
+          Tipo de plano
+          <select
+            required={!item}
+            value={form.planType}
+            onChange={(event) =>
+              setForm({ ...form, planType: event.target.value })
+            }
+          >
+            {item && !item.planType && (
+              <option value="">Manter modelo existente</option>
+            )}
+            {Object.entries(planTypeLabels).map(([type, label]) => (
+              <option value={type} key={type}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Valor total
+          <input
+            required
+            type="number"
+            min="0"
+            max="21474836.47"
+            step="0.01"
+            value={form.value}
+            onChange={(event) => {
+              const value = event.target.value;
+              setForm({
+                ...form,
+                value,
+                services:
+                  form.services.length === 1
+                    ? [{ ...form.services[0]!, value }]
+                    : form.services,
+              });
+            }}
+          />
+        </label>
+        {months > 0 && (
+          <p className="span-2 muted-copy">
+            Período de {months} {months === 1 ? "mês" : "meses"}. Saldo
+            calculado com 4 semanas por mês. O valor informado é o total desse
+            período.
+          </p>
+        )}
+        {form.services.map((entry, index) => (
+          <fieldset className="span-2 form-grid" key={index}>
+            <legend>Serviço {index + 1}</legend>
+            <label>
+              Serviço {index + 1}
+              <select
+                required
+                value={entry.serviceId}
+                onChange={(event) =>
+                  updateRow(index, { serviceId: event.target.value })
+                }
+              >
+                <option value="">Selecione um serviço</option>
+                {services
+                  .filter(
+                    (service) =>
+                      service.active || service.id === entry.serviceId,
+                  )
+                  .map((service) => (
+                    <option
+                      key={service.id}
+                      value={service.id}
+                      disabled={
+                        !service.active ||
+                        form.services.some(
+                          (row, position) =>
+                            position !== index && row.serviceId === service.id,
+                        )
+                      }
+                    >
+                      {service.name}
+                      {!service.active ? " (inativo)" : ""}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            {months ? (
+              <>
+                <label>
+                  Sessões por semana do serviço {index + 1}
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="7"
+                    step="1"
+                    value={entry.sessionsPerWeek}
+                    onChange={(event) =>
+                      updateRow(index, { sessionsPerWeek: event.target.value })
+                    }
+                  />
+                </label>
+                <p className="span-2" role="status">
+                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
+                  período
+                  {entry.sessionsPerWeek
+                    ? ` · ${entry.sessionsPerWeek}x por semana`
+                    : ""}
+                  .
+                </p>
+              </>
+            ) : (
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  value={entry.sessions}
+                  onChange={(event) =>
+                    updateRow(index, { sessions: event.target.value })
+                  }
+                />
+              </label>
+            )}
+            {form.services.length > 1 && (
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  max="21474836.47"
+                  step="0.01"
+                  value={entry.value}
+                  onChange={(event) =>
+                    updateRow(index, { value: event.target.value })
+                  }
+                />
+              </label>
+            )}
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={form.services.length === 1 || saving}
+              onClick={() =>
+                setForm({
+                  ...form,
+                  services: form.services.filter(
+                    (_, position) => position !== index,
+                  ),
+                })
+              }
+            >
+              Remover serviço {index + 1}
+            </button>
+          </fieldset>
+        ))}
+        <button
+          type="button"
+          className="secondary-button span-2"
+          disabled={saving}
+          onClick={() =>
+            setForm({
+              ...form,
+              services: [
+                ...form.services,
+                {
+                  serviceId: "",
+                  sessions: "1",
+                  sessionsPerWeek: "",
+                  value: "",
+                },
+              ],
+            })
+          }
+        >
+          Adicionar serviço
+        </button>
+        {form.services.length > 1 && (
+          <p className="span-2" role="status">
+            Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}
+            {currency.format(((total ?? 0) - sum) / 100)}
+          </p>
+        )}
+        {error && (
+          <div className="form-error span-2" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="modal-actions span-2">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={saving}
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={saving || (form.services.length > 1 && total !== sum)}>
+            {saving ? "Salvando…" : "Salvar plano"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -13216,15 +14554,24 @@ function sortPatientTags(tags: PatientTag[]) {
 }
 
 /**
- * Conteúdo da gaveta de Etiquetas: só monta (e busca a lista) quando a gaveta abre. Cada ação
- * (criar, editar, excluir) grava na hora; não há formulário pendente ao fechar a gaveta.
+ * Etiquetas: carrega na primeira visita e preserva a lista e o rascunho entre abas.
+ * As operações gravam individualmente; a criação pendente usa a guarda de saída.
  */
 function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
+  const { can } = useAuthorization();
   const [tags, setTags] = useState<PatientTag[] | null>(null);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", color: DEFAULT_PATIENT_TAG_COLOR });
+  const [form, setForm] = useState({
+    name: "",
+    color: DEFAULT_PATIENT_TAG_COLOR,
+  });
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [baselineColor, setBaselineColor] = useState(DEFAULT_PATIENT_TAG_COLOR);
+  const [notice, setNotice] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
   const [editing, setEditing] = useState<PatientTag | null>(null);
   const [deleting, setDeleting] = useState<PatientTag | null>(null);
 
@@ -13237,32 +14584,56 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function save() {
+    if (savingRef.current) return;
     const name = form.name.trim();
-    if (!name) {
-      setFormError("Informe o nome da etiqueta.");
-      return;
-    }
+    if (!name) throw new Error("Informe o nome da etiqueta.");
+    savingRef.current = true;
     setSaving(true);
+    setNotice("");
     setFormError("");
     try {
       const created = await api.createPatientTag({ name, color: form.color });
       setTags((items) => sortPatientTags([...(items ?? []), created]));
       setForm({ name: "", color: form.color });
-    } catch (cause) {
-      setFormError(
-        cause instanceof ApiClientError ? cause.message : "Não foi possível criar a etiqueta.",
-      );
+      setBaselineColor(form.color);
+      setNotice("Etiqueta criada.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
+    }
+  }
+  const dirty =
+    canEdit &&
+    can("settings.tags_create") &&
+    Boolean(form.name || form.color !== baselineColor);
+  const prompt = useUnsavedChangesPrompt({
+    section: "Etiquetas",
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setForm({ name: "", color: baselineColor });
+      setFormError("");
+    },
+  });
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
+    } catch (cause) {
+      setFormError((cause as Error).message);
     }
   }
 
   function replaceTag(updated: PatientTag) {
-    setTags((items) => sortPatientTags((items ?? []).map((item) => (item.id === updated.id ? updated : item))));
+    setTags((items) =>
+      sortPatientTags(
+        (items ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      ),
+    );
   }
 
   async function remove(tag: PatientTag) {
@@ -13270,54 +14641,106 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
       await api.deletePatientTag(tag.id);
     } catch (cause) {
       // Em uso (409): atualiza a contagem mostrada com a que a API devolveu.
-      const count = cause instanceof ApiClientError ? cause.details?.patientCount : undefined;
-      if (typeof count === "number") replaceTag({ ...tag, patientCount: count });
+      const count =
+        cause instanceof ApiClientError
+          ? cause.details?.patientCount
+          : undefined;
+      if (typeof count === "number")
+        replaceTag({ ...tag, patientCount: count });
       throw new Error(
-        cause instanceof ApiClientError ? cause.message : "Não foi possível excluir a etiqueta.",
+        cause instanceof ApiClientError
+          ? cause.message
+          : "Não foi possível excluir a etiqueta.",
         { cause },
       );
     }
     setTags((items) => (items ?? []).filter((item) => item.id !== tag.id));
     setDeleting(null);
+    setNotice("Etiqueta excluída.");
   }
 
   return (
     <>
       <p className="muted-copy">
-        Só as etiquetas daqui podem ser usadas no cadastro dos clientes, nos filtros e nos
-        comunicados. Renomear atualiza os clientes que já têm a etiqueta.
+        Só as etiquetas daqui podem ser usadas no cadastro dos clientes, nos
+        filtros e nos comunicados. Renomear atualiza os clientes que já têm a
+        etiqueta.
       </p>
-      {error && <ErrorBanner error={error} />}
+      {prompt.modal}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </>
+      )}
       {!tags ? (
         !error && <LoadingBlock />
       ) : (
         <>
-          {canEdit && (
-            <form className="form-grid tag-form" onSubmit={(event) => void submit(event)} noValidate>
-              <label className="span-2">
-                Nome da etiqueta
-                <input
-                  maxLength={40}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+          {canEdit && can("settings.tags_create") && (
+            <form
+              onChange={() => setNotice("")}
+              className="form-grid tag-form"
+              onSubmit={(event) => void submit(event)}
+              noValidate
+            >
+              <fieldset className="settings-inline-fields" disabled={saving}>
+                <legend>Cadastrar etiqueta</legend>
+                <label className="span-2">
+                  Nome da etiqueta
+                  <input
+                    maxLength={40}
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </label>
+                <TagColorPicker
+                  value={form.color}
+                  previewName={form.name.trim() || "Nova etiqueta"}
+                  onChange={(color) => setForm({ ...form, color })}
                 />
-              </label>
-              <TagColorPicker
-                value={form.color}
-                previewName={form.name.trim() || "Nova etiqueta"}
-                onChange={(color) => setForm({ ...form, color })}
-              />
-              {formError && (
-                <div className="form-error span-2" role="alert">
-                  {formError}
+                {formError && (
+                  <div className="form-error span-2" role="alert">
+                    {formError}
+                  </div>
+                )}
+                <div className="modal-actions span-2">
+                  {dirty && (
+                    <span className="settings-dirty" role="status">
+                      Alterações não salvas
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={!dirty}
+                    onClick={() => {
+                      setForm({ name: "", color: baselineColor });
+                      setFormError("");
+                    }}
+                  >
+                    Descartar alterações
+                  </button>
+                  <button className="primary-button" disabled={saving}>
+                    <Plus size={17} />
+                    {saving ? "Adicionando…" : "Adicionar etiqueta"}
+                  </button>
                 </div>
-              )}
-              <div className="modal-actions span-2">
-                <button className="primary-button" disabled={saving}>
-                  <Plus size={17} />
-                  {saving ? "Adicionando…" : "Adicionar etiqueta"}
-                </button>
-              </div>
+              </fieldset>
             </form>
           )}
           {tags.length === 0 ? (
@@ -13335,26 +14758,32 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                 <li key={tag.id}>
                   <div className="tag-list-info">
                     <PatientTagBadge name={tag.name} color={tag.color} />
-                    <small>{countLabel(tag.patientCount, "cliente", "clientes")}</small>
+                    <small>
+                      {countLabel(tag.patientCount, "cliente", "clientes")}
+                    </small>
                   </div>
                   {canEdit && (
                     <div className="tag-list-actions">
-                      <button
-                        type="button"
-                        className="secondary-button button-sm"
-                        aria-label={`Editar etiqueta ${tag.name}`}
-                        onClick={() => setEditing(tag)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-button button-sm"
-                        aria-label={`Excluir etiqueta ${tag.name}`}
-                        onClick={() => setDeleting(tag)}
-                      >
-                        Excluir
-                      </button>
+                      {can("settings.tags_update") && (
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          aria-label={`Editar etiqueta ${tag.name}`}
+                          onClick={() => setEditing(tag)}
+                        >
+                          Editar
+                        </button>
+                      )}
+                      {can("settings.tags_delete") && (
+                        <button
+                          type="button"
+                          className="danger-button button-sm"
+                          aria-label={`Excluir etiqueta ${tag.name}`}
+                          onClick={() => setDeleting(tag)}
+                        >
+                          Excluir
+                        </button>
+                      )}
                     </div>
                   )}
                 </li>
@@ -13369,6 +14798,7 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             replaceTag(updated);
+            setNotice("Etiqueta atualizada.");
             setEditing(null);
           }}
         />
@@ -13394,6 +14824,7 @@ function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
 }
 
 /** Cor da etiqueta: paleta sugerida, seletor livre e prévia do selo (texto preto ou branco). */
+
 function TagColorPicker({
   value,
   previewName,
@@ -13443,6 +14874,7 @@ function PatientTagEditModal({
   onClose: () => void;
   onSaved: (tag: PatientTag) => void;
 }) {
+ const { can } = useAuthorization();
   const [name, setName] = useState(tag.name);
   const [color, setColor] = useState(normalizeTagColor(tag.color));
   const [error, setError] = useState("");
@@ -13450,6 +14882,7 @@ function PatientTagEditModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Informe o nome da etiqueta.");
@@ -13481,7 +14914,7 @@ function PatientTagEditModal({
       busy={saving}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={(event) => void submit(event)} noValidate>
+      {can("settings.tags_update") && (<form className="form-grid" onSubmit={(event) => void submit(event)} noValidate>
         <label className="span-2">
           Nome da etiqueta
           <input autoFocus maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
@@ -13500,7 +14933,7 @@ function PatientTagEditModal({
             {saving ? "Salvando…" : "Salvar etiqueta"}
           </button>
         </div>
-      </form>
+      </form>)}
     </Modal>
   );
 }
@@ -13524,81 +14957,33 @@ const relationshipDeadlineFields: Array<{
   { key: "formerClientMaxDays", label: "Ex-cliente: cancelou há no máximo (dias)", min: 1 },
 ];
 
-function RelationshipSettingsPage() {
-  return (
-    <>
-      <PageHeader
-        eyebrow="Controle operacional"
-        title="Configurações"
-        description="Prazos e mensagens dos contatos sugeridos e etiquetas dos clientes."
-      />
-      <div className="settings-stack">
-        <RelationshipSettingsSection canEdit={false} />
-        <PatientTagsSection canEdit={canEdit("settings")} />
-      </div>
-    </>
-  );
-}
-
-type CloseGuard = (proceed: () => void) => void;
-
-function RelationshipSettingsSection({ canEdit }: { canEdit: boolean }) {
-  const [open, setOpen] = useState(false);
-  // O conteúdo (que guarda a edição) registra aqui o aviso de alteração não salva.
-  const closeGuard = useRef<CloseGuard | null>(null);
-  const registerCloseGuard = useCallback((guard: CloseGuard | null) => {
-    closeGuard.current = guard;
-  }, []);
-  return (
-    <CollapsibleSection
-      className="admin-relationship"
-      eyebrow="Relacionamento"
-      title="Prazos e mensagens"
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setOpen(true);
-        else if (closeGuard.current) closeGuard.current(() => setOpen(false));
-        else setOpen(false);
-      }}
-    >
-      <RelationshipSettingsContent canEdit={canEdit} registerCloseGuard={registerCloseGuard} />
-    </CollapsibleSection>
-  );
-}
-
-/** Conteúdo da gaveta de Prazos e mensagens: só monta (e busca os valores) quando a gaveta abre. */
-function RelationshipSettingsContent({
-  canEdit,
-  registerCloseGuard,
-}: {
-  canEdit: boolean;
-  registerCloseGuard: (guard: CloseGuard | null) => void;
-}) {
+function RelationshipSettingsContent({ canEdit }: { canEdit: boolean }) {
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
-  const [savedSettings, setSavedSettings] = useState<RelationshipSettings | null>(null);
+  const [savedSettings, setSavedSettings] =
+    useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const savingRef = useRef(false);
+  useSettingsBusy(saving);
+  const dirty =
+    canEdit &&
+    settings !== null &&
+    savedSettings !== null &&
+    JSON.stringify(settings) !== JSON.stringify(savedSettings);
   const prompt = useUnsavedChangesPrompt({
     section: "Prazos e mensagens",
-    dirty:
-      canEdit &&
-      settings !== null &&
-      savedSettings !== null &&
-      JSON.stringify(settings) !== JSON.stringify(savedSettings),
-    save: async () => {
-      if (!settings) return;
-      const saved = await api.updateRelationshipSettings(settings);
-      setSettings(saved);
-      setSavedSettings(saved);
+    dirty,
+    busy: saving,
+    save,
+    discard: () => {
+      setSettings(savedSettings);
+      setError("");
+      setNotice("");
     },
-    discard: () => setSettings(savedSettings),
   });
-  const { confirmLeave } = prompt;
-  useEffect(() => {
-    registerCloseGuard(confirmLeave);
-    return () => registerCloseGuard(null);
-  }, [registerCloseGuard, confirmLeave]);
 
   useEffect(() => {
     let active = true;
@@ -13613,11 +14998,13 @@ function RelationshipSettingsContent({
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!settings) return;
+  async function save() {
+    if (savingRef.current || !settings || !canEdit) return;
+    if (!formRef.current?.reportValidity())
+      throw new Error("Revise os prazos e as mensagens antes de salvar.");
+    savingRef.current = true;
     setSaving(true);
     setError("");
     setNotice("");
@@ -13626,16 +15013,39 @@ function RelationshipSettingsContent({
       setSettings(saved);
       setSavedSettings(saved);
       setNotice("Prazos e mensagens salvos.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
     } catch (cause) {
       setError((cause as Error).message);
-    } finally {
-      setSaving(false);
     }
   }
 
   return (
     <>
-      {error && <ErrorBanner error={error} />}
+      {error && (
+        <>
+          <ErrorBanner error={error} />
+          {!settings && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setError("");
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Tentar novamente
+            </button>
+          )}
+        </>
+      )}
       {!canEdit && (
         <p className="muted-copy">
           Somente um admin pode alterar estes valores.
@@ -13644,53 +15054,97 @@ function RelationshipSettingsContent({
       {!settings ? (
         !error && <LoadingBlock />
       ) : (
-        <form className="clinical-form" onSubmit={(event) => void submit(event)}>
-          <div className="form-grid">
-            {relationshipDeadlineFields.map((field) => (
-              <label key={field.key}>
-                {field.label}
-                <input
-                  type="number"
-                  min={field.min}
-                  step={1}
-                  required
-                  readOnly={!canEdit}
-                  value={settings[field.key]}
-                  onChange={(e) =>
-                    setSettings({ ...settings, [field.key]: Number(e.target.value) })
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          <p className="muted-copy">
-            Variáveis disponíveis nas mensagens: <code>{"{{nome}}"}</code> — é
-            substituída pelo primeiro nome do cliente ao abrir o WhatsApp.
-          </p>
-          {(Object.keys(contactReasonLabels) as ContactReason[]).map((reason) => (
-            <label key={reason}>
-              Mensagem: {contactReasonLabels[reason]}
-              <textarea
-                rows={2}
-                required
-                maxLength={1000}
-                readOnly={!canEdit}
-                value={settings.messages[reason]}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    messages: { ...settings.messages, [reason]: e.target.value },
-                  })
-                }
-              />
-            </label>
-          ))}
-          {notice && <p className="muted-copy">{notice}</p>}
+        <form
+          ref={formRef}
+          className="clinical-form"
+          onChange={() => setNotice("")}
+          onSubmit={(event) => void submit(event)}
+        >
+          <fieldset className="settings-fieldset" disabled={saving}>
+            <legend>Regras de contato</legend>
+            <p className="muted-copy">
+              Defina os limites que geram sugestões de acompanhamento.
+            </p>
+            <div className="form-grid settings-deadlines">
+              {relationshipDeadlineFields.map((field) => (
+                <label key={field.key}>
+                  {field.label}
+                  <input
+                    type="number"
+                    min={field.min}
+                    step={1}
+                    required
+                    readOnly={!canEdit}
+                    value={settings[field.key]}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        [field.key]: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset
+            className="settings-fieldset settings-messages"
+            disabled={saving}
+          >
+            <legend>Modelos de mensagem</legend>
+            <p className="muted-copy">
+              Variáveis disponíveis nas mensagens: <code>{"{{nome}}"}</code> — é
+              substituída pelo primeiro nome do cliente ao abrir o WhatsApp.
+            </p>
+            {(Object.keys(contactReasonLabels) as ContactReason[]).map(
+              (reason) => (
+                <label key={reason}>
+                  Mensagem: {contactReasonLabels[reason]}
+                  <textarea
+                    rows={2}
+                    required
+                    maxLength={1000}
+                    readOnly={!canEdit}
+                    value={settings.messages[reason]}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        messages: {
+                          ...settings.messages,
+                          [reason]: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ),
+            )}
+          </fieldset>
+          {notice && (
+            <div className="success-banner" role="status">
+              {notice}
+            </div>
+          )}
           {canEdit && (
-            <div className="modal-actions">
-            <button className="primary-button" disabled={saving}>
-              {saving ? "Salvando…" : "Salvar prazos e mensagens"}
-            </button>
+            <div className="modal-actions settings-save-bar">
+              <span className="settings-dirty" role="status">
+                {dirty ? "Alterações não salvas" : "Dados atualizados"}
+              </span>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!dirty || saving}
+                onClick={() => {
+                  setSettings(savedSettings);
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                Descartar alterações
+              </button>
+              <button className="primary-button" disabled={!dirty || saving}>
+                {saving ? "Salvando…" : "Salvar prazos e mensagens"}
+              </button>
             </div>
           )}
         </form>
@@ -14241,29 +15695,59 @@ export function Modal({
   title,
   subtitle,
   eyebrow = "Cadastro rápido",
+  wide = false,
+  initialFocus,
   busy = false,
+  inactive = false,
   onClose,
   children,
 }: {
   title: string;
   subtitle: string;
   eyebrow?: string;
+  /** Variante ampla para formulários com várias seções. */
+  wide?: boolean;
+  /** Seletor do primeiro campo a receber foco ao abrir. */
+  initialFocus?: string;
   /** Salvamento em andamento: X e Esc ficam desativados. */
   busy?: boolean;
+  /** Mantém o formulário montado, mas inacessível sob outro modal. */
+  inactive?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
+  const settingsPanel = useContext(SettingsPanelContext);
   useBodyScrollLock();
+  useSettingsBusy(true);
   useEscapeToClose(onClose, busy);
   // Id próprio: com modal sobre modal, cada um é nomeado pelo seu título.
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const section = sectionRef.current;
+    if (!inactive && section && !section.contains(document.activeElement)) {
+      const firstField = initialFocus ? section.querySelector<HTMLElement>(initialFocus) : null;
+      (firstField ?? section.querySelector<HTMLElement>("input, select, textarea, button:not(:disabled)"))?.focus();
+    }
+  }, [inactive, initialFocus]);
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop" role="presentation" inert={inactive} aria-hidden={inactive || undefined}>
       <section
-        className="modal"
+        ref={sectionRef}
+        className={(wide ? "modal modal-wide" : "modal") + (settingsPanel ? " settings-modal" : "")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const controls = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>(
+            'input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex="0"]',
+          ) ?? []).filter((element) => !element.closest('[hidden], [inert]') && element.getAttribute("type") !== "hidden");
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }}
       >
         <div className="modal-head">
           <div>
@@ -14281,16 +15765,11 @@ export function Modal({
   );
 }
 
-function Drawer({ title, subtitle, busy = false, onClose, children }: { title: string; subtitle: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
-  useBodyScrollLock();
-  useEscapeToClose(onClose, busy);
+function GroupModal({ title, subtitle, busy = false, onClose, children }: { title: string; subtitle: string; busy?: boolean; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="drawer-backdrop">
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
-        <header className="drawer-head"><div><span className="eyebrow">Turmas</span><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" onClick={onClose} aria-label="Fechar gaveta" autoFocus disabled={busy}><X size={20} /></button></header>
-        <div className="drawer-body">{children}</div>
-      </aside>
-    </div>
+    <Modal eyebrow="Turmas" title={title} subtitle={subtitle} wide initialFocus="input, select, textarea" busy={busy} onClose={onClose}>
+      <div className="group-modal-content">{children}</div>
+    </Modal>
   );
 }
 
@@ -14318,6 +15797,7 @@ function GroupSlotsEditor({ slots, onChange, weekDayNames }: { slots: GroupClass
 }
 
 function GroupsPage() {
+  const { can, canEdit } = useAuthorization();
   const weekDayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -14330,7 +15810,7 @@ function GroupsPage() {
   // Atalho de Clientes ("Assinantes sem turma vinculada"): `?matricular=<cliente>` abre a matrícula.
   const [searchParams] = useSearchParams();
   const enrollPatientId = canManage ? (searchParams.get("matricular") ?? "") : "";
-  const [drawer, setDrawer] = useState<"create" | "enroll" | null>(() => (enrollPatientId ? "enroll" : null));
+  const [groupDialog, setGroupDialog] = useState<"create" | "enroll" | null>(() => (enrollPatientId ? "enroll" : null));
   const [saving, setSaving] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [editingCapacity, setEditingCapacity] = useState(1);
@@ -14417,8 +15897,8 @@ function GroupsPage() {
     setEditingCapacity(group.capacity);
     setEditingSlots(group.weeklySlots ?? []);
   }
-  function closeDrawers() {
-    setDrawer(null);
+  function closeGroupDialogs() {
+    setGroupDialog(null);
     setSelectedGroupId(null);
   }
   return (
@@ -14429,8 +15909,8 @@ function GroupsPage() {
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
         action={canManage && (
           <div className="page-actions">
-            <button className="secondary-button" onClick={() => setDrawer("enroll")}><UserPlus size={18} /> Matricular cliente</button>
-            <button className="primary-button" onClick={() => setDrawer("create")}><Plus size={18} /> Nova turma</button>
+            {can("groups.enroll") && (<button className="secondary-button" onClick={() => setGroupDialog("enroll")}><UserPlus size={18} /> Matricular cliente</button>)}
+            {can("groups.create") && (<button className="primary-button" onClick={() => setGroupDialog("create")}><Plus size={18} /> Nova turma</button>)}
           </div>
         )}
       />
@@ -14445,18 +15925,20 @@ function GroupsPage() {
             <div><span>Matrículas ativas</span><strong>{activeEnrollments.length}</strong><small>clientes inscritos</small></div>
             <div><span>Encontros</span><strong>{workspace?.sessions.filter((item) => item.status === "scheduled").length ?? 0}</strong><small>agendados</small></div>
           </div>
-          {drawer === "create" && <Drawer title="Nova turma" subtitle="Configure os dados e horários fixos." busy={saving} onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
+          {groupDialog === "create" && <GroupModal title="Nova turma" subtitle="Configure os dados e horários fixos." busy={saving} onClose={closeGroupDialogs}>
+          <section className="group-modal-sections group-form-panel">
             {error && <ErrorBanner error={error} />}
-            <h2>Nova turma</h2>
-            <p className="group-panel-copy">Defina o serviço, o profissional, a sala e o número de vagas. O nome é gerado automaticamente por serviço.</p>
-            <form
-              className="form-grid"
+            {can("groups.create") && (<form
+              className="group-modal-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(async () => { await api.createGroupClass(groupForm); setGroupForm({ serviceId: "", professionalId: "", roomId: "", capacity: 1, weeklySlots: [] }); closeDrawers(); });
+                void run(async () => { await api.createGroupClass(groupForm); setGroupForm({ serviceId: "", professionalId: "", roomId: "", capacity: 1, weeklySlots: [] }); closeGroupDialogs(); });
               }}
             >
+              <section className="group-modal-section">
+                <h3>Dados da turma</h3>
+                <p>Escolha o serviço, quem conduz a turma, a sala e o número de vagas.</p>
+                <div className="group-modal-field-grid">
               <label>
                 Serviço
                 <select
@@ -14529,28 +16011,40 @@ function GroupsPage() {
                   }
                 />
               </label>
+                </div>
+              </section>
+              <section className="group-modal-section">
+                <h3>Horários semanais</h3>
+                <p>Adicione os dias e horários em que a turma se reúne.</p>
               <GroupSlotsEditor slots={groupForm.weeklySlots} onChange={(weeklySlots) => setGroupForm({ ...groupForm, weeklySlots })} weekDayNames={weekDayNames} />
+              </section>
+              <section className="group-modal-section">
+                <h3>Resumo da turma</h3>
               <div className="group-next-session" aria-live="polite">
                 {newGroupService ? <strong>{groupClassName(newGroupService.name, nextGroupSequence)}</strong> : "Selecione o serviço para ver o nome da turma"}
                 <br />
                 {describeGroupSchedule(groupForm.weeklySlots)}
               </div>
-              <div className="modal-actions span-2"><button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button></div>
-            </form>
+              </section>
+              <div className="modal-actions group-modal-actions"><button className="primary-button" disabled={groupForm.weeklySlots.length === 0}>Criar turma</button></div>
+            </form>)}
           </section>
-          </Drawer>}
-          {drawer === "enroll" && <Drawer title="Nova matrícula" subtitle="Escolha a turma e o cliente." busy={saving} onClose={closeDrawers}>
-          <section className="group-drawer-content group-form-panel">
+          </GroupModal>}
+          {groupDialog === "enroll" && <GroupModal title="Nova matrícula" subtitle="Escolha a turma e o cliente." busy={saving} onClose={closeGroupDialogs}>
+          <section className="group-modal-sections group-form-panel">
             {error && <ErrorBanner error={error} />}
-            <h2>Matrícula</h2>
-            <p className="group-panel-copy">Inclua um cliente em uma turma com vagas disponíveis.</p>
-            <form
-              className="form-grid"
+            {can("groups.enroll") && (<form
+              className="group-modal-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(async () => { await api.createGroupEnrollment(enrollmentForm); closeDrawers(); });
+                if (!enrollmentForm.patientId) return;
+                  void run(async () => { await api.createGroupEnrollment(enrollmentForm); closeGroupDialogs(); });
               }}
             >
+              <section className="group-modal-section">
+                <h3>Dados da matrícula</h3>
+                <p>Escolha uma turma ativa e o cliente que deseja matricular.</p>
+                <div className="group-modal-field-grid">
               <label>
                 Turma
                 <select
@@ -14573,35 +16067,19 @@ function GroupsPage() {
                     ))}
                 </select>
               </label>
-              <label>
-                Cliente
-                <select
-                  required
-                  value={enrollmentForm.patientId}
-                  onChange={(event) =>
-                    setEnrollmentForm({
-                      ...enrollmentForm,
-                      patientId: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {patients.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="modal-actions span-2"><button className="primary-button">Matricular</button></div>
-            </form>
+              <PatientPicker required patients={patients} value={enrollmentForm.patientId}
+                disabled={saving} onChange={(patientId) => setEnrollmentForm({ ...enrollmentForm, patientId })} />
+                </div>
+              </section>
+              <div className="modal-actions group-modal-actions"><button className="primary-button" disabled={saving || !enrollmentForm.patientId || !enrollmentForm.groupId}>Matricular</button></div>
+            </form>)}
           </section>
-          </Drawer>}
+          </GroupModal>}
 
           <section className="panel groups-wide">
             <h2>Turmas</h2>
             <p className="group-panel-copy">Acompanhe ocupação, participantes e lista de espera.</p>
-            {workspace?.groups.length === 0 && <p className="group-empty">Nenhuma turma cadastrada. Crie a primeira turma no formulário acima.</p>}
+            {workspace?.groups.length === 0 && <p className="group-empty">Nenhuma turma cadastrada. Use “Nova turma” para criar a primeira.</p>}
             <div className="group-card-grid">
               {workspace?.groups.map((group) => (
                 <article className="group-card" key={group.id}>
@@ -14625,77 +16103,53 @@ function GroupsPage() {
             </div>
           </section>
 
-          {selectedGroup && <Drawer title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} busy={saving} onClose={closeDrawers}>
-            <div className="group-drawer-content">
+          {selectedGroup && <GroupModal title={selectedGroup.name} subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`} busy={saving} onClose={closeGroupDialogs}>
+            <div className="group-modal-sections">
               {error && <ErrorBanner error={error} />}
               {canManage && (
               <>
-              <div className="group-drawer-quick-actions">
-                <button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setDrawer("enroll"); }}>Matricular cliente</button>
+              <div className="group-modal-quick-actions">
+                {can("groups.enroll") && (<button className="secondary-button" onClick={() => { setEnrollmentForm({ ...enrollmentForm, groupId: selectedGroup.id }); setSelectedGroupId(null); setGroupDialog("enroll"); }}>Matricular cliente</button>)}
               </div>
-              <section className="group-drawer-section">
+              <section className="group-modal-section">
                 <h3>Capacidade e horários</h3>
                 <p>Ao salvar, os próximos encontros são refeitos nos novos horários. Encontros com presença registrada são mantidos.</p>
-                <form className="form-grid" onSubmit={(event) => {
+                {can("groups.update") && (<form className="group-modal-form" onSubmit={(event) => {
                   event.preventDefault();
-                  void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeDrawers(); });
+                  void run(async () => { await api.updateGroupClass(selectedGroup.id, { capacity: editingCapacity, weeklySlots: editingSlots }); closeGroupDialogs(); });
                 }}>
-                  <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
-                  <div className="group-drawer-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
+                  <div className="group-modal-capacity">
+                    <label>Máximo de pessoas<input type="number" min={selectedGroup.activeEnrollments} max={rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? 100} required value={editingCapacity} onChange={(event) => setEditingCapacity(Number(event.target.value))} /></label>
+                    <div className="group-modal-note">{selectedGroup.activeEnrollments} matriculados · Sala {selectedGroup.roomName} comporta até {rooms.find((item) => item.id === selectedGroup.roomId)?.capacity ?? "—"} pessoas</div>
+                  </div>
                   <GroupSlotsEditor slots={editingSlots} onChange={setEditingSlots} weekDayNames={weekDayNames} />
-                  <div className="modal-actions span-2"><button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button></div>
-                </form>
+                  <div className="modal-actions group-modal-actions"><button className="primary-button" disabled={editingSlots.length === 0}>Salvar alterações</button></div>
+                </form>)}
               </section>
               </>
               )}
-              <section className="group-drawer-section">
+              <section className="group-modal-section">
                 <h3>Participantes</h3>
                 <div className="group-members">
                   {workspace?.enrollments.filter((item) => item.groupId === selectedGroup.id && item.status !== "cancelled").map((item) => (
-                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span>{canManage && <button type="button" className="danger-button button-sm" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button>}</div>
+                    <div key={item.id}><span>{item.patientName} · {item.status === "active" ? "Matriculado" : `Espera ${item.queuePosition}`}</span>{canManage && (can("groups.cancel_enrollment") && (<button type="button" className="danger-button button-sm" aria-label={`Cancelar matrícula de ${item.patientName}`} onClick={() => void run(() => api.cancelGroupEnrollment(item.id))}><UserMinus size={14} aria-hidden="true" />Cancelar matrícula</button>))}</div>
                   ))}
                   {!workspace?.enrollments.some((item) => item.groupId === selectedGroup.id && item.status !== "cancelled") && <p>Nenhum participante matriculado.</p>}
                 </div>
               </section>
             </div>
-          </Drawer>}
+          </GroupModal>}
         </div>
       )}
     </>
   );
 }
 
-function App() {
-  const [user, setUser] = useState<UserSummary | null>(() => getStoredUser());
+function AppRoutes() {
+  const { user, setUser, logout, checking: staleSession, canView, canEdit } = useAuthorization();
   const authenticated = Boolean(user && hasSession());
-  // Sessão antiga (gravada antes dos módulos por usuário): completa com `/me` antes de montar o menu.
-  const staleSession = authenticated && !hasAccessLists(user!);
-  const logout = () => {
-    clearSession();
-    setUser(null);
-  };
-  useEffect(() => {
-    if (!staleSession) return;
-    let active = true;
-    api
-      .me()
-      .then((fresh) => {
-        if (!active) return;
-        storeUser(fresh);
-        setUser(fresh);
-      })
-      .catch(() => {
-        if (!active) return;
-        // Sem como confirmar as permissões: pede novo login.
-        clearSession();
-        setUser(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [staleSession]);
   const allow = (module: AppModule, element: ReactNode) =>
-    user?.modules?.includes(module) ? element : <Navigate to="/" replace />;
+    canView(module) ? element : <Navigate to="/" replace />;
   return (
     <Routes>
       <Route
@@ -14718,7 +16172,7 @@ function App() {
               <LoadingBlock />
             </main>
           ) : (
-            <Shell user={user!} onLogout={logout}>
+            <Shell key={JSON.stringify(user!.permissions)} user={user!} onLogout={logout}>
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/agenda" element={allow("agenda", <AgendaPage />)} />
@@ -14749,15 +16203,12 @@ function App() {
                   element={allow("clinical", <ClinicalRecordsPage />)}
                 />
                 <Route path="/financeiro" element={allow("finance", <FinancePage />)} />
+                <Route path="/historico" element={allow("history", <HistoryPage />)} />
                 <Route path="/relatorios" element={allow("reports", <ReportsPage />)} />
                 <Route
                   path="/configuracoes"
                   element={
-                    user!.role === "admin" ? (
-                      <AdminPage />
-                    ) : (
-                      allow("settings", <RelationshipSettingsPage />)
-                    )
+                    allow("settings", <SettingsPage />)
                   }
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
@@ -14769,5 +16220,7 @@ function App() {
     </Routes>
   );
 }
+
+function App() { return <AuthorizationProvider><AppRoutes /></AuthorizationProvider>; }
 
 export default App;

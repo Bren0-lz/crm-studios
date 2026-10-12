@@ -1,3 +1,7 @@
+import { planCatalogInputSchema } from "@crm/contracts";
+import {
+  planTemplateInputSchema,
+  planTemplateUpdateSchema, permissionCatalog, auditHistoryQuerySchema, historyAction, type AdminAuditEvent, type PermissionKey, type DashboardViewSummary, type ClinicalAppointmentOption } from "@crm/contracts";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
@@ -68,7 +72,6 @@ import {
   patientInputSchema,
   patientListQuerySchema,
   guidedPatientInputSchema,
-  type GuidedPatientNext,
   type GuidedPatientResult,
   patientImportFileSchema,
   patientTagInputSchema,
@@ -386,13 +389,14 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
       modules: user.modules,
       editModules: user.editModules,
+      permissions: user.permissions,
     };
   }
 
   /** Módulos e edição efetivos do usuário da requisição (lidos do repositório no `authenticate`). */
   const requestAccess = new WeakMap<
     FastifyRequest,
-    { modules: readonly AppModule[]; editModules: readonly AppModule[] }
+    { modules: readonly AppModule[]; permissions: readonly PermissionKey[] }
   >();
 
   /**
@@ -420,7 +424,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     request.user.role = user.role;
     requestAccess.set(request, {
       modules: user.modules,
-      editModules: user.editModules,
+      permissions: user.permissions,
     });
   }
 
@@ -431,15 +435,13 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   ) {
     const access = requestAccess.get(request);
     return requirements.find(
-      ({ module, level }) =>
-        !(level === "edit" ? access?.editModules : access?.modules)?.includes(
-          module,
-        ),
+      ({ permission }) => !access?.permissions.includes(permission),
     );
   }
   function moduleDenied(missing: ModuleRequirement): ApiError {
     return {
       code: moduleDeniedCodes[missing.module],
+      details: { permission: missing.permission ?? `${missing.module}.view` },
       message: `Seu usuário não possui permissão para ${
         missing.level === "edit" ? "editar" : "ver"
       } ${appModuleLabels[missing.module]}.`,
@@ -458,12 +460,12 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   function requireAnyModule(requirements: readonly ModuleRequirement[]) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       const access = requestAccess.get(request);
-      const allowed = requirements.some(({ module, level }) =>
-        (level === "edit" ? access?.editModules : access?.modules)?.includes(module),
+      const allowed = requirements.some(({ permission }) => access?.permissions.includes(permission),
       );
       if (!allowed)
         return reply.status(403).send({
           code: moduleDeniedCodes[requirements[0]!.module],
+          details: { permissions: requirements.map(item => item.permission) },
           message: `Seu usuário não possui permissão para ${
             requirements[0]!.level === "edit" ? "editar" : "ver"
           } ${requirements.map(({ module }) => appModuleLabels[module]).join(" ou ")}.`,
@@ -472,6 +474,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   }
 
   /** Administração: só usuário do tipo admin (tipo relido do repositório no `authenticate`). */
+  function assertPermissions(request: FastifyRequest, ...keys: PermissionKey[]) {
+    for (const key of keys) {
+      if (!requestAccess.get(request)?.permissions.includes(key)) {
+        const item = permissionCatalog.find(item => item.key === key)!;
+        throw new DomainError(moduleDeniedCodes[item.module], `Acesso negado: ${item.name}.`, 403, { permission: key });
+      }
+    }
+  }
+
   async function requireAdminAccess(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -510,6 +521,55 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
             : [requireAnyModule(access.anyOf)]),
     ];
   });
+
+  // Record successful business commands, never request bodies, credentials or clinical text.
+  // Domain journals remain transactional; this entry records the authenticated API action.
+  app.addHook("onSend", async (request, reply, payload) => {
+    const route = request.routeOptions.url;
+    if (!route || !requestAccess.has(request) || !["POST", "PUT", "PATCH", "DELETE"].includes(request.method)
+      || reply.statusCode < 200 || reply.statusCode >= 300
+      || route.startsWith("/admin/users") || route === "/admin/clinic-settings" || route.startsWith("/patient-tags") || route.startsWith("/plan-templates")
+      || route.endsWith("/preview")) return payload;
+    const access = ROUTE_ACCESS[`${request.method} ${route}`];
+    const requirements = Array.isArray(access) ? access : typeof access === "object" && "anyOf" in access ? access.anyOf : [];
+    const requirement = requirements.find((item) => requestAccess.get(request)?.permissions.includes(item.permission));
+    const module = requirement?.module ?? "settings";
+    const action = requirement ? `operation.${requirement.permission}` : `operation.${request.method.toLowerCase()}.${route}`;
+    const metadata: Record<string, unknown> = {
+      _module: module, _description: historyAction(action)?.label ?? "Configuração alterada",
+      method: request.method, route, params: request.params, statusCode: reply.statusCode,
+    };
+    const params = request.params as Record<string, unknown>;
+    let entityId = z.uuid().safeParse(params.id).data;
+    if (typeof payload === "string" && payload.startsWith("{")) {
+      try {
+        const result = JSON.parse(payload);
+        entityId = z.uuid().safeParse(result.id).data ?? entityId;
+        if (module !== "clinical") {
+          const name = result.fullName ?? result.name ?? result.title;
+          if (typeof name === "string") metadata.subjectName = name;
+        }
+      } catch { /* Non-JSON responses have no result ID. */ }
+    }
+    try {
+      await repository.recordAdminAuditEvent(request.user.clinicId, request.user.sub, action, module, metadata, entityId);
+    } catch (error) {
+      // The business operation has committed: do not turn it into a retryable 500.
+      request.log.error({ err: error, action, clinicId: request.user.clinicId }, "Failed to record system history");
+    }
+    return payload;
+  });
+
+  function visibleHistory(request: FastifyRequest, event: AdminAuditEvent): AdminAuditEvent {
+    if (event.module !== "clinical") return event;
+    const permissions = requestAccess.get(request)?.permissions ?? [];
+    const allowed = permissions.includes("clinical.view") &&
+      (!event.action.startsWith("clinical.access.") || permissions.includes("clinical.access_events"));
+    if (allowed) return event;
+    const summary = { ...event };
+    delete summary.entityId;
+    return { ...summary, entityType: "clinical", metadata: event.metadata.actorUnavailable ? { actorUnavailable: true } : {}, detailsRestricted: true };
+  }
 
   /** Recusa (409 `HOLIDAY`) horários cuja data, no fuso da clínica, é feriado. */
   async function assertNoHoliday(clinicId: string, startsAtList: string[]) {
@@ -848,10 +908,20 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     },
   );
   app.get(
+    "/history/audit-events",
+    { preHandler: authenticate },
+    async (request) => {
+      const { cursor, ...filters } = auditHistoryQuerySchema.parse(request.query);
+      const page = await repository.listAdminAuditPage(request.user.clinicId, cursor, filters);
+      return { ...page, items: page.items.map((event) => visibleHistory(request, event)) };
+    },
+  );
+  app.get(
     "/admin/audit-events",
     { preHandler: authenticate },
-    async (request) => repository.listAdminAuditEvents(request.user.clinicId),
+    async (request) => (await repository.listAdminAuditEvents(request.user.clinicId)).map((event) => visibleHistory(request, event)),
   );
+  app.get("/history/actors", { preHandler: authenticate }, async (request) => repository.listHistoryActors(request.user.clinicId));
   app.get(
     "/admin/permission-matrix",
     { preHandler: authenticate },
@@ -873,8 +943,79 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
         timeZone: "America/Sao_Paulo",
       }).format(new Date());
     await repository.renewDuePatientPlans(request.user.clinicId, request.user.sub);
-    return repository.getDashboard(request.user.clinicId, date);
+    const access = requestAccess.get(request)!;
+    if (!access.modules.includes("agenda") && !access.modules.includes("patients")) return { date } satisfies DashboardViewSummary;
+    const summary = await repository.getDashboard(request.user.clinicId, date);
+    return {
+      date,
+      ...(access.modules.includes("agenda") ? { appointmentsToday: summary.appointmentsToday, completedToday: summary.completedToday, noShowsThisMonth: summary.noShowsThisMonth, nextAppointments: summary.nextAppointments } : {}),
+      ...(access.modules.includes("patients") ? { patientsActive: summary.patientsActive } : {}),
+    } satisfies DashboardViewSummary;
   });
+
+  app.get("/plan-catalog", { preHandler: authenticate }, async (request) =>
+    repository.listPlanCatalog(request.user.clinicId),
+  );
+  app.post(
+    "/plan-catalog",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createPlanCatalogEntry(
+            request.user.clinicId,
+            request.user.sub,
+            planCatalogInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.put(
+    "/plan-catalog/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = planCatalogInputSchema.parse(request.body);
+      const updated = z.uuid().safeParse(id).success
+        ? await repository.updatePlanCatalogEntry(
+            request.user.clinicId,
+            request.user.sub,
+            id,
+            input,
+          )
+        : null;
+      if (!updated)
+        return reply
+          .status(404)
+          .send({
+            code: "PLAN_CATALOG_NOT_FOUND",
+            message: "Plano do catálogo não encontrado.",
+          } satisfies ApiError);
+      return updated;
+    },
+  );
+  app.delete(
+    "/plan-catalog/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted =
+        z.uuid().safeParse(id).success &&
+        (await repository.deletePlanCatalogEntry(
+          request.user.clinicId,
+          request.user.sub,
+          id,
+        ));
+      if (!deleted)
+        return reply
+          .status(404)
+          .send({
+            code: "PLAN_CATALOG_NOT_FOUND",
+            message: "Plano do catálogo não encontrado.",
+          } satisfies ApiError);
+      return reply.status(204).send();
+    },
+  );
 
   app.get("/patients", { preHandler: authenticate }, async (request) => {
     const query = patientListQuerySchema.parse(request.query);
@@ -886,7 +1027,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
   });
   // Lista mínima de apoio (D11): só id, nome e etiquetas, para telas que escolhem o cliente.
   app.get("/patients/options", { preHandler: authenticate }, async (request) => {
-    const patients = await repository.listPatients(request.user.clinicId);
+    const { search } = patientListQuerySchema.pick({ search: true }).parse(request.query);
+    const patients = await repository.listPatients(request.user.clinicId, search);
     return patients.map(
       ({ id, fullName, tags }): PatientOption => ({ id, fullName, tags }),
     );
@@ -978,26 +1120,15 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
    * Cadastro guiado: o `ROUTE_ACCESS` exige editar Clientes; aqui exige também editar o módulo
    * do passo (Agenda, Planos e, com turma, Turmas), com o mesmo 403 das guardas.
    */
-  const guidedStepModules: Record<GuidedPatientNext, AppModule[]> = {
-    none: [],
-    demonstration: ["agenda"],
-    plan: ["plans"],
-    single: ["plans"],
-  };
   app.post(
     "/patients/guided",
     { preHandler: authenticate },
     async (request, reply) => {
       const input = guidedPatientInputSchema.parse(request.body);
-      const modules = [
-        ...guidedStepModules[input.next],
-        ...(input.next === "plan" && input.groupId ? (["groups"] as const) : []),
-      ];
-      const missing = missingModule(
-        request,
-        modules.map((module): ModuleRequirement => ({ module, level: "edit" })),
-      );
-      if (missing) return reply.status(403).send(moduleDenied(missing));
+      assertPermissions(request, "patients.create",
+        ...(input.next === "demonstration" ? ["agenda.create" as const] : []),
+        ...(input.next === "plan" || input.next === "single" ? ["plans.create" as const] : []),
+        ...(input.next === "plan" && input.groupId ? ["groups.enroll" as const] : []));
       const clinicId = request.user.clinicId;
       const patient = await withConfiguredTags(clinicId, input.patient);
       if (input.next === "demonstration")
@@ -1010,6 +1141,16 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       return reply.status(201).send(result);
     },
   );
+  app.get("/plan-templates", { preHandler: authenticate }, async (request) => repository.listPlanTemplates(request.user.clinicId));
+  app.post("/plan-templates", { preHandler: authenticate }, async (request, reply) =>
+    reply.status(201).send(await repository.createPlanTemplate(request.user.clinicId, request.user.sub, planTemplateInputSchema.parse(request.body))));
+  app.patch("/plan-templates/:id", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const input = planTemplateUpdateSchema.parse(request.body);
+    const item = z.uuid().safeParse(id).success ? await repository.updatePlanTemplate(request.user.clinicId, request.user.sub, id, input) : null;
+    if (!item) return reply.status(404).send({ code: "PLAN_TEMPLATE_NOT_FOUND", message: "Plano do catálogo não encontrado." } satisfies ApiError);
+    return item;
+  });
   app.get("/patient-tags", { preHandler: authenticate }, async (request) =>
     repository.listPatientTags(request.user.clinicId),
   );
@@ -1156,7 +1297,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",
         });
-      return timeline;
+      const sourceModules: Record<string, AppModule> = {
+        appointment: "agenda", plan_created: "plans", plan_renewed: "plans", plan_cancelled: "plans",
+        payment: "finance", payment_reversal: "finance", contact: "relationship", message: "communications", satisfaction: "agenda",
+      };
+      return timeline.filter(item => requestAccess.get(request)?.modules.includes(sourceModules[item.kind]!));
     },
   );
 
@@ -1203,6 +1348,11 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       ),
   );
 
+  app.get("/appointments/options", { preHandler: authenticate }, async (request): Promise<ClinicalAppointmentOption[]> => {
+    const { from, to } = z.object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) }).parse(request.query);
+    const appointments = await repository.listAppointments(request.user.clinicId, from, to);
+    return appointments.filter(item => item.patientId).map(({ id, startsAt, patientName, professionalName, status }) => ({ id, startsAt, patientName, professionalName, status }));
+  });
   app.get("/appointments", { preHandler: authenticate }, async (request) => {
     const query = request.query as { from?: string; to?: string };
     if (!query.from || !query.to)
@@ -1295,6 +1445,7 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const { status } = appointmentStatusInputSchema.parse(request.body);
+      assertPermissions(request, status === "cancelled" ? "agenda.cancel" : "agenda.attendance");
       const appointment = await repository.updateAppointmentStatus(
         request.user.clinicId,
         id,
@@ -1855,6 +2006,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       const status = planTransitionSchema.parse(
         (request.body as { status?: unknown }).status,
       );
+
+      assertPermissions(request, status === "cancelled" ? "plans.cancel" : "plans.status");
       const plan = await repository.updatePatientPlanStatus(
         request.user.clinicId,
         request.user.sub,
@@ -2575,6 +2728,8 @@ export async function buildApp({ repository, logger = true }: BuildAppOptions) {
       const status = documentTransitionSchema.parse(
         (request.body as { status?: unknown }).status,
       );
+
+      assertPermissions(request, status === "cancelled" ? "contracts.cancel" : "contracts.status");
       const document = await repository.updateIssuedDocumentStatus(
         request.user.clinicId,
         id,

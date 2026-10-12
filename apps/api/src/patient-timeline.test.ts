@@ -41,6 +41,7 @@ function appointment(
 
 function plan(overrides: Partial<PatientPlan>): PatientPlan {
   return {
+    services: [{ serviceId: "s1", totalSessions: 8, totalValueInCents: 40000, remainingSessions: 8, serviceName: "Pilates" }],
     id: "plan-1",
     clinicId,
     patientId,

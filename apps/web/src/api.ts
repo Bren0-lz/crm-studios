@@ -1,5 +1,13 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
+import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate, DashboardViewSummary, ClinicalAppointmentOption } from "@crm/contracts";
 import type {
   AdminAuditEvent,
+  AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -41,7 +49,6 @@ import type {
   BirthdayEntry,
   DailyCash,
   FinanceForecast,
-  DashboardSummary,
   CostCenter,
   CostCenterInput,
   DocumentStatus,
@@ -154,7 +161,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   const body = await response.json();
   if (!response.ok) {
-    if (response.status === 401 && path !== "/auth/login") clearSession();
+    if (response.status === 401 && path !== "/auth/login") { clearSession(); window.dispatchEvent(new Event("crm:session-ended")); }
+    if (response.status === 403 && path !== "/me") window.dispatchEvent(new Event("crm:access-denied"));
     throw new ApiClientError(
       body.message ?? "Não foi possível concluir a operação.",
       body.code ?? "UNKNOWN_ERROR",
@@ -171,6 +179,8 @@ async function requestBlob(path: string) {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) {
+    if (response.status === 401) { clearSession(); window.dispatchEvent(new Event("crm:session-ended")); }
+    if (response.status === 403) window.dispatchEvent(new Event("crm:access-denied"));
     const body = (await response.json()) as { message?: string; code?: string };
     throw new ApiClientError(
       body.message ?? "Não foi possível exportar o relatório.",
@@ -278,15 +288,24 @@ export const api = {
       body: JSON.stringify(input),
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
+  auditHistory: (cursor?: string, filters: AuditHistoryFilters = {}) => {
+    const query = new URLSearchParams();
+    if (cursor) query.set("cursor", cursor);
+    for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+    return request<AdminAuditPage>(`/history/audit-events${query.size ? `?${query}` : ""}`);
+  },
+  historyActors: () => request<HistoryActor[]>("/history/actors"),
   dashboard: (date: string) =>
-    request<DashboardSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
+    request<DashboardViewSummary>(`/dashboard?date=${encodeURIComponent(date)}`),
   /** `withoutGroup`: só assinantes sem turma vinculada (filtro calculado na API). */
   patients: (search = "", options: { withoutGroup?: boolean } = {}) =>
     request<Patient[]>(
       `/patients?search=${encodeURIComponent(search)}${options.withoutGroup ? "&withoutGroup=true" : ""}`,
     ),
   /** Lista mínima (id, nome, etiquetas) para telas que só escolhem o cliente. */
-  patientOptions: () => request<PatientOption[]>("/patients/options"),
+  patientOptions: (search = "") => request<PatientOption[]>(search
+    ? `/patients/options?search=${encodeURIComponent(search)}`
+    : "/patients/options"),
   /** Etiquetas configuradas (Configurações › Etiquetas), por nome, com a contagem de clientes. */
   patientTags: () => request<PatientTag[]>("/patient-tags"),
   createPatientTag: (input: PatientTagInput) =>
@@ -334,6 +353,8 @@ export const api = {
   professionals: () => request<Professional[]>("/professionals"),
   rooms: () => request<Room[]>("/rooms"),
   services: () => request<Service[]>("/services"),
+  clinicalAppointmentOptions: (from: string, to: string) =>
+    request<ClinicalAppointmentOption[]>(`/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   appointments: (from: string, to: string) =>
     request<Appointment[]>(
       `/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
@@ -481,6 +502,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  planCatalog: () => request<PlanCatalogEntry[]>("/plan-catalog"),
+  createPlanCatalogEntry: (input: PlanCatalogInput) =>
+    request<PlanCatalogEntry>("/plan-catalog", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePlanCatalogEntry: (id: string, input: PlanCatalogInput) =>
+    request<PlanCatalogEntry>(`/plan-catalog/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deletePlanCatalogEntry: (id: string) =>
+    request<void>(`/plan-catalog/${id}`, { method: "DELETE" }),
+
+  planTemplates: () => request<PlanTemplate[]>("/plan-templates"),
+  createPlanTemplate: (input: PlanTemplateInput) => request<PlanTemplate>("/plan-templates", { method: "POST", body: JSON.stringify(input) }),
+  updatePlanTemplate: (id: string, input: PlanTemplateUpdate) => request<PlanTemplate>(`/plan-templates/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   plans: (patientId = "") =>
     request<PatientPlan[]>(`/plans?patientId=${encodeURIComponent(patientId)}`),
   createPlan: (input: PatientPlanInput) =>

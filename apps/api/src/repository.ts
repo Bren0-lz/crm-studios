@@ -1,5 +1,12 @@
+import type { PlanCatalogEntry, PlanCatalogInput } from "@crm/contracts";
 import type {
+  PlanTemplate,
+  PlanTemplateInput,
+  PlanTemplateUpdate,
   AdminAuditEvent,
+  AdminAuditPage,
+  AuditHistoryFilters,
+  HistoryActor,
   AdminUser,
   AdminUserCommissionInput,
   AdminUserInput,
@@ -198,6 +205,8 @@ export interface ClinicRepository {
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
+  listAdminAuditPage(clinicId: string, cursor?: string, filters?: AuditHistoryFilters): Promise<AdminAuditPage>;
+  listHistoryActors(clinicId: string): Promise<HistoryActor[]>;
   /** Registra um evento na auditoria administrativa (ex.: `patients.exported`). */
   recordAdminAuditEvent(
     clinicId: string,
@@ -205,6 +214,7 @@ export interface ClinicRepository {
     action: string,
     entityType: string,
     metadata?: Record<string, unknown>,
+    entityId?: string,
   ): Promise<void>;
   /** Devolve os padrões quando a clínica ainda não salvou configurações. */
   getRelationshipSettings(clinicId: string): Promise<RelationshipSettings>;
@@ -272,7 +282,7 @@ export interface ClinicRepository {
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
-   * experimental, plano (com matrícula opcional em turma do mesmo serviço) ou avulso — tudo ou
+   * experimental, plano (com matrícula opcional em turma de um serviço incluído) ou avulso — tudo ou
    * nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
    * (`GROUP_OR_PATIENT_NOT_FOUND`, `GROUP_SERVICE_MISMATCH`) e plano usam as regras dos fluxos
    * existentes.
@@ -301,6 +311,24 @@ export interface ClinicRepository {
     input: PatientInput,
   ): Promise<Patient | null>;
   /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
+  listPlanCatalog(clinicId: string): Promise<PlanCatalogEntry[]>;
+  createPlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanCatalogInput,
+  ): Promise<PlanCatalogEntry>;
+  updatePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: PlanCatalogInput,
+  ): Promise<PlanCatalogEntry | null>;
+  deletePlanCatalogEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<boolean>;
+
   listPatientTags(clinicId: string): Promise<PatientTag[]>;
   /**
    * Cria a etiqueta (auditoria `patient_tag.created`). Nome igual a outro da clínica sem
@@ -529,6 +557,9 @@ export interface ClinicRepository {
     clinicId: string,
     patientId: string,
   ): Promise<ClinicalAccessEvent[]>;
+  listPlanTemplates(clinicId: string): Promise<PlanTemplate[]>;
+  createPlanTemplate(clinicId: string, actorUserId: string, input: PlanTemplateInput): Promise<PlanTemplate>;
+  updatePlanTemplate(clinicId: string, actorUserId: string, id: string, input: PlanTemplateUpdate): Promise<PlanTemplate | null>;
   listPatientPlans(
     clinicId: string,
     patientId?: string,

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ClinicalAttachmentInput } from "@crm/contracts";
+import type { ClinicalAttachmentInput, UserSummary } from "@crm/contracts";
 import { DomainError } from "./repository.js";
 
 const signatures: Record<ClinicalAttachmentInput["mimeType"], number[]> = {
@@ -7,6 +7,14 @@ const signatures: Record<ClinicalAttachmentInput["mimeType"], number[]> = {
   "image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
   "image/jpeg": [0xff, 0xd8, 0xff],
 };
+
+/** Called after identifying/locking the existing record, so creation cannot overwrite a draft. */
+export function assertClinicalWritePermission(user: Pick<UserSummary, "permissions"> | null, existing: boolean) {
+  const permission = existing ? "clinical.records_update" : "clinical.records_create";
+  if (!user?.permissions.includes(permission)) throw new DomainError(
+    "CLINICAL_ACCESS_DENIED", "Seu usuário não possui permissão para salvar esta evolução.", 403, { permission },
+  );
+}
 
 export function inspectClinicalAttachment(input: ClinicalAttachmentInput) {
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(input.contentBase64))

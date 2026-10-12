@@ -15,8 +15,10 @@ import {
   contactActivityInputSchema,
   contactOutcomeSchema,
   contactReasonSchema,
+  cpfDigits,
   defaultRelationshipSettings,
   fillMessageTemplate,
+  formatCpf,
   relationshipSettingsSchema,
   saoPauloToday,
   whatsappLink,
@@ -27,6 +29,7 @@ import {
   groupClassInputSchema,
   groupClassUpdateSchema,
   groupLetter,
+  isValidCpf,
   leadMoveSchema,
   nextPlanPeriod,
   patientPlanInputSchema,
@@ -171,6 +174,17 @@ describe("shared contracts", () => {
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
   });
 
+  it("formats, normalizes and validates Brazilian CPF numbers", () => {
+    expect(cpfDigits("529.982.247-25")).toBe("52998224725");
+    expect(formatCpf("5299822")).toBe("529.982.2");
+    expect(formatCpf("52998224725")).toBe("529.982.247-25");
+    expect(isValidCpf("529.982.247-25")).toBe(true);
+    expect(isValidCpf("529.982.247-24")).toBe(false);
+    expect(isValidCpf("111.111.111-11")).toBe(false);
+    expect(patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11999999999", cpf: "529.982.247-25" }).cpf).toBe("52998224725");
+    expect(() => patientInputSchema.parse({ fullName: "Maria da Silva", phone: "11999999999", cpf: "529.982.247-24" })).toThrow("Informe um CPF válido.");
+  });
+
   it("rejects an appointment with invalid identifiers", () => {
     expect(() =>
       appointmentInputSchema.parse({
@@ -203,6 +217,8 @@ describe("shared contracts", () => {
 
   it("validates plan dates and installment limits", () => {
     const base = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 12, totalValueInCents: 180000 }],
+      planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
       name: "Pacote trimestral",
@@ -213,7 +229,7 @@ describe("shared contracts", () => {
       installments: 3,
       firstDueDate: "2026-09-05",
     };
-    expect(patientPlanInputSchema.parse(base).totalSessions).toBe(12);
+    expect(patientPlanInputSchema.parse(base).services[0]?.totalSessions).toBe(12);
     expect(() =>
       patientPlanInputSchema.parse({
         ...base,
@@ -224,6 +240,8 @@ describe("shared contracts", () => {
 
   it("requires an end date for automatic renewal", () => {
     const base = {
+      services: [{ serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 8, totalValueInCents: 40000 }],
+      planTemplateId: "aa000000-0000-4000-8000-000000000001",
       patientId: "99999999-9999-4999-8999-999999999999",
       serviceId: "77777777-7777-4777-8777-777777777777",
       name: "Mensalidade",
@@ -481,6 +499,8 @@ describe("guided patient creation", () => {
   const patient = { fullName: "Ana Souza", phone: "11999990000" };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {
+    services: [{ serviceId: serviceId, totalSessions: 8, totalValueInCents: 40000 }],
+    planTemplateId: "aa000000-0000-4000-8000-000000000001",
     name: "Pilates 2x",
     serviceId,
     totalSessions: 8,

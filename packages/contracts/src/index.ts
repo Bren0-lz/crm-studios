@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { userPermissionsSchema, validatePermissionInput, type PermissionKey } from "./permissions.js";
+export * from "./permissions.js";
+export * from "./history.js";
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
@@ -29,6 +32,35 @@ export function formatPhone(value: string): string {
   if (number.length <= 4) return `(${area}) ${number}`;
   const split = number.length === 9 ? 5 : 4;
   return `(${area}) ${number.slice(0, split)}-${number.slice(split)}`;
+}
+
+export function cpfDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+// Formata também valores parciais para uso durante a digitação.
+export function formatCpf(value: string): string {
+  const digits = cpfDigits(value);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+export function isValidCpf(value: string): boolean {
+  const digits = cpfDigits(value);
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  const checkDigit = (length: number): number => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) {
+      sum += Number(digits[index]) * (length + 1 - index);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  return checkDigit(9) === Number(digits[9]) && checkDigit(10) === Number(digits[10]);
 }
 
 const phoneSchema = z
@@ -78,6 +110,7 @@ export const appModuleSchema = z.enum([
   "finance",
   "reports",
   "settings",
+  "history",
 ]);
 export type AppModule = z.infer<typeof appModuleSchema>;
 export const appModuleLabels: Record<AppModule, string> = {
@@ -93,6 +126,7 @@ export const appModuleLabels: Record<AppModule, string> = {
   finance: "Financeiro",
   reports: "Relatórios",
   settings: "Configurações",
+  history: "Histórico",
 };
 /**
  * Módulos efetivos: admin tem sempre todos; usuário comum só os gravados (nulo/ausente =
@@ -156,9 +190,10 @@ export const adminUserInputSchema = z.object({
   modules: userModulesSchema.optional(),
   /** Módulos com edição; ausente ou `null` = nenhum (editar sem ver é descartado). */
   editModules: userModulesSchema.optional(),
+  permissions: userPermissionsSchema.optional(),
   /** Comissão do usuário já na criação; ausente = sem comissão. */
   commission: adminUserCommissionInputSchema.optional(),
-});
+}).superRefine(validatePermissionInput);
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 export const adminUserUpdateSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
@@ -170,7 +205,8 @@ export const adminUserUpdateSchema = z.object({
   modules: userModulesSchema.optional(),
   /** Ausente = mantém os módulos com edição atuais; `null` = nenhum. */
   editModules: userModulesSchema.optional(),
-});
+  permissions: userPermissionsSchema.optional(),
+}).superRefine(validatePermissionInput);
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
 export const passwordResetSchema = z.object({ password: strongPasswordSchema });
 export const clinicSettingsInputSchema = z.object({
@@ -186,7 +222,12 @@ export type ClinicSettingsInput = z.infer<typeof clinicSettingsInputSchema>;
 
 export const patientInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
-  cpf: z.string().trim().min(11).max(14).optional().or(z.literal("")),
+  cpf: z
+    .string()
+    .trim()
+    .transform(cpfDigits)
+    .refine((value) => value === "" || isValidCpf(value), "Informe um CPF válido.")
+    .optional(),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
   whatsapp: optionalPhoneSchema,
@@ -682,12 +723,206 @@ export const clinicalAddendumInputSchema = z.object({
 });
 export type ClinicalAddendumInput = z.infer<typeof clinicalAddendumInputSchema>;
 
+/** Reusable name and price; sold plans keep their own independent terms. */
+export const planCatalogInputSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+});
+export type PlanCatalogInput = z.infer<typeof planCatalogInputSchema>;
+export interface PlanCatalogEntry extends PlanCatalogInput {
+  id: string;
+  clinicId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const planKindSchema = z.enum([
   "single",
   "fixed_package",
   "recurring",
   "custom",
 ]);
+export const planServiceInputSchema = z.object({
+  serviceId: z.uuid(),
+  totalSessions: z.number().int().min(1).max(1000),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+});
+export type PlanServiceInput = z.infer<typeof planServiceInputSchema>;
+export const planServicesSchema = z
+  .array(planServiceInputSchema)
+  .min(1)
+  .refine(
+    (items) =>
+      new Set(items.map((item) => item.serviceId)).size === items.length,
+    "Não repita serviços no plano.",
+  );
+export const planTypeSchema = z.enum([
+  "single",
+  "monthly",
+  "quarterly",
+  "semiannual",
+  "annual",
+  "promotional",
+]);
+export type PlanType = z.infer<typeof planTypeSchema>;
+export const planTypeLabels: Record<PlanType, string> = {
+  single: "Plano avulso",
+  monthly: "Plano mensal",
+  quarterly: "Plano trimestral",
+  semiannual: "Plano semestral",
+  annual: "Plano anual",
+  promotional: "Plano promocional",
+};
+export function planPeriodMonths(type?: PlanType | null): number {
+  return type
+    ? {
+        single: 0,
+        monthly: 1,
+        quarterly: 3,
+        semiannual: 6,
+        annual: 12,
+        promotional: 0,
+      }[type]
+    : 0;
+}
+export function planSessionsForPeriod(
+  type: PlanType,
+  sessionsPerWeek: number,
+): number {
+  return planPeriodMonths(type) * 4 * sessionsPerWeek;
+}
+export function planTypeKind(type: PlanType): z.infer<typeof planKindSchema> {
+  return type === "single"
+    ? "single"
+    : type === "monthly"
+      ? "recurring"
+      : type === "promotional"
+        ? "custom"
+        : "fixed_package";
+}
+export function planPeriodEnd(type: PlanType, validFrom: string): string {
+  if (!z.iso.date().safeParse(validFrom).success) return "";
+  const months = planPeriodMonths(type);
+  return months
+    ? addDaysToIsoDate(addMonthsToIsoDate(validFrom, months), -1)
+    : "";
+}
+const planTemplateServicesSchema = z
+  .array(
+    planServiceInputSchema.extend({
+      sessionsPerWeek: z.number().int().min(1).max(7).nullable().optional(),
+    }),
+  )
+  .min(1)
+  .refine(
+    (items) =>
+      new Set(items.map((item) => item.serviceId)).size === items.length,
+    "Não repita serviços no plano.",
+  );
+const planTemplateFieldsSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
+  services: planTemplateServicesSchema,
+  planType: planTypeSchema.nullable().optional(),
+  kind: planKindSchema.nullable().optional(),
+});
+export const planTemplateInputSchema = planTemplateFieldsSchema
+  .superRefine((value, ctx) => validateTemplatePeriod(value, ctx))
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total do plano.",
+      path: ["totalValueInCents"],
+    },
+  );
+// Weekly frequencies become a contracted balance; dates remain calendar months.
+function validateTemplatePeriod(
+  value: z.infer<typeof planTemplateFieldsSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (!planPeriodMonths(value.planType)) return;
+  value.services.forEach((entry, index) => {
+    if (!entry.sessionsPerWeek)
+      ctx.addIssue({
+        code: "custom",
+        path: ["services", index, "sessionsPerWeek"],
+        message: "Informe as sessões por semana.",
+      });
+    else if (
+      entry.totalSessions !==
+      planSessionsForPeriod(value.planType!, entry.sessionsPerWeek)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["services", index, "totalSessions"],
+        message: "O saldo deve corresponder à frequência semanal e ao período.",
+      });
+  });
+}
+export const planTemplateUpdateSchema = planTemplateFieldsSchema
+  .partial()
+  .extend({ active: z.boolean().optional() })
+  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.");
+export type PlanTemplateInput = z.infer<typeof planTemplateInputSchema>;
+export type PlanTemplateUpdate = z.infer<typeof planTemplateUpdateSchema>;
+export interface PlanTemplate extends PlanTemplateInput {
+  id: string;
+  clinicId: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface PatientPlanService extends PlanServiceInput {
+  serviceName: string;
+  remainingSessions: number;
+}
+/** Aggregate fields are derived; services own the sold terms and balances. */
+export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
+  value: T,
+) {
+  return {
+    ...value,
+    serviceId: value.services[0]!.serviceId,
+    totalSessions: value.services.reduce(
+      (sum, item) => sum + item.totalSessions,
+      0,
+    ),
+  };
+}
+/** Largest remainders with stable service-order ties, using exact integer arithmetic. */
+export function allocatePlanRevenue(
+  amountInCents: number,
+  services: Pick<PlanServiceInput, "totalValueInCents">[],
+): number[] {
+  if (!services.length) return [];
+  // A zero-price contract can receive an adjusted receivable: distribute it
+  // evenly when no sold service has a positive weight.
+  const hasValue = services.some((item) => item.totalValueInCents > 0);
+  const weights = services.map((item) =>
+    BigInt(hasValue ? item.totalValueInCents : 1),
+  );
+  const total = weights.reduce((sum, item) => sum + item, 0n);
+  const amount = BigInt(amountInCents);
+  const shares = weights.map((weight) => Number((amount * weight) / total));
+  let remainder = amountInCents - shares.reduce((sum, share) => sum + share, 0);
+  const order = weights
+    .map((weight, index) => ({ index, remainder: (amount * weight) % total }))
+    .sort((a, b) =>
+      a.remainder === b.remainder
+        ? a.index - b.index
+        : a.remainder > b.remainder
+          ? -1
+          : 1,
+    );
+  for (const item of order) {
+    if (remainder-- <= 0) break;
+    shares[item.index]! += 1;
+  }
+  return shares;
+}
+
 export const planStatusSchema = z.enum([
   "active",
   "paused",
@@ -698,10 +933,10 @@ export const planTransitionSchema = z.enum(["active", "paused", "cancelled"]);
 export type PlanStatus = z.infer<typeof planStatusSchema>;
 const planTermsSchema = z.object({
   name: z.string().trim().min(3).max(120),
-  totalSessions: z.number().int().min(1).max(1000),
+  services: planServicesSchema,
   validFrom: z.iso.date(),
   validUntil: z.iso.date().optional().or(z.literal("")),
-  totalValueInCents: z.number().int().min(0),
+  totalValueInCents: z.number().int().min(0).max(2147483647),
   installments: z.number().int().min(1).max(36),
   firstDueDate: z.iso.date(),
   autoRenew: z.boolean().optional(),
@@ -722,30 +957,32 @@ const autoRenewIssue = {
 
 export const patientPlanInputSchema = planTermsSchema
   .extend({
+    planTemplateId: z.uuid(),
     patientId: z.uuid(),
-    serviceId: z.uuid(),
     kind: planKindSchema,
   })
   .refine(validPlanPeriod, planPeriodIssue)
-  .refine(renewablePlanPeriod, autoRenewIssue);
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] });
 export type PatientPlanInput = z.infer<typeof patientPlanInputSchema>;
 
 export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
-  .refine(renewablePlanPeriod, autoRenewIssue);
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] });
 export type PlanRenewalInput = z.infer<typeof planRenewalInputSchema>;
 
 export const planAutoRenewInputSchema = z.object({ autoRenew: z.boolean() });
 
 /** Plano criado no cadastro guiado: termos de `patientPlanInputSchema`, sem `patientId`. */
-const guidedPlanTermsSchema = planTermsSchema.extend({ serviceId: z.uuid() });
+const guidedPlanTermsSchema = planTermsSchema.extend({ planTemplateId: z.uuid() });
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
  *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
- *   (precisa ser do mesmo serviço do plano; turma cheia = lista de espera);
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
  * - `single`: serviço avulso (plano `single`).
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
@@ -761,7 +998,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     plan: guidedPlanTermsSchema
       .extend({ kind: z.enum(["recurring", "fixed_package"]) })
       .refine(validPlanPeriod, planPeriodIssue)
-      .refine(renewablePlanPeriod, autoRenewIssue),
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] }),
     groupId: z
       .uuid()
       .optional()
@@ -772,7 +1010,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     patient: patientInputSchema,
     plan: guidedPlanTermsSchema
       .refine(validPlanPeriod, planPeriodIssue)
-      .refine(renewablePlanPeriod, autoRenewIssue),
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine((value) => value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) === value.totalValueInCents, { message: "A soma dos serviços deve corresponder ao valor total.", path: ["totalValueInCents"] }),
   }),
 ]);
 export type GuidedPatientInput = z.infer<typeof guidedPatientInputSchema>;
@@ -1223,6 +1462,7 @@ export interface UserSummary {
   modules: AppModule[];
   /** Módulos com edição efetiva (`effectiveEditModules`; sempre subconjunto de `modules`). */
   editModules: AppModule[];
+  permissions: PermissionKey[];
 }
 
 export interface AdminUser extends UserSummary {
@@ -1251,6 +1491,12 @@ export interface ClinicSettings extends ClinicSettingsInput {
 
 export interface AdminAuditEvent {
   id: string;
+  module?: AppModule;
+  description?: string;
+  detailsRestricted?: boolean;
+  clinicId?: string;
+  actorUserId?: string;
+  ipAddress?: string;
   action: string;
   entityType: string;
   entityId?: string;
@@ -1258,6 +1504,26 @@ export interface AdminAuditEvent {
   metadata: Record<string, unknown>;
   createdAt: string;
 }
+
+export interface AdminAuditPage {
+  items: AdminAuditEvent[];
+  nextCursor: string | null;
+}
+
+export const auditHistoryQuerySchema = z.object({
+  cursor: z.uuid().optional(),
+  search: z.string().trim().max(160).optional(),
+  module: appModuleSchema.optional(),
+  action: z.string().trim().min(1).max(120).optional(),
+  actorUserId: z.uuid().optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+}).refine((value) => !value.from || !value.to || value.from <= value.to, {
+  path: ["to"], message: "A data final deve ser igual ou posterior à data inicial.",
+});
+export type AuditHistoryQuery = z.infer<typeof auditHistoryQuerySchema>;
+export type AuditHistoryFilters = Omit<AuditHistoryQuery, "cursor">;
+export interface HistoryActor { id: string; name: string }
 
 export interface PermissionMatrixItem {
   role: UserRole;
@@ -1491,6 +1757,9 @@ export interface InventoryWorkspace {
   openTabsInCents: number;
 }
 
+export type DashboardViewSummary = Pick<DashboardSummary, "date"> & Partial<Omit<DashboardSummary, "date">>;
+export type ClinicalAppointmentOption = Pick<Appointment, "id" | "startsAt" | "patientName" | "professionalName" | "status">;
+
 export interface DashboardSummary {
   date: string;
   appointmentsToday: number;
@@ -1617,7 +1886,11 @@ export interface ClinicalWorkspace {
   addenda: ClinicalAddendum[];
 }
 
-export interface PatientPlan extends PatientPlanInput {
+export interface PatientPlan extends Omit<PatientPlanInput, "planTemplateId" | "services"> {
+  serviceId: string;
+  totalSessions: number;
+  services: PatientPlanService[];
+  planTemplateId?: string;
   id: string;
   clinicId: string;
   patientName: string;
@@ -1634,6 +1907,8 @@ export interface PatientPlan extends PatientPlanInput {
 }
 
 export interface SessionMovement {
+  serviceId: string;
+  serviceName?: string;
   id: string;
   planId: string;
   appointmentId?: string;

@@ -4,8 +4,8 @@ CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). 
 
 ## O que já funciona
 
-- autenticação com perfis de acesso;
-- usuários com cargo e permissões por módulo (Ver e Editar), com o padrão do perfil como ponto de partida e conferidas pela API a cada requisição;
+- autenticação com Admin e Usuário comum;
+- usuários com cargo e permissões individuais por operação, agrupadas por módulo e conferidas pela API a cada requisição; veja o [mapa de permissões e instruções de migração](docs/permissoes.md);
 - comissão por usuário: ligação a um profissional da agenda e percentual com início de vigência;
 - painel com indicadores operacionais;
 - cadastro, edição e pesquisa de clientes, com lista paginada (20 por página);
@@ -21,6 +21,7 @@ CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). 
 - prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
 - bloqueio de prontuários para perfis sem acesso clínico;
 - planos, pacotes, validade, saldo e extrato de sessões;
+- catálogo em Configurações › Planos, com nome e preço obrigatórios e serviço, modelo e sessões opcionais; novas vendas exigem seleção e preenchem o preço automaticamente, permitindo negociação;
 - renovação de planos manual ou automática ao fim do período;
 - consumo automático ao finalizar e estorno ao reabrir atendimentos;
 - financeiro com contas a receber e pagar, categorias, centros de custo, ajustes, formas de pagamento, recibos e fluxo de caixa mensal;
@@ -40,6 +41,8 @@ CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). 
 - interface responsiva para desktop, tablet e celular, com escala de espaçamento padronizada e modais que não desfocam nem rolam a página de fundo.
 
 O repositório inclui dois modos de armazenamento: memória, para avaliação imediata, e PostgreSQL, para manter os dados entre reinicializações. No modo PostgreSQL, as migrações são executadas automaticamente e o banco impede conflitos simultâneos de profissional ou sala.
+
+O catálogo começa vazio. Antes da primeira nova venda, cadastre os planos em **Configurações › Planos**. Administradores gerenciam o catálogo; usuários comuns precisam das permissões de cadastrar ou editar planos do catálogo. Alterações de preços e desativações não afetam contratos existentes nem suas renovações. A migração `0048_plan_templates.sql` é aditiva e mantém os contratos antigos sem vínculo obrigatório com o catálogo.
 
 ## Executar localmente
 
