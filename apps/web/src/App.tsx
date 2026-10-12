@@ -692,30 +692,122 @@ function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {
   return (name: string) => counts.get(patientTagKey(name)) ?? 0;
 }
 
+type DashboardAppointmentAction = {
+  kind: "details" | "cancel" | "reschedule" | "history";
+  appointment: Appointment;
+};
+
 function DashboardPage() {
   const { can, canView } = useAuthorization();
   const [data, setData] = useState<DashboardViewSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [error, setError] = useState("");
+  const [appointmentAction, setAppointmentAction] = useState<DashboardAppointmentAction | null>(null);
+  const [savingAppointment, setSavingAppointment] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
+  const savingRef = useRef(false);
+  const summaryRequest = useRef(0);
+  const salesRequest = useRef(0);
+  const actionTrigger = useRef<HTMLElement | null>(null);
+  const agendaLink = useRef<HTMLAnchorElement>(null);
   const today = localIsoDate();
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
 
   useEffect(() => {
+    let active = true;
+    const version = ++summaryRequest.current;
     api
       .dashboard(today)
-      .then(setData)
-      .catch((cause: Error) => setError(cause.message));
+      .then((summary) => { if (active && summaryRequest.current === version) setData(summary); })
+      .catch((cause: Error) => { if (active && summaryRequest.current === version) setError(cause.message); });
+    return () => { active = false; };
   }, [today]);
 
   useEffect(() => {
     if (!canSeeSales) return;
+    let active = true;
+    const version = ++salesRequest.current;
     api
       .salesReport(today.slice(0, 7))
-      .then(setSales)
-      .catch((cause: Error) => setError(cause.message));
+      .then((report) => { if (active && salesRequest.current === version) setSales(report); })
+      .catch((cause: Error) => { if (active && salesRequest.current === version) setError(cause.message); });
+    return () => { active = false; };
   }, [canSeeSales, today]);
+
+  function restoreActionFocus() {
+    requestAnimationFrame(() => {
+      if (actionTrigger.current?.isConnected) actionTrigger.current.focus();
+      else agendaLink.current?.focus();
+    });
+  }
+
+  function openAppointmentAction(appointment: Appointment, kind: DashboardAppointmentAction["kind"]) {
+    actionTrigger.current = document.activeElement as HTMLElement;
+    setError("");
+    setAppointmentAction({ appointment, kind });
+  }
+
+  function closeAppointmentAction() {
+    setAppointmentAction(null);
+    restoreActionFocus();
+  }
+
+  async function refreshDashboard() {
+    setRefreshing(true);
+    setRefreshError("");
+    const summaryVersion = ++summaryRequest.current;
+    const salesVersion = ++salesRequest.current;
+    const [summary, report] = await Promise.allSettled([
+      api.dashboard(today),
+      canSeeSales ? api.salesReport(today.slice(0, 7)) : Promise.resolve(null),
+    ]);
+    if (summary.status === "fulfilled" && summaryRequest.current === summaryVersion) setData(summary.value);
+    if (report.status === "fulfilled" && canSeeSales && salesRequest.current === salesVersion) setSales(report.value);
+    if (summary.status === "rejected" || report.status === "rejected") {
+      setRefreshError("Alteração salva, mas não foi possível atualizar o painel. Tente atualizar novamente.");
+    }
+    setRefreshing(false);
+  }
+
+  async function appointmentUpdated(updated: Appointment, previous: Appointment) {
+    setData((current) => {
+      if (!current) return current;
+      const staysToday = localIsoDate(new Date(updated.startsAt)) === today;
+      const next = { ...current };
+      if (next.appointmentsToday !== undefined) next.appointmentsToday -= staysToday ? 0 : 1;
+      if (next.completedToday !== undefined) next.completedToday += staysToday && updated.status === "completed" ? 1 : 0;
+      if (next.nextAppointments) {
+        next.nextAppointments = next.nextAppointments
+          .map((item) => item.id === previous.id ? updated : item)
+          .filter((item) => localIsoDate(new Date(item.startsAt)) === today && (item.status === "scheduled" || item.status === "confirmed"))
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      }
+      return next;
+    });
+    closeAppointmentAction();
+    await refreshDashboard();
+  }
+
+  async function changeDashboardStatus(appointment: Appointment, status: "confirmed" | "completed") {
+    if (savingRef.current || refreshing) return;
+    savingRef.current = true;
+    actionTrigger.current = document.activeElement as HTMLElement;
+    setSavingAppointment(true);
+    setError("");
+    try {
+      const updated = await api.updateAppointmentStatus(appointment.id, status);
+      await appointmentUpdated(updated, appointment);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível alterar o atendimento.");
+      restoreActionFocus();
+    } finally {
+      savingRef.current = false;
+      setSavingAppointment(false);
+    }
+  }
 
   return (
     <>
@@ -733,6 +825,14 @@ function DashboardPage() {
         }
       />
       {error && <ErrorBanner error={error} />}
+      {refreshError && (
+        <div className="dashboard-refresh-error">
+          <ErrorBanner error={refreshError} />
+          <button className="secondary-button" disabled={refreshing} onClick={() => void refreshDashboard()}>
+            {refreshing ? "Atualizando…" : "Atualizar painel"}
+          </button>
+        </div>
+      )}
       {!data ? (
         <LoadingBlock />
       ) : (
@@ -818,7 +918,7 @@ function DashboardPage() {
                   <h2>Agenda de hoje</h2>
                 </div>
                 {canView("agenda") && (
-                  <NavLink to="/agenda" className="text-link">
+                  <NavLink to="/agenda" className="text-link" ref={agendaLink}>
                     Ver agenda <ChevronRight size={16} />
                   </NavLink>
                 )}
@@ -833,7 +933,13 @@ function DashboardPage() {
               ) : (
                 <div className="appointment-list">
                   {data.nextAppointments.map((item) => (
-                    <AppointmentRow appointment={item} key={item.id} />
+                    <AppointmentRow
+                      appointment={item}
+                      key={item.id}
+                      disabled={savingAppointment || refreshing || appointmentAction !== null}
+                      onAction={(kind) => openAppointmentAction(item, kind)}
+                      onStatus={(status) => void changeDashboardStatus(item, status)}
+                    />
                   ))}
                 </div>
               )}
@@ -875,6 +981,15 @@ function DashboardPage() {
         </>
       )}
       {canSeeRelationship && <BirthdayDashboardCard />}
+      {appointmentAction && (
+        <DashboardAppointmentDialog
+          key={`${appointmentAction.appointment.id}:${appointmentAction.kind}`}
+          action={appointmentAction}
+          onClose={closeAppointmentAction}
+          onReschedule={() => setAppointmentAction({ ...appointmentAction, kind: "reschedule" })}
+          onUpdated={(updated) => void appointmentUpdated(updated, appointmentAction.appointment)}
+        />
+      )}
     </>
   );
 }
@@ -984,7 +1099,24 @@ function BirthdayDashboardCard() {
   );
 }
 
-function AppointmentRow({ appointment }: { appointment: Appointment }) {
+function AppointmentRow({ appointment, disabled, onAction, onStatus }: {
+  appointment: Appointment;
+  disabled: boolean;
+  onAction: (kind: DashboardAppointmentAction["kind"]) => void;
+  onStatus: (status: "confirmed" | "completed") => void;
+}) {
+  const { canView } = useAuthorization();
+  const pending = appointment.status === "scheduled" || appointment.status === "confirmed";
+  const items: ActionMenuItem[] = [
+    { label: "Ver detalhes", onSelect: () => onAction("details") },
+    ...(appointment.status === "scheduled" ? [{ label: "Confirmar atendimento", permission: "agenda.attendance" as const, onSelect: () => onStatus("confirmed") }] : []),
+    ...(pending ? [
+      { label: "Finalizar atendimento", permission: "agenda.attendance" as const, onSelect: () => onStatus("completed") },
+      { label: "Remarcar atendimento", permission: "agenda.reschedule" as const, onSelect: () => onAction("reschedule") },
+      { label: "Cancelar atendimento", permission: "agenda.cancel" as const, danger: true, onSelect: () => onAction("cancel") },
+    ] : []),
+    { label: "Histórico de reagendamentos", onSelect: () => onAction("history") },
+  ];
   return (
     <div className="appointment-row">
       <span className="time">
@@ -1003,10 +1135,76 @@ function AppointmentRow({ appointment }: { appointment: Appointment }) {
       <span className={`status-pill ${appointment.status}`}>
         {statusLabel(appointment.status)}
       </span>
-      <button className="icon-button button-sm">
-        <MoreHorizontal size={19} />
-      </button>
+      {canView("agenda") && (
+        <ActionMenu label={`Ações de ${appointment.patientName}`} items={items} iconOnly align="end" disabled={disabled} />
+      )}
     </div>
+  );
+}
+
+function DashboardAppointmentDialog({ action, onClose, onReschedule, onUpdated }: {
+  action: DashboardAppointmentAction;
+  onClose: () => void;
+  onReschedule: () => void;
+  onUpdated: (appointment: Appointment) => void;
+}) {
+  const { canView, canEdit } = useAuthorization();
+  const canSeePatients = canView("patients");
+  const [resources, setResources] = useState<{
+    patient: Patient | undefined;
+    service: Service | undefined;
+    professionals: Professional[];
+    rooms: Room[];
+  } | null>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const { appointment, kind } = action;
+
+  useEffect(() => {
+    if (kind === "history") return;
+    let active = true;
+    Promise.all([
+      kind !== "reschedule" && !appointment.leadId && canSeePatients ? api.patients() : Promise.resolve([]),
+      kind !== "reschedule" ? api.services() : Promise.resolve([]),
+      kind === "reschedule" ? api.professionals() : Promise.resolve([]),
+      kind === "reschedule" ? api.rooms() : Promise.resolve([]),
+    ]).then(([patients, services, professionals, rooms]) => {
+      if (active) setResources({
+        patient: patients.find((item) => item.id === appointment.patientId),
+        service: services.find((item) => item.id === appointment.serviceId),
+        professionals, rooms,
+      });
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Não foi possível carregar os dados do atendimento.");
+    });
+    return () => { active = false; };
+  }, [appointment.patientId, appointment.leadId, appointment.serviceId, kind, canSeePatients, retry]);
+
+  if (kind === "history") return <AppointmentRescheduleHistoryModal appointment={appointment} onClose={onClose} />;
+  if (!resources) return (
+    <Modal title={kind === "reschedule" ? "Reagendar atendimento" : "Detalhes do atendimento"} subtitle={appointment.patientName} onClose={onClose}>
+      {error ? (
+        <>
+          <ErrorBanner error={error} />
+          <button className="secondary-button" onClick={() => { setError(""); setRetry((value) => value + 1); }}>Tentar novamente</button>
+        </>
+      ) : <LoadingBlock />}
+    </Modal>
+  );
+  if (kind === "reschedule") return (
+    <AppointmentRescheduleModal appointment={appointment} professionals={resources.professionals} rooms={resources.rooms} onClose={onClose} onSaved={onUpdated} />
+  );
+  return (
+    <AppointmentDetailsModal
+      appointment={appointment}
+      patient={canSeePatients ? resources.patient : undefined}
+      service={resources.service}
+      editable={canEdit("agenda")}
+      initialCancelConfirmation={kind === "cancel"}
+      onClose={onClose}
+      onReschedule={onReschedule}
+      onCancelled={onUpdated}
+    />
   );
 }
 
@@ -9187,23 +9385,65 @@ type ActionMenuItem = {
 };
 
 /** Menu de ações secundárias acessível por teclado (setas, Esc fecha e devolve o foco ao botão). */
-function ActionMenu({ label, items: allItems }: { label: string; items: ActionMenuItem[] }) {
+function ActionMenu({ label, items: allItems, iconOnly = false, align = "start", disabled = false }: {
+  label: string;
+  items: ActionMenuItem[];
+  iconOnly?: boolean;
+  align?: "start" | "end";
+  disabled?: boolean;
+}) {
   const { can } = useAuthorization();
   const items = allItems.filter(item => !item.permission || can(item.permission));
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const expanded = open && !disabled;
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const button = buttonRef.current;
+    if (!expanded || !menu || !button) return;
+    function positionMenu() {
+      if (!menu || !button) return;
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const anchor = button.getBoundingClientRect();
+      const below = viewportTop + viewportHeight - anchor.bottom - 16;
+      const above = anchor.top - viewportTop - 16;
+      const placeAbove = menu.scrollHeight > below && above > below;
+      menu.style.top = placeAbove ? "auto" : "calc(100% + var(--space-1))";
+      menu.style.bottom = placeAbove ? "calc(100% + var(--space-1))" : "auto";
+      menu.style.maxHeight = `${Math.max(0, placeAbove ? above : below)}px`;
+      menu.style.overflowY = "auto";
+    }
+    function onScroll(event: Event) {
+      if (event.target instanceof Node && menu?.contains(event.target)) return;
+      positionMenu();
+    }
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", onScroll, true);
+    window.visualViewport?.addEventListener("resize", positionMenu);
+    window.visualViewport?.addEventListener("scroll", positionMenu);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", onScroll, true);
+      window.visualViewport?.removeEventListener("resize", positionMenu);
+      window.visualViewport?.removeEventListener("scroll", positionMenu);
+    };
+  }, [expanded, items.length]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!expanded) return;
     menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     function onPointerDown(event: MouseEvent) {
       if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
+  }, [expanded]);
 
   function close(returnFocus: boolean) {
     setOpen(false);
@@ -9237,24 +9477,27 @@ function ActionMenu({ label, items: allItems }: { label: string; items: ActionMe
   }
 
   return (
-    <div className="action-menu" ref={wrapperRef}>
+    <div className={`action-menu${align === "end" ? " action-menu-end" : ""}`} ref={wrapperRef}>
       <button
         ref={buttonRef}
         type="button"
-        className="secondary-button"
+        className={iconOnly ? "icon-button button-sm" : "secondary-button"}
+        aria-label={iconOnly ? label : undefined}
+        title={iconOnly ? label : undefined}
+        disabled={disabled}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={expanded}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
-          if (event.key === "ArrowDown" && !open) {
+          if (event.key === "ArrowDown" && !expanded && !disabled) {
             event.preventDefault();
             setOpen(true);
           }
         }}
       >
-        <MoreHorizontal size={16} /> {label}
+        <MoreHorizontal size={iconOnly ? 19 : 16} /> {!iconOnly && label}
       </button>
-      {open && (
+      {expanded && (
         <div className="action-menu-list" role="menu" aria-label={label} ref={menuRef} onKeyDown={onMenuKeyDown}>
           {items.map((item) => (
             <button
@@ -11546,6 +11789,7 @@ function AppointmentDetailsModal({
   onReschedule,
   onCancelled,
   editable,
+  initialCancelConfirmation = false,
 }: {
   appointment: Appointment;
   patient: Patient | undefined;
@@ -11555,9 +11799,10 @@ function AppointmentDetailsModal({
   onCancelled: (appointment: Appointment) => void;
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
+  initialCancelConfirmation?: boolean;
 }) {
  const { can } = useAuthorization();
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const canChange = appointment.status === "scheduled" || appointment.status === "confirmed";

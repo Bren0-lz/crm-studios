@@ -917,6 +917,18 @@ select option:disabled {
   display: grid;
 }
 
+.schedule-panel {
+  overflow: visible;
+}
+
+.dashboard-refresh-error {
+  margin-bottom: var(--space-4);
+}
+
+.dashboard-refresh-error .error-banner {
+  margin-bottom: var(--space-2);
+}
+
 .appointment-row {
   display: grid;
   grid-template-columns: 66px 3px minmax(0, 1fr) auto 32px;
@@ -2696,6 +2708,12 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
   border-radius: var(--radius-md);
   background: white;
   box-shadow: var(--shadow);
+}
+
+.action-menu-end > .action-menu-list {
+  right: 0;
+  left: auto;
+  max-width: calc(100vw - 32px);
 }
 
 .action-menu-item {
@@ -5486,7 +5504,7 @@ button.day-event:focus-visible { outline: 2px solid var(--green-2); outline-offs
 
   /* audit: mobile-ok hora (48px) + barra (3px) + texto flexível cabem em 390px */
   .appointment-row {
-    grid-template-columns: 48px 3px minmax(0, 1fr);
+    grid-template-columns: 48px 3px minmax(0, 1fr) 32px;
     gap: 11px;
     padding: 14px 15px;
   }
