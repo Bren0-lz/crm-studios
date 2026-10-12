@@ -1298,7 +1298,7 @@ export class MemoryClinicRepository implements ClinicRepository {
           item.status === "no_show",
       ).length,
       nextAppointments: appointmentsToday
-        .filter((item) => item.endsAt >= now())
+        .filter((item) => item.status === "scheduled" || item.status === "confirmed")
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
         .slice(0, 5),
     };

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { legacyPermissions, permissionKeys } from "@crm/contracts";
+import { appointmentStatusSchema, legacyPermissions, permissionKeys } from "@crm/contracts";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
@@ -563,6 +563,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       [clinicId, exportAuditMarker],
     );
   }
+
+  it("lists only pending dashboard appointments even after their scheduled time", async () => {
+    const ids: string[] = [];
+    try {
+      for (const date of ["2000-10-12", "2099-10-12"]) {
+        const dayIds: string[] = [];
+        for (const [index, status] of appointmentStatusSchema.options.entries()) {
+          const created = await repository.createAppointment(clinicId, {
+            patientId: "99999999-9999-4999-8999-999999999999",
+            professionalId: "33333333-3333-4333-8333-333333333333",
+            roomId: "55555555-5555-4555-8555-555555555555",
+            serviceId: "77777777-7777-4777-8777-777777777777",
+            startsAt: `${date}T${String(12 + index).padStart(2, "0")}:00:00.000Z`,
+            visitType: "regular",
+            notes: "postgres-dashboard-test",
+          });
+          ids.push(created.id);
+          dayIds.push(created.id);
+          await pool.query("UPDATE appointments SET status = $2 WHERE id = $1", [created.id, status]);
+        }
+        const dashboard = await repository.getDashboard(clinicId, date);
+        expect(dashboard.appointmentsToday).toBe(7);
+        expect(dashboard.completedToday).toBe(1);
+        expect(dashboard.nextAppointments.map((item) => item.id)).toEqual(dayIds.slice(0, 2));
+        expect(dashboard.nextAppointments.map((item) => item.status)).toEqual(["scheduled", "confirmed"]);
+      }
+    } finally {
+      await pool.query("DELETE FROM appointments WHERE id = ANY($1::uuid[])", [ids]);
+    }
+  });
 
   async function cleanupPermissionsUser() {
     const ids = `SELECT id FROM users WHERE clinic_id = $1 AND email = $2`;

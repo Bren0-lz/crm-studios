@@ -2952,7 +2952,7 @@ export class PostgresClinicRepository implements ClinicRepository {
           WHERE a.clinic_id = $1
             AND a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
             AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
-            AND a.ends_at >= now()
+            AND a.status IN ('scheduled', 'confirmed')
           ORDER BY a.starts_at
           LIMIT 5
         `,

@@ -814,7 +814,7 @@ function DashboardPage() {
             {data.nextAppointments && (            <article className="panel schedule-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Próximos</span>
+                  <span className="eyebrow">Pendentes</span>
                   <h2>Agenda de hoje</h2>
                 </div>
                 {canView("agenda") && (
@@ -825,8 +825,10 @@ function DashboardPage() {
               </div>
               {data.nextAppointments.length === 0 ? (
                 <EmptyState
-                  title="Agenda concluída"
-                  copy="Não há outros atendimentos hoje."
+                  title={data.appointmentsToday === 0 ? "Nenhum atendimento hoje" : "Agenda concluída"}
+                  copy={data.appointmentsToday === 0
+                    ? "Não há atendimentos agendados para hoje."
+                    : "Não há atendimentos pendentes hoje."}
                 />
               ) : (
                 <div className="appointment-list">
