@@ -306,8 +306,11 @@ describe("users and permissions", () => {
       target: { value: "ana@movimenta.local" },
     });
     fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-      target: { value: "SenhaForte123" },
+      target: { value: "Aa1" },
     });
+    expect(within(dialog).getByLabelText("Senha inicial")).not.toHaveAttribute(
+      "minlength",
+    );
     fireEvent.change(within(dialog).getByLabelText("Cargo"), {
       target: { value: " Fisioterapeuta pélvica " },
     });
@@ -322,7 +325,7 @@ describe("users and permissions", () => {
     expect(body).toEqual({
       fullName: "Ana Lima",
       email: "ana@movimenta.local",
-      password: "SenhaForte123",
+      password: "Aa1",
       role: "user",
       jobTitle: "Fisioterapeuta pélvica",
       permissions: togglePermissions(
@@ -661,8 +664,11 @@ describe("users and permissions", () => {
     );
     const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
     fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), {
-      target: { value: "NovaSenha123" },
+      target: { value: "Bb2" },
     });
+    expect(
+      within(resetDialog).getByLabelText("Nova senha"),
+    ).not.toHaveAttribute("minlength");
     fireEvent.submit(
       within(resetDialog).getByLabelText("Nova senha").closest("form")!,
     );
@@ -671,7 +677,7 @@ describe("users and permissions", () => {
     ).toBeInTheDocument();
     const reset = lastCall("POST");
     expect(reset.url).toContain(`/admin/users/${customUser.id}/reset-password`);
-    expect(reset.body).toEqual({ password: "NovaSenha123" });
+    expect(reset.body).toEqual({ password: "Bb2" });
 
     fireEvent.click(screen.getByRole("button", { name: "Desativar" }));
     const activeDialog = screen.getByRole("dialog", {

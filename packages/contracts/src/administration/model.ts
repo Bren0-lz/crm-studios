@@ -9,7 +9,7 @@ import type { AppModule, UserRole } from "./types.js";
 
 export const loginSchema = z.object({
   email: z.email().transform((value) => value.toLowerCase()),
-  password: z.string().min(8),
+  password: z.string().nonempty(),
 });
 
 /**
@@ -101,7 +101,6 @@ export const userModulesSchema = z
 
 export const strongPasswordSchema = z
   .string()
-  .min(10)
   .max(128)
   .regex(/[a-z]/, "Inclua uma letra minúscula.")
   .regex(/[A-Z]/, "Inclua uma letra maiúscula.")

@@ -42,14 +42,13 @@ export function ResetPasswordModal({
           <input
             type="password"
             required
-            minLength={10}
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
         <p className="muted-copy span-2">
-          Mínimo de 10 caracteres, com letra maiúscula, minúscula e número.
+          A senha precisa de letra maiúscula, minúscula e número.
         </p>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">

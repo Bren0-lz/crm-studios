@@ -64,10 +64,21 @@ export function PlanTemplatesContent() {
   }
   return (
     <>
-      <p className="muted-copy">
-        Defina os planos disponíveis para novas vendas. Alterações não afetam
-        contratos já vendidos.
-      </p>
+      <div className="settings-toolbar">
+        <p className="muted-copy">
+          Defina os planos disponíveis para novas vendas. Alterações não afetam
+          contratos já vendidos.
+        </p>
+        {items !== null && can("settings.plans_create") && (
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => setEditing("new")}
+          >
+            <Plus size={17} /> Cadastrar plano
+          </button>
+        )}
+      </div>
       {notice && (
         <div className="success-banner" role="status">
           {notice}
@@ -92,15 +103,6 @@ export function PlanTemplatesContent() {
         !error && <LoadingBlock />
       ) : (
         <>
-          {can("settings.plans_create") && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => setEditing("new")}
-            >
-              <Plus size={17} /> Cadastrar plano
-            </button>
-          )}
           {items.length === 0 ? (
             <EmptyState
               title="Nenhum plano cadastrado"
@@ -111,10 +113,12 @@ export function PlanTemplatesContent() {
               {items.map((item) => (
                 <article key={item.id} className="admin-user-row">
                   <div className="admin-user-info">
-                    <strong>{item.name}</strong>
-                    <small>
-                      {currency.format(item.totalValueInCents / 100)}
-                    </small>
+                    <div className="settings-plan-heading">
+                      <strong>{item.name}</strong>
+                      <span className="settings-plan-price">
+                        {currency.format(item.totalValueInCents / 100)}
+                      </span>
+                    </div>
                     <small>
                       {[
                         item.services.length

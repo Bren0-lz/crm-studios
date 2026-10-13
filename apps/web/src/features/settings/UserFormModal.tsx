@@ -266,7 +266,6 @@ export function UserFormModal({
               <input
                 type="password"
                 required
-                minLength={10}
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -298,9 +297,8 @@ export function UserFormModal({
         </label>
         {!current && (
           <p className="muted-copy span-2">
-            A senha precisa de 10 caracteres ou mais, com letra maiúscula,
-            minúscula e número. O cargo é só informativo: o acesso vem dos
-            módulos abaixo.
+            A senha precisa de letra maiúscula, minúscula e número. O cargo é só
+            informativo: o acesso vem dos módulos abaixo.
           </p>
         )}
         <fieldset className="form-fieldset span-2">

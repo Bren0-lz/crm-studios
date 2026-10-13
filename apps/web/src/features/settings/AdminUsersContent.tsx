@@ -1,5 +1,5 @@
 import type { AdminUser } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -93,19 +93,24 @@ export function AdminUsersContent() {
           users.map((item) => (
             <article key={item.id} className="admin-user-row">
               <div className="admin-user-info">
-                <strong>{item.fullName}</strong>
-                <small>
-                  {roleLabels[item.role]}
-                  {item.jobTitle ? ` · ${item.jobTitle}` : ""}
-                </small>
-                <small className="admin-user-email">{item.email}</small>
-                <small>{userAccessSummary(item)}</small>
-                <small>{userCommissionSummary(item)}</small>
-                {!item.active && (
-                  <div className="admin-user-tags">
-                    <span className="status-pill cancelled">Inativo</span>
-                  </div>
-                )}
+                <span className="settings-user-avatar" aria-hidden="true">
+                  <UserRound size={20} />
+                </span>
+                <div className="settings-user-details">
+                  <strong>{item.fullName}</strong>
+                  <small>
+                    {roleLabels[item.role]}
+                    {item.jobTitle ? ` · ${item.jobTitle}` : ""}
+                  </small>
+                  <small className="admin-user-email">{item.email}</small>
+                  <small>{userAccessSummary(item)}</small>
+                  <small>{userCommissionSummary(item)}</small>
+                  {!item.active && (
+                    <div className="admin-user-tags">
+                      <span className="status-pill cancelled">Inativo</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="admin-user-actions">
                 <button

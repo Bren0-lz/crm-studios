@@ -171,7 +171,7 @@ export function ClinicSettingsContent() {
             </div>
           )}
           <div className="modal-actions settings-save-bar">
-            <span className="settings-dirty" role="status">
+            <span className="settings-dirty" data-dirty={dirty} role="status">
               {dirty ? "Alterações não salvas" : "Dados atualizados"}
             </span>
             <button
