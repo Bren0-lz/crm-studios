@@ -1,0 +1,1056 @@
+import {
+  recurringPayableCompetences,
+  recurringPayableDueDate,
+  saoPauloToday,
+  type AdminUserCommissionInput,
+  type CommissionRule,
+  type CommissionRuleInput,
+  type CostCenter,
+  type CostCenterInput,
+  type DailyCash,
+  type FinancialCategory,
+  type FinancialCategoryInput,
+  type FinancialSummary,
+  type FinancialWorkspace,
+  type InventoryWorkspace,
+  type PatientTab,
+  type PatientTabCloseInput,
+  type PatientTabInput,
+  type PatientTabItemInput,
+  type Payable,
+  type PayableInput,
+  type PaymentMethod,
+  type PaymentReceipt,
+  type Product,
+  type ProductInput,
+  type Receivable,
+  type ReceivableRenegotiation,
+  type ReceivableRenegotiationInput,
+  type RecurringPayableInput,
+  type StockMovementInput,
+} from "@crm/contracts";
+import {
+  buildDailyCash,
+  clinicDateOf,
+} from "../../modules/finance/daily-cash.js";
+import { DomainError } from "../../repository.js";
+import type { MemoryRepositoryContext } from "./context.js";
+import { addMonths, now, today, uuid } from "./helpers.js";
+
+export function createFinanceRepository(
+  repositoryContext: MemoryRepositoryContext,
+) {
+  return {
+    async setAdminUserCommission(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+      input: AdminUserCommissionInput,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      repositoryContext.addUserCommissionRule(
+        clinicId,
+        actorUserId,
+        userId,
+        input,
+      );
+      return repositoryContext.toAdminUser(user);
+    },
+
+    async getInventoryWorkspace(clinicId: string): Promise<InventoryWorkspace> {
+      const products = repositoryContext.products.filter(
+        (item) => item.clinicId === clinicId,
+      );
+      const tabs = repositoryContext.patientTabs.filter(
+        (item) => item.clinicId === clinicId,
+      );
+      return {
+        products,
+        movements: repositoryContext.stockMovements
+          .filter((item) => item.clinicId === clinicId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        tabs: tabs.sort((a, b) => b.openedAt.localeCompare(a.openedAt)),
+        lowStockCount: products.filter((item) => item.lowStock).length,
+        inventoryCostInCents: products.reduce(
+          (sum, item) => sum + item.currentStock * item.costInCents,
+          0,
+        ),
+        openTabsInCents: tabs
+          .filter((item) => item.status === "open")
+          .reduce((sum, item) => sum + item.totalInCents, 0),
+      };
+    },
+
+    async createProduct(
+      clinicId: string,
+      _actorUserId: string,
+      input: ProductInput,
+    ) {
+      if (
+        repositoryContext.products.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
+        )
+      )
+        throw new DomainError(
+          "PRODUCT_SKU_EXISTS",
+          "Já existe um produto com este SKU.",
+          409,
+        );
+      const timestamp = now();
+      const product: Product = {
+        name: input.name,
+        sku: input.sku,
+        unit: input.unit,
+        costInCents: input.costInCents,
+        salePriceInCents: input.salePriceInCents,
+        minimumStock: input.minimumStock,
+        id: uuid(),
+        clinicId,
+        currentStock: input.initialStock,
+        lowStock: input.initialStock <= input.minimumStock,
+        active: true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.products.push(product);
+      if (input.initialStock > 0)
+        repositoryContext.pushStockMovement(
+          product,
+          "initial_stock",
+          input.initialStock,
+          "Estoque inicial",
+        );
+      return product;
+    },
+
+    async createStockMovement(
+      clinicId: string,
+      _actorUserId: string,
+      input: StockMovementInput,
+    ) {
+      const product = repositoryContext.products.find(
+        (item) => item.clinicId === clinicId && item.id === input.productId,
+      );
+      if (!product)
+        throw new DomainError(
+          "PRODUCT_NOT_FOUND",
+          "Produto não encontrado.",
+          404,
+        );
+      const quantity = ["adjustment_out", "loss"].includes(input.kind)
+        ? -input.quantity
+        : input.quantity;
+      if (product.currentStock + quantity < 0)
+        throw new DomainError(
+          "INSUFFICIENT_STOCK",
+          "O estoque disponível é insuficiente.",
+          409,
+        );
+      product.currentStock += quantity;
+      product.lowStock = product.currentStock <= product.minimumStock;
+      product.updatedAt = now();
+      return repositoryContext.pushStockMovement(
+        product,
+        input.kind,
+        quantity,
+        input.notes,
+      );
+    },
+
+    async openPatientTab(
+      clinicId: string,
+      _actorUserId: string,
+      input: PatientTabInput,
+    ) {
+      const patient = repositoryContext.patients.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.patientId &&
+          item.status === "active",
+      );
+      if (!patient)
+        throw new DomainError(
+          "PATIENT_NOT_FOUND",
+          "Cliente não encontrado.",
+          404,
+        );
+      const tab: PatientTab = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        patientName: patient.fullName,
+        status: "open",
+        paymentStatus: "pending",
+        totalInCents: 0,
+        items: [],
+        openedAt: now(),
+      };
+      repositoryContext.patientTabs.push(tab);
+      return tab;
+    },
+
+    async addPatientTabItem(
+      clinicId: string,
+      _actorUserId: string,
+      tabId: string,
+      input: PatientTabItemInput,
+    ) {
+      const tab = repositoryContext.patientTabs.find(
+        (item) => item.clinicId === clinicId && item.id === tabId,
+      );
+      if (!tab) return null;
+      if (tab.status !== "open")
+        throw new DomainError(
+          "PATIENT_TAB_NOT_OPEN",
+          "Somente comandas abertas podem receber itens.",
+          409,
+        );
+      const product = repositoryContext.products.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.productId &&
+          item.active,
+      );
+      if (!product)
+        throw new DomainError(
+          "PRODUCT_NOT_FOUND",
+          "Produto não encontrado.",
+          404,
+        );
+      if (product.currentStock < input.quantity)
+        throw new DomainError(
+          "INSUFFICIENT_STOCK",
+          "O estoque disponível é insuficiente.",
+          409,
+        );
+      const existing = tab.items.find((item) => item.productId === product.id);
+      if (existing) {
+        existing.quantity += input.quantity;
+        existing.totalInCents = existing.quantity * existing.unitPriceInCents;
+      } else {
+        tab.items.push({
+          id: uuid(),
+          productId: product.id,
+          productName: product.name,
+          quantity: input.quantity,
+          unitPriceInCents: product.salePriceInCents,
+          unitCostInCents: product.costInCents,
+          totalInCents: input.quantity * product.salePriceInCents,
+        });
+      }
+      product.currentStock -= input.quantity;
+      product.lowStock = product.currentStock <= product.minimumStock;
+      product.updatedAt = now();
+      repositoryContext.pushStockMovement(
+        product,
+        "sale",
+        -input.quantity,
+        `Reserva na comanda de ${tab.patientName}`,
+        tab.id,
+      );
+      tab.totalInCents = tab.items.reduce(
+        (sum, item) => sum + item.totalInCents,
+        0,
+      );
+      return tab;
+    },
+
+    async closePatientTab(
+      clinicId: string,
+      _actorUserId: string,
+      tabId: string,
+      input: PatientTabCloseInput,
+    ) {
+      const tab = repositoryContext.patientTabs.find(
+        (item) => item.clinicId === clinicId && item.id === tabId,
+      );
+      if (!tab) return null;
+      if (tab.status !== "open" || tab.items.length === 0)
+        throw new DomainError(
+          "PATIENT_TAB_CANNOT_CLOSE",
+          "A comanda precisa estar aberta e conter ao menos um item.",
+          409,
+        );
+      const timestamp = now();
+      const receivable: Receivable = {
+        id: uuid(),
+        clinicId,
+        patientId: tab.patientId,
+        patientName: tab.patientName,
+        description: `Comanda ${tab.id.slice(0, 8).toUpperCase()}`,
+        installmentNumber: 1,
+        installmentCount: 1,
+        dueDate: input.dueDate,
+        amountInCents: tab.totalInCents,
+        status: input.settlement === "paid" ? "paid" : "open",
+        ...(input.settlement === "paid"
+          ? { paidAt: timestamp, paymentMethod: input.paymentMethod! }
+          : {}),
+        overdue: input.settlement === "receivable" && input.dueDate < today(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.receivables.push(receivable);
+      if (receivable.status === "paid")
+        repositoryContext.receiptEvents.push({
+          id: uuid(),
+          receivableId: receivable.id,
+          kind: "payment",
+          occurredAt: timestamp,
+          amountInCents: receivable.amountInCents,
+          paymentMethod: input.paymentMethod!,
+        });
+      tab.status = "closed";
+      tab.paymentStatus = input.settlement;
+      tab.receivableId = receivable.id;
+      tab.closedAt = timestamp;
+      return tab;
+    },
+
+    async cancelPatientTab(
+      clinicId: string,
+      _actorUserId: string,
+      tabId: string,
+    ) {
+      const tab = repositoryContext.patientTabs.find(
+        (item) => item.clinicId === clinicId && item.id === tabId,
+      );
+      if (!tab) return null;
+      if (tab.status === "cancelled")
+        throw new DomainError(
+          "PATIENT_TAB_ALREADY_CANCELLED",
+          "A comanda já foi cancelada.",
+          409,
+        );
+      for (const item of tab.items) {
+        const product = repositoryContext.products.find(
+          (candidate) => candidate.id === item.productId,
+        )!;
+        product.currentStock += item.quantity;
+        product.lowStock = product.currentStock <= product.minimumStock;
+        product.updatedAt = now();
+        repositoryContext.pushStockMovement(
+          product,
+          "sale_reversal",
+          item.quantity,
+          `Estorno da comanda de ${tab.patientName}`,
+          tab.id,
+        );
+      }
+      if (tab.receivableId) {
+        const receivable = repositoryContext.receivables.find(
+          (item) => item.id === tab.receivableId,
+        );
+        if (receivable) {
+          receivable.status = "cancelled";
+          delete receivable.paidAt;
+          delete receivable.paymentMethod;
+          receivable.overdue = false;
+          receivable.updatedAt = now();
+        }
+      }
+      tab.status = "cancelled";
+      tab.paymentStatus = "cancelled";
+      tab.cancelledAt = now();
+      return tab;
+    },
+
+    async getFinancialSummary(clinicId: string): Promise<FinancialSummary> {
+      const currentDate = today();
+      const month = currentDate.slice(0, 7);
+      const receivables = repositoryContext.receivables
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => ({
+          ...item,
+          overdue: item.status === "open" && item.dueDate < currentDate,
+        }))
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      return {
+        openInCents: receivables
+          .filter((item) => item.status === "open")
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        overdueInCents: receivables
+          .filter((item) => item.overdue)
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        paidThisMonthInCents: receivables
+          .filter(
+            (item) => item.status === "paid" && item.paidAt?.startsWith(month),
+          )
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        receivables,
+      };
+    },
+
+    async settleReceivable(
+      clinicId: string,
+      _actorUserId: string,
+      receivableId: string,
+      paymentMethod: PaymentMethod,
+    ) {
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === receivableId,
+      );
+      if (!receivable) return null;
+      if (receivable.status !== "open") {
+        throw new DomainError(
+          "RECEIVABLE_NOT_OPEN",
+          "Somente contas abertas podem ser baixadas.",
+          409,
+        );
+      }
+      receivable.status = "paid";
+      receivable.paidAt = now();
+      receivable.paymentMethod = paymentMethod;
+      receivable.overdue = false;
+      receivable.updatedAt = receivable.paidAt;
+      repositoryContext.receiptEvents.push({
+        id: uuid(),
+        receivableId,
+        kind: "payment",
+        occurredAt: receivable.paidAt,
+        amountInCents: receivable.amountInCents,
+        paymentMethod,
+      });
+      return receivable;
+    },
+
+    async reverseReceivablePayment(
+      clinicId: string,
+      _actorUserId: string,
+      receivableId: string,
+    ) {
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === receivableId,
+      );
+      if (!receivable) return null;
+      if (receivable.status !== "paid") {
+        throw new DomainError(
+          "RECEIVABLE_NOT_PAID",
+          "Somente pagamentos confirmados podem ser estornados.",
+          409,
+        );
+      }
+      receivable.status = "open";
+      repositoryContext.receiptEvents.push({
+        id: uuid(),
+        receivableId,
+        kind: "reversal",
+        occurredAt: now(),
+        amountInCents: -receivable.amountInCents,
+      });
+      delete receivable.paidAt;
+      delete receivable.paymentMethod;
+      receivable.overdue = receivable.dueDate < today();
+      receivable.updatedAt = now();
+      return receivable;
+    },
+
+    async adjustReceivable(
+      clinicId: string,
+      _actorUserId: string,
+      receivableId: string,
+      amountInCents: number,
+      _reason: string,
+    ) {
+      // The PostgreSQL implementation persists the reason in the immutable
+      // financial event. The in-memory adapter still consumes it so both
+      // implementations keep the same observable command contract.
+      void _reason;
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === receivableId,
+      );
+      if (!receivable) return null;
+      if (receivable.status !== "open")
+        throw new DomainError(
+          "RECEIVABLE_NOT_OPEN",
+          "Somente contas abertas podem ser ajustadas.",
+          409,
+        );
+      receivable.amountInCents = amountInCents;
+      receivable.updatedAt = now();
+      return receivable;
+    },
+
+    async getPaymentReceipt(
+      clinicId: string,
+      receivableId: string,
+    ): Promise<PaymentReceipt | null> {
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === receivableId,
+      );
+      if (!receivable) return null;
+      if (
+        receivable.status !== "paid" ||
+        !receivable.paidAt ||
+        !receivable.paymentMethod
+      )
+        throw new DomainError(
+          "RECEIPT_NOT_AVAILABLE",
+          "O recibo fica disponível após a baixa.",
+          409,
+        );
+      return {
+        receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
+        patientName: receivable.patientName,
+        description: receivable.description,
+        amountInCents: receivable.amountInCents,
+        paymentMethod: receivable.paymentMethod,
+        paidAt: receivable.paidAt,
+      };
+    },
+
+    async getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace> {
+      const summary =
+        await repositoryContext.operations.getFinancialSummary(clinicId);
+      const currentDate = today();
+      const month = currentDate.slice(0, 7);
+      const payables = repositoryContext.payables
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => ({
+          ...item,
+          overdue: item.status === "open" && item.dueDate < currentDate,
+        }))
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      const paidExpensesThisMonthInCents = payables
+        .filter(
+          (item) => item.status === "paid" && item.paidAt?.startsWith(month),
+        )
+        .reduce((sum, item) => sum + item.amountInCents, 0);
+      const paidCommissionsThisMonthInCents = repositoryContext.commissions
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status === "paid" &&
+            item.paidAt?.startsWith(month),
+        )
+        .reduce((sum, item) => sum + item.amountInCents, 0);
+      return {
+        summary,
+        categories: repositoryContext.financialCategories.filter(
+          (item) => item.clinicId === clinicId && item.active,
+        ),
+        costCenters: repositoryContext.costCenters.filter(
+          (item) => item.clinicId === clinicId && item.active,
+        ),
+        payables,
+        payableOpenInCents: payables
+          .filter((item) => item.status === "open")
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        payableOverdueInCents: payables
+          .filter((item) => item.overdue)
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        paidExpensesThisMonthInCents,
+        cashBalanceThisMonthInCents:
+          summary.paidThisMonthInCents -
+          paidExpensesThisMonthInCents -
+          paidCommissionsThisMonthInCents,
+        commissionRules: repositoryContext.commissionRules.filter(
+          (item) => item.clinicId === clinicId && item.active,
+        ),
+        commissions: repositoryContext.commissions.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        commissionOpenInCents: repositoryContext.commissions
+          .filter(
+            (item) => item.clinicId === clinicId && item.status === "open",
+          )
+          .reduce((sum, item) => sum + item.amountInCents, 0),
+        paidCommissionsThisMonthInCents,
+      };
+    },
+
+    async createFinancialCategory(
+      clinicId: string,
+      input: FinancialCategoryInput,
+    ) {
+      if (
+        repositoryContext.financialCategories.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.kind === input.kind &&
+            item.name.toLocaleLowerCase() === input.name.toLocaleLowerCase(),
+        )
+      )
+        throw new DomainError(
+          "FINANCIAL_CATEGORY_DUPLICATE",
+          "Esta categoria já existe.",
+          409,
+        );
+      const category: FinancialCategory = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
+      repositoryContext.financialCategories.push(category);
+      return category;
+    },
+
+    async createCostCenter(clinicId: string, input: CostCenterInput) {
+      if (
+        repositoryContext.costCenters.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.name.toLocaleLowerCase() === input.name.toLocaleLowerCase(),
+        )
+      )
+        throw new DomainError(
+          "COST_CENTER_DUPLICATE",
+          "Este centro de custo já existe.",
+          409,
+        );
+      const costCenter: CostCenter = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
+      repositoryContext.costCenters.push(costCenter);
+      return costCenter;
+    },
+
+    async createPayable(
+      clinicId: string,
+      _actorUserId: string,
+      input: PayableInput,
+    ) {
+      const category = repositoryContext.financialCategories.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.categoryId &&
+          item.kind === "expense" &&
+          item.active,
+      );
+      const costCenter = repositoryContext.costCenters.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.costCenterId &&
+          item.active,
+      );
+      if (!category || !costCenter)
+        throw new DomainError(
+          "FINANCIAL_CLASSIFICATION_NOT_FOUND",
+          "Categoria de despesa ou centro de custo não encontrado.",
+          404,
+        );
+      const timestamp = now();
+      const payable: Payable = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        categoryName: category.name,
+        costCenterName: costCenter.name,
+        status: "open",
+        overdue: input.dueDate < today(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.payables.push(payable);
+      return payable;
+    },
+
+    async settlePayable(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+      paymentMethod: PaymentMethod,
+    ) {
+      return repositoryContext.changePayable(
+        clinicId,
+        payableId,
+        "payment",
+        paymentMethod,
+      );
+    },
+
+    async reversePayablePayment(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+    ) {
+      return repositoryContext.changePayable(
+        clinicId,
+        payableId,
+        "payment_reversal",
+      );
+    },
+
+    async listRecurringPayables(clinicId: string) {
+      return repositoryContext.recurringPayables
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => repositoryContext.toRecurringPayable(item))
+        .sort((a, b) => a.description.localeCompare(b.description, "pt-BR"));
+    },
+
+    async createRecurringPayable(
+      clinicId: string,
+      _actorUserId: string,
+      input: RecurringPayableInput,
+    ) {
+      repositoryContext.findExpenseClassification(
+        clinicId,
+        input.categoryId,
+        input.costCenterId,
+      );
+      const timestamp = now();
+      const model = {
+        id: uuid(),
+        clinicId,
+        ...repositoryContext.recurringPayableFields(input),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.recurringPayables.push(model);
+      return repositoryContext.toRecurringPayable(model);
+    },
+
+    async updateRecurringPayable(
+      clinicId: string,
+      _actorUserId: string,
+      recurringPayableId: string,
+      input: RecurringPayableInput,
+    ) {
+      const index = repositoryContext.recurringPayables.findIndex(
+        (item) => item.clinicId === clinicId && item.id === recurringPayableId,
+      );
+      const current = repositoryContext.recurringPayables[index];
+      if (!current) return null;
+      if (
+        current.categoryId !== input.categoryId ||
+        current.costCenterId !== input.costCenterId
+      )
+        repositoryContext.findExpenseClassification(
+          clinicId,
+          input.categoryId,
+          input.costCenterId,
+        );
+      const resumedFromMonth =
+        input.active && !current.active
+          ? saoPauloToday().slice(0, 7)
+          : current.resumedFromMonth;
+      const updated = {
+        id: current.id,
+        clinicId,
+        ...repositoryContext.recurringPayableFields(input),
+        ...(resumedFromMonth ? { resumedFromMonth } : {}),
+        createdAt: current.createdAt,
+        updatedAt: now(),
+      };
+      repositoryContext.recurringPayables[index] = updated;
+      return repositoryContext.toRecurringPayable(updated);
+    },
+
+    async deleteRecurringPayable(clinicId: string, recurringPayableId: string) {
+      const index = repositoryContext.recurringPayables.findIndex(
+        (item) => item.clinicId === clinicId && item.id === recurringPayableId,
+      );
+      if (index < 0) return false;
+      if (
+        repositoryContext.payables.some(
+          (item) => item.recurringPayableId === recurringPayableId,
+        )
+      )
+        throw new DomainError(
+          "RECURRING_PAYABLE_IN_USE",
+          "Esta despesa fixa já gerou contas a pagar. Pause ou encerre em vez de excluir.",
+          409,
+        );
+      repositoryContext.recurringPayables.splice(index, 1);
+      return true;
+    },
+
+    async generateDueRecurringPayables(clinicId: string) {
+      const currentMonth = saoPauloToday().slice(0, 7);
+      const currentDate = today();
+      let created = 0;
+      for (const model of repositoryContext.recurringPayables) {
+        if (model.clinicId !== clinicId) continue;
+        const generated = new Set(
+          repositoryContext.payables
+            .filter((item) => item.recurringPayableId === model.id)
+            .map((item) => item.competence),
+        );
+        const category = repositoryContext.financialCategories.find(
+          (item) => item.id === model.categoryId,
+        );
+        const costCenter = repositoryContext.costCenters.find(
+          (item) => item.id === model.costCenterId,
+        );
+        if (!category || !costCenter) continue;
+        for (const competence of recurringPayableCompetences(
+          model,
+          currentMonth,
+        )) {
+          if (generated.has(competence)) continue;
+          const timestamp = now();
+          const dueDate = recurringPayableDueDate(competence, model.dayOfMonth);
+          repositoryContext.payables.push({
+            id: uuid(),
+            clinicId,
+            description: model.description,
+            ...(model.supplier ? { supplier: model.supplier } : {}),
+            categoryId: model.categoryId,
+            costCenterId: model.costCenterId,
+            categoryName: category.name,
+            costCenterName: costCenter.name,
+            dueDate,
+            amountInCents: model.amountInCents,
+            status: "open",
+            overdue: dueDate < currentDate,
+            recurringPayableId: model.id,
+            competence,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          created += 1;
+        }
+      }
+      return created;
+    },
+
+    async renegotiateReceivables(
+      clinicId: string,
+      _actorUserId: string,
+      input: ReceivableRenegotiationInput,
+    ) {
+      const ids = [...new Set(input.receivableIds)];
+      if (ids.length !== input.receivableIds.length)
+        throw new DomainError(
+          "RENEGOTIATION_DUPLICATE_ITEM",
+          "Há parcelas repetidas.",
+        );
+      const originals = repositoryContext.receivables.filter(
+        (item) => item.clinicId === clinicId && ids.includes(item.id),
+      );
+      if (
+        originals.length !== ids.length ||
+        originals.some((item) => item.status !== "open")
+      )
+        throw new DomainError(
+          "RENEGOTIATION_INVALID_ITEMS",
+          "Selecione somente parcelas abertas.",
+          409,
+        );
+      const patientId = originals[0]!.patientId;
+      if (originals.some((item) => item.patientId !== patientId))
+        throw new DomainError(
+          "RENEGOTIATION_PATIENT_MISMATCH",
+          "As parcelas devem pertencer ao mesmo cliente.",
+        );
+      const timestamp = now();
+      originals.forEach((item) => {
+        item.status = "cancelled";
+        item.updatedAt = timestamp;
+      });
+      const base = Math.floor(input.totalAmountInCents / input.installments);
+      const remainder = input.totalAmountInCents % input.installments;
+      const patientName = originals[0]!.patientName;
+      const renegotiationId = uuid();
+      const newReceivables = Array.from(
+        { length: input.installments },
+        (_, index) => ({
+          id: uuid(),
+          clinicId,
+          patientId,
+          patientName,
+          description: `Renegociação · ${input.reason}`,
+          installmentNumber: index + 1,
+          installmentCount: input.installments,
+          dueDate: addMonths(input.firstDueDate, index),
+          amountInCents: base + (index < remainder ? 1 : 0),
+          status: "open" as const,
+          overdue: addMonths(input.firstDueDate, index) < today(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }),
+      );
+      repositoryContext.receivables.push(...newReceivables);
+      const renegotiation: ReceivableRenegotiation = {
+        id: renegotiationId,
+        clinicId,
+        patientId,
+        originalAmountInCents: originals.reduce(
+          (sum, item) => sum + item.amountInCents,
+          0,
+        ),
+        renegotiatedAmountInCents: input.totalAmountInCents,
+        reason: input.reason,
+        originalReceivableIds: ids,
+        newReceivables,
+        createdAt: timestamp,
+      };
+      repositoryContext.receivableRenegotiations.push(renegotiation);
+      return renegotiation;
+    },
+
+    async createCommissionRule(clinicId: string, input: CommissionRuleInput) {
+      const professional = repositoryContext.professionals.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === input.professionalId,
+      );
+      if (!professional)
+        throw new DomainError(
+          "PROFESSIONAL_NOT_FOUND",
+          "Profissional não encontrado.",
+          404,
+        );
+      if (
+        repositoryContext.commissionRules.some(
+          (item) =>
+            item.professionalId === input.professionalId &&
+            item.effectiveFrom === input.effectiveFrom,
+        )
+      )
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Já existe uma regra nesta vigência.",
+          409,
+        );
+      const rule: CommissionRule = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        professionalName: professional.fullName,
+        active: true,
+        createdAt: now(),
+      };
+      repositoryContext.commissionRules.push(rule);
+      return rule;
+    },
+
+    async generateCommissions(clinicId: string, competence: string) {
+      // Atendimento de lead (experimental/avaliação sem cliente) não gera comissão.
+      for (const appointment of repositoryContext.appointments.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.patientId !== undefined &&
+          item.status === "completed" &&
+          item.startsAt.slice(0, 7) === competence,
+      )) {
+        if (
+          repositoryContext.commissions.some(
+            (item) => item.appointmentId === appointment.id,
+          )
+        )
+          continue;
+        // Regra do usuário ligado ao profissional, vigente na data; sem ela, a do profissional.
+        const linkedUserId = repositoryContext.professionalUsers.get(
+          appointment.professionalId,
+        );
+        const rule =
+          (linkedUserId
+            ? repositoryContext.userCommissionRuleOn(
+                clinicId,
+                linkedUserId,
+                appointment.startsAt.slice(0, 10),
+              )
+            : undefined) ??
+          repositoryContext.commissionRules
+            .filter(
+              (item) =>
+                item.professionalId === appointment.professionalId &&
+                item.effectiveFrom <= appointment.startsAt.slice(0, 10),
+            )
+            .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+        const service = repositoryContext.services.find(
+          (item) => item.id === appointment.serviceId,
+        );
+        if (!rule || !service) continue;
+        repositoryContext.commissionEntryRuleIds.add(rule.id);
+        repositoryContext.commissions.push({
+          id: uuid(),
+          clinicId,
+          professionalId: appointment.professionalId,
+          professionalName: appointment.professionalName,
+          appointmentId: appointment.id,
+          competence,
+          baseAmountInCents: service.priceInCents,
+          percentage: rule.percentage,
+          amountInCents: Math.round(
+            (service.priceInCents * rule.percentage) / 100,
+          ),
+          status: "open",
+          createdAt: now(),
+        });
+      }
+      return repositoryContext.commissions.filter(
+        (item) => item.clinicId === clinicId && item.competence === competence,
+      );
+    },
+
+    async settleCommission(
+      clinicId: string,
+      _actorUserId: string,
+      commissionId: string,
+    ) {
+      const item = repositoryContext.commissions.find(
+        (entry) => entry.clinicId === clinicId && entry.id === commissionId,
+      );
+      if (!item) return null;
+      if (item.status !== "open")
+        throw new DomainError(
+          "COMMISSION_NOT_OPEN",
+          "A comissão já foi paga.",
+          409,
+        );
+      item.status = "paid";
+      item.paidAt = now();
+      return item;
+    },
+
+    async reverseCommission(clinicId: string, commissionId: string) {
+      const item = repositoryContext.commissions.find(
+        (entry) => entry.clinicId === clinicId && entry.id === commissionId,
+      );
+      if (!item) return null;
+      if (item.status !== "paid")
+        throw new DomainError(
+          "COMMISSION_NOT_PAID",
+          "A comissão ainda não foi paga.",
+          409,
+        );
+      item.status = "open";
+      delete item.paidAt;
+      return item;
+    },
+
+    async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
+      // A função pura filtra pela data do evento no fuso da clínica.
+      return buildDailyCash(
+        date,
+        {
+          receipts: repositoryContext.receivedPayments(clinicId),
+          payables: repositoryContext.payables.filter(
+            (item) => item.clinicId === clinicId,
+          ),
+          commissions: repositoryContext.commissions.filter(
+            (item) => item.clinicId === clinicId,
+          ),
+        },
+        repositoryContext.clinicSettings.timezone,
+      );
+    },
+
+    async listReceivedPayments(clinicId: string, from: string, to: string) {
+      return repositoryContext
+        .receivedPayments(clinicId)
+        .filter((item) => {
+          const date = clinicDateOf(
+            item.occurredAt,
+            repositoryContext.clinicSettings.timezone,
+          );
+          return date >= from && date <= to;
+        })
+        .sort(
+          (a, b) =>
+            Date.parse(a.occurredAt) - Date.parse(b.occurredAt) ||
+            a.id.localeCompare(b.id),
+        );
+    },
+  };
+}

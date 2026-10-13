@@ -1,0 +1,494 @@
+import {
+  commissionGenerationInputSchema,
+  commissionRuleInputSchema,
+  costCenterInputSchema,
+  dailyCashFilterSchema,
+  financeForecastFilterSchema,
+  financialCategoryInputSchema,
+  patientTabCloseInputSchema,
+  patientTabInputSchema,
+  patientTabItemInputSchema,
+  payableInputSchema,
+  paymentInputSchema,
+  productInputSchema,
+  receivableAdjustmentInputSchema,
+  receivableRenegotiationInputSchema,
+  recurringPayableInputSchema,
+  saoPauloToday,
+  stockMovementInputSchema,
+} from "@crm/contracts";
+import type { RouteContext } from "../../infrastructure/route-context.js";
+import { buildFinanceForecast } from "./finance-forecast.js";
+
+export function registerFinanceRoutes(context: RouteContext) {
+  const { app, authenticate, repository } = context;
+
+  app.get(
+    "/inventory/workspace",
+    { preHandler: authenticate },
+    async (request) => repository.getInventoryWorkspace(request.user.clinicId),
+  );
+
+  app.post(
+    "/inventory/products",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createProduct(
+            request.user.clinicId,
+            request.user.sub,
+            productInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/inventory/movements",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createStockMovement(
+            request.user.clinicId,
+            request.user.sub,
+            stockMovementInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/patient-tabs",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.openPatientTab(
+            request.user.clinicId,
+            request.user.sub,
+            patientTabInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/patient-tabs/:id/items",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const tab = await repository.addPatientTabItem(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        patientTabItemInputSchema.parse(request.body),
+      );
+      if (!tab)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return tab;
+    },
+  );
+
+  app.post(
+    "/patient-tabs/:id/close",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const tab = await repository.closePatientTab(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        patientTabCloseInputSchema.parse(request.body),
+      );
+      if (!tab)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return tab;
+    },
+  );
+
+  app.post(
+    "/patient-tabs/:id/cancel",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const tab = await repository.cancelPatientTab(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!tab)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return tab;
+    },
+  );
+
+  app.get("/finance/summary", { preHandler: authenticate }, async (request) => {
+    await repository.renewDuePatientPlans(
+      request.user.clinicId,
+      request.user.sub,
+    );
+    return repository.getFinancialSummary(request.user.clinicId);
+  });
+
+  app.post(
+    "/finance/receivables/:id/pay",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const receivable = await repository.settleReceivable(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        paymentInputSchema.parse(request.body ?? {}).paymentMethod,
+      );
+      if (!receivable)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return receivable;
+    },
+  );
+
+  app.patch(
+    "/finance/receivables/:id/adjust",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = receivableAdjustmentInputSchema.parse(request.body);
+      const receivable = await repository.adjustReceivable(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        input.amountInCents,
+        input.reason,
+      );
+      if (!receivable)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return receivable;
+    },
+  );
+
+  app.get(
+    "/finance/receivables/:id/receipt",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const receipt = await repository.getPaymentReceipt(
+        request.user.clinicId,
+        id,
+      );
+      if (!receipt)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return receipt;
+    },
+  );
+
+  app.get(
+    "/finance/workspace",
+    { preHandler: authenticate },
+    async (request) => {
+      // Abrir o financeiro gera as competências pendentes das despesas fixas.
+      await repository.generateDueRecurringPayables(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      return repository.getFinancialWorkspace(request.user.clinicId);
+    },
+  );
+
+  app.get(
+    "/finance/daily-cash",
+    { preHandler: authenticate },
+    async (request) => {
+      const { date } = dailyCashFilterSchema.parse(request.query);
+      return repository.getDailyCash(
+        request.user.clinicId,
+        date ?? saoPauloToday(),
+      );
+    },
+  );
+
+  app.get(
+    "/finance/forecast",
+    { preHandler: authenticate },
+    async (request) => {
+      const { months } = financeForecastFilterSchema.parse(request.query);
+      const { clinicId, sub } = request.user;
+      // Lança o que já é devido para que só o futuro fique como projetado.
+      await repository.renewDuePatientPlans(clinicId, sub);
+      await repository.generateDueRecurringPayables(clinicId, sub);
+      const [workspace, plans, recurringPayables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPatientPlans(clinicId),
+        repository.listRecurringPayables(clinicId),
+      ]);
+      return buildFinanceForecast(saoPauloToday().slice(0, 7), months, {
+        receivables: workspace.summary.receivables,
+        payables: workspace.payables,
+        plans,
+        recurringPayables,
+      });
+    },
+  );
+
+  app.get(
+    "/finance/recurring-payables",
+    { preHandler: authenticate },
+    async (request) => {
+      await repository.generateDueRecurringPayables(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      return repository.listRecurringPayables(request.user.clinicId);
+    },
+  );
+
+  app.post(
+    "/finance/recurring-payables",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createRecurringPayable(
+            request.user.clinicId,
+            request.user.sub,
+            recurringPayableInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.put(
+    "/finance/recurring-payables/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const recurring = await repository.updateRecurringPayable(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        recurringPayableInputSchema.parse(request.body),
+      );
+      if (!recurring)
+        return reply.status(404).send({
+          code: "RECURRING_PAYABLE_NOT_FOUND",
+          message: "Despesa fixa não encontrada.",
+        });
+      return recurring;
+    },
+  );
+
+  app.delete(
+    "/finance/recurring-payables/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted = await repository.deleteRecurringPayable(
+        request.user.clinicId,
+        id,
+      );
+      if (!deleted)
+        return reply.status(404).send({
+          code: "RECURRING_PAYABLE_NOT_FOUND",
+          message: "Despesa fixa não encontrada.",
+        });
+      return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    "/finance/renegotiations",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.renegotiateReceivables(
+            request.user.clinicId,
+            request.user.sub,
+            receivableRenegotiationInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/finance/commission-rules",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createCommissionRule(
+            request.user.clinicId,
+            commissionRuleInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/finance/commissions/generate",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.generateCommissions(
+        request.user.clinicId,
+        commissionGenerationInputSchema.parse(request.body).competence,
+      ),
+  );
+
+  app.post(
+    "/finance/commissions/:id/pay",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const commission = await repository.settleCommission(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!commission)
+        return reply.status(404).send({
+          code: "COMMISSION_NOT_FOUND",
+          message: "Comissão não encontrada ou já paga.",
+        });
+      return commission;
+    },
+  );
+
+  app.post(
+    "/finance/commissions/:id/reverse",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const commission = await repository.reverseCommission(
+        request.user.clinicId,
+        id,
+      );
+      if (!commission)
+        return reply.status(404).send({
+          code: "COMMISSION_NOT_FOUND",
+          message: "Comissão não encontrada ou ainda aberta.",
+        });
+      return commission;
+    },
+  );
+
+  app.post(
+    "/finance/categories",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createFinancialCategory(
+            request.user.clinicId,
+            financialCategoryInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/finance/cost-centers",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createCostCenter(
+            request.user.clinicId,
+            costCenterInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/finance/payables",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createPayable(
+            request.user.clinicId,
+            request.user.sub,
+            payableInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.post(
+    "/finance/payables/:id/pay",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = paymentInputSchema.parse(request.body ?? {});
+      const payable = await repository.settlePayable(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        input.paymentMethod,
+      );
+      if (!payable)
+        return reply.status(404).send({
+          code: "PAYABLE_NOT_FOUND",
+          message: "Conta a pagar não encontrada.",
+        });
+      return payable;
+    },
+  );
+
+  app.post(
+    "/finance/payables/:id/reverse",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const payable = await repository.reversePayablePayment(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!payable)
+        return reply.status(404).send({
+          code: "PAYABLE_NOT_FOUND",
+          message: "Conta a pagar não encontrada.",
+        });
+      return payable;
+    },
+  );
+
+  app.post(
+    "/finance/receivables/:id/reverse",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const receivable = await repository.reverseReceivablePayment(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!receivable)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return receivable;
+    },
+  );
+}

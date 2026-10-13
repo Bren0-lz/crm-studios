@@ -175,7 +175,10 @@ export function buildDemoScenarios(): DemoData {
     roomId: demoRooms[0]!.id,
     roomName: demoRooms[0]!.name,
     capacity: 12,
-    weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }, { weekday: 4, startTime: "18:00", endTime: "19:00" }],
+    weeklySlots: [
+      { weekday: 2, startTime: "18:00", endTime: "19:00" },
+      { weekday: 4, startTime: "18:00", endTime: "19:00" },
+    ],
     activeEnrollments: 8,
     waitlistCount: 0,
     active: true,
@@ -273,7 +276,15 @@ export function buildDemoScenarios(): DemoData {
       patientName: patient.fullName,
       serviceId: service.id,
       serviceName: service.name,
-      services: [{ serviceId: service.id, serviceName: service.name, totalSessions, remainingSessions: totalSessions - consumed, totalValueInCents: totalValue }],
+      services: [
+        {
+          serviceId: service.id,
+          serviceName: service.name,
+          totalSessions,
+          remainingSessions: totalSessions - consumed,
+          totalValueInCents: totalValue,
+        },
+      ],
       name,
       kind: single
         ? "single"
@@ -288,7 +299,8 @@ export function buildDemoScenarios(): DemoData {
       installments,
       firstDueDate: date(start + 10),
       status: cancelled ? "cancelled" : lapsed ? "expired" : "active",
-      autoRenew: !single && !cancelled && !lapsed && (dance || cohort === 1 || overdue),
+      autoRenew:
+        !single && !cancelled && !lapsed && (dance || cohort === 1 || overdue),
       ...(cancelledAt ? { cancelledAt, cancelledValueInCents: 99800 } : {}),
       createdAt,
       updatedAt: cancelledAt ?? createdAt,
@@ -496,7 +508,10 @@ export function buildDemoScenarios(): DemoData {
           updatedAt: stamp(-2),
         });
       }
-      if (index % 11 === 0) { plan.remainingSessions += 1; plan.services[0]!.remainingSessions += 1; } // The last visit was a no-show.
+      if (index % 11 === 0) {
+        plan.remainingSessions += 1;
+        plan.services[0]!.remainingSessions += 1;
+      } // The last visit was a no-show.
     }
   }
   for (const session of sessions)

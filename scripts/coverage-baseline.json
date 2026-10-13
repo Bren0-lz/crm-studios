@@ -1,0 +1,24 @@
+{
+  "recordedAt": "2026-10-12",
+  "description": "Cobertura anterior à reorganização; inclui arquivos de produção sem testes e PostgreSQL não executado.",
+  "workspaces": {
+    "contracts": {
+      "lines": 86.3,
+      "branches": 75.64,
+      "statements": 84.24,
+      "functions": 74.62
+    },
+    "api": {
+      "lines": 62.54,
+      "branches": 58.87,
+      "statements": 62.09,
+      "functions": 68.83
+    },
+    "web": {
+      "lines": 80.58,
+      "branches": 79.61,
+      "statements": 79.64,
+      "functions": 75.59
+    }
+  }
+}

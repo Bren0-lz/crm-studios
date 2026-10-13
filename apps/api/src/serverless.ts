@@ -6,9 +6,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * resposta JSON com o motivo, em vez da página genérica "A server error has occurred" da
  * Vercel, que o site não consegue ler. O detalhe completo vai para o log da função.
  */
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
+export default async function handler(
+  req: IncomingMessage,
+  res: ServerResponse,
+) {
   try {
-    const { default: appHandler } = await import("./serverless-app.js");
+    const { default: appHandler } =
+      await import("./infrastructure/serverless-app.js");
     await appHandler(req, res);
   } catch (error) {
     console.error("Falha ao iniciar a API:", error);
@@ -26,9 +30,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
 /** Mensagem legível sem expor valores: o zod lista só o nome da variável e a regra violada. */
 export function describeStartupError(error: unknown) {
-  if (error && typeof error === "object" && "issues" in error && Array.isArray(error.issues)) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray(error.issues)
+  ) {
     return (error.issues as { path?: unknown[]; message?: string }[])
-      .map((issue) => `${(issue.path ?? []).join(".") || "configuração"}: ${issue.message ?? "inválido"}`)
+      .map(
+        (issue) =>
+          `${(issue.path ?? []).join(".") || "configuração"}: ${issue.message ?? "inválido"}`,
+      )
       .join("; ");
   }
   const message = error instanceof Error ? error.message : String(error);

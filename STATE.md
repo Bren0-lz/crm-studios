@@ -1,7 +1,7 @@
 # Estado do loop
 
 - **Tarefa atual:** nenhuma (plano concluído)
-- **Última concluída:** T071
+- **Última concluída:** T072 (organização e testes)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -9,6 +9,7 @@
 
 <!-- Uma linha por evento. O implementer lê isto: registre descobertas que
      mudam tarefas futuras, não narrativa. -->
+
 - 2026-09-28 Estrutura autodev instalada. Gates verificados: typecheck 25s, lint 23s, test 29s, build 30s. `format:check` fora (38 arquivos já fora do padrão). Testes PostgreSQL só rodam com TEST_DATABASE_URL (indisponível nesta máquina).
 - 2026-09-29 T001 DONE (verifier PASS na 1ª tentativa). Nomes para as próximas tarefas: `RelationshipSettings` com um campo inteiro por prazo (birthdayDaysAhead, singleNoReturnDays, planExpiringDays, lowBalanceSessions, expiredWithBalanceDays, treatmentPausedDays, repeatedNoShowCount/WindowDays, formerClientMin/MaxDays) + `messages` por reason; helper `saoPauloToday()` = data da clínica; `ContactSuggestion.priority` menor = mais urgente.
 - 2026-09-29 T002 DONE (verifier PASS na 1ª tentativa). `buildContactSuggestions(data, settings, today, role)` + interface `ContactSuggestionData` (patients, plans, appointments, receivables, tabs, activities, `surveys?: unknown[]` — T012 deve tipar). priority: 0 overdue_payment, 1 aniversário hoje, 2 demais aniversários, 3–9 ordem da tabela, 10 nps_detractor. overdue_payment = 1 entrada por cliente (referenceKey = parcela vencida mais antiga). low_balance ignora planos `single`. 29/02 → 28/02 em ano não bissexto.
@@ -146,3 +147,4 @@
 - 2026-10-04 V6 DONE (aprovada pelo dono no chat). Decisões: withoutGroup exige validade (mantido); parcela cancelada explícita (T070); aviso de alterações só gaveta/menu (mantido); etiquetas como selos coloridos no detalhe do cliente e demais pontos (T071); demonstração sem cadastros só erra ao salvar (mantido).
 - 2026-10-04 T070 DONE (verifier PASS na 1ª; web 168). ReceivablesList: cancelled → valor em <s> com .cancelled-amount (cinza #5d6662, ~5,9:1), sem +/cash-in/cash-out, selo status-pill cancelled "Cancelada" dentro da célula do valor (coluna Situação fica vazia nessa linha); flex-wrap à direita no desktop, à esquerda ≤700px.
 - 2026-10-04 T071 DONE (verifier PASS na 1ª; contratos 39, API 171 + 35 skip, web 174). Único ponto com etiqueta de cliente em texto era Agenda › Detalhes do atendimento › Dados do cliente: agora PatientTagBadge + tagColorLookup (cor padrão se não configurada ou se GET /patient-tags falhar), "Sem etiquetas" e atalho "Gerenciar etiquetas" (canEdit settings) → /configuracoes?secao=etiquetas (PatientTagsSection abre a gaveta pela query). usePatientTags(enabled). Plano sem tarefas TODO.
+- 2026-10-12 T072 DONE. Frontend/API/contratos/estilos e suítes separados por domínio; 358 exports públicos dos contratos preservados. npm run check PASS: typecheck (inclui e2e), lint/arquitetura (312 arquivos sem ciclos), 636 testes PASS (74 contratos + 217 API + 345 web; 56 PostgreSQL opt-in ignorados), build e auditoria PASS. npm run test:coverage PASS: linhas 90,95% contratos, 62,57% API, 80,72% web, sem reduzir metas anteriores; regras/utilitários prioritários com piso 80%. npm run test:e2e PASS: 12 cenários desktop/celular. PostgreSQL 16.14 portátil e exclusivo de teste: 68 testes PASS, processo encerrado. test:unit PASS: 252 testes; CI sem TEST_DATABASE_URL falha como exigido. GitHub Actions criado (verificações, cobertura, navegador e PostgreSQL 16), sem push/deploy; .env, compose e migrações existentes preservados. Build mantém aviso de bundle web acima de 500 kB.

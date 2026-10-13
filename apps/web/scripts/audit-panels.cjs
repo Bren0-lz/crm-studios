@@ -6,19 +6,64 @@ const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
 
-const webSrc = path.join(__dirname, "..", "src");
-const css = fs.readFileSync(path.join(webSrc, "styles.css"), "utf8");
+const webSrc = process.env.AUDIT_WEB_SRC || path.join(__dirname, "..", "src");
+const readStyles = (file) =>
+  fs
+    .readFileSync(file, "utf8")
+    .replace(/@import\s+"(\.\/[^"]+)";/g, (_match, imported) =>
+      readStyles(path.resolve(path.dirname(file), imported)),
+    );
+const css = readStyles(path.join(webSrc, "styles.css"));
 // AUDIT_APP_TSX aponta para outro arquivo .tsx (testes sintéticos da auditoria sem mexer no App.tsx).
 const appPath = process.env.AUDIT_APP_TSX || path.join(webSrc, "App.tsx");
-const sf = ts.createSourceFile(appPath, fs.readFileSync(appPath, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const productionFiles = (dir) =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory())
+      return entry.name === "test-support" ? [] : productionFiles(file);
+    return /\.tsx$/.test(file) && !/\.test\.tsx$/.test(file) ? [file] : [];
+  });
+const sources = (
+  process.env.AUDIT_APP_TSX ? [appPath] : productionFiles(webSrc)
+).map((file) =>
+  ts.createSourceFile(
+    file,
+    fs.readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  ),
+);
+let sf = sources[0];
+const visitSources = (visitor) => {
+  for (const source of sources) {
+    sf = source;
+    visitor(source);
+  }
+};
 
 // Painéis que recebem padding do contêiner pai (seletor contextual no CSS).
-const paddedByParent = new Set(["admin-settings", "admin-users", "admin-matrix", "admin-audit", "groups-wide"]);
+const paddedByParent = new Set([
+  "admin-settings",
+  "admin-users",
+  "admin-matrix",
+  "admin-audit",
+  "groups-wide",
+]);
 // Filhos que ocupam a largura toda de propósito (cabeçalhos, tabelas, listas com linhas próprias).
-const fullBleed = new Set(["panel-head", "list-toolbar", "agenda-toolbar", "table-row", "table-head"]);
+const fullBleed = new Set([
+  "panel-head",
+  "list-toolbar",
+  "agenda-toolbar",
+  "table-row",
+  "table-head",
+]);
 
 const horizontal = (value) => {
-  const parts = value.trim().split(/\s+/).filter((v) => !v.startsWith("!"));
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter((v) => !v.startsWith("!"));
   const side = parts.length >= 2 ? parts[1] : parts[0];
   return side !== undefined && !/^0(px|rem|em)?$/.test(side) && side !== "auto";
 };
@@ -29,39 +74,63 @@ while ((m = ruleRe.exec(css))) {
   const decls = m[2].split(";").map((d) => d.split(":").map((s) => s.trim()));
   const hasX = decls.some(([prop, value]) => {
     if (!prop || value === undefined) return false;
-    if (/^(padding|margin)-(left|right|inline|inline-start|inline-end)$/.test(prop)) return !/^0(px)?$/.test(value);
-    if (prop === "padding" || prop === "margin" || prop === "padding-inline" || prop === "margin-inline") return horizontal(value);
+    if (
+      /^(padding|margin)-(left|right|inline|inline-start|inline-end)$/.test(
+        prop,
+      )
+    )
+      return !/^0(px)?$/.test(value);
+    if (
+      prop === "padding" ||
+      prop === "margin" ||
+      prop === "padding-inline" ||
+      prop === "margin-inline"
+    )
+      return horizontal(value);
     return false;
   });
   if (!hasX) continue;
   // A classe conta como espaçada se ela mesma recebe o espaçamento lateral ou se os seus
   // descendentes recebem (ex.: `.message-list article { padding: 14px 20px }` — as linhas têm respiro).
   for (const selector of m[1].split(",")) {
-    for (const cls of selector.match(/\.[a-zA-Z0-9_-]+/g) || []) spacedX.add(cls.slice(1));
+    for (const cls of selector.match(/\.[a-zA-Z0-9_-]+/g) || [])
+      spacedX.add(cls.slice(1));
   }
 }
 
 const classesOf = (el) => {
   for (const a of (el.openingElement || el).attributes.properties) {
     if (!a.name || a.name.text !== "className" || !a.initializer) continue;
-    const text = ts.isStringLiteral(a.initializer) ? a.initializer.text : a.initializer.getText(sf);
-    return text.replace(/[`{}$"'?:()|&]/g, " ").split(/\s+/).filter((c) => /^[a-z][a-z0-9-]*$/.test(c));
+    const text = ts.isStringLiteral(a.initializer)
+      ? a.initializer.text
+      : a.initializer.getText(sf);
+    return text
+      .replace(/[`{}$"'?:()|&]/g, " ")
+      .split(/\s+/)
+      .filter((c) => /^[a-z][a-z0-9-]*$/.test(c));
   }
   return [];
 };
 const tagOf = (el) => (el.openingElement || el).tagName.getText(sf);
-const lineOf = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+const sourceName = () =>
+  path.relative(process.cwd(), sf.fileName).replaceAll("\\", "/");
+const lineOf = (node) =>
+  sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 
 const problems = [];
 const inspectChild = (panel, panelClasses, child) => {
   if (ts.isJsxText(child)) {
-    if (child.text.trim()) problems.push(`App.tsx:${lineOf(child)} texto solto dentro de .${panelClasses.join(".")}`);
+    if (child.text.trim())
+      problems.push(
+        `${sourceName()}:${lineOf(child)} texto solto dentro de .${panelClasses.join(".")}`,
+      );
     return;
   }
   if (ts.isJsxExpression(child)) {
     // {cond && <el/>} ou {cond ? <a/> : <b/>}: inspeciona os elementos JSX dentro da expressão.
     const visitExpr = (n) => {
-      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) return inspectChild(panel, panelClasses, n);
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n))
+        return inspectChild(panel, panelClasses, n);
       if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return; // .map(...) renderiza listas; o contêiner da lista é que conta
       ts.forEachChild(n, visitExpr);
     };
@@ -78,9 +147,18 @@ const inspectChild = (panel, panelClasses, child) => {
     let found = false;
     const walk = (n, depth) => {
       if (found || depth > 3) return;
-      if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && n !== child) {
+      if (
+        (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) &&
+        n !== child
+      ) {
         const rowTag = tagOf(n);
-        if (/^[A-Z]/.test(rowTag) || classesOf(n).some((c) => spacedX.has(c) || fullBleed.has(c))) { found = true; return; }
+        if (
+          /^[A-Z]/.test(rowTag) ||
+          classesOf(n).some((c) => spacedX.has(c) || fullBleed.has(c))
+        ) {
+          found = true;
+          return;
+        }
         depth += 1;
       }
       ts.forEachChild(n, (c) => walk(c, depth));
@@ -90,13 +168,19 @@ const inspectChild = (panel, panelClasses, child) => {
   })();
   // Texto direto no bloco (rótulo, parágrafo) fica colado mesmo que as linhas tenham respiro.
   const textish = ["p", "span", "small", "strong", "label", "h2", "h3"];
-  const bareText = ts.isJsxElement(child) && child.children.some((c) => {
-    if (ts.isJsxText(c)) return c.text.trim() !== "";
-    if (!ts.isJsxElement(c) && !ts.isJsxSelfClosingElement(c)) return false;
-    return textish.includes(tagOf(c)) && !classesOf(c).some((k) => spacedX.has(k));
-  });
+  const bareText =
+    ts.isJsxElement(child) &&
+    child.children.some((c) => {
+      if (ts.isJsxText(c)) return c.text.trim() !== "";
+      if (!ts.isJsxElement(c) && !ts.isJsxSelfClosingElement(c)) return false;
+      return (
+        textish.includes(tagOf(c)) && !classesOf(c).some((k) => spacedX.has(k))
+      );
+    });
   if (rowsSpaced && !bareText && !textish.includes(tag)) return;
-  problems.push(`App.tsx:${lineOf(child)} <${tag}${cls.length ? " ." + cls.join(".") : ""}> sem espaçamento lateral dentro de .${panelClasses.join(".")}`);
+  problems.push(
+    `${sourceName()}:${lineOf(child)} <${tag}${cls.length ? " ." + cls.join(".") : ""}> sem espaçamento lateral dentro de .${panelClasses.join(".")}`,
+  );
 };
 const visit = (node) => {
   if (ts.isJsxElement(node)) {
@@ -104,16 +188,20 @@ const visit = (node) => {
     if (cls.includes("panel")) {
       const own = cls.filter((c) => c !== "panel");
       const padded = own.some((c) => spacedX.has(c) || paddedByParent.has(c));
-      if (!padded) for (const child of node.children) inspectChild(node, cls, child);
+      if (!padded)
+        for (const child of node.children) inspectChild(node, cls, child);
     }
   }
   ts.forEachChild(node, visit);
 };
-visit(sf);
+visitSources(visit);
 
 let failed = false;
 if (problems.length) {
-  console.error(`${problems.length} problema(s) de espaçamento em painéis:\n` + problems.join("\n"));
+  console.error(
+    `${problems.length} problema(s) de espaçamento em painéis:\n` +
+      problems.join("\n"),
+  );
   failed = true;
 } else {
   console.log("Nenhum filho de .panel sem espaçamento lateral.");
@@ -161,7 +249,13 @@ const cssRules = [];
           if (depth > 0) body += css[j];
           j += 1;
         }
-        cssRules.push({ prelude, body, line: lineAt(bufStart), media: [...stack], annotated });
+        cssRules.push({
+          prelude,
+          body,
+          line: lineAt(bufStart),
+          media: [...stack],
+          annotated,
+        });
         annotated = false;
         i = j;
         buf = "";
@@ -185,7 +279,11 @@ const cssRules = [];
   }
 }
 
-const normalizeSelector = (s) => s.trim().replace(/\s*([>+~])\s*/g, "$1").replace(/\s+/g, " ");
+const normalizeSelector = (s) =>
+  s
+    .trim()
+    .replace(/\s*([>+~])\s*/g, "$1")
+    .replace(/\s+/g, " ");
 const splitTopLevel = (value, sep) => {
   const out = [];
   let depth = 0;
@@ -208,7 +306,11 @@ const gridColumnsOf = (body) => {
   for (const decl of body.split(";")) {
     const idx = decl.indexOf(":");
     if (idx === -1) continue;
-    if (decl.slice(0, idx).trim() === "grid-template-columns") value = decl.slice(idx + 1).replace(/!important/, "").trim();
+    if (decl.slice(0, idx).trim() === "grid-template-columns")
+      value = decl
+        .slice(idx + 1)
+        .replace(/!important/, "")
+        .trim();
   }
   return value;
 };
@@ -220,7 +322,13 @@ const trackCount = (value) => {
   for (const token of splitTopLevel(value, " ")) {
     if (token.startsWith("[")) continue; // nome de linha
     const rep = token.match(/^repeat\(\s*(\d+)\s*,(.*)\)$/s);
-    if (rep) count += Number(rep[1]) * Math.max(1, splitTopLevel(rep[2], " ").filter((t) => !t.startsWith("[")).length);
+    if (rep)
+      count +=
+        Number(rep[1]) *
+        Math.max(
+          1,
+          splitTopLevel(rep[2], " ").filter((t) => !t.startsWith("[")).length,
+        );
     else count += 1;
   }
   return count;
@@ -237,7 +345,11 @@ const isPrint = (media) => media.some((at) => /^@media\s+print\b/.test(at));
 
 const gridRules = cssRules
   .filter((r) => !isPrint(r.media))
-  .map((r) => ({ ...r, columns: gridColumnsOf(r.body), selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector) }))
+  .map((r) => ({
+    ...r,
+    columns: gridColumnsOf(r.body),
+    selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector),
+  }))
   .filter((r) => r.columns !== undefined);
 
 const gridProblems = [];
@@ -253,12 +365,18 @@ for (const rule of gridRules) {
       const t = trackCount(other.columns);
       return t === "responsive" || t <= 1 || other.annotated;
     });
-    if (!covered) gridProblems.push(`styles.css:${rule.line} ${selector} { grid-template-columns: ${rule.columns.replace(/\s+/g, " ")} } sem regra de celular (≤ ${MOBILE_MAX}px)`);
+    if (!covered)
+      gridProblems.push(
+        `styles.css:${rule.line} ${selector} { grid-template-columns: ${rule.columns.replace(/\s+/g, " ")} } sem regra de celular (≤ ${MOBILE_MAX}px)`,
+      );
   }
 }
 
 if (gridProblems.length) {
-  console.error(`${gridProblems.length} grid(s) de várias colunas sem regra para celular:\n` + gridProblems.join("\n"));
+  console.error(
+    `${gridProblems.length} grid(s) de várias colunas sem regra para celular:\n` +
+      gridProblems.join("\n"),
+  );
   failed = true;
 } else {
   console.log("Nenhum grid de várias colunas sem regra para celular.");
@@ -276,13 +394,17 @@ for (const rule of cssRules) {
   if (rule.prelude !== ":root") continue;
   for (const decl of rule.body.split(";")) {
     const idx = decl.indexOf(":");
-    if (idx !== -1 && decl.slice(0, idx).trim().startsWith("--")) tokens[decl.slice(0, idx).trim()] = decl.slice(idx + 1).trim();
+    if (idx !== -1 && decl.slice(0, idx).trim().startsWith("--"))
+      tokens[decl.slice(0, idx).trim()] = decl.slice(idx + 1).trim();
   }
 }
 const toPx = (raw) => {
   let value = raw.replace(/!important/, "").trim();
   for (let n = 0; n < 5 && /var\(/.test(value); n += 1) {
-    value = value.replace(/var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/g, (_, name) => tokens[name] ?? "NaN");
+    value = value.replace(
+      /var\(\s*(--[\w-]+)\s*(?:,[^)]*)?\)/g,
+      (_, name) => tokens[name] ?? "NaN",
+    );
   }
   if (value === "0") return 0;
   const expr = value.replace(/^calc/, "").replace(/(-?\d*\.?\d+)px/g, "$1");
@@ -298,7 +420,9 @@ const declsOf = (body) =>
     .split(";")
     .map((decl) => {
       const idx = decl.indexOf(":");
-      return idx === -1 ? null : [decl.slice(0, idx).trim(), decl.slice(idx + 1).trim()];
+      return idx === -1
+        ? null
+        : [decl.slice(0, idx).trim(), decl.slice(idx + 1).trim()];
     })
     .filter(Boolean);
 // Lados esquerdo e direito de um shorthand margin/padding (1 a 4 valores).
@@ -316,32 +440,70 @@ const lateralOf = (body, props) => {
     else if (props.some((p) => prop === `${p}-inline`)) {
       const parts = splitTopLevel(value, " ");
       [left, right] = [parts[0], parts[1] ?? parts[0]].map(toPx);
-    } else if (props.some((p) => prop === `${p}-left` || prop === `${p}-inline-start`)) left = toPx(value);
-    else if (props.some((p) => prop === `${p}-right` || prop === `${p}-inline-end`)) right = toPx(value);
+    } else if (
+      props.some((p) => prop === `${p}-left` || prop === `${p}-inline-start`)
+    )
+      left = toPx(value);
+    else if (
+      props.some((p) => prop === `${p}-right` || prop === `${p}-inline-end`)
+    )
+      right = toPx(value);
   }
   return { left, right };
 };
 // Caixa = borda completa, sombra, ou fundo com cantos arredondados. Faixas de largura total
 // (fundo sem raio, como barras de filtro) e divisórias de um lado só não contam.
 const hasBox = (rules) => {
-  const decls = rules.flatMap((r) => declsOf(r.body)).map(([prop, value]) => [prop, value.replace(/!important/, "").trim()]);
-  const rounded = decls.some(([prop, v]) => prop === "border-radius" && !/^0(px)?$/.test(v));
+  const decls = rules
+    .flatMap((r) => declsOf(r.body))
+    .map(([prop, value]) => [prop, value.replace(/!important/, "").trim()]);
+  const rounded = decls.some(
+    ([prop, v]) => prop === "border-radius" && !/^0(px)?$/.test(v),
+  );
   return decls.some(([prop, v]) => {
-    if (prop === "border" || prop === "border-inline" || prop === "outline") return !/^(none|0(px)?)\b/.test(v);
+    if (prop === "border" || prop === "border-inline" || prop === "outline")
+      return !/^(none|0(px)?)\b/.test(v);
     if (prop === "box-shadow") return v !== "none";
-    if (prop === "background" || prop === "background-color") return rounded && !/^(none|transparent|inherit|unset|initial)$/.test(v);
+    if (prop === "background" || prop === "background-color")
+      return rounded && !/^(none|transparent|inherit|unset|initial)$/.test(v);
     return false;
   });
 };
 const compounds = (selector) => selector.split(/[\s>+~]+/).filter(Boolean);
-const hasClass = (compound, cls) => new RegExp(`\\.${cls}(?![\\w-])`).test(compound);
+const hasClass = (compound, cls) =>
+  new RegExp(`\\.${cls}(?![\\w-])`).test(compound);
 const screenRules = cssRules
   .filter((r) => !isPrint(r.media) && !r.prelude.startsWith(":root"))
-  .map((r) => ({ ...r, selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector) }));
+  .map((r) => ({
+    ...r,
+    selectors: splitTopLevel(r.prelude, ",").map(normalizeSelector),
+  }));
 // Regras cujo último composto é o próprio elemento (a classe está nele).
-const ownRules = (cls) => screenRules.filter((r) => r.selectors.some((s) => { const c = compounds(s); return c.length && hasClass(c[c.length - 1], cls) && !/:{1,2}(before|after|hover|focus|active|disabled)/.test(c[c.length - 1]); }));
+const ownRules = (cls) =>
+  screenRules.filter((r) =>
+    r.selectors.some((s) => {
+      const c = compounds(s);
+      return (
+        c.length &&
+        hasClass(c[c.length - 1], cls) &&
+        !/:{1,2}(before|after|hover|focus|active|disabled)/.test(
+          c[c.length - 1],
+        )
+      );
+    }),
+  );
 // Regras que miram filhos imediatos genéricos do elemento (`.x article`, `.x > div`).
-const childCardRules = (cls) => screenRules.filter((r) => r.selectors.some((s) => { const c = compounds(s); return c.length >= 2 && hasClass(c[c.length - 2], cls) && /^[a-z]+$/.test(c[c.length - 1]); }));
+const childCardRules = (cls) =>
+  screenRules.filter((r) =>
+    r.selectors.some((s) => {
+      const c = compounds(s);
+      return (
+        c.length >= 2 &&
+        hasClass(c[c.length - 2], cls) &&
+        /^[a-z]+$/.test(c[c.length - 1])
+      );
+    }),
+  );
 const lateralOk = (rules, props) => {
   let left = 0;
   let right = 0;
@@ -357,7 +519,8 @@ const cardProblems = [];
 const inspectCard = (panelClasses, child) => {
   if (ts.isJsxExpression(child)) {
     const visitExpr = (n) => {
-      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) return inspectCard(panelClasses, n);
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n))
+        return inspectCard(panelClasses, n);
       if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
       ts.forEachChild(n, visitExpr);
     };
@@ -371,11 +534,19 @@ const inspectCard = (panelClasses, child) => {
   if (!cls.length || cls.some((c) => fullBleed.has(c))) return;
   const own = cls.flatMap(ownRules);
   if (hasBox(own)) {
-    if (!lateralOk(own, ["margin"])) cardProblems.push(`App.tsx:${lineOf(child)} <${tag} .${cls.join(".")}> tem borda/fundo/sombra e fica a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`);
+    if (!lateralOk(own, ["margin"]))
+      cardProblems.push(
+        `${sourceName()}:${lineOf(child)} <${tag} .${cls.join(".")}> tem borda/fundo/sombra e fica a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`,
+      );
     return;
   }
-  if (hasBox(cls.flatMap(childCardRules)) &&!lateralOk(own, ["margin", "padding"])) {
-    cardProblems.push(`App.tsx:${lineOf(child)} <${tag} .${cls.join(".")}> tem cartões com borda/fundo a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`);
+  if (
+    hasBox(cls.flatMap(childCardRules)) &&
+    !lateralOk(own, ["margin", "padding"])
+  ) {
+    cardProblems.push(
+      `${sourceName()}:${lineOf(child)} <${tag} .${cls.join(".")}> tem cartões com borda/fundo a menos de ${MIN_GAP}px da borda lateral de .${panelClasses.join(".")}`,
+    );
   }
 };
 const visitCards = (node) => {
@@ -383,16 +554,21 @@ const visitCards = (node) => {
     const cls = classesOf(node);
     if (cls.includes("panel")) {
       const own = cls.filter((c) => c !== "panel");
-      const padded = own.some((c) => lateralOk(ownRules(c), ["padding"]) || paddedByParent.has(c));
+      const padded = own.some(
+        (c) => lateralOk(ownRules(c), ["padding"]) || paddedByParent.has(c),
+      );
       if (!padded) for (const child of node.children) inspectCard(cls, child);
     }
   }
   ts.forEachChild(node, visitCards);
 };
-visitCards(sf);
+visitSources(visitCards);
 
 if (cardProblems.length) {
-  console.error(`${cardProblems.length} cartão(ões) encostado(s) na borda do painel:\n` + cardProblems.join("\n"));
+  console.error(
+    `${cardProblems.length} cartão(ões) encostado(s) na borda do painel:\n` +
+      cardProblems.join("\n"),
+  );
   failed = true;
 } else {
   console.log("Nenhum cartão encostado na borda lateral de .panel.");
@@ -424,10 +600,14 @@ for (const rule of cssRules) {
   for (const [prop, value] of declsOf(rule.body)) {
     if (!/^--text-/.test(prop)) continue;
     declaredText.add(prop);
-    if (!(minPxOf(value) >= MIN_FONT)) fontProblems.push(`styles.css:${rule.line} ${prop}: ${value} (token abaixo de ${MIN_FONT}px ou sem px)`);
+    if (!(minPxOf(value) >= MIN_FONT))
+      fontProblems.push(
+        `styles.css:${rule.line} ${prop}: ${value} (token abaixo de ${MIN_FONT}px ou sem px)`,
+      );
   }
 }
-if (!declaredText.size) fontProblems.push("styles.css :root não declara nenhum token --text-*");
+if (!declaredText.size)
+  fontProblems.push("styles.css :root não declara nenhum token --text-*");
 const innerOf = (value, fn) => value.slice(fn.length + 1, -1);
 const fontSizeOk = (raw) => {
   const value = raw.replace(/!important/, "").trim();
@@ -439,31 +619,50 @@ const fontSizeOk = (raw) => {
   if (!/\)$/.test(value) || ABSOLUTE.test(value)) return false;
   if (value.startsWith("calc(")) {
     const inner = innerOf(value, "calc");
-    if (!/var\(\s*--text-/.test(inner) || /\//.test(inner) || /(^|[\s(])-(?!-)/.test(inner.replace(/var\([^)]*\)/g, "T"))) return false;
-    const factors = [...inner.matchAll(/\*\s*(\d*\.?\d+)|(\d*\.?\d+)\s*\*/g)].map((x) => Number(x[1] ?? x[2]));
+    if (
+      !/var\(\s*--text-/.test(inner) ||
+      /\//.test(inner) ||
+      /(^|[\s(])-(?!-)/.test(inner.replace(/var\([^)]*\)/g, "T"))
+    )
+      return false;
+    const factors = [
+      ...inner.matchAll(/\*\s*(\d*\.?\d+)|(\d*\.?\d+)\s*\*/g),
+    ].map((x) => Number(x[1] ?? x[2]));
     return factors.every((n) => n >= 1);
   }
-  if (value.startsWith("clamp(")) return TOKEN.test(splitTopLevel(innerOf(value, "clamp"), ",")[0] ?? "");
-  if (value.startsWith("max(")) return splitTopLevel(innerOf(value, "max"), ",").some((a) => TOKEN.test(a));
+  if (value.startsWith("clamp("))
+    return TOKEN.test(splitTopLevel(innerOf(value, "clamp"), ",")[0] ?? "");
+  if (value.startsWith("max("))
+    return splitTopLevel(innerOf(value, "max"), ",").some((a) => TOKEN.test(a));
   return false;
 };
 for (const rule of cssRules) {
   for (const [prop, value] of declsOf(rule.body)) {
     for (const used of value.matchAll(/var\(\s*(--text-[\w-]+)/g)) {
-      if (!declaredText.has(used[1])) fontProblems.push(`styles.css:${rule.line} ${used[1]} usado sem declaração no :root`);
+      if (!declaredText.has(used[1]))
+        fontProblems.push(
+          `styles.css:${rule.line} ${used[1]} usado sem declaração no :root`,
+        );
     }
     if (rule.prelude === ":root") continue;
     if (prop === "font-size" && !fontSizeOk(value)) {
-      fontProblems.push(`styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font-size: ${value} } fora da escala --text-* (ou abaixo de ${MIN_FONT}px)`);
+      fontProblems.push(
+        `styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font-size: ${value} } fora da escala --text-* (ou abaixo de ${MIN_FONT}px)`,
+      );
     }
     if (prop === "font" && ABSOLUTE.test(value)) {
-      fontProblems.push(`styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font: ${value} } com tamanho em unidade absoluta`);
+      fontProblems.push(
+        `styles.css:${rule.line} ${rule.prelude.replace(/\s+/g, " ")} { font: ${value} } com tamanho em unidade absoluta`,
+      );
     }
   }
 }
 
 if (fontProblems.length) {
-  console.error(`${fontProblems.length} tamanho(s) de fonte fora da escala tipográfica:\n` + fontProblems.join("\n"));
+  console.error(
+    `${fontProblems.length} tamanho(s) de fonte fora da escala tipográfica:\n` +
+      fontProblems.join("\n"),
+  );
   failed = true;
 } else {
   console.log("Nenhum tamanho de fonte fora da escala --text-* (mínimo 12px).");
@@ -482,45 +681,73 @@ const BUTTON_CLASS_BY_PROP = new Set([]);
 const canBeEmpty = (e) => {
   if (!e) return true;
   if (ts.isParenthesizedExpression(e)) return canBeEmpty(e.expression);
-  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return !e.text.trim();
-  if (ts.isConditionalExpression(e)) return canBeEmpty(e.whenTrue) || canBeEmpty(e.whenFalse);
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e))
+    return !e.text.trim();
+  if (ts.isConditionalExpression(e))
+    return canBeEmpty(e.whenTrue) || canBeEmpty(e.whenFalse);
   if (ts.isBinaryExpression(e)) {
     const op = e.operatorToken.kind;
     if (op === ts.SyntaxKind.AmpersandAmpersandToken) return true;
-    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) return canBeEmpty(e.right);
+    if (
+      op === ts.SyntaxKind.BarBarToken ||
+      op === ts.SyntaxKind.QuestionQuestionToken
+    )
+      return canBeEmpty(e.right);
   }
   if (ts.isTemplateExpression(e)) {
-    const fixed = e.head.text + e.templateSpans.map((span) => span.literal.text).join("");
-    return !fixed.trim() && e.templateSpans.every((span) => canBeEmpty(span.expression));
+    const fixed =
+      e.head.text + e.templateSpans.map((span) => span.literal.text).join("");
+    return (
+      !fixed.trim() &&
+      e.templateSpans.every((span) => canBeEmpty(span.expression))
+    );
   }
   return false;
 };
 const buttonProblems = [];
 const enclosingFunction = (node) => {
   for (let n = node.parent; n; n = n.parent) {
-    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)) && n.name) return n.name.text;
-    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name)) return n.name.text;
+    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)) && n.name)
+      return n.name.text;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name))
+      return n.name.text;
   }
   return "";
 };
 const visitButtons = (node) => {
-  if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(sf) === "button") {
-    const attr = node.attributes.properties.find((a) => ts.isJsxAttribute(a) && a.name && a.name.getText(sf) === "className");
+  if (
+    (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+    node.tagName.getText(sf) === "button"
+  ) {
+    const attr = node.attributes.properties.find(
+      (a) =>
+        ts.isJsxAttribute(a) && a.name && a.name.getText(sf) === "className",
+    );
     const init = attr && attr.initializer;
-    const empty = attr && (!init || canBeEmpty(ts.isJsxExpression(init) ? init.expression : init));
-    if ((!attr || empty) && !BUTTON_CLASS_BY_PROP.has(enclosingFunction(node))) {
-      buttonProblems.push(`App.tsx:${lineOf(node)} <button> ${attr ? "com className que pode ficar vazio" : "sem className"} (use primary-button, secondary-button, text-button ou danger-button)`);
+    const empty =
+      attr &&
+      (!init || canBeEmpty(ts.isJsxExpression(init) ? init.expression : init));
+    if (
+      (!attr || empty) &&
+      !BUTTON_CLASS_BY_PROP.has(enclosingFunction(node))
+    ) {
+      buttonProblems.push(
+        `${sourceName()}:${lineOf(node)} <button> ${attr ? "com className que pode ficar vazio" : "sem className"} (use primary-button, secondary-button, text-button ou danger-button)`,
+      );
     }
   }
   ts.forEachChild(node, visitButtons);
 };
-visitButtons(sf);
+visitSources(visitButtons);
 
 if (buttonProblems.length) {
-  console.error(`${buttonProblems.length} botão(ões) sem classe de variante:\n` + buttonProblems.join("\n"));
+  console.error(
+    `${buttonProblems.length} botão(ões) sem classe de variante:\n` +
+      buttonProblems.join("\n"),
+  );
   failed = true;
 } else {
-  console.log("Nenhum <button> sem className em App.tsx.");
+  console.log("Nenhum <button> sem className nos componentes da aplicação.");
 }
 
 // Sexta verificação (janelas nativas): nenhum arquivo .ts/.tsx de apps/web/src usa as janelas do
@@ -541,17 +768,21 @@ const collect = (dir) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) collect(full);
-    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) sourceFiles.push(full);
+    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".d.ts"))
+      sourceFiles.push(full);
   }
 };
 collect(webSrc);
 const defaultApp = path.join(webSrc, "App.tsx");
-const nativeFiles = sourceFiles.map((file) => (file === defaultApp ? appPath : file));
+const nativeFiles = sourceFiles.map((file) =>
+  file === defaultApp ? appPath : file,
+);
 if (!nativeFiles.includes(appPath)) nativeFiles.push(appPath);
 const bindingNames = (name, out) => {
   if (ts.isIdentifier(name)) out.push(name.text);
   else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-    for (const element of name.elements) if (!ts.isOmittedExpression(element)) bindingNames(element.name, out);
+    for (const element of name.elements)
+      if (!ts.isOmittedExpression(element)) bindingNames(element.name, out);
   }
   return out;
 };
@@ -561,23 +792,42 @@ const declaredIn = (scope) => {
   if (ts.isFunctionLike(scope)) {
     for (const param of scope.parameters ?? []) bindingNames(param.name, names);
     // Expressão de função nomeada enxerga o próprio nome.
-    if ((ts.isFunctionExpression(scope)) && scope.name) names.push(scope.name.text);
+    if (ts.isFunctionExpression(scope) && scope.name)
+      names.push(scope.name.text);
   }
-  if (ts.isCatchClause(scope) && scope.variableDeclaration) bindingNames(scope.variableDeclaration.name, names);
-  if (ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) {
+  if (ts.isCatchClause(scope) && scope.variableDeclaration)
+    bindingNames(scope.variableDeclaration.name, names);
+  if (
+    ts.isForStatement(scope) ||
+    ts.isForOfStatement(scope) ||
+    ts.isForInStatement(scope)
+  ) {
     const init = scope.initializer;
-    if (init && ts.isVariableDeclarationList(init)) for (const decl of init.declarations) bindingNames(decl.name, names);
+    if (init && ts.isVariableDeclarationList(init))
+      for (const decl of init.declarations) bindingNames(decl.name, names);
   }
-  const statements = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : [];
+  const statements =
+    ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope)
+      ? scope.statements
+      : [];
   for (const statement of statements) {
-    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.push(statement.name.text);
-    if (ts.isVariableStatement(statement)) for (const decl of statement.declarationList.declarations) bindingNames(decl.name, names);
+    if (
+      (ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement)) &&
+      statement.name
+    )
+      names.push(statement.name.text);
+    if (ts.isVariableStatement(statement))
+      for (const decl of statement.declarationList.declarations)
+        bindingNames(decl.name, names);
     if (ts.isImportDeclaration(statement) && statement.importClause) {
       const clause = statement.importClause;
       if (clause.name) names.push(clause.name.text);
       const bindings = clause.namedBindings;
-      if (bindings && ts.isNamespaceImport(bindings)) names.push(bindings.name.text);
-      if (bindings && ts.isNamedImports(bindings)) for (const spec of bindings.elements) names.push(spec.name.text);
+      if (bindings && ts.isNamespaceImport(bindings))
+        names.push(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings))
+        for (const spec of bindings.elements) names.push(spec.name.text);
     }
   }
   return names;
@@ -590,17 +840,46 @@ const isLocalBinding = (node, name) => {
 };
 const nativeProblems = [];
 for (const file of nativeFiles) {
-  const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const where = (node) => `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+  const source = ts.createSourceFile(
+    file,
+    fs.readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const where = (node) =>
+    `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
   const visitNative = (node) => {
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text) && NATIVE.has(node.name.text)) {
-      nativeProblems.push(`${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`);
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      GLOBAL_OBJECTS.has(node.expression.text) &&
+      NATIVE.has(node.name.text)
+    ) {
+      nativeProblems.push(
+        `${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`,
+      );
     }
-    if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text) && ts.isStringLiteralLike(node.argumentExpression) && NATIVE.has(node.argumentExpression.text)) {
-      nativeProblems.push(`${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`);
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      GLOBAL_OBJECTS.has(node.expression.text) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      NATIVE.has(node.argumentExpression.text)
+    ) {
+      nativeProblems.push(
+        `${where(node)} ${node.getText(source).replace(/\s+/g, "")} (janela nativa do navegador; use um Modal)`,
+      );
     }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && NATIVE.has(node.expression.text) && !isLocalBinding(node, node.expression.text)) {
-      nativeProblems.push(`${where(node)} ${node.expression.text}(...) global (janela nativa do navegador; use um Modal)`);
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      NATIVE.has(node.expression.text) &&
+      !isLocalBinding(node, node.expression.text)
+    ) {
+      nativeProblems.push(
+        `${where(node)} ${node.expression.text}(...) global (janela nativa do navegador; use um Modal)`,
+      );
     }
     ts.forEachChild(node, visitNative);
   };
@@ -608,7 +887,10 @@ for (const file of nativeFiles) {
 }
 
 if (nativeProblems.length) {
-  console.error(`${nativeProblems.length} janela(s) nativa(s) do navegador (prompt/confirm/alert):\n` + nativeProblems.join("\n"));
+  console.error(
+    `${nativeProblems.length} janela(s) nativa(s) do navegador (prompt/confirm/alert):\n` +
+      nativeProblems.join("\n"),
+  );
   failed = true;
 } else {
   console.log("Nenhum prompt/confirm/alert do navegador em apps/web/src.");
@@ -620,36 +902,54 @@ if (nativeProblems.length) {
 // (`onClick`, `onMouseDown`, `onMouseUp`, `onPointerDown`, `onPointerUp`, `onTouchStart`,
 // `onTouchEnd`): o fundo não tem outra razão para tratar clique além de fechar. O menu "Mais ações"
 // (`ActionMenu`) e o menu lateral do celular não são modais e não usam `backdrop`.
-const BACKDROP_HANDLERS = new Set(["onClick", "onMouseDown", "onMouseUp", "onPointerDown", "onPointerUp", "onTouchStart", "onTouchEnd"]);
+const BACKDROP_HANDLERS = new Set([
+  "onClick",
+  "onMouseDown",
+  "onMouseUp",
+  "onPointerDown",
+  "onPointerUp",
+  "onTouchStart",
+  "onTouchEnd",
+]);
 const classText = (init) => {
   if (!init) return "";
   if (ts.isStringLiteral(init)) return init.text;
-  if (ts.isJsxExpression(init) && init.expression) return init.expression.getText(sf);
+  if (ts.isJsxExpression(init) && init.expression)
+    return init.expression.getText(sf);
   return "";
 };
 const backdropProblems = [];
 const visitBackdrops = (node) => {
   if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-    const attrs = node.attributes.properties.filter((a) => ts.isJsxAttribute(a) && a.name);
+    const attrs = node.attributes.properties.filter(
+      (a) => ts.isJsxAttribute(a) && a.name,
+    );
     const className = attrs.find((a) => a.name.getText(sf) === "className");
     if (className && /backdrop/.test(classText(className.initializer))) {
       for (const attr of attrs) {
         const name = attr.name.getText(sf);
         if (BACKDROP_HANDLERS.has(name)) {
-          backdropProblems.push(`App.tsx:${lineOf(attr)} fundo de modal com ${name} (clicar fora não fecha; feche pelo X, Esc ou botões)`);
+          backdropProblems.push(
+            `${sourceName()}:${lineOf(attr)} fundo de modal com ${name} (clicar fora não fecha; feche pelo X, Esc ou botões)`,
+          );
         }
       }
     }
   }
   ts.forEachChild(node, visitBackdrops);
 };
-visitBackdrops(sf);
+visitSources(visitBackdrops);
 
 if (backdropProblems.length) {
-  console.error(`${backdropProblems.length} fundo(s) de modal que fecham por clique:\n` + backdropProblems.join("\n"));
+  console.error(
+    `${backdropProblems.length} fundo(s) de modal que fecham por clique:\n` +
+      backdropProblems.join("\n"),
+  );
   failed = true;
 } else {
-  console.log("Nenhum fundo de modal fecha por clique em App.tsx.");
+  console.log(
+    "Nenhum fundo de modal fecha por clique nos componentes da aplicação.",
+  );
 }
 
 // Oitava verificação (links do WhatsApp): todo elemento JSX dos .tsx de apps/web/src cujo `href`
@@ -662,24 +962,44 @@ const attrText = (attr, source) => {
   const init = attr && attr.initializer;
   if (!init) return "";
   if (ts.isStringLiteral(init)) return init.text;
-  if (ts.isJsxExpression(init) && init.expression) return init.expression.getText(source);
+  if (ts.isJsxExpression(init) && init.expression)
+    return init.expression.getText(source);
   return "";
 };
 const whatsappProblems = [];
 for (const file of nativeFiles.filter((f) => f.endsWith(".tsx"))) {
-  const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const where = (node) => `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+  const source = ts.createSourceFile(
+    file,
+    fs.readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const where = (node) =>
+    `${path.relative(process.cwd(), file).replace(/\\/g, "/")}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
   const visitLinks = (node) => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-      const attrs = node.attributes.properties.filter((a) => ts.isJsxAttribute(a) && a.name);
+      const attrs = node.attributes.properties.filter(
+        (a) => ts.isJsxAttribute(a) && a.name,
+      );
       const find = (name) => attrs.find((a) => a.name.getText(source) === name);
       const href = find("href");
       if (href && WHATSAPP_HREF.test(attrText(href, source))) {
         const missing = [];
-        if (!/(^|[^\w-])whatsapp-button([^\w-]|$)/.test(attrText(find("className"), source))) missing.push("className sem whatsapp-button");
-        if (attrText(find("target"), source) !== "_blank") missing.push(`sem target="_blank"`);
-        if (!/\bnoopener\b/.test(attrText(find("rel"), source))) missing.push(`rel sem "noopener"`);
-        if (missing.length) whatsappProblems.push(`${where(node)} link do WhatsApp: ${missing.join(", ")}`);
+        if (
+          !/(^|[^\w-])whatsapp-button([^\w-]|$)/.test(
+            attrText(find("className"), source),
+          )
+        )
+          missing.push("className sem whatsapp-button");
+        if (attrText(find("target"), source) !== "_blank")
+          missing.push(`sem target="_blank"`);
+        if (!/\bnoopener\b/.test(attrText(find("rel"), source)))
+          missing.push(`rel sem "noopener"`);
+        if (missing.length)
+          whatsappProblems.push(
+            `${where(node)} link do WhatsApp: ${missing.join(", ")}`,
+          );
       }
     }
     ts.forEachChild(node, visitLinks);
@@ -688,9 +1008,14 @@ for (const file of nativeFiles.filter((f) => f.endsWith(".tsx"))) {
 }
 
 if (whatsappProblems.length) {
-  console.error(`${whatsappProblems.length} link(s) do WhatsApp fora do padrão (whatsapp-button, nova aba, rel noopener):\n` + whatsappProblems.join("\n"));
+  console.error(
+    `${whatsappProblems.length} link(s) do WhatsApp fora do padrão (whatsapp-button, nova aba, rel noopener):\n` +
+      whatsappProblems.join("\n"),
+  );
   failed = true;
 } else {
-  console.log("Todos os links do WhatsApp usam whatsapp-button, abrem em nova aba e têm rel noopener.");
+  console.log(
+    "Todos os links do WhatsApp usam whatsapp-button, abrem em nova aba e têm rel noopener.",
+  );
 }
 if (failed) process.exit(1);

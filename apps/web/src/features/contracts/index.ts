@@ -1,0 +1,1 @@
+export { professionalWithCrefito } from "./model";

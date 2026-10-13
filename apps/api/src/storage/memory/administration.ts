@@ -1,0 +1,444 @@
+import {
+  resolvePermissionInput,
+  saoPauloToday,
+  type AdminAuditPage,
+  type AdminUserInput,
+  type AdminUserUpdate,
+  type AuditHistoryFilters,
+  type ClinicSettingsInput,
+  type HistoryActor,
+  type Professional,
+  type ProfessionalInput,
+  type Room,
+  type RoomInput,
+  type Service,
+  type ServiceInput,
+} from "@crm/contracts";
+import {
+  DomainError,
+  lastAdminError,
+  type AuthenticatedUser,
+} from "../../repository.js";
+import type { MemoryRepositoryContext } from "./context.js";
+import { CLINIC_ID, now, uuid } from "./helpers.js";
+
+export function createAdministrationRepository(
+  repositoryContext: MemoryRepositoryContext,
+) {
+  return {
+    async findUserByEmail(email: string) {
+      return (
+        repositoryContext.users.find(
+          (user) => user.email === email.toLowerCase() && user.active,
+        ) ?? null
+      );
+    },
+
+    async findUserById(clinicId: string, userId: string) {
+      return (
+        repositoryContext.users.find(
+          (user) =>
+            user.clinicId === clinicId && user.id === userId && user.active,
+        ) ?? null
+      );
+    },
+
+    async listAdminUsers(clinicId: string) {
+      return repositoryContext.users
+        .filter((user) => user.clinicId === clinicId)
+        .map((user) => repositoryContext.toAdminUser(user))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName));
+    },
+
+    async setAdminUserProfessional(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+      professionalId: string | null,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      if (professionalId) {
+        const professional = repositoryContext.professionals.find(
+          (item) => item.clinicId === clinicId && item.id === professionalId,
+        );
+        if (!professional)
+          throw new DomainError(
+            "PROFESSIONAL_NOT_FOUND",
+            "Profissional não encontrado.",
+            404,
+          );
+        const owner = repositoryContext.professionalUsers.get(professionalId);
+        if (owner && owner !== userId)
+          throw new DomainError(
+            "PROFESSIONAL_ALREADY_LINKED",
+            "Este profissional já está ligado a outro usuário.",
+            409,
+          );
+      }
+      const previousProfessionalId =
+        repositoryContext.linkedProfessional(clinicId, userId)?.id ?? null;
+      if (previousProfessionalId !== professionalId) {
+        for (const [id, linkedUserId] of [
+          ...repositoryContext.professionalUsers,
+        ])
+          if (linkedUserId === userId)
+            repositoryContext.professionalUsers.delete(id);
+        if (professionalId)
+          repositoryContext.professionalUsers.set(professionalId, userId);
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.professional_updated",
+          "user",
+          userId,
+          { professionalId, previousProfessionalId },
+        );
+      }
+      return repositoryContext.toAdminUser(user);
+    },
+
+    async createAdminUser(
+      clinicId: string,
+      actorUserId: string,
+      input: AdminUserInput,
+      passwordHash: string,
+    ) {
+      if (
+        repositoryContext.users.some(
+          (user) =>
+            user.clinicId === clinicId &&
+            user.email === input.email.toLowerCase(),
+        )
+      )
+        throw new DomainError(
+          "USER_EMAIL_DUPLICATE",
+          "Este e-mail já está em uso.",
+          409,
+        );
+      const timestamp = now();
+      const jobTitle = input.jobTitle?.trim();
+      const user: AuthenticatedUser = {
+        id: uuid(),
+        clinicId,
+        fullName: input.fullName,
+        email: input.email.toLowerCase(),
+        role: input.role,
+        ...(jobTitle ? { jobTitle } : {}),
+        permissions: [],
+        modules: [],
+        editModules: [],
+        customModules: false,
+        passwordHash,
+        active: true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.setUserPermissions(
+        user,
+        resolvePermissionInput(input.role, input),
+      );
+      repositoryContext.users.push(user);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "user.created",
+        "user",
+        user.id,
+        {
+          role: user.role,
+          email: user.email,
+        },
+      );
+      if (user.customModules)
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.permissions_updated",
+          "user",
+          user.id,
+          {
+            modules: user.modules,
+            editModules: user.editModules,
+            custom: true,
+            previousPermissions: [],
+            permissions: user.permissions,
+          },
+        );
+      if (input.commission)
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          user.id,
+          input.commission,
+        );
+      return repositoryContext.toAdminUser(user);
+    },
+
+    async updateAdminUser(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+      input: AdminUserUpdate,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      if (userId === actorUserId && !input.active)
+        throw new DomainError(
+          "CANNOT_DEACTIVATE_SELF",
+          "Você não pode desativar o próprio acesso.",
+          409,
+        );
+      const losesAdmin =
+        user.role === "admin" &&
+        user.active &&
+        (input.role !== "admin" || !input.active);
+      if (
+        losesAdmin &&
+        !repositoryContext.users.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id !== user.id &&
+            item.role === "admin" &&
+            item.active,
+        )
+      )
+        throw lastAdminError();
+      const previousPermissions = [...user.permissions];
+      const previousRole = user.role;
+      user.fullName = input.fullName;
+      user.role = input.role;
+      user.active = input.active;
+      if (input.jobTitle !== undefined) {
+        const jobTitle = input.jobTitle.trim();
+        if (jobTitle) user.jobTitle = jobTitle;
+        else delete user.jobTitle;
+      }
+      repositoryContext.setUserPermissions(
+        user,
+        resolvePermissionInput(
+          input.role,
+          input,
+          previousRole === "admin" ? [] : previousPermissions,
+        ),
+      );
+      user.updatedAt = now();
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "user.updated",
+        "user",
+        user.id,
+        {
+          role: user.role,
+          active: user.active,
+        },
+      );
+      if (
+        JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions)
+      )
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.permissions_updated",
+          "user",
+          user.id,
+          {
+            modules: user.modules,
+            editModules: user.editModules,
+            custom: user.customModules,
+            previousPermissions,
+            permissions: user.permissions,
+          },
+        );
+      return repositoryContext.toAdminUser(user);
+    },
+
+    async resetAdminUserPassword(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+      passwordHash: string,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return false;
+      user.passwordHash = passwordHash;
+      user.updatedAt = now();
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "user.password_reset",
+        "user",
+        user.id,
+      );
+      return true;
+    },
+
+    async getClinicSettings(clinicId: string) {
+      return clinicId === repositoryContext.clinicSettings.id
+        ? repositoryContext.clinicSettings
+        : null;
+    },
+
+    async updateClinicSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ClinicSettingsInput,
+    ) {
+      if (clinicId !== repositoryContext.clinicSettings.id)
+        throw new DomainError(
+          "CLINIC_NOT_FOUND",
+          "Clínica não encontrada.",
+          404,
+        );
+      Object.assign(repositoryContext.clinicSettings, input, {
+        updatedAt: now(),
+      });
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.updated",
+        "clinic",
+        clinicId,
+      );
+      return repositoryContext.clinicSettings;
+    },
+
+    async listAdminAuditEvents(clinicId: string) {
+      return repositoryContext.adminAuditEvents
+        .filter((event) => event.clinicId === clinicId)
+        .reverse();
+    },
+
+    async listHistoryActors(clinicId: string): Promise<HistoryActor[]> {
+      return repositoryContext.users
+        .filter((user) => user.clinicId === clinicId)
+        .map((user) => ({ id: user.id, name: user.fullName }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    async listAdminAuditPage(
+      clinicId: string,
+      cursor?: string,
+      filters: AuditHistoryFilters = {},
+    ): Promise<AdminAuditPage> {
+      const allEvents = [
+        ...repositoryContext.adminAuditEvents.filter(
+          (event) => event.clinicId === clinicId,
+        ),
+        ...repositoryContext.systemHistoryEvents(clinicId),
+      ];
+      const anchor = cursor
+        ? allEvents.find((event) => event.id === cursor)
+        : undefined;
+      if (cursor && !anchor)
+        throw new DomainError(
+          "INVALID_AUDIT_CURSOR",
+          "Cursor de histórico inválido.",
+          400,
+        );
+      const words =
+        filters.search
+          ?.normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(Boolean) ?? [];
+      const events = allEvents
+        .filter((event) => {
+          if (
+            anchor &&
+            !(
+              event.createdAt < anchor.createdAt ||
+              (event.createdAt === anchor.createdAt && event.id < anchor.id)
+            )
+          )
+            return false;
+          if (filters.module && event.module !== filters.module) return false;
+          if (filters.action && event.action !== filters.action) return false;
+          if (filters.actorUserId && event.actorUserId !== filters.actorUserId)
+            return false;
+          const day = saoPauloToday(new Date(event.createdAt));
+          if (
+            (filters.from && day < filters.from) ||
+            (filters.to && day > filters.to)
+          )
+            return false;
+          const text =
+            `${event.action} ${event.description ?? ""} ${event.module === "clinical" ? "" : JSON.stringify(event.metadata)}`
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase();
+          return words.every((word) => text.includes(word));
+        })
+        .sort(
+          (a, b) =>
+            b.createdAt.localeCompare(a.createdAt) ||
+            (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+        );
+      const items = events.slice(0, 50);
+      return {
+        items,
+        nextCursor: events.length > 50 ? items.at(-1)!.id : null,
+      };
+    },
+
+    async recordAdminAuditEvent(
+      clinicId: string,
+      actorUserId: string,
+      action: string,
+      entityType: string,
+      metadata: Record<string, unknown> = {},
+      entityId?: string,
+    ) {
+      if (clinicId !== CLINIC_ID) return;
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        action,
+        entityType,
+        entityId,
+        metadata,
+      );
+    },
+
+    async listProfessionals(clinicId: string) {
+      return repositoryContext.professionals.filter(
+        (item) => item.clinicId === clinicId && item.active,
+      );
+    },
+
+    async createProfessional(clinicId: string, input: ProfessionalInput) {
+      const professional: Professional = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
+      repositoryContext.professionals.push(professional);
+      return professional;
+    },
+
+    async listRooms(clinicId: string) {
+      return repositoryContext.rooms.filter(
+        (item) => item.clinicId === clinicId && item.active,
+      );
+    },
+
+    async createRoom(clinicId: string, input: RoomInput) {
+      const room: Room = { ...input, id: uuid(), clinicId, active: true };
+      repositoryContext.rooms.push(room);
+      return room;
+    },
+
+    async listServices(clinicId: string) {
+      return repositoryContext.services.filter(
+        (item) => item.clinicId === clinicId && item.active,
+      );
+    },
+
+    async createService(clinicId: string, input: ServiceInput) {
+      const service: Service = { ...input, id: uuid(), clinicId, active: true };
+      repositoryContext.services.push(service);
+      return service;
+    },
+  };
+}

@@ -1,0 +1,355 @@
+import { z } from "zod";
+import {
+  adminUserCommissionInputSchema,
+  commissionRuleInputSchema,
+  costCenterInputSchema,
+  dailyCashFilterSchema,
+  financeForecastFilterSchema,
+  financialCategoryInputSchema,
+  patientTabCloseInputSchema,
+  patientTabInputSchema,
+  patientTabItemInputSchema,
+  payableInputSchema,
+  paymentMethodSchema,
+  productInputSchema,
+  receivableRenegotiationInputSchema,
+  receivableStatusSchema,
+  recurringPayableInputSchema,
+  stockMovementInputSchema,
+} from "./model.js";
+
+export type AdminUserCommissionInput = z.infer<
+  typeof adminUserCommissionInputSchema
+>;
+
+export type ProductInput = z.infer<typeof productInputSchema>;
+
+export type StockMovementInput = z.infer<typeof stockMovementInputSchema>;
+
+export type PatientTabInput = z.infer<typeof patientTabInputSchema>;
+
+export type PatientTabItemInput = z.infer<typeof patientTabItemInputSchema>;
+
+export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
+
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+export type PatientTabCloseInput = z.infer<typeof patientTabCloseInputSchema>;
+
+export type ReceivableRenegotiationInput = z.infer<
+  typeof receivableRenegotiationInputSchema
+>;
+
+export type CommissionRuleInput = z.infer<typeof commissionRuleInputSchema>;
+
+export type FinancialCategoryInput = z.infer<
+  typeof financialCategoryInputSchema
+>;
+
+export type CostCenterInput = z.infer<typeof costCenterInputSchema>;
+
+export type PayableInput = z.infer<typeof payableInputSchema>;
+
+export type RecurringPayableInput = z.infer<typeof recurringPayableInputSchema>;
+
+export interface ReceivedPayment {
+  id: string;
+  receivableId: string;
+  kind: "payment" | "reversal";
+  sourceId?: string;
+  occurredAt: string;
+  patientId: string;
+  patientName: string;
+  description: string;
+  amountInCents: number;
+  paymentMethod?: PaymentMethod;
+}
+
+export interface Product extends Omit<ProductInput, "initialStock"> {
+  id: string;
+  clinicId: string;
+  currentStock: number;
+  lowStock: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockMovement {
+  id: string;
+  clinicId: string;
+  productId: string;
+  productName: string;
+  kind:
+    | "initial_stock"
+    | "purchase"
+    | "adjustment_in"
+    | "adjustment_out"
+    | "loss"
+    | "sale"
+    | "sale_reversal";
+  quantity: number;
+  balanceAfter: number;
+  notes: string;
+  patientTabId?: string;
+  createdAt: string;
+}
+
+export interface PatientTabItem {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPriceInCents: number;
+  unitCostInCents: number;
+  totalInCents: number;
+}
+
+export interface PatientTab extends PatientTabInput {
+  id: string;
+  clinicId: string;
+  patientName: string;
+  status: "open" | "closed" | "cancelled";
+  paymentStatus: "pending" | "paid" | "receivable" | "cancelled";
+  totalInCents: number;
+  items: PatientTabItem[];
+  receivableId?: string;
+  openedAt: string;
+  closedAt?: string;
+  cancelledAt?: string;
+}
+
+export interface InventoryWorkspace {
+  products: Product[];
+  movements: StockMovement[];
+  tabs: PatientTab[];
+  lowStockCount: number;
+  inventoryCostInCents: number;
+  openTabsInCents: number;
+}
+
+export interface Receivable {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  planId?: string;
+  patientName: string;
+  description: string;
+  installmentNumber: number;
+  installmentCount: number;
+  dueDate: string;
+  amountInCents: number;
+  status: ReceivableStatus;
+  paidAt?: string;
+  overdue: boolean;
+  createdAt: string;
+  updatedAt: string;
+  paymentMethod?: PaymentMethod;
+}
+
+export interface FinancialSummary {
+  openInCents: number;
+  overdueInCents: number;
+  paidThisMonthInCents: number;
+  receivables: Receivable[];
+}
+
+export interface FinancialCategory extends FinancialCategoryInput {
+  id: string;
+  clinicId: string;
+  active: boolean;
+}
+
+export interface CostCenter extends CostCenterInput {
+  id: string;
+  clinicId: string;
+  active: boolean;
+}
+
+export interface Payable extends PayableInput {
+  id: string;
+  clinicId: string;
+  categoryName: string;
+  costCenterName: string;
+  status: "open" | "paid" | "cancelled";
+  paymentMethod?: PaymentMethod;
+  paidAt?: string;
+  overdue: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Despesa fixa que gerou esta conta, com a competência (AAAA-MM). */
+  recurringPayableId?: string;
+  competence?: string;
+}
+
+export interface RecurringPayable {
+  id: string;
+  clinicId: string;
+  description: string;
+  supplier?: string;
+  categoryId: string;
+  costCenterId: string;
+  categoryName: string;
+  costCenterName: string;
+  amountInCents: number;
+  dayOfMonth: number;
+  startMonth: string;
+  endMonth?: string;
+  active: boolean;
+  /** Mês da última reativação: competências pausadas antes dele não são geradas. */
+  resumedFromMonth?: string;
+  /** Última competência já gerada como conta a pagar. */
+  lastCompetence?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinancialWorkspace {
+  summary: FinancialSummary;
+  categories: FinancialCategory[];
+  costCenters: CostCenter[];
+  payables: Payable[];
+  payableOpenInCents: number;
+  payableOverdueInCents: number;
+  paidExpensesThisMonthInCents: number;
+  cashBalanceThisMonthInCents: number;
+  commissionRules: CommissionRule[];
+  commissions: CommissionEntry[];
+  commissionOpenInCents: number;
+  paidCommissionsThisMonthInCents: number;
+}
+
+export interface ReceivableRenegotiation {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  originalAmountInCents: number;
+  renegotiatedAmountInCents: number;
+  reason: string;
+  originalReceivableIds: string[];
+  newReceivables: Receivable[];
+  createdAt: string;
+}
+
+export interface CommissionRule extends CommissionRuleInput {
+  id: string;
+  clinicId: string;
+  professionalName: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CommissionEntry {
+  id: string;
+  clinicId: string;
+  professionalId: string;
+  professionalName: string;
+  appointmentId: string;
+  competence: string;
+  baseAmountInCents: number;
+  percentage: number;
+  amountInCents: number;
+  status: "open" | "paid";
+  paidAt?: string;
+  createdAt: string;
+}
+
+export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
+
+/**
+ * Forma de pagamento do caixa. `unspecified` agrupa o que não tem forma
+ * registrada (comissões pagas e estornos sem pagamento de origem).
+ */
+export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
+
+export type DailyCashMovementKind =
+  "receipt" | "receipt_reversal" | "payable" | "commission";
+
+export interface DailyCashMovement {
+  /** `<kind>:<id da origem>`. */
+  id: string;
+  kind: DailyCashMovementKind;
+  direction: "in" | "out";
+  /** ISO 8601 do evento (pagamento, estorno ou baixa). */
+  occurredAt: string;
+  description: string;
+  /** Cliente, fornecedor ou profissional. */
+  counterpart?: string;
+  paymentMethod: DailyCashPaymentMethod;
+  /**
+   * Valor com sinal dentro da sua direção: entradas positivas e estornos
+   * negativos; saídas positivas (valor pago).
+   */
+  amountInCents: number;
+}
+
+export interface DailyCashMethodTotal {
+  paymentMethod: DailyCashPaymentMethod;
+  inflowInCents: number;
+  outflowInCents: number;
+  balanceInCents: number;
+}
+
+export interface DailyCash {
+  /** Data (aaaa-mm-dd) no fuso da clínica. */
+  date: string;
+  generatedAt: string;
+  /** Só as formas com movimento, na ordem de `paymentMethodSchema` + `unspecified`. */
+  byPaymentMethod: DailyCashMethodTotal[];
+  totalInflowInCents: number;
+  totalOutflowInCents: number;
+  balanceInCents: number;
+  /** Movimentos em ordem cronológica. */
+  movements: DailyCashMovement[];
+}
+
+export type FinanceForecastFilter = z.infer<typeof financeForecastFilterSchema>;
+
+/** Entradas, saídas e saldo (entradas − saídas), em centavos. */
+export interface FinanceForecastFlow {
+  inflowInCents: number;
+  outflowInCents: number;
+  balanceInCents: number;
+}
+
+export interface FinanceForecastMonth {
+  /** Mês (AAAA-MM). */
+  month: string;
+  /** Parcelas a receber e contas a pagar já lançadas e em aberto, pelo vencimento. */
+  confirmed: FinanceForecastFlow;
+  /**
+   * Ainda não lançado: parcelas das renovações automáticas futuras e
+   * competências futuras das despesas fixas.
+   */
+  projected: FinanceForecastFlow;
+  /** Saldo confirmado + projetado do mês. */
+  balanceInCents: number;
+}
+
+export interface FinanceForecast {
+  generatedAt: string;
+  /** Primeiro mês (o atual, no fuso da clínica) e último mês do horizonte. */
+  startMonth: string;
+  endMonth: string;
+  months: FinanceForecastMonth[];
+  /**
+   * Em atraso: parcelas e contas em aberto com vencimento antes do primeiro
+   * mês. Ficam fora dos meses e dos totais.
+   */
+  overdue: FinanceForecastFlow;
+  /** Soma dos meses do horizonte. */
+  totals: {
+    confirmed: FinanceForecastFlow;
+    projected: FinanceForecastFlow;
+    balanceInCents: number;
+  };
+}
+
+export interface PaymentReceipt {
+  receiptNumber: string;
+  patientName: string;
+  description: string;
+  amountInCents: number;
+  paymentMethod: PaymentMethod;
+  paidAt: string;
+}

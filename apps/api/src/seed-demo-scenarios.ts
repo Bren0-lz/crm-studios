@@ -41,7 +41,9 @@ export async function seedDemoScenarios(client: PoolClient) {
   await client.query(
     `INSERT INTO patient_plan_services (clinic_id,plan_id,service_id,position,service_name,total_sessions,remaining_sessions,total_value_in_cents)
      SELECT pp.clinic_id,pp.id,pp.service_id,0,s.name,pp.total_sessions,pp.remaining_sessions,pp.total_value_in_cents
-     FROM patient_plans pp JOIN services s ON s.id=pp.service_id WHERE pp.id=ANY($1::uuid[]) ON CONFLICT DO NOTHING`, [data.plans.map((plan) => plan.id)]);
+     FROM patient_plans pp JOIN services s ON s.id=pp.service_id WHERE pp.id=ANY($1::uuid[]) ON CONFLICT DO NOTHING`,
+    [data.plans.map((plan) => plan.id)],
+  );
   await client.query(
     `INSERT INTO appointments (id, clinic_id, patient_id, professional_id, room_id, service_id, starts_at, ends_at, status, created_at, updated_at)
     SELECT id, "clinicId", "patientId", "professionalId", "roomId", "serviceId", "startsAt"::timestamptz, "endsAt"::timestamptz, status::appointment_status, "createdAt"::timestamptz, "updatedAt"::timestamptz

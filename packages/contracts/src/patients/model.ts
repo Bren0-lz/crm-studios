@@ -1,0 +1,297 @@
+import { z } from "zod";
+import { leadAppointmentInputSchema } from "../agenda/model.js";
+import {
+  cpfDigits,
+  emptyQueryToUndefined,
+  isValidCpf,
+  optionalPhoneSchema,
+  phoneSchema,
+  queryBoolean,
+  queryList,
+} from "../common/model.js";
+import {
+  autoRenewIssue,
+  guidedPlanTermsSchema,
+  planPeriodIssue,
+  renewablePlanPeriod,
+  validPlanPeriod,
+} from "../plans/model.js";
+import type {
+  ClientAgeBand,
+  PatientExportColumn,
+  PatientTag,
+} from "./types.js";
+
+export const patientStatusSchema = z.enum(["active", "inactive"]);
+
+export const patientInputSchema = z.object({
+  fullName: z.string().trim().min(3).max(160),
+  cpf: z
+    .string()
+    .trim()
+    .transform(cpfDigits)
+    .refine(
+      (value) => value === "" || isValidCpf(value),
+      "Informe um CPF válido.",
+    )
+    .optional(),
+  email: z.email().optional().or(z.literal("")),
+  phone: phoneSchema,
+  whatsapp: optionalPhoneSchema,
+  birthDate: z.iso.date().optional().or(z.literal("")),
+  emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
+  emergencyContactPhone: optionalPhoneSchema,
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+});
+
+/** Cor das etiquetas criadas sem cor e das importadas na migração 0044. */
+export const DEFAULT_PATIENT_TAG_COLOR = "#64748b";
+
+export const patientTagNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe o nome da etiqueta.")
+  .max(40, "O nome da etiqueta pode ter até 40 caracteres.");
+
+export const patientTagColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Use uma cor no formato #RRGGBB.")
+  .transform((value) => value.toLowerCase());
+
+/** `POST /patient-tags`: cor opcional (padrão `DEFAULT_PATIENT_TAG_COLOR`). */
+export const patientTagInputSchema = z.object({
+  name: patientTagNameSchema,
+  color: patientTagColorSchema.default(DEFAULT_PATIENT_TAG_COLOR),
+});
+
+/** `PATCH /patient-tags/:id`: renomear e/ou trocar a cor (ao menos um dos dois). */
+export const patientTagUpdateSchema = z
+  .object({
+    name: patientTagNameSchema.optional(),
+    color: patientTagColorSchema.optional(),
+  })
+  .refine((value) => value.name !== undefined || value.color !== undefined, {
+    message: "Informe o novo nome ou a nova cor.",
+  });
+
+/**
+ * Chave de comparação do nome da etiqueta: sem acentos, minúsculas e espaços internos
+ * colapsados. Dois nomes com a mesma chave são a mesma etiqueta ("Pós-operatório" =
+ * "pos-operatorio").
+ */
+export function patientTagKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Confere etiquetas informadas contra as configuradas: devolve os nomes oficiais (na grafia
+ * configurada, sem repetição, na ordem informada) e as desconhecidas.
+ */
+export function resolvePatientTags(
+  tags: readonly string[],
+  configured: readonly Pick<PatientTag, "name">[],
+): { tags: string[]; unknown: string[] } {
+  const byKey = new Map(
+    configured.map((tag) => [patientTagKey(tag.name), tag.name]),
+  );
+  const resolved: string[] = [];
+  const unknown: string[] = [];
+  for (const tag of tags) {
+    const name = byKey.get(patientTagKey(tag));
+    if (name === undefined) {
+      if (!unknown.includes(tag)) unknown.push(tag);
+    } else if (!resolved.includes(name)) resolved.push(name);
+  }
+  return { tags: resolved, unknown };
+}
+
+/** Colunas aceitas em `GET /patients/export?columns=` (na ordem em que saem no arquivo). */
+export const patientExportColumnSchema = z.enum(
+  [
+    "fullName",
+    "recordNumber",
+    "cpf",
+    "phone",
+    "whatsapp",
+    "email",
+    "birthDate",
+    "tags",
+    "status",
+    "emergencyContactName",
+    "emergencyContactPhone",
+    "notes",
+    "createdAt",
+  ],
+  "Coluna de exportação desconhecida.",
+);
+
+export const patientExportColumns = patientExportColumnSchema.options;
+
+/** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
+export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
+  fullName: "nome",
+  recordNumber: "prontuário",
+  cpf: "cpf",
+  phone: "telefone",
+  whatsapp: "whatsapp",
+  email: "email",
+  birthDate: "nascimento",
+  tags: "etiquetas",
+  status: "situação",
+  emergencyContactName: "contato de emergência",
+  emergencyContactPhone: "telefone de emergência",
+  notes: "observações",
+  createdAt: "cadastrado em",
+};
+
+/**
+ * Query de `GET /patients/export`. Parâmetros vazios são ignorados.
+ * - `format`: `csv` (padrão) ou `xlsx`;
+ * - `status`: `active` | `inactive` (ausente = todas as situações);
+ * - `tags=a,b`: cliente com **qualquer uma** das etiquetas;
+ * - `birthdayMonth=true`: nascimento no mês atual da clínica (`false`/ausente = sem filtro);
+ * - `activePlan=true|false`: com / sem plano com status `active` (ausente = sem filtro);
+ * - `withoutGroup=true`: assinantes sem turma vinculada (ver `patientListQuerySchema`);
+ * - `search`: mesma busca da lista de clientes;
+ * - `columns=a,b`: colunas de `patientExportColumns` (ausente = todas, na ordem padrão).
+ */
+export const patientExportFilterSchema = z.object({
+  format: z.preprocess(
+    emptyQueryToUndefined,
+    z
+      .enum(["csv", "xlsx"], "Formato inválido. Use csv ou xlsx.")
+      .default("csv"),
+  ),
+  status: z.preprocess(emptyQueryToUndefined, patientStatusSchema.optional()),
+  tags: z.preprocess(queryList, z.array(z.string().max(40)).max(50).optional()),
+  birthdayMonth: queryBoolean,
+  activePlan: queryBoolean,
+  withoutGroup: queryBoolean,
+  search: z.preprocess(
+    emptyQueryToUndefined,
+    z.string().trim().max(160).optional(),
+  ),
+  columns: z.preprocess(
+    queryList,
+    z
+      .array(patientExportColumnSchema)
+      .optional()
+      .transform((value) =>
+        value
+          ? patientExportColumns.filter((column) => value.includes(column))
+          : [...patientExportColumns],
+      ),
+  ),
+});
+
+/**
+ * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
+ * - `none`: só o cadastro (igual a `POST /patients`);
+ * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
+ *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
+ * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
+ * - `single`: serviço avulso (plano `single`).
+ */
+export const guidedPatientInputSchema = z.discriminatedUnion("next", [
+  z.object({ next: z.literal("none"), patient: patientInputSchema }),
+  z.object({
+    next: z.literal("demonstration"),
+    patient: patientInputSchema,
+    appointment: leadAppointmentInputSchema.omit({ visitType: true }),
+  }),
+  z.object({
+    next: z.literal("plan"),
+    patient: patientInputSchema,
+    plan: guidedPlanTermsSchema
+      .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+      .refine(validPlanPeriod, planPeriodIssue)
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine(
+        (value) =>
+          value.services.reduce(
+            (sum, item) => sum + item.totalValueInCents,
+            0,
+          ) === value.totalValueInCents,
+        {
+          message: "A soma dos serviços deve corresponder ao valor total.",
+          path: ["totalValueInCents"],
+        },
+      ),
+    groupId: z
+      .uuid()
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+  }),
+  z.object({
+    next: z.literal("single"),
+    patient: patientInputSchema,
+    plan: guidedPlanTermsSchema
+      .refine(validPlanPeriod, planPeriodIssue)
+      .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine(
+        (value) =>
+          value.services.reduce(
+            (sum, item) => sum + item.totalValueInCents,
+            0,
+          ) === value.totalValueInCents,
+        {
+          message: "A soma dos serviços deve corresponder ao valor total.",
+          path: ["totalValueInCents"],
+        },
+      ),
+  }),
+]);
+
+/**
+ * Query de `GET /patients`: `search` e `withoutGroup=true` (assinantes sem turma vinculada:
+ * plano ativo que não é avulso e sem matrícula ativa em turma do serviço desse plano).
+ */
+export const patientListQuerySchema = z.object({
+  search: z.preprocess(
+    emptyQueryToUndefined,
+    z.string().trim().max(160).optional(),
+  ),
+  withoutGroup: queryBoolean,
+});
+
+export const leadStageSchema = z.enum([
+  "new_contact",
+  "contacted",
+  "evaluation",
+  "proposal",
+  "won",
+  "lost",
+]);
+
+/** Faixas etárias do relatório de clientes (`unknown` = sem data de nascimento). */
+export const clientAgeBandSchema = z.enum([
+  "0-17",
+  "18-29",
+  "30-44",
+  "45-59",
+  "60+",
+  "unknown",
+]);
+
+export const clientAgeBandLabels: Record<ClientAgeBand, string> = {
+  "0-17": "0 a 17 anos",
+  "18-29": "18 a 29 anos",
+  "30-44": "30 a 44 anos",
+  "45-59": "45 a 59 anos",
+  "60+": "60 anos ou mais",
+  unknown: "Sem data de nascimento",
+};
+
+/** Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado). */
+export const patientImportFileSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentBase64: z.string().min(1),
+});

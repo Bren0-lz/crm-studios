@@ -1,0 +1,507 @@
+import {
+  nextPlanPeriod,
+  planPeriodEnd,
+  planPeriodMonths,
+  planTypeKind,
+  planTypeLabels,
+  type PatientOption,
+  type PatientPlan,
+  type PatientPlanInput,
+  type PlanTemplate,
+  type Service,
+} from "@crm/contracts";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { NavLink } from "react-router-dom";
+import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
+import { PatientPicker } from "../../PatientPicker";
+import { FixedPatient } from "../../shared/components/FixedPatient";
+import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
+import { currency, localIsoDate } from "../../shared/lib/formatting";
+import type { GroupChoices } from "../../shared/workflows/types";
+import { planKindLabels } from "./model";
+
+export function PlanForm({
+  patients,
+  services,
+  renewing,
+  fixedPatient,
+  groups,
+  onCancel,
+  onBusyChange,
+  onSubmit,
+}: {
+  patients: PatientOption[];
+  services: Service[];
+  renewing?: PatientPlan | undefined;
+  fixedPatient?: PatientOption;
+  groups?: GroupChoices | undefined;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
+}) {
+  const { can, canView } = useAuthorization();
+  const currentDate = localIsoDate();
+  const nextYear = new Date();
+  nextYear.setFullYear(nextYear.getFullYear() + 1);
+  const [form, setForm] = useState<PatientPlanInput>(() => {
+    if (!renewing) {
+      return {
+        planTemplateId: "",
+        patientId: fixedPatient?.id ?? "",
+        name: "",
+        kind: "fixed_package",
+        services: [],
+        validFrom: currentDate,
+        validUntil: localIsoDate(nextYear),
+        totalValueInCents: 0,
+        installments: 3,
+        firstDueDate: currentDate,
+        autoRenew: false,
+      };
+    }
+    const period = nextPlanPeriod(renewing) ?? {
+      validFrom: currentDate,
+      validUntil: "",
+      firstDueDate: currentDate,
+    };
+    return {
+      planTemplateId: renewing.planTemplateId ?? "",
+      patientId: renewing.patientId,
+      name: renewing.name,
+      kind: renewing.kind,
+      services: renewing.services.map(
+        ({ serviceId, totalSessions, totalValueInCents }) => ({
+          serviceId,
+          totalSessions,
+          totalValueInCents,
+        }),
+      ),
+      totalValueInCents: renewing.totalValueInCents,
+      installments: renewing.installments,
+      autoRenew: renewing.autoRenew && Boolean(period.validUntil),
+      ...period,
+    };
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
+  const [groupId, setGroupId] = useState("");
+  const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  useEffect(() => {
+    if (renewing) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then((items) => {
+        if (active)
+          setTemplates(
+            items.filter((item) => item.active && item.services.length > 0),
+          );
+      })
+      .catch((cause: Error) => {
+        if (active) setCatalogError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [renewing, catalogAttempt]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (submitting.current) return;
+    if (
+      !renewing &&
+      !templates?.some((item) => item.id === form.planTemplateId)
+    ) {
+      setError("Selecione um plano cadastrado.");
+      return;
+    }
+    submitting.current = true;
+    setLoading(true);
+    onBusyChange(true);
+    setError("");
+    try {
+      await onSubmit(
+        form,
+        form.kind !== "single" ? groupId || undefined : undefined,
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      submitting.current = false;
+      setLoading(false);
+      onBusyChange(false);
+    }
+  }
+  return (
+    <>
+      {(renewing ? can("plans.renew") : can("plans.create")) && (
+        <form className="form-grid" onSubmit={submit}>
+          <fieldset className="form-fields form-grid span-2" disabled={loading}>
+            {!renewing && (
+              <>
+                {fixedPatient ? (
+                  <FixedPatient patient={fixedPatient} />
+                ) : (
+                  <PatientPicker
+                    required
+                    className="span-2"
+                    patients={patients}
+                    value={form.patientId}
+                    disabled={loading}
+                    onChange={(patientId) => setForm({ ...form, patientId })}
+                  />
+                )}
+                <label>
+                  Modelo
+                  <select
+                    autoFocus={Boolean(fixedPatient)}
+                    value={form.kind}
+                    onChange={(e) => {
+                      const kind = e.target.value as PatientPlan["kind"];
+                      setForm({
+                        ...form,
+                        kind,
+                        autoRenew: kind === "recurring",
+                      });
+                      if (kind === "single") setGroupId("");
+                    }}
+                  >
+                    {Object.entries(planKindLabels).map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {renewing ? (
+              <label className="span-2">
+                Nome do plano
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </label>
+            ) : (
+              <div className="span-2">
+                <label>
+                  Plano cadastrado
+                  <select
+                    required
+                    value={form.planTemplateId}
+                    disabled={!templates?.length || loading}
+                    onChange={(event) => {
+                      const template = templates?.find(
+                        (item) => item.id === event.target.value,
+                      );
+                      if (
+                        !template ||
+                        (template.planType
+                          ? planTypeKind(template.planType)
+                          : template.kind) === "single" ||
+                        !template.services.some((entry) =>
+                          groups?.items?.some(
+                            (group) =>
+                              group.id === groupId &&
+                              group.serviceId === entry.serviceId,
+                          ),
+                        )
+                      ) {
+                        setGroupId("");
+                      }
+                      setForm({
+                        ...form,
+                        planTemplateId: template?.id ?? "",
+                        name: template?.name ?? "",
+                        totalValueInCents: template?.totalValueInCents ?? 0,
+                        services:
+                          template?.services.map((entry) => ({ ...entry })) ??
+                          [],
+                        kind: template?.planType
+                          ? planTypeKind(template.planType)
+                          : (template?.kind ?? "fixed_package"),
+                        ...(template?.planType
+                          ? {
+                              validUntil: planPeriodEnd(
+                                template.planType,
+                                form.validFrom,
+                              ),
+                              autoRenew:
+                                Boolean(planPeriodMonths(template.planType)) &&
+                                form.autoRenew,
+                            }
+                          : {}),
+                      });
+                    }}
+                  >
+                    <option value="">Selecione um plano</option>
+                    {templates?.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ·{" "}
+                        {currency.format(item.totalValueInCents / 100)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {catalogError ? (
+                  <div className="form-error" role="alert">
+                    {catalogError}{" "}
+                    <button
+                      type="button"
+                      className="secondary-button button-sm"
+                      onClick={() => {
+                        setCatalogError("");
+                        setTemplates(null);
+                        setCatalogAttempt((attempt) => attempt + 1);
+                      }}
+                    >
+                      Tentar novamente
+                    </button>
+                  </div>
+                ) : templates === null ? (
+                  <LoadingBlock />
+                ) : templates.length === 0 ? (
+                  <p className="muted-copy">
+                    Nenhum plano ativo cadastrado. Cadastre um plano em
+                    Configurações › Planos.
+                    {canView("settings") && (
+                      <>
+                        {" "}
+                        <NavLink to="/configuracoes">
+                          Abrir configurações
+                        </NavLink>
+                      </>
+                    )}
+                  </p>
+                ) : null}
+              </div>
+            )}
+            {!renewing &&
+              templates?.find((item) => item.id === form.planTemplateId)
+                ?.planType && (
+                <p className="span-2 muted-copy">
+                  {
+                    planTypeLabels[
+                      templates.find((item) => item.id === form.planTemplateId)!
+                        .planType!
+                    ]
+                  }{" "}
+                  · Valor total do período.
+                </p>
+              )}
+            {form.services.map((entry, index) => (
+              <fieldset className="span-2 form-grid" key={entry.serviceId}>
+                <legend>
+                  {renewing?.services.find(
+                    (item) => item.serviceId === entry.serviceId,
+                  )?.serviceName ??
+                    services.find((item) => item.id === entry.serviceId)
+                      ?.name ??
+                    "Serviço"}
+                </legend>
+                {renewing && (
+                  <p className="span-2">
+                    Saldo atual:{" "}
+                    {
+                      renewing.services.find(
+                        (item) => item.serviceId === entry.serviceId,
+                      )?.remainingSessions
+                    }{" "}
+                    sessões. A renovação criará o novo saldo informado abaixo.
+                  </p>
+                )}
+                <label>
+                  Sessões do serviço {index + 1}
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="1000"
+                    step="1"
+                    value={entry.totalSessions}
+                    onChange={(event) => {
+                      const entries = form.services.map((item, position) =>
+                        position === index
+                          ? {
+                              ...item,
+                              totalSessions: Number(event.target.value),
+                            }
+                          : item,
+                      );
+                      setForm({
+                        ...form,
+                        services: entries,
+                      });
+                    }}
+                  />
+                </label>
+                <label>
+                  Valor do serviço {index + 1}
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    max="21474836.47"
+                    step="0.01"
+                    value={entry.totalValueInCents / 100}
+                    onChange={(event) => {
+                      const entries = form.services.map((item, position) =>
+                        position === index
+                          ? {
+                              ...item,
+                              totalValueInCents: Math.round(
+                                Number(event.target.value) * 100,
+                              ),
+                            }
+                          : item,
+                      );
+                      setForm({
+                        ...form,
+                        services: entries,
+                        totalValueInCents: entries.reduce(
+                          (sum, item) => sum + item.totalValueInCents,
+                          0,
+                        ),
+                      });
+                    }}
+                  />
+                </label>
+              </fieldset>
+            ))}
+            <label className="span-2">
+              Valor total
+              <input
+                readOnly
+                value={currency.format(form.totalValueInCents / 100)}
+              />
+            </label>
+            <label>
+              Início
+              <input
+                required
+                type="date"
+                value={form.validFrom}
+                onChange={(e) => {
+                  const selected = templates?.find(
+                    (item) => item.id === form.planTemplateId,
+                  );
+                  setForm({
+                    ...form,
+                    validFrom: e.target.value,
+                    ...(!renewing &&
+                    selected?.planType &&
+                    planPeriodMonths(selected.planType)
+                      ? {
+                          validUntil: planPeriodEnd(
+                            selected.planType,
+                            e.target.value,
+                          ),
+                        }
+                      : {}),
+                  });
+                }}
+              />
+            </label>
+            <label>
+              Fim da validade
+              <input
+                type="date"
+                value={form.validUntil}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    validUntil: e.target.value,
+                    autoRenew: Boolean(e.target.value) && form.autoRenew,
+                  })
+                }
+              />
+            </label>
+            <label>
+              Parcelas
+              <input
+                required
+                type="number"
+                min="1"
+                max="36"
+                value={form.installments}
+                onChange={(e) =>
+                  setForm({ ...form, installments: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Primeiro vencimento
+              <input
+                required
+                type="date"
+                value={form.firstDueDate}
+                onChange={(e) =>
+                  setForm({ ...form, firstDueDate: e.target.value })
+                }
+              />
+            </label>
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
+                checked={Boolean(form.autoRenew)}
+                disabled={!form.validUntil}
+                onChange={(e) =>
+                  setForm({ ...form, autoRenew: e.target.checked })
+                }
+              />
+              {form.validUntil
+                ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+                : "Renovação automática exige o fim da validade"}
+            </label>
+            {groups && form.kind !== "single" && form.services.length > 0 && (
+              <PlanGroupPicker
+                groups={groups}
+                services={form.services}
+                value={groupId}
+                onChange={setGroupId}
+                disabled={loading}
+              />
+            )}
+          </fieldset>
+          {error && (
+            <div className="form-error span-2" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="modal-actions span-2">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              {fixedPatient ? "Voltar" : "Cancelar"}
+            </button>
+            <button
+              className="primary-button"
+              disabled={
+                loading ||
+                !form.patientId ||
+                (!renewing && !form.planTemplateId)
+              }
+            >
+              {renewing
+                ? loading
+                  ? "Renovando…"
+                  : "Renovar plano e gerar parcelas"
+                : loading
+                  ? "Criando…"
+                  : "Criar plano e parcelas"}
+            </button>
+          </div>
+        </form>
+      )}
+    </>
+  );
+}

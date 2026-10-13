@@ -1,0 +1,223 @@
+import type {
+  Appointment,
+  Lead,
+  LeadAppointmentInput,
+  Professional,
+  Room,
+  Service,
+} from "@crm/contracts";
+import { useEffect, useState, type FormEvent } from "react";
+import { api } from "../../api";
+import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
+import { useAuthorization } from "../../authorization-context";
+import { EmptyState } from "../../shared/components/EmptyState";
+import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { Modal } from "../../shared/components/Modal";
+import {
+  leadVisitTypes,
+  toLocalDateTimeInput,
+  visitTypeLabels,
+} from "../../shared/lib/formatting";
+
+export function LeadAppointmentModal({
+  lead,
+  onClose,
+  onCreated,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onCreated: (appointment: Appointment) => void;
+}) {
+  const { can } = useAuthorization();
+  const initialTime = new Date();
+  initialTime.setDate(initialTime.getDate() + 1);
+  initialTime.setHours(9, 0, 0, 0);
+  const [options, setOptions] = useState<{
+    services: Service[];
+    professionals: Professional[];
+    rooms: Room[];
+  } | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [form, setForm] = useState({
+    visitType: "trial" as LeadAppointmentInput["visitType"],
+    serviceId: "",
+    professionalId: "",
+    roomId: "",
+    startsAt: toLocalDateTimeInput(initialTime),
+    notes: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.services(), api.professionals(), api.rooms()])
+      .then(([services, professionals, rooms]) => {
+        if (!active) return;
+        setOptions({ services, professionals, rooms });
+        setForm((current) => ({
+          ...current,
+          serviceId: current.serviceId || (services[0]?.id ?? ""),
+          professionalId:
+            current.professionalId || (professionals[0]?.id ?? ""),
+          roomId: current.roomId || (rooms[0]?.id ?? ""),
+        }));
+      })
+      .catch((cause: Error) => {
+        if (active) setLoadError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      onCreated(
+        await api.createLeadAppointment(lead.id, {
+          professionalId: form.professionalId,
+          roomId: form.roomId,
+          serviceId: form.serviceId,
+          startsAt: new Date(form.startsAt).toISOString(),
+          notes: form.notes,
+          visitType: form.visitType,
+        }),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Não foi possível agendar.",
+      );
+      setSaving(false);
+    }
+  }
+  const missingOptions =
+    options !== null &&
+    (options.services.length === 0 ||
+      options.professionals.length === 0 ||
+      options.rooms.length === 0);
+  return (
+    <Modal
+      eyebrow="Lead"
+      title="Agendar experimental"
+      subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
+      busy={saving}
+      onClose={onClose}
+    >
+      {loadError ? (
+        <ErrorBanner error={loadError} />
+      ) : options === null ? (
+        <LoadingBlock />
+      ) : missingOptions ? (
+        <EmptyState
+          title="Agenda incompleta"
+          copy="Cadastre serviço, profissional e sala antes de agendar a experimental."
+        />
+      ) : (
+        can("crm.appointments_create", "agenda.create") && (
+          <form className="form-grid" onSubmit={(event) => void submit(event)}>
+            <label>
+              Tipo
+              <select
+                value={form.visitType}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    visitType: e.target
+                      .value as LeadAppointmentInput["visitType"],
+                  })
+                }
+              >
+                {leadVisitTypes.map((item) => (
+                  <option value={item} key={item}>
+                    {visitTypeLabels[item]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Serviço
+              <select
+                required
+                value={form.serviceId}
+                onChange={(e) =>
+                  setForm({ ...form, serviceId: e.target.value })
+                }
+              >
+                {options.services.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Profissional
+              <select
+                required
+                value={form.professionalId}
+                onChange={(e) =>
+                  setForm({ ...form, professionalId: e.target.value })
+                }
+              >
+                {options.professionals.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Sala
+              <select
+                required
+                value={form.roomId}
+                onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+              >
+                {options.rooms.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="span-2">
+              <AppointmentDateTimePicker
+                value={form.startsAt}
+                onChange={(startsAt) =>
+                  setForm((current) => ({ ...current, startsAt }))
+                }
+                professionalId={form.professionalId}
+                roomId={form.roomId}
+                disabled={saving}
+              />
+            </div>
+            <label className="span-2">
+              Observação
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </label>
+            {error && <div className="form-error span-2">{error}</div>}
+            <div className="modal-actions span-2">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onClose}
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={saving}>
+                {saving ? "Agendando…" : "Confirmar agendamento"}
+              </button>
+            </div>
+          </form>
+        )
+      )}
+    </Modal>
+  );
+}

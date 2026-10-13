@@ -1,10 +1,13 @@
+import { hash } from "bcryptjs";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { hash } from "bcryptjs";
 import { Pool } from "pg";
 import { config } from "./config.js";
-import { databaseConnectionConfig, usesTransactionPooler } from "./database-connection.js";
 import { demoPatients } from "./demo-patients.js";
+import {
+  databaseConnectionConfig,
+  usesTransactionPooler,
+} from "./infrastructure/database-connection.js";
 import { ensurePatientTags } from "./postgres-repository.js";
 import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 
@@ -29,7 +32,10 @@ export function createDatabasePool({
   // Sem este handler, uma conexão ociosa encerrada pelo servidor (ex.: Postgres
   // reiniciado) emite um "error" não tratado e derruba o processo da API.
   pool.on("error", (error) => {
-    console.error("Conexão ociosa com o PostgreSQL foi encerrada:", error.message);
+    console.error(
+      "Conexão ociosa com o PostgreSQL foi encerrada:",
+      error.message,
+    );
   });
   return pool;
 }

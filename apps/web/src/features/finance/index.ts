@@ -1,0 +1,1 @@
+export { formatCompetence } from "./model";

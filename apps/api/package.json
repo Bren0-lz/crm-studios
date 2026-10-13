@@ -11,8 +11,11 @@
     "db:migrate": "tsx src/migrate-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src",
-    "test:postgres": "vitest run src/postgres.integration.test.ts src/plan-services.test.ts --no-file-parallelism",
-    "lint": "eslint src --max-warnings=0"
+    "test:postgres": "node ../../scripts/test-postgres.mjs",
+    "lint": "eslint src --max-warnings=0",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@crm/contracts": "*",

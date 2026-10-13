@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "preview": "vite preview",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run src",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@crm/contracts": "*",

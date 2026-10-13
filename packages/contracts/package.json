@@ -7,12 +7,64 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./patients": {
+      "types": "./src/patients/index.ts",
+      "default": "./src/patients/index.ts"
+    },
+    "./agenda": {
+      "types": "./src/agenda/index.ts",
+      "default": "./src/agenda/index.ts"
+    },
+    "./common": {
+      "types": "./src/common/index.ts",
+      "default": "./src/common/index.ts"
+    },
+    "./administration": {
+      "types": "./src/administration/index.ts",
+      "default": "./src/administration/index.ts"
+    },
+    "./finance": {
+      "types": "./src/finance/index.ts",
+      "default": "./src/finance/index.ts"
+    },
+    "./clinical": {
+      "types": "./src/clinical/index.ts",
+      "default": "./src/clinical/index.ts"
+    },
+    "./plans": {
+      "types": "./src/plans/index.ts",
+      "default": "./src/plans/index.ts"
+    },
+    "./commercial": {
+      "types": "./src/commercial/index.ts",
+      "default": "./src/commercial/index.ts"
+    },
+    "./communications": {
+      "types": "./src/communications/index.ts",
+      "default": "./src/communications/index.ts"
+    },
+    "./contracts": {
+      "types": "./src/contracts/index.ts",
+      "default": "./src/contracts/index.ts"
+    },
+    "./reports": {
+      "types": "./src/reports/index.ts",
+      "default": "./src/reports/index.ts"
+    },
+    "./relationship": {
+      "types": "./src/relationship/index.ts",
+      "default": "./src/relationship/index.ts"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src"
+    "test": "vitest run src",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --max-warnings=0"
   },
   "dependencies": {
     "zod": "latest"

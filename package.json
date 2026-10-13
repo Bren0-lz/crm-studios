@@ -13,11 +13,19 @@
     "test:postgres": "npm run test:postgres -w @crm/api",
     "db:setup": "npm run db:setup -w @crm/api",
     "db:migrate": "npm run db:migrate -w @crm/api",
-    "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web",
-    "lint": "npm run lint -w @crm/api && npm run lint -w @crm/web",
+    "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web && tsc -p tsconfig.json",
+    "lint": "npm run lint:architecture && eslint apps/api/src apps/api/vitest.config.ts apps/web/src apps/web/vite.config.ts packages/contracts/src packages/contracts/vitest.config.ts e2e playwright.config.ts scripts --max-warnings=0",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
-    "vercel-build": "node scripts/vercel-build.mjs"
+    "vercel-build": "node scripts/vercel-build.mjs",
+    "test:unit": "npm run test:unit -w @crm/contracts && npm run test:unit -w @crm/api && npm run test:unit -w @crm/web",
+    "test:integration": "npm run test:integration -w @crm/contracts && npm run test:integration -w @crm/api && npm run test:integration -w @crm/web",
+    "test:coverage": "npm run test:coverage -w @crm/contracts && npm run test:coverage -w @crm/api && npm run test:coverage -w @crm/web",
+    "test:e2e": "node scripts/test-e2e.mjs",
+    "test:e2e:ui": "playwright test --ui",
+    "audit": "node apps/web/scripts/audit-panels.cjs",
+    "lint:architecture": "node scripts/check-architecture.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run audit"
   },
   "engines": {
     "node": ">=22"
@@ -26,6 +34,8 @@
     "uuid": "11.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@vitest/coverage-v8": "5.0.0",
     "concurrently": "latest",
     "jsdom": "^27.4.0",
     "prettier": "latest",

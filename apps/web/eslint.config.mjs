@@ -3,13 +3,20 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
+import { readdirSync } from "node:fs";
+
+const features = readdirSync(new URL("./src/features", import.meta.url));
 
 export default tseslint.config(
   { ignores: ["dist/**"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    languageOptions: { ecmaVersion: 2020, globals: globals.browser },
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
     plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -19,4 +26,37 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "(?:^|/)features/",
+              message: "Shared não pode depender de funcionalidades.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  ...features.map((feature) => ({
+    files: [`src/features/${feature}/**/*.{ts,tsx}`],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: `^(?:\\.\\./)+(?:features/)?(?:${features.filter((name) => name !== feature).join("|")})/(?!index(?:\\.ts)?$)`,
+              message:
+                "Importe outra funcionalidade pela entrada pública index.ts.",
+            },
+          ],
+        },
+      ],
+    },
+  })),
 );

@@ -1,4 +1,7 @@
-# Movimenta CRM
+# Studios Aryana CRM
+
+> O mapa atual do código e os comandos estão em AGENTS.md e nos AGENTS.md dos workspaces.
+> As regras de design abaixo continuam válidas. Rotas/telas/testes são organizados por domínio.
 
 CRM web para clínica de fisioterapia/estúdio (Pilates, dançaterapia, depilação), usado só pela
 equipe — não existe app nem portal do cliente. Interface e textos em pt-BR; a entidade
@@ -7,6 +10,7 @@ equipe — não existe app nem portal do cliente. Interface e textos em pt-BR; a
 ## Desenvolvimento autônomo (autodev)
 
 ### Gates — comandos de verificação
+
 - `npm run typecheck` — ~25s
 - `npm run lint` — ~23s (`--max-warnings=0`)
 - `npm test` — ~29s (contracts, API em memória, web)
@@ -28,6 +32,7 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 (exige `TEST_DATABASE_URL`; os testes ficam `skip` sem ele — escreva-os mesmo assim).
 
 ### Regras do loop
+
 - O estado real está em `PLAN.md` e `STATE.md`. Nunca confie na memória da conversa.
 - Uma tarefa por vez. Um commit por tarefa concluída, mensagem em pt-BR.
 - Commits **sem** `Co-Authored-By` e sem "Generated with Claude".
@@ -38,27 +43,28 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   (criar migração **nova** com o próximo número é permitido).
 
 ### Convenções do projeto
+
 - **Monorepo npm workspaces**: `packages/contracts` (zod + tipos compartilhados, importado
   direto do `src`), `apps/api` (Fastify), `apps/web` (React + Vite, react-router, lucide-react).
-- **Contratos primeiro**: esquemas de entrada (`xxxInputSchema`) e interfaces de saída ficam em
-  `packages/contracts/src/index.ts`; helpers puros compartilhados também (ex.: `nextPlanPeriod`).
+- **Contratos primeiro**: schemas, tipos e helpers ficam em
+  `packages/contracts/src/<domínio>/{model,types}.ts`; index.ts mantém os exports públicos.
 - **Repositório duplo**: todo método novo entra na interface `ClinicRepository`
   (`apps/api/src/repository.ts`) e é implementado **nos dois**:
   `memory-repository.ts` e `postgres-repository.ts`. Os testes da API usam o de memória;
-  o PostgreSQL tem testes opt-in em `postgres.integration.test.ts`.
+  o PostgreSQL tem testes opt-in em `storage/postgres/tests/*.integration.test.ts`.
 - **PostgreSQL**: operações com escrita em várias tabelas usam transação
   (`this.inTransaction(...)`); tudo filtrado por `clinic_id`. Migrações em
   `apps/api/migrations/00NN_nome.sql`, aplicadas em ordem automaticamente.
-- **Rotas** em `apps/api/src/app.ts`: `preHandler: authenticate` + guardas de perfil
+- **Rotas** em `apps/api/src/modules/<domínio>/routes.ts`: `preHandler: authenticate` + guardas de perfil
   (`requireCommercialAccess`, `requireFinanceAccess`…); erros de domínio com
   `DomainError(code, mensagem pt-BR, status)`.
-- **Web**: páginas e modais em `apps/web/src/App.tsx`; cliente HTTP em `apps/web/src/api.ts`;
-  estilos em `apps/web/src/styles.css` (reaproveitar classes existentes: `panel`, `form-grid`,
+- **Web**: páginas e modais em `apps/web/src/features/<domínio>`; cliente HTTP compatível em `apps/web/src/api.ts`, implementação em shared/api;
+  estilos em `apps/web/src/styles`, importados na ordem por styles.css (reaproveitar classes existentes: `panel`, `form-grid`,
   `checkbox-field`, `status-pill`, `secondary-button`…). Datas exibidas com `shortDate`/
   `formatIsoDate` (formato "01 de out.").
 - **Testes**: Vitest. API via `app.inject` com `MemoryClinicRepository`
-  (`apps/api/src/app.test.ts`); web com Testing Library e `fetch` mockado
-  (`apps/web/src/App.test.tsx`); contratos em `packages/contracts/src/contracts.test.ts`.
+  (`apps/api/src/modules/<domínio>/*.integration.test.ts`); web com Testing Library e `fetch` mockado
+  (`apps/web/src/features/<domínio>/*.integration.test.tsx`); contratos em `packages/contracts/src/contracts.unit.test.ts`.
 - **Dados demo**: `demo-patients.ts`, `demo-scenarios.ts` e `seed-demo-scenarios.ts` — se um
   tipo ganhar campo obrigatório, atualize-os também.
 - **Documentação**: não existem tarefas de documentação. Não edite `docs/STATUS_IMPLEMENTACAO.md`,
@@ -66,6 +72,7 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   nova em `CLAUDE.md` que os agentes precisam seguir). Fora disso o verifier reprova.
 
 ### Design de páginas
+
 - **Estrutura**: página nova começa com `PageHeader`; conteúdo fica dentro de `.panel`. O
   `.panel` não tem padding: cada filho direto usa `panel-head` (`padding: 21px 23px`) ou um
   bloco com respiro lateral próprio (padrão 23px). Exceções: `.admin-grid > .panel` e

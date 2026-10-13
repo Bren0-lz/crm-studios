@@ -1,0 +1,78 @@
+import { z } from "zod";
+import { emptyQueryToUndefined } from "../common/model.js";
+import { patientStatusSchema } from "../patients/model.js";
+import type { BroadcastSkipReason } from "./types.js";
+
+export const communicationChannelSchema = z.enum(["whatsapp", "email"]);
+
+export const communicationKindSchema = z.enum([
+  "appointment_reminder",
+  "payment_reminder",
+  "manual",
+]);
+
+export const communicationPreferenceInputSchema = z.object({
+  patientId: z.uuid(),
+  channel: communicationChannelSchema,
+  allowed: z.boolean(),
+});
+
+export const manualMessageInputSchema = z.object({
+  patientId: z.uuid(),
+  channel: communicationChannelSchema,
+  body: z.string().trim().min(1).max(500),
+  scheduledFor: z.iso.datetime().optional(),
+});
+
+export const reminderGenerationInputSchema = z.object({
+  referenceDate: z.iso.date(),
+});
+
+/**
+ * Comunicado segmentado. Segmento vazio = todos os clientes. Etiquetas: basta
+ * uma das informadas. `activePlan` ausente = com ou sem plano ativo.
+ * `birthdayMonth` = aniversariantes do mês corrente da clínica.
+ */
+export const broadcastSegmentSchema = z.object({
+  tags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+  status: z.preprocess(emptyQueryToUndefined, patientStatusSchema.optional()),
+  activePlan: z.preprocess(emptyQueryToUndefined, z.boolean().optional()),
+  birthdayMonth: z.boolean().default(false),
+});
+
+export const broadcastInputSchema = z.object({
+  segment: broadcastSegmentSchema.default({ tags: [], birthdayMonth: false }),
+  channel: communicationChannelSchema,
+  /** Texto com `{{nome}}` (primeiro nome do cliente). */
+  body: z.string().trim().min(1).max(500),
+});
+
+export const broadcastSkipReasons = [
+  "opt_out",
+  "no_destination",
+  "message_too_long",
+] as const;
+
+export const broadcastSkipReasonLabels: Record<BroadcastSkipReason, string> = {
+  opt_out: "Não autorizou mensagens neste canal",
+  no_destination: "Sem contato cadastrado para o canal",
+  message_too_long: "Mensagem passa de 500 caracteres com o nome",
+};
+
+export const messageTemplateSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe a mensagem.")
+  .max(1000);
+
+/** Substitui `{{variavel}}` pelos valores informados; variáveis desconhecidas ficam como estão. */
+export function fillMessageTemplate(
+  template: string,
+  vars: Readonly<Record<string, string>>,
+): string {
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(vars, key)
+      ? (vars[key] ?? match)
+      : match,
+  );
+}

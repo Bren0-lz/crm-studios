@@ -1,0 +1,528 @@
+import type {
+  DocumentKind,
+  DocumentTemplate,
+  DocumentTemplateInput,
+  IssuedDocument,
+  PatientOption,
+  PatientPlan,
+  Professional,
+} from "@crm/contracts";
+import { Printer } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
+import { PatientPicker } from "../../PatientPicker";
+import { EmptyState } from "../../shared/components/EmptyState";
+import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { Logo } from "../../shared/components/Logo";
+import { Modal } from "../../shared/components/Modal";
+import { PageHeader } from "../../shared/components/PageHeader";
+import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
+import { CancelDocumentModal } from "./CancelDocumentModal";
+import {
+  documentKindLabels,
+  fetchContractsPageData,
+  professionalWithCrefito,
+} from "./model";
+import { TemplateVersionModal } from "./TemplateVersionModal";
+
+export function DocumentsPage() {
+  const { can, canView, canEdit } = useAuthorization();
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [documents, setDocuments] = useState<IssuedDocument[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [plans, setPlans] = useState<PatientPlan[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [printing, setPrinting] = useState<IssuedDocument | null>(null);
+  const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
+  const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
+  const canManage = canEdit("contracts");
+  const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
+    name: "Contrato de prestação de serviços",
+    kind: "contract",
+    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
+  });
+  const [documentForm, setDocumentForm] = useState({
+    templateId: "",
+    patientId: "",
+    planId: "",
+    professionalId: "",
+    title: "Contrato de prestação de serviços",
+  });
+
+  // Carga única da página: usada na abertura e depois de criar modelos ou documentos.
+  // Só usa setters de estado (estáveis), por isso o useCallback não tem dependências.
+  const applyPageData = useCallback(
+    ([
+      templateData,
+      documentData,
+      patientData,
+      planData,
+      professionalData,
+    ]: Awaited<ReturnType<typeof fetchContractsPageData>>) => {
+      setTemplates(templateData);
+      setDocuments(documentData);
+      setPatients(patientData);
+      setPlans(planData);
+      setProfessionals(
+        professionalData.filter((item) => item.active !== false),
+      );
+      setDocumentForm((current) => ({
+        ...current,
+        templateId:
+          current.templateId ||
+          templateData.find((item) => item.active)?.id ||
+          "",
+        patientId: current.patientId,
+      }));
+    },
+    [],
+  );
+
+  async function load() {
+    applyPageData(await fetchContractsPageData(canView("plans")));
+  }
+
+  useEffect(() => {
+    let active = true;
+    fetchContractsPageData(canView("plans"))
+      .then((data) => {
+        if (active) applyPageData(data);
+      })
+      .catch((cause: Error) => active && setError(cause.message))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [applyPageData, canView]);
+
+  async function createTemplate(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await api.createDocumentTemplate(templateForm);
+      setNotice("Modelo criado com a versão 1.");
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  async function templateVersioned(template: DocumentTemplate) {
+    setVersioning(null);
+    setError("");
+    setNotice(`Nova versão de “${template.name}” criada.`);
+    try {
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  async function createDocument(event: FormEvent) {
+    event.preventDefault();
+    if (!documentForm.patientId) return;
+    setError("");
+    setNotice("");
+    try {
+      await api.createDocument({
+        templateId: documentForm.templateId,
+        patientId: documentForm.patientId,
+        ...(documentForm.planId ? { planId: documentForm.planId } : {}),
+        ...(documentForm.professionalId
+          ? { professionalId: documentForm.professionalId }
+          : {}),
+        title: documentForm.title,
+      });
+      setNotice("Documento criado como rascunho com snapshot preservado.");
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  function replaceDocument(updated: IssuedDocument) {
+    setDocuments((current) =>
+      current.map((document) =>
+        document.id === updated.id ? updated : document,
+      ),
+    );
+  }
+
+  async function issueDocument(item: IssuedDocument) {
+    setError("");
+    try {
+      replaceDocument(await api.updateDocumentStatus(item.id, "issued"));
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
+  const patientPlans = plans.filter(
+    (plan) => plan.patientId === documentForm.patientId,
+  );
+  const activeTemplates = templates.filter((template) => template.active);
+  return (
+    <>
+      <PageHeader
+        eyebrow="Formalização"
+        title="Contratos"
+        description="Emita contratos e documentos administrativos com conteúdo e versão preservados."
+      />
+      {!canManage && <ReadOnlyNotice module="contracts" />}
+      {error && <ErrorBanner error={error} />}
+      {notice && <div className="success-banner">{notice}</div>}
+      {loading ? (
+        <LoadingBlock />
+      ) : (
+        <div className="documents-layout">
+          {canManage && (
+            <>
+              <section className="panel document-form-panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">Biblioteca</span>
+                    <h2>Novo modelo</h2>
+                  </div>
+                </div>
+                {can("contracts.templates_create") && (
+                  <form className="document-form" onSubmit={createTemplate}>
+                    <label>
+                      Nome
+                      <input
+                        required
+                        value={templateForm.name}
+                        onChange={(event) =>
+                          setTemplateForm({
+                            ...templateForm,
+                            name: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Tipo
+                      <select
+                        value={templateForm.kind}
+                        onChange={(event) =>
+                          setTemplateForm({
+                            ...templateForm,
+                            kind: event.target.value as DocumentKind,
+                          })
+                        }
+                      >
+                        {Object.entries(documentKindLabels).map(
+                          ([value, label]) => (
+                            <option value={value} key={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      Conteúdo
+                      <textarea
+                        required
+                        rows={8}
+                        value={templateForm.body}
+                        onChange={(event) =>
+                          setTemplateForm({
+                            ...templateForm,
+                            body: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <small>
+                      Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
+                      {"{{plano_servicos}}"}, {"{{profissional_nome}}"},{" "}
+                      {"{{profissional_crefito}}"}, {"{{data_emissao}}"} e{" "}
+                      {"{{clinica_nome}}"}.
+                    </small>
+                    <div className="modal-actions">
+                      <button className="primary-button">Criar modelo</button>
+                    </div>
+                  </form>
+                )}
+              </section>
+              <section className="panel document-form-panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">Emissão</span>
+                    <h2>Novo documento</h2>
+                  </div>
+                </div>
+                {can("contracts.issue") && (
+                  <form className="document-form" onSubmit={createDocument}>
+                    <label>
+                      Modelo ativo
+                      <select
+                        required
+                        value={documentForm.templateId}
+                        onChange={(event) =>
+                          setDocumentForm({
+                            ...documentForm,
+                            templateId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Selecione</option>
+                        {activeTemplates.map((template) => (
+                          <option value={template.id} key={template.id}>
+                            {template.name} · v{template.version}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <PatientPicker
+                      required
+                      patients={patients}
+                      value={documentForm.patientId}
+                      onChange={(patientId) =>
+                        setDocumentForm({
+                          ...documentForm,
+                          patientId,
+                          planId: "",
+                        })
+                      }
+                    />
+                    <label>
+                      Plano vinculado
+                      <select
+                        value={documentForm.planId}
+                        onChange={(event) =>
+                          setDocumentForm({
+                            ...documentForm,
+                            planId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Sem plano</option>
+                        {patientPlans.map((plan) => (
+                          <option value={plan.id} key={plan.id}>
+                            {plan.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Profissional (opcional)
+                      <select
+                        value={documentForm.professionalId}
+                        onChange={(event) =>
+                          setDocumentForm({
+                            ...documentForm,
+                            professionalId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Sem profissional</option>
+                        {professionals.map((professional) => (
+                          <option value={professional.id} key={professional.id}>
+                            {professionalWithCrefito(
+                              professional.fullName,
+                              professional.crefito,
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Título
+                      <input
+                        required
+                        value={documentForm.title}
+                        onChange={(event) =>
+                          setDocumentForm({
+                            ...documentForm,
+                            title: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="modal-actions">
+                      <button
+                        className="primary-button"
+                        disabled={
+                          !documentForm.templateId || !documentForm.patientId
+                        }
+                      >
+                        Criar rascunho
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </section>
+            </>
+          )}
+          <section className="panel template-library">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Versões</span>
+                <h2>Modelos cadastrados</h2>
+              </div>
+              <span className="list-count">{templates.length}</span>
+            </div>
+            {templates.length === 0 ? (
+              <EmptyState
+                title="Nenhum modelo"
+                copy="Crie o primeiro modelo acima."
+              />
+            ) : (
+              <div className="template-list">
+                {templates.map((template) => (
+                  <article key={template.id}>
+                    <div>
+                      <strong>{template.name}</strong>
+                      <span>
+                        {documentKindLabels[template.kind]} · versão{" "}
+                        {template.version}
+                      </span>
+                    </div>
+                    <span
+                      className={`status-pill ${template.active ? "active" : "cancelled"}`}
+                    >
+                      {template.active ? "Ativa" : "Histórica"}
+                    </span>
+                    {canManage &&
+                      template.active &&
+                      can("contracts.templates_version") && (
+                        <button
+                          className="secondary-button button-sm"
+                          onClick={() => setVersioning(template)}
+                        >
+                          Nova versão
+                        </button>
+                      )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="panel issued-documents">
+            <div className="panel-head">
+              <div>
+                <span className="eyebrow">Documentos</span>
+                <h2>Emissões e rascunhos</h2>
+              </div>
+              <span className="list-count">{documents.length}</span>
+            </div>
+            {documents.length === 0 ? (
+              <EmptyState
+                title="Nenhum documento"
+                copy="Crie um rascunho a partir de um modelo."
+              />
+            ) : (
+              <div className="issued-document-list">
+                {documents.map((item) => (
+                  <article key={item.id}>
+                    <div className="document-summary">
+                      <strong>{item.title}</strong>
+                      <span>
+                        {item.patientName} · {item.templateName} v
+                        {item.templateVersion}
+                      </span>
+                      <details>
+                        <summary>Ver conteúdo preservado</summary>
+                        <pre>{item.snapshotBody}</pre>
+                      </details>
+                    </div>
+                    <span className={`status-pill ${item.status}`}>
+                      {item.status === "draft"
+                        ? "Rascunho"
+                        : item.status === "issued"
+                          ? "Emitido"
+                          : "Cancelado"}
+                    </span>
+                    <div className="document-actions">
+                      {item.status === "issued" && (
+                        <button
+                          className="secondary-button button-sm"
+                          onClick={() => setPrinting(item)}
+                        >
+                          <Printer size={15} /> Imprimir
+                        </button>
+                      )}
+                      {canManage &&
+                        item.status === "draft" &&
+                        can("contracts.status") && (
+                          <button
+                            className="primary-button button-sm"
+                            onClick={() => void issueDocument(item)}
+                          >
+                            Emitir
+                          </button>
+                        )}
+                      {canManage &&
+                        item.status !== "cancelled" &&
+                        can("contracts.cancel") && (
+                          <button
+                            className="danger-button button-sm"
+                            onClick={() => setCancelling(item)}
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+      {versioning && (
+        <TemplateVersionModal
+          template={versioning}
+          onClose={() => setVersioning(null)}
+          onCreated={() => void templateVersioned(versioning)}
+        />
+      )}
+      {cancelling && (
+        <CancelDocumentModal
+          document={cancelling}
+          onClose={() => setCancelling(null)}
+          onCancelled={(updated) => {
+            replaceDocument(updated);
+            setCancelling(null);
+          }}
+        />
+      )}
+      {printing && (
+        <Modal
+          title={printing.title}
+          subtitle={printing.patientName}
+          eyebrow="Documento emitido"
+          onClose={() => setPrinting(null)}
+        >
+          <div className="receipt-content">
+            <Logo />
+            <p className="document-print-body">{printing.snapshotBody}</p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setPrinting(null)}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} /> Imprimir documento
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

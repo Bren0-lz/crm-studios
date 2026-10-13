@@ -1,0 +1,141 @@
+import {
+  clientReportFilterSchema,
+  managementReportFilterSchema,
+  retentionReportFilterSchema,
+  salesReportFilterSchema,
+  saoPauloToday,
+} from "@crm/contracts";
+import type { RouteContext } from "../../infrastructure/route-context.js";
+import { reportToCsv } from "../../infrastructure/route-utils.js";
+import {
+  DEFAULT_CLINIC_TIMEZONE,
+  clinicDateOf,
+} from "../finance/daily-cash.js";
+import {
+  buildClientReport,
+  resolveClientReportPeriod,
+} from "./client-report.js";
+import {
+  buildRetentionReport,
+  resolveRetentionPeriod,
+} from "./retention-report.js";
+import { salesReportToXlsx } from "./sales-workbook.js";
+
+export function registerReportsRoutes(context: RouteContext) {
+  const { app, authenticate, repository } = context;
+
+  app.get(
+    "/reports/management",
+    { preHandler: authenticate },
+    async (request) => {
+      const filter = managementReportFilterSchema.parse(request.query);
+      return repository.getManagementReport(
+        request.user.clinicId,
+        filter.from,
+        filter.to,
+      );
+    },
+  );
+
+  app.get(
+    "/reports/retention",
+    { preHandler: authenticate },
+    async (request) => {
+      const filter = retentionReportFilterSchema.parse(request.query);
+      const today = saoPauloToday();
+      const period = resolveRetentionPeriod(filter, today);
+      const { clinicId } = request.user;
+      // Toda a história: "novo" depende da primeira atividade do cliente; o
+      // relatório descarta o que cai fora dos meses pedidos.
+      const [appointments, plans] = await Promise.all([
+        repository.listAppointments(
+          clinicId,
+          "1900-01-01T00:00:00.000Z",
+          "9999-12-31T00:00:00.000Z",
+        ),
+        repository.listPatientPlans(clinicId),
+      ]);
+      return buildRetentionReport(period, { appointments, plans }, today);
+    },
+  );
+
+  app.get("/reports/clients", { preHandler: authenticate }, async (request) => {
+    const filter = clientReportFilterSchema.parse(request.query);
+    const { clinicId } = request.user;
+    const settings = await repository.getClinicSettings(clinicId);
+    const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
+    const period = resolveClientReportPeriod(
+      filter,
+      clinicDateOf(new Date(), timeZone),
+    );
+    // Janela folgada de um dia em cada ponta; o relatório filtra pela data
+    // no fuso da clínica.
+    const day = 24 * 60 * 60 * 1000;
+    const [patients, appointments, plans, payments] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listAppointments(
+        clinicId,
+        new Date(
+          Date.parse(`${period.from}T00:00:00.000Z`) - day,
+        ).toISOString(),
+        new Date(
+          Date.parse(`${period.to}T00:00:00.000Z`) + 2 * day,
+        ).toISOString(),
+      ),
+      repository.listPatientPlans(clinicId),
+      repository.listReceivedPayments(clinicId, period.from, period.to),
+    ]);
+    return buildClientReport(
+      period,
+      { patients, appointments, plans, payments },
+      timeZone,
+    );
+  });
+
+  app.get("/reports/sales", { preHandler: authenticate }, async (request) => {
+    const { month } = salesReportFilterSchema.parse(request.query);
+    return repository.getSalesReport(request.user.clinicId, month);
+  });
+
+  app.get(
+    "/reports/sales.xlsx",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { month } = salesReportFilterSchema.parse(request.query);
+      const report = await repository.getSalesReport(
+        request.user.clinicId,
+        month,
+      );
+      return reply
+        .header(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header(
+          "Content-Disposition",
+          `attachment; filename="vendas-${month}.xlsx"`,
+        )
+        .send(await salesReportToXlsx(report));
+    },
+  );
+
+  app.get(
+    "/reports/management.csv",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const filter = managementReportFilterSchema.parse(request.query);
+      const report = await repository.getManagementReport(
+        request.user.clinicId,
+        filter.from,
+        filter.to,
+      );
+      return reply
+        .header("Content-Type", "text/csv; charset=utf-8")
+        .header(
+          "Content-Disposition",
+          `attachment; filename="relatorio-${filter.from}-${filter.to}.csv"`,
+        )
+        .send(reportToCsv(report));
+    },
+  );
+}

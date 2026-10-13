@@ -1,0 +1,26 @@
+import type { PatientExportColumn } from "@crm/contracts";
+
+/** Filtros e opções da exportação de clientes (`GET /patients/export`). */
+export interface PatientExportParams {
+  format: "csv" | "xlsx";
+  columns: PatientExportColumn[];
+  search?: string;
+  status?: "active" | "inactive";
+  tags?: string[];
+  birthdayMonth?: boolean;
+  /** Assinantes sem turma vinculada. */
+  withoutGroup?: boolean;
+}
+
+export function patientExportQuery(params: PatientExportParams) {
+  const query = new URLSearchParams({
+    format: params.format,
+    columns: params.columns.join(","),
+  });
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.status) query.set("status", params.status);
+  if (params.tags?.length) query.set("tags", params.tags.join(","));
+  if (params.birthdayMonth) query.set("birthdayMonth", "true");
+  if (params.withoutGroup) query.set("withoutGroup", "true");
+  return query.toString();
+}

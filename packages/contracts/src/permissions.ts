@@ -148,8 +148,12 @@ export const permissionCatalog: readonly PermissionDefinition[] =
       {
         key: `${module}.view` as PermissionKey,
         module,
-        name: module === "history" ? "Visualizar histórico" : "Visualizar módulo",
-        description: module === "history" ? "Consultar o histórico administrativo da clínica." : "Abrir o módulo e consultar seus registros na clínica.",
+        name:
+          module === "history" ? "Visualizar histórico" : "Visualizar módulo",
+        description:
+          module === "history"
+            ? "Consultar o histórico administrativo da clínica."
+            : "Abrir o módulo e consultar seus registros na clínica.",
         dependencies: [],
         legacyView: [module],
         legacyEdit: [],
@@ -188,7 +192,11 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView,
             legacyEdit,
             ...(key === "patients.export" ? { legacyAdmin: true } : {}),
-            ...((key === "settings.plans_create" || key === "settings.plans_update" || key === "settings.plans_delete") ? { explicitGrantOnly: true } : {}),
+            ...(key === "settings.plans_create" ||
+            key === "settings.plans_update" ||
+            key === "settings.plans_delete"
+              ? { explicitGrantOnly: true }
+              : {}),
           };
         },
       ),

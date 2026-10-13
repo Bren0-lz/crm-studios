@@ -2,9 +2,12 @@
 // antes de publicar: se uma migração falhar, o build falha e o site anterior continua no ar.
 import { config } from "./config.js";
 import { createDatabasePool, runMigrations } from "./database.js";
-import { migrationDatabaseUrl } from "./database-connection.js";
+import { migrationDatabaseUrl } from "./infrastructure/database-connection.js";
 
-const pool = createDatabasePool({ max: 1, url: migrationDatabaseUrl(config.DATABASE_URL) });
+const pool = createDatabasePool({
+  max: 1,
+  url: migrationDatabaseUrl(config.DATABASE_URL),
+});
 
 try {
   const applied = await runMigrations(pool);

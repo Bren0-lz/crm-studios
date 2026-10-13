@@ -68,30 +68,36 @@ O ambiente de demonstração traz 123 clientes fictícios, incluindo 120 cadastr
 
 Com `SEED_DEMO_DATA=true`, a demonstração também inclui 56 planos com preços e parcelas, 160 atendimentos individuais, uma turma de dançaterapia duas vezes por semana e seu histórico de aulas e presenças. Busque as etiquetas abaixo em **Clientes** para examinar cada trajetória:
 
-| Etiqueta | Cenário | Valor simulado |
-| --- | --- | --- |
+| Etiqueta                 | Cenário                                                              | Valor simulado         |
+| ------------------------ | -------------------------------------------------------------------- | ---------------------- |
 | Frequente / Dançaterapia | 8 clientes em plano ativo de 24 aulas, com presença e próximas aulas | R$ 1.497 em 3 parcelas |
-| Frequente / Pilates | 8 clientes com sessões concluídas e retorno agendado | R$ 1.200 em 2 parcelas |
-| Em tratamento | 8 clientes com pacote de fisioterapia e saldo de sessões | R$ 1.500 em 2 parcelas |
-| Serviço avulso | 8 compras de depilação de pernas ou axilas | R$ 120 ou R$ 55 |
-| Assinatura cancelada | 8 ex-alunos de dançaterapia com pagamentos e parcelas canceladas | R$ 1.497 por plano |
-| Sem retorno | 8 clientes com pacote vencido e sessões restantes | R$ 1.500 por pacote |
-| Pagamento atrasado | 8 clientes de Pilates com plano ativo e parcela vencida | R$ 1.200 em 2 parcelas |
+| Frequente / Pilates      | 8 clientes com sessões concluídas e retorno agendado                 | R$ 1.200 em 2 parcelas |
+| Em tratamento            | 8 clientes com pacote de fisioterapia e saldo de sessões             | R$ 1.500 em 2 parcelas |
+| Serviço avulso           | 8 compras de depilação de pernas ou axilas                           | R$ 120 ou R$ 55        |
+| Assinatura cancelada     | 8 ex-alunos de dançaterapia com pagamentos e parcelas canceladas     | R$ 1.497 por plano     |
+| Sem retorno              | 8 clientes com pacote vencido e sessões restantes                    | R$ 1.500 por pacote    |
+| Pagamento atrasado       | 8 clientes de Pilates com plano ativo e parcela vencida              | R$ 1.200 em 2 parcelas |
 
 Os planos recorrentes representam períodos contratados com sessões e parcelas. Ao fim da validade, os que têm renovação automática ganham o período seguinte com as mesmas condições; qualquer plano também pode ser renovado manualmente em **Planos**, com valores ajustáveis. As datas são posicionadas em relação ao dia em que a base é carregada pela primeira vez; reiniciar a API preserva os registros e as alterações feitas neles.
 
 ## Verificações
 
 ```bash
-npm run typecheck
-npm test
-npm run build
-npm run lint
+npm run check
+npm run test:unit
+npm run test:integration
+npm run test:coverage
+npm exec -- playwright install chromium
+npm run test:e2e
 ```
 
 ## Relatório mensal de vendas
 
 Perfis de gestão e financeiro veem no painel o valor vendido, o recebido e os clientes que compareceram no mês anterior sem atendimento concluído no mês atual. A página **Relatórios** permite escolher o mês e baixar um XLSX com resumo, movimentos de vendas e cancelamentos, pagamentos e estornos, clientes sem retorno e definições dos indicadores. O mês em andamento é comparado com os mesmos dias do mês anterior; vendas seguem a data da criação do plano ou do fechamento da comanda, enquanto recebimentos seguem a data do movimento financeiro.
+
+Os testes unitários e de integração usam Vitest; `test:e2e` compila o projeto e inicia uma API em memória exclusiva por cenário. Os relatórios de cobertura ficam em `coverage` de cada workspace; as metas preservam a cobertura inicial registrada em `scripts/coverage-baseline.json`. Consulte [AGENTS.md](AGENTS.md) para localizar código e executar testes focados.
+
+O `typecheck` inclui as configurações de testes e Playwright, além do código das aplicações. O `tsconfig.json` da raiz permite ao editor encontrar essas configurações; o lint verifica todos os workspaces na mesma execução. A antiga suíte `apps/web/src/App.test.tsx` foi dividida em testes próximos às funcionalidades, em `src/app` e `src/features`.
 
 ## Banco de dados local
 
@@ -158,13 +164,13 @@ preencha Output Directory.
 
 Variáveis de ambiente no painel da Vercel (Settings › Environment Variables):
 
-| Variável | Valor |
-| --- | --- |
-| `STORAGE_MODE` | `postgres` |
-| `DATABASE_URL` | URL do **Transaction pooler** do Supabase (porta **6543**) |
-| `JWT_SECRET` | 32+ caracteres aleatórios (a função não sobe com o valor padrão) |
-| `NODE_ENV` | `production` |
-| `WEB_ORIGIN` | o endereço do site, ex. `https://seu-projeto.vercel.app` |
+| Variável       | Valor                                                            |
+| -------------- | ---------------------------------------------------------------- |
+| `STORAGE_MODE` | `postgres`                                                       |
+| `DATABASE_URL` | URL do **Transaction pooler** do Supabase (porta **6543**)       |
+| `JWT_SECRET`   | 32+ caracteres aleatórios (a função não sobe com o valor padrão) |
+| `NODE_ENV`     | `production`                                                     |
+| `WEB_ORIGIN`   | o endereço do site, ex. `https://seu-projeto.vercel.app`         |
 
 No deploy de produção (`VERCEL_ENV=production` com `STORAGE_MODE=postgres`), o build roda
 `npm run db:migrate` antes de compilar: aplica só as migrações pendentes, sem seed, trocando a
@@ -177,9 +183,13 @@ A Vercel publica o que está no GitHub: faça o push dos commits antes.
 ## Estrutura
 
 ```text
-apps/api                 API Fastify e regras de negócio
-apps/web                 aplicação React responsiva
-packages/contracts       contratos e validações compartilhadas
+apps/api/src/modules     rotas, serviços e testes por domínio
+apps/api/src/storage     módulos de memória e PostgreSQL com contexto compartilhado
+apps/web/src/app          composição, navegação e layout
+apps/web/src/features     telas, formulários e testes por funcionalidade
+apps/web/src/shared       componentes, hooks, autenticação e cliente HTTP
+packages/contracts/src   schemas, tipos e helpers por domínio
+e2e                      fluxos reais em Chromium desktop e celular
 docs                     levantamento funcional e plano do produto
 ```
 

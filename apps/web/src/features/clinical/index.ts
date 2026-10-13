@@ -1,0 +1,1 @@
+export { fetchAgendaPatients } from "./model";
