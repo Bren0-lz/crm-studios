@@ -3,6 +3,7 @@ import {
   type AdminUserInput,
   type AdminUserUpdate,
   type AuditHistoryFilters,
+  type ClinicSettings,
   type ClinicSettingsInput,
   type HistoryActor,
   type ProfessionalInput,
@@ -28,6 +29,35 @@ import {
   rowPermissions,
   userColumns,
 } from "./helpers.js";
+
+type ClinicSettingsRow = {
+  id: string;
+  name: string;
+  legalName: string | null;
+  taxId: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  timezone: string;
+  updatedAt: Date;
+};
+
+const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
+  email, address, timezone, updated_at AS "updatedAt"`;
+
+function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
+  return {
+    id: row.id,
+    name: row.name,
+    legalName: row.legalName ?? "",
+    taxId: row.taxId ?? "",
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    address: row.address ?? "",
+    timezone: row.timezone,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 export function createAdministrationRepository(
   repositoryContext: PostgresRepositoryContext,
@@ -384,35 +414,14 @@ export function createAdministrationRepository(
     },
 
     async getClinicSettings(clinicId: string) {
-      const result = await repositoryContext.pool.query<{
-        id: string;
-        name: string;
-        legalName: string | null;
-        taxId: string | null;
-        phone: string | null;
-        email: string | null;
-        address: string | null;
-        timezone: string;
-        updatedAt: Date;
-      }>(
-        `SELECT id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
-              email, address, timezone, updated_at AS "updatedAt"
+      const result = await repositoryContext.pool.query<ClinicSettingsRow>(
+        `SELECT ${clinicSettingsColumns}
        FROM clinics WHERE id = $1`,
         [clinicId],
       );
       const row = result.rows[0];
       if (!row) return null;
-      return {
-        id: row.id,
-        name: row.name,
-        legalName: row.legalName ?? "",
-        taxId: row.taxId ?? "",
-        phone: row.phone ?? "",
-        email: row.email ?? "",
-        address: row.address ?? "",
-        timezone: row.timezone,
-        updatedAt: row.updatedAt.toISOString(),
-      };
+      return mapClinicSettings(row);
     },
 
     async updateClinicSettings(
@@ -423,10 +432,10 @@ export function createAdministrationRepository(
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
-        const result = await client.query(
+        const result = await client.query<ClinicSettingsRow>(
           `UPDATE clinics SET name = $2, legal_name = $3, tax_id = $4,
             phone = $5, email = $6, address = $7, timezone = $8, updated_at = now()
-         WHERE id = $1`,
+         WHERE id = $1 RETURNING ${clinicSettingsColumns}`,
           [
             clinicId,
             input.name,
@@ -452,10 +461,9 @@ export function createAdministrationRepository(
           "clinic",
           clinicId,
         );
+        const saved = mapClinicSettings(result.rows[0]!);
         await client.query("COMMIT");
-        return (await repositoryContext.operations.getClinicSettings(
-          clinicId,
-        ))!;
+        return saved;
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;

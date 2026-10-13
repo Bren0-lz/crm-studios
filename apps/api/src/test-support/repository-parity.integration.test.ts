@@ -1,5 +1,6 @@
 import {
   appointmentInputSchema,
+  clinicSettingsInputSchema,
   guidedPatientInputSchema,
   patientInputSchema,
   patientPlanInputSchema,
@@ -104,6 +105,194 @@ for (const storage of ["memory", "postgres"] as const) {
           }),
         );
       }
+
+      it("saves every settings section repeatedly with one database connection", async () => {
+        const original = await repository.getClinicSettings(clinicId);
+        const limitedPool = pool
+          ? new Pool({ ...pool.options, max: 1, connectionTimeoutMillis: 1000 })
+          : undefined;
+        const settingsRepository = limitedPool
+          ? new PostgresClinicRepository(limitedPool)
+          : repository;
+        try {
+          const input = clinicSettingsInputSchema.parse({
+            name: "Clínica de teste",
+            legalName: "Clínica de teste Ltda.",
+            taxId: "12.345.678/0001-90",
+            phone: "(11) 99999-1234",
+            email: "clinica@example.com",
+            address: "Rua de teste, 123",
+            timezone: "America/Sao_Paulo",
+          });
+          expect(
+            await settingsRepository.updateClinicSettings(
+              clinicId,
+              actorId,
+              input,
+            ),
+          ).toMatchObject(input);
+          const cleared = {
+            ...input,
+            legalName: "",
+            taxId: "",
+            phone: "",
+            email: "",
+            address: "",
+          };
+          expect(
+            await settingsRepository.updateClinicSettings(
+              clinicId,
+              actorId,
+              cleared,
+            ),
+          ).toMatchObject(cleared);
+          expect(
+            await settingsRepository.getClinicSettings(clinicId),
+          ).toMatchObject(cleared);
+          const audit = await settingsRepository.listAdminAuditEvents(clinicId);
+          expect(
+            audit.filter((event) => event.action === "clinic.updated"),
+          ).toHaveLength(2);
+          await expect(
+            settingsRepository.updateClinicSettings(
+              randomUUID(),
+              actorId,
+              input,
+            ),
+          ).rejects.toMatchObject({ code: "CLINIC_NOT_FOUND" });
+
+          const user = await settingsRepository.createAdminUser(
+            clinicId,
+            actorId,
+            {
+              fullName: "Usuária de teste",
+              email: `${randomUUID()}@example.com`,
+              role: "user",
+              password: "SenhaForte123",
+              permissions: ["settings.view"],
+            },
+            "initial-hash",
+          );
+          expect(
+            await settingsRepository.updateAdminUser(
+              clinicId,
+              actorId,
+              user.id,
+              {
+                fullName: "Usuária atualizada",
+                role: "user",
+                active: true,
+                jobTitle: "Recepção",
+                permissions: ["settings.view", "settings.tags_create"],
+              },
+            ),
+          ).toMatchObject({
+            fullName: "Usuária atualizada",
+            jobTitle: "Recepção",
+          });
+          expect(
+            await settingsRepository.resetAdminUserPassword(
+              clinicId,
+              actorId,
+              user.id,
+              "updated-hash",
+            ),
+          ).toBe(true);
+          expect(
+            await settingsRepository.setAdminUserProfessional(
+              clinicId,
+              actorId,
+              user.id,
+              null,
+            ),
+          ).toMatchObject({ id: user.id });
+
+          const template = await settingsRepository.createPlanTemplate(
+            clinicId,
+            actorId,
+            planTemplateInputSchema.parse({
+              name: `Settings ${randomUUID()}`,
+              totalValueInCents: 20000,
+              services: [
+                { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+              ],
+            }),
+          );
+          expect(
+            await settingsRepository.updatePlanTemplate(
+              clinicId,
+              actorId,
+              template.id,
+              { name: "Plano atualizado" },
+            ),
+          ).toMatchObject({ name: "Plano atualizado" });
+          expect(
+            await settingsRepository.updatePlanTemplate(
+              clinicId,
+              actorId,
+              template.id,
+              { active: false },
+            ),
+          ).toMatchObject({ active: false });
+
+          const holiday = await settingsRepository.createHoliday(clinicId, {
+            date: "2056-12-25",
+            name: "Feriado de teste",
+          });
+          expect(await settingsRepository.listHolidays(clinicId)).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ id: holiday.id }),
+            ]),
+          );
+          expect(
+            await settingsRepository.deleteHoliday(clinicId, holiday.id),
+          ).toBe(true);
+
+          const tag = await settingsRepository.createPatientTag(
+            clinicId,
+            actorId,
+            { name: "Etiqueta de teste", color: "#abcdef" },
+          );
+          expect(
+            await settingsRepository.updatePatientTag(
+              clinicId,
+              actorId,
+              tag.id,
+              { name: "Etiqueta atualizada" },
+            ),
+          ).toMatchObject({ name: "Etiqueta atualizada" });
+          expect(
+            await settingsRepository.deletePatientTag(
+              clinicId,
+              actorId,
+              tag.id,
+            ),
+          ).toBe(true);
+
+          const relationship =
+            await settingsRepository.getRelationshipSettings(clinicId);
+          for (const lowBalanceSessions of [7, 8]) {
+            await settingsRepository.updateRelationshipSettings(clinicId, {
+              ...relationship,
+              lowBalanceSessions,
+            });
+            expect(
+              await settingsRepository.getRelationshipSettings(clinicId),
+            ).toMatchObject({ lowBalanceSessions });
+          }
+        } finally {
+          try {
+            if (original)
+              await settingsRepository.updateClinicSettings(
+                clinicId,
+                actorId,
+                original,
+              );
+          } finally {
+            await limitedPool?.end();
+          }
+        }
+      });
 
       it("persists and finds a patient without exposing the record to another clinic", async () => {
         const created = await patient("Parity Cliente");
