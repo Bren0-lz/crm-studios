@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clinicIsoDate,
   formatIsoDate,
   initials,
   localIsoDate,
@@ -8,6 +9,13 @@ import {
 } from "./formatting";
 
 describe("display helpers", () => {
+  it("preserves a clinic date and converts timestamps in the selected timezone", () => {
+    expect(clinicIsoDate("2040-06-01")).toBe("2040-06-01");
+    expect(clinicIsoDate("2040-06-02T01:00:00Z")).toBe("2040-06-01");
+    expect(clinicIsoDate(new Date("2040-06-02T01:00:00Z"), "UTC")).toBe(
+      "2040-06-02",
+    );
+  });
   it("formats ISO dates without timezone conversion", () => {
     expect(formatIsoDate("2026-10-12")).toBe("12/10/2026");
   });

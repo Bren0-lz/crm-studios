@@ -15,6 +15,7 @@ Interface em pt-BR; no produto, `patient` significa **cliente**. Node 22+; Windo
 - `npm run check`: tipos, arquitetura/lint, testes, build e auditoria visual estática.
 - `tsconfig.json` na raiz cobre Playwright e configurações de testes; os workspaces mantêm seus próprios tsconfigs. ESLint define `tsconfigRootDir` por workspace para também funcionar no editor e em execuções conjuntas.
 - `npm run test:unit`, `npm run test:integration`, `npm run test:coverage`.
+- Cobertura completa usa `TEST_DATABASE_URL` de banco exclusivo de testes para incluir memória e PostgreSQL; CI mede no job PostgreSQL, mantendo as metas existentes.
 - Teste focado: `npm exec -w @crm/web -- vitest run src/features/.../arquivo.integration.test.tsx` (também API/contracts).
 - `npm run test:e2e`: compila e testa desktop/celular contra API nova em memória por cenário.
 - `npm run test:postgres`: somente com TEST_DATABASE_URL de testes; CI exige a variável.

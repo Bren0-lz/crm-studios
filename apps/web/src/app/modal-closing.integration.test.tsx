@@ -146,10 +146,10 @@ describe("modal closing", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nova turma" });
     const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
-    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da turma" }),

@@ -1,9 +1,20 @@
 # Estado do loop
 
-- **Tarefa atual:** nenhuma (plano concluído)
-- **Última concluída:** T072 (organização e testes)
+- **Tarefa atual:** nenhuma (retomada concluída)
+- **Última concluída:** T073 (retomada e validação da entrega "engenharia reversa")
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
+
+## Retomada T073 — concluída (2026-10-14)
+
+- Dependências restauradas com `npm.cmd ci`, sem alterações no lockfile; Chromium do Playwright instalado. `App.test.tsx` recuperado como `App.integration.test.tsx` (204 testes), com expectativas antigas ajustadas ao comportamento vigente.
+- Corrigidos parâmetros do logotipo em PostgreSQL, inferência SQL da competência de comissões, ordenação pela data financeira efetiva e Content-Type JSON indevido em POST sem corpo. Testes de paridade cobrem salvar, preservar e remover logotipo; testes financeiros usam as datas efetivas.
+- PostgreSQL 16.14 portátil, exclusivo de testes: 76 migrações aplicadas e 82 testes de PostgreSQL/paridade aprovados, sem ignorados. Cobertura API com PostgreSQL: 331 testes aprovados e 78,26% de linhas, metas preservadas. Contratos: 124 testes aprovados, 94,33% de linhas e metas aprovadas.
+- `npm.cmd run check` aprovado: 986 testes (124 contratos + 268 API em memória + 594 web), tipos, lint/arquitetura (409 arquivos), build e auditoria estática. Os 63 testes PostgreSQL ignorados nesse comando foram executados na validação específica e na cobertura da API com banco.
+- `npm.cmd run test:e2e -- --workers=1` aprovado: 28/28 casos, desktop/celular, incluindo prontuário, comissões, comunicações, contratação integrada e comandas. Rodada anterior com falhas de memória do Windows foi substituída por essa execução completa.
+- Cobertura aprovada nos três workspaces, sem reduzir metas: contratos (124 testes) 94,33% linhas / 84,43% ramificações / 85,95% funções / 93,63% declarações; API com PostgreSQL (331 testes, sem ignorados) 78,26% / 68,53% / 79,21% / 77,57%; web (594 testes) 82,73% / 79,65% / 77,45% / 81,52%. Total: 1.049 testes aprovados com ambas as implementações de armazenamento.
+- A execução global de cobertura concluiu contratos/API com banco, mas foi interrompida durante o frontend; essa etapa foi reexecutada isoladamente com exit code 0. Corrigidas esperas de montagem em testes antigos de modais e padronizada a espera assíncrona do Testing Library em 5s para o carregamento sob cobertura no Windows; asserções e timeout Vitest de 20s preservados. Arquivos ajustados passaram em testes focados e lint. Nenhuma validação pendente desta retomada; PostgreSQL temporário encerrado.
+- Auditoria das versões travadas registra sete vulnerabilidades (3 moderadas, 2 altas, 2 críticas); atualização fora do escopo autorizado. Build mantém aviso de bundle acima de 500 kB. CI mede cobertura completa no job PostgreSQL. Sem push/deploy, banco publicado ou alteração de `.env`, `compose.yaml` e migrações existentes.
 
 ## Diário
 

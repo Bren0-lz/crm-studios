@@ -297,6 +297,48 @@ for (const storage of ["memory", "postgres"] as const) {
         }
       });
 
+      it("saves, preserves and removes the clinic logo independently of other settings", async () => {
+        const original = structuredClone(
+          (await repository.getClinicSettings(clinicId))!,
+        );
+        const input = clinicSettingsInputSchema.parse(original);
+        const logoDataUrl =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
+        try {
+          expect(
+            await repository.updateClinicSettings(clinicId, actorId, {
+              ...input,
+              logoDataUrl,
+            }),
+          ).toMatchObject({ logoDataUrl });
+          const withoutLogo = { ...input };
+          delete withoutLogo.logoDataUrl;
+          expect(
+            await repository.updateClinicSettings(clinicId, actorId, {
+              ...withoutLogo,
+              name: "Clínica com logo preservado",
+            }),
+          ).toMatchObject({ name: "Clínica com logo preservado", logoDataUrl });
+          expect(await repository.getClinicSettings(clinicId)).toMatchObject({
+            logoDataUrl,
+          });
+          expect(
+            await repository.updateClinicSettings(clinicId, actorId, {
+              ...withoutLogo,
+              logoDataUrl: "",
+            }),
+          ).toMatchObject({ logoDataUrl: "" });
+          expect(await repository.getClinicSettings(clinicId)).toMatchObject({
+            logoDataUrl: "",
+          });
+        } finally {
+          await repository.updateClinicSettings(clinicId, actorId, {
+            ...input,
+            logoDataUrl: input.logoDataUrl ?? "",
+          });
+        }
+      });
+
       it("purchases plan, schedule and document atomically with concurrent retry protection", async () => {
         const created = await patient("Contratação integrada");
         const services = [

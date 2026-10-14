@@ -476,6 +476,8 @@ export function createAdministrationRepository(
             input.email || null,
             input.address || null,
             input.timezone,
+            input.logoDataUrl !== undefined,
+            input.logoDataUrl ?? null,
           ],
         );
         if (!result.rowCount)

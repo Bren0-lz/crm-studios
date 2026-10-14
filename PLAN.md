@@ -1174,3 +1174,17 @@ Decisões do dono na V6 (04/10/2026):
 - Unitários, integração, paridade PostgreSQL e navegador desktop/celular: implementados.
 - Cobertura sem regressão, limites de imports, instruções curtas e GitHub Actions: implementados.
 - Validação final: concluída; resultados registrados em STATE.md.
+
+## Retomada — 14/10/2026
+
+### T073 — Validar a entrega "engenharia reversa"
+
+**Status:** DONE
+
+- Restaurar as dependências do lockfile e o Chromium do Playwright.
+- Recuperar a descoberta de `App.test.tsx` conforme a convenção de integração e corrigir falhas sem enfraquecer os cenários.
+- Executar check, cobertura, navegador desktop/celular e PostgreSQL 16 temporário, exclusivo de testes.
+- Registrar resultados reais em STATE.md; preservar APIs, textos, permissões e paridade dos repositórios.
+- Sem push/deploy, banco publicado, alteração de .env/compose ou migrações existentes.
+
+Validação em 2026-10-14: check aprovado (986 testes, tipos, lint/arquitetura, build e auditoria); cobertura aprovada nos três workspaces (1.049 testes com PostgreSQL); PostgreSQL 16.14 portátil com 76 migrações e 82 testes específicos/paridade aprovados; navegador com 28/28 casos desktop/celular. Execução global de cobertura interrompida no frontend, concluído por reexecução isolada aprovada. Metas de cobertura e versões do lockfile preservadas. Resultados e limitações em STATE.md.
