@@ -1,3 +1,5 @@
+import { useAuthorization } from "../../authorization-context";
+import { Link } from "react-router-dom";
 import type { GroupSession } from "@crm/contracts";
 import { Users } from "lucide-react";
 import { timeLabel } from "../../shared/lib/formatting";
@@ -9,6 +11,7 @@ export function GroupSessionCard({
   session: GroupSession;
   compact?: boolean;
 }) {
+  const { can } = useAuthorization();
   const startsAt = timeLabel.format(new Date(session.startsAt));
   const endsAt = timeLabel.format(new Date(session.endsAt));
   if (compact)
@@ -45,6 +48,14 @@ export function GroupSessionCard({
           </p>
         </div>
       </div>
+      {can("groups.view") && (
+        <Link
+          className="secondary-button"
+          to={`/turmas?sessionId=${session.id}`}
+        >
+          Abrir encontro
+        </Link>
+      )}
     </article>
   );
 }

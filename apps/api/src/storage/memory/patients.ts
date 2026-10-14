@@ -29,7 +29,9 @@ export function createPatientsRepository(
         ? normalized.replace(/\D/g, "")
         : "";
       return repositoryContext.patients
-        .filter((item) => item.clinicId === clinicId)
+        .filter(
+          (item) => item.clinicId === clinicId && !item.mergedIntoPatientId,
+        )
         .filter((item) =>
           normalized
             ? [
@@ -280,6 +282,7 @@ export function createPatientsRepository(
             name: tag.name,
             color: tag.color,
           },
+          clinicId,
         );
       return repositoryContext.withPatientCount(tag);
     },
@@ -336,6 +339,7 @@ export function createPatientsRepository(
             color: tag.color,
             ...(name !== previousName ? { previousName, patientsUpdated } : {}),
           },
+          clinicId,
         );
       return repositoryContext.withPatientCount(tag);
     },
@@ -362,6 +366,7 @@ export function createPatientsRepository(
           {
             name: tag.name,
           },
+          clinicId,
         );
       return true;
     },

@@ -1,3 +1,4 @@
+import type { CommissionPaymentEvent } from "@crm/contracts";
 import {
   paymentMethodSchema,
   type CommissionEntry,
@@ -7,11 +8,14 @@ import {
   type DailyCashPaymentMethod,
   type Payable,
   type ReceivedPayment,
+  type PayablePaymentEvent,
 } from "@crm/contracts";
 
 export const DEFAULT_CLINIC_TIMEZONE = "America/Sao_Paulo";
 
 export interface DailyCashSources {
+  commissionEvents?: CommissionPaymentEvent[];
+  payableEvents?: PayablePaymentEvent[];
   /** Eventos de recebimento (`payment`) e estorno (`reversal`, valor negativo). */
   receipts: ReceivedPayment[];
   /** Contas a pagar; entram as pagas, pela data de `paidAt`. */
@@ -72,13 +76,13 @@ export function buildDailyCash(
   const movements: DailyCashMovement[] = [];
 
   for (const item of sources.receipts) {
-    if (!onDate(item.occurredAt)) continue;
+    if (!onDate(item.availableAt ?? item.occurredAt)) continue;
     const reversal = item.kind === "reversal";
     movements.push({
       id: `${reversal ? "receipt_reversal" : "receipt"}:${item.id}`,
       kind: reversal ? "receipt_reversal" : "receipt",
       direction: "in",
-      occurredAt: item.occurredAt,
+      occurredAt: item.availableAt ?? item.occurredAt,
       description: item.description,
       counterpart: item.patientName,
       paymentMethod: reversal
@@ -89,21 +93,78 @@ export function buildDailyCash(
         : item.amountInCents,
     });
   }
+  const trackedPayables = new Set(
+    sources.payableEvents?.map((item) => item.payableId),
+  );
+  for (const event of sources.payableEvents ?? []) {
+    if (!onDate(event.availableAt ?? event.occurredAt)) continue;
+    const payable = sources.payables.find(
+      (item) => item.id === event.payableId,
+    );
+    if (!payable) continue;
+    movements.push({
+      id: `payable:${event.id}`,
+      kind: "payable",
+      direction: "out",
+      occurredAt: event.availableAt ?? event.occurredAt,
+      description:
+        event.kind === "reversal"
+          ? `Estorno · ${payable.description}`
+          : payable.description,
+      ...(payable.supplier ? { counterpart: payable.supplier } : {}),
+      paymentMethod: event.paymentMethod ?? "unspecified",
+      amountInCents: event.amountInCents,
+    });
+  }
   for (const item of sources.payables) {
-    if (item.status !== "paid" || !onDate(item.paidAt)) continue;
+    if (
+      trackedPayables.has(item.id) ||
+      item.status !== "paid" ||
+      !onDate(item.cashAvailableAt ?? item.paidAt)
+    )
+      continue;
     movements.push({
       id: `payable:${item.id}`,
       kind: "payable",
       direction: "out",
-      occurredAt: item.paidAt!,
+      occurredAt: item.cashAvailableAt ?? item.paidAt!,
       description: item.description,
       ...(item.supplier ? { counterpart: item.supplier } : {}),
       paymentMethod: item.paymentMethod ?? "unspecified",
       amountInCents: item.amountInCents,
     });
   }
+  const trackedCommissions = new Set(
+    (sources.commissionEvents ?? []).map((event) => event.commissionId),
+  );
+  for (const event of sources.commissionEvents ?? []) {
+    if (!onDate(event.occurredAt) || event.amountInCents === 0) continue;
+    const commission = sources.commissions.find(
+      (item) => item.id === event.commissionId,
+    );
+    if (!commission) continue;
+    movements.push({
+      id: `commission:${event.id}`,
+      kind: "commission",
+      direction: "out",
+      occurredAt: event.occurredAt,
+      description: `${event.kind === "reversal" ? "Estorno · " : ""}Comissão ${commission.competence}`,
+      counterpart: event.professionalName ?? commission.professionalName,
+      paymentMethod: "unspecified",
+      amountInCents: event.amountInCents,
+    });
+  }
   for (const item of sources.commissions) {
-    if (item.status !== "paid" || !onDate(item.paidAt)) continue;
+    if (
+      trackedCommissions.has(item.id) ||
+      sources.payables.some(
+        (payable) =>
+          payable.commissionId === item.id && payable.status !== "cancelled",
+      ) ||
+      item.status !== "paid" ||
+      !onDate(item.paidAt)
+    )
+      continue;
     movements.push({
       id: `commission:${item.id}`,
       kind: "commission",

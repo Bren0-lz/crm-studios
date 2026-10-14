@@ -1,4 +1,39 @@
 import type {
+  ExternalOperation,
+  ExternalOperationInput,
+  ExternalOperationContent,
+} from "@crm/contracts";
+import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
+import type { PaymentTiming, FinancialDatesInput } from "@crm/contracts";
+import type {
+  AdministrativeRegistryInput,
+  AdministrativeRegistryWorkspace,
+} from "@crm/contracts";
+import type {
+  DocumentSignatureInput,
+  DocumentSignatureContent,
+} from "@crm/contracts";
+import type {
+  ProductUpdateInput,
+  PatientTabItemUpdate,
+  PatientTabServiceInput,
+  Supplier,
+  SupplierInput,
+  ManualReceivableInput,
+  FinancialClassification,
+  DreGroup,
+  DreReport,
+  Receivable,
+} from "@crm/contracts";
+import type { ClinicalSource } from "@crm/contracts";
+import type { ClinicalResource, ClinicalResourceInput } from "@crm/contracts";
+import type { PatientMergeInput, PatientMergePreview } from "@crm/contracts";
+import type {
+  ClinicCatalogEntry,
+  ClinicCatalogInput,
+  ClinicCatalogKind,
+} from "@crm/contracts";
+import type {
   AdminAuditEvent,
   AdminAuditPage,
   AdminUser,
@@ -141,6 +176,7 @@ import type {
 } from "@crm/contracts";
 
 export interface AuthenticatedUser extends UserSummary {
+  sessionVersion?: number;
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;
@@ -151,6 +187,186 @@ export interface AuthenticatedUser extends UserSummary {
 }
 
 export interface ClinicRepository {
+  getCommissionReconciliationPreview(
+    clinicId: string,
+    id: string,
+  ): Promise<import("@crm/contracts").CommissionReconciliationPreview>;
+  reconcileCommission(
+    clinicId: string,
+    actorId: string,
+    id: string,
+    input: import("@crm/contracts").CommissionReconciliationInput,
+  ): Promise<import("@crm/contracts").CommissionReconciliation>;
+  settleCommissionAccount(
+    clinicId: string,
+    actorId: string,
+    id: string,
+    professionalId: string,
+    expectedAmountInCents: number,
+  ): Promise<import("@crm/contracts").CommissionAccountPayment>;
+  reverseCommissionAccountPayment(
+    clinicId: string,
+    actorId: string,
+    paymentId: string,
+  ): Promise<import("@crm/contracts").CommissionAccountPayment>;
+  updateProduct(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: ProductUpdateInput,
+  ): Promise<Product | null>;
+  updatePatientTabItem(
+    clinicId: string,
+    actorUserId: string,
+    tabId: string,
+    itemId: string,
+    input: PatientTabItemUpdate | null,
+  ): Promise<PatientTab>;
+  addPatientTabService(
+    clinicId: string,
+    actorUserId: string,
+    tabId: string,
+    input: PatientTabServiceInput,
+  ): Promise<PatientTab>;
+  removePatientTabService(
+    clinicId: string,
+    actorUserId: string,
+    tabId: string,
+    itemId: string,
+  ): Promise<PatientTab>;
+  createPatientTabAppointment(
+    clinicId: string,
+    actorUserId: string,
+    tabId: string,
+    input: Omit<AppointmentInput, "patientId">,
+  ): Promise<PatientTab>;
+  listSuppliers(clinicId: string): Promise<Supplier[]>;
+  saveSupplier(
+    clinicId: string,
+    actorUserId: string,
+    input: SupplierInput,
+    id?: string,
+  ): Promise<Supplier | null>;
+  createManualReceivable(
+    clinicId: string,
+    actorUserId: string,
+    input: ManualReceivableInput,
+  ): Promise<Receivable>;
+  classifyFinancialEntry(
+    clinicId: string,
+    actorUserId: string,
+    kind: "receivable" | "payable",
+    id: string,
+    input: FinancialClassification,
+  ): Promise<Receivable | Payable>;
+  setFinancialDates(
+    clinicId: string,
+    actorUserId: string,
+    kind: "receivable" | "payable",
+    id: string,
+    input: FinancialDatesInput,
+  ): Promise<Receivable | Payable>;
+  setCategoryDreGroup(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    dreGroup: DreGroup,
+  ): Promise<FinancialCategory | null>;
+  getDreReport(
+    clinicId: string,
+    from: string,
+    to: string,
+    costCenterId?: string,
+  ): Promise<DreReport>;
+  listClinicalSources(
+    clinicId: string,
+    patientId?: string,
+  ): Promise<ClinicalSource[]>;
+  listClinicalResources(
+    clinicId: string,
+    actorUserId: string,
+    patientId?: string,
+    action?: "read" | "export",
+    catalogOnly?: boolean,
+  ): Promise<ClinicalResource[]>;
+  saveClinicalResource(
+    clinicId: string,
+    actorUserId: string,
+    input: ClinicalResourceInput,
+    id?: string,
+  ): Promise<ClinicalResource>;
+  finalizeClinicalResource(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<ClinicalResource>;
+  completeManualMessage(
+    clinicId: string,
+    actorUserId: string,
+    messageId: string,
+    status: "sent" | "cancelled",
+  ): Promise<OutboundMessage>;
+  revokeUserSessions(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+  ): Promise<void>;
+  recordReplacementAttendance(
+    clinicId: string,
+    actorUserId: string,
+    attendanceId: string,
+    status: Exclude<GroupAttendance["outcome"], undefined | "scheduled">,
+  ): Promise<GroupAttendance>;
+  updateGroupSessionProfessional(
+    clinicId: string,
+    actorUserId: string,
+    sessionId: string,
+    professionalId: string,
+  ): Promise<GroupSession>;
+  getPatient(clinicId: string, patientId: string): Promise<Patient | null>;
+  setPatientStatus(
+    clinicId: string,
+    actorUserId: string,
+    patientId: string,
+    status: Patient["status"],
+  ): Promise<Patient | null>;
+  previewInactivePatients(clinicId: string, months: number): Promise<Patient[]>;
+  inactivatePatients(
+    clinicId: string,
+    actorUserId: string,
+    months: number,
+    patientIds: string[],
+  ): Promise<{ changed: number; skipped: number }>;
+  previewPatientMerge(
+    clinicId: string,
+    sourceId: string,
+    targetId: string,
+  ): Promise<PatientMergePreview>;
+  mergePatients(
+    clinicId: string,
+    actorUserId: string,
+    input: PatientMergeInput,
+  ): Promise<Patient>;
+  getAdministrativeRegistry(
+    clinicId: string,
+  ): Promise<AdministrativeRegistryWorkspace>;
+  updateAdministrativeRegistry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: AdministrativeRegistryInput,
+  ): Promise<Professional | Room | Service>;
+  listClinicCatalog(
+    clinicId: string,
+    kind: ClinicCatalogKind,
+  ): Promise<ClinicCatalogEntry[]>;
+  saveClinicCatalog(
+    clinicId: string,
+    actorUserId: string,
+    kind: ClinicCatalogKind,
+    input: ClinicCatalogInput,
+    id?: string,
+  ): Promise<ClinicCatalogEntry | null>;
   findUserByEmail(email: string): Promise<AuthenticatedUser | null>;
   findUserById(
     clinicId: string,
@@ -489,10 +705,17 @@ export interface ClinicRepository {
     actorUserId: string,
     tabId: string,
   ): Promise<PatientTab | null>;
+  createAbsenceSuccessor(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: AppointmentRescheduleInput,
+  ): Promise<Appointment>;
   updateAppointmentStatus(
     clinicId: string,
     appointmentId: string,
     status: AppointmentStatus,
+    absenceReason?: string,
   ): Promise<Appointment | null>;
   listClinicalRecords(
     clinicId: string,
@@ -518,6 +741,12 @@ export interface ClinicRepository {
     actorUserId: string,
     accessAction?: "read" | "export",
   ): Promise<ClinicalWorkspace | null>;
+  saveAssessmentTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: AssessmentTemplateInput,
+    id?: string,
+  ): Promise<AssessmentTemplate>;
   createAssessmentTemplate(
     clinicId: string,
     input: AssessmentTemplateInput,
@@ -582,6 +811,25 @@ export interface ClinicRepository {
     clinicId: string,
     patientId?: string,
   ): Promise<PatientPlan[]>;
+  listExternalOperations(
+    clinicId: string,
+    patientId?: string,
+  ): Promise<ExternalOperation[]>;
+  createExternalOperation(
+    clinicId: string,
+    actorUserId: string,
+    input: ExternalOperationInput,
+  ): Promise<ExternalOperation>;
+  getExternalOperationContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<ExternalOperationContent | null>;
+  purchasePatientPlan(
+    clinicId: string,
+    actorUserId: string,
+    input: PlanPurchaseInput,
+  ): Promise<PlanPurchaseResult>;
   createPatientPlan(
     clinicId: string,
     actorUserId: string,
@@ -617,6 +865,7 @@ export interface ClinicRepository {
     actorUserId: string,
     receivableId: string,
     paymentMethod: PaymentMethod,
+    timing?: PaymentTiming,
   ): Promise<FinancialSummary["receivables"][number] | null>;
   reverseReceivablePayment(
     clinicId: string,
@@ -653,6 +902,7 @@ export interface ClinicRepository {
     actorUserId: string,
     payableId: string,
     paymentMethod: PaymentMethod,
+    timing?: PaymentTiming,
   ): Promise<Payable | null>;
   reversePayablePayment(
     clinicId: string,
@@ -703,9 +953,16 @@ export interface ClinicRepository {
   reverseCommission(
     clinicId: string,
     commissionId: string,
+    actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
+  updateLead(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: LeadInput,
+  ): Promise<Lead | null>;
   moveLead(
     clinicId: string,
     actorUserId: string,
@@ -766,7 +1023,19 @@ export interface ClinicRepository {
   generateReminders(
     clinicId: string,
     referenceDate: string,
+    options?: import("@crm/contracts").ReminderGenerationOptions,
   ): Promise<ReminderGenerationResult>;
+  recordDocumentSignature(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: DocumentSignatureInput,
+  ): Promise<IssuedDocument>;
+  getDocumentSignatureContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<DocumentSignatureContent | null>;
   listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
   createDocumentTemplate(
     clinicId: string,

@@ -53,6 +53,8 @@ export interface PatientPlan extends Omit<
   PatientPlanInput,
   "planTemplateId" | "services"
 > {
+  sourceTabId?: string;
+  sourceAppointmentId?: string;
   serviceId: string;
   totalSessions: number;
   services: PatientPlanService[];
@@ -73,6 +75,7 @@ export interface PatientPlan extends Omit<
 }
 
 export interface SessionMovement {
+  groupAttendanceId?: string;
   serviceId: string;
   serviceName?: string;
   id: string;

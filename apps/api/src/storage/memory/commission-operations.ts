@@ -1,0 +1,191 @@
+import type {
+  CommissionRule,
+  CommissionRuleInput,
+  AdminUserCommissionInput,
+} from "@crm/contracts";
+import { DomainError } from "../../repository.js";
+import { clinicDateOf } from "../../modules/finance/daily-cash.js";
+import {
+  selectCommissionRule,
+  commissionAmount,
+} from "../../modules/finance/commission-calculation.js";
+import type { MemoryRepositoryContext } from "./context.js";
+import { now, uuid } from "./helpers.js";
+export function createCommissionOperationsRepository(
+  context: MemoryRepositoryContext,
+) {
+  return {
+    async createCommissionRule(clinicId: string, input: CommissionRuleInput) {
+      const professional = context.professionals.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === input.professionalId,
+      );
+      if (!professional)
+        throw new DomainError(
+          "PROFESSIONAL_NOT_FOUND",
+          "Profissional não encontrado.",
+          404,
+        );
+      if (
+        input.serviceId &&
+        !context.services.some(
+          (item) => item.clinicId === clinicId && item.id === input.serviceId,
+        )
+      )
+        throw new DomainError(
+          "SERVICE_NOT_FOUND",
+          "Serviço não encontrado.",
+          404,
+        );
+      if (
+        context.commissionRules.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.professionalId === input.professionalId &&
+            item.serviceId === input.serviceId &&
+            item.effectiveFrom === input.effectiveFrom,
+        )
+      )
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Já existe uma regra nesta vigência para este serviço.",
+          409,
+        );
+      const rule: CommissionRule = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        professionalName: professional.fullName,
+        active: true,
+        createdAt: now(),
+      };
+      context.commissionRules.push(rule);
+      return { ...rule };
+    },
+    async generateCommissions(clinicId: string, competence: string) {
+      const individual = context.appointments
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.patientId &&
+            item.status === "completed",
+        )
+        .map((item) => ({
+          appointmentId: item.id,
+          professionalId: item.professionalId,
+          professionalName: item.professionalName,
+          serviceId: item.serviceId,
+          startsAt: item.startsAt,
+        }));
+      const collective = context.groupAttendance
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            (item.status === "present" || item.outcome === "present"),
+        )
+        .flatMap((item) => {
+          const meeting = context.groupSessions.find(
+              (entry) =>
+                entry.clinicId === clinicId &&
+                entry.id === item.sessionId &&
+                entry.status !== "cancelled",
+            ),
+            group = context.groupClasses.find(
+              (entry) =>
+                entry.clinicId === clinicId && entry.id === meeting?.groupId,
+            );
+          return meeting && group
+            ? [
+                {
+                  groupAttendanceId: item.id,
+                  professionalId: meeting.professionalId,
+                  professionalName: meeting.professionalName,
+                  serviceId: group.serviceId,
+                  startsAt: meeting.startsAt,
+                },
+              ]
+            : [];
+        });
+      for (const source of [...individual, ...collective]) {
+        const date = clinicDateOf(
+          new Date(source.startsAt),
+          context.clinicSettings.timezone,
+        );
+        if (
+          date.slice(0, 7) !== competence ||
+          context.commissions.some(
+            (item) =>
+              item.clinicId === clinicId &&
+              ("appointmentId" in source
+                ? item.appointmentId === source.appointmentId
+                : item.groupAttendanceId === source.groupAttendanceId),
+          )
+        )
+          continue;
+        const userId = context.professionalUsers.get(source.professionalId),
+          rule = selectCommissionRule(
+            [
+              ...context.commissionRules.filter(
+                (item) => item.clinicId === clinicId,
+              ),
+              ...context.userCommissionRules.filter(
+                (item) => item.clinicId === clinicId,
+              ),
+            ],
+            source.professionalId,
+            userId,
+            source.serviceId,
+            date,
+          ),
+          service = context.services.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === source.serviceId,
+          );
+        if (!rule || !service) continue;
+        const snapshot: AdminUserCommissionInput = {
+          percentage: rule.percentage,
+          effectiveFrom: rule.effectiveFrom,
+          ...(rule.kind ? { kind: rule.kind } : {}),
+          ...(rule.fixedAmountInCents !== undefined
+            ? { fixedAmountInCents: rule.fixedAmountInCents }
+            : {}),
+          ...(rule.serviceId ? { serviceId: rule.serviceId } : {}),
+          ...(rule.effectiveUntil
+            ? { effectiveUntil: rule.effectiveUntil }
+            : {}),
+        };
+        context.commissionEntryRuleIds.add(rule.id);
+        context.commissions.push({
+          id: uuid(),
+          clinicId,
+          ...("appointmentId" in source
+            ? {
+                appointmentId: source.appointmentId,
+                sourceType: "appointment" as const,
+              }
+            : {
+                groupAttendanceId: source.groupAttendanceId,
+                sourceType: "group_attendance" as const,
+              }),
+          professionalId: source.professionalId,
+          professionalName: source.professionalName,
+          serviceId: service.id,
+          ruleId: rule.id,
+          ruleSnapshot: snapshot,
+          competence,
+          baseAmountInCents: service.priceInCents,
+          percentage: rule.percentage,
+          amountInCents: commissionAmount(rule, service.priceInCents),
+          status: "open",
+          createdAt: now(),
+        });
+      }
+      return structuredClone(
+        context.commissions.filter(
+          (item) =>
+            item.clinicId === clinicId && item.competence === competence,
+        ),
+      );
+    },
+  };
+}

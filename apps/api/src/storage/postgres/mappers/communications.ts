@@ -14,6 +14,8 @@ export interface CommunicationPreferenceRow {
 }
 
 export interface OutboundMessageRow {
+  satisfactionSurveyId?: string | null;
+  manualCompletion?: OutboundMessage["manualCompletion"];
   id: string;
   clinicId: string;
   patientId: string;
@@ -40,10 +42,10 @@ export function communicationRecipient(
 }
 
 export const outboundMessageColumns = `
-  om.id, om.clinic_id AS "clinicId", om.patient_id AS "patientId",
+  (SELECT id FROM satisfaction_surveys ss WHERE ss.clinic_id=om.clinic_id AND ss.source_message_id=om.id) AS "satisfactionSurveyId",om.id, om.clinic_id AS "clinicId", om.patient_id AS "patientId",
   p.full_name AS "patientName", om.channel, om.kind, om.recipient, om.body,
   om.status, om.scheduled_for AS "scheduledFor", om.sent_at AS "sentAt",
-  om.attempts, om.last_error AS "lastError", om.created_at AS "createdAt"
+  om.manual_completion AS "manualCompletion", om.attempts, om.last_error AS "lastError", om.created_at AS "createdAt"
 `;
 
 export function mapCommunicationPreference(
@@ -54,6 +56,10 @@ export function mapCommunicationPreference(
 
 export function mapOutboundMessage(row: OutboundMessageRow): OutboundMessage {
   return {
+    ...(row.satisfactionSurveyId
+      ? { satisfactionSurveyId: row.satisfactionSurveyId }
+      : {}),
+    ...(row.manualCompletion ? { manualCompletion: row.manualCompletion } : {}),
     id: row.id,
     clinicId: row.clinicId,
     patientId: row.patientId,

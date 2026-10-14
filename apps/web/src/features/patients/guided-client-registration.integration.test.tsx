@@ -661,7 +661,9 @@ describe("guided client registration", () => {
     // Sem editar Turmas: o selo aparece, mas sem o atalho para matricular.
     const row = screen.getByRole("button", { name: "Editar Helena Almeida" });
     expect(within(row).getByText("Sem turma")).toBeInTheDocument();
-    expect(within(row).queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      within(row).queryByRole("link", { name: "Matricular" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getAllByRole("button", { name: "Limpar filtros" })[0]!,
     );

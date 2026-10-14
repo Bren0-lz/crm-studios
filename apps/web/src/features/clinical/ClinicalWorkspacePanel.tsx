@@ -1,4 +1,10 @@
-import type { ClinicalWorkspace, PatientOption } from "@crm/contracts";
+import { ClinicalAudioPlayer } from "./ClinicalAudioPlayer";
+import { ClinicalResourcesPanel } from "./ClinicalResourcesPanel";
+import type {
+  AssessmentTemplate,
+  ClinicalWorkspace,
+  PatientOption,
+} from "@crm/contracts";
 import { Download, Paperclip, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -27,6 +33,9 @@ export function ClinicalWorkspacePanel({
   const { can } = useAuthorization();
   const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
   const [workspace, setWorkspace] = useState<ClinicalWorkspace | null>(null);
+  const [templateEditing, setTemplateEditing] = useState<
+    AssessmentTemplate | undefined
+  >();
   const [editor, setEditor] = useState<
     | "template"
     | "assessment"
@@ -149,6 +158,13 @@ export function ClinicalWorkspacePanel({
 
   return (
     <section className="panel clinical-workspace-panel">
+      {workspace && (
+        <ClinicalResourcesPanel
+          key={patientId}
+          patientId={patientId}
+          patients={patients}
+        />
+      )}
       <div className="panel-head clinical-workspace-head">
         <div>
           <span className="eyebrow">Visão longitudinal</span>
@@ -211,7 +227,10 @@ export function ClinicalWorkspacePanel({
                     {
                       label: "Novo modelo",
                       permission: "clinical.templates_create",
-                      onSelect: () => setEditor("template"),
+                      onSelect: () => {
+                        setTemplateEditing(undefined);
+                        setEditor("template");
+                      },
                     },
                     {
                       label: "Novo objetivo",
@@ -358,6 +377,10 @@ export function ClinicalWorkspacePanel({
                       {attachment.authorName}
                     </small>
                   </div>
+                  {attachment.mimeType.startsWith("audio/") &&
+                    can("clinical.attachments_read") && (
+                      <ClinicalAudioPlayer attachmentId={attachment.id} />
+                    )}
                   {can("clinical.attachments_read") && (
                     <button
                       className="text-button button-sm"
@@ -462,8 +485,32 @@ export function ClinicalWorkspacePanel({
           </div>
         </>
       )}
+      {workspace && can("clinical.templates_create") && (
+        <details className="clinical-resource-panel">
+          <summary>Modelos de avaliação</summary>
+          {workspace.templates.map((template) => (
+            <div className="table-row" key={template.id}>
+              <strong>{template.name}</strong>
+              <span>
+                Versão {template.version} ·{" "}
+                {template.status === "draft" ? "Rascunho" : "Publicado"}
+              </span>
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setTemplateEditing(template);
+                  setEditor("template");
+                }}
+              >
+                Editar modelo
+              </button>
+            </div>
+          ))}
+        </details>
+      )}
       {editor === "template" && (
         <AssessmentTemplateModal
+          template={templateEditing}
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null);

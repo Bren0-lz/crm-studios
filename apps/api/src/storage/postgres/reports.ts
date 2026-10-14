@@ -119,7 +119,7 @@ export function createReportsRepository(
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
-         WHERE pp.clinic_id=$1 AND (
+         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND (
            (pp.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            OR (pp.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
          )`,
@@ -131,13 +131,14 @@ export function createReportsRepository(
           patientId: string;
           patientName: string;
           productName: string;
+          sourceType: "product" | "service";
           quantity: number;
           amountInCents: number;
           closedAt: Date;
           cancelledAt: Date | null;
           receivableId: string | null;
         }>(
-          `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId",
+          `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
                 p.full_name AS "patientName", pr.name AS "productName",
                 i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
@@ -149,7 +150,7 @@ export function createReportsRepository(
          WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND (
            (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-         )`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
           [clinicId, bounds.previousFrom, bounds.currentTo],
         );
         const paymentResult = await client.query<{
@@ -168,14 +169,15 @@ export function createReportsRepository(
           `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
                 r.patient_id AS "patientId", p.full_name AS "patientName",
                 r.plan_id AS "planId", t.id AS "tabId", r.description,
-                fe.amount_in_cents AS "amountInCents", fe.created_at AS "occurredAt",
+                fe.amount_in_cents AS "amountInCents", coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",
                 fe.metadata->>'paymentMethod' AS "paymentMethod"
          FROM financial_events fe
+         LEFT JOIN LATERAL (SELECT occurred_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
          JOIN receivables r ON r.id=fe.receivable_id
          JOIN patients p ON p.id=r.patient_id
          LEFT JOIN patient_tabs t ON t.receivable_id=r.id
          WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND
-           (fe.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
+           (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
           [clinicId, bounds.previousFrom, bounds.currentTo],
         );
         const appointmentResult = await client.query<AppointmentRow>(
@@ -216,7 +218,7 @@ export function createReportsRepository(
         for (const item of productResult.rows) {
           const base = {
             sourceId: item.tabId,
-            sourceType: "product" as const,
+            sourceType: item.sourceType,
             patientId: item.patientId,
             patientName: item.patientName,
             itemName: item.productName,
@@ -372,8 +374,9 @@ export function createReportsRepository(
              (WHERE status = 'open' AND due_date < CURRENT_DATE), 0)::int AS "overdueInCents",
            COALESCE((SELECT SUM(fe.amount_in_cents)
              FROM financial_events fe
+         LEFT JOIN LATERAL (SELECT occurred_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
              WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
-               AND (fe.created_at AT TIME ZONE 'America/Sao_Paulo')::date
+               AND (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date
                    BETWEEN $2::date AND $3::date), 0)::int AS "paidInPeriodInCents"
          FROM receivables WHERE clinic_id = $1`,
           [clinicId, from, to],

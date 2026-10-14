@@ -76,6 +76,7 @@ export interface ClinicalRecordRevision {
 }
 
 export interface AssessmentTemplate extends AssessmentTemplateInput {
+  familyId?: string;
   id: string;
   clinicId: string;
   version: number;

@@ -18,7 +18,17 @@ export const assessmentFieldSchema = z.object({
     .regex(/^[a-z][a-z0-9_]*$/)
     .max(60),
   label: z.string().trim().min(2).max(120),
-  type: z.enum(["text", "number", "scale", "boolean"]),
+  type: z.enum([
+    "text",
+    "long_text",
+    "number",
+    "scale",
+    "boolean",
+    "select",
+    "multiselect",
+    "section",
+  ]),
+  options: z.array(z.string().trim().min(1).max(160)).max(60).optional(),
   required: z.boolean().default(false),
   unit: z.string().trim().max(30).optional().or(z.literal("")),
   min: z.number().optional(),
@@ -26,12 +36,14 @@ export const assessmentFieldSchema = z.object({
 });
 
 export const assessmentTemplateInputSchema = z.object({
+  status: z.enum(["draft", "published"]).optional(),
   name: z.string().trim().min(3).max(120),
   specialty: z.string().trim().min(2).max(100),
   fields: z.array(assessmentFieldSchema).min(1).max(60),
 });
 
 export const assessmentValueSchema = z.union([
+  z.array(z.string().max(160)).max(60),
   z.string().max(5000),
   z.number(),
   z.boolean(),
@@ -79,18 +91,36 @@ export const treatmentClosureInputSchema = z.object({
   occurredAt: z.iso.datetime({ offset: true }),
 });
 
-export const clinicalAttachmentInputSchema = z.object({
-  patientId: z.uuid(),
-  fileName: z.string().trim().min(1).max(180),
-  mimeType: z.enum(["application/pdf", "image/png", "image/jpeg"]),
-  sizeInBytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(5 * 1024 * 1024),
-  contentBase64: z.string().min(4).max(7_000_000),
-  notes: z.string().trim().max(1000).optional().or(z.literal("")),
-});
+export const clinicalAttachmentInputSchema = z
+  .object({
+    patientId: z.uuid(),
+    fileName: z.string().trim().min(1).max(180),
+    mimeType: z.enum([
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "audio/webm",
+      "audio/ogg",
+      "audio/mp4",
+    ]),
+    durationInSeconds: z.number().int().min(1).max(900).optional(),
+    sizeInBytes: z
+      .number()
+      .int()
+      .min(1)
+      .max(16 * 1024 * 1024),
+    contentBase64: z.string().min(4).max(23_000_000),
+    notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  })
+  .refine(
+    (input) =>
+      input.mimeType.startsWith("audio/")
+        ? input.durationInSeconds !== undefined
+        : input.sizeInBytes <= 5 * 1024 * 1024,
+    "Documentos e imagens podem ter até 5 MB; áudios exigem duração de até 15 minutos.",
+  );
 
 export const clinicalAddendumInputSchema = z.object({
   clinicalRecordId: z.uuid(),

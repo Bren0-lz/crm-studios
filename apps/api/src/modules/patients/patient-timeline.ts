@@ -61,6 +61,8 @@ const messageKindLabels: Record<CommunicationKind, string> = {
   appointment_reminder: "Lembrete de atendimento",
   payment_reminder: "Lembrete de pagamento",
   manual: "Mensagem",
+  birthday_reminder: "Lembrete de aniversário",
+  satisfaction_followup: "Acompanhamento de NPS",
 };
 
 const channelLabels: Record<CommunicationChannel, string> = {

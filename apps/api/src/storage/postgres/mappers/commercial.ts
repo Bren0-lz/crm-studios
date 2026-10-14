@@ -1,3 +1,4 @@
+import { leadPatientProfile } from "@crm/contracts/commercial";
 import type {
   Lead,
   LeadContact,
@@ -7,6 +8,8 @@ import type {
 } from "@crm/contracts";
 
 export interface LeadRow {
+  contactMethod: string | null;
+  profile?: Record<string, unknown>;
   id: string;
   clinicId: string;
   fullName: string;
@@ -29,6 +32,7 @@ export interface LeadRow {
 }
 
 export interface LeadContactRow {
+  contactMethod: string | null;
   id: string;
   clinicId: string;
   leadId: string;
@@ -57,7 +61,7 @@ export interface LeadTaskRow {
 
 export const leadColumns = `
   id, clinic_id AS "clinicId", full_name AS "fullName", phone, email,
-  source, interest, notes, stage, lost_reason AS "lostReason",
+  contact_method AS "contactMethod",profile,source, interest, notes, stage, lost_reason AS "lostReason",
   converted_patient_id AS "convertedPatientId",
   responsible_user_id AS "responsibleUserId", tags,
   (SELECT u.full_name FROM users u WHERE u.id = leads.responsible_user_id) AS "responsibleName",
@@ -69,12 +73,14 @@ export const leadColumns = `
 
 export function mapLead(row: LeadRow): Lead {
   return {
+    ...leadPatientProfile(row.profile ?? {}),
     id: row.id,
     clinicId: row.clinicId,
     fullName: row.fullName,
     phone: row.phone,
     ...(row.email ? { email: row.email } : {}),
     source: row.source,
+    ...(row.contactMethod ? { contactMethod: row.contactMethod } : {}),
     interest: row.interest,
     ...(row.notes ? { notes: row.notes } : {}),
     ...(row.responsibleUserId
@@ -103,6 +109,7 @@ export function mapLeadContact(row: LeadContactRow): LeadContact {
     clinicId: row.clinicId,
     leadId: row.leadId,
     channel: row.channel,
+    ...(row.contactMethod ? { contactMethod: row.contactMethod } : {}),
     direction: row.direction,
     notes: row.notes,
     actorName: row.actorName,

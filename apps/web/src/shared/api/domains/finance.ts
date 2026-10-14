@@ -1,4 +1,39 @@
 import type {
+  CommissionReconciliationPreview,
+  CommissionReconciliationInput,
+  CommissionReconciliation,
+  CommissionAccountPayment,
+} from "@crm/contracts";
+import type {
+  ExternalOperation,
+  ExternalOperationInput,
+  ExternalOperationContent,
+} from "@crm/contracts";
+import type { PaymentTiming, FinancialDatesInput } from "@crm/contracts";
+import type {
+  InventoryWorkspace,
+  Product,
+  ProductInput,
+  ProductUpdateInput,
+  StockMovement,
+  StockMovementInput,
+  PatientTab,
+  PatientTabInput,
+  PatientTabItemInput,
+  PatientTabItemUpdate,
+  PatientTabServiceInput,
+  PatientTabCloseInput,
+  TabAppointmentOption,
+  AppointmentInput,
+  Supplier,
+  SupplierInput,
+  ManualReceivableInput,
+  Receivable,
+  FinancialClassification,
+  DreGroup,
+  DreReport,
+} from "@crm/contracts";
+import type {
   AdminUser,
   AdminUserCommissionInput,
   CommissionEntry,
@@ -24,16 +59,166 @@ import type {
 import { request } from "../transport";
 
 export const financeApi = {
+  commissionReconciliation: (id: string) =>
+    request<CommissionReconciliationPreview>(
+      `/finance/commissions/${id}/reconciliation`,
+    ),
+  reconcileCommission: (id: string, input: CommissionReconciliationInput) =>
+    request<CommissionReconciliation>(
+      `/finance/commissions/${id}/reconciliation`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  settleCommissionAccount: (
+    id: string,
+    professionalId: string,
+    expectedAmountInCents: number,
+  ) =>
+    request<CommissionAccountPayment>(
+      `/finance/commissions/${id}/accounts/${professionalId}/pay`,
+      { method: "POST", body: JSON.stringify({ expectedAmountInCents }) },
+    ),
+  reverseCommissionAccountPayment: (id: string) =>
+    request<CommissionAccountPayment>(
+      `/finance/commission-account-payments/${id}/reverse`,
+      { method: "POST" },
+    ),
+  externalOperations: (patientId?: string) =>
+    request<ExternalOperation[]>(
+      `/finance/external-operations${patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""}`,
+    ),
+  createExternalOperation: (input: ExternalOperationInput) =>
+    request<ExternalOperation>("/finance/external-operations", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  externalOperationContent: (id: string) =>
+    request<ExternalOperationContent>(
+      `/finance/external-operations/${id}/content`,
+    ),
+  setFinancialDates: (
+    kind: "receivable" | "payable",
+    id: string,
+    input: FinancialDatesInput,
+  ) =>
+    request<Receivable | Payable>(`/finance/entries/${kind}/${id}/dates`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  inventoryWorkspace: () => request<InventoryWorkspace>("/inventory/workspace"),
+  createProduct: (input: ProductInput) =>
+    request<Product>("/inventory/products", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateProduct: (id: string, input: ProductUpdateInput) =>
+    request<Product>(`/inventory/products/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  createStockMovement: (input: StockMovementInput) =>
+    request<StockMovement>("/inventory/movements", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  openPatientTab: (input: PatientTabInput) =>
+    request<PatientTab>("/patient-tabs", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  addPatientTabItem: (id: string, input: PatientTabItemInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/items`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePatientTabItem: (
+    id: string,
+    itemId: string,
+    input: PatientTabItemUpdate,
+  ) =>
+    request<PatientTab>(`/patient-tabs/${id}/items/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  removePatientTabItem: (id: string, itemId: string) =>
+    request<PatientTab>(`/patient-tabs/${id}/items/${itemId}`, {
+      method: "DELETE",
+    }),
+  tabAppointmentOptions: (id: string, from: string, to: string) =>
+    request<TabAppointmentOption[]>(
+      `/patient-tabs/${id}/appointment-options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  addPatientTabService: (id: string, input: PatientTabServiceInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/services`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removePatientTabService: (id: string, itemId: string) =>
+    request<PatientTab>(`/patient-tabs/${id}/services/${itemId}`, {
+      method: "DELETE",
+    }),
+  createPatientTabAppointment: (
+    id: string,
+    input: Omit<AppointmentInput, "patientId">,
+  ) =>
+    request<PatientTab>(`/patient-tabs/${id}/appointments`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  closePatientTab: (id: string, input: PatientTabCloseInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/close`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  cancelPatientTab: (id: string) =>
+    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  suppliers: () => request<Supplier[]>("/finance/suppliers"),
+  saveSupplier: (input: SupplierInput, id?: string) =>
+    request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(input),
+    }),
+  createManualReceivable: (input: ManualReceivableInput) =>
+    request<Receivable>("/finance/receivables", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  classifyFinancialEntry: (
+    kind: "receivable" | "payable",
+    id: string,
+    input: FinancialClassification,
+  ) =>
+    request<Receivable | Payable>(`/finance/classifications/${kind}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  setCategoryDreGroup: (id: string, dreGroup: DreGroup) =>
+    request<FinancialCategory>(`/finance/categories/${id}/dre`, {
+      method: "PUT",
+      body: JSON.stringify({ dreGroup }),
+    }),
+  dreReport: (
+    from: string,
+    to: string,
+    costCenterId?: string,
+    exporting = false,
+  ) =>
+    request<DreReport>(
+      `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
+    ),
   setUserCommission: (id: string, input: AdminUserCommissionInput) =>
     request<AdminUser>(`/admin/users/${id}/commission`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
   financialSummary: () => request<FinancialSummary>("/finance/summary"),
-  settleReceivable: (id: string, paymentMethod: PaymentMethod = "pix") =>
+  settleReceivable: (
+    id: string,
+    paymentMethod: PaymentMethod = "pix",
+    timing?: PaymentTiming,
+  ) =>
     request<FinancialSummary["receivables"][number]>(
       `/finance/receivables/${id}/pay`,
-      { method: "POST", body: JSON.stringify({ paymentMethod }) },
+      { method: "POST", body: JSON.stringify({ paymentMethod, ...timing }) },
     ),
   reverseReceivable: (id: string) =>
     request<FinancialSummary["receivables"][number]>(
@@ -89,10 +274,14 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  settlePayable: (id: string, paymentMethod: PaymentMethod = "pix") =>
+  settlePayable: (
+    id: string,
+    paymentMethod: PaymentMethod = "pix",
+    timing?: PaymentTiming,
+  ) =>
     request<Payable>(`/finance/payables/${id}/pay`, {
       method: "POST",
-      body: JSON.stringify({ paymentMethod }),
+      body: JSON.stringify({ paymentMethod, ...timing }),
     }),
   reversePayable: (id: string) =>
     request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),

@@ -66,6 +66,8 @@ export interface PatientWithoutReturn {
 }
 
 export interface Patient extends PatientInput {
+  inactiveAt?: string;
+  mergedIntoPatientId?: string;
   id: string;
   clinicId: string;
   recordNumber: string;

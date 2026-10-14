@@ -16,6 +16,11 @@ export const commercialApi = {
   leads: () => request<Lead[]>("/leads"),
   createLead: (input: LeadInput) =>
     request<Lead>("/leads", { method: "POST", body: JSON.stringify(input) }),
+  updateLead: (id: string, input: LeadInput) =>
+    request<Lead>(`/leads/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   moveLead: (id: string, stage: LeadStage, lostReason?: string) =>
     request<Lead>(`/leads/${id}/stage`, {
       method: "PATCH",

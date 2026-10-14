@@ -15,6 +15,8 @@ import type { Pool, PoolClient } from "pg";
 import { present } from "./administration.js";
 
 export interface AppointmentRow {
+  predecessorId?: string | null;
+  absenceReason?: string | null;
   id: string;
   clinicId: string;
   patientId: string | null;
@@ -101,6 +103,9 @@ export interface GroupSessionRow {
 }
 
 export interface GroupAttendanceRow {
+  accountingEnabled?: boolean;
+  outcome?: GroupAttendance["outcome"];
+  replacementCreditId?: string | null;
   id: string;
   clinicId: string;
   sessionId: string;
@@ -124,7 +129,7 @@ export interface ReplacementCreditRow {
 }
 
 export const appointmentColumns = `
-  a.id,
+  a.predecessor_id AS "predecessorId",a.absence_reason AS "absenceReason",a.id,
   a.clinic_id AS "clinicId",
   a.patient_id AS "patientId",
   a.lead_id AS "leadId",
@@ -158,6 +163,8 @@ export const appointmentJoins = `
 
 export function mapAppointment(row: AppointmentRow): Appointment {
   return {
+    ...(row.predecessorId ? { predecessorId: row.predecessorId } : {}),
+    ...(row.absenceReason ? { absenceReason: row.absenceReason } : {}),
     id: row.id,
     clinicId: row.clinicId,
     ...(row.patientId ? { patientId: row.patientId } : {}),
@@ -254,6 +261,13 @@ export function mapGroupSession(row: GroupSessionRow): GroupSession {
 
 export function mapGroupAttendance(row: GroupAttendanceRow): GroupAttendance {
   return {
+    ...(row.accountingEnabled !== undefined
+      ? { accountingEnabled: row.accountingEnabled }
+      : {}),
+    ...(row.outcome ? { outcome: row.outcome } : {}),
+    ...(row.replacementCreditId
+      ? { replacementCreditId: row.replacementCreditId }
+      : {}),
     id: row.id,
     clinicId: row.clinicId,
     sessionId: row.sessionId,
@@ -297,7 +311,7 @@ export async function hasGroupSessionConflict(
     `SELECT 1 FROM group_sessions gs
      JOIN group_classes g ON g.id = gs.group_id
      WHERE gs.clinic_id = $1 AND gs.status <> 'cancelled'
-       AND (($2::uuid IS NOT NULL AND g.professional_id = $2)
+       AND (($2::uuid IS NOT NULL AND coalesce(gs.professional_id,g.professional_id) = $2)
          OR ($3::uuid IS NOT NULL AND g.room_id = $3))
        AND gs.starts_at < $5 AND gs.ends_at > $4
      UNION ALL
@@ -328,7 +342,7 @@ export async function hasGroupSessionConflict(
   return Boolean(result.rowCount);
 }
 
-export const groupSessionColumns = `gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",g.professional_id AS "professionalId",p.full_name AS "professionalName",g.room_id AS "roomId",r.name AS "roomName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,gs.created_at AS "createdAt"`;
+export const groupSessionColumns = `gs.id,gs.clinic_id AS "clinicId",gs.group_id AS "groupId",g.name AS "groupName",coalesce(gs.professional_id,g.professional_id) AS "professionalId",p.full_name AS "professionalName",g.room_id AS "roomId",r.name AS "roomName",gs.starts_at AS "startsAt",gs.ends_at AS "endsAt",gs.status,gs.created_at AS "createdAt"`;
 
 export interface HolidayRow {
   id: string;

@@ -1,4 +1,16 @@
 import type {
+  ProfessionalInput,
+  RoomInput,
+  ServiceInput,
+} from "@crm/contracts";
+import type {
+  AdministrativeRegistryInput,
+  AdministrativeRegistryWorkspace,
+  Professional as RegistryProfessional,
+  Room as RegistryRoom,
+  Service as RegistryService,
+} from "@crm/contracts";
+import type {
   AdminAuditEvent,
   AdminAuditPage,
   AdminUser,
@@ -16,6 +28,46 @@ import type {
 import { request } from "../transport";
 
 export const administrationApi = {
+  createProfessional: (input: ProfessionalInput) =>
+    request<Professional>("/professionals", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createRoom: (input: RoomInput) =>
+    request<Room>("/rooms", { method: "POST", body: JSON.stringify(input) }),
+  createService: (input: ServiceInput) =>
+    request<Service>("/services", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  revokeAdminUserSessions: (id: string) =>
+    request<void>(`/admin/users/${id}/revoke-sessions`, { method: "POST" }),
+  clinicBranding: () =>
+    request<{ name: string; logoDataUrl: string; timezone: string }>(
+      "/clinic/branding",
+    ),
+  administrativeRegistry: () =>
+    request<AdministrativeRegistryWorkspace>("/admin/registry"),
+  updateAdministrativeRegistry: (
+    id: string,
+    input: AdministrativeRegistryInput,
+  ) =>
+    request<RegistryProfessional | RegistryRoom | RegistryService>(
+      `/admin/registry/${id}`,
+      { method: "PUT", body: JSON.stringify(input) },
+    ),
+  revokeSessions: () => request<void>("/auth/logout-all", { method: "POST" }),
+  clinicCatalog: (kind: ClinicCatalogKind) =>
+    request<ClinicCatalogEntry[]>(`/clinic-catalogs/${kind}`),
+  saveClinicCatalog: (
+    kind: ClinicCatalogKind,
+    input: ClinicCatalogInput,
+    id?: string,
+  ) =>
+    request<ClinicCatalogEntry>(
+      `/clinic-catalogs/${kind}${id ? `/${id}` : ""}`,
+      { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
+    ),
   me: () => request<UserSummary>("/me"),
   adminUsers: () => request<AdminUser[]>("/admin/users"),
   createAdminUser: (input: AdminUserInput) =>
@@ -59,3 +111,8 @@ export const administrationApi = {
   rooms: () => request<Room[]>("/rooms"),
   services: () => request<Service[]>("/services"),
 };
+import type {
+  ClinicCatalogEntry,
+  ClinicCatalogInput,
+  ClinicCatalogKind,
+} from "@crm/contracts";

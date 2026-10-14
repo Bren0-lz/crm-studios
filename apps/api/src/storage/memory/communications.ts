@@ -1,17 +1,76 @@
+import { buildReminderCandidates } from "../../modules/communications/reminders.js";
 import type {
   BroadcastMessageDraft,
   CommunicationPreference,
   CommunicationPreferenceInput,
   ManualMessageInput,
+  ReminderGenerationOptions,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
-import { localDate, now, uuid } from "./helpers.js";
+import { now, uuid } from "./helpers.js";
 
 export function createCommunicationsRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
   return {
+    async completeManualMessage(
+      clinicId: string,
+      actorUserId: string,
+      messageId: string,
+      status: "sent" | "cancelled",
+    ) {
+      const message = repositoryContext.outboundMessages.find(
+        (item) => item.clinicId === clinicId && item.id === messageId,
+      );
+      if (!message)
+        throw new DomainError(
+          "MESSAGE_NOT_FOUND",
+          "Mensagem não encontrada.",
+          404,
+        );
+      if (message.status !== "queued")
+        throw new DomainError(
+          "MESSAGE_NOT_QUEUED",
+          "Somente mensagens na fila podem ser concluídas.",
+          409,
+        );
+      if (status === "sent") {
+        repositoryContext.assertChannelAllowed(
+          clinicId,
+          message.patientId,
+          message.channel,
+        );
+        if (new Date(message.scheduledFor).getTime() > Date.now())
+          throw new DomainError(
+            "MESSAGE_NOT_DUE",
+            "A mensagem está programada para uma data futura.",
+            409,
+          );
+      }
+      const actor = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === actorUserId,
+      );
+      if (!actor)
+        throw new DomainError("USER_NOT_FOUND", "Usuário não encontrado.", 404);
+      message.status = status;
+      message.manualCompletion = {
+        actorId: actorUserId,
+        actorName: actor.fullName,
+        occurredAt: now(),
+        status,
+      };
+      if (status === "sent") message.sentAt = now();
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "message.manual_completion",
+        "message",
+        { status },
+        messageId,
+      );
+      return { ...message };
+    },
     async getCommunicationCenter(clinicId: string) {
       return {
         deliveryMode: "outbox_only" as const,
@@ -112,6 +171,12 @@ export function createCommunicationsRepository(
           );
         return patient;
       });
+      for (const draft of drafts)
+        repositoryContext.assertChannelAllowed(
+          clinicId,
+          draft.patientId,
+          draft.channel,
+        );
       const batchId = uuid();
       const scheduledFor = now();
       drafts.forEach((draft, index) =>
@@ -129,86 +194,91 @@ export function createCommunicationsRepository(
       return drafts.length;
     },
 
-    async generateReminders(clinicId: string, referenceDate: string) {
-      let queued = 0;
-      let skippedByPreference = 0;
-      let alreadyQueued = 0;
-      for (const appointment of repositoryContext.appointments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          ["scheduled", "confirmed"].includes(item.status) &&
-          localDate(new Date(item.startsAt)) === referenceDate,
-      )) {
-        // Atendimento de lead não tem cliente para receber lembrete.
-        const patient = repositoryContext.patients.find(
+    async generateReminders(
+      clinicId: string,
+      referenceDate: string,
+      options: ReminderGenerationOptions = {},
+    ) {
+      const patients = repositoryContext.patients.filter(
+        (item) => item.clinicId === clinicId,
+      );
+      const encounters = repositoryContext.appointments.filter(
+        (item) => item.clinicId === clinicId,
+      );
+      const groupEncounters = repositoryContext.groupAttendance
+        .filter(
           (item) =>
-            appointment.patientId !== undefined &&
-            item.id === appointment.patientId,
-        );
-        if (!patient) continue;
-        const key = `appointment:${appointment.id}:whatsapp`;
+            item.clinicId === clinicId &&
+            (item.status === "present" || item.outcome === "present"),
+        )
+        .flatMap((item) => {
+          const session = repositoryContext.groupSessions.find(
+            (session) =>
+              session.clinicId === clinicId && session.id === item.sessionId,
+          );
+          return session && session.status !== "cancelled"
+            ? [
+                {
+                  id: session.id,
+                  patientId: item.patientId,
+                  startsAt: session.startsAt,
+                  status: "completed",
+                },
+              ]
+            : [];
+        });
+      const candidates = buildReminderCandidates(
+        patients,
+        [...encounters, ...groupEncounters],
+        repositoryContext.receivables.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        repositoryContext.satisfactionSurveys.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        referenceDate,
+        repositoryContext.clinicSettings.timezone,
+        options,
+      );
+      let queued = 0,
+        skippedByPreference = 0,
+        alreadyQueued = 0;
+      for (const candidate of candidates) {
         if (
           repositoryContext.outboundMessages.some(
-            (item) => item.idempotencyKey === key,
+            (item) =>
+              item.clinicId === clinicId &&
+              (item.idempotencyKey === candidate.key ||
+                item.idempotencyKey === candidate.legacyKey),
           )
         ) {
-          alreadyQueued += 1;
-        } else if (
-          !repositoryContext.channelAllowed(clinicId, patient.id, "whatsapp")
-        ) {
-          skippedByPreference += 1;
-        } else {
-          const time = new Intl.DateTimeFormat("pt-BR", {
-            timeZone: "America/Sao_Paulo",
-            hour: "2-digit",
-            minute: "2-digit",
-          }).format(new Date(appointment.startsAt));
-          repositoryContext.pushMessage({
-            clinicId,
-            patient,
-            channel: "whatsapp",
-            kind: "appointment_reminder",
-            recipient: patient.whatsapp || patient.phone,
-            body: `Olá, ${patient.fullName}. Lembramos do seu atendimento em ${referenceDate.split("-").reverse().join("/")} às ${time}.`,
-            scheduledFor: now(),
-            idempotencyKey: key,
-          });
-          queued += 1;
+          alreadyQueued++;
+          continue;
         }
-      }
-      for (const receivable of repositoryContext.receivables.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.status === "open" &&
-          item.dueDate <= referenceDate,
-      )) {
-        const patient = repositoryContext.patients.find(
-          (item) => item.id === receivable.patientId,
+        if (
+          !repositoryContext.channelAllowed(
+            clinicId,
+            candidate.patient.id,
+            "whatsapp",
+          )
+        ) {
+          skippedByPreference++;
+          continue;
+        }
+        const patient = patients.find(
+          (patient) => patient.id === candidate.patient.id,
         )!;
-        const key = `receivable:${receivable.id}:whatsapp`;
-        if (
-          repositoryContext.outboundMessages.some(
-            (item) => item.idempotencyKey === key,
-          )
-        ) {
-          alreadyQueued += 1;
-        } else if (
-          !repositoryContext.channelAllowed(clinicId, patient.id, "whatsapp")
-        ) {
-          skippedByPreference += 1;
-        } else {
-          repositoryContext.pushMessage({
-            clinicId,
-            patient,
-            channel: "whatsapp",
-            kind: "payment_reminder",
-            recipient: patient.whatsapp || patient.phone,
-            body: `Olá, ${patient.fullName}. Identificamos uma parcela com vencimento em ${receivable.dueDate.split("-").reverse().join("/")}. Fale com a clínica se precisar de ajuda.`,
-            scheduledFor: now(),
-            idempotencyKey: key,
-          });
-          queued += 1;
-        }
+        repositoryContext.pushMessage({
+          clinicId,
+          patient,
+          channel: "whatsapp",
+          kind: candidate.kind,
+          recipient: patient.whatsapp || patient.phone,
+          body: candidate.body,
+          scheduledFor: now(),
+          idempotencyKey: candidate.key,
+        });
+        queued++;
       }
       return { queued, skippedByPreference, alreadyQueued };
     },

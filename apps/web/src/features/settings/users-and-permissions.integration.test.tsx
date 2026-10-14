@@ -391,7 +391,15 @@ describe("users and permissions", () => {
     ).toBeChecked();
     expect(
       within(dialog).getByLabelText("Selecionar bloco Prontuários"),
-    ).toBeChecked();
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+    ).toHaveProperty("indeterminate", true);
+    expect(
+      within(dialog).getByLabelText(
+        "Prontuários: Gerenciar aparelhos, exercícios e treinos",
+      ),
+    ).not.toBeChecked();
     expect(
       within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
     ).not.toBeChecked();
@@ -476,7 +484,10 @@ describe("users and permissions", () => {
     ).not.toBeChecked();
     expect(
       within(dialog).getByLabelText("Selecionar bloco Prontuários"),
-    ).toBeChecked();
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+    ).toHaveProperty("indeterminate", true);
     fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), {
       target: { value: "" },

@@ -1,206 +1,166 @@
-import type { AssessmentTemplateInput } from "@crm/contracts";
-import { Plus, X } from "lucide-react";
+import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
+import type {
+  AssessmentTemplateInput,
+  AssessmentTemplate,
+} from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
-
+import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
+import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
+import { ErrorBanner } from "../../shared/components/ErrorBanner";
 export function AssessmentTemplateModal({
+  template,
   onClose,
   onSaved,
 }: {
+  template?: AssessmentTemplate | undefined;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { can } = useAuthorization();
-  const [form, setForm] = useState<AssessmentTemplateInput>({
-    name: "",
-    specialty: "Fisioterapia",
-    fields: [
-      {
-        key: "campo_1",
-        label: "",
-        type: "text",
-        required: false,
-        unit: "",
-      },
-    ],
-  });
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  const [form, setForm] = useState<AssessmentTemplateInput>(() =>
+      template
+        ? structuredClone(template)
+        : {
+            name: "",
+            specialty: "Fisioterapia",
+            fields: [
+              {
+                key: "campo_1",
+                label: "",
+                type: "text",
+                required: false,
+                unit: "",
+              },
+            ],
+          },
+    ),
+    [preview, setPreview] = useState(false),
+    [error, setError] = useState(""),
+    [saving, setSaving] = useState(false);
+  const [savedForm] = useState(() => JSON.stringify(form));
+  async function save(status: "draft" | "published" = "draft") {
     setError("");
     setSaving(true);
     try {
-      await api.createAssessmentTemplate(form);
+      await api.saveAssessmentTemplate({ ...form, status }, template?.id);
       onSaved();
-    } catch (cause) {
-      setError((cause as Error).message);
+    } finally {
       setSaving(false);
     }
   }
-
-  function updateField(
-    index: number,
-    patch: Partial<AssessmentTemplateInput["fields"][number]>,
-  ) {
-    setForm({
-      ...form,
-      fields: form.fields.map((field, fieldIndex) =>
-        fieldIndex === index ? { ...field, ...patch } : field,
-      ),
-    });
+  const prompt = useUnsavedChangesPrompt({
+      section: "Modelo de avaliação",
+      dirty: JSON.stringify(form) !== savedForm,
+      busy: saving,
+      save: () => save(),
+      discard: () => {},
+    }),
+    close = () => prompt.confirmLeave(onClose);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const button = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
+    try {
+      await save(button?.value === "draft" ? "draft" : "published");
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
   }
-
   return (
-    <Modal
-      title="Novo modelo de avaliação"
-      subtitle="Monte campos estruturados para uma especialidade. Modelos usados permanecem versionados."
-      busy={saving}
-      onClose={onClose}
-    >
-      {can("clinical.templates_create") && (
-        <form className="clinical-form" onSubmit={submit}>
-          <div className="clinical-form-row">
-            <label>
-              Nome do modelo
-              <input
-                required
-                value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Especialidade
-              <input
-                required
-                value={form.specialty}
-                onChange={(event) =>
-                  setForm({ ...form, specialty: event.target.value })
-                }
-              />
-            </label>
-          </div>
-          <div className="assessment-field-builder">
-            {form.fields.map((field, index) => (
-              <div key={index}>
+    <>
+      {" "}
+      <Modal
+        title={
+          template ? "Editar modelo de avaliação" : "Novo modelo de avaliação"
+        }
+        subtitle="Modelos publicados permanecem versionados. Editá-los cria uma versão independente."
+        busy={saving || Boolean(prompt.modal)}
+        inactive={Boolean(prompt.modal)}
+        onClose={close}
+      >
+        {can("clinical.templates_create") && (
+          <form className="clinical-form" onSubmit={submit}>
+            {error && <ErrorBanner error={error} />}
+            <fieldset className="form-fields" disabled={saving}>
+              <div className="form-grid">
                 <label>
-                  Chave técnica
+                  Nome do modelo
                   <input
                     required
-                    pattern="[a-z][a-z0-9_]*"
-                    value={field.key}
+                    minLength={3}
+                    maxLength={120}
+                    value={form.name}
                     onChange={(event) =>
-                      updateField(index, { key: event.target.value })
+                      setForm({ ...form, name: event.target.value })
                     }
                   />
                 </label>
                 <label>
-                  Rótulo
+                  Especialidade
                   <input
                     required
-                    value={field.label}
+                    minLength={2}
+                    maxLength={100}
+                    value={form.specialty}
                     onChange={(event) =>
-                      updateField(index, { label: event.target.value })
+                      setForm({ ...form, specialty: event.target.value })
                     }
                   />
                 </label>
-                <label>
-                  Tipo
-                  <select
-                    value={field.type}
-                    onChange={(event) =>
-                      updateField(index, {
-                        type: event.target.value as typeof field.type,
-                      })
-                    }
-                  >
-                    <option value="text">Texto</option>
-                    <option value="number">Número</option>
-                    <option value="scale">Escala</option>
-                    <option value="boolean">Sim/Não</option>
-                  </select>
-                </label>
-                <label>
-                  Unidade
-                  <input
-                    value={field.unit}
-                    onChange={(event) =>
-                      updateField(index, { unit: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={field.required}
-                    onChange={(event) =>
-                      updateField(index, { required: event.target.checked })
-                    }
-                  />
-                  Obrigatório
-                </label>
-                {form.fields.length > 1 && (
-                  <button
-                    type="button"
-                    className="icon-button"
-                    title="Remover campo"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        fields: form.fields.filter(
-                          (_, fieldIndex) => fieldIndex !== index,
-                        ),
-                      })
-                    }
-                  >
-                    <X size={15} />
-                  </button>
-                )}
               </div>
-            ))}
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() =>
-                setForm({
-                  ...form,
-                  fields: [
-                    ...form.fields,
-                    {
-                      key: `campo_${form.fields.length + 1}`,
-                      label: "",
-                      type: "text",
-                      required: false,
-                      unit: "",
-                    },
-                  ],
-                })
-              }
-            >
-              <Plus size={15} /> Adicionar campo
-            </button>
-          </div>
-          {error && <div className="form-error">{error}</div>}
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
-            <button className="primary-button" disabled={saving}>
-              Salvar modelo
-            </button>
-          </div>
-        </form>
-      )}
-    </Modal>
+              <ClinicalFormBuilder
+                fields={form.fields}
+                onChange={(fields) => setForm({ ...form, fields })}
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setPreview((value) => !value)}
+              >
+                Prévia do formulário
+              </button>
+              {preview && (
+                <fieldset disabled>
+                  <legend>Prévia</legend>
+                  <ClinicalFieldInputs
+                    fields={form.fields}
+                    values={{}}
+                    onChange={() => {}}
+                  />
+                </fieldset>
+              )}
+            </fieldset>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={saving}
+                onClick={close}
+              >
+                Cancelar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={saving}
+                value="draft"
+              >
+                Salvar rascunho
+              </button>
+              <button
+                className="primary-button"
+                disabled={saving}
+                value="published"
+              >
+                Publicar modelo
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+      {prompt.modal}
+    </>
   );
 }

@@ -1,0 +1,124 @@
+.patient-detail-body {
+  padding: var(--space-5);
+}
+.patient-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5);
+}
+.patient-detail-fields dt {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.patient-detail-fields dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.group-operations-body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.group-session-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.clinical-resource-panel {
+  padding: var(--space-5);
+}
+.clinical-resource-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+.clinical-resource-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.clinical-resource-text {
+  white-space: pre-wrap;
+}
+.clinical-resource-image {
+  max-width: 100%;
+  max-height: calc(var(--space-8) * 4);
+  object-fit: contain;
+}
+.clinical-print-sheet {
+  padding: var(--space-5);
+  display: none;
+}
+@media print {
+  body:has(> .clinical-print-sheet) > *:not(.clinical-print-sheet) {
+    display: none !important;
+  }
+  body > .clinical-print-sheet {
+    display: block !important;
+  }
+  .clinical-resource-panel {
+    display: none !important;
+  }
+  .clinical-print-sheet article {
+    break-inside: avoid;
+  }
+}
+
+.inventory-body {
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+.numeric-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dre-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dre-table th,
+.dre-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.dre-table th {
+  text-align: left;
+}
+
+.patient-context-notice {
+  padding: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+@media print {
+  .clinical-print-sheet .table-scroll {
+    overflow: visible;
+  }
+  .clinical-print-sheet .dre-table th,
+  .clinical-print-sheet .dre-table td {
+    white-space: normal;
+  }
+}
+
+.clinic-logo,
+.clinic-logo-preview {
+  display: block;
+  max-width: 100%;
+  height: calc(var(--space-8) * 2);
+  object-fit: contain;
+}

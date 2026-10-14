@@ -1,3 +1,5 @@
+import type { ClinicalSource } from "@crm/contracts";
+import type { ClinicalResource, ClinicalResourceInput } from "@crm/contracts";
 import type {
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -24,6 +26,30 @@ import type {
 import { request } from "../transport";
 
 export const clinicalApi = {
+  saveAssessmentTemplate: (input: AssessmentTemplateInput, id?: string) =>
+    request<AssessmentTemplate>(
+      id ? `/assessment-templates/${id}` : "/assessment-templates/drafts",
+      { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
+    ),
+  clinicalSources: (patientId = "") =>
+    request<ClinicalSource[]>(
+      `/clinical-sources${patientId ? "?patientId=" + encodeURIComponent(patientId) : ""}`,
+    ),
+  clinicalResourceCatalog: () =>
+    request<ClinicalResource[]>("/clinical-resources/catalog"),
+  clinicalResources: (patientId = "", exporting = false) =>
+    request<ClinicalResource[]>(
+      `/clinical-resources${exporting ? "/export" : ""}${patientId ? "?patientId=" + encodeURIComponent(patientId) : ""}`,
+    ),
+  saveClinicalResource: (input: ClinicalResourceInput, id?: string) =>
+    request<ClinicalResource>(`/clinical-resources${id ? "/" + id : ""}`, {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(input),
+    }),
+  finalizeClinicalResource: (id: string) =>
+    request<ClinicalResource>(`/clinical-resources/${id}/finalize`, {
+      method: "POST",
+    }),
   clinicalRecords: (patientId = "") =>
     request<ClinicalRecord[]>(
       `/clinical-records?patientId=${encodeURIComponent(patientId)}`,

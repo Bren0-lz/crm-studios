@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  documentSignatureInputSchema,
   documentKindSchema,
   documentStatusSchema,
   documentTemplateInputSchema,
@@ -23,7 +24,18 @@ export interface DocumentTemplate extends DocumentTemplateInput {
   createdAt: string;
 }
 
+export type DocumentSignatureInput = z.infer<
+  typeof documentSignatureInputSchema
+>;
+export type DocumentSignature = Omit<
+  DocumentSignatureInput,
+  "contentBase64"
+> & { actorId: string; actorName: string; recordedAt: string; sha256: string };
+export interface DocumentSignatureContent extends DocumentSignature {
+  contentBase64: string;
+}
 export interface IssuedDocument extends IssuedDocumentInput {
+  manualSignature?: DocumentSignature;
   id: string;
   clinicId: string;
   templateName: string;

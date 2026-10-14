@@ -2,6 +2,21 @@ import { z } from "zod";
 import type { AppModule, UserRole } from "./index.js";
 
 // This catalog is the authority for operations, their dependencies and legacy migration.
+const additionalPermissions = new Set([
+  "finance.commissions_reconcile",
+  "crm.update",
+  "finance.external_records_view",
+  "finance.external_records_manage",
+  "plans.purchase",
+  "finance.dates_manage",
+  "settings.registry_manage",
+  "clinical.resources_manage",
+  "finance.classify",
+  "finance.receivables_create",
+  "finance.suppliers_manage",
+  "patients.products_update",
+  "reports.dre",
+]);
 const operations = {
   agenda: {
     create: "Agendar atendimento",
@@ -32,6 +47,7 @@ const operations = {
     export: "Exportar clientes",
     timeline: "Consultar histórico do cliente",
     inventory_view: "Consultar estoque e comandas",
+    products_update: "Editar produto",
     products_create: "Cadastrar produto",
     stock_move: "Movimentar estoque",
     tabs_create: "Abrir comanda",
@@ -40,6 +56,7 @@ const operations = {
     tabs_cancel: "Cancelar comanda",
   },
   plans: {
+    purchase: "Contratar plano com agenda e contrato",
     create: "Contratar plano ou sessão",
     status: "Alterar situação do plano",
     cancel: "Cancelar plano",
@@ -47,6 +64,7 @@ const operations = {
     auto_renew: "Configurar renovação automática",
   },
   crm: {
+    update: "Editar cadastro do lead",
     create: "Cadastrar lead",
     stage: "Movimentar lead no funil",
     convert: "Converter lead em cliente",
@@ -70,6 +88,7 @@ const operations = {
     cancel: "Cancelar contrato",
   },
   clinical: {
+    resources_manage: "Gerenciar aparelhos, exercícios e treinos",
     export: "Exportar prontuário",
     access_events: "Consultar acessos ao prontuário",
     attachments_read: "Baixar anexo clínico",
@@ -86,6 +105,14 @@ const operations = {
     closures_create: "Registrar alta ou encerramento",
   },
   finance: {
+    commissions_reconcile: "Conciliar comissão com a origem",
+    external_records_view: "Consultar operações externas registradas",
+    external_records_manage:
+      "Registrar documentos fiscais e operações com parceiros",
+    dates_manage: "Editar datas financeiras",
+    suppliers_manage: "Gerenciar fornecedores",
+    receivables_create: "Criar cobrança manual",
+    classify: "Classificar lançamentos e categorias da DRE",
     receive: "Receber pagamento",
     adjust: "Ajustar recebível",
     recurring_create: "Criar conta recorrente",
@@ -104,6 +131,7 @@ const operations = {
     receivables_reverse: "Estornar recebimento",
   },
   reports: {
+    dre: "Consultar DRE por competência",
     management: "Consultar relatório gerencial",
     retention: "Consultar retenção",
     clients: "Consultar relatório de clientes",
@@ -111,6 +139,7 @@ const operations = {
     export: "Exportar relatórios",
   },
   settings: {
+    registry_manage: "Editar e desativar cadastros administrativos",
     plans_delete: "Excluir plano do catálogo antigo",
     plans_create: "Cadastrar plano do catálogo",
     plans_update: "Editar e ativar ou desativar plano do catálogo",
@@ -164,6 +193,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
           const dependencies: PermissionKey[] = [`${module}.view`];
           const legacyView: AppModule[] = [module];
           const legacyEdit: AppModule[] = module === "reports" ? [] : [module];
+          if (key === "finance.external_records_manage")
+            dependencies.push("finance.external_records_view");
           if (key === "patients.timeline") {
             dependencies.push("crm.view");
             legacyView.push("crm");
@@ -183,6 +214,7 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             key === "clinical.attachments_read"
           )
             legacyEdit.length = 0;
+          if (additionalPermissions.has(key)) legacyEdit.length = 0;
           return {
             key,
             module,
@@ -192,7 +224,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView,
             legacyEdit,
             ...(key === "patients.export" ? { legacyAdmin: true } : {}),
-            ...(key === "settings.plans_create" ||
+            ...(additionalPermissions.has(key) ||
+            key === "settings.plans_create" ||
             key === "settings.plans_update" ||
             key === "settings.plans_delete"
               ? { explicitGrantOnly: true }

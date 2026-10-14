@@ -1025,7 +1025,7 @@ describe("application shell", () => {
     }
   });
 
-  it("requires a column, explains filters without export support and shows API errors", async () => {
+  it("requires a column, applies registration filters and shows API errors", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -1075,12 +1075,10 @@ describe("application shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
     const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
     expect(
-      within(dialog).getByText(
-        "Nenhum filtro: todos os clientes serão exportados.",
-      ),
+      within(dialog).getByText("Cadastro: Com e-mail"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/“Com e-mail” não se aplica/),
+      within(dialog).getByText(/Cadastro: Com e-mail/),
     ).toBeInTheDocument();
     expect(within(dialog).getByText(/ordem alfabética/)).toBeInTheDocument();
 
@@ -1113,7 +1111,8 @@ describe("application shell", () => {
       )?.[0];
     const query = new URL(String(exportUrl), "http://localhost").searchParams;
     expect(query.get("format")).toBe("csv");
-    expect([...query.keys()].sort()).toEqual(["columns", "format"]);
+    expect([...query.keys()].sort()).toEqual(["columns", "format", "record"]);
+    expect(query.get("record")).toBe("with_email");
     expect(
       within(dialog).getByRole("button", { name: "Exportar" }),
     ).toBeEnabled();
@@ -1390,7 +1389,9 @@ describe("application shell", () => {
       await screen.findByRole("heading", { name: "Comunicado segmentado" })
     ).closest("section")!;
     expect(
-      within(panel).getByText(/a fila ainda não envia de fato/),
+      within(panel).getByText(
+        /Realize o envio externamente e registre a conclusão manual/,
+      ),
     ).toBeInTheDocument();
     expect(
       within(panel).queryByRole("button", { name: "Enfileirar comunicado" }),
@@ -1457,7 +1458,9 @@ describe("application shell", () => {
       within(dialog).getByText(/1 mensagem\(ns\) por e-mail/),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/a fila ainda não envia de fato/),
+      within(dialog).getByText(
+        /Realize o envio externamente e registre a conclusão manual/,
+      ),
     ).toBeInTheDocument();
     expect(
       vi

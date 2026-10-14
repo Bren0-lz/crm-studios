@@ -143,6 +143,13 @@ export const settingsTabs: Array<{
     icon: Tags,
   },
   {
+    key: "catalogs",
+    label: "Cadastros",
+    title: "Cadastros da clínica",
+    description: "Interesses, níveis e classificações compartilhadas.",
+    icon: Tags,
+  },
+  {
     key: "relationship",
     label: "Relacionamento",
     title: "Prazos e mensagens",
@@ -170,7 +177,9 @@ export function userCommissionSummary(user: AdminUser) {
   const commission =
     user.commissionPercentage === undefined
       ? "Sem comissão vigente"
-      : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+      : user.commissionKind === "fixed"
+        ? `Comissão fixa ${(user.commissionFixedAmountInCents ?? 0) / 100} reais`
+        : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
   return `${agenda} · ${commission}`;
 }
 

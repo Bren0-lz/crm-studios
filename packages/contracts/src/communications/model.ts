@@ -1,3 +1,4 @@
+import { patientProfileFilterSchema } from "../patients/segments.js";
 import { z } from "zod";
 import { emptyQueryToUndefined } from "../common/model.js";
 import { patientStatusSchema } from "../patients/model.js";
@@ -9,6 +10,8 @@ export const communicationKindSchema = z.enum([
   "appointment_reminder",
   "payment_reminder",
   "manual",
+  "birthday_reminder",
+  "satisfaction_followup",
 ]);
 
 export const communicationPreferenceInputSchema = z.object({
@@ -26,6 +29,10 @@ export const manualMessageInputSchema = z.object({
 
 export const reminderGenerationInputSchema = z.object({
   referenceDate: z.iso.date(),
+  appointments: z.boolean().optional(),
+  payments: z.boolean().optional(),
+  birthdays: z.boolean().optional(),
+  satisfaction: z.boolean().optional(),
 });
 
 /**
@@ -34,6 +41,7 @@ export const reminderGenerationInputSchema = z.object({
  * `birthdayMonth` = aniversariantes do mês corrente da clínica.
  */
 export const broadcastSegmentSchema = z.object({
+  ...patientProfileFilterSchema.omit({ segment: true }).shape,
   tags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
   status: z.preprocess(emptyQueryToUndefined, patientStatusSchema.optional()),
   activePlan: z.preprocess(emptyQueryToUndefined, z.boolean().optional()),

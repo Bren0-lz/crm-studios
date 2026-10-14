@@ -185,6 +185,7 @@ export const replacementBookingInputSchema = z.object({
 });
 
 export const appointmentStatusInputSchema = z.object({
+  absenceReason: z.string().trim().min(2).max(500).optional(),
   status: appointmentStatusSchema,
 });
 

@@ -4,6 +4,7 @@ import {
   type BroadcastResult,
   type CommunicationChannel,
   type PatientOption,
+  type PatientProfileFilter,
 } from "@crm/contracts";
 import { LockKeyhole } from "lucide-react";
 import { useState, type FormEvent } from "react";
@@ -25,6 +26,9 @@ export function BroadcastPanel({
   onQueued: (result: BroadcastResult) => void;
 }) {
   const { can } = useAuthorization();
+  const [profile, setProfile] = useState<Omit<PatientProfileFilter, "segment">>(
+    {},
+  );
   const [tags, setTags] = useState<string[]>([]);
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
   const [activePlan, setActivePlan] = useState<"" | "with" | "without">("");
@@ -45,6 +49,7 @@ export function BroadcastPanel({
 
   const input: BroadcastInput = {
     segment: {
+      ...profile,
       tags,
       ...(status ? { status } : {}),
       ...(activePlan ? { activePlan: activePlan === "with" } : {}),
@@ -94,7 +99,7 @@ export function BroadcastPanel({
   }
 
   const outboxWarning = outboxOnly
-    ? "Atenção: a fila ainda não envia de fato. As mensagens ficam registradas na fila interna até um provedor oficial ser configurado."
+    ? "As mensagens ficam na fila de trabalho da equipe. Realize o envio externamente e registre a conclusão manual."
     : "";
 
   return (
@@ -187,6 +192,79 @@ export function BroadcastPanel({
               />
               Só aniversariantes do mês
             </label>
+            <details className="span-2 filter-group">
+              <summary>Dados cadastrais do segmento</summary>
+              <div className="form-grid">
+                {(
+                  [
+                    ["city", "Cidade"],
+                    ["neighborhood", "Bairro"],
+                    ["occupation", "Profissão"],
+                    ["source", "Origem"],
+                    ["level", "Nível"],
+                    ["interest", "Interesse"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      maxLength={
+                        key === "level" || key === "interest" ? 80 : 120
+                      }
+                      value={profile[key] ?? ""}
+                      onChange={(event) =>
+                        change(() =>
+                          setProfile((current) => ({
+                            ...current,
+                            [key]: event.target.value || undefined,
+                          })),
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+                <label>
+                  Gênero
+                  <select
+                    value={profile.gender ?? ""}
+                    onChange={(event) =>
+                      change(() =>
+                        setProfile((current) => ({
+                          ...current,
+                          gender: event.target
+                            .value as PatientProfileFilter["gender"],
+                        })),
+                      )
+                    }
+                  >
+                    <option value="">Todos</option>
+                    <option value="female">Feminino</option>
+                    <option value="male">Masculino</option>
+                    <option value="other">Outro</option>
+                    <option value="undisclosed">Prefere não informar</option>
+                  </select>
+                </label>
+                <label>
+                  Tipo de cliente
+                  <select
+                    value={profile.clientType ?? ""}
+                    onChange={(event) =>
+                      change(() =>
+                        setProfile((current) => ({
+                          ...current,
+                          clientType: event.target
+                            .value as PatientProfileFilter["clientType"],
+                        })),
+                      )
+                    }
+                  >
+                    <option value="">Todos</option>
+                    <option value="fixed">Fixo</option>
+                    <option value="rotating">Rotativo</option>
+                  </select>
+                </label>
+              </div>
+            </details>
             <label>
               Canal do comunicado
               <select

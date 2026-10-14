@@ -1,3 +1,4 @@
+import { leadConversionData } from "../../modules/commercial/conversion.js";
 import type {
   Lead,
   LeadActivity,
@@ -84,6 +85,49 @@ export function createCommercialRepository(
       return lead;
     },
 
+    async updateLead(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      input: LeadInput,
+    ) {
+      const lead = repositoryContext.leads.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (!lead) return null;
+      if (lead.convertedPatientId)
+        throw new DomainError(
+          "LEAD_ALREADY_CONVERTED",
+          "Atualize o cadastro convertido pelo contexto do cliente.",
+          409,
+        );
+      const responsible = input.responsibleUserId
+        ? repositoryContext.users.find(
+            (user) =>
+              user.clinicId === clinicId &&
+              user.id === input.responsibleUserId &&
+              (user.active || lead.responsibleUserId === user.id),
+          )
+        : undefined;
+      if (input.responsibleUserId && !responsible)
+        throw new DomainError(
+          "RESPONSIBLE_USER_NOT_FOUND",
+          "Responsável não encontrado.",
+          404,
+        );
+      Object.assign(lead, input, { updatedAt: now() });
+      if (responsible) lead.responsibleName = responsible.fullName;
+      else delete lead.responsibleName;
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "lead.updated",
+        "lead",
+        {},
+        id,
+      );
+      return structuredClone(lead);
+    },
     async moveLead(
       clinicId: string,
       _actorUserId: string,
@@ -126,28 +170,48 @@ export function createCommercialRepository(
       if (!lead) return null;
       if (lead.convertedPatientId) {
         const converted = repositoryContext.patients.find(
-          (patient) => patient.id === lead.convertedPatientId,
+          (patient) =>
+            patient.clinicId === clinicId &&
+            patient.id === lead.convertedPatientId,
         );
-        return converted
-          ? { lead, patient: converted, reusedExisting: true }
+        const canonical = converted?.mergedIntoPatientId
+          ? repositoryContext.patients.find(
+              (patient) =>
+                patient.clinicId === clinicId &&
+                patient.id === converted.mergedIntoPatientId,
+            )
+          : converted;
+        return canonical
+          ? { lead, patient: canonical, reusedExisting: true }
           : null;
       }
       let patient = repositoryContext.patients.find(
         (item) =>
           item.clinicId === clinicId &&
           (item.phone === lead.phone ||
-            Boolean(lead.email && item.email === lead.email)),
+            Boolean(
+              lead.email &&
+              item.email?.toLocaleLowerCase() ===
+                lead.email.toLocaleLowerCase(),
+            ) ||
+            Boolean(lead.cpf && item.cpf === lead.cpf)),
       );
+      if (patient?.mergedIntoPatientId)
+        patient = repositoryContext.patients.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === patient!.mergedIntoPatientId,
+        );
       const reusedExisting = Boolean(patient);
-      if (!patient)
-        repositoryContext.ensurePatientTag(clinicId, "Convertido do CRM");
-      patient ??= await repositoryContext.operations.createPatient(clinicId, {
-        fullName: lead.fullName,
-        phone: lead.phone,
-        email: lead.email,
-        notes: lead.notes,
-        tags: ["Convertido do CRM"],
-      });
+      const data = leadConversionData(lead, patient);
+      for (const tag of data.tags)
+        repositoryContext.ensurePatientTag(clinicId, tag);
+      if (patient) Object.assign(patient, data, { updatedAt: now() });
+      else
+        patient = await repositoryContext.operations.createPatient(
+          clinicId,
+          data,
+        );
       for (const appointment of repositoryContext.appointments) {
         if (appointment.clinicId !== clinicId || appointment.leadId !== lead.id)
           continue;
@@ -214,7 +278,11 @@ export function createCommercialRepository(
       };
       repositoryContext.leadContacts.push(contact);
       lead.updatedAt = now();
-      lead.lastContactAt = contact.occurredAt;
+      lead.lastContactAt = [lead.lastContactAt ?? "", contact.occurredAt]
+        .sort()
+        .at(-1)!;
+      if (!lead.contactMethod && input.contactMethod)
+        lead.contactMethod = input.contactMethod;
       return contact;
     },
 

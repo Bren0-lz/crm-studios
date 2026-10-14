@@ -1,3 +1,5 @@
+import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
+import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
   planPeriodEnd,
@@ -10,7 +12,13 @@ import {
   type PlanTemplate,
   type Service,
 } from "@crm/contracts";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -31,15 +39,21 @@ export function PlanForm({
   onCancel,
   onBusyChange,
   onSubmit,
+  renderAdditional,
+  additionalDirty = false,
+  registerCloseGuard,
 }: {
   patients: PatientOption[];
   services: Service[];
   renewing?: PatientPlan | undefined;
-  fixedPatient?: PatientOption;
+  fixedPatient?: PatientOption | undefined;
   groups?: GroupChoices | undefined;
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
   onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
+  renderAdditional?: ((input: PatientPlanInput) => ReactNode) | undefined;
+  additionalDirty?: boolean;
+  registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
 }) {
   const { can, canView } = useAuthorization();
   const currentDate = localIsoDate();
@@ -88,6 +102,8 @@ export function PlanForm({
   const [loading, setLoading] = useState(false);
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
+  const [baseline] = useState(() => JSON.stringify(form));
+  const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
@@ -109,15 +125,19 @@ export function PlanForm({
       active = false;
     };
   }, [renewing, catalogAttempt]);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (submitting.current) return;
+  async function save() {
+    if (submitting.current)
+      throw new Error("Aguarde o salvamento em andamento.");
+    if (formElement.current && !formElement.current.checkValidity())
+      throw new Error(
+        "Preencha os campos obrigatórios antes de salvar o plano.",
+      );
     if (
       !renewing &&
       !templates?.some((item) => item.id === form.planTemplateId)
     ) {
       setError("Selecione um plano cadastrado.");
-      return;
+      throw new Error("Selecione um plano cadastrado.");
     }
     submitting.current = true;
     setLoading(true);
@@ -130,16 +150,42 @@ export function PlanForm({
       );
     } catch (cause) {
       setError((cause as Error).message);
+      throw cause;
     } finally {
       submitting.current = false;
       setLoading(false);
       onBusyChange(false);
     }
   }
+  const prompt = useUnsavedChangesPrompt({
+    section: renewing ? "Renovação do plano" : "Contratação do plano",
+    dirty:
+      Boolean(registerCloseGuard) &&
+      (additionalDirty ||
+        Boolean(groupId) ||
+        JSON.stringify(form) !== baseline),
+    busy: loading,
+    save,
+    discard: () => {},
+  });
+  useEffect(
+    () => registerCloseGuard?.(prompt.confirmLeave),
+    [registerCloseGuard, prompt.confirmLeave],
+  );
+  const cancel = () => prompt.confirmLeave(onCancel);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await save();
+    } catch {
+      /* O formulário informa a falha de salvamento. */
+    }
+  }
   return (
     <>
+      {prompt.modal}
       {(renewing ? can("plans.renew") : can("plans.create")) && (
-        <form className="form-grid" onSubmit={submit}>
+        <form ref={formElement} className="form-grid" onSubmit={submit}>
           <fieldset className="form-fields form-grid span-2" disabled={loading}>
             {!renewing && (
               <>
@@ -468,6 +514,7 @@ export function PlanForm({
                 disabled={loading}
               />
             )}
+            {renderAdditional?.(form)}
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">
@@ -478,7 +525,7 @@ export function PlanForm({
             <button
               type="button"
               className="secondary-button"
-              onClick={onCancel}
+              onClick={cancel}
               disabled={loading}
             >
               {fixedPatient ? "Voltar" : "Cancelar"}

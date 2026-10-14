@@ -1,3 +1,5 @@
+import type { PaymentTiming } from "@crm/contracts";
+import type { PatientTabServiceItem } from "@crm/contracts";
 import {
   type AdminAuditEvent,
   type AdminUserCommissionInput,
@@ -13,6 +15,7 @@ import {
   type GroupEnrollmentInput,
   historyAction,
   type PatientInput,
+  patientProfile,
   type PatientPlanInput,
   type Payable,
   type PaymentMethod,
@@ -113,18 +116,41 @@ export class PostgresRepositoryContext {
     // Chamado dentro de transação: um erro aqui desfaz tudo (o chamador faz ROLLBACK).
     // Mesma vigência: é uma correção do percentual. O FOR UPDATE trava a regra e também a
     // geração de lançamentos que a referenciam (a FK pede FOR KEY SHARE, que conflita).
-    const existing = await client.query<{ id: string; percentage: string }>(
-      `SELECT id, percentage FROM commission_rules
-       WHERE clinic_id = $1 AND user_id = $2 AND effective_from = $3
+    if (
+      input.serviceId &&
+      !(
+        await client.query(
+          "SELECT id FROM services WHERE clinic_id=$1 AND id=$2",
+          [clinicId, input.serviceId],
+        )
+      ).rowCount
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
+    const existing = await client.query<{
+      id: string;
+      percentage: string;
+      kind: string;
+      fixedAmountInCents: number | null;
+      effectiveUntil: string | null;
+    }>(
+      `SELECT id, percentage,kind,fixed_amount_in_cents AS "fixedAmountInCents",effective_until::text AS "effectiveUntil" FROM commission_rules
+       WHERE clinic_id = $1 AND user_id = $2 AND effective_from = $3 AND service_id IS NOT DISTINCT FROM $4::uuid
        FOR UPDATE`,
-      [clinicId, userId, input.effectiveFrom],
+      [clinicId, userId, input.effectiveFrom, input.serviceId ?? null],
     );
     const current = existing.rows[0];
     if (current) {
       const previousPercentage = Number(current.percentage);
       if (
         Math.round(previousPercentage * 100) ===
-        Math.round(input.percentage * 100)
+          Math.round(input.percentage * 100) &&
+        current.kind === (input.kind ?? "percentage") &&
+        current.fixedAmountInCents === (input.fixedAmountInCents ?? null) &&
+        current.effectiveUntil === (input.effectiveUntil ?? null)
       )
         return;
       const used = await client.query(
@@ -138,10 +164,17 @@ export class PostgresRepositoryContext {
           409,
         );
       const updated = await client.query<{ percentage: string }>(
-        `UPDATE commission_rules SET percentage = $3
+        `UPDATE commission_rules SET percentage = $3,kind=$4,fixed_amount_in_cents=$5,effective_until=$6
          WHERE clinic_id = $1 AND id = $2
          RETURNING percentage`,
-        [clinicId, current.id, input.percentage],
+        [
+          clinicId,
+          current.id,
+          input.percentage,
+          input.kind ?? "percentage",
+          input.fixedAmountInCents ?? null,
+          input.effectiveUntil ?? null,
+        ],
       );
       await this.addAdminAudit(
         client,
@@ -166,10 +199,19 @@ export class PostgresRepositoryContext {
         percentage: string;
         effectiveFrom: string;
       }>(
-        `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from,kind,fixed_amount_in_cents,service_id,effective_until)
+         VALUES ($1, $2, $3, $4,$5,$6,$7,$8)
          RETURNING id, percentage, effective_from::text AS "effectiveFrom"`,
-        [clinicId, userId, input.percentage, input.effectiveFrom],
+        [
+          clinicId,
+          userId,
+          input.percentage,
+          input.effectiveFrom,
+          input.kind ?? "percentage",
+          input.fixedAmountInCents ?? null,
+          input.serviceId ?? null,
+          input.effectiveUntil ?? null,
+        ],
       );
       rule = result.rows[0]!;
     } catch (error) {
@@ -282,9 +324,9 @@ export class PostgresRepositoryContext {
         `
           INSERT INTO patients (
             id, clinic_id, record_number, full_name, cpf, email, phone, whatsapp, birth_date,
-            emergency_contact_name, emergency_contact_phone, notes, tags
+            emergency_contact_name, emergency_contact_phone, notes, tags, profile
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)
           RETURNING ${patientColumns}
         `,
         [
@@ -301,6 +343,7 @@ export class PostgresRepositoryContext {
           input.emergencyContactPhone || null,
           input.notes || null,
           input.tags,
+          JSON.stringify(patientProfile(input)),
         ],
       );
       return mapPatient(result.rows[0]!);
@@ -638,6 +681,9 @@ export class PostgresRepositoryContext {
     creditReason: string,
     renewedFromPlanId?: string,
   ) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+      clinicId,
+    ]);
     let allowed: string[];
     if (!renewedFromPlanId) {
       const template = await client.query<{ name: string }>(
@@ -785,6 +831,12 @@ export class PostgresRepositoryContext {
     );
     const plan = await this.findPatientPlan(client, clinicId, planId);
     if (!plan) return null;
+    if (plan.sourceTabId)
+      throw new DomainError(
+        "TAB_PLAN_MANAGED",
+        "O serviço avulso deve ser administrado pela comanda de origem.",
+        409,
+      );
     if (plan.status === "cancelled") {
       throw new DomainError(
         "PLAN_CANCELLED",
@@ -822,14 +874,37 @@ export class PostgresRepositoryContext {
     clinicId: string,
     input: CommissionRuleInput,
   ) {
+    if (
+      input.serviceId &&
+      !(
+        await client.query(
+          "SELECT id FROM services WHERE clinic_id=$1 AND id=$2",
+          [clinicId, input.serviceId],
+        )
+      ).rowCount
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
     try {
       const result = await client.query<CommissionRuleRow>(
-        `WITH inserted AS (INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from)
-          SELECT $1,id,$3,$4 FROM professionals WHERE clinic_id = $1 AND id = $2 RETURNING *)
+        `WITH inserted AS (INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from,kind,fixed_amount_in_cents,service_id,effective_until)
+          SELECT $1,id,$3,$4,$5,$6,$7,$8 FROM professionals WHERE clinic_id = $1 AND id = $2 RETURNING *)
          SELECT i.id, i.clinic_id AS "clinicId", i.professional_id AS "professionalId",
-          p.full_name AS "professionalName", i.percentage, i.effective_from::text AS "effectiveFrom",
+          p.full_name AS "professionalName", i.percentage,i.kind,i.fixed_amount_in_cents AS "fixedAmountInCents",i.service_id AS "serviceId",i.effective_until::text AS "effectiveUntil", i.effective_from::text AS "effectiveFrom",
           i.active, i.created_at AS "createdAt" FROM inserted i JOIN professionals p ON p.id = i.professional_id`,
-        [clinicId, input.professionalId, input.percentage, input.effectiveFrom],
+        [
+          clinicId,
+          input.professionalId,
+          input.percentage,
+          input.effectiveFrom,
+          input.kind ?? "percentage",
+          input.fixedAmountInCents ?? null,
+          input.serviceId ?? null,
+          input.effectiveUntil ?? null,
+        ],
       );
       if (!result.rows[0])
         throw new DomainError(
@@ -849,11 +924,15 @@ export class PostgresRepositoryContext {
     }
   }
 
-  async listCommissions(clinicId: string, competence?: string) {
-    const result = await this.pool.query<CommissionEntryRow>(
+  async listCommissions(
+    clinicId: string,
+    competence?: string,
+    client: Pool | PoolClient = this.pool,
+  ) {
+    const result = await client.query<CommissionEntryRow>(
       `SELECT ce.id, ce.clinic_id AS "clinicId",
       ce.professional_id AS "professionalId", p.full_name AS "professionalName",
-      ce.appointment_id AS "appointmentId", ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
+      ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot", ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
       ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status, ce.paid_at AS "paidAt",
       ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
       WHERE ce.clinic_id = $1 AND ($2::text IS NULL OR ce.competence = $2) ORDER BY ce.competence DESC`,
@@ -914,8 +993,9 @@ export class PostgresRepositoryContext {
     clinicId: string,
     patientId: string,
     channel: CommunicationChannel,
+    client: Pool | PoolClient = this.pool,
   ) {
-    const result = await this.pool.query<{ allowed: boolean }>(
+    const result = await client.query<{ allowed: boolean }>(
       `SELECT allowed FROM communication_preferences
        WHERE clinic_id = $1 AND patient_id = $2 AND channel = $3`,
       [clinicId, patientId, channel],
@@ -952,10 +1032,14 @@ export class PostgresRepositoryContext {
     return result.rows[0] ? mapLead(result.rows[0]) : null;
   }
 
-  async findLeadContact(clinicId: string, contactId: string) {
-    const result = await this.pool.query<LeadContactRow>(
+  async findLeadContact(
+    clinicId: string,
+    contactId: string,
+    client: Pool | PoolClient = this.pool,
+  ) {
+    const result = await client.query<LeadContactRow>(
       `SELECT lc.id, lc.clinic_id AS "clinicId", lc.lead_id AS "leadId",
-              lc.channel, lc.direction, lc.notes, u.full_name AS "actorName",
+              lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, u.full_name AS "actorName",
               lc.occurred_at AS "occurredAt", lc.created_at AS "createdAt"
        FROM lead_contacts lc JOIN users u ON u.id = lc.actor_user_id
        WHERE lc.clinic_id = $1 AND lc.id = $2`,
@@ -1011,8 +1095,15 @@ export class PostgresRepositoryContext {
         [clinicId, tabId],
       ),
     ]);
+    const services = await client.query<PatientTabServiceItem>(
+      `SELECT id,appointment_id AS "appointmentId",service_id AS "serviceId",service_name AS "serviceName",professional_id AS "professionalId",professional_name AS "professionalName",amount_in_cents AS "amountInCents" FROM patient_tab_services WHERE clinic_id=$1 AND tab_id=$2`,
+      [clinicId, tabId],
+    );
     return tab.rows[0]
-      ? mapPatientTab(tab.rows[0], items.rows.map(mapPatientTabItem))
+      ? {
+          ...mapPatientTab(tab.rows[0], items.rows.map(mapPatientTabItem)),
+          services: services.rows,
+        }
       : null;
   }
 
@@ -1087,6 +1178,7 @@ export class PostgresRepositoryContext {
     receivableId: string,
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
+    timing?: PaymentTiming,
   ) {
     const client = await this.pool.connect();
     try {
@@ -1094,8 +1186,10 @@ export class PostgresRepositoryContext {
       const current = await client.query<{
         status: ReceivableStatus;
         amountInCents: number;
+        paymentMethod: PaymentMethod | null;
+        cashAvailableAt: Date | null;
       }>(
-        `SELECT status, amount_in_cents AS "amountInCents"
+        `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
          FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, receivableId],
       );
@@ -1117,18 +1211,24 @@ export class PostgresRepositoryContext {
       }
       await client.query(
         operation === "payment"
-          ? `UPDATE receivables SET status = 'paid', paid_at = now(), payment_method = $3, updated_at = now()
+          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4::timestamptz,now()),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`
           : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
-          ? [clinicId, receivableId, paymentMethod]
+          ? [
+              clinicId,
+              receivableId,
+              paymentMethod,
+              timing?.paidAt ?? null,
+              timing?.availableAt ?? null,
+            ]
           : [clinicId, receivableId],
       );
       await client.query(
         `INSERT INTO financial_events
-           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at)
+         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7::timestamptz,now()),coalesce($8::timestamptz,$7::timestamptz,now()))`,
         [
           clinicId,
           receivableId,
@@ -1137,7 +1237,12 @@ export class PostgresRepositoryContext {
           operation === "payment"
             ? current.rows[0].amountInCents
             : -current.rows[0].amountInCents,
-          operation === "payment" ? { paymentMethod } : {},
+          operation === "payment"
+            ? { paymentMethod }
+            : { paymentMethod: current.rows[0].paymentMethod },
+          timing?.paidAt ?? null,
+          timing?.availableAt ??
+            (operation === "payment" ? current.rows[0].cashAvailableAt : null),
         ],
       );
       const receivable = await this.findReceivable(
@@ -1161,15 +1266,23 @@ export class PostgresRepositoryContext {
     payableId: string,
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
+    timing?: PaymentTiming,
   ) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [clinicId],
+      );
       const current = await client.query<{
         status: Payable["status"];
+        commissionId: string | null;
         amountInCents: number;
+        paymentMethod: PaymentMethod | null;
+        cashAvailableAt: Date | null;
       }>(
-        `SELECT status, amount_in_cents AS "amountInCents"
+        `SELECT status,commission_id AS "commissionId",payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
          FROM payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, payableId],
       );
@@ -1186,22 +1299,54 @@ export class PostgresRepositoryContext {
             : "Somente contas pagas podem ser estornadas.",
           409,
         );
+      if (current.rows[0].commissionId) {
+        const commission = await client.query<{ status: string }>(
+          "SELECT status FROM commission_entries WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
+          [clinicId, current.rows[0].commissionId],
+        );
+        if (commission.rows[0]?.status !== expected)
+          throw new DomainError(
+            "COMMISSION_EXPENSE_STATE",
+            "Concilie a situação da comissão com a despesa antes de continuar.",
+            409,
+          );
+        await client.query(
+          operation === "payment"
+            ? "UPDATE commission_entries SET status='paid',paid_at=coalesce($3::timestamptz,now()),paid_by_user_id=$4 WHERE clinic_id=$1 AND id=$2"
+            : "UPDATE commission_entries SET status='open',paid_at=NULL,paid_by_user_id=NULL WHERE clinic_id=$1 AND id=$2",
+          operation === "payment"
+            ? [
+                clinicId,
+                current.rows[0].commissionId,
+                timing?.paidAt ?? null,
+                actorUserId,
+              ]
+            : [clinicId, current.rows[0].commissionId],
+        );
+      }
       await client.query(
         operation === "payment"
-          ? `UPDATE payables SET status = 'paid', paid_at = now(),
+          ? `UPDATE payables SET status = 'paid', paid_at = coalesce($5::timestamptz,now()),cash_available_at=coalesce($6,cash_available_at),
                  payment_method = $3, paid_by_user_id = $4, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`
           : `UPDATE payables SET status = 'open', paid_at = NULL,
                  payment_method = NULL, paid_by_user_id = NULL, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
-          ? [clinicId, payableId, paymentMethod, actorUserId]
+          ? [
+              clinicId,
+              payableId,
+              paymentMethod,
+              actorUserId,
+              timing?.paidAt ?? null,
+              timing?.availableAt ?? null,
+            ]
           : [clinicId, payableId],
       );
       await client.query(
         `INSERT INTO payable_events
-           (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
+           (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at)
+         VALUES ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz,now()),coalesce($8::timestamptz,$7::timestamptz,now()))`,
         [
           clinicId,
           payableId,
@@ -1210,7 +1355,12 @@ export class PostgresRepositoryContext {
           operation === "payment"
             ? -current.rows[0].amountInCents
             : current.rows[0].amountInCents,
-          operation === "payment" ? { paymentMethod } : {},
+          operation === "payment"
+            ? { paymentMethod }
+            : { paymentMethod: current.rows[0].paymentMethod },
+          timing?.paidAt ?? null,
+          timing?.availableAt ??
+            (operation === "payment" ? current.rows[0].cashAvailableAt : null),
         ],
       );
       const payable = await this.findPayable(client, clinicId, payableId);
@@ -1241,14 +1391,27 @@ export class PostgresRepositoryContext {
        JOIN patient_plan_services pps ON pps.plan_id = pp.id AND pps.clinic_id = pp.clinic_id
        WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pps.service_id = $3
          AND pp.status = 'active'
+         AND (pp.source_appointment_id IS NULL OR pp.source_appointment_id = $5)
          AND pp.valid_from <= ($4::timestamptz AT TIME ZONE c.timezone)::date
          AND (pp.valid_until IS NULL OR pp.valid_until >= ($4::timestamptz AT TIME ZONE c.timezone)::date)
        ORDER BY pp.valid_until NULLS LAST, pp.created_at
        LIMIT 1 FOR UPDATE OF pp, pps`,
-      [clinicId, patientId, serviceId, startsAt],
+      [clinicId, patientId, serviceId, startsAt, appointmentId],
     );
     const plan = planResult.rows[0];
-    if (!plan) return;
+    if (!plan) {
+      const tabService = await client.query(
+        "SELECT 1 FROM patient_tab_services WHERE clinic_id=$1 AND appointment_id=$2 UNION ALL SELECT 1 FROM patient_plans WHERE clinic_id=$1 AND source_appointment_id=$2 LIMIT 1",
+        [clinicId, appointmentId],
+      );
+      if (tabService.rowCount)
+        throw new DomainError(
+          "NO_SESSION_BALANCE",
+          "Feche a comanda de origem para disponibilizar o crédito deste serviço.",
+          409,
+        );
+      return;
+    }
     const ledger = await client.query<{ balance: number; consumed: boolean }>(
       `SELECT coalesce(sum(quantity), 0)::int AS balance,
               bool_or(kind = 'consumption') AS consumed
@@ -1280,7 +1443,7 @@ export class PostgresRepositoryContext {
       [plan.id, serviceId],
     );
     await client.query(
-      `UPDATE patient_plans SET remaining_sessions = remaining_sessions - 1,
+      `UPDATE patient_plans SET status=CASE WHEN source_tab_id IS NOT NULL AND remaining_sessions=1 THEN 'expired'::plan_status ELSE status END, remaining_sessions = remaining_sessions - 1,
               updated_at = now() WHERE id = $1`,
       [plan.id],
     );
@@ -1328,7 +1491,7 @@ export class PostgresRepositoryContext {
       [plan.id, plan.serviceId],
     );
     await client.query(
-      `UPDATE patient_plans SET remaining_sessions = remaining_sessions + 1,
+      `UPDATE patient_plans SET status=CASE WHEN source_tab_id IS NOT NULL AND status='expired' THEN 'active'::plan_status ELSE status END, remaining_sessions = remaining_sessions + 1,
               updated_at = now() WHERE id = $1`,
       [plan.id],
     );

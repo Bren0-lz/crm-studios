@@ -313,7 +313,9 @@ describe("searchable client selection across modules", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     const save = within(dialog).getByRole("button", { name: "Matricular" });
     expect(save).toBeDisabled();
     fireEvent.change(within(dialog).getByLabelText("Turma"), {

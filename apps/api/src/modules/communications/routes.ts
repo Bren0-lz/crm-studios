@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   communicationPreferenceInputSchema,
   manualMessageInputSchema,
@@ -7,8 +8,30 @@ import {
 import type { RouteContext } from "../../infrastructure/route-context.js";
 
 export function registerCommunicationsRoutes(context: RouteContext) {
-  const { app, authenticate, repository, planBroadcast, broadcastResult } =
-    context;
+  const {
+    app,
+    authenticate,
+    repository,
+    planBroadcast,
+    broadcastResult,
+    assertPermissions,
+  } = context;
+  app.post(
+    "/communications/messages/:id/complete",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { status } = z
+        .object({ status: z.enum(["sent", "cancelled"]) })
+        .parse(request.body);
+      return repository.completeManualMessage(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        status,
+      );
+    },
+  );
 
   app.get("/communications", { preHandler: authenticate }, async (request) =>
     repository.getCommunicationCenter(request.user.clinicId),
@@ -77,9 +100,11 @@ export function registerCommunicationsRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request) => {
       const input = reminderGenerationInputSchema.parse(request.body);
+      if (input.payments !== false) assertPermissions(request, "finance.view");
       return repository.generateReminders(
         request.user.clinicId,
         input.referenceDate,
+        input,
       );
     },
   );

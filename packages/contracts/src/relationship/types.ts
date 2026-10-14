@@ -68,6 +68,7 @@ export type SatisfactionSurveyInput = z.infer<
 export type SatisfactionFilter = z.infer<typeof satisfactionFilterSchema>;
 
 export interface SatisfactionSurvey {
+  sourceMessageId?: string;
   id: string;
   clinicId: string;
   patientId: string;

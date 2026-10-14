@@ -1,3 +1,4 @@
+import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   nextPlanPeriod,
   planTemplateInputSchema,
@@ -115,6 +116,7 @@ export function createPlansRepository(
           "plan_catalog",
           entry.id,
           { ...input },
+          clinicId,
         );
       return structuredClone(entry);
     },
@@ -137,6 +139,7 @@ export function createPlansRepository(
           "plan_catalog",
           id,
           { ...input },
+          clinicId,
         );
       return structuredClone(entry);
     },
@@ -159,14 +162,19 @@ export function createPlansRepository(
           "plan_catalog",
           id,
           { name: entry.name },
+          clinicId,
         );
       return true;
     },
 
     async listPatientPlans(clinicId: string, patientId?: string) {
-      const currentDate = today();
+      const currentDate = clinicDateOf(
+        new Date(),
+        repositoryContext.clinicSettings.timezone,
+      );
       for (const plan of repositoryContext.patientPlans) {
         if (
+          plan.clinicId === clinicId &&
           plan.status === "active" &&
           plan.validUntil &&
           plan.validUntil < currentDate
@@ -293,6 +301,12 @@ export function createPlansRepository(
         (item) => item.clinicId === clinicId && item.id === planId,
       );
       if (!plan) return null;
+      if (plan.sourceTabId)
+        throw new DomainError(
+          "TAB_PLAN_MANAGED",
+          "O serviço avulso deve ser administrado pela comanda de origem.",
+          409,
+        );
       if (autoRenew) {
         repositoryContext.assertRenewable(plan);
         if (plan.status === "expired") {
@@ -394,6 +408,12 @@ export function createPlansRepository(
         (item) => item.clinicId === clinicId && item.id === planId,
       );
       if (!plan) return null;
+      if (plan.sourceTabId)
+        throw new DomainError(
+          "TAB_PLAN_MANAGED",
+          "O serviço avulso deve ser administrado pela comanda de origem.",
+          409,
+        );
       if (plan.status === "cancelled" && status !== "cancelled") {
         throw new DomainError(
           "PLAN_CANCELLED",

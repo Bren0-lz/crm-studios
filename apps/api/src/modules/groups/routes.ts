@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   groupAttendanceInputSchema,
   groupClassInputSchema,
@@ -10,6 +11,40 @@ import { DomainError } from "../../repository.js";
 
 export function registerGroupsRoutes(context: RouteContext) {
   const { app, authenticate, repository } = context;
+  app.put(
+    "/group-replacements/:id/attendance",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { status } = z
+        .object({
+          status: z.enum(["present", "absent", "excused_absence", "cancelled"]),
+        })
+        .parse(request.body);
+      return repository.recordReplacementAttendance(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        status,
+      );
+    },
+  );
+  app.put(
+    "/group-sessions/:id/professional",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { professionalId } = z
+        .object({ professionalId: z.uuid() })
+        .parse(request.body);
+      return repository.updateGroupSessionProfessional(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        professionalId,
+      );
+    },
+  );
 
   app.get(
     "/groups/workspace",

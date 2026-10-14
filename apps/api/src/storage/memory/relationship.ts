@@ -182,7 +182,37 @@ export function createRelationshipRepository(
             409,
           );
       }
+      if (input.sourceMessageId) {
+        const message = repositoryContext.outboundMessages.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === input.sourceMessageId &&
+            item.patientId === input.patientId &&
+            item.kind === "satisfaction_followup",
+        );
+        if (!message)
+          throw new DomainError(
+            "SATISFACTION_MESSAGE_MISMATCH",
+            "A solicitação de NPS não pertence a este cliente.",
+            404,
+          );
+        if (
+          repositoryContext.satisfactionSurveys.some(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.sourceMessageId === input.sourceMessageId,
+          )
+        )
+          throw new DomainError(
+            "SATISFACTION_DUPLICATE",
+            "Esta solicitação já possui resposta de NPS.",
+            409,
+          );
+      }
       const survey: SatisfactionSurvey = {
+        ...(input.sourceMessageId
+          ? { sourceMessageId: input.sourceMessageId }
+          : {}),
         id: uuid(),
         clinicId,
         patientId: patient.id,

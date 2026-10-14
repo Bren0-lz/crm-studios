@@ -1,5 +1,9 @@
-import type { FinancialWorkspace, PayableInput } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import type {
+  FinancialWorkspace,
+  PayableInput,
+  Supplier,
+} from "@crm/contracts";
+import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
@@ -28,6 +32,21 @@ export function PayableModal({
     notes: "",
   });
   const [error, setError] = useState("");
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api
+      .suppliers()
+      .then((items) => {
+        if (alive) setSuppliers(items);
+      })
+      .catch((cause: Error) => {
+        if (alive) setError(cause.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [loading, setLoading] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -60,12 +79,95 @@ export function PayableModal({
               }
             />
           </label>
+          {can("finance.commissions_pay") && (
+            <label className="span-2">
+              Comissão vinculada (opcional)
+              <select
+                value={form.commissionId ?? ""}
+                onChange={(event) => {
+                  const commission = workspace.commissions.find(
+                      (item) => item.id === event.target.value,
+                    ),
+                    next = { ...form };
+                  if (commission) {
+                    next.commissionId = commission.id;
+                    next.amountInCents = commission.amountInCents;
+                    next.dreCompetence = commission.competence;
+                  } else delete next.commissionId;
+                  setForm(next);
+                }}
+              >
+                <option value="">Despesa sem comissão</option>
+                {workspace.commissions
+                  .filter(
+                    (item) =>
+                      item.status === "open" &&
+                      item.amountInCents > 0 &&
+                      !workspace.payables.some(
+                        (payable) =>
+                          payable.commissionId === item.id &&
+                          payable.status !== "cancelled",
+                      ),
+                  )
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.professionalName} · {item.competence}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          <label>
+            Fornecedor cadastrado
+            <select
+              value={form.supplierId ?? ""}
+              onChange={(event) => {
+                const item = suppliers.find(
+                  (item) => item.id === event.target.value,
+                );
+                setForm({
+                  ...form,
+                  supplierId: item?.id,
+                  supplier: item?.name ?? form.supplier,
+                });
+              }}
+            >
+              <option value="">Informar manualmente</option>
+              {suppliers
+                .filter((item) => item.active || item.id === form.supplierId)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+            </select>
+          </label>
           <label>
             Fornecedor
             <input
               value={form.supplier}
               onChange={(event) =>
                 setForm({ ...form, supplier: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Lançamento
+            <input
+              type="date"
+              value={form.postedOn ?? localIsoDate()}
+              onChange={(event) =>
+                setForm({ ...form, postedOn: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Competência
+            <input
+              type="month"
+              value={form.dreCompetence ?? localIsoDate().slice(0, 7)}
+              onChange={(event) =>
+                setForm({ ...form, dreCompetence: event.target.value })
               }
             />
           </label>

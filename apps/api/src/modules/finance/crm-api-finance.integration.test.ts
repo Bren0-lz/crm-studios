@@ -1,3 +1,4 @@
+import { saoPauloToday } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   type UserRole,
@@ -1480,7 +1481,7 @@ describe("CRM API", () => {
     const startsAt = new Date(
       Date.now() + 55 * 24 * 60 * 60 * 1000,
     ).toISOString();
-    const date = startsAt.slice(0, 10);
+    const date = saoPauloToday(new Date(startsAt));
     await app.inject({
       method: "POST",
       url: "/plans",
@@ -1568,13 +1569,13 @@ describe("CRM API", () => {
       method: "POST",
       url: "/finance/commissions/generate",
       headers,
-      payload: { competence: startsAt.slice(0, 7) },
+      payload: { competence: date.slice(0, 7) },
     });
     const second = await app.inject({
       method: "POST",
       url: "/finance/commissions/generate",
       headers,
-      payload: { competence: startsAt.slice(0, 7) },
+      payload: { competence: date.slice(0, 7) },
     });
     expect(first.json()).toHaveLength(1);
     expect(second.json()).toHaveLength(1);
@@ -1682,6 +1683,18 @@ describe("CRM API", () => {
       netSalesInCents: 9000,
       receivedInCents: 9000,
     });
+    const paidCancellation = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${tab.json().id}/cancel`,
+      headers,
+    });
+    expect(paidCancellation.statusCode).toBe(409);
+    const reversed = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${closed.json().receivableId}/reverse`,
+      headers,
+    });
+    expect(reversed.statusCode).toBe(200);
     const cancelled = await app.inject({
       method: "POST",
       url: `/patient-tabs/${tab.json().id}/cancel`,
@@ -1714,7 +1727,7 @@ describe("CRM API", () => {
       grossSalesInCents: 9000,
       cancelledSalesInCents: 9000,
       netSalesInCents: 0,
-      receivedInCents: 9000,
+      receivedInCents: 0,
     });
     const duplicateCancellation = await app.inject({
       method: "POST",

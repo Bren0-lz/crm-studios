@@ -1,3 +1,17 @@
+import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
+import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
+import { createPlanPurchasesRepository } from "./storage/postgres/plan-purchases.js";
+import { createFinancialDatesRepository } from "./storage/postgres/financial-dates.js";
+import { createRegistryRepository } from "./storage/postgres/registry.js";
+import { createAgendaLinksRepository } from "./storage/postgres/agenda-links.js";
+import { createDocumentSignaturesRepository } from "./storage/postgres/document-signatures.js";
+import { createAssessmentOperationsRepository } from "./storage/postgres/assessment-operations.js";
+import { createCommissionOperationsRepository } from "./storage/postgres/commission-operations.js";
+import { createFinanceOperationsRepository } from "./storage/postgres/finance-operations.js";
+import { createClinicalResourcesRepository } from "./storage/postgres/clinical-resources.js";
+import { createGroupOperationsRepository } from "./storage/postgres/group-operations.js";
+import { createPatientManagementRepository } from "./storage/postgres/patient-management.js";
+import { createCatalogsRepository } from "./storage/postgres/catalogs.js";
 import type { Pool } from "pg";
 import type { ClinicRepository } from "./repository.js";
 import { createAdministrationRepository } from "./storage/postgres/administration.js";
@@ -14,6 +28,48 @@ import { createRelationshipRepository } from "./storage/postgres/relationship.js
 import { createReportsRepository } from "./storage/postgres/reports.js";
 
 export class PostgresClinicRepository implements ClinicRepository {
+  readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
+  readonly reconcileCommission: ClinicRepository["reconcileCommission"];
+  readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
+  readonly reverseCommissionAccountPayment: ClinicRepository["reverseCommissionAccountPayment"];
+  readonly listExternalOperations: ClinicRepository["listExternalOperations"];
+  readonly createExternalOperation: ClinicRepository["createExternalOperation"];
+  readonly getExternalOperationContent: ClinicRepository["getExternalOperationContent"];
+  readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
+  readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
+  readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
+  readonly listClinicCatalog: ClinicRepository["listClinicCatalog"];
+  readonly saveClinicCatalog: ClinicRepository["saveClinicCatalog"];
+  readonly getPatient: ClinicRepository["getPatient"];
+  readonly setPatientStatus: ClinicRepository["setPatientStatus"];
+  readonly previewInactivePatients: ClinicRepository["previewInactivePatients"];
+  readonly inactivatePatients: ClinicRepository["inactivatePatients"];
+  readonly previewPatientMerge: ClinicRepository["previewPatientMerge"];
+  readonly mergePatients: ClinicRepository["mergePatients"];
+  readonly recordReplacementAttendance: ClinicRepository["recordReplacementAttendance"];
+  readonly updateGroupSessionProfessional: ClinicRepository["updateGroupSessionProfessional"];
+  readonly revokeUserSessions: ClinicRepository["revokeUserSessions"];
+  readonly completeManualMessage: ClinicRepository["completeManualMessage"];
+  readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
+  readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
+  readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
+  readonly getDocumentSignatureContent: ClinicRepository["getDocumentSignatureContent"];
+  readonly listClinicalResources: ClinicRepository["listClinicalResources"];
+  readonly saveClinicalResource: ClinicRepository["saveClinicalResource"];
+  readonly finalizeClinicalResource: ClinicRepository["finalizeClinicalResource"];
+  readonly listClinicalSources: ClinicRepository["listClinicalSources"];
+  readonly updateProduct: ClinicRepository["updateProduct"];
+  readonly updatePatientTabItem: ClinicRepository["updatePatientTabItem"];
+  readonly addPatientTabService: ClinicRepository["addPatientTabService"];
+  readonly removePatientTabService: ClinicRepository["removePatientTabService"];
+  readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
+  readonly listSuppliers: ClinicRepository["listSuppliers"];
+  readonly saveSupplier: ClinicRepository["saveSupplier"];
+  readonly createManualReceivable: ClinicRepository["createManualReceivable"];
+  readonly classifyFinancialEntry: ClinicRepository["classifyFinancialEntry"];
+  readonly setCategoryDreGroup: ClinicRepository["setCategoryDreGroup"];
+  readonly setFinancialDates: ClinicRepository["setFinancialDates"];
+  readonly getDreReport: ClinicRepository["getDreReport"];
   private readonly context: PostgresRepositoryContext;
   private readonly administration: ReturnType<
     typeof createAdministrationRepository
@@ -35,18 +91,87 @@ export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {
     this.context = new PostgresRepositoryContext(pool);
     this.context.operations = this;
+    const reconciliation = createCommissionReconciliationRepository(
+      this.context,
+    );
+    this.getCommissionReconciliationPreview =
+      reconciliation.getCommissionReconciliationPreview;
+    this.reconcileCommission = reconciliation.reconcileCommission;
+    this.settleCommissionAccount = reconciliation.settleCommissionAccount;
+    this.reverseCommissionAccountPayment =
+      reconciliation.reverseCommissionAccountPayment;
+    const externalOperations = createExternalOperationsRepository(this.context);
+    this.listExternalOperations = externalOperations.listExternalOperations;
+    this.createExternalOperation = externalOperations.createExternalOperation;
+    this.getExternalOperationContent =
+      externalOperations.getExternalOperationContent;
+    this.purchasePatientPlan = createPlanPurchasesRepository(
+      this.context,
+    ).purchasePatientPlan;
+    const patientManagement = createPatientManagementRepository(this.context);
+    this.getPatient = patientManagement.getPatient;
+    this.setPatientStatus = patientManagement.setPatientStatus;
+    this.previewInactivePatients = patientManagement.previewInactivePatients;
+    this.inactivatePatients = patientManagement.inactivatePatients;
+    this.previewPatientMerge = patientManagement.previewPatientMerge;
+    this.mergePatients = patientManagement.mergePatients;
+    const registry = createRegistryRepository(this.context);
+    this.getAdministrativeRegistry = registry.getAdministrativeRegistry;
+    this.updateAdministrativeRegistry = registry.updateAdministrativeRegistry;
+    const catalogs = createCatalogsRepository(this.context);
+    this.listClinicCatalog = catalogs.listClinicCatalog;
+    this.saveClinicCatalog = catalogs.saveClinicCatalog;
     this.administration = createAdministrationRepository(this.context);
-    this.finance = createFinanceRepository(this.context);
+    this.finance = {
+      ...createFinanceRepository(this.context),
+      ...createCommissionOperationsRepository(this.context),
+    };
+    const financeOperations = createFinanceOperationsRepository(this.context);
+    this.updateProduct = financeOperations.updateProduct;
+    this.updatePatientTabItem = financeOperations.updatePatientTabItem;
+    this.addPatientTabService = financeOperations.addPatientTabService;
+    this.removePatientTabService = financeOperations.removePatientTabService;
+    this.createPatientTabAppointment =
+      financeOperations.createPatientTabAppointment;
+    this.listSuppliers = financeOperations.listSuppliers;
+    this.saveSupplier = financeOperations.saveSupplier;
+    this.createManualReceivable = financeOperations.createManualReceivable;
+    this.classifyFinancialEntry = financeOperations.classifyFinancialEntry;
+    this.setCategoryDreGroup = financeOperations.setCategoryDreGroup;
+    this.getDreReport = financeOperations.getDreReport;
+    this.setFinancialDates = createFinancialDatesRepository(
+      this.context,
+    ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    this.createAbsenceSuccessor = createAgendaLinksRepository(
+      this.context,
+    ).createAbsenceSuccessor;
+    const groupOperations = createGroupOperationsRepository(this.context);
+    this.recordReplacementAttendance =
+      groupOperations.recordReplacementAttendance;
+    this.updateGroupSessionProfessional =
+      groupOperations.updateGroupSessionProfessional;
     this.patients = createPatientsRepository(this.context);
     this.reports = createReportsRepository(this.context);
     this.plans = createPlansRepository(this.context);
     this.clinical = createClinicalRepository(this.context);
+    this.saveAssessmentTemplate = createAssessmentOperationsRepository(
+      this.context,
+    ).saveAssessmentTemplate;
+    const clinicalResources = createClinicalResourcesRepository(this.context);
+    this.listClinicalResources = clinicalResources.listClinicalResources;
+    this.listClinicalSources = clinicalResources.listClinicalSources;
+    this.saveClinicalResource = clinicalResources.saveClinicalResource;
+    this.finalizeClinicalResource = clinicalResources.finalizeClinicalResource;
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
     this.contracts = createContractsRepository(this.context);
+    const signatures = createDocumentSignaturesRepository(this.context);
+    this.recordDocumentSignature = signatures.recordDocumentSignature;
+    this.getDocumentSignatureContent = signatures.getDocumentSignatureContent;
 
+    this.revokeUserSessions = this.administration.revokeUserSessions;
     this.findUserByEmail = this.administration.findUserByEmail;
     this.findUserById = this.administration.findUserById;
     this.listAdminUsers = this.administration.listAdminUsers;
@@ -128,9 +253,9 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createGroupEnrollment = this.agenda.createGroupEnrollment;
     this.cancelGroupEnrollment = this.agenda.cancelGroupEnrollment;
     this.listGroupSessions = this.agenda.listGroupSessions;
-    this.recordGroupAttendance = this.agenda.recordGroupAttendance;
+    this.recordGroupAttendance = groupOperations.recordGroupAttendance;
     this.completeGroupSession = this.agenda.completeGroupSession;
-    this.bookReplacement = this.agenda.bookReplacement;
+    this.bookReplacement = groupOperations.bookReplacement;
     this.updateAppointmentStatus = this.agenda.updateAppointmentStatus;
     this.getPatientTimeline = this.patients.getPatientTimeline;
     this.listPatients = this.patients.listPatients;
@@ -179,12 +304,14 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
     this.createLead = this.commercial.createLead;
+    this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
     this.convertLead = this.commercial.convertLead;
     this.getLeadActivity = this.commercial.getLeadActivity;
     this.createLeadContact = this.commercial.createLeadContact;
     this.createLeadTask = this.commercial.createLeadTask;
     this.updateLeadTaskStatus = this.commercial.updateLeadTaskStatus;
+    this.completeManualMessage = this.communications.completeManualMessage;
     this.getCommunicationCenter = this.communications.getCommunicationCenter;
     this.setCommunicationPreference =
       this.communications.setCommunicationPreference;
@@ -695,6 +822,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createCommercialRepository
   >["listLeads"];
 
+  readonly updateLead: ClinicRepository["updateLead"];
   readonly createLead: ReturnType<
     typeof createCommercialRepository
   >["createLead"];

@@ -243,61 +243,75 @@ export function createRelationshipRepository(
       actorUserId: string,
       input: SatisfactionSurveyInput,
     ) {
-      const patient = await repositoryContext.pool.query<{ fullName: string }>(
-        `SELECT full_name AS "fullName" FROM patients
+      return repositoryContext.inTransaction(async (client) => {
+        const patient = await client.query<{ fullName: string }>(
+          `SELECT full_name AS "fullName" FROM patients
        WHERE id = $1 AND clinic_id = $2`,
-        [input.patientId, clinicId],
-      );
-      if (!patient.rows[0])
-        throw new DomainError(
-          "PATIENT_NOT_FOUND",
-          "Cliente não encontrado.",
-          404,
+          [input.patientId, clinicId],
         );
-      if (input.appointmentId) {
-        const appointment = await repositoryContext.pool.query<{
-          patientId: string | null;
-          status: string;
-        }>(
-          `SELECT patient_id AS "patientId", status FROM appointments
-         WHERE id = $1 AND clinic_id = $2`,
-          [input.appointmentId, clinicId],
-        );
-        const found = appointment.rows[0];
-        if (!found)
+        if (!patient.rows[0])
           throw new DomainError(
-            "APPOINTMENT_NOT_FOUND",
-            "Atendimento não encontrado.",
+            "PATIENT_NOT_FOUND",
+            "Cliente não encontrado.",
             404,
           );
-        if (!found.patientId)
-          throw new DomainError(
-            "LEAD_APPOINTMENT_NOT_ALLOWED",
-            "Atendimento de lead não tem pesquisa de satisfação. Converta o lead em cliente primeiro.",
-            409,
+        if (input.appointmentId) {
+          const appointment = await client.query<{
+            patientId: string | null;
+            status: string;
+          }>(
+            `SELECT patient_id AS "patientId", status FROM appointments
+         WHERE id = $1 AND clinic_id = $2`,
+            [input.appointmentId, clinicId],
           );
-        if (found.patientId !== input.patientId)
+          const found = appointment.rows[0];
+          if (!found)
+            throw new DomainError(
+              "APPOINTMENT_NOT_FOUND",
+              "Atendimento não encontrado.",
+              404,
+            );
+          if (!found.patientId)
+            throw new DomainError(
+              "LEAD_APPOINTMENT_NOT_ALLOWED",
+              "Atendimento de lead não tem pesquisa de satisfação. Converta o lead em cliente primeiro.",
+              409,
+            );
+          if (found.patientId !== input.patientId)
+            throw new DomainError(
+              "SATISFACTION_APPOINTMENT_MISMATCH",
+              "O atendimento não pertence a este cliente.",
+            );
+          if (found.status !== "completed")
+            throw new DomainError(
+              "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
+              "Só é possível avaliar atendimentos concluídos.",
+            );
+        }
+        if (
+          input.sourceMessageId &&
+          !(
+            await client.query(
+              "SELECT id FROM outbound_messages WHERE clinic_id=$1 AND id=$2 AND patient_id=$3 AND kind='satisfaction_followup' FOR SHARE",
+              [clinicId, input.sourceMessageId, input.patientId],
+            )
+          ).rowCount
+        )
           throw new DomainError(
-            "SATISFACTION_APPOINTMENT_MISMATCH",
-            "O atendimento não pertence a este cliente.",
+            "SATISFACTION_MESSAGE_MISMATCH",
+            "A solicitação de NPS não pertence a este cliente.",
+            404,
           );
-        if (found.status !== "completed")
-          throw new DomainError(
-            "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
-            "Só é possível avaliar atendimentos concluídos.",
-          );
-      }
-      try {
-        const result =
-          await repositoryContext.pool.query<SatisfactionSurveyRow>(
+        try {
+          const result = await client.query<SatisfactionSurveyRow>(
             `WITH inserted AS (
            INSERT INTO satisfaction_surveys (
-             clinic_id, patient_id, appointment_id, score, comment, actor_user_id
-           ) VALUES ($1, $2, $3, $4, $5, $6)
+             clinic_id, patient_id, appointment_id, score, comment, actor_user_id,source_message_id
+           ) VALUES ($1, $2, $3, $4, $5, $6,$7)
            RETURNING *
          )
          SELECT ${satisfactionSurveyColumns}
-         FROM inserted s JOIN patients p ON p.id = s.patient_id`,
+         FROM inserted s JOIN patients p ON p.id = s.patient_id AND p.clinic_id=s.clinic_id`,
             [
               clinicId,
               input.patientId,
@@ -305,18 +319,20 @@ export function createRelationshipRepository(
               input.score,
               input.comment || null,
               actorUserId,
+              input.sourceMessageId ?? null,
             ],
           );
-        return mapSatisfactionSurvey(result.rows[0]!);
-      } catch (error) {
-        if (hasDatabaseCode(error, "23505"))
-          throw new DomainError(
-            "SATISFACTION_DUPLICATE",
-            "Este atendimento já possui pesquisa de satisfação.",
-            409,
-          );
-        throw error;
-      }
+          return mapSatisfactionSurvey(result.rows[0]!);
+        } catch (error) {
+          if (hasDatabaseCode(error, "23505"))
+            throw new DomainError(
+              "SATISFACTION_DUPLICATE",
+              "Este atendimento já possui pesquisa de satisfação.",
+              409,
+            );
+          throw error;
+        }
+      });
     },
 
     async listSatisfactionSurveys(

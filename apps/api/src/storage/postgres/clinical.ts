@@ -1,3 +1,4 @@
+import { validateClinicalAnswers } from "../../modules/clinical/clinical-integrity.js";
 import type {
   AssessmentField,
   AssessmentTemplateInput,
@@ -63,7 +64,7 @@ export function createClinicalRepository(
         JOIN patients p ON p.id = cr.patient_id
         JOIN professionals pr ON pr.id = cr.professional_id
         JOIN users u ON u.id = cr.author_user_id
-        WHERE cr.clinic_id = $1 AND ($2::uuid IS NULL OR cr.patient_id = $2)
+        WHERE cr.clinic_id = $1 AND ($2::uuid IS NULL OR cr.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2)))
         ORDER BY a.starts_at DESC
       `,
         [clinicId, patientId ?? null],
@@ -297,7 +298,7 @@ export function createClinicalRepository(
         repositoryContext.operations.listClinicalRecords(clinicId, patientId),
         repositoryContext.pool.query<AssessmentTemplateRow>(
           `SELECT id, clinic_id AS "clinicId", name, specialty, fields, version,
-                  active, created_at AS "createdAt"
+                  active,status,family_id AS "familyId", created_at AS "createdAt"
            FROM assessment_templates
            WHERE clinic_id = $1 AND active ORDER BY name, version DESC`,
           [clinicId],
@@ -310,7 +311,7 @@ export function createClinicalRepository(
            FROM clinical_assessments ca
            JOIN assessment_templates at ON at.id = ca.template_id
            JOIN users u ON u.id = ca.author_user_id
-           WHERE ca.clinic_id = $1 AND ca.patient_id = $2
+           WHERE ca.clinic_id = $1 AND ca.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
            ORDER BY ca.created_at DESC`,
           [clinicId, patientId],
         ),
@@ -322,7 +323,7 @@ export function createClinicalRepository(
                   tg.achieved_at AS "achievedAt", u.full_name AS "authorName",
                   tg.created_at AS "createdAt", tg.updated_at AS "updatedAt"
            FROM therapeutic_goals tg JOIN users u ON u.id = tg.author_user_id
-           WHERE tg.clinic_id = $1 AND tg.patient_id = $2
+           WHERE tg.clinic_id = $1 AND tg.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
            ORDER BY tg.created_at DESC`,
           [clinicId, patientId],
         ),
@@ -332,7 +333,7 @@ export function createClinicalRepository(
                   cm.measured_at AS "measuredAt", cm.notes,
                   u.full_name AS "authorName", cm.created_at AS "createdAt"
            FROM clinical_measurements cm JOIN users u ON u.id = cm.author_user_id
-           WHERE cm.clinic_id = $1 AND cm.patient_id = $2
+           WHERE cm.clinic_id = $1 AND cm.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
            ORDER BY cm.measured_at DESC`,
           [clinicId, patientId],
         ),
@@ -342,17 +343,17 @@ export function createClinicalRepository(
                   tc.occurred_at AS "occurredAt", u.full_name AS "authorName",
                   tc.created_at AS "createdAt"
            FROM treatment_closures tc JOIN users u ON u.id = tc.author_user_id
-           WHERE tc.clinic_id = $1 AND tc.patient_id = $2
+           WHERE tc.clinic_id = $1 AND tc.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
            ORDER BY tc.occurred_at DESC`,
           [clinicId, patientId],
         ),
         repositoryContext.pool.query<ClinicalAttachmentRow>(
           `SELECT ca.id, ca.clinic_id AS "clinicId", ca.patient_id AS "patientId",
                 ca.file_name AS "fileName", ca.mime_type AS "mimeType",
-                ca.size_in_bytes AS "sizeInBytes", ca.sha256, ca.notes,
+                ca.size_in_bytes AS "sizeInBytes",ca.duration_in_seconds AS "durationInSeconds", ca.sha256, ca.notes,
                 u.full_name AS "authorName", ca.created_at AS "createdAt"
          FROM clinical_attachments ca JOIN users u ON u.id = ca.author_user_id
-         WHERE ca.clinic_id = $1 AND ca.patient_id = $2
+         WHERE ca.clinic_id = $1 AND ca.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
          ORDER BY ca.created_at DESC`,
           [clinicId, patientId],
         ),
@@ -361,7 +362,7 @@ export function createClinicalRepository(
                 ca.clinical_record_id AS "clinicalRecordId", ca.reason,
                 ca.content, u.full_name AS "authorName", ca.created_at AS "createdAt"
          FROM clinical_addenda ca JOIN users u ON u.id = ca.author_user_id
-         WHERE ca.clinic_id = $1 AND ca.patient_id = $2
+         WHERE ca.clinic_id = $1 AND ca.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
          ORDER BY ca.created_at DESC`,
           [clinicId, patientId],
         ),
@@ -424,7 +425,7 @@ export function createClinicalRepository(
       }>(
         `SELECT at.fields, at.name AS "templateName"
        FROM assessment_templates at
-       WHERE at.clinic_id = $1 AND at.id = $2 AND at.active
+       WHERE at.clinic_id = $1 AND at.id = $2 AND at.active AND at.status='published'
          AND EXISTS (SELECT 1 FROM patients p WHERE p.clinic_id = $1 AND p.id = $3)
          AND EXISTS (SELECT 1 FROM users u WHERE u.clinic_id = $1 AND u.id = $4)
          AND ($5::uuid IS NULL OR EXISTS (
@@ -445,35 +446,7 @@ export function createClinicalRepository(
           "Cliente, modelo, atendimento ou autor não encontrado.",
           404,
         );
-      for (const field of context.rows[0].fields) {
-        const value = input.values[field.key];
-        if (field.required && (value === undefined || value === ""))
-          throw new DomainError(
-            "ASSESSMENT_REQUIRED_FIELD",
-            `Preencha o campo ${field.label}.`,
-          );
-        if (value === undefined || value === "") continue;
-        const expectedType =
-          field.type === "scale"
-            ? "number"
-            : field.type === "text"
-              ? "string"
-              : field.type;
-        if (typeof value !== expectedType)
-          throw new DomainError(
-            "ASSESSMENT_INVALID_VALUE",
-            `O valor de ${field.label} é inválido.`,
-          );
-        if (
-          typeof value === "number" &&
-          ((field.min !== undefined && value < field.min) ||
-            (field.max !== undefined && value > field.max))
-        )
-          throw new DomainError(
-            "ASSESSMENT_VALUE_OUT_OF_RANGE",
-            `O valor de ${field.label} está fora do intervalo permitido.`,
-          );
-      }
+      validateClinicalAnswers(context.rows[0].fields, input.values);
       const result = await repositoryContext.pool.query<ClinicalAssessmentRow>(
         `WITH inserted AS (
          INSERT INTO clinical_assessments
@@ -593,7 +566,7 @@ export function createClinicalRepository(
          WHERE p.clinic_id = $1 AND p.id = $2 AND u.clinic_id = $1 AND u.id = $4
            AND ($3::uuid IS NULL OR EXISTS (
              SELECT 1 FROM therapeutic_goals tg
-             WHERE tg.clinic_id = $1 AND tg.id = $3 AND tg.patient_id = $2
+             WHERE tg.clinic_id = $1 AND tg.id = $3 AND tg.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))
            ))
          RETURNING *
        )
@@ -672,14 +645,14 @@ export function createClinicalRepository(
           `WITH inserted AS (
            INSERT INTO clinical_attachments
              (clinic_id, patient_id, author_user_id, file_name, mime_type,
-              size_in_bytes, content, sha256, notes)
-           SELECT $1,p.id,u.id,$4,$5,$6,$7,$8,$9 FROM patients p, users u
+              size_in_bytes, content, sha256, notes, duration_in_seconds)
+           SELECT $1,p.id,u.id,$4,$5,$6,$7,$8,$9,$10 FROM patients p, users u
            WHERE p.clinic_id = $1 AND p.id = $2 AND u.clinic_id = $1 AND u.id = $3
            RETURNING *
          )
          SELECT i.id, i.clinic_id AS "clinicId", i.patient_id AS "patientId",
                 i.file_name AS "fileName", i.mime_type AS "mimeType",
-                i.size_in_bytes AS "sizeInBytes", i.sha256, i.notes,
+                i.size_in_bytes AS "sizeInBytes",i.duration_in_seconds AS "durationInSeconds", i.sha256, i.notes,
                 u.full_name AS "authorName", i.created_at AS "createdAt"
          FROM inserted i JOIN users u ON u.id = i.author_user_id`,
           [
@@ -692,6 +665,7 @@ export function createClinicalRepository(
             inspected.content,
             inspected.sha256,
             input.notes || null,
+            input.durationInSeconds ?? null,
           ],
         );
         if (!result.rows[0])
@@ -727,7 +701,7 @@ export function createClinicalRepository(
       const result = await repositoryContext.pool.query<ClinicalAttachmentRow>(
         `SELECT ca.id, ca.clinic_id AS "clinicId", ca.patient_id AS "patientId",
               ca.file_name AS "fileName", ca.mime_type AS "mimeType",
-              ca.size_in_bytes AS "sizeInBytes", ca.content, ca.sha256, ca.notes,
+              ca.size_in_bytes AS "sizeInBytes",ca.duration_in_seconds AS "durationInSeconds", ca.content, ca.sha256, ca.notes,
               u.full_name AS "authorName", ca.created_at AS "createdAt"
        FROM clinical_attachments ca JOIN users u ON u.id = ca.author_user_id
        WHERE ca.clinic_id = $1 AND ca.id = $2`,
@@ -822,7 +796,7 @@ export function createClinicalRepository(
               entity_type AS "entityType", entity_id AS "entityId",
               created_at AS "createdAt"
        FROM clinical_access_events
-       WHERE clinic_id = $1 AND patient_id = $2 ORDER BY created_at DESC`,
+       WHERE clinic_id = $1 AND patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2)) ORDER BY created_at DESC`,
         [clinicId, patientId],
       );
       return result.rows.map(mapClinicalAccessEvent);

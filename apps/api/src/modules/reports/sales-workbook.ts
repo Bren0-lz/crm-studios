@@ -99,7 +99,7 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     const row = sales.addRow({
       date: new Date(item.occurredAt),
       kind: item.kind === "sale" ? "Venda" : "Cancelamento",
-      type: item.sourceType === "plan" ? "Plano/serviço" : "Produto",
+      type: item.sourceType === "product" ? "Produto" : "Plano/serviço",
       patient: item.patientName,
       item: item.itemName,
       quantity: item.quantity,

@@ -55,7 +55,7 @@ export function createReportsRepository(
     ): Promise<SalesReport> {
       const sales: SaleMovement[] = [];
       for (const plan of repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId,
+        (item) => item.clinicId === clinicId && !item.sourceTabId,
       )) {
         const base = {
           sourceId: plan.id,
@@ -86,10 +86,23 @@ export function createReportsRepository(
       for (const tab of repositoryContext.patientTabs.filter(
         (item) => item.clinicId === clinicId && item.closedAt,
       )) {
-        for (const item of tab.items) {
+        const items = [
+          ...tab.items.map((item) => ({
+            ...item,
+            sourceType: "product" as const,
+          })),
+          ...(tab.services ?? []).map((item) => ({
+            id: item.id,
+            productName: item.serviceName,
+            quantity: 1,
+            totalInCents: item.amountInCents,
+            sourceType: "service" as const,
+          })),
+        ];
+        for (const item of items) {
           const base = {
             sourceId: tab.id,
-            sourceType: "product" as const,
+            sourceType: item.sourceType,
             patientId: tab.patientId,
             patientName: tab.patientName,
             itemName: item.productName,

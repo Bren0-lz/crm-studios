@@ -1,4 +1,6 @@
 import type {
+  DocumentSignatureInput,
+  DocumentSignatureContent,
   DocumentStatus,
   DocumentTemplate,
   DocumentTemplateInput,
@@ -8,6 +10,13 @@ import type {
 import { request } from "../transport";
 
 export const contractsApi = {
+  recordDocumentSignature: (id: string, input: DocumentSignatureInput) =>
+    request<IssuedDocument>(`/documents/${id}/signature`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  documentSignatureContent: (id: string) =>
+    request<DocumentSignatureContent>(`/documents/${id}/signature/content`),
   documentTemplates: () => request<DocumentTemplate[]>("/document-templates"),
   createDocumentTemplate: (input: DocumentTemplateInput) =>
     request<DocumentTemplate>("/document-templates", {

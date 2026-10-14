@@ -1,4 +1,11 @@
-import { type Patient, formatPhone } from "@crm/contracts";
+import { PatientProfileFilters } from "./PatientProfileFilters";
+import { InventoryPanel } from "./InventoryPanel";
+import { PatientManagementModal } from "./PatientManagementModal";
+import {
+  type Patient,
+  type PatientSegmentSummary,
+  formatPhone,
+} from "@crm/contracts";
 import {
   ChevronLeft,
   ChevronRight,
@@ -38,7 +45,11 @@ import { PatientNextSteps } from "./PatientNextSteps";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
 export function PatientsPage() {
-  const { can, canEdit } = useAuthorization();
+  const { can, canEdit, user } = useAuthorization();
+  const [management, setManagement] = useState<"merge" | "inactive" | null>(
+    null,
+  );
+  const [segments, setSegments] = useState<PatientSegmentSummary[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -92,7 +103,7 @@ export function PatientsPage() {
     };
   }, []);
 
-  const visiblePatients = filterPatients(patients, filters);
+  const visiblePatients = filterPatients(patients, filters, segments);
   const pageCount = Math.max(
     1,
     Math.ceil(visiblePatients.length / patientsPerPage),
@@ -110,7 +121,8 @@ export function PatientsPage() {
     (filters.status !== "all" ? 1 : 0) +
     (filters.record !== "all" ? 1 : 0) +
     (filters.withoutGroup ? 1 : 0) +
-    filters.tags.length;
+    filters.tags.length +
+    Object.values(filters.profile).filter(Boolean).length;
   // Toda mudança de filtro ou ordenação volta para a primeira página.
   function updateFilters(update: (current: typeof filters) => typeof filters) {
     setFilters(update);
@@ -139,12 +151,40 @@ export function PatientsPage() {
 
   return (
     <>
+      {management && (
+        <PatientManagementModal
+          mode={management}
+          patients={patients}
+          onClose={() => setManagement(null)}
+          onSaved={(message) => {
+            setManagement(null);
+            setNotice(message);
+            void load(appliedSearch);
+          }}
+        />
+      )}
       <PageHeader
         eyebrow="Base clínica"
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
           <div className="page-actions">
+            {user?.role === "admin" && (
+              <>
+                <button
+                  className="secondary-button"
+                  onClick={() => setManagement("merge")}
+                >
+                  Mesclar clientes
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => setManagement("inactive")}
+                >
+                  Inativar antigos
+                </button>
+              </>
+            )}
             {canManage && can("patients.import") && (
               <button
                 className="secondary-button"
@@ -227,6 +267,14 @@ export function PatientsPage() {
         </div>
         {filtersOpen && (
           <div className="patient-filters" id="patient-filters">
+            <PatientProfileFilters
+              patients={patients}
+              value={filters.profile}
+              onSegments={setSegments}
+              onChange={(profile) =>
+                updateFilters((current) => ({ ...current, profile }))
+              }
+            />
             <div className="filter-group">
               <span className="filter-label" id="patient-status-filter">
                 Situação
@@ -427,6 +475,13 @@ export function PatientsPage() {
                         )}
                       </>
                     )}
+                    <Link
+                      className="secondary-button"
+                      to={`/clientes/${patient.id}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Detalhes
+                    </Link>
                     {patient.tags.length ? (
                       patient.tags
                         .slice(0, 2)
@@ -533,6 +588,7 @@ export function PatientsPage() {
           onClose={() => setExportOpen(false)}
         />
       )}
+      <InventoryPanel />
     </>
   );
 }

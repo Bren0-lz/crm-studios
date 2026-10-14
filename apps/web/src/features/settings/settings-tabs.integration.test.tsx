@@ -84,6 +84,7 @@ describe("settings tabs", () => {
       "Planos",
       "Feriados",
       "Etiquetas",
+      "Cadastros",
       "Relacionamento",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
@@ -232,6 +233,7 @@ describe("settings tabs", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Planos",
       "Etiquetas",
+      "Cadastros",
       "Relacionamento",
     ]);
     expect(fetched("/relationship/settings")).toBe(false);

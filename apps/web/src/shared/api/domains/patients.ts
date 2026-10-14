@@ -1,6 +1,8 @@
+import type { PatientMergeInput, PatientMergePreview } from "@crm/contracts";
 import type {
   GuidedPatientInput,
   GuidedPatientResult,
+  PatientSegmentSummary,
   Patient,
   PatientImportAnalysis,
   PatientImportFileInput,
@@ -19,6 +21,37 @@ import {
 import { request, requestBlob } from "../transport";
 
 export const patientsApi = {
+  patientSegments: () => request<PatientSegmentSummary[]>("/patients/segments"),
+  emergencyContact: (id: string) =>
+    request<{ name: string; phone: string }>(
+      `/patients/${id}/emergency-contact`,
+    ),
+  patient: (id: string) => request<Patient>(`/patients/${id}`),
+  setPatientStatus: (id: string, status: Patient["status"]) =>
+    request<Patient>(`/patients/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  previewInactivePatients: (months: number) =>
+    request<Patient[]>("/patients/inactivation/preview", {
+      method: "POST",
+      body: JSON.stringify({ months }),
+    }),
+  inactivatePatients: (months: number, patientIds: string[]) =>
+    request<{ changed: number; skipped: number }>("/patients/inactivation", {
+      method: "POST",
+      body: JSON.stringify({ months, patientIds }),
+    }),
+  previewPatientMerge: (sourceId: string, targetId: string) =>
+    request<PatientMergePreview>("/patients/merge/preview", {
+      method: "POST",
+      body: JSON.stringify({ sourceId, targetId }),
+    }),
+  mergePatients: (input: PatientMergeInput) =>
+    request<Patient>("/patients/merge", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   /** `withoutGroup`: só assinantes sem turma vinculada (filtro calculado na API). */
   patients: (search = "", options: { withoutGroup?: boolean } = {}) =>
     request<Patient[]>(

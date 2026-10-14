@@ -54,6 +54,8 @@ export type ReplacementBookingInput = z.infer<
  * repete o nome do lead (`leadName`) para a agenda exibir o nome sem ramificar.
  */
 export interface Appointment extends Omit<AppointmentInput, "patientId"> {
+  predecessorId?: string;
+  absenceReason?: string;
   id: string;
   clinicId: string;
   patientId?: string;
@@ -141,6 +143,10 @@ export interface GroupSession {
 }
 
 export interface GroupAttendance {
+  accountingEnabled?: boolean;
+  outcome?:
+    "scheduled" | "present" | "absent" | "excused_absence" | "cancelled";
+  replacementCreditId?: string;
   id: string;
   clinicId: string;
   sessionId: string;

@@ -1,3 +1,4 @@
+import { CatalogInput } from "../../shared/components/CatalogInput";
 import type { Lead, LeadActivity, LeadContactInput } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
@@ -241,6 +242,14 @@ export function LeadActivityModal({
                   <option value="note">Nota interna</option>
                 </select>
               </label>
+              <CatalogInput
+                kind="lead_channel"
+                label="Forma de contato"
+                value={contact.contactMethod ?? ""}
+                onChange={(value) =>
+                  setContact({ ...contact, contactMethod: value })
+                }
+              />
               <label>
                 Direção
                 <select
@@ -286,7 +295,18 @@ export function LeadActivityModal({
                     {new Date(item.occurredAt).toLocaleString("pt-BR")}
                   </span>
                 </div>
-                <span>{item.channel}</span>
+                <span>
+                  {item.contactMethod ||
+                    (
+                      {
+                        phone: "Telefone",
+                        whatsapp: "WhatsApp",
+                        email: "E-mail",
+                        in_person: "Presencial",
+                        note: "Nota interna",
+                      } as const
+                    )[item.channel]}
+                </span>
               </article>
             ))}
           </div>

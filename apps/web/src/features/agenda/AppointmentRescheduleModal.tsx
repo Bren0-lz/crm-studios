@@ -33,7 +33,13 @@ export function AppointmentRescheduleModal({
     setError("");
     try {
       onSaved(
-        await api.rescheduleAppointment(appointment.id, {
+        await (
+          ["no_show", "excused_absence", "professional_absence"].includes(
+            appointment.status,
+          )
+            ? api.createAbsenceSuccessor
+            : api.rescheduleAppointment
+        )(appointment.id, {
           professionalId: form.professionalId,
           roomId: form.roomId,
           startsAt: new Date(form.startsAt).toISOString(),
@@ -50,7 +56,13 @@ export function AppointmentRescheduleModal({
   return (
     <Modal
       title="Reagendar atendimento"
-      subtitle={`${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`}
+      subtitle={
+        ["no_show", "excused_absence", "professional_absence"].includes(
+          appointment.status,
+        )
+          ? `${appointment.patientName} · ${appointment.serviceName}. Será criado outro atendimento, preservando esta ausência.`
+          : `${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`
+      }
       busy={loading}
       onClose={onClose}
     >

@@ -53,6 +53,7 @@ export function ClinicSettingsContent() {
       setSettings(saved);
       setSavedSettings(saved);
       setNotice("Dados da clínica salvos.");
+      window.dispatchEvent(new Event("crm:branding-updated"));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -99,6 +100,56 @@ export function ClinicSettingsContent() {
         >
           <fieldset disabled={saving} className="settings-fieldset">
             <legend>Identificação</legend>
+            <label>
+              Logotipo
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                disabled={saving}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setError("");
+                  try {
+                    if (
+                      file.size > 2 * 1024 * 1024 ||
+                      !["image/png", "image/jpeg"].includes(file.type)
+                    )
+                      throw new Error("Use PNG ou JPEG de até 2 MB.");
+                    const result = await new Promise<string>(
+                      (resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(String(reader.result));
+                        reader.onerror = () =>
+                          reject(new Error("Não foi possível ler o logotipo."));
+                        reader.readAsDataURL(file);
+                      },
+                    );
+                    setSettings((current) =>
+                      current ? { ...current, logoDataUrl: result } : current,
+                    );
+                  } catch (cause) {
+                    setError((cause as Error).message);
+                  }
+                }}
+              />
+            </label>
+            {settings.logoDataUrl && (
+              <div>
+                <img
+                  className="clinic-logo-preview"
+                  src={settings.logoDataUrl}
+                  alt="Logotipo da clínica"
+                />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setSettings({ ...settings, logoDataUrl: "" })}
+                >
+                  Remover logotipo
+                </button>
+              </div>
+            )}
             <p className="muted-copy">
               Informações utilizadas nos documentos da clínica.
             </p>

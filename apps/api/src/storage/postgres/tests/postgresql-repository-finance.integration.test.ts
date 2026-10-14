@@ -1184,7 +1184,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       const second = await repository.generateCommissions(clinicId, "2097-05");
       expect(
         second.filter((item) =>
-          [beforeUserRule, withUserRule, unlinked].includes(item.appointmentId),
+          Boolean(
+            item.appointmentId &&
+            [beforeUserRule, withUserRule, unlinked].includes(
+              item.appointmentId,
+            ),
+          ),
         ),
       ).toHaveLength(3);
       expect(second).toHaveLength(first.length);

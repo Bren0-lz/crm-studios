@@ -1,3 +1,5 @@
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import {
   type PatientOption,
   type PatientPlan,
@@ -21,6 +23,7 @@ import { SessionMovementsModal } from "./SessionMovementsModal";
 
 export function PlansPage({ canManage }: { canManage: boolean }) {
   const { can } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const [plans, setPlans] = useState<PatientPlan[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -93,6 +96,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
 
   return (
     <>
+      <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         eyebrow="Jornada contratada"
         title="Planos e sessões"
@@ -153,136 +157,151 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
           />
         ) : (
           <div className="plans-grid">
-            {plans.map((plan) => {
-              const used = plan.totalSessions - plan.remainingSessions;
-              const percent = Math.min(
-                100,
-                Math.round((used / plan.totalSessions) * 100),
-              );
-              return (
-                <article className="plan-card" key={plan.id}>
-                  <div className="plan-card-head">
-                    <span className={`status-pill ${plan.status}`}>
-                      {plan.status === "active"
-                        ? "Ativo"
-                        : plan.status === "paused"
-                          ? "Pausado"
-                          : plan.status === "expired"
-                            ? "Expirado"
-                            : "Cancelado"}
-                    </span>
-                    <span>{planKindLabels[plan.kind]}</span>
-                  </div>
-                  <h3>{plan.patientName}</h3>
-                  <p>
-                    {plan.name} · {plan.serviceName}
-                  </p>
-                  <div className="balance-line">
-                    <strong>{plan.remainingSessions}</strong>
-                    <span>de {plan.totalSessions} sessões restantes</span>
-                  </div>
-                  {plan.services.map((entry) => (
-                    <p key={entry.serviceId}>
-                      {entry.serviceName}: {entry.remainingSessions} de{" "}
-                      {entry.totalSessions} sessões ·{" "}
-                      {currency.format(entry.totalValueInCents / 100)}
-                    </p>
-                  ))}
-                  <div className="progress-track">
-                    <span style={{ width: `${percent}%` }} />
-                  </div>
-                  <div className="plan-meta">
-                    <span>Validade</span>
-                    <strong>
-                      {shortDate.format(new Date(`${plan.validFrom}T12:00:00`))}
-                      {plan.validUntil
-                        ? ` — ${shortDate.format(new Date(`${plan.validUntil}T12:00:00`))}`
-                        : " · contínuo"}
-                    </strong>
-                  </div>
-                  {plan.status !== "cancelled" && (
-                    <div className="plan-meta plan-renewal">
-                      <span>Renovação</span>
-                      <strong>{planRenewalLabel(plan)}</strong>
-                      {can("plans.auto_renew") &&
-                        plan.validUntil &&
-                        !plan.renewedByPlanId &&
-                        plan.status !== "expired" && (
-                          <label className="plan-auto-renew">
-                            <input
-                              type="checkbox"
-                              checked={plan.autoRenew}
-                              onChange={() => void toggleAutoRenew(plan)}
-                            />
-                            Renovar automaticamente
-                          </label>
-                        )}
+            {plans
+              .filter(
+                (plan) =>
+                  !contextPatientId || plan.patientId === contextPatientId,
+              )
+              .map((plan) => {
+                const used = plan.totalSessions - plan.remainingSessions;
+                const percent = Math.min(
+                  100,
+                  Math.round((used / plan.totalSessions) * 100),
+                );
+                return (
+                  <article className="plan-card" key={plan.id}>
+                    <div className="plan-card-head">
+                      <span className={`status-pill ${plan.status}`}>
+                        {plan.sourceTabId &&
+                        plan.remainingSessions === 0 &&
+                        plan.status === "expired"
+                          ? "Utilizado"
+                          : plan.status === "active"
+                            ? "Ativo"
+                            : plan.status === "paused"
+                              ? "Pausado"
+                              : plan.status === "expired"
+                                ? "Expirado"
+                                : "Cancelado"}
+                      </span>
+                      <span>{planKindLabels[plan.kind]}</span>
                     </div>
-                  )}
-                  <div className="plan-actions">
-                    <button
-                      className="secondary-button button-sm"
-                      onClick={() => setMovementPlan(plan)}
-                    >
-                      <FileClock size={15} />
-                      Extrato
-                    </button>
-                    {canManage &&
-                      plan.status !== "cancelled" &&
-                      !plan.renewedByPlanId &&
-                      can("plans.renew") && (
-                        <button
-                          className="secondary-button button-sm"
-                          onClick={() => setRenewingPlan(plan)}
-                        >
-                          <RefreshCw size={15} />
-                          Renovar
-                        </button>
-                      )}
-                    {canManage && plan.status !== "cancelled" && (
-                      <>
-                        {plan.status === "active"
-                          ? can("plans.status") && (
-                              <button
-                                className="secondary-button button-sm"
-                                onClick={() =>
-                                  void changeStatus(plan, "paused")
-                                }
-                              >
-                                <Pause size={15} />
-                                Pausar
-                              </button>
-                            )
-                          : can("plans.status") && (
-                              <button
-                                className="secondary-button button-sm"
-                                onClick={() =>
-                                  void changeStatus(plan, "active")
-                                }
-                              >
-                                <Play size={15} />
-                                Ativar
-                              </button>
-                            )}
-                        {can("plans.cancel") && (
+                    <h3>{plan.patientName}</h3>
+                    <p>
+                      {plan.name} · {plan.serviceName}
+                    </p>
+                    <div className="balance-line">
+                      <strong>{plan.remainingSessions}</strong>
+                      <span>de {plan.totalSessions} sessões restantes</span>
+                    </div>
+                    {plan.services.map((entry) => (
+                      <p key={entry.serviceId}>
+                        {entry.serviceName}: {entry.remainingSessions} de{" "}
+                        {entry.totalSessions} sessões ·{" "}
+                        {currency.format(entry.totalValueInCents / 100)}
+                      </p>
+                    ))}
+                    <div className="progress-track">
+                      <span style={{ width: `${percent}%` }} />
+                    </div>
+                    <div className="plan-meta">
+                      <span>Validade</span>
+                      <strong>
+                        {shortDate.format(
+                          new Date(`${plan.validFrom}T12:00:00`),
+                        )}
+                        {plan.validUntil
+                          ? ` — ${shortDate.format(new Date(`${plan.validUntil}T12:00:00`))}`
+                          : " · contínuo"}
+                      </strong>
+                    </div>
+                    {!plan.sourceTabId && plan.status !== "cancelled" && (
+                      <div className="plan-meta plan-renewal">
+                        <span>Renovação</span>
+                        <strong>{planRenewalLabel(plan)}</strong>
+                        {can("plans.auto_renew") &&
+                          plan.validUntil &&
+                          !plan.renewedByPlanId &&
+                          plan.status !== "expired" && (
+                            <label className="plan-auto-renew">
+                              <input
+                                type="checkbox"
+                                checked={plan.autoRenew}
+                                onChange={() => void toggleAutoRenew(plan)}
+                              />
+                              Renovar automaticamente
+                            </label>
+                          )}
+                      </div>
+                    )}
+                    <div className="plan-actions">
+                      <button
+                        className="secondary-button button-sm"
+                        onClick={() => setMovementPlan(plan)}
+                      >
+                        <FileClock size={15} />
+                        Extrato
+                      </button>
+                      {canManage &&
+                        !plan.sourceTabId &&
+                        plan.status !== "cancelled" &&
+                        !plan.renewedByPlanId &&
+                        can("plans.renew") && (
                           <button
-                            className="danger-button button-sm"
-                            onClick={() => setCancellingPlan(plan)}
+                            className="secondary-button button-sm"
+                            onClick={() => setRenewingPlan(plan)}
                           >
-                            Cancelar
+                            <RefreshCw size={15} />
+                            Renovar
                           </button>
                         )}
-                      </>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+                      {canManage &&
+                        !plan.sourceTabId &&
+                        plan.status !== "cancelled" && (
+                          <>
+                            {plan.status === "active"
+                              ? can("plans.status") && (
+                                  <button
+                                    className="secondary-button button-sm"
+                                    onClick={() =>
+                                      void changeStatus(plan, "paused")
+                                    }
+                                  >
+                                    <Pause size={15} />
+                                    Pausar
+                                  </button>
+                                )
+                              : can("plans.status") && (
+                                  <button
+                                    className="secondary-button button-sm"
+                                    onClick={() =>
+                                      void changeStatus(plan, "active")
+                                    }
+                                  >
+                                    <Play size={15} />
+                                    Ativar
+                                  </button>
+                                )}
+                            {can("plans.cancel") && (
+                              <button
+                                className="danger-button button-sm"
+                                onClick={() => setCancellingPlan(plan)}
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                          </>
+                        )}
+                    </div>
+                  </article>
+                );
+              })}
           </div>
         )}
       </section>
       {modalOpen && (
         <PlanModal
+          fixedPatient={patients.find((item) => item.id === contextPatientId)}
           patients={patients}
           services={services}
           onClose={() => setModalOpen(false)}

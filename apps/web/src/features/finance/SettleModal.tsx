@@ -1,4 +1,4 @@
-import type { PaymentMethod } from "@crm/contracts";
+import type { PaymentTiming, PaymentMethod } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { Modal } from "../../shared/components/Modal";
 import { currency } from "../../shared/lib/formatting";
@@ -12,8 +12,10 @@ export function SettleModal({
 }: {
   target: SettleTarget;
   onClose: () => void;
-  onConfirm: (method: PaymentMethod) => Promise<void>;
+  onConfirm: (method: PaymentMethod, timing?: PaymentTiming) => Promise<void>;
 }) {
+  const [paidAt, setPaidAt] = useState(""),
+    [availableAt, setAvailableAt] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("pix");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +25,17 @@ export function SettleModal({
     setError("");
     setLoading(true);
     try {
-      await onConfirm(method);
+      await onConfirm(
+        method,
+        paidAt || availableAt
+          ? {
+              ...(paidAt ? { paidAt: new Date(paidAt).toISOString() } : {}),
+              ...(availableAt
+                ? { availableAt: new Date(availableAt).toISOString() }
+                : {}),
+            }
+          : undefined,
+      );
     } catch (cause) {
       setError((cause as Error).message);
       setLoading(false);
@@ -54,6 +66,33 @@ export function SettleModal({
             ))}
           </select>
         </label>
+        <details className="span-2">
+          <summary>Datas do pagamento e do caixa</summary>
+          <div className="form-grid">
+            <label>
+              Data e hora do pagamento
+              <input
+                type="datetime-local"
+                value={paidAt}
+                disabled={loading}
+                onChange={(event) => setPaidAt(event.target.value)}
+              />
+            </label>
+            <label>
+              Disponibilidade no caixa
+              <input
+                type="datetime-local"
+                value={availableAt}
+                disabled={loading}
+                onChange={(event) => setAvailableAt(event.target.value)}
+              />
+            </label>
+            <p className="muted-copy">
+              Campos vazios mantêm os padrões do lançamento. O lançamento e o
+              vencimento permanecem independentes.
+            </p>
+          </div>
+        </details>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           <button

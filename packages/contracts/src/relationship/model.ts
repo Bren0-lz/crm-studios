@@ -121,6 +121,7 @@ export const contactActivityInputSchema = z
 
 /** Pesquisa de satisfação (NPS): nota 0–10, opcionalmente ligada a um atendimento concluído. */
 export const satisfactionSurveyInputSchema = z.object({
+  sourceMessageId: z.uuid().optional(),
   patientId: z.uuid(),
   appointmentId: z.uuid().optional(),
   score: z.number().int().min(0).max(10),

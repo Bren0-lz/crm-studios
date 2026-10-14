@@ -1,3 +1,10 @@
+import {
+  type PatientProfileFilter,
+  type PatientSegmentSummary,
+  matchesPatientProfile,
+  matchesPatientSegment,
+  patientProfileLabels,
+} from "@crm/contracts/patients";
 import type {
   GroupClass,
   GuidedPatientNext,
@@ -58,6 +65,7 @@ export function defaultGuidedDemonstration(): GuidedDemonstrationForm {
 }
 
 export const defaultPatientFilters = {
+  profile: {} as PatientProfileFilter,
   status: "all" as PatientStatusFilter,
   record: "all" as PatientRecordFilter,
   tags: [] as string[],
@@ -93,9 +101,18 @@ export function describeImportDuplicate(
 export function filterPatients(
   patients: Patient[],
   filters: typeof defaultPatientFilters,
+  segments: PatientSegmentSummary[] = [],
 ) {
   const currentMonth = new Date().getMonth() + 1;
   return patients
+    .filter(
+      (patient) =>
+        matchesPatientProfile(patient, filters.profile) &&
+        matchesPatientSegment(
+          segments.find((item) => item.patientId === patient.id),
+          filters.profile.segment,
+        ),
+    )
     .filter(
       (patient) =>
         filters.status === "all" || patient.status === filters.status,
@@ -182,6 +199,7 @@ export const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
 };
 
 export const patientExportColumnNames: Record<PatientExportColumn, string> = {
+  ...patientProfileLabels,
   fullName: "Nome",
   recordNumber: "Prontuário",
   cpf: "CPF",

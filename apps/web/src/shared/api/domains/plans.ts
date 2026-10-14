@@ -1,4 +1,6 @@
 import type {
+  PlanPurchaseInput,
+  PlanPurchaseResult,
   PatientPlan,
   PatientPlanInput,
   PlanCatalogEntry,
@@ -13,6 +15,11 @@ import type {
 import { request } from "../transport";
 
 export const plansApi = {
+  purchasePlan: (input: PlanPurchaseInput) =>
+    request<PlanPurchaseResult>("/plans/purchases", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   planCatalog: () => request<PlanCatalogEntry[]>("/plan-catalog"),
   createPlanCatalogEntry: (input: PlanCatalogInput) =>
     request<PlanCatalogEntry>("/plan-catalog", {

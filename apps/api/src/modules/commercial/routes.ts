@@ -1,4 +1,8 @@
+import { z } from "zod";
 import {
+  leadFilterSchema,
+  matchesLead,
+  buildLeadInsights,
   leadContactInputSchema,
   leadInputSchema,
   leadMoveSchema,
@@ -10,9 +14,22 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 export function registerCommercialRoutes(context: RouteContext) {
   const { app, authenticate, repository } = context;
 
-  app.get("/leads", { preHandler: authenticate }, async (request) =>
-    repository.listLeads(request.user.clinicId),
-  );
+  app.get("/leads", { preHandler: authenticate }, async (request) => {
+    const filter = leadFilterSchema.parse(request.query),
+      settings = await repository.getClinicSettings(request.user.clinicId);
+    return (await repository.listLeads(request.user.clinicId)).filter((lead) =>
+      matchesLead(lead, filter, settings?.timezone),
+    );
+  });
+  app.get("/leads/insights", { preHandler: authenticate }, async (request) => {
+    const filter = leadFilterSchema.parse(request.query),
+      settings = await repository.getClinicSettings(request.user.clinicId);
+    return buildLeadInsights(
+      (await repository.listLeads(request.user.clinicId)).filter((lead) =>
+        matchesLead(lead, filter, settings?.timezone),
+      ),
+    );
+  });
 
   app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
     reply
@@ -25,6 +42,25 @@ export function registerCommercialRoutes(context: RouteContext) {
       ),
   );
 
+  app.put(
+    "/leads/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const id = z.object({ id: z.uuid() }).parse(request.params).id;
+      const lead = await repository.updateLead(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        leadInputSchema.parse(request.body),
+      );
+      return (
+        lead ??
+        reply
+          .status(404)
+          .send({ code: "LEAD_NOT_FOUND", message: "Lead não encontrado." })
+      );
+    },
+  );
   app.patch(
     "/leads/:id/stage",
     { preHandler: authenticate },

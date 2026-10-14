@@ -37,7 +37,7 @@ export function AppointmentForm({
   professionals: Professional[];
   rooms: Room[];
   services: Service[];
-  fixedPatient?: PatientOption;
+  fixedPatient?: PatientOption | undefined;
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
   onSubmit: (

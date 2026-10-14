@@ -127,7 +127,7 @@ export function registerClinicalRoutes(context: RouteContext) {
 
   app.post(
     "/clinical-attachments",
-    { preHandler: authenticate },
+    { preHandler: authenticate, bodyLimit: 24 * 1024 * 1024 },
     async (request, reply) =>
       reply
         .status(201)
@@ -174,6 +174,31 @@ export function registerClinicalRoutes(context: RouteContext) {
         ),
   );
 
+  app.post(
+    "/assessment-templates/drafts",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.saveAssessmentTemplate(
+            request.user.clinicId,
+            request.user.sub,
+            assessmentTemplateInputSchema.parse(request.body),
+          ),
+        ),
+  );
+  app.put(
+    "/assessment-templates/:id",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.saveAssessmentTemplate(
+        request.user.clinicId,
+        request.user.sub,
+        assessmentTemplateInputSchema.parse(request.body),
+        (request.params as { id: string }).id,
+      ),
+  );
   app.post(
     "/assessment-templates",
     { preHandler: authenticate },

@@ -1,5 +1,7 @@
 import {
   patientInputSchema,
+  patientProfileLabels,
+  patientProfileValueLabels,
   resolvePatientTags,
   type Patient,
   type PatientImportAnalysis,
@@ -11,6 +13,7 @@ import {
 import ExcelJS from "exceljs";
 
 type ImportField =
+  | keyof typeof patientProfileLabels
   | "fullName"
   | "cpf"
   | "phone"
@@ -21,7 +24,14 @@ type ImportField =
   | "notes";
 
 /** Cabeçalhos aceitos, já normalizados (minúsculas, sem acentos, só letras e números). */
-const headerSynonyms: Record<ImportField, readonly string[]> = {
+const profileHeaderSynonyms = Object.fromEntries(
+  Object.entries(patientProfileLabels).map(([key, label]) => [
+    key,
+    [normalizeHeader(key), normalizeHeader(label)],
+  ]),
+);
+const headerSynonyms: Partial<Record<ImportField, readonly string[]>> = {
+  ...profileHeaderSynonyms,
   fullName: [
     "nome",
     "nomecompleto",
@@ -54,6 +64,7 @@ const headerSynonyms: Record<ImportField, readonly string[]> = {
 };
 
 const fieldLabels: Record<ImportField, string> = {
+  ...patientProfileLabels,
   fullName: "nome",
   cpf: "CPF",
   phone: "telefone",
@@ -219,6 +230,8 @@ function parseBirthDate(value: string): string | null {
 
 function issueMessage(field: ImportField): string {
   switch (field) {
+    default:
+      return `${fieldLabels[field]} inválido.`;
     case "fullName":
       return "nome deve ter entre 3 e 160 caracteres.";
     case "cpf":
@@ -329,6 +342,30 @@ export function validatePatientImport(
       .map((tag) => tag.trim())
       .filter((tag) => tag.length > 0);
 
+    for (const key of Object.keys(
+      patientProfileLabels,
+    ) as (keyof typeof patientProfileLabels)[]) {
+      const text = value(key);
+      if (!text) continue;
+      if (key === "interests")
+        raw[key] = text
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      else if (key === "imageConsent")
+        raw[key] = /^(sim|true|1)$/i.test(text)
+          ? true
+          : /^(não|nao|false|0)$/i.test(text)
+            ? false
+            : text;
+      else if (key === "gender" || key === "clientType")
+        raw[key] =
+          Object.entries(patientProfileValueLabels).find(
+            ([, label]) => normalizeHeader(label) === normalizeHeader(text),
+          )?.[0] ?? text;
+      else if (key === "clientSince") raw[key] = parseBirthDate(text) ?? text;
+      else raw[key] = text;
+    }
     const parsed = patientInputSchema.safeParse(raw);
     if (!parsed.success) {
       const fields = new Set<ImportField>();

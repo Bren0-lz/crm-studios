@@ -1,3 +1,6 @@
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
+import { DocumentSignatureActions } from "./DocumentSignatureActions";
 import type {
   DocumentKind,
   DocumentTemplate,
@@ -29,6 +32,7 @@ import { TemplateVersionModal } from "./TemplateVersionModal";
 
 export function DocumentsPage() {
   const { can, canView, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -48,7 +52,7 @@ export function DocumentsPage() {
   });
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
-    patientId: "",
+    patientId: contextPatientId,
     planId: "",
     professionalId: "",
     title: "Contrato de prestação de serviços",
@@ -169,6 +173,7 @@ export function DocumentsPage() {
   const activeTemplates = templates.filter((template) => template.active);
   return (
     <>
+      <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         eyebrow="Formalização"
         title="Contratos"
@@ -420,58 +425,67 @@ export function DocumentsPage() {
               />
             ) : (
               <div className="issued-document-list">
-                {documents.map((item) => (
-                  <article key={item.id}>
-                    <div className="document-summary">
-                      <strong>{item.title}</strong>
-                      <span>
-                        {item.patientName} · {item.templateName} v
-                        {item.templateVersion}
+                {documents
+                  .filter(
+                    (item) =>
+                      !contextPatientId || item.patientId === contextPatientId,
+                  )
+                  .map((item) => (
+                    <article key={item.id}>
+                      <div className="document-summary">
+                        <strong>{item.title}</strong>
+                        <span>
+                          {item.patientName} · {item.templateName} v
+                          {item.templateVersion}
+                        </span>
+                        <details>
+                          <summary>Ver conteúdo preservado</summary>
+                          <pre>{item.snapshotBody}</pre>
+                        </details>
+                      </div>
+                      <span className={`status-pill ${item.status}`}>
+                        {item.status === "draft"
+                          ? "Rascunho"
+                          : item.status === "issued"
+                            ? "Emitido"
+                            : "Cancelado"}
                       </span>
-                      <details>
-                        <summary>Ver conteúdo preservado</summary>
-                        <pre>{item.snapshotBody}</pre>
-                      </details>
-                    </div>
-                    <span className={`status-pill ${item.status}`}>
-                      {item.status === "draft"
-                        ? "Rascunho"
-                        : item.status === "issued"
-                          ? "Emitido"
-                          : "Cancelado"}
-                    </span>
-                    <div className="document-actions">
-                      {item.status === "issued" && (
-                        <button
-                          className="secondary-button button-sm"
-                          onClick={() => setPrinting(item)}
-                        >
-                          <Printer size={15} /> Imprimir
-                        </button>
-                      )}
-                      {canManage &&
-                        item.status === "draft" &&
-                        can("contracts.status") && (
+                      <DocumentSignatureActions
+                        document={item}
+                        onChanged={replaceDocument}
+                      />
+                      <div className="document-actions">
+                        {item.status === "issued" && (
                           <button
-                            className="primary-button button-sm"
-                            onClick={() => void issueDocument(item)}
+                            className="secondary-button button-sm"
+                            onClick={() => setPrinting(item)}
                           >
-                            Emitir
+                            <Printer size={15} /> Imprimir
                           </button>
                         )}
-                      {canManage &&
-                        item.status !== "cancelled" &&
-                        can("contracts.cancel") && (
-                          <button
-                            className="danger-button button-sm"
-                            onClick={() => setCancelling(item)}
-                          >
-                            Cancelar
-                          </button>
-                        )}
-                    </div>
-                  </article>
-                ))}
+                        {canManage &&
+                          item.status === "draft" &&
+                          can("contracts.status") && (
+                            <button
+                              className="primary-button button-sm"
+                              onClick={() => void issueDocument(item)}
+                            >
+                              Emitir
+                            </button>
+                          )}
+                        {canManage &&
+                          item.status !== "cancelled" &&
+                          can("contracts.cancel") && (
+                            <button
+                              className="danger-button button-sm"
+                              onClick={() => setCancelling(item)}
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                      </div>
+                    </article>
+                  ))}
               </div>
             )}
           </section>

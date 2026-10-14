@@ -1,3 +1,6 @@
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
+import { GroupOperationsPanel } from "./GroupOperationsPanel";
 import {
   type GroupClass,
   type GroupWorkspace,
@@ -27,6 +30,7 @@ import { GroupSlotsEditor } from "./GroupSlotsEditor";
 
 export function GroupsPage() {
   const { can, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const weekDayNames = [
     "Domingo",
     "Segunda",
@@ -67,7 +71,7 @@ export function GroupsPage() {
   });
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
-    patientId: enrollPatientId,
+    patientId: enrollPatientId || contextPatientId,
   });
   async function load() {
     setLoading(true);
@@ -157,6 +161,7 @@ export function GroupsPage() {
   }
   return (
     <>
+      <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         eyebrow="Operação coletiva"
         title="Turmas"
@@ -184,6 +189,14 @@ export function GroupsPage() {
           )
         }
       />
+      {workspace && (
+        <GroupOperationsPanel
+          workspace={workspace}
+          professionals={professionals}
+          onChanged={load}
+          initialSessionId={searchParams.get("sessionId") ?? undefined}
+        />
+      )}
       {!canManage && <ReadOnlyNotice module="groups" />}
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (

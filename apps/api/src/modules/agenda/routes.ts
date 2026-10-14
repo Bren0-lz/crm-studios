@@ -184,6 +184,24 @@ export function registerAgendaRoutes(context: RouteContext) {
     },
   );
 
+  app.post(
+    "/appointments/:id/successor",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const input = appointmentRescheduleInputSchema.parse(request.body);
+      await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      return reply
+        .status(201)
+        .send(
+          await repository.createAbsenceSuccessor(
+            request.user.clinicId,
+            request.user.sub,
+            (request.params as { id: string }).id,
+            input,
+          ),
+        );
+    },
+  );
   app.put(
     "/appointments/:id/schedule",
     { preHandler: authenticate },
@@ -229,7 +247,9 @@ export function registerAgendaRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const { status } = appointmentStatusInputSchema.parse(request.body);
+      const { status, absenceReason } = appointmentStatusInputSchema.parse(
+        request.body,
+      );
       assertPermissions(
         request,
         status === "cancelled" ? "agenda.cancel" : "agenda.attendance",
@@ -238,6 +258,7 @@ export function registerAgendaRoutes(context: RouteContext) {
         request.user.clinicId,
         id,
         status,
+        absenceReason,
       );
       if (!appointment)
         return reply.status(404).send({

@@ -1,3 +1,4 @@
+import { CatalogInput } from "../../shared/components/CatalogInput";
 import type { Lead } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
@@ -23,16 +24,15 @@ export function LeadLostModal({
       onConfirm={() => onConfirm(reason.trim())}
       onClose={onClose}
     >
-      <label className="span-2">
-        Motivo da perda
-        <input
-          autoFocus
-          maxLength={500}
-          placeholder="Ex.: achou o valor acima do orçamento"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        />
-      </label>
+      <CatalogInput
+        autoFocus
+        kind="lead_lost_reason"
+        label="Motivo da perda"
+        value={reason}
+        onChange={setReason}
+        required
+        maxLength={500}
+      />
     </ActionModal>
   );
 }

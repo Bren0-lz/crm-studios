@@ -1,4 +1,8 @@
-import type { CommissionEntry } from "@crm/contracts";
+import type {
+  CommissionEntry,
+  Payable,
+  CommissionAdjustment,
+} from "@crm/contracts";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -8,8 +12,14 @@ export function CommissionsList({
   commissions,
   canManage,
   onToggle,
+  payables = [],
+  adjustments = [],
+  onReconcile,
 }: {
   commissions: CommissionEntry[];
+  payables?: Payable[];
+  adjustments?: CommissionAdjustment[];
+  onReconcile?: ((id: string) => void) | undefined;
   canManage: boolean;
   onToggle: (item: CommissionEntry) => void;
 }) {
@@ -33,8 +43,13 @@ export function CommissionsList({
         <span className="finance-actions">Ações</span>
       </div>
       {commissions.map((item) => {
+        const linked = payables.find(
+          (payable) =>
+            payable.commissionId === item.id && payable.status !== "cancelled",
+        );
         const detail = [
           `Competência ${formatCompetence(item.competence)}`,
+          item.groupAttendanceId && "Presença em turma",
           item.paidAt && `paga em ${shortDate.format(new Date(item.paidAt))}`,
         ]
           .filter(Boolean)
@@ -53,7 +68,9 @@ export function CommissionsList({
             </span>
             <span className="finance-due finance-number">
               <span className="finance-label">Percentual </span>
-              {item.percentage}%
+              {item.ruleSnapshot?.kind === "fixed"
+                ? `Fixa: ${currency.format((item.ruleSnapshot.fixedAmountInCents ?? 0) / 100)}`
+                : `${item.percentage}%`}
             </span>
             <strong className="finance-amount cash-out">
               {signedCurrency(-item.amountInCents)}
@@ -64,7 +81,23 @@ export function CommissionsList({
               </span>
             </span>
             <div className="finance-actions">
-              {canManage &&
+              {linked && <span>Baixa pela despesa vinculada</span>}
+              {onReconcile &&
+                (can("finance.commissions_reconcile") ||
+                  adjustments.some(
+                    (entry) => entry.commissionId === item.id,
+                  )) && (
+                  <button
+                    className="secondary-button button-sm"
+                    onClick={() => onReconcile(item.id)}
+                    aria-label={`Conciliar comissão de ${item.professionalName}`}
+                  >
+                    Conciliar comissão
+                  </button>
+                )}
+              {!adjustments.some((entry) => entry.commissionId === item.id) &&
+                !linked &&
+                canManage &&
                 can(
                   item.status === "paid"
                     ? "finance.commissions_reverse"

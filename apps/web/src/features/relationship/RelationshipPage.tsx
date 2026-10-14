@@ -1,3 +1,5 @@
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import {
   type ContactReason,
   type ContactSuggestion,
@@ -21,6 +23,7 @@ import { contactReasonLabels, suggestionKey } from "./model";
 
 export function RelationshipPage() {
   const { can, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const [view, setView] = useState<"suggestions" | "birthdays">("suggestions");
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
@@ -58,6 +61,9 @@ export function RelationshipPage() {
     reasonFilter === "all"
       ? suggestions
       : suggestions.filter((suggestion) => suggestion.reason === reasonFilter);
+  const visibleClients = visible.filter(
+    (item) => !contextPatientId || item.patientId === contextPatientId,
+  );
 
   function messageFor(suggestion: ContactSuggestion) {
     const template = settings?.messages[suggestion.reason] ?? "";
@@ -79,6 +85,14 @@ export function RelationshipPage() {
 
   return (
     <>
+      <PatientContextNotice
+        patientId={contextPatientId}
+        patients={suggestions.map((item) => ({
+          id: item.patientId,
+          fullName: item.patientName,
+          tags: [],
+        }))}
+      />
       <PageHeader
         eyebrow="Central de relacionamento"
         title="Contatos sugeridos"
@@ -157,7 +171,7 @@ export function RelationshipPage() {
             />
           ) : (
             <div className="plans-grid">
-              {visible.map((suggestion) => {
+              {visibleClients.map((suggestion) => {
                 const contactPhone = suggestion.whatsapp || suggestion.phone;
                 return (
                   <article

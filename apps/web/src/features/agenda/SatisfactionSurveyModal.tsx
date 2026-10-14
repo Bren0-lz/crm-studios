@@ -1,4 +1,8 @@
-import type { Appointment, SatisfactionSurvey } from "@crm/contracts";
+import type {
+  Appointment,
+  SatisfactionSurvey,
+  PatientOption,
+} from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -7,11 +11,15 @@ import { Modal } from "../../shared/components/Modal";
 
 export function SatisfactionSurveyModal({
   appointment,
+  patient,
+  sourceMessageId,
   onClose,
   onSaved,
   onDuplicate,
 }: {
-  appointment: Appointment;
+  appointment?: Appointment | undefined;
+  patient?: Pick<PatientOption, "id" | "fullName"> | undefined;
+  sourceMessageId?: string | undefined;
   onClose: () => void;
   onSaved: (survey: SatisfactionSurvey) => void;
   onDuplicate: () => void;
@@ -24,7 +32,7 @@ export function SatisfactionSurveyModal({
   async function save(event: FormEvent) {
     event.preventDefault();
     if (score === null) return;
-    const patientId = appointment.patientId;
+    const patientId = appointment?.patientId ?? patient?.id;
     if (!patientId) {
       setError("Atendimento de lead não tem pesquisa de satisfação.");
       return;
@@ -36,7 +44,8 @@ export function SatisfactionSurveyModal({
       onSaved(
         await api.createSatisfactionSurvey({
           patientId,
-          appointmentId: appointment.id,
+          ...(appointment ? { appointmentId: appointment.id } : {}),
+          ...(sourceMessageId ? { sourceMessageId } : {}),
           score,
           ...(trimmed ? { comment: trimmed } : {}),
         }),
@@ -60,14 +69,18 @@ export function SatisfactionSurveyModal({
   return (
     <Modal
       title="Registrar satisfação"
-      subtitle={appointment.patientName}
+      subtitle={
+        appointment?.patientName ??
+        patient?.fullName ??
+        "Resposta informada à equipe"
+      }
       eyebrow="Pesquisa NPS"
       busy={saving}
       onClose={onClose}
     >
       {can("agenda.satisfaction_create") && (
         <form className="form-grid" onSubmit={(event) => void save(event)}>
-          <fieldset className="span-2 form-fieldset">
+          <fieldset className="span-2 form-fieldset" disabled={saving}>
             <legend>
               De 0 a 10, quanto recomendaria a clínica a um amigo?
             </legend>

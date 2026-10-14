@@ -15,6 +15,7 @@ export type AgendaEntry =
   | { kind: "appointment"; startsAt: string; appointment: Appointment };
 
 export type AppointmentModalProps = {
+  fixedPatient?: PatientOption | undefined;
   patients: PatientOption[];
   professionals: Professional[];
   rooms: Room[];

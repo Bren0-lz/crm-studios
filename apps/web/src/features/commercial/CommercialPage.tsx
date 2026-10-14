@@ -1,3 +1,9 @@
+import { CommercialFilters } from "./CommercialFilters";
+import {
+  matchesLead,
+  buildLeadInsights,
+  type LeadFilter,
+} from "@crm/contracts";
 import { type Lead, type LeadStage, formatPhone } from "@crm/contracts";
 import { CalendarDays, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -22,15 +28,30 @@ import { LeadModal } from "./LeadModal";
 
 export function CommercialPage() {
   const { can, canEdit } = useAuthorization();
+  const [timezone, setTimezone] = useState("America/Sao_Paulo");
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicBranding()
+      .then((branding) => {
+        if (active && branding.timezone) setTimezone(branding.timezone);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
   const [losingLead, setLosingLead] = useState<Lead | null>(null);
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
+  const [filter, setFilter] = useState<LeadFilter>({});
   const canManage = canEdit("crm");
   useEffect(() => {
     let active = true;
@@ -75,9 +96,10 @@ export function CommercialPage() {
     replaceLead(result.lead);
     setConvertingLead(null);
   }
-  const activeLeads = leads.filter(
-    (lead) => !["won", "lost"].includes(lead.stage),
+  const visibleLeads = leads.filter((lead) =>
+    matchesLead(lead, filter, timezone),
   );
+  const insights = buildLeadInsights(visibleLeads);
   return (
     <>
       <PageHeader
@@ -109,32 +131,27 @@ export function CommercialPage() {
         <LoadingBlock />
       ) : (
         <>
+          <CommercialFilters
+            leads={leads}
+            visible={visibleLeads}
+            filter={filter}
+            onChange={setFilter}
+          />
           <section className="commercial-metrics">
             <div>
-              <strong>{activeLeads.length}</strong>
+              <strong>{insights.open}</strong>
               <span>oportunidades abertas</span>
             </div>
             <div>
-              <strong>
-                {leads.filter((lead) => lead.stage === "won").length}
-              </strong>
+              <strong>{insights.won}</strong>
               <span>conversões</span>
             </div>
             <div>
-              <strong>
-                {leads.length
-                  ? Math.round(
-                      (leads.filter((lead) => lead.stage === "won").length /
-                        leads.length) *
-                        100,
-                    )
-                  : 0}
-                %
-              </strong>
+              <strong>{insights.conversionRate}%</strong>
               <span>taxa de conversão</span>
             </div>
           </section>
-          {leads.length === 0 ? (
+          {visibleLeads.length === 0 ? (
             !error && (
               <section className="panel">
                 <EmptyState
@@ -168,16 +185,17 @@ export function CommercialPage() {
                     <strong>{stage.label}</strong>
                     <span>
                       {
-                        leads.filter((lead) => lead.stage === stage.value)
-                          .length
+                        visibleLeads.filter(
+                          (lead) => lead.stage === stage.value,
+                        ).length
                       }
                     </span>
                   </header>
                   <div>
-                    {!leads.some((lead) => lead.stage === stage.value) && (
-                      <p className="kanban-empty-hint">{stage.hint}</p>
-                    )}
-                    {leads
+                    {!visibleLeads.some(
+                      (lead) => lead.stage === stage.value,
+                    ) && <p className="kanban-empty-hint">{stage.hint}</p>}
+                    {visibleLeads
                       .filter((lead) => lead.stage === stage.value)
                       .map((lead) => (
                         <article className="lead-card" key={lead.id}>
@@ -213,6 +231,14 @@ export function CommercialPage() {
                               Atividades
                             </button>
                           </div>
+                          {!lead.convertedPatientId && can("crm.update") && (
+                            <button
+                              className="text-button button-sm"
+                              onClick={() => setEditingLead(lead)}
+                            >
+                              Editar cadastro
+                            </button>
+                          )}
                           {lead.lostReason && (
                             <div className="lost-reason">{lead.lostReason}</div>
                           )}
@@ -274,6 +300,16 @@ export function CommercialPage() {
             </div>
           )}
         </>
+      )}
+      {editingLead && (
+        <LeadModal
+          lead={editingLead}
+          onClose={() => setEditingLead(null)}
+          onCreated={(lead) => {
+            replaceLead(lead);
+            setEditingLead(null);
+          }}
+        />
       )}
       {modalOpen && (
         <LeadModal

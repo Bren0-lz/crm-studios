@@ -1,3 +1,7 @@
+import { registerFinanceOperationRoutes } from "./modules/finance/operation-routes.js";
+import { registerClinicalResourceRoutes } from "./modules/clinical/resource-routes.js";
+import { registerPatientManagementRoutes } from "./modules/patients/management-routes.js";
+import { registerCatalogRoutes } from "./modules/administration/catalog-routes.js";
 import { createRouteContext } from "./infrastructure/route-context.js";
 import type { BuildAppOptions } from "./infrastructure/route-utils.js";
 import { registerAdministrationRoutes } from "./modules/administration/routes.js";
@@ -19,6 +23,7 @@ import { registerReportsRoutes } from "./modules/reports/routes.js";
 export async function buildApp(options: BuildAppOptions) {
   const context = await createRouteContext(options);
   registerAuthRoutes(context);
+  registerCatalogRoutes(context);
   registerAdministrationRoutes(context);
   registerRelationshipRoutes(context);
   registerAgendaRoutes(context);
@@ -26,9 +31,12 @@ export async function buildApp(options: BuildAppOptions) {
   registerDashboardRoutes(context);
   registerPlansRoutes(context);
   registerPatientsRoutes(context);
+  registerPatientManagementRoutes(context);
   registerGroupsRoutes(context);
   registerFinanceRoutes(context);
+  registerFinanceOperationRoutes(context);
   registerClinicalRoutes(context);
+  registerClinicalResourceRoutes(context);
   registerCommercialRoutes(context);
   registerCommunicationsRoutes(context);
   registerContractsRoutes(context);

@@ -32,6 +32,7 @@ import {
   guidedSubmitLabels,
 } from "./model";
 import { PatientTimelineSection } from "./PatientTimelineSection";
+import { PatientProfileFields } from "./PatientProfileFields";
 import type { GuidedPlanForm, GuidedSingleForm } from "./types";
 
 export function PatientModal({
@@ -49,6 +50,7 @@ export function PatientModal({
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<PatientInput>(() => ({
+    ...patient,
     fullName: patient?.fullName ?? "",
     phone: patient?.phone ?? "",
     whatsapp: patient?.whatsapp ?? "",
@@ -260,6 +262,7 @@ export function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
+        <PatientProfileFields form={form} onChange={field} />
         <fieldset className="form-fieldset emergency-fieldset span-2">
           <legend>Contato de emergência</legend>
           <div className="form-fieldset-grid">

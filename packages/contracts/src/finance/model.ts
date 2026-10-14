@@ -7,12 +7,32 @@ import { competenceMonthSchema } from "../common/model.js";
  * `effectiveFrom` e prevalece sobre a regra do profissional (Financeiro); nova vigência cria
  * uma regra nova (o histórico é mantido).
  */
-export const adminUserCommissionInputSchema = z.object({
-  percentage: z.number().min(0).max(100),
-  effectiveFrom: z.iso.date(),
-});
+export const commissionTermsSchema = z
+  .object({
+    kind: z.enum(["percentage", "fixed"]).optional(),
+    serviceId: z.uuid().optional(),
+    fixedAmountInCents: z.number().int().min(0).max(2147483647).optional(),
+    effectiveUntil: z.iso.date().optional(),
+    percentage: z.number().min(0).max(100),
+    effectiveFrom: z.iso.date(),
+  })
+  .refine(
+    (value) => value.kind !== "fixed" || value.fixedAmountInCents !== undefined,
+    { message: "Informe o valor fixo.", path: ["fixedAmountInCents"] },
+  )
+  .refine(
+    (value) =>
+      !value.effectiveUntil || value.effectiveUntil >= value.effectiveFrom,
+    {
+      message: "A vigência final deve ser posterior à inicial.",
+      path: ["effectiveUntil"],
+    },
+  );
+export const adminUserCommissionInputSchema = commissionTermsSchema;
 
 export const productInputSchema = z.object({
+  categoryId: z.uuid().nullable().optional(),
+  brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
   sku: z.string().trim().min(1).max(60),
   unit: z.string().trim().min(1).max(20).default("un"),
@@ -50,12 +70,24 @@ export const paymentMethodSchema = z.enum([
   "other",
 ]);
 
+export const paymentTimingSchema = z.object({
+  paidAt: z.iso.datetime({ offset: true }).optional(),
+  availableAt: z.iso.datetime({ offset: true }).optional(),
+});
+export const financialDatesSchema = paymentTimingSchema.extend({
+  postedOn: z.iso.date().optional(),
+  dueDate: z.iso.date().optional(),
+  reason: z.string().trim().min(3).max(500),
+});
 export const paymentInputSchema = z.object({
+  ...paymentTimingSchema.shape,
   paymentMethod: paymentMethodSchema.default("pix"),
 });
 
 export const patientTabCloseInputSchema = z
   .object({
+    costCenterId: z.uuid().optional(),
+    categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
     dueDate: z.iso.date(),
@@ -63,6 +95,72 @@ export const patientTabCloseInputSchema = z
   .refine(
     (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
+  );
+
+export const productUpdateSchema = productInputSchema
+  .omit({ initialStock: true })
+  .extend({ active: z.boolean().default(true) });
+export const patientTabItemUpdateSchema = z.object({
+  quantity: z.number().int().min(1).max(10000),
+  unitPriceInCents: z.number().int().min(0).max(2147483647),
+});
+export const patientTabServiceInputSchema = z.object({
+  appointmentId: z.uuid(),
+  amountInCents: z.number().int().min(0).max(2147483647).optional(),
+});
+export const supplierInputSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  kind: z.enum(["person", "company"]),
+  document: z.string().trim().max(30).default(""),
+  phone: z.string().trim().max(30).default(""),
+  email: z.email().optional().or(z.literal("")),
+  notes: z.string().max(1000).default(""),
+  active: z.boolean().default(true),
+});
+export const manualReceivableInputSchema = z.object({
+  postedOn: z.iso.date().optional(),
+  patientId: z.uuid(),
+  description: z.string().trim().min(3).max(200),
+  amountInCents: z.number().int().min(1).max(2147483647),
+  dueDate: z.iso.date(),
+  competence: competenceMonthSchema.optional(),
+  categoryId: z.uuid().optional(),
+  costCenterId: z.uuid().optional(),
+});
+export const financialClassificationSchema = z.object({
+  competence: competenceMonthSchema,
+  categoryId: z.uuid().nullable().optional(),
+  costCenterId: z.uuid().nullable().optional(),
+});
+export const categoryDreInputSchema = z.object({
+  dreGroup: z.enum([
+    "unclassified",
+    "service_revenue",
+    "product_revenue",
+    "tax",
+    "service_cost",
+    "product_cost",
+    "variable_cost",
+    "fixed_expense",
+    "depreciation",
+    "financial_result",
+  ]),
+});
+export const dreFilterSchema = z
+  .object({
+    from: z.iso.date(),
+    to: z.iso.date(),
+    costCenterId: z.uuid().optional(),
+  })
+  .refine(
+    (input) =>
+      input.to >= input.from &&
+      Number(input.to.slice(0, 4)) * 12 +
+        Number(input.to.slice(5, 7)) -
+        Number(input.from.slice(0, 4)) * 12 -
+        Number(input.from.slice(5, 7)) <
+        12,
+    "Escolha um período de até 12 meses.",
   );
 
 export const receivableAdjustmentInputSchema = z.object({
@@ -78,10 +176,8 @@ export const receivableRenegotiationInputSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
-export const commissionRuleInputSchema = z.object({
+export const commissionRuleInputSchema = commissionTermsSchema.safeExtend({
   professionalId: z.uuid(),
-  percentage: z.number().min(0).max(100),
-  effectiveFrom: z.iso.date(),
 });
 
 export const commissionGenerationInputSchema = z.object({
@@ -98,6 +194,10 @@ export const costCenterInputSchema = z.object({
 });
 
 export const payableInputSchema = z.object({
+  commissionId: z.uuid().optional(),
+  postedOn: z.iso.date().optional(),
+  dreCompetence: competenceMonthSchema.optional(),
+  supplierId: z.uuid().optional(),
   description: z.string().trim().min(3).max(200),
   supplier: z.string().trim().max(160).optional().or(z.literal("")),
   categoryId: z.uuid(),

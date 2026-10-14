@@ -1,3 +1,13 @@
+import type { ExternalOperation } from "@crm/contracts";
+import type { CommissionPaymentEvent } from "@crm/contracts";
+import type { PlanPurchaseResult } from "@crm/contracts";
+import type {
+  PayablePaymentEvent,
+  FinancialDateCorrection,
+} from "@crm/contracts";
+import type { PaymentTiming } from "@crm/contracts";
+import type { Supplier } from "@crm/contracts";
+import type { ClinicalResource, ClinicCatalogEntry } from "@crm/contracts";
 import {
   type AdminAuditEvent,
   type AdminUser,
@@ -106,7 +116,21 @@ import {
 
 export class MemoryRepositoryContext {
   operations!: ClinicRepository;
+  readonly externalOperations: (ExternalOperation & {
+    contentBase64: string;
+  })[] = [];
+  readonly planPurchases = new Map<
+    string,
+    { fingerprint: string; result: PlanPurchaseResult }
+  >();
 
+  readonly commissionAdjustments: import("@crm/contracts").CommissionAdjustment[] =
+    [];
+  readonly commissionReconciliations: import("@crm/contracts").CommissionReconciliation[] =
+    [];
+  readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
+    [];
+  readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
   readonly planTemplates: PlanTemplate[] = [];
 
   readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
@@ -193,11 +217,14 @@ export class MemoryRepositoryContext {
 
   readonly receivables: Receivable[] = [];
 
+  readonly payablePaymentEvents: PayablePaymentEvent[] = [];
+  readonly financialDateCorrections: FinancialDateCorrection[] = [];
   readonly receiptEvents: Array<{
     id: string;
     receivableId: string;
     kind: ReceivedPayment["kind"];
     occurredAt: string;
+    availableAt?: string | undefined;
     amountInCents: number;
     paymentMethod?: PaymentMethod;
   }> = [];
@@ -214,6 +241,10 @@ export class MemoryRepositoryContext {
     id: string;
     clinicId: string;
     userId: string;
+    kind?: AdminUserCommissionInput["kind"];
+    fixedAmountInCents?: number | undefined;
+    serviceId?: string | undefined;
+    effectiveUntil?: string | undefined;
     percentage: number;
     effectiveFrom: string;
     active: boolean;
@@ -419,10 +450,24 @@ export class MemoryRepositoryContext {
 
   readonly groupSessionsGeneratedUntil = new Map<string, Date>();
 
+  patientIds(clinicId: string, patientId: string) {
+    return new Set(
+      this.patients
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            (item.id === patientId || item.mergedIntoPatientId === patientId),
+        )
+        .map((item) => item.id),
+    );
+  }
+  readonly clinicalResources: ClinicalResource[] = [];
+  readonly clinicCatalogEntries: ClinicCatalogEntry[] = [];
   readonly groupAttendance: GroupAttendance[] = [];
 
   readonly replacementCredits: ReplacementCredit[] = [];
 
+  readonly suppliers: Supplier[] = [];
   readonly products: Product[] = [];
 
   readonly stockMovements: StockMovement[] = [];
@@ -542,6 +587,10 @@ export class MemoryRepositoryContext {
         : {}),
       ...(rule
         ? {
+            ...(rule.kind ? { commissionKind: rule.kind } : {}),
+            ...(rule.fixedAmountInCents !== undefined
+              ? { commissionFixedAmountInCents: rule.fixedAmountInCents }
+              : {}),
             commissionPercentage: rule.percentage,
             commissionEffectiveFrom: rule.effectiveFrom,
           }
@@ -557,7 +606,9 @@ export class MemoryRepositoryContext {
           item.clinicId === clinicId &&
           item.userId === userId &&
           item.active &&
-          item.effectiveFrom <= date,
+          item.effectiveFrom <= date &&
+          !item.serviceId &&
+          (!item.effectiveUntil || item.effectiveUntil >= date),
       )
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
   }
@@ -568,15 +619,33 @@ export class MemoryRepositoryContext {
     userId: string,
     input: AdminUserCommissionInput,
   ) {
+    if (
+      input.serviceId &&
+      !this.services.some(
+        (item) => item.clinicId === clinicId && item.id === input.serviceId,
+      )
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
     const existing = this.userCommissionRules.find(
       (item) =>
         item.clinicId === clinicId &&
         item.userId === userId &&
+        item.serviceId === input.serviceId &&
         item.effectiveFrom === input.effectiveFrom,
     );
     if (existing) {
       // Mesma vigência: é uma correção do percentual, desde que a regra não tenha lançamentos.
-      if (existing.percentage === input.percentage) return;
+      if (
+        existing.percentage === input.percentage &&
+        existing.kind === input.kind &&
+        existing.fixedAmountInCents === input.fixedAmountInCents &&
+        existing.effectiveUntil === input.effectiveUntil
+      )
+        return;
       if (this.commissionEntryRuleIds.has(existing.id))
         throw new DomainError(
           "COMMISSION_RULE_DUPLICATE",
@@ -584,7 +653,7 @@ export class MemoryRepositoryContext {
           409,
         );
       const previousPercentage = existing.percentage;
-      existing.percentage = input.percentage;
+      Object.assign(existing, input);
       this.addAdminAudit(
         actorUserId,
         "users.commission_updated",
@@ -596,6 +665,7 @@ export class MemoryRepositoryContext {
           previousPercentage,
           effectiveFrom: existing.effectiveFrom,
         },
+        clinicId,
       );
       return;
     }
@@ -603,6 +673,7 @@ export class MemoryRepositoryContext {
       id: uuid(),
       clinicId,
       userId,
+      ...input,
       percentage: input.percentage,
       effectiveFrom: input.effectiveFrom,
       active: true,
@@ -619,6 +690,7 @@ export class MemoryRepositoryContext {
         percentage: rule.percentage,
         effectiveFrom: rule.effectiveFrom,
       },
+      clinicId,
     );
   }
 
@@ -890,6 +962,24 @@ export class MemoryRepositoryContext {
           },
         ];
       }),
+    );
+  }
+
+  recordAudit(
+    clinicId: string,
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    metadata: Record<string, unknown> = {},
+    entityId?: string,
+  ) {
+    this.addAdminAudit(
+      actorUserId,
+      action,
+      entityType,
+      entityId,
+      metadata,
+      clinicId,
     );
   }
 
@@ -1429,6 +1519,14 @@ export class MemoryRepositoryContext {
         planId: plan.id,
         patientName: patient.fullName,
         description: `${plan.name} · ${installment.installmentNumber}/${input.installments}`,
+        postedOn: clinicDateOf(
+          new Date(timestamp),
+          this.clinicSettings.timezone,
+        ),
+        competence: clinicDateOf(
+          new Date(timestamp),
+          this.clinicSettings.timezone,
+        ).slice(0, 7),
         installmentNumber: installment.installmentNumber,
         installmentCount: input.installments,
         dueDate: installment.dueDate,
@@ -1460,6 +1558,12 @@ export class MemoryRepositoryContext {
   }
 
   assertRenewable(plan: PatientPlan) {
+    if (plan.sourceTabId)
+      throw new DomainError(
+        "TAB_PLAN_MANAGED",
+        "O serviço avulso deve ser administrado pela comanda de origem.",
+        409,
+      );
     if (plan.status === "cancelled") {
       throw new DomainError(
         "PLAN_CANCELLED",
@@ -1538,6 +1642,7 @@ export class MemoryRepositoryContext {
     payableId: string,
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
+    timing?: PaymentTiming,
   ) {
     const payable = this.payables.find(
       (item) => item.clinicId === clinicId && item.id === payableId,
@@ -1552,10 +1657,24 @@ export class MemoryRepositoryContext {
           : "Somente contas pagas podem ser estornadas.",
         409,
       );
+    const commission = payable.commissionId
+      ? this.commissions.find(
+          (item) =>
+            item.clinicId === clinicId && item.id === payable.commissionId,
+        )
+      : undefined;
+    if (payable.commissionId && (!commission || commission.status !== expected))
+      throw new DomainError(
+        "COMMISSION_EXPENSE_STATE",
+        "Concilie a situação da comissão com a despesa antes de continuar.",
+        409,
+      );
+    const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
     payable.updatedAt = now();
     if (operation === "payment") {
-      payable.paidAt = payable.updatedAt;
+      payable.paidAt = timing?.paidAt ?? payable.updatedAt;
+      if (timing?.availableAt) payable.cashAvailableAt = timing.availableAt;
       payable.paymentMethod = paymentMethod!;
       payable.overdue = false;
     } else {
@@ -1563,18 +1682,45 @@ export class MemoryRepositoryContext {
       delete payable.paymentMethod;
       payable.overdue = payable.dueDate < today();
     }
+    if (commission) {
+      commission.status = payable.status as "open" | "paid";
+      if (payable.paidAt) commission.paidAt = payable.paidAt;
+      else delete commission.paidAt;
+    }
+    this.payablePaymentEvents.push({
+      id: uuid(),
+      clinicId,
+      payableId,
+      kind: operation === "payment" ? "payment" : "reversal",
+      occurredAt: timing?.paidAt ?? now(),
+      ...(operation === "payment" && payable.cashAvailableAt
+        ? { availableAt: payable.cashAvailableAt }
+        : {}),
+      amountInCents:
+        operation === "payment"
+          ? payable.amountInCents
+          : -payable.amountInCents,
+      ...((paymentMethod ?? previousMethod)
+        ? { paymentMethod: paymentMethod ?? previousMethod }
+        : {}),
+    });
     return payable;
   }
 
   consumeSession(appointment: Appointment) {
     // Atendimento de lead não tem plano: nunca consome sessão.
     if (!appointment.patientId) return;
-    const appointmentDate = appointment.startsAt.slice(0, 10);
+    const appointmentDate = clinicDateOf(
+      new Date(appointment.startsAt),
+      this.clinicSettings.timezone,
+    );
     const plans = this.patientPlans
       .filter(
         (plan) =>
           plan.clinicId === appointment.clinicId &&
           plan.patientId === appointment.patientId &&
+          (!plan.sourceAppointmentId ||
+            plan.sourceAppointmentId === appointment.id) &&
           plan.services.some(
             (item) => item.serviceId === appointment.serviceId,
           ) &&
@@ -1588,7 +1734,26 @@ export class MemoryRepositoryContext {
         ),
       );
     const plan = plans[0];
-    if (!plan) return;
+    if (!plan) {
+      if (
+        this.patientTabs.some(
+          (t) =>
+            t.clinicId === appointment.clinicId &&
+            t.services?.some((item) => item.appointmentId === appointment.id),
+        ) ||
+        this.patientPlans.some(
+          (p) =>
+            p.clinicId === appointment.clinicId &&
+            p.sourceAppointmentId === appointment.id,
+        )
+      )
+        throw new DomainError(
+          "NO_SESSION_BALANCE",
+          "Feche a comanda de origem para disponibilizar o crédito deste serviço.",
+          409,
+        );
+      return;
+    }
     const planService = plan.services.find(
       (item) => item.serviceId === appointment.serviceId,
     )!;
@@ -1614,6 +1779,8 @@ export class MemoryRepositoryContext {
       (sum, item) => sum + item.remainingSessions,
       0,
     );
+    if (plan.sourceTabId && plan.remainingSessions === 0)
+      plan.status = "expired";
     plan.updatedAt = now();
     this.sessionMovements.push({
       id: uuid(),
@@ -1662,6 +1829,7 @@ export class MemoryRepositoryContext {
       (sum, item) => sum + item.remainingSessions,
       0,
     );
+    if (plan.sourceTabId && plan.status === "expired") plan.status = "active";
     plan.updatedAt = now();
     this.sessionMovements.push({
       id: uuid(),
@@ -1696,12 +1864,23 @@ export class MemoryRepositoryContext {
         const tab = this.patientTabs.find(
           (candidate) => candidate.receivableId === item.id,
         );
+        const correction = this.financialDateCorrections
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.kind === "receivable" &&
+              item.eventId === event.id,
+          )
+          .at(-1);
         return {
           id: event.id,
           receivableId: item.id,
           kind: event.kind,
           ...(item.planId || tab ? { sourceId: item.planId ?? tab!.id } : {}),
-          occurredAt: event.occurredAt,
+          occurredAt: correction?.occurredAt ?? event.occurredAt,
+          ...(correction || event.availableAt
+            ? { availableAt: correction?.availableAt ?? event.availableAt }
+            : {}),
           patientId: item.patientId,
           patientName: item.patientName,
           description: item.description,
@@ -1809,6 +1988,17 @@ export class MemoryRepositoryContext {
       createdAt: message.createdAt,
       ...(message.sentAt ? { sentAt: message.sentAt } : {}),
       ...(message.lastError ? { lastError: message.lastError } : {}),
+      ...(() => {
+        const survey = this.satisfactionSurveys.find(
+          (item) =>
+            item.clinicId === message.clinicId &&
+            item.sourceMessageId === message.id,
+        );
+        return survey ? { satisfactionSurveyId: survey.id } : {};
+      })(),
+      ...(message.manualCompletion
+        ? { manualCompletion: structuredClone(message.manualCompletion) }
+        : {}),
     };
   }
 }

@@ -192,7 +192,17 @@ export function reportToCsv(report: ManagementReport) {
 }
 declare module "@fastify/jwt" {
   interface FastifyJWT {
-    payload: { sub: string; clinicId: string; role: UserSummary["role"] };
-    user: { sub: string; clinicId: string; role: UserSummary["role"] };
+    payload: {
+      sub: string;
+      clinicId: string;
+      role: UserSummary["role"];
+      sessionVersion?: number;
+    };
+    user: {
+      sub: string;
+      clinicId: string;
+      role: UserSummary["role"];
+      sessionVersion?: number;
+    };
   }
 }

@@ -39,7 +39,7 @@ export type AdminUserProfessionalInput = z.infer<
 export interface SaleMovement {
   id: string;
   sourceId: string;
-  sourceType: "plan" | "product";
+  sourceType: "plan" | "product" | "service";
   kind: "sale" | "cancellation";
   occurredAt: string;
   patientId: string;
@@ -77,6 +77,8 @@ export interface AdminUser extends UserSummary {
    * Percentual da regra de comissão do próprio usuário vigente hoje (fuso da clínica); não
    * depende do profissional ligado. Regras só do profissional (Financeiro) não aparecem aqui.
    */
+  commissionKind?: "percentage" | "fixed";
+  commissionFixedAmountInCents?: number;
   commissionPercentage?: number;
   /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
   commissionEffectiveFrom?: string;

@@ -1,3 +1,5 @@
+import { EmergencyButton } from "../shared/components/EmergencyButton";
+import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { UserSummary } from "@crm/contracts";
 import { Bell, LogOut, Menu, X } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
@@ -79,6 +81,8 @@ export function Shell({
             })}
         </nav>
         <div className="sidebar-bottom">
+          <EmergencyButton />
+          <RevokeSessionsButton onLogout={onLogout} />
           <button className="user-card" onClick={onLogout} title="Sair">
             <span className="avatar">{initials(user.fullName)}</span>
             <span className="user-copy">

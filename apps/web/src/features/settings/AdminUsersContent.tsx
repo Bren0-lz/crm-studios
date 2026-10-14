@@ -1,3 +1,4 @@
+import { ActionModal } from "../../shared/components/ActionModal";
 import type { AdminUser } from "@crm/contracts";
 import { Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { UserActiveModal } from "./UserActiveModal";
 import { UserFormModal } from "./UserFormModal";
 
 export function AdminUsersContent() {
+  const [revoking, setRevoking] = useState<AdminUser | null>(null);
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -115,6 +117,12 @@ export function AdminUsersContent() {
               <div className="admin-user-actions">
                 <button
                   className="secondary-button button-sm"
+                  onClick={() => setRevoking(item)}
+                >
+                  Encerrar acessos
+                </button>
+                <button
+                  className="secondary-button button-sm"
                   aria-label={`Editar ${item.fullName}`}
                   onClick={() => {
                     setNotice("");
@@ -173,6 +181,21 @@ export function AdminUsersContent() {
                 : `Alterações de ${saved.fullName} salvas.`,
             )
           }
+        />
+      )}
+      {revoking && (
+        <ActionModal
+          eyebrow="Acesso"
+          title="Encerrar todos os acessos"
+          subtitle={revoking.fullName}
+          effect="Os acessos atuais deste usuário serão invalidados. Ele poderá entrar novamente com sua senha."
+          confirmLabel="Encerrar acessos"
+          onClose={() => setRevoking(null)}
+          onConfirm={async () => {
+            await api.revokeAdminUserSessions(revoking.id);
+            setNotice(`Acessos de ${revoking.fullName} encerrados.`);
+            setRevoking(null);
+          }}
         />
       )}
       {resetting && (

@@ -2,12 +2,16 @@ import {
   DEFAULT_PATIENT_TAG_COLOR,
   type Patient,
   type PatientTag,
+  patientProfile,
   patientTagKey,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
 import { present } from "./administration.js";
 
 export interface PatientRow {
+  inactiveAt?: Date | null;
+  mergedIntoPatientId?: string | null;
+  profile?: ReturnType<typeof patientProfile>;
   id: string;
   clinicId: string;
   recordNumber: string;
@@ -40,6 +44,9 @@ export const patientColumns = `
   emergency_contact_phone AS "emergencyContactPhone",
   notes,
   tags,
+  profile,
+  inactive_at AS "inactiveAt",
+  merged_into_patient_id AS "mergedIntoPatientId",
   status,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
@@ -47,6 +54,11 @@ export const patientColumns = `
 
 export function mapPatient(row: PatientRow): Patient {
   return {
+    ...patientProfile(row.profile ?? {}),
+    ...(row.inactiveAt ? { inactiveAt: row.inactiveAt.toISOString() } : {}),
+    ...(row.mergedIntoPatientId
+      ? { mergedIntoPatientId: row.mergedIntoPatientId }
+      : {}),
     id: row.id,
     clinicId: row.clinicId,
     recordNumber: row.recordNumber,

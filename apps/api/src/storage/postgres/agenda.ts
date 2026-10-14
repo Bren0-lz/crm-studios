@@ -221,6 +221,10 @@ export function createAgendaRepository(
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [clinicId],
+        );
         const current = await client.query<{
           status: AppointmentStatus;
           startsAt: Date;
@@ -608,7 +612,7 @@ export function createAgendaRepository(
       const [groups, enrollments, sessions, attendance, credits] =
         await Promise.all([
           repositoryContext.pool.query<GroupClassRow>(
-            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
+            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
             [clinicId],
           ),
           repositoryContext.pool.query<GroupEnrollmentRow>(
@@ -616,11 +620,11 @@ export function createAgendaRepository(
             [clinicId],
           ),
           repositoryContext.pool.query<GroupSessionRow>(
-            `SELECT ${groupSessionColumns},count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 GROUP BY gs.id,g.id,p.full_name,r.name ORDER BY gs.starts_at`,
+            `SELECT ${groupSessionColumns},count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 GROUP BY gs.id,g.id,p.full_name,r.name ORDER BY gs.starts_at`,
             [clinicId, from, to],
           ),
           repositoryContext.pool.query<GroupAttendanceRow>(
-            `SELECT ga.id,ga.clinic_id AS "clinicId",ga.session_id AS "sessionId",ga.patient_id AS "patientId",p.full_name AS "patientName",ga.status,ga.notes,ga.recorded_at AS "recordedAt" FROM group_attendance ga JOIN patients p ON p.id=ga.patient_id JOIN group_sessions gs ON gs.id=ga.session_id WHERE ga.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY ga.recorded_at`,
+            `SELECT ga.id,ga.clinic_id AS "clinicId",ga.session_id AS "sessionId",ga.patient_id AS "patientId",p.full_name AS "patientName",ga.status,ga.notes,ga.recorded_at AS "recordedAt",ga.accounting_enabled AS "accountingEnabled",ga.outcome,ga.replacement_credit_id AS "replacementCreditId" FROM group_attendance ga JOIN patients p ON p.id=ga.patient_id JOIN group_sessions gs ON gs.id=ga.session_id WHERE ga.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY ga.recorded_at`,
             [clinicId, from, to],
           ),
           repositoryContext.pool.query<ReplacementCreditRow>(
@@ -799,7 +803,7 @@ export function createAgendaRepository(
         client.release();
       }
       const updated = await repositoryContext.pool.query<GroupClassRow>(
-        `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND g.id=$2 GROUP BY g.id,s.name,p.full_name,r.name`,
+        `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND g.id=$2 GROUP BY g.id,s.name,p.full_name,r.name`,
         [clinicId, groupId],
       );
       return updated.rows[0] ? mapGroupClass(updated.rows[0]) : null;
@@ -857,7 +861,7 @@ export function createAgendaRepository(
         clampGroupSessionUntil(new Date(to)),
       );
       const result = await repositoryContext.pool.query<GroupSessionRow>(
-        `SELECT ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY gs.starts_at`,
+        `SELECT ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY gs.starts_at`,
         [clinicId, from, to],
       );
       return result.rows.map(mapGroupSession);
@@ -931,7 +935,7 @@ export function createAgendaRepository(
 
     async completeGroupSession(clinicId: string, sessionId: string) {
       const result = await repositoryContext.pool.query<GroupSessionRow>(
-        `UPDATE group_sessions gs SET status='completed',updated_at=now() FROM group_classes g,professionals p,rooms r WHERE gs.id=$2 AND gs.clinic_id=$1 AND gs.status<>'cancelled' AND g.id=gs.group_id AND p.id=g.professional_id AND r.id=g.room_id RETURNING ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount"`,
+        `UPDATE group_sessions gs SET status='completed',updated_at=now() FROM group_classes g,professionals p,rooms r WHERE gs.id=$2 AND gs.clinic_id=$1 AND gs.status<>'cancelled' AND g.id=gs.group_id AND p.id=coalesce(gs.professional_id,g.professional_id) AND r.id=g.room_id RETURNING ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount"`,
         [clinicId, sessionId],
       );
       return result.rows[0] ? mapGroupSession(result.rows[0]) : null;
@@ -1033,6 +1037,7 @@ export function createAgendaRepository(
       clinicId: string,
       appointmentId: string,
       status: AppointmentStatus,
+      absenceReason?: string,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -1101,9 +1106,9 @@ export function createAgendaRepository(
           );
         }
         await client.query(
-          `UPDATE appointments SET status = $3, updated_at = now()
+          `UPDATE appointments SET status = $3,absence_reason=coalesce($4,absence_reason), updated_at = now()
          WHERE id = $2 AND clinic_id = $1`,
-          [clinicId, appointmentId, status],
+          [clinicId, appointmentId, status, absenceReason ?? null],
         );
         const appointment = await repositoryContext.findAppointment(
           clinicId,

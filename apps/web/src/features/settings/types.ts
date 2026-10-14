@@ -6,4 +6,10 @@ export type RelationshipDeadlineKey = Exclude<
 >;
 
 export type SettingsTabKey =
-  "clinic" | "users" | "plans" | "holidays" | "tags" | "relationship";
+  | "catalogs"
+  | "clinic"
+  | "users"
+  | "plans"
+  | "holidays"
+  | "tags"
+  | "relationship";

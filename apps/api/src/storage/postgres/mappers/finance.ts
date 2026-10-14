@@ -16,6 +16,8 @@ import type {
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
 
 export interface ProductRow {
+  categoryId?: string | null;
+  brandId?: string | null;
   id: string;
   clinicId: string;
   name: string;
@@ -69,6 +71,12 @@ export interface PatientTabItemRow {
 }
 
 export interface ReceivableRow {
+  postedOn?: string | null;
+  cashAvailableAt?: Date | null;
+  source?: Receivable["source"];
+  competence?: string | null;
+  categoryId?: string | null;
+  costCenterId?: string | null;
   id: string;
   clinicId: string;
   patientId: string;
@@ -88,6 +96,7 @@ export interface ReceivableRow {
 }
 
 export interface FinancialCategoryRow {
+  dreGroup?: FinancialCategory["dreGroup"];
   id: string;
   clinicId: string;
   name: string;
@@ -103,6 +112,11 @@ export interface CostCenterRow {
 }
 
 export interface PayableRow {
+  postedOn?: string | null;
+  cashAvailableAt?: Date | null;
+  commissionId?: string | null;
+  supplierId?: string | null;
+  dreCompetence?: string | null;
   id: string;
   clinicId: string;
   description: string;
@@ -145,6 +159,10 @@ export interface RecurringPayableRow {
 }
 
 export interface CommissionRuleRow {
+  kind?: CommissionRule["kind"];
+  fixedAmountInCents?: number | null;
+  serviceId?: string | null;
+  effectiveUntil?: string | null;
   id: string;
   clinicId: string;
   professionalId: string;
@@ -156,11 +174,15 @@ export interface CommissionRuleRow {
 }
 
 export interface CommissionEntryRow {
+  groupAttendanceId?: string | null;
+  serviceId?: string | null;
+  ruleId?: string;
+  ruleSnapshot?: CommissionEntry["ruleSnapshot"] | null;
   id: string;
   clinicId: string;
   professionalId: string;
   professionalName: string;
-  appointmentId: string;
+  appointmentId: string | null;
   competence: string;
   baseAmountInCents: number;
   percentage: string;
@@ -171,6 +193,8 @@ export interface CommissionEntryRow {
 }
 
 export const receivableColumns = `
+  r.posted_on::text AS "postedOn",r.cash_available_at AS "cashAvailableAt",
+  r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
   r.id, r.clinic_id AS "clinicId", r.patient_id AS "patientId",
   r.plan_id AS "planId", p.full_name AS "patientName", r.description,
   r.installment_number AS "installmentNumber",
@@ -182,6 +206,8 @@ export const receivableColumns = `
 `;
 
 export const payableColumns = `
+  py.posted_on::text AS "postedOn",py.cash_available_at AS "cashAvailableAt",py.commission_id AS "commissionId",
+  py.supplier_id AS "supplierId",py.dre_competence AS "dreCompetence",
   py.id, py.clinic_id AS "clinicId", py.description, py.supplier,
   py.category_id AS "categoryId", py.cost_center_id AS "costCenterId",
   fc.name AS "categoryName", cc.name AS "costCenterName",
@@ -216,6 +242,11 @@ export function mapAdminUserWithCommission(row: AdminUserRow): AdminUser {
       : {}),
     ...(row.commissionPercentage !== null && row.commissionEffectiveFrom
       ? {
+          ...(row.commissionKind ? { commissionKind: row.commissionKind } : {}),
+          ...(row.commissionFixedAmountInCents !== undefined &&
+          row.commissionFixedAmountInCents !== null
+            ? { commissionFixedAmountInCents: row.commissionFixedAmountInCents }
+            : {}),
           commissionPercentage: Number(row.commissionPercentage),
           commissionEffectiveFrom: row.commissionEffectiveFrom,
         }
@@ -225,6 +256,8 @@ export function mapAdminUserWithCommission(row: AdminUserRow): AdminUser {
 
 export function mapProduct(row: ProductRow): Product {
   return {
+    ...(row.categoryId ? { categoryId: row.categoryId } : {}),
+    ...(row.brandId ? { brandId: row.brandId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     name: row.name,
@@ -291,6 +324,15 @@ export function mapPatientTab(
 
 export function mapReceivable(row: ReceivableRow): Receivable {
   return {
+    ...(row.postedOn ? { postedOn: row.postedOn } : {}),
+    ...(row.cashAvailableAt
+      ? { cashAvailableAt: row.cashAvailableAt.toISOString() }
+      : {}),
+
+    ...(row.competence ? { competence: row.competence } : {}),
+    ...(row.source ? { source: row.source } : {}),
+    ...(row.categoryId ? { categoryId: row.categoryId } : {}),
+    ...(row.costCenterId ? { costCenterId: row.costCenterId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     patientId: row.patientId,
@@ -312,6 +354,14 @@ export function mapReceivable(row: ReceivableRow): Receivable {
 
 export function mapPayable(row: PayableRow): Payable {
   return {
+    ...(row.postedOn ? { postedOn: row.postedOn } : {}),
+    ...(row.cashAvailableAt
+      ? { cashAvailableAt: row.cashAvailableAt.toISOString() }
+      : {}),
+    ...(row.commissionId ? { commissionId: row.commissionId } : {}),
+
+    ...(row.dreCompetence ? { dreCompetence: row.dreCompetence } : {}),
+    ...(row.supplierId ? { supplierId: row.supplierId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     description: row.description,
@@ -362,8 +412,19 @@ export function mapRecurringPayable(
 
 export function mapCommissionRule(row: CommissionRuleRow): CommissionRule {
   return {
-    ...row,
+    id: row.id,
+    clinicId: row.clinicId,
+    professionalId: row.professionalId,
+    professionalName: row.professionalName,
+    effectiveFrom: row.effectiveFrom,
+    active: row.active,
+    ...(row.kind ? { kind: row.kind } : {}),
     percentage: Number(row.percentage),
+    ...(row.fixedAmountInCents !== null && row.fixedAmountInCents !== undefined
+      ? { fixedAmountInCents: row.fixedAmountInCents }
+      : {}),
+    ...(row.serviceId ? { serviceId: row.serviceId } : {}),
+    ...(row.effectiveUntil ? { effectiveUntil: row.effectiveUntil } : {}),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -374,7 +435,18 @@ export function mapCommissionEntry(row: CommissionEntryRow): CommissionEntry {
     clinicId: row.clinicId,
     professionalId: row.professionalId,
     professionalName: row.professionalName,
-    appointmentId: row.appointmentId,
+    ...(row.appointmentId
+      ? { appointmentId: row.appointmentId, sourceType: "appointment" as const }
+      : {}),
+    ...(row.groupAttendanceId
+      ? {
+          groupAttendanceId: row.groupAttendanceId,
+          sourceType: "group_attendance" as const,
+        }
+      : {}),
+    ...(row.serviceId ? { serviceId: row.serviceId } : {}),
+    ...(row.ruleId ? { ruleId: row.ruleId } : {}),
+    ...(row.ruleSnapshot ? { ruleSnapshot: row.ruleSnapshot } : {}),
     competence: row.competence,
     baseAmountInCents: row.baseAmountInCents,
     percentage: Number(row.percentage),

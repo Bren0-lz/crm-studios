@@ -26,6 +26,26 @@ export function createAdministrationRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
   return {
+    async revokeUserSessions(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user)
+        throw new DomainError("USER_NOT_FOUND", "Usuário não encontrado.", 404);
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "user.sessions_revoked",
+        "user",
+        {},
+        userId,
+      );
+    },
     async findUserByEmail(email: string) {
       return (
         repositoryContext.users.find(
@@ -94,6 +114,7 @@ export function createAdministrationRepository(
           "user",
           userId,
           { professionalId, previousProfessionalId },
+          clinicId,
         );
       }
       return repositoryContext.toAdminUser(user);
@@ -149,6 +170,7 @@ export function createAdministrationRepository(
           role: user.role,
           email: user.email,
         },
+        clinicId,
       );
       if (user.customModules)
         repositoryContext.addAdminAudit(
@@ -163,6 +185,7 @@ export function createAdministrationRepository(
             previousPermissions: [],
             permissions: user.permissions,
           },
+          clinicId,
         );
       if (input.commission)
         repositoryContext.addUserCommissionRule(
@@ -233,6 +256,7 @@ export function createAdministrationRepository(
           role: user.role,
           active: user.active,
         },
+        clinicId,
       );
       if (
         JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions)
@@ -249,6 +273,7 @@ export function createAdministrationRepository(
             previousPermissions,
             permissions: user.permissions,
           },
+          clinicId,
         );
       return repositoryContext.toAdminUser(user);
     },
@@ -264,12 +289,15 @@ export function createAdministrationRepository(
       );
       if (!user) return false;
       user.passwordHash = passwordHash;
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
       user.updatedAt = now();
       repositoryContext.addAdminAudit(
         actorUserId,
         "user.password_reset",
         "user",
         user.id,
+        {},
+        clinicId,
       );
       return true;
     },
@@ -298,6 +326,8 @@ export function createAdministrationRepository(
         actorUserId,
         "clinic.updated",
         "clinic",
+        clinicId,
+        {},
         clinicId,
       );
       return repositoryContext.clinicSettings;
@@ -397,6 +427,7 @@ export function createAdministrationRepository(
         entityType,
         entityId,
         metadata,
+        clinicId,
       );
     },
 

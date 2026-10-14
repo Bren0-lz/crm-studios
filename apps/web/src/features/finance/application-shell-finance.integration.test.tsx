@@ -701,7 +701,7 @@ describe("application shell", () => {
       ).not.toBeInTheDocument();
       // Cartões de resumo explicam o número.
       expect(
-        screen.getByText("Recebido no mês − despesas pagas no mês."),
+        screen.getByText("Entradas e saídas disponíveis no caixa neste mês."),
       ).toBeInTheDocument();
       // Abas com contagem num selo e nome acessível estável.
       expect(

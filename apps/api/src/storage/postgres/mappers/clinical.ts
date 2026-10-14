@@ -53,6 +53,8 @@ export interface ClinicalRevisionRow {
 }
 
 export interface AssessmentTemplateRow {
+  status?: "draft" | "published";
+  familyId?: string;
   id: string;
   clinicId: string;
   name: string;
@@ -120,6 +122,7 @@ export interface TreatmentClosureRow {
 }
 
 export interface ClinicalAttachmentRow {
+  durationInSeconds?: number | null;
   id: string;
   clinicId: string;
   patientId: string;
@@ -293,6 +296,9 @@ export function mapClinicalAttachment(
     fileName: row.fileName,
     mimeType: row.mimeType,
     sizeInBytes: row.sizeInBytes,
+    ...(row.durationInSeconds
+      ? { durationInSeconds: row.durationInSeconds }
+      : {}),
     sha256: row.sha256,
     ...(row.notes ? { notes: row.notes } : {}),
     authorName: row.authorName,

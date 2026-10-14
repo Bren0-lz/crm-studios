@@ -28,7 +28,7 @@ import {
   isValidCpf,
   leadMoveSchema,
   nextPlanPeriod,
-  patientExportColumns,
+  patientDefaultExportColumns,
   patientExportFilterSchema,
   patientInputSchema,
   patientListQuerySchema,
@@ -606,7 +606,7 @@ describe("patient export filter", () => {
     });
     expect(empty).toEqual({
       format: "csv",
-      columns: [...patientExportColumns],
+      columns: [...patientDefaultExportColumns],
     });
     expect(patientExportFilterSchema.parse({})).toEqual(empty);
   });

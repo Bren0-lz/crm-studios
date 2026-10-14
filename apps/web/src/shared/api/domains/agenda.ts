@@ -1,4 +1,10 @@
 import type {
+  GroupAttendance,
+  GroupAttendanceInput,
+  ReplacementCredit,
+  ReplacementBookingInput,
+} from "@crm/contracts";
+import type {
   Appointment,
   AppointmentInput,
   AppointmentRescheduleEvent,
@@ -22,6 +28,40 @@ import type {
 import { request } from "../transport";
 
 export const agendaApi = {
+  createAbsenceSuccessor: (id: string, input: AppointmentRescheduleInput) =>
+    request<Appointment>(`/appointments/${id}/successor`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  recordGroupAttendance: (
+    sessionId: string,
+    patientId: string,
+    input: GroupAttendanceInput,
+  ) =>
+    request<GroupAttendance>(
+      `/group-sessions/${sessionId}/attendance/${patientId}`,
+      { method: "PUT", body: JSON.stringify(input) },
+    ),
+  bookReplacement: (input: ReplacementBookingInput) =>
+    request<{ attendance: GroupAttendance; credit: ReplacementCredit }>(
+      "/group-replacements/book",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  recordReplacementAttendance: (
+    id: string,
+    status: Exclude<GroupAttendance["outcome"], undefined | "scheduled">,
+  ) =>
+    request<GroupAttendance>(`/group-replacements/${id}/attendance`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+  updateGroupSessionProfessional: (id: string, professionalId: string) =>
+    request<GroupSession>(`/group-sessions/${id}/professional`, {
+      method: "PUT",
+      body: JSON.stringify({ professionalId }),
+    }),
+  completeGroupSession: (id: string) =>
+    request<GroupSession>(`/group-sessions/${id}/complete`, { method: "POST" }),
   clinicalAppointmentOptions: (from: string, to: string) =>
     request<ClinicalAppointmentOption[]>(
       `/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
@@ -103,10 +143,14 @@ export const agendaApi = {
     request<GroupEnrollment>(`/group-enrollments/${id}/cancel`, {
       method: "POST",
     }),
-  updateAppointmentStatus: (id: string, status: AppointmentStatus) =>
+  updateAppointmentStatus: (
+    id: string,
+    status: AppointmentStatus,
+    absenceReason?: string,
+  ) =>
     request<Appointment>(`/appointments/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, absenceReason }),
     }),
   createLeadAppointment: (id: string, input: LeadAppointmentInput) =>
     request<Appointment>(`/leads/${id}/appointments`, {

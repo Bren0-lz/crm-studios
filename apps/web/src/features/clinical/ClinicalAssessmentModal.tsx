@@ -1,3 +1,4 @@
+import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import type {
   AssessmentTemplate,
   ClinicalAssessmentInput,
@@ -9,7 +10,7 @@ import { Modal } from "../../shared/components/Modal";
 
 export function ClinicalAssessmentModal({
   patientId,
-  templates,
+  templates: allTemplates,
   onClose,
   onSaved,
 }: {
@@ -19,9 +20,10 @@ export function ClinicalAssessmentModal({
   onSaved: () => void;
 }) {
   const { can } = useAuthorization();
+  const templates = allTemplates.filter((item) => item.status !== "draft");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [values, setValues] = useState<
-    Record<string, string | number | boolean>
+    Record<string, string | number | boolean | string[]>
   >({});
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -73,51 +75,12 @@ export function ClinicalAssessmentModal({
               ))}
             </select>
           </label>
-          {template?.fields.map((field) => (
-            <label key={field.key}>
-              {field.label} {field.unit ? `(${field.unit})` : ""}
-              {field.type === "boolean" ? (
-                <select
-                  required={field.required}
-                  value={String(values[field.key] ?? "")}
-                  onChange={(event) =>
-                    setValues({
-                      ...values,
-                      [field.key]: event.target.value === "true",
-                    })
-                  }
-                >
-                  <option value="">Selecione</option>
-                  <option value="true">Sim</option>
-                  <option value="false">Não</option>
-                </select>
-              ) : field.type === "text" ? (
-                <textarea
-                  required={field.required}
-                  rows={3}
-                  value={String(values[field.key] ?? "")}
-                  onChange={(event) =>
-                    setValues({ ...values, [field.key]: event.target.value })
-                  }
-                />
-              ) : (
-                <input
-                  type="number"
-                  step="any"
-                  required={field.required}
-                  min={field.min}
-                  max={field.max}
-                  value={String(values[field.key] ?? "")}
-                  onChange={(event) =>
-                    setValues({
-                      ...values,
-                      [field.key]: Number(event.target.value),
-                    })
-                  }
-                />
-              )}
-            </label>
-          ))}
+          <ClinicalFieldInputs
+            fields={template?.fields ?? []}
+            values={values}
+            onChange={setValues}
+            disabled={saving}
+          />
           <label>
             Observações
             <textarea

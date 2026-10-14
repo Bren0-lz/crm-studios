@@ -1,3 +1,6 @@
+import { AppointmentAbsenceModal } from "./AppointmentAbsenceModal";
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import type {
   Appointment,
   AppointmentStatus,
@@ -42,6 +45,7 @@ import { sortAgendaEntries } from "./model";
 
 export function AgendaPage() {
   const { can, canView, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<"day" | "week" | "month">("day");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -64,6 +68,10 @@ export function AgendaPage() {
   const canSchedule = canEdit("agenda");
   // Bloqueios exigem editar Agenda E Clientes (mesma regra da API).
   const canBlock = can("agenda.blocks_create");
+  const [absence, setAbsence] = useState<{
+    appointment: Appointment;
+    status: AppointmentStatus;
+  } | null>(null);
   const [rescheduling, setRescheduling] = useState<Appointment | null>(null);
   const [historyAppointment, setHistoryAppointment] =
     useState<Appointment | null>(null);
@@ -154,7 +162,12 @@ export function AgendaPage() {
           patientData,
         ]) => {
           if (!active) return;
-          setAppointments(appointmentData);
+          setAppointments(
+            appointmentData.filter(
+              (item) =>
+                !contextPatientId || item.patientId === contextPatientId,
+            ),
+          );
           setBlocks(blockData);
           setGroupSessions(groupSessionData);
           setHolidays(holidayData);
@@ -174,7 +187,7 @@ export function AgendaPage() {
     return () => {
       active = false;
     };
-  }, [rangeFrom, rangeTo, holidayFrom, holidayTo, canView]);
+  }, [contextPatientId, rangeFrom, rangeTo, holidayFrom, holidayTo, canView]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -199,6 +212,7 @@ export function AgendaPage() {
 
   return (
     <>
+      <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         eyebrow="Operação diária"
         title="Agenda"
@@ -616,6 +630,7 @@ export function AgendaPage() {
       </section>
       {modalOpen && (
         <AppointmentModal
+          fixedPatient={patients.find((item) => item.id === contextPatientId)}
           patients={patients}
           professionals={professionals}
           rooms={rooms}
@@ -658,6 +673,24 @@ export function AgendaPage() {
                 ),
               );
             setBlockModalOpen(false);
+          }}
+        />
+      )}
+      {absence && (
+        <AppointmentAbsenceModal
+          appointment={absence.appointment}
+          status={absence.status}
+          onClose={() => setAbsence(null)}
+          onConfirm={async (reason) => {
+            const updated = await api.updateAppointmentStatus(
+              absence.appointment.id,
+              absence.status,
+              reason,
+            );
+            setAppointments((items) =>
+              items.map((item) => (item.id === updated.id ? updated : item)),
+            );
+            setAbsence(null);
           }}
         />
       )}
@@ -753,6 +786,12 @@ export function AgendaPage() {
     appointment: Appointment,
     status: AppointmentStatus,
   ) {
+    if (
+      ["no_show", "excused_absence", "professional_absence"].includes(status)
+    ) {
+      setAbsence({ appointment, status });
+      return;
+    }
     try {
       const updated = await api.updateAppointmentStatus(appointment.id, status);
       setAppointments((items) =>

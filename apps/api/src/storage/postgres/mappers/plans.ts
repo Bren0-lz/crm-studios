@@ -26,6 +26,8 @@ export function mapPlanTemplate(row: PlanTemplateRow): PlanTemplate {
 }
 
 export interface PatientPlanRow {
+  sourceTabId: string | null;
+  sourceAppointmentId: string | null;
   services: PatientPlanService[];
   planTemplateId: string | null;
   id: string;
@@ -54,6 +56,7 @@ export interface PatientPlanRow {
 }
 
 export interface SessionMovementRow {
+  groupAttendanceId?: string | null;
   serviceId: string;
   serviceName: string;
   id: string;
@@ -67,6 +70,7 @@ export interface SessionMovementRow {
 
 export const patientPlanColumns = `
   pp.id, pp.clinic_id AS "clinicId", pp.patient_id AS "patientId",
+  pp.source_tab_id AS "sourceTabId", pp.source_appointment_id AS "sourceAppointmentId",
   pp.service_id AS "serviceId", pp.name, pp.kind,
   pp.total_sessions AS "totalSessions", pp.remaining_sessions AS "remainingSessions",
   pp.valid_from::text AS "validFrom", pp.valid_until::text AS "validUntil",
@@ -84,6 +88,12 @@ export const patientPlanColumns = `
 
 export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
   return {
+    ...(row.sourceTabId
+      ? {
+          sourceTabId: row.sourceTabId,
+          sourceAppointmentId: row.sourceAppointmentId!,
+        }
+      : {}),
     services: row.services,
     ...(row.planTemplateId ? { planTemplateId: row.planTemplateId } : {}),
     id: row.id,

@@ -1,6 +1,7 @@
 import {
   type PatientExportColumn,
   patientExportColumns,
+  patientDefaultExportColumns,
   saoPauloToday,
 } from "@crm/contracts";
 import { FileUp } from "lucide-react";
@@ -29,17 +30,28 @@ export function PatientExportModal({
   const { can } = useAuthorization();
   const [format, setFormat] = useState<PatientExportParams["format"]>("csv");
   const [columns, setColumns] = useState<PatientExportColumn[]>([
-    ...patientExportColumns,
+    ...patientDefaultExportColumns,
   ]);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
-  const params: PatientExportParams = { format, columns, tags: filters.tags };
+  const params: PatientExportParams = {
+    ...filters.profile,
+    format,
+    columns,
+    tags: filters.tags,
+  };
   if (search.trim()) params.search = search.trim();
   if (filters.status !== "all") params.status = filters.status;
   if (filters.record === "birthday_month") params.birthdayMonth = true;
   if (filters.withoutGroup) params.withoutGroup = true;
+  if (filters.record === "with_email" || filters.record === "without_email")
+    params.record = filters.record;
+
   const scope = [
+    params.record
+      ? `Cadastro: ${patientRecordFilterLabels[filters.record]}`
+      : "",
     params.search ? `Busca: “${params.search}”` : "",
     params.status
       ? `Situação: ${params.status === "active" ? "ativos" : "inativos"}`
@@ -47,9 +59,6 @@ export function PatientExportModal({
     params.birthdayMonth ? "Aniversariantes do mês" : "",
     params.withoutGroup ? "Assinantes sem turma vinculada" : "",
   ].filter(Boolean);
-  const unsupportedRecord =
-    filters.record === "with_email" || filters.record === "without_email";
-
   function toggleColumn(column: PatientExportColumn) {
     setColumns((current) =>
       current.includes(column)
@@ -113,9 +122,6 @@ export function PatientExportModal({
                   <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
                 ))}
               </div>
-            )}
-            {unsupportedRecord && (
-              <small>{`O filtro de cadastro “${patientRecordFilterLabels[filters.record]}” não se aplica à exportação.`}</small>
             )}
             {filters.sort !== "name_asc" && (
               <small>

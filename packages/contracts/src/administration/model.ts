@@ -142,13 +142,31 @@ export const adminUserUpdateSchema = z
 export const passwordResetSchema = z.object({ password: strongPasswordSchema });
 
 export const clinicSettingsInputSchema = z.object({
+  logoDataUrl: z
+    .string()
+    .max(2800000)
+    .regex(/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/)
+    .optional()
+    .or(z.literal("")),
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional().or(z.literal("")),
   taxId: z.string().trim().max(20).optional().or(z.literal("")),
   phone: optionalPhoneSchema,
   email: z.email().optional().or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),
-  timezone: z.string().trim().min(3).max(80),
+  timezone: z
+    .string()
+    .trim()
+    .min(3)
+    .max(80)
+    .refine((value) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Informe um fuso horário válido."),
 });
 
 export const professionalInputSchema = z.object({

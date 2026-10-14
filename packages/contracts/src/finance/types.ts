@@ -1,4 +1,54 @@
+import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import {
+  productUpdateSchema,
+  patientTabItemUpdateSchema,
+  patientTabServiceInputSchema,
+  supplierInputSchema,
+  manualReceivableInputSchema,
+  financialClassificationSchema,
+  categoryDreInputSchema,
+} from "./model.js";
+export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
+export type PatientTabItemUpdate = z.infer<typeof patientTabItemUpdateSchema>;
+export type PatientTabServiceInput = z.infer<
+  typeof patientTabServiceInputSchema
+>;
+export type SupplierInput = z.infer<typeof supplierInputSchema>;
+export interface Supplier extends SupplierInput {
+  id: string;
+  clinicId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export type ManualReceivableInput = z.infer<typeof manualReceivableInputSchema>;
+export type FinancialClassification = z.infer<
+  typeof financialClassificationSchema
+>;
+export type DreGroup = z.infer<typeof categoryDreInputSchema>["dreGroup"];
+export interface DreReport {
+  from: string;
+  to: string;
+  months: Array<{
+    month: string;
+    serviceRevenueInCents: number;
+    productRevenueInCents: number;
+    otherRevenueInCents: number;
+    expenses: Record<DreGroup, number>;
+    resultInCents: number;
+  }>;
+  totals: {
+    revenueInCents: number;
+    expensesInCents: number;
+    resultInCents: number;
+  };
+  categories: Array<{
+    id: string;
+    name: string;
+    group: DreGroup;
+    amountInCents: number;
+  }>;
+}
 import {
   adminUserCommissionInputSchema,
   commissionRuleInputSchema,
@@ -52,7 +102,29 @@ export type PayableInput = z.infer<typeof payableInputSchema>;
 
 export type RecurringPayableInput = z.infer<typeof recurringPayableInputSchema>;
 
+export interface PayablePaymentEvent {
+  id: string;
+  clinicId: string;
+  payableId: string;
+  kind: "payment" | "reversal";
+  occurredAt: string;
+  availableAt?: string | undefined;
+  amountInCents: number;
+  paymentMethod?: PaymentMethod | undefined;
+}
+export interface FinancialDateCorrection {
+  id: string;
+  clinicId: string;
+  kind: "receivable" | "payable";
+  eventId: string;
+  occurredAt: string;
+  availableAt: string;
+  reason: string;
+  actorId: string;
+  createdAt: string;
+}
 export interface ReceivedPayment {
+  availableAt?: string;
   id: string;
   receivableId: string;
   kind: "payment" | "reversal";
@@ -105,7 +177,18 @@ export interface PatientTabItem {
   totalInCents: number;
 }
 
+export interface PatientTabServiceItem {
+  id: string;
+  appointmentId: string;
+  serviceId: string;
+  serviceName: string;
+  professionalId: string;
+  professionalName: string;
+  amountInCents: number;
+}
+
 export interface PatientTab extends PatientTabInput {
+  services?: PatientTabServiceItem[];
   id: string;
   clinicId: string;
   patientName: string;
@@ -128,7 +211,15 @@ export interface InventoryWorkspace {
   openTabsInCents: number;
 }
 
+export type PaymentTiming = z.infer<typeof paymentTimingSchema>;
+export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
+  postedOn?: string | undefined;
+  cashAvailableAt?: string | undefined;
+  source?: "plan" | "tab" | "manual";
+  competence?: string;
+  categoryId?: string | undefined;
+  costCenterId?: string | undefined;
   id: string;
   clinicId: string;
   patientId: string;
@@ -155,6 +246,7 @@ export interface FinancialSummary {
 }
 
 export interface FinancialCategory extends FinancialCategoryInput {
+  dreGroup?: DreGroup | undefined;
   id: string;
   clinicId: string;
   active: boolean;
@@ -167,6 +259,9 @@ export interface CostCenter extends CostCenterInput {
 }
 
 export interface Payable extends PayableInput {
+  cashAvailableAt?: string;
+  dreCompetence?: string | undefined;
+  commissionId?: string | undefined;
   id: string;
   clinicId: string;
   categoryName: string;
@@ -205,6 +300,8 @@ export interface RecurringPayable {
 }
 
 export interface FinancialWorkspace {
+  commissionAdjustments?: import("./commission-reconciliation.js").CommissionAdjustment[];
+  commissionAccountPayments?: import("./commission-reconciliation.js").CommissionAccountPayment[];
   summary: FinancialSummary;
   categories: FinancialCategory[];
   costCenters: CostCenter[];
@@ -240,11 +337,16 @@ export interface CommissionRule extends CommissionRuleInput {
 }
 
 export interface CommissionEntry {
+  groupAttendanceId?: string;
+  sourceType?: "appointment" | "group_attendance";
+  ruleId?: string;
+  serviceId?: string;
+  ruleSnapshot?: AdminUserCommissionInput;
   id: string;
   clinicId: string;
   professionalId: string;
   professionalName: string;
-  appointmentId: string;
+  appointmentId?: string;
   competence: string;
   baseAmountInCents: number;
   percentage: number;
@@ -352,4 +454,21 @@ export interface PaymentReceipt {
   amountInCents: number;
   paymentMethod: PaymentMethod;
   paidAt: string;
+}
+
+export interface TabAppointmentOption {
+  id: string;
+  serviceName: string;
+  professionalName: string;
+  startsAt: string;
+}
+
+export interface CommissionPaymentEvent {
+  professionalName?: string;
+  id: string;
+  clinicId: string;
+  commissionId: string;
+  kind: "payment" | "reversal";
+  amountInCents: number;
+  occurredAt: string;
 }

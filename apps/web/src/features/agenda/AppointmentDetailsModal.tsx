@@ -175,6 +175,17 @@ export function AppointmentDetailsModal({
                 </strong>
               </div>
             )}
+            {appointment.absenceReason && (
+              <div className="detail-wide">
+                <small>Motivo da ausência</small>
+                <strong>{appointment.absenceReason}</strong>
+              </div>
+            )}
+            {appointment.predecessorId && (
+              <p className="muted-copy">
+                Remarcação vinculada ao atendimento de origem.
+              </p>
+            )}
             {appointment.notes && (
               <div className="detail-wide">
                 <small>Observações do agendamento</small>
@@ -336,6 +347,15 @@ export function AppointmentDetailsModal({
             </div>
           </div>
         )}
+        {editable &&
+          can("agenda.reschedule") &&
+          ["no_show", "excused_absence", "professional_absence"].includes(
+            appointment.status,
+          ) && (
+            <button className="primary-button" onClick={onReschedule}>
+              Remarcar ausência
+            </button>
+          )}
         {editable && !confirmCancel && canChange && (
           <div className="appointment-detail-actions">
             {can("agenda.cancel") && (

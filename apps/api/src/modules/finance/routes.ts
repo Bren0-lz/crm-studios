@@ -21,7 +21,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, assertPermissions } = context;
 
   app.get(
     "/inventory/workspace",
@@ -145,12 +145,14 @@ export function registerFinanceRoutes(context: RouteContext) {
     "/finance/receivables/:id/pay",
     { preHandler: authenticate },
     async (request, reply) => {
+      const timing = paymentInputSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
         id,
-        paymentInputSchema.parse(request.body ?? {}).paymentMethod,
+        timing.paymentMethod,
+        timing,
       );
       if (!receivable)
         return reply.status(404).send({
@@ -380,6 +382,7 @@ export function registerFinanceRoutes(context: RouteContext) {
       const commission = await repository.reverseCommission(
         request.user.clinicId,
         id,
+        request.user.sub,
       );
       if (!commission)
         return reply.status(404).send({
@@ -421,16 +424,20 @@ export function registerFinanceRoutes(context: RouteContext) {
   app.post(
     "/finance/payables",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = payableInputSchema.parse(request.body);
+      if (input.commissionId)
+        assertPermissions(request, "finance.commissions_pay");
+      return reply
         .status(201)
         .send(
           await repository.createPayable(
             request.user.clinicId,
             request.user.sub,
-            payableInputSchema.parse(request.body),
+            input,
           ),
-        ),
+        );
+    },
   );
 
   app.post(
@@ -439,11 +446,17 @@ export function registerFinanceRoutes(context: RouteContext) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = paymentInputSchema.parse(request.body ?? {});
+      const current = (
+        await repository.getFinancialWorkspace(request.user.clinicId)
+      ).payables.find((item) => item.id === id);
+      if (current?.commissionId)
+        assertPermissions(request, "finance.commissions_pay");
       const payable = await repository.settlePayable(
         request.user.clinicId,
         request.user.sub,
         id,
         input.paymentMethod,
+        input,
       );
       if (!payable)
         return reply.status(404).send({
@@ -459,6 +472,11 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const current = (
+        await repository.getFinancialWorkspace(request.user.clinicId)
+      ).payables.find((item) => item.id === id);
+      if (current?.commissionId)
+        assertPermissions(request, "finance.commissions_reverse");
       const payable = await repository.reversePayablePayment(
         request.user.clinicId,
         request.user.sub,

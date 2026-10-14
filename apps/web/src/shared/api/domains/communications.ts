@@ -7,10 +7,16 @@ import type {
   ManualMessageInput,
   OutboundMessage,
   ReminderGenerationResult,
+  ReminderGenerationOptions,
 } from "@crm/contracts";
 import { request } from "../transport";
 
 export const communicationsApi = {
+  completeManualMessage: (id: string, status: "sent" | "cancelled") =>
+    request<OutboundMessage>(`/communications/messages/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
   communications: () => request<CommunicationCenter>("/communications"),
   setCommunicationPreference: (input: CommunicationPreferenceInput) =>
     request<CommunicationPreference>("/communications/preferences", {
@@ -32,9 +38,12 @@ export const communicationsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  generateReminders: (referenceDate: string) =>
+  generateReminders: (
+    referenceDate: string,
+    options?: ReminderGenerationOptions,
+  ) =>
     request<ReminderGenerationResult>("/communications/reminders/generate", {
       method: "POST",
-      body: JSON.stringify({ referenceDate }),
+      body: JSON.stringify({ referenceDate, ...options }),
     }),
 };

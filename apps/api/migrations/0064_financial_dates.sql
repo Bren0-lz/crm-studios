@@ -1,0 +1,13 @@
+ALTER TABLE receivables ADD COLUMN posted_on date;
+ALTER TABLE payables ADD COLUMN posted_on date;
+ALTER TABLE receivables ADD COLUMN cash_available_at timestamptz;
+ALTER TABLE payables ADD COLUMN cash_available_at timestamptz;
+ALTER TABLE financial_events ADD COLUMN occurred_at timestamptz;
+ALTER TABLE financial_events ADD COLUMN cash_available_at timestamptz;
+ALTER TABLE payable_events ADD COLUMN occurred_at timestamptz;
+ALTER TABLE payable_events ADD COLUMN cash_available_at timestamptz;
+UPDATE receivables r SET posted_on=(r.created_at AT TIME ZONE c.timezone)::date FROM clinics c WHERE c.id=r.clinic_id;
+UPDATE payables p SET posted_on=(p.created_at AT TIME ZONE c.timezone)::date FROM clinics c WHERE c.id=p.clinic_id;
+CREATE TABLE financial_date_corrections(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),clinic_id uuid NOT NULL REFERENCES clinics(id),receivable_event_id uuid REFERENCES financial_events(id),payable_event_id uuid REFERENCES payable_events(id),occurred_at timestamptz NOT NULL,cash_available_at timestamptz NOT NULL,reason text NOT NULL,actor_user_id uuid NOT NULL REFERENCES users(id),created_at timestamptz NOT NULL DEFAULT now(),CHECK((receivable_event_id IS NULL) <> (payable_event_id IS NULL)));
+CREATE INDEX financial_date_corrections_receivable_idx ON financial_date_corrections(clinic_id,receivable_event_id,created_at DESC);
+CREATE INDEX financial_date_corrections_payable_idx ON financial_date_corrections(clinic_id,payable_event_id,created_at DESC);

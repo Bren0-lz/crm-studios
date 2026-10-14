@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { DomainError } from "../../repository.js";
+import { inspectClinicalAttachment } from "../clinical/clinical-integrity.js";
 import {
   adminUserCommissionInputSchema,
   adminUserInputSchema,
@@ -13,6 +16,19 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 export function registerAdministrationRoutes(context: RouteContext) {
   const { app, authenticate, repository, visibleHistory } = context;
 
+  app.post(
+    "/admin/users/:id/revoke-sessions",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      await repository.revokeUserSessions(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      return reply.status(204).send();
+    },
+  );
   app.get("/admin/users", { preHandler: authenticate }, async (request) =>
     repository.listAdminUsers(request.user.clinicId),
   );
@@ -121,6 +137,14 @@ export function registerAdministrationRoutes(context: RouteContext) {
     },
   );
 
+  app.get("/clinic/branding", { preHandler: authenticate }, async (request) => {
+    const settings = await repository.getClinicSettings(request.user.clinicId);
+    return {
+      name: settings?.name ?? "Studios Aryana",
+      logoDataUrl: settings?.logoDataUrl ?? "",
+      timezone: settings?.timezone ?? "America/Sao_Paulo",
+    };
+  });
   app.get(
     "/admin/clinic-settings",
     { preHandler: authenticate },
@@ -144,7 +168,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
       repository.updateClinicSettings(
         request.user.clinicId,
         request.user.sub,
-        clinicSettingsInputSchema.parse(request.body),
+        validatedClinicSettings(request.body),
       ),
   );
 
@@ -169,4 +193,28 @@ export function registerAdministrationRoutes(context: RouteContext) {
       ];
     },
   );
+}
+
+function validatedClinicSettings(body: unknown) {
+  const input = clinicSettingsInputSchema.parse(body);
+  if (input.logoDataUrl) {
+    const match = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(
+      input.logoDataUrl,
+    )!;
+    const size = Buffer.from(match[2]!, "base64").length;
+    if (size > 2 * 1024 * 1024)
+      throw new DomainError(
+        "CLINIC_LOGO_TOO_LARGE",
+        "O logotipo pode ter até 2 MB.",
+        413,
+      );
+    inspectClinicalAttachment({
+      patientId: "00000000-0000-4000-8000-000000000000",
+      fileName: "logotipo",
+      mimeType: match[1] as "image/png" | "image/jpeg",
+      sizeInBytes: size,
+      contentBase64: match[2]!,
+    });
+  }
+  return input;
 }

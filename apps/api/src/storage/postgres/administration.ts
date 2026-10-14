@@ -31,6 +31,7 @@ import {
 } from "./helpers.js";
 
 type ClinicSettingsRow = {
+  logoDataUrl?: string | null;
   id: string;
   name: string;
   legalName: string | null;
@@ -43,10 +44,13 @@ type ClinicSettingsRow = {
 };
 
 const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
-  email, address, timezone, updated_at AS "updatedAt"`;
+  logo_data_url AS "logoDataUrl",email, address, timezone, updated_at AS "updatedAt"`;
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
   return {
+    ...(row.logoDataUrl !== undefined && row.logoDataUrl !== null
+      ? { logoDataUrl: row.logoDataUrl }
+      : {}),
     id: row.id,
     name: row.name,
     legalName: row.legalName ?? "",
@@ -63,6 +67,33 @@ export function createAdministrationRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
   return {
+    async revokeUserSessions(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+    ) {
+      await repositoryContext.inTransaction(async (client) => {
+        const result = await client.query(
+          "UPDATE users SET session_version=session_version+1 WHERE clinic_id=$1 AND id=$2",
+          [clinicId, userId],
+        );
+        if (!result.rowCount)
+          throw new DomainError(
+            "USER_NOT_FOUND",
+            "Usuário não encontrado.",
+            404,
+          );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "user.sessions_revoked",
+          "user",
+          userId,
+          {},
+        );
+      });
+    },
     async findUserByEmail(email: string) {
       const result = await repositoryContext.pool.query<UserRow>(
         `
@@ -387,7 +418,7 @@ export function createAdministrationRepository(
       try {
         await client.query("BEGIN");
         const result = await client.query(
-          `UPDATE users SET password_hash = $3, updated_at = now()
+          `UPDATE users SET password_hash = $3, session_version=session_version+1, updated_at = now()
          WHERE clinic_id = $1 AND id = $2`,
           [clinicId, userId, passwordHash],
         );
@@ -434,7 +465,7 @@ export function createAdministrationRepository(
         await client.query("BEGIN");
         const result = await client.query<ClinicSettingsRow>(
           `UPDATE clinics SET name = $2, legal_name = $3, tax_id = $4,
-            phone = $5, email = $6, address = $7, timezone = $8, updated_at = now()
+            phone = $5, email = $6, address = $7, timezone = $8,logo_data_url=CASE WHEN $9 THEN $10 ELSE logo_data_url END, updated_at = now()
          WHERE id = $1 RETURNING ${clinicSettingsColumns}`,
           [
             clinicId,

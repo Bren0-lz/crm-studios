@@ -1,6 +1,7 @@
+import { PatientDetailPage } from "../features/patients/PatientDetailPage";
 import type { AppModule } from "@crm/contracts";
 import type { ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { hasSession } from "../api";
 import { useAuthorization } from "../authorization-context";
 import { AgendaPage } from "../features/agenda/AgendaPage";
@@ -22,6 +23,7 @@ import { LoadingBlock } from "../shared/components/LoadingBlock";
 import { Shell } from "./Shell";
 
 export function AppRoutes() {
+  const location = useLocation();
   const {
     user,
     setUser,
@@ -60,7 +62,7 @@ export function AppRoutes() {
               user={user!}
               onLogout={logout}
             >
-              <Routes>
+              <Routes key={location.pathname + location.search}>
                 <Route path="/" element={<DashboardPage />} />
                 <Route
                   path="/agenda"
@@ -73,6 +75,10 @@ export function AppRoutes() {
                 <Route
                   path="/clientes"
                   element={allow("patients", <PatientsPage />)}
+                />
+                <Route
+                  path="/clientes/:id"
+                  element={allow("patients", <PatientDetailPage />)}
                 />
                 {/* Endereço antigo, mantido para links e favoritos já salvos. */}
                 <Route

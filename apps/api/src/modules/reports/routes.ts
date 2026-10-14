@@ -1,3 +1,5 @@
+import { buildClientDetails } from "./client-details.js";
+import { clientDetailsFilterSchema } from "@crm/contracts";
 import {
   clientReportFilterSchema,
   managementReportFilterSchema,
@@ -22,7 +24,45 @@ import {
 import { salesReportToXlsx } from "./sales-workbook.js";
 
 export function registerReportsRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, requestAccess, assertPermissions } =
+    context;
+  for (const path of [
+    "/reports/clients/details",
+    "/reports/clients/details/export",
+  ] as const)
+    app.get(path, { preHandler: authenticate }, async (request) => {
+      const input = clientDetailsFilterSchema.parse(request.query),
+        permissions = requestAccess.get(request)?.permissions ?? [];
+      if (
+        input.segment === "pending" ||
+        input.segment === "overdue" ||
+        input.columns?.some((column) =>
+          ["pendingReceivables", "overdueReceivables"].includes(column),
+        )
+      )
+        assertPermissions(request, "finance.view");
+      if (input.columns?.includes("equipment"))
+        assertPermissions(request, "clinical.view");
+      const exporting = path.endsWith("/export"),
+        report = await buildClientDetails(
+          repository,
+          request.user.clinicId,
+          request.user.sub,
+          input,
+          permissions.includes("finance.view"),
+          permissions.includes("clinical.view"),
+          exporting,
+        );
+      if (exporting)
+        await repository.recordAdminAuditEvent(
+          request.user.clinicId,
+          request.user.sub,
+          "reports.clients_exported",
+          "report",
+          { filters: input, count: report.rows.length },
+        );
+      return report;
+    });
 
   app.get(
     "/reports/management",

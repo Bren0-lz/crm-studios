@@ -7,6 +7,19 @@ export function registerAuthRoutes(context: RouteContext) {
   const { app, loginAttempts, repository, toUserSummary, authenticate } =
     context;
 
+  app.post(
+    "/auth/logout-all",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      await repository.revokeUserSessions(
+        request.user.clinicId,
+        request.user.sub,
+        request.user.sub,
+      );
+      return reply.status(204).send();
+    },
+  );
+
   app.get("/health", async () => ({
     status: "ok",
     storage: config.STORAGE_MODE,
@@ -41,7 +54,12 @@ export function registerAuthRoutes(context: RouteContext) {
     }
     loginAttempts.delete(attemptKey);
     const token = app.jwt.sign(
-      { sub: user.id, clinicId: user.clinicId, role: user.role },
+      {
+        sub: user.id,
+        clinicId: user.clinicId,
+        role: user.role,
+        sessionVersion: user.sessionVersion ?? 0,
+      },
       { expiresIn: "8h" },
     );
     return { token, user: toUserSummary(user) };

@@ -1,3 +1,4 @@
+import { validateClinicalAnswers } from "../../modules/clinical/clinical-integrity.js";
 import type {
   AssessmentTemplate,
   AssessmentTemplateInput,
@@ -36,7 +37,10 @@ export function createClinicalRepository(
         .filter(
           (record) =>
             record.clinicId === clinicId &&
-            (!patientId || record.patientId === patientId),
+            (!patientId ||
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(record.patientId)),
         )
         .map((record) => ({
           ...record,
@@ -203,31 +207,46 @@ export function createClinicalRepository(
         assessments: repositoryContext.clinicalAssessments
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         goals: repositoryContext.therapeuticGoals
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         measurements: repositoryContext.clinicalMeasurements
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)),
         closures: repositoryContext.treatmentClosures
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
         attachments: repositoryContext.clinicalAttachments
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .map(({ contentBase64: _, ...item }) => {
             void _;
@@ -237,7 +256,10 @@ export function createClinicalRepository(
         addenda: repositoryContext.clinicalAddenda
           .filter(
             (item) =>
-              item.clinicId === clinicId && item.patientId === patientId,
+              item.clinicId === clinicId &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       };
@@ -288,7 +310,8 @@ export function createClinicalRepository(
         (item) =>
           item.clinicId === clinicId &&
           item.id === input.templateId &&
-          item.active,
+          item.active &&
+          item.status !== "draft",
       );
       const appointment = input.appointmentId
         ? repositoryContext.appointments.find(
@@ -309,35 +332,7 @@ export function createClinicalRepository(
           "Cliente, modelo, atendimento ou autor não encontrado.",
           404,
         );
-      for (const field of template.fields) {
-        const value = input.values[field.key];
-        if (field.required && (value === undefined || value === ""))
-          throw new DomainError(
-            "ASSESSMENT_REQUIRED_FIELD",
-            `Preencha o campo ${field.label}.`,
-          );
-        if (value === undefined || value === "") continue;
-        const expectedType =
-          field.type === "scale"
-            ? "number"
-            : field.type === "text"
-              ? "string"
-              : field.type;
-        if (typeof value !== expectedType)
-          throw new DomainError(
-            "ASSESSMENT_INVALID_VALUE",
-            `O valor de ${field.label} é inválido.`,
-          );
-        if (
-          typeof value === "number" &&
-          ((field.min !== undefined && value < field.min) ||
-            (field.max !== undefined && value > field.max))
-        )
-          throw new DomainError(
-            "ASSESSMENT_VALUE_OUT_OF_RANGE",
-            `O valor de ${field.label} está fora do intervalo permitido.`,
-          );
-      }
+      validateClinicalAnswers(template.fields, input.values);
       const assessment: ClinicalAssessment = {
         ...input,
         id: uuid(),
@@ -418,7 +413,9 @@ export function createClinicalRepository(
             (item) =>
               item.clinicId === clinicId &&
               item.id === input.goalId &&
-              item.patientId === input.patientId,
+              repositoryContext
+                .patientIds(clinicId, input.patientId)
+                .has(item.patientId),
           )
         : undefined;
       if (!patient || !author || (input.goalId && !goal))
@@ -578,7 +575,11 @@ export function createClinicalRepository(
     async listClinicalAccessEvents(clinicId: string, patientId: string) {
       return repositoryContext.clinicalAccessEvents
         .filter(
-          (item) => item.clinicId === clinicId && item.patientId === patientId,
+          (item) =>
+            item.clinicId === clinicId &&
+            repositoryContext
+              .patientIds(clinicId, patientId)
+              .has(item.patientId),
         )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },

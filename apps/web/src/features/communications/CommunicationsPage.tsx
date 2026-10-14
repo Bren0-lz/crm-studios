@@ -1,8 +1,13 @@
+import { NpsResponseAction } from "./NpsResponseAction";
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
+import { ManualMessageActions } from "./ManualMessageActions";
 import type {
   CommunicationCenter,
   CommunicationChannel,
   ManualMessageInput,
   PatientOption,
+  ReminderGenerationOptions,
 } from "@crm/contracts";
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
@@ -19,14 +24,23 @@ import { BroadcastPanel } from "./BroadcastPanel";
 
 export function CommunicationsPage() {
   const { can, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
   const [center, setCenter] = useState<CommunicationCenter | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [patientId, setPatientId] = useState("");
+  const [patientId, setPatientId] = useState(contextPatientId);
   const [channel, setChannel] = useState<CommunicationChannel>("whatsapp");
   const [body, setBody] = useState("");
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const [referenceDate, setReferenceDate] = useState(localIsoDate(tomorrow));
+  const [reminderOptions, setReminderOptions] =
+    useState<ReminderGenerationOptions>({
+      appointments: true,
+      payments: can("finance.view"),
+      birthdays: false,
+      satisfaction: false,
+    });
+  const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -116,21 +130,29 @@ export function CommunicationsPage() {
   }
 
   async function generate() {
+    if (working) return;
+    setWorking(true);
     setError("");
     setNotice("");
     try {
-      const result = await api.generateReminders(referenceDate);
+      const result = await api.generateReminders(
+        referenceDate,
+        reminderOptions,
+      );
       setNotice(
         `${result.queued} lembrete(s) criado(s), ${result.alreadyQueued} já existente(s) e ${result.skippedByPreference} bloqueado(s) por preferência.`,
       );
       await load();
     } catch (cause) {
       setError((cause as Error).message);
+    } finally {
+      setWorking(false);
     }
   }
 
   return (
     <>
+      <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         eyebrow="Relacionamento operacional"
         title="Central de comunicações"
@@ -213,10 +235,10 @@ export function CommunicationsPage() {
                 )}
               </section>
               <section className="panel reminder-generator">
-                <span className="eyebrow">Automação segura</span>
+                <span className="eyebrow">Trabalho da equipe</span>
                 <h2>Gerar lembretes</h2>
                 <p>
-                  Cria avisos de atendimentos da data e parcelas vencidas.
+                  Prepare avisos de atendimentos, parcelas, aniversários e NPS.
                   Repetir a operação não duplica mensagens.
                 </p>
                 <label>
@@ -227,10 +249,43 @@ export function CommunicationsPage() {
                     onChange={(event) => setReferenceDate(event.target.value)}
                   />
                 </label>
+                <div className="preference-row">
+                  {(
+                    [
+                      ["appointments", "Atendimentos"],
+                      ["payments", "Parcelas vencidas"],
+                      ["birthdays", "Aniversários"],
+                      ["satisfaction", "Acompanhamento de NPS"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key}>
+                      <input
+                        type="checkbox"
+                        disabled={
+                          working ||
+                          (key === "payments" && !can("finance.view"))
+                        }
+                        checked={Boolean(reminderOptions[key])}
+                        onChange={(event) =>
+                          setReminderOptions((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
                 <div className="modal-actions">
                   {can("communications.reminders") && (
                     <button
                       className="primary-button"
+                      disabled={
+                        working ||
+                        !referenceDate ||
+                        !Object.values(reminderOptions).some(Boolean)
+                      }
                       onClick={() => void generate()}
                     >
                       Gerar lembretes
@@ -240,8 +295,8 @@ export function CommunicationsPage() {
                 <div className="outbox-note">
                   <LockKeyhole size={17} />
                   <span>
-                    Modo fila interna: nenhum envio externo ocorre até um
-                    provedor oficial ser configurado.
+                    A equipe realiza o envio externamente e registra a conclusão
+                    manual. Abrir um link não registra o envio.
                   </span>
                 </div>
               </section>
@@ -273,26 +328,50 @@ export function CommunicationsPage() {
               />
             ) : (
               <div className="message-list">
-                {center.messages.map((message) => (
-                  <article key={message.id}>
-                    <div>
-                      <strong>{message.patientName}</strong>
-                      <span>
-                        {message.channel === "whatsapp" ? "WhatsApp" : "E-mail"}{" "}
-                        ·{" "}
-                        {message.kind === "manual"
-                          ? "individual"
-                          : message.kind === "appointment_reminder"
-                            ? "atendimento"
-                            : "cobrança"}
+                {center.messages
+                  .filter(
+                    (message) =>
+                      !contextPatientId ||
+                      message.patientId === contextPatientId,
+                  )
+                  .map((message) => (
+                    <article key={message.id}>
+                      <div>
+                        <strong>{message.patientName}</strong>
+                        <span>
+                          {message.channel === "whatsapp"
+                            ? "WhatsApp"
+                            : "E-mail"}{" "}
+                          ·{" "}
+                          {message.kind === "manual"
+                            ? "individual"
+                            : message.kind === "appointment_reminder"
+                              ? "atendimento"
+                              : message.kind === "birthday_reminder"
+                                ? "aniversário"
+                                : message.kind === "satisfaction_followup"
+                                  ? "NPS"
+                                  : "cobrança"}
+                        </span>
+                      </div>
+                      <p>{message.body}</p>
+                      <NpsResponseAction message={message} onChanged={load} />
+                      <ManualMessageActions
+                        message={message}
+                        allowed={allowed(message.patientId, message.channel)}
+                        onChanged={load}
+                      />
+                      <span className={`status-pill ${message.status}`}>
+                        {message.status === "queued"
+                          ? "Na fila"
+                          : message.status === "sent"
+                            ? "Enviada manualmente"
+                            : message.status === "cancelled"
+                              ? "Cancelada"
+                              : "Falha"}
                       </span>
-                    </div>
-                    <p>{message.body}</p>
-                    <span className={`status-pill ${message.status}`}>
-                      {message.status === "queued" ? "Na fila" : message.status}
-                    </span>
-                  </article>
-                ))}
+                    </article>
+                  ))}
               </div>
             )}
           </section>

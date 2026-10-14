@@ -8,7 +8,12 @@ import {
   communicationKindSchema,
   communicationPreferenceInputSchema,
   manualMessageInputSchema,
+  reminderGenerationInputSchema,
 } from "./model.js";
+
+export type ReminderGenerationOptions = Partial<
+  Omit<z.infer<typeof reminderGenerationInputSchema>, "referenceDate">
+>;
 
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
 
@@ -33,6 +38,13 @@ export interface CommunicationPreference extends CommunicationPreferenceInput {
 }
 
 export interface OutboundMessage {
+  satisfactionSurveyId?: string;
+  manualCompletion?: {
+    actorId: string;
+    actorName: string;
+    occurredAt: string;
+    status: "sent" | "cancelled";
+  };
   id: string;
   clinicId: string;
   patientId: string;

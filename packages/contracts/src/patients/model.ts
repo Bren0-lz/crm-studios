@@ -1,3 +1,4 @@
+import { patientProfileFilterSchema } from "./segments.js";
 import { z } from "zod";
 import { leadAppointmentInputSchema } from "../agenda/model.js";
 import {
@@ -24,7 +25,48 @@ import type {
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 
+export const patientProfileSchema = z.object({
+  address: z.string().trim().max(300).optional(),
+  neighborhood: z.string().trim().max(100).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(2).optional(),
+  postalCode: z.string().trim().max(10).optional(),
+  gender: z.enum(["female", "male", "other", "undisclosed", ""]).optional(),
+  guardianName: z.string().trim().max(160).optional(),
+  guardianPhone: optionalPhoneSchema,
+  occupation: z.string().trim().max(120).optional(),
+  source: z.string().trim().max(120).optional(),
+  level: z.string().trim().max(80).optional(),
+  clientType: z.enum(["fixed", "rotating", ""]).optional(),
+  clientSince: z.iso.date().optional().or(z.literal("")),
+  imageConsent: z.boolean().optional(),
+  interests: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+});
+
+export const patientProfileLabels = {
+  address: "Endereço",
+  neighborhood: "Bairro",
+  city: "Cidade",
+  state: "UF",
+  postalCode: "CEP",
+  gender: "Gênero",
+  guardianName: "Nome do responsável",
+  guardianPhone: "Telefone do responsável",
+  occupation: "Profissão",
+  source: "Origem",
+  level: "Nível",
+  clientType: "Tipo de cliente",
+  clientSince: "Cliente desde",
+  imageConsent: "Autoriza uso de imagem",
+  interests: "Interesses",
+} as const;
+
+export function patientProfile(input: z.infer<typeof patientProfileSchema>) {
+  return patientProfileSchema.parse(input);
+}
+
 export const patientInputSchema = z.object({
+  ...patientProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
   cpf: z
     .string()
@@ -128,14 +170,19 @@ export const patientExportColumnSchema = z.enum(
     "emergencyContactPhone",
     "notes",
     "createdAt",
+    ...patientProfileSchema.keyof().options,
   ],
   "Coluna de exportação desconhecida.",
 );
 
 export const patientExportColumns = patientExportColumnSchema.options;
+export const patientDefaultExportColumns = patientExportColumns.filter(
+  (column) => !(column in patientProfileLabels),
+);
 
 /** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
 export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
+  ...patientProfileLabels,
   fullName: "nome",
   recordNumber: "prontuário",
   cpf: "cpf",
@@ -163,6 +210,7 @@ export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
  * - `columns=a,b`: colunas de `patientExportColumns` (ausente = todas, na ordem padrão).
  */
 export const patientExportFilterSchema = z.object({
+  ...patientProfileFilterSchema.shape,
   format: z.preprocess(
     emptyQueryToUndefined,
     z
@@ -186,7 +234,7 @@ export const patientExportFilterSchema = z.object({
       .transform((value) =>
         value
           ? patientExportColumns.filter((column) => value.includes(column))
-          : [...patientExportColumns],
+          : [...patientDefaultExportColumns],
       ),
   ),
 });
@@ -255,6 +303,7 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
  * plano ativo que não é avulso e sem matrícula ativa em turma do serviço desse plano).
  */
 export const patientListQuerySchema = z.object({
+  ...patientProfileFilterSchema.shape,
   search: z.preprocess(
     emptyQueryToUndefined,
     z.string().trim().max(160).optional(),
@@ -295,3 +344,12 @@ export const patientImportFileSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   contentBase64: z.string().min(1),
 });
+
+export const patientProfileValueLabels = {
+  female: "Feminino",
+  male: "Masculino",
+  other: "Outro",
+  undisclosed: "Prefere não informar",
+  fixed: "Fixo",
+  rotating: "Rotativo",
+} as const;

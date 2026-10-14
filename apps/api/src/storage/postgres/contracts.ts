@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import type {
   DocumentStatus,
   DocumentTemplateInput,
@@ -123,122 +124,15 @@ export function createContractsRepository(
       actorUserId: string,
       input: IssuedDocumentInput,
     ) {
-      const professionalId = input.professionalId;
-      const context = await repositoryContext.pool.query<{
-        templateName: string;
-        templateVersion: number;
-        templateBody: string;
-        patientName: string;
-        planName: string | null;
-        planServices: PatientPlanService[] | null;
-        clinicName: string;
-        professionalName: string | null;
-        professionalCrefito: string | null;
-      }>(
-        `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
-              dt.body AS "templateBody", p.full_name AS "patientName",
-              pp.name AS "planName", c.name AS "clinicName",
-              (SELECT jsonb_agg(jsonb_build_object('serviceName', x.service_name, 'totalSessions', x.total_sessions, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "planServices",
-              pr.full_name AS "professionalName",
-              pr.crefito AS "professionalCrefito"
-       FROM document_templates dt
-       JOIN clinics c ON c.id = dt.clinic_id
-       JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
-       LEFT JOIN patient_plans pp
-         ON pp.clinic_id = dt.clinic_id AND pp.id = $4 AND pp.patient_id = p.id
-       LEFT JOIN professionals pr
-         ON pr.clinic_id = dt.clinic_id AND pr.id = $5
-       WHERE dt.clinic_id = $1 AND dt.id = $2 AND dt.active
-         AND ($4::uuid IS NULL OR pp.id IS NOT NULL)
-         AND ($5::uuid IS NULL OR pr.id IS NOT NULL)`,
-        [
+      return repositoryContext.inTransaction((client) =>
+        createIssuedDocumentInTransaction(
+          repositoryContext,
+          client,
           clinicId,
-          input.templateId,
-          input.patientId,
-          input.planId || null,
-          professionalId || null,
-        ],
-      );
-      if (!context.rows[0]) {
-        const template = await repositoryContext.pool.query(
-          `SELECT 1 FROM document_templates
-         WHERE clinic_id = $1 AND id = $2 AND active`,
-          [clinicId, input.templateId],
-        );
-        if (!template.rows[0])
-          throw new DomainError(
-            "DOCUMENT_TEMPLATE_NOT_FOUND",
-            "Modelo ativo não encontrado.",
-            404,
-          );
-        const patient = await repositoryContext.pool.query(
-          `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, input.patientId],
-        );
-        if (!patient.rows[0])
-          throw new DomainError(
-            "PATIENT_NOT_FOUND",
-            "Cliente não encontrado.",
-            404,
-          );
-        if (professionalId) {
-          const professional = await repositoryContext.pool.query(
-            `SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, professionalId],
-          );
-          if (!professional.rows[0])
-            throw new DomainError(
-              "PROFESSIONAL_NOT_FOUND",
-              "Profissional não encontrado.",
-              404,
-            );
-        }
-        throw new DomainError(
-          "DOCUMENT_PLAN_MISMATCH",
-          "O plano informado não pertence ao cliente.",
-        );
-      }
-      const item = context.rows[0];
-      const emissionDate = new Intl.DateTimeFormat("pt-BR", {
-        timeZone: "America/Sao_Paulo",
-      }).format(new Date());
-      const snapshot = item.templateBody
-        .replaceAll("{{paciente_nome}}", item.patientName)
-        .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
-        .replaceAll(
-          "{{plano_servicos}}",
-          formatPlanServices(item.planServices ?? []) || "Não vinculado",
-        )
-        .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
-        .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
-        .replaceAll("{{data_emissao}}", emissionDate)
-        .replaceAll("{{clinica_nome}}", item.clinicName);
-      const result = await repositoryContext.pool.query<IssuedDocumentRow>(
-        `WITH inserted AS (
-         INSERT INTO issued_documents
-           (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id, professional_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-         RETURNING *
-       )
-       SELECT ${issuedDocumentColumns}
-       FROM inserted d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
-        [
-          clinicId,
-          input.templateId,
-          input.patientId,
-          input.planId || null,
-          input.title,
-          item.templateName,
-          item.templateVersion,
-          snapshot,
           actorUserId,
-          professionalId || null,
-        ],
+          input,
+        ),
       );
-      return mapIssuedDocument(result.rows[0]!);
     },
 
     async updateIssuedDocumentStatus(
@@ -294,4 +188,129 @@ export function createContractsRepository(
       }
     },
   };
+}
+
+export async function createIssuedDocumentInTransaction(
+  repositoryContext: PostgresRepositoryContext,
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  input: IssuedDocumentInput,
+) {
+  const professionalId = input.professionalId;
+  const context = await client.query<{
+    templateName: string;
+    templateVersion: number;
+    templateBody: string;
+    patientName: string;
+    planName: string | null;
+    planServices: PatientPlanService[] | null;
+    clinicName: string;
+    professionalName: string | null;
+    professionalCrefito: string | null;
+  }>(
+    `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
+              dt.body AS "templateBody", p.full_name AS "patientName",
+              pp.name AS "planName", c.name AS "clinicName",
+              (SELECT jsonb_agg(jsonb_build_object('serviceName', x.service_name, 'totalSessions', x.total_sessions, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "planServices",
+              pr.full_name AS "professionalName",
+              pr.crefito AS "professionalCrefito"
+       FROM document_templates dt
+       JOIN clinics c ON c.id = dt.clinic_id
+       JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
+       LEFT JOIN patient_plans pp
+         ON pp.clinic_id = dt.clinic_id AND pp.id = $4 AND pp.patient_id = p.id
+       LEFT JOIN professionals pr
+         ON pr.clinic_id = dt.clinic_id AND pr.id = $5
+       WHERE dt.clinic_id = $1 AND dt.id = $2 AND dt.active
+         AND ($4::uuid IS NULL OR pp.id IS NOT NULL)
+         AND ($5::uuid IS NULL OR pr.id IS NOT NULL)`,
+    [
+      clinicId,
+      input.templateId,
+      input.patientId,
+      input.planId || null,
+      professionalId || null,
+    ],
+  );
+  if (!context.rows[0]) {
+    const template = await client.query(
+      `SELECT 1 FROM document_templates
+         WHERE clinic_id = $1 AND id = $2 AND active`,
+      [clinicId, input.templateId],
+    );
+    if (!template.rows[0])
+      throw new DomainError(
+        "DOCUMENT_TEMPLATE_NOT_FOUND",
+        "Modelo ativo não encontrado.",
+        404,
+      );
+    const patient = await client.query(
+      `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
+      [clinicId, input.patientId],
+    );
+    if (!patient.rows[0])
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    if (professionalId) {
+      const professional = await client.query(
+        `SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, professionalId],
+      );
+      if (!professional.rows[0])
+        throw new DomainError(
+          "PROFESSIONAL_NOT_FOUND",
+          "Profissional não encontrado.",
+          404,
+        );
+    }
+    throw new DomainError(
+      "DOCUMENT_PLAN_MISMATCH",
+      "O plano informado não pertence ao cliente.",
+    );
+  }
+  const item = context.rows[0];
+  const emissionDate = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date());
+  const snapshot = item.templateBody
+    .replaceAll("{{paciente_nome}}", item.patientName)
+    .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
+    .replaceAll(
+      "{{plano_servicos}}",
+      formatPlanServices(item.planServices ?? []) || "Não vinculado",
+    )
+    .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
+    .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
+    .replaceAll("{{data_emissao}}", emissionDate)
+    .replaceAll("{{clinica_nome}}", item.clinicName);
+  const result = await client.query<IssuedDocumentRow>(
+    `WITH inserted AS (
+         INSERT INTO issued_documents
+           (clinic_id, template_id, patient_id, plan_id, title, template_name,
+            template_version, snapshot_body, created_by_user_id, professional_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING *
+       )
+       SELECT ${issuedDocumentColumns}
+       FROM inserted d
+       JOIN patients p ON p.id = d.patient_id
+       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
+    [
+      clinicId,
+      input.templateId,
+      input.patientId,
+      input.planId || null,
+      input.title,
+      item.templateName,
+      item.templateVersion,
+      snapshot,
+      actorUserId,
+      professionalId || null,
+    ],
+  );
+  return mapIssuedDocument(result.rows[0]!);
 }

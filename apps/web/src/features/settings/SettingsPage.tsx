@@ -1,3 +1,4 @@
+import { ClinicCatalogsContent } from "./ClinicCatalogsContent";
 import {
   useCallback,
   useId,
@@ -137,6 +138,8 @@ export function SettingsPage() {
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (
               <HolidaysContent />
+            ) : tab.key === "catalogs" ? (
+              <ClinicCatalogsContent />
             ) : tab.key === "tags" ? (
               <PatientTagsContent canEdit={canEdit("settings")} />
             ) : (

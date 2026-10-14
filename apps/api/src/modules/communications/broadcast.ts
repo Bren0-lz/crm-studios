@@ -40,12 +40,7 @@ export function buildBroadcast(
   const segment = filterPatientsForExport(
     patients,
     plans,
-    {
-      status: input.segment.status,
-      tags: input.segment.tags,
-      birthdayMonth: input.segment.birthdayMonth,
-      activePlan: input.segment.activePlan,
-    },
+    input.segment,
     today,
   );
   const optedOut = new Set(

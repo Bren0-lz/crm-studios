@@ -1,5 +1,6 @@
 import {
   patientPlanInputSchema,
+  planPurchaseInputSchema,
   planAutoRenewInputSchema,
   planCatalogInputSchema,
   planRenewalInputSchema,
@@ -13,7 +14,34 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js";
 
 export function registerPlansRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions } = context;
+  const { app, authenticate, repository, assertPermissions, assertNoHoliday } =
+    context;
+  app.post(
+    "/plans/purchases",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const input = planPurchaseInputSchema.parse(request.body);
+      if (input.groupId) assertPermissions(request, "groups.enroll");
+      if (input.appointments.length)
+        assertPermissions(request, "agenda.create");
+      if (input.document)
+        assertPermissions(request, "contracts.issue", "contracts.status");
+      if (input.appointments.length)
+        await assertNoHoliday(
+          request.user.clinicId,
+          input.appointments.map((item) => item.startsAt),
+        );
+      return reply
+        .status(201)
+        .send(
+          await repository.purchasePatientPlan(
+            request.user.clinicId,
+            request.user.sub,
+            input,
+          ),
+        );
+    },
+  );
 
   app.get("/plan-catalog", { preHandler: authenticate }, async (request) =>
     repository.listPlanCatalog(request.user.clinicId),

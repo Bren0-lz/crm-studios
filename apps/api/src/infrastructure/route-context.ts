@@ -1,4 +1,8 @@
 import {
+  clinicDateOf,
+  DEFAULT_CLINIC_TIMEZONE,
+} from "../modules/finance/daily-cash.js";
+import {
   type AdminAuditEvent,
   type ApiError,
   type AppModule,
@@ -129,7 +133,10 @@ export async function createRouteContext({
       request.user.clinicId,
       request.user.sub,
     );
-    if (!user)
+    if (
+      !user ||
+      (request.user.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)
+    )
       return reply.status(401).send({
         code: "UNAUTHORIZED",
         message: "Sua sessão não é mais válida. Entre novamente.",
@@ -434,19 +441,20 @@ export async function createRouteContext({
   // mensagens `manual` na outbox (nenhum disparo real).
   async function planBroadcast(clinicId: string, body: unknown) {
     const input = broadcastInputSchema.parse(body);
-    const [patients, plans, center] = await Promise.all([
+    const [patients, plans, center, settings] = await Promise.all([
       repository.listPatients(clinicId),
       input.segment.activePlan === undefined
         ? Promise.resolve([])
         : repository.listPatientPlans(clinicId),
       repository.getCommunicationCenter(clinicId),
+      repository.getClinicSettings(clinicId),
     ]);
     const plan = buildBroadcast(
       patients,
       plans,
       center.preferences,
       input,
-      saoPauloToday(),
+      clinicDateOf(new Date(), settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE),
     );
     return { input, plan };
   }

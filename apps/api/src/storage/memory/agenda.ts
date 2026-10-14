@@ -899,6 +899,7 @@ export function createAgendaRepository(
       clinicId: string,
       appointmentId: string,
       status: AppointmentStatus,
+      absenceReason?: string,
     ) {
       const appointment = repositoryContext.appointments.find(
         (item) => item.id === appointmentId && item.clinicId === clinicId,
@@ -911,6 +912,8 @@ export function createAgendaRepository(
         repositoryContext.restoreSession(appointment);
       }
       appointment.status = status;
+      if (absenceReason !== undefined)
+        appointment.absenceReason = absenceReason;
       appointment.updatedAt = now();
       return appointment;
     },

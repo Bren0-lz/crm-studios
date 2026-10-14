@@ -1,5 +1,8 @@
 import {
   appointmentInputSchema,
+  professionalInputSchema,
+  externalOperationInputSchema,
+  planPurchaseInputSchema,
   clinicSettingsInputSchema,
   guidedPatientInputSchema,
   patientInputSchema,
@@ -294,6 +297,268 @@ for (const storage of ["memory", "postgres"] as const) {
         }
       });
 
+      it("purchases plan, schedule and document atomically with concurrent retry protection", async () => {
+        const created = await patient("Contratação integrada");
+        const services = [
+          { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+        ];
+        const template = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: "Plano contratado " + randomUUID(),
+            totalValueInCents: 20000,
+            services,
+          }),
+        );
+        const documentTemplate = await repository.createDocumentTemplate(
+          clinicId,
+          {
+            name: "Contrato " + randomUUID(),
+            kind: "contract",
+            body: "Contrato de {{paciente_nome}}: {{plano_nome}} e {{plano_servicos}}.",
+          },
+        );
+        const input = planPurchaseInputSchema.parse({
+          idempotencyKey: randomUUID(),
+          plan: {
+            patientId: created.id,
+            planTemplateId: template.id,
+            name: template.name,
+            kind: "fixed_package",
+            services,
+            totalValueInCents: 20000,
+            installments: 2,
+            validFrom: "2059-03-01",
+            validUntil: "2059-03-31",
+            firstDueDate: "2059-03-01",
+          },
+          appointments: [
+            {
+              professionalId,
+              roomId,
+              serviceId,
+              startsAt: "2059-03-02T12:00:00Z",
+            },
+          ],
+          document: {
+            templateId: documentTemplate.id,
+            title: "Contrato da contratação",
+          },
+        });
+        const conflicting = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            ...input.appointments[0],
+            patientId: created.id,
+          }),
+        );
+        await expect(
+          repository.purchasePatientPlan(clinicId, actorId, input),
+        ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
+        expect(await repository.listPatientPlans(clinicId, created.id)).toEqual(
+          [],
+        );
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (item) => item.patientId === created.id,
+          ),
+        ).toEqual([]);
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).filter(
+            (item) => item.patientId === created.id,
+          ),
+        ).toEqual([]);
+        await repository.updateAppointmentStatus(
+          clinicId,
+          conflicting.id,
+          "cancelled",
+        );
+        const results = await Promise.all([
+          repository.purchasePatientPlan(clinicId, actorId, input),
+          repository.purchasePatientPlan(clinicId, actorId, input),
+        ]);
+        expect(results[0]).toEqual(results[1]);
+        expect(results[0]!.appointments).toHaveLength(1);
+        expect(results[0]!.document).toMatchObject({
+          status: "issued",
+          planId: results[0]!.plan.id,
+          patientId: created.id,
+        });
+        expect(results[0]!.document!.snapshotBody).toContain(created.fullName);
+        expect(
+          await repository.listPatientPlans(clinicId, created.id),
+        ).toHaveLength(1);
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (item) => item.patientId === created.id,
+          ),
+        ).toHaveLength(2);
+        await expect(
+          repository.purchasePatientPlan(clinicId, actorId, {
+            ...input,
+            appointments: [],
+          }),
+        ).rejects.toMatchObject({ code: "PLAN_PURCHASE_KEY_REUSED" });
+        await repository.createDocumentTemplateVersion(
+          clinicId,
+          documentTemplate.id,
+          "Novo conteúdo de contrato sem alterar o anterior.",
+        );
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === results[0]!.document!.id,
+          )?.snapshotBody,
+        ).toBe(results[0]!.document!.snapshotBody);
+        expect(
+          (await repository.listAdminAuditEvents(clinicId)).filter(
+            (item) =>
+              item.action === "plan.purchased" &&
+              item.entityId === results[0]!.plan.id,
+          ),
+        ).toHaveLength(1);
+      });
+
+      it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
+        const created = await patient("Comanda integrada");
+        const tab = await repository.openPatientTab(clinicId, actorId, {
+          patientId: created.id,
+        });
+        const product = await repository.createProduct(clinicId, actorId, {
+          name: "Produto da comanda",
+          sku: randomUUID(),
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 3,
+          minimumStock: 1,
+        });
+        await repository.addPatientTabItem(clinicId, actorId, tab.id, {
+          productId: product.id,
+          quantity: 1,
+        });
+        const scheduled = await repository.createPatientTabAppointment(
+          clinicId,
+          actorId,
+          tab.id,
+          appointmentInputSchema.omit({ patientId: true }).parse({
+            professionalId,
+            roomId,
+            serviceId,
+            startsAt: "2059-02-02T12:00:00Z",
+          }),
+        );
+        const appointmentId = scheduled.services![0]!.appointmentId;
+        await expect(
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointmentId,
+            "completed",
+          ),
+        ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
+        const closed = await Promise.allSettled([
+          repository.closePatientTab(clinicId, actorId, tab.id, {
+            settlement: "receivable",
+            dueDate: "2059-02-02",
+          }),
+          repository.closePatientTab(clinicId, actorId, tab.id, {
+            settlement: "receivable",
+            dueDate: "2059-02-02",
+          }),
+        ]);
+        expect(
+          closed.filter((result) => result.status === "fulfilled"),
+        ).toHaveLength(1);
+        expect(
+          closed.filter((result) => result.status === "rejected"),
+        ).toHaveLength(1);
+        const invoices = (
+          await repository.getFinancialSummary(clinicId)
+        ).receivables.filter((item) => item.patientId === created.id);
+        expect(invoices).toHaveLength(1);
+        expect(invoices[0]!.amountInCents).toBe(scheduled.totalInCents);
+        const [credit] = await repository.listPatientPlans(
+          clinicId,
+          created.id,
+        );
+        expect(credit).toMatchObject({
+          sourceTabId: tab.id,
+          sourceAppointmentId: appointmentId,
+          remainingSessions: 1,
+        });
+        const other = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            patientId: created.id,
+            professionalId,
+            roomId,
+            serviceId,
+            startsAt: "2059-02-03T12:00:00Z",
+          }),
+        );
+        await repository.updateAppointmentStatus(
+          clinicId,
+          other.id,
+          "completed",
+        );
+        expect(
+          (await repository.listPatientPlans(clinicId, created.id))[0]!
+            .remainingSessions,
+        ).toBe(1);
+        await repository.updateAppointmentStatus(
+          clinicId,
+          appointmentId,
+          "completed",
+        );
+        await repository.updateAppointmentStatus(
+          clinicId,
+          appointmentId,
+          "completed",
+        );
+        await expect(
+          repository.cancelPatientTab(clinicId, actorId, tab.id),
+        ).rejects.toMatchObject({ code: "TAB_SERVICE_CORRECTION_REQUIRED" });
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )?.currentStock,
+        ).toBe(2);
+        await repository.updateAppointmentStatus(
+          clinicId,
+          appointmentId,
+          "confirmed",
+        );
+        expect(
+          (await repository.listPatientPlans(clinicId, created.id))[0]!
+            .remainingSessions,
+        ).toBe(1);
+        const ledger = await repository.listSessionMovements(
+          clinicId,
+          credit!.id,
+        );
+        expect(
+          ledger.filter((item) => item.kind === "consumption"),
+        ).toHaveLength(1);
+        expect(ledger.filter((item) => item.kind === "reversal")).toHaveLength(
+          1,
+        );
+        await repository.cancelPatientTab(clinicId, actorId, tab.id);
+        expect(
+          (await repository.listSessionMovements(clinicId, credit!.id)).reduce(
+            (total, item) => total + item.quantity,
+            0,
+          ),
+        ).toBe(0);
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )?.currentStock,
+        ).toBe(3);
+        expect(
+          await repository.listPatientPlans(randomUUID(), created.id),
+        ).toEqual([]);
+      });
+
       it("persists and finds a patient without exposing the record to another clinic", async () => {
         const created = await patient("Parity Cliente");
         expect(
@@ -421,6 +686,250 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toBe(0);
       });
 
+      it("keeps external proof out of financial balances and rolls back rejected references", async () => {
+        const client = await patient("Parity External");
+        const invoice = await repository.createManualReceivable(
+          clinicId,
+          actorId,
+          {
+            patientId: client.id,
+            description: "Receita da paridade",
+            amountInCents: 4500,
+            dueDate: "2055-01-10",
+            competence: "2055-01",
+          },
+        );
+        const proof = Buffer.from("%PDF-1.4\nParity external proof\n%%EOF"),
+          input = externalOperationInputSchema.parse({
+            kind: "partner",
+            counterpart: "Parceiro de paridade",
+            reference: randomUUID(),
+            occurredOn: "2055-01-10",
+            receivableId: invoice.id,
+            fileName: "proof.pdf",
+            mimeType: "application/pdf",
+            sizeInBytes: proof.length,
+            contentBase64: proof.toString("base64"),
+          });
+        const before = (
+          await repository.getFinancialSummary(clinicId)
+        ).receivables.find((item) => item.id === invoice.id);
+        const attempts = await Promise.allSettled([
+          repository.createExternalOperation(clinicId, actorId, input),
+          repository.createExternalOperation(clinicId, actorId, input),
+        ]);
+        expect(
+          attempts.filter((item) => item.status === "fulfilled"),
+        ).toHaveLength(1);
+        const entries = await repository.listExternalOperations(
+          clinicId,
+          client.id,
+        );
+        expect(entries).toHaveLength(1);
+        expect(entries[0]).not.toHaveProperty("contentBase64");
+        expect(
+          await repository.getExternalOperationContent(
+            clinicId,
+            actorId,
+            entries[0]!.id,
+          ),
+        ).toMatchObject({
+          contentBase64: input.contentBase64,
+          sha256: entries[0]!.sha256,
+        });
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.find(
+            (item) => item.id === invoice.id,
+          ),
+        ).toEqual(before);
+        const other = await patient("Parity External Other");
+        await expect(
+          repository.createExternalOperation(clinicId, actorId, {
+            ...input,
+            reference: randomUUID(),
+            patientId: other.id,
+          }),
+        ).rejects.toMatchObject({ code: "EXTERNAL_OPERATION_RECEIVABLE" });
+        expect(
+          await repository.listExternalOperations(clinicId, other.id),
+        ).toEqual([]);
+        expect(
+          await repository.getExternalOperationContent(
+            randomUUID(),
+            actorId,
+            entries[0]!.id,
+          ),
+        ).toBeNull();
+      });
+      it("shares manual birthday work and returns completion authors after reload", async () => {
+        const client = await repository.createPatient(
+          clinicId,
+          patientInputSchema.parse({
+            fullName: "Parity Birthday " + randomUUID(),
+            phone: "11988887777",
+            birthDate: "1990-01-10",
+          }),
+        );
+        await repository.generateReminders(clinicId, "2055-01-10", {
+          appointments: false,
+          payments: false,
+          birthdays: true,
+        });
+        const messages = (
+          await repository.getCommunicationCenter(clinicId)
+        ).messages.filter((item) => item.patientId === client.id);
+        expect(messages).toHaveLength(1);
+        expect(messages[0]!.kind).toBe("birthday_reminder");
+        await repository.generateReminders(clinicId, "2055-01-10", {
+          appointments: false,
+          payments: false,
+          birthdays: true,
+        });
+        expect(
+          (await repository.getCommunicationCenter(clinicId)).messages.filter(
+            (item) => item.patientId === client.id,
+          ),
+        ).toHaveLength(1);
+        await repository.completeManualMessage(
+          clinicId,
+          actorId,
+          messages[0]!.id,
+          "sent",
+        );
+        expect(
+          (await repository.getCommunicationCenter(clinicId)).messages.find(
+            (item) => item.id === messages[0]!.id,
+          ),
+        ).toMatchObject({ manualCompletion: { actorId, status: "sent" } });
+      });
+      it("preserves paid commissions and reconciles cash recoveries with immutable adjustments", async () => {
+        const client = await patient("Parity Commission Reconciliation"),
+          professional = await repository.createProfessional(
+            clinicId,
+            professionalInputSchema.parse({
+              fullName: "Paridade Comissão " + randomUUID(),
+              crefito: "PARITY-12345",
+              specialty: "Pilates",
+              color: "#8b5cf6",
+            }),
+          ),
+          room = await repository.createRoom(clinicId, {
+            name: "Paridade comissão " + randomUUID().slice(0, 8),
+            capacity: 1,
+          });
+        await repository.createCommissionRule(clinicId, {
+          professionalId: professional.id,
+          serviceId,
+          kind: "fixed",
+          percentage: 0,
+          fixedAmountInCents: 1500,
+          effectiveFrom: "2057-01-01",
+        });
+        const appointment = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            patientId: client.id,
+            professionalId: professional.id,
+            roomId: room.id,
+            serviceId,
+            startsAt: "2057-04-13T15:00:00Z",
+            visitType: "trial",
+          }),
+        );
+        await repository.updateAppointmentStatus(
+          clinicId,
+          appointment.id,
+          "completed",
+        );
+        const generated = await repository.generateCommissions(
+            clinicId,
+            "2057-04",
+          ),
+          commission = generated.find(
+            (entry) => entry.appointmentId === appointment.id,
+          )!;
+        expect(commission.amountInCents).toBe(1500);
+        await repository.settleCommission(clinicId, actorId, commission.id);
+        const frozen = structuredClone(
+            (await repository.getFinancialWorkspace(clinicId)).commissions.find(
+              (entry) => entry.id === commission.id,
+            ),
+          ),
+          beforeCash = await repository.getDailyCash(clinicId, saoPauloToday());
+        await repository.updateAppointmentStatus(
+          clinicId,
+          appointment.id,
+          "confirmed",
+        );
+        const preview = await repository.getCommissionReconciliationPreview(
+            clinicId,
+            commission.id,
+          ),
+          input = {
+            idempotencyKey: randomUUID(),
+            expectedDigest: preview.digest,
+            reason: "Origem corrigida após pagamento",
+          };
+        const [first, repeat] = await Promise.all([
+          repository.reconcileCommission(
+            clinicId,
+            actorId,
+            commission.id,
+            input,
+          ),
+          repository.reconcileCommission(
+            clinicId,
+            actorId,
+            commission.id,
+            input,
+          ),
+        ]);
+        expect(first.id).toBe(repeat.id);
+        expect(first.adjustments).toHaveLength(1);
+        expect(first.adjustments[0]!.amountInCents).toBe(-1500);
+        const payment = await repository.settleCommissionAccount(
+          clinicId,
+          actorId,
+          commission.id,
+          professional.id,
+          -1500,
+        );
+        expect(
+          (await repository.getDailyCash(clinicId, saoPauloToday()))
+            .totalOutflowInCents,
+        ).toBe(beforeCash.totalOutflowInCents - 1500);
+        expect(
+          (await repository.getFinancialWorkspace(clinicId)).commissions.find(
+            (entry) => entry.id === commission.id,
+          ),
+        ).toEqual(frozen);
+        expect(
+          (
+            await repository.getCommissionReconciliationPreview(
+              clinicId,
+              commission.id,
+            )
+          ).reconciliations,
+        ).toHaveLength(1);
+        await repository.reverseCommissionAccountPayment(
+          clinicId,
+          actorId,
+          payment.id,
+        );
+        expect(
+          (await repository.getDailyCash(clinicId, saoPauloToday()))
+            .totalOutflowInCents,
+        ).toBe(beforeCash.totalOutflowInCents);
+        await expect(
+          repository.reverseCommissionAccountPayment(
+            clinicId,
+            actorId,
+            payment.id,
+          ),
+        ).rejects.toMatchObject({
+          code: "COMMISSION_ACCOUNT_PAYMENT_REVERSED",
+        });
+      });
       it("rolls back a guided registration when the subsequent plan cannot be created", async () => {
         const name = `Parity Rollback ${randomUUID()}`;
         const input = guidedPatientInputSchema.parse({

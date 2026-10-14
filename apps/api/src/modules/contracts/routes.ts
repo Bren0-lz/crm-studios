@@ -1,4 +1,6 @@
+import { z } from "zod";
 import {
+  documentSignatureInputSchema,
   documentTemplateInputSchema,
   documentTemplateVersionInputSchema,
   documentTransitionSchema,
@@ -9,6 +11,31 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 export function registerContractsRoutes(context: RouteContext) {
   const { app, authenticate, repository, assertPermissions } = context;
 
+  app.post(
+    "/documents/:id/signature",
+    { preHandler: authenticate, bodyLimit: 8 * 1024 * 1024 },
+    async (request) =>
+      repository.recordDocumentSignature(
+        request.user.clinicId,
+        request.user.sub,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+        documentSignatureInputSchema.parse(request.body),
+      ),
+  );
+  app.get(
+    "/documents/:id/signature/content",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.getDocumentSignatureContent(
+        request.user.clinicId,
+        request.user.sub,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "DOCUMENT_SIGNATURE_NOT_FOUND",
+        message: "Cópia assinada não encontrada.",
+      }),
+  );
   app.get(
     "/document-templates",
     { preHandler: authenticate },

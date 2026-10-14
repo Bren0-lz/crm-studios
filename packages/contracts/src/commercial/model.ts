@@ -1,8 +1,28 @@
 import { z } from "zod";
 import { phoneSchema } from "../common/model.js";
-import { leadStageSchema } from "../patients/model.js";
+import {
+  patientProfileSchema,
+  patientInputSchema,
+  leadStageSchema,
+} from "../patients/model.js";
 
+export const leadPatientProfileSchema = patientProfileSchema.extend(
+  patientInputSchema.pick({
+    cpf: true,
+    whatsapp: true,
+    birthDate: true,
+    emergencyContactName: true,
+    emergencyContactPhone: true,
+  }).shape,
+);
+export function leadPatientProfile(
+  input: z.infer<typeof leadPatientProfileSchema>,
+) {
+  return leadPatientProfileSchema.parse(input);
+}
 export const leadInputSchema = z.object({
+  ...leadPatientProfileSchema.shape,
+  contactMethod: z.string().trim().max(80).optional(),
   fullName: z.string().trim().min(3).max(160),
   phone: phoneSchema,
   email: z.email().optional().or(z.literal("")),
@@ -33,6 +53,7 @@ export const leadContactChannelSchema = z.enum([
 
 export const leadContactInputSchema = z.object({
   channel: leadContactChannelSchema,
+  contactMethod: z.string().trim().max(80).optional(),
   direction: z.enum(["inbound", "outbound", "internal"]),
   notes: z.string().trim().min(2).max(2000),
   occurredAt: z.iso.datetime().optional(),

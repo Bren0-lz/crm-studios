@@ -49,17 +49,30 @@ const operation = (...keys: PermissionKey[]): ModuleRequirement[] =>
  * Supporting selections use anyOf and minimal DTOs instead of complete module records.
  */
 export const ROUTE_ACCESS: Record<string, RouteAccess> = {
+  "GET /admin/registry": view("settings"),
+  "PUT /admin/registry/:id": operation("settings.registry_manage"),
+  "GET /clinic-catalogs/:kind": viewAny(
+    "patients",
+    "settings",
+    "crm",
+    "clinical",
+  ),
+  "POST /clinic-catalogs/:kind": "admin",
+  "PUT /clinic-catalogs/:kind/:id": "admin",
   "GET /health": "public",
   "POST /auth/login": "public",
+  "POST /auth/logout-all": "login",
   "GET /me": "login",
 
   // Administração (só admin).
+  "POST /admin/users/:id/revoke-sessions": "admin",
   "GET /admin/users": "admin",
   "POST /admin/users": "admin",
   "PATCH /admin/users/:id": "admin",
   "POST /admin/users/:id/reset-password": "admin",
   "PUT /admin/users/:id/professional": "admin",
   "PUT /admin/users/:id/commission": "admin",
+  "GET /clinic/branding": "login",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
@@ -96,6 +109,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /services": operation("agenda.services_create"),
   "POST /appointments": operation("agenda.create"),
   "POST /appointments/recurring": operation("agenda.recurring"),
+  "POST /appointments/:id/successor": operation("agenda.reschedule"),
   "PUT /appointments/:id/schedule": operation("agenda.reschedule"),
   "PATCH /appointments/:id/status": {
     anyOf: operation("agenda.attendance", "agenda.cancel"),
@@ -114,9 +128,24 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /group-sessions/:sessionId/attendance/:patientId":
     operation("groups.attendance"),
   "POST /group-sessions/:id/complete": operation("groups.complete"),
+  "PUT /group-replacements/:id/attendance": operation("groups.attendance"),
+  "PUT /group-sessions/:id/professional": operation("groups.update"),
   "POST /group-replacements/book": operation("groups.replacement"),
 
   // Clientes (inclui estoque e comandas).
+  "GET /patients/:id/emergency-contact": viewAny(
+    "patients",
+    "agenda",
+    "groups",
+    "clinical",
+  ),
+  "GET /patients/:id": view("patients"),
+  "PATCH /patients/:id/status": operation("patients.update"),
+  "POST /patients/inactivation/preview": "admin",
+  "POST /patients/inactivation": "admin",
+  "POST /patients/merge/preview": "admin",
+  "POST /patients/merge": "admin",
+  "GET /patients/segments": view("patients"),
   "GET /patients": view("patients"),
   "GET /patients/options": viewAny(
     "patients",
@@ -146,6 +175,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "DELETE /patient-tags/:id": operation("settings.tags_delete"),
   "POST /patients/import": operation("patients.import"),
   "GET /patients/:id/timeline": operation("patients.timeline"),
+  "GET /finance/external-operations": operation(
+    "finance.external_records_view",
+  ),
+  "GET /finance/external-operations/:id/content": operation(
+    "finance.external_records_view",
+  ),
+  "POST /finance/external-operations": operation(
+    "finance.external_records_manage",
+  ),
   "GET /inventory/workspace": operation("patients.inventory_view"),
   "POST /inventory/products": operation("patients.products_create"),
   "POST /inventory/movements": operation("patients.stock_move"),
@@ -165,6 +203,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "DELETE /plan-catalog/:id": operation("settings.plans_delete"),
   "GET /plans": view("plans"),
   "GET /plans/:id/movements": view("plans"),
+  "POST /plans/purchases": operation("plans.create", "plans.purchase"),
   "POST /plans": operation("plans.create"),
   "PATCH /plans/:id/status": {
     anyOf: operation("plans.status", "plans.cancel"),
@@ -173,8 +212,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PATCH /plans/:id/auto-renew": operation("plans.auto_renew"),
 
   // CRM comercial.
+  "GET /leads/insights": operation("crm.view"),
   "GET /leads": view("crm"),
   "GET /leads/:id/activity": view("crm"),
+  "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),
   "PATCH /leads/:id/stage": operation("crm.stage"),
   "POST /leads/:id/convert": operation("crm.convert", "patients.create"),
@@ -194,6 +235,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /relationship/activities": operation("relationship.activities_create"),
 
   // Comunicações.
+  "POST /communications/messages/:id/complete": operation(
+    "communications.messages",
+  ),
   "GET /communications": view("communications"),
   "PUT /communications/preferences": operation("communications.preferences"),
   "POST /communications/messages": operation("communications.messages"),
@@ -211,6 +255,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /document-templates/:id/versions": operation(
     "contracts.templates_version",
   ),
+  "POST /documents/:id/signature": operation("contracts.status"),
+  "GET /documents/:id/signature/content": view("contracts"),
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
   "PATCH /documents/:id/status": {
@@ -218,6 +264,25 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   },
 
   // Prontuários.
+  "GET /clinical-sources": view("clinical"),
+  "GET /clinical-resources/catalog": view("clinical"),
+  "GET /clinical-resources": view("clinical"),
+  "GET /clinical-resources/export": operation("clinical.export"),
+  "POST /clinical-resources": {
+    anyOf: operation(
+      "clinical.records_create",
+      "clinical.templates_create",
+      "clinical.resources_manage",
+    ),
+  },
+  "PUT /clinical-resources/:id": {
+    anyOf: operation(
+      "clinical.records_update",
+      "clinical.templates_create",
+      "clinical.resources_manage",
+    ),
+  },
+  "POST /clinical-resources/:id/finalize": operation("clinical.finalize"),
   "GET /clinical-records": view("clinical"),
   "GET /clinical-records/:id/revisions": view("clinical"),
   "GET /clinical-workspace/:patientId": view("clinical"),
@@ -234,6 +299,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /clinical-records/:id/finalize": operation("clinical.finalize"),
   "POST /clinical-attachments": operation("clinical.attachments_create"),
   "POST /clinical-addenda": operation("clinical.addenda_create"),
+  "POST /assessment-templates/drafts": operation("clinical.templates_create"),
+  "PUT /assessment-templates/:id": operation("clinical.templates_create"),
   "POST /assessment-templates": operation("clinical.templates_create"),
   "POST /clinical-assessments": operation("clinical.assessments_create"),
   "POST /therapeutic-goals": operation("clinical.goals_create"),
@@ -242,6 +309,24 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /treatment-closures": operation("clinical.closures_create"),
 
   // Financeiro.
+  "PUT /inventory/products/:id": operation("patients.products_update"),
+  "PUT /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
+  "DELETE /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
+  "GET /patient-tabs/:id/appointment-options": operation("patients.tabs_items"),
+  "POST /patient-tabs/:id/services": operation("patients.tabs_items"),
+  "DELETE /patient-tabs/:id/services/:itemId": operation("patients.tabs_items"),
+  "POST /patient-tabs/:id/appointments": operation(
+    "patients.tabs_items",
+    "agenda.create",
+  ),
+  "GET /finance/suppliers": view("finance"),
+  "POST /finance/suppliers": operation("finance.suppliers_manage"),
+  "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "POST /finance/receivables": operation("finance.receivables_create"),
+  "PUT /finance/classifications/:kind/:id": operation("finance.classify"),
+  "PUT /finance/categories/:id/dre": operation("finance.classify"),
+  "PUT /finance/entries/:kind/:id/dates": operation("finance.dates_manage"),
+  "GET /finance/dre": view("finance"),
   "GET /finance/summary": view("finance"),
   "GET /finance/receivables/:id/receipt": view("finance"),
   "GET /finance/workspace": view("finance"),
@@ -260,6 +345,16 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),
+  "GET /finance/commissions/:id/reconciliation": view("finance"),
+  "POST /finance/commissions/:id/reconciliation": operation(
+    "finance.commissions_reconcile",
+  ),
+  "POST /finance/commissions/:id/accounts/:professionalId/pay": operation(
+    "finance.commissions_pay",
+  ),
+  "POST /finance/commission-account-payments/:id/reverse": operation(
+    "finance.commissions_reverse",
+  ),
   "POST /finance/commissions/:id/pay": operation("finance.commissions_pay"),
   "POST /finance/commissions/:id/reverse": operation(
     "finance.commissions_reverse",
@@ -274,8 +369,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
 
   // Relatórios (só leitura).
+  "GET /reports/dre": operation("reports.dre"),
+  "GET /reports/dre/export": operation("reports.dre", "reports.export"),
   "GET /reports/management": operation("reports.management"),
   "GET /reports/retention": operation("reports.retention"),
+  "GET /reports/clients/details": operation("reports.clients"),
+  "GET /reports/clients/details/export": operation(
+    "reports.clients",
+    "reports.export",
+  ),
   "GET /reports/clients": operation("reports.clients"),
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),

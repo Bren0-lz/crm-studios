@@ -1,3 +1,6 @@
+import { leadConversionData } from "../../modules/commercial/conversion.js";
+import { leadPatientProfile } from "@crm/contracts/commercial";
+import { patientProfile } from "@crm/contracts/patients";
 import type {
   LeadActivity,
   LeadContactInput,
@@ -7,7 +10,6 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
 } from "@crm/contracts";
-import { randomUUID } from "node:crypto";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -52,8 +54,8 @@ export function createCommercialRepository(
       const result = await repositoryContext.pool.query<{ id: string }>(
         `INSERT INTO leads
          (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          responsible_user_id, tags,profile,contact_method)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
        RETURNING id`,
         [
           clinicId,
@@ -65,6 +67,8 @@ export function createCommercialRepository(
           input.notes || null,
           input.responsibleUserId || null,
           input.tags,
+          JSON.stringify(leadPatientProfile(input)),
+          input.contactMethod ?? null,
         ],
       );
       return (await repositoryContext.findLead(
@@ -74,6 +78,72 @@ export function createCommercialRepository(
       ))!;
     },
 
+    async updateLead(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      input: LeadInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [clinicId],
+        );
+        const existing = await repositoryContext.findLead(client, clinicId, id);
+        if (!existing) return null;
+        if (existing.convertedPatientId)
+          throw new DomainError(
+            "LEAD_ALREADY_CONVERTED",
+            "Atualize o cadastro convertido pelo contexto do cliente.",
+            409,
+          );
+        if (
+          input.responsibleUserId &&
+          !(
+            await client.query(
+              "SELECT id FROM users WHERE clinic_id=$1 AND id=$2 AND (active OR id=$3)",
+              [
+                clinicId,
+                input.responsibleUserId,
+                existing.responsibleUserId || null,
+              ],
+            )
+          ).rowCount
+        )
+          throw new DomainError(
+            "RESPONSIBLE_USER_NOT_FOUND",
+            "Responsável não encontrado.",
+            404,
+          );
+        await client.query(
+          `UPDATE leads SET full_name=$3,phone=$4,email=$5,source=$6,interest=$7,notes=$8,responsible_user_id=$9,tags=$10,profile=$11::jsonb,contact_method=$12,updated_at=now() WHERE clinic_id=$1 AND id=$2`,
+          [
+            clinicId,
+            id,
+            input.fullName,
+            input.phone,
+            input.email || null,
+            input.source,
+            input.interest,
+            input.notes || null,
+            input.responsibleUserId || null,
+            input.tags,
+            JSON.stringify(leadPatientProfile(input)),
+            input.contactMethod || null,
+          ],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "lead.updated",
+          "lead",
+          id,
+          {},
+        );
+        return repositoryContext.findLead(client, clinicId, id);
+      });
+    },
     async moveLead(
       clinicId: string,
       actorUserId: string,
@@ -146,6 +216,10 @@ export function createCommercialRepository(
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [clinicId],
+        );
         const leadResult = await client.query<LeadRow>(
           `SELECT ${leadColumns} FROM leads
          WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
@@ -164,9 +238,14 @@ export function createCommercialRepository(
             )
           : await client.query<PatientRow>(
               `SELECT ${patientColumns} FROM patients
-             WHERE clinic_id = $1 AND (phone = $2 OR ($3::text IS NOT NULL AND lower(email) = lower($3)))
+             WHERE clinic_id = $1 AND (phone = $2 OR ($3::text IS NOT NULL AND lower(email) = lower($3)) OR ($4::text IS NOT NULL AND cpf=$4))
              ORDER BY created_at LIMIT 1`,
-              [clinicId, original.phone, original.email || null],
+              [
+                clinicId,
+                original.phone,
+                original.email || null,
+                original.cpf || null,
+              ],
             );
         if (original.convertedPatientId && !patientResult.rows[0]) {
           throw new DomainError(
@@ -175,27 +254,53 @@ export function createCommercialRepository(
             409,
           );
         }
-        const reusedExisting = Boolean(patientResult.rows[0]);
-        if (!patientResult.rows[0]) {
-          await ensurePatientTags(client, clinicId, ["Convertido do CRM"]);
-          const patientId = randomUUID();
-          patientResult = await client.query<PatientRow>(
-            `INSERT INTO patients
-             (id, clinic_id, record_number, full_name, phone, email, notes, tags)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,ARRAY['Convertido do CRM'])
-           RETURNING ${patientColumns}`,
-            [
-              patientId,
-              clinicId,
-              `PAC-${patientId.slice(0, 8).toUpperCase()}`,
-              original.fullName,
-              original.phone,
-              original.email || null,
-              original.notes || null,
-            ],
-          );
+        if (patientResult.rows[0]) {
+          const matched = mapPatient(patientResult.rows[0]);
+          if (matched.mergedIntoPatientId)
+            patientResult = await client.query<PatientRow>(
+              `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
+              [clinicId, matched.mergedIntoPatientId],
+            );
         }
-        const patient = mapPatient(patientResult.rows[0]!);
+        const reusedExisting = Boolean(patientResult.rows[0]);
+        let patient = patientResult.rows[0]
+          ? mapPatient(patientResult.rows[0])
+          : undefined;
+        if (!original.convertedPatientId) {
+          const data = leadConversionData(original, patient);
+          await ensurePatientTags(client, clinicId, data.tags);
+          if (!patient)
+            patient = await repositoryContext.insertPatient(
+              client,
+              clinicId,
+              data,
+            );
+          else {
+            patientResult = await client.query<PatientRow>(
+              `UPDATE patients SET profile=$3::jsonb,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,notes=$9,email=$10,tags=$11,updated_at=now() WHERE clinic_id=$1 AND id=$2 RETURNING ${patientColumns}`,
+              [
+                clinicId,
+                patient.id,
+                JSON.stringify(patientProfile(data)),
+                data.cpf || null,
+                data.whatsapp || null,
+                data.birthDate || null,
+                data.emergencyContactName || null,
+                data.emergencyContactPhone || null,
+                data.notes || null,
+                data.email || null,
+                data.tags,
+              ],
+            );
+            patient = mapPatient(patientResult.rows[0]!);
+          }
+        }
+        if (!patient)
+          throw new DomainError(
+            "LEAD_PATIENT_NOT_FOUND",
+            "Cliente da conversão não encontrado.",
+            409,
+          );
         await client.query(
           `UPDATE appointments SET patient_id = $3, lead_id = NULL, updated_at = now()
          WHERE clinic_id = $1 AND lead_id = $2`,
@@ -238,7 +343,7 @@ export function createCommercialRepository(
       const [contacts, tasks] = await Promise.all([
         repositoryContext.pool.query<LeadContactRow>(
           `SELECT lc.id, lc.clinic_id AS "clinicId", lc.lead_id AS "leadId",
-                lc.channel, lc.direction, lc.notes, u.full_name AS "actorName",
+                lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, u.full_name AS "actorName",
                 lc.occurred_at AS "occurredAt", lc.created_at AS "createdAt"
          FROM lead_contacts lc JOIN users u ON u.id = lc.actor_user_id
          WHERE lc.clinic_id = $1 AND lc.lead_id = $2
@@ -270,29 +375,36 @@ export function createCommercialRepository(
       leadId: string,
       input: LeadContactInput,
     ) {
-      const inserted = await repositoryContext.pool.query<{ id: string }>(
-        `INSERT INTO lead_contacts
-         (clinic_id, lead_id, actor_user_id, channel, direction, notes, occurred_at)
-       SELECT $1, l.id, u.id, $4, $5, $6, $7
+      return repositoryContext.inTransaction(async (client) => {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO lead_contacts
+         (clinic_id, lead_id, actor_user_id, channel, direction, notes, occurred_at, contact_method)
+       SELECT $1, l.id, u.id, $4, $5, $6, $7, $8
        FROM leads l JOIN users u ON u.clinic_id = l.clinic_id AND u.id = $3
        WHERE l.clinic_id = $1 AND l.id = $2
        RETURNING id`,
-        [
+          [
+            clinicId,
+            leadId,
+            actorUserId,
+            input.channel,
+            input.direction,
+            input.notes,
+            input.occurredAt ?? new Date().toISOString(),
+            input.contactMethod || null,
+          ],
+        );
+        if (!inserted.rows[0]) return null;
+        await client.query(
+          `UPDATE leads SET updated_at = now(),contact_method=coalesce(nullif(contact_method,''),$3) WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, leadId, input.contactMethod || null],
+        );
+        return repositoryContext.findLeadContact(
           clinicId,
-          leadId,
-          actorUserId,
-          input.channel,
-          input.direction,
-          input.notes,
-          input.occurredAt ?? new Date().toISOString(),
-        ],
-      );
-      if (!inserted.rows[0]) return null;
-      await repositoryContext.pool.query(
-        `UPDATE leads SET updated_at = now() WHERE clinic_id = $1 AND id = $2`,
-        [clinicId, leadId],
-      );
-      return repositoryContext.findLeadContact(clinicId, inserted.rows[0].id);
+          inserted.rows[0].id,
+          client,
+        );
+      });
     },
 
     async createLeadTask(

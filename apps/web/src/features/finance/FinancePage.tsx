@@ -1,6 +1,17 @@
+import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
+import {
+  matchesFinancialEntry,
+  type FinancialEntryFilter,
+} from "@crm/contracts";
+import { FinanceEntryFilters } from "./FinanceEntryFilters";
+import { usePatientContext } from "../../shared/hooks/usePatientContext";
+import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
+import { ExternalOperationsPanel } from "./ExternalOperationsPanel";
+import { FinanceClassificationPanel } from "./FinanceClassificationPanel";
 import type {
   CommissionEntry,
   FinancialWorkspace,
+  PaymentTiming,
   PaymentMethod,
   PaymentReceipt,
   Professional,
@@ -15,7 +26,10 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { currency } from "../../shared/lib/formatting";
-import { CommissionRuleModal } from "./CommissionRuleModal";
+import {
+  type CommissionRuleDraft,
+  CommissionRuleModal,
+} from "./CommissionRuleModal";
 import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
@@ -32,6 +46,26 @@ import type { ReceivableFilter, SettleTarget } from "./types";
 
 export function FinancePage() {
   const { can, canEdit } = useAuthorization();
+  const contextPatientId = usePatientContext();
+  const [entryFilters, setEntryFilters] = useState<FinancialEntryFilter>({
+    dateField: "dueDate",
+  });
+  const [expenseFilters, setExpenseFilters] = useState<FinancialEntryFilter>({
+    dateField: "dueDate",
+  });
+  const [timezone, setTimezone] = useState("America/Sao_Paulo");
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicBranding()
+      .then((branding) => {
+        if (active && branding.timezone) setTimezone(branding.timezone);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
     "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
@@ -48,6 +82,9 @@ export function FinancePage() {
     null,
   );
   const [renegotiating, setRenegotiating] = useState(false);
+  const [reconcilingCommission, setReconcilingCommission] = useState<
+    string | null
+  >(null);
   const [commissionRuleOpen, setCommissionRuleOpen] = useState(false);
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
@@ -89,10 +126,14 @@ export function FinancePage() {
       setError((cause as Error).message);
     }
   }
-  async function settle(target: SettleTarget, method: PaymentMethod) {
+  async function settle(
+    target: SettleTarget,
+    method: PaymentMethod,
+    timing?: PaymentTiming,
+  ) {
     if (target.kind === "receivable")
-      await api.settleReceivable(target.id, method);
-    else await api.settlePayable(target.id, method);
+      await api.settleReceivable(target.id, method, timing);
+    else await api.settlePayable(target.id, method, timing);
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
     if (target.kind === "receivable") setSelectedReceivables([]);
@@ -171,17 +212,24 @@ export function FinancePage() {
       setError((cause as Error).message);
     }
   }
-  async function createCommissionRule(input: {
-    professionalId: string;
-    percentage: number;
-    effectiveFrom: string;
-  }) {
-    await api.createCommissionRule(input);
+  async function createCommissionRule(input: CommissionRuleDraft) {
+    if ("userId" in input) await api.setUserCommission(input.userId, input);
+    else await api.createCommissionRule(input);
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }
   return (
     <>
+      <PatientContextNotice
+        patientId={contextPatientId}
+        patients={
+          data?.summary.receivables.map((item) => ({
+            id: item.patientId,
+            fullName: item.patientName,
+            tags: [],
+          })) ?? []
+        }
+      />
       <PageHeader
         eyebrow="Saúde financeira"
         title="Financeiro"
@@ -230,7 +278,7 @@ export function FinancePage() {
                 {currency.format(data.cashBalanceThisMonthInCents / 100)}
               </strong>
               <small className="metric-note">
-                Recebido no mês − despesas pagas no mês.
+                Entradas e saídas disponíveis no caixa neste mês.
               </small>
             </article>
             <article className="metric-card">
@@ -239,16 +287,21 @@ export function FinancePage() {
                 {currency.format(data.summary.paidThisMonthInCents / 100)}
               </strong>
               <small className="metric-note">
-                Parcelas de clientes com baixa neste mês.
+                Parcelas de clientes com baixa neste mês, descontados os
+                estornos.
               </small>
             </article>
             <article className="metric-card">
               <span>Despesas pagas</span>
               <strong>
-                {currency.format(data.paidExpensesThisMonthInCents / 100)}
+                {currency.format(
+                  (data.paidExpensesThisMonthInCents +
+                    data.paidCommissionsThisMonthInCents) /
+                    100,
+                )}
               </strong>
               <small className="metric-note">
-                Contas da clínica quitadas neste mês.
+                Contas e comissões quitadas neste mês, descontados os estornos.
               </small>
             </article>
             <article className="metric-card">
@@ -313,8 +366,21 @@ export function FinancePage() {
                   <h2>Parcelas</h2>
                 </div>
               </div>
+              <FinanceEntryFilters
+                workspace={data}
+                value={entryFilters}
+                onChange={(filter) => {
+                  setEntryFilters(filter);
+                  setSelectedReceivables([]);
+                }}
+              />
               <ReceivablesList
-                receivables={data.summary.receivables}
+                receivables={data.summary.receivables.filter(
+                  (item) =>
+                    (!contextPatientId ||
+                      item.patientId === contextPatientId) &&
+                    matchesFinancialEntry(item, entryFilters, timezone),
+                )}
                 canManage={canManage}
                 filter={receivableFilter}
                 search={receivableSearch}
@@ -355,8 +421,16 @@ export function FinancePage() {
                   </p>
                 </div>
               </div>
+              <FinanceEntryFilters
+                workspace={data}
+                value={expenseFilters}
+                onChange={setExpenseFilters}
+                payables
+              />
               <PayablesList
-                payables={data.payables}
+                payables={data.payables.filter((item) =>
+                  matchesFinancialEntry(item, expenseFilters, timezone),
+                )}
                 canManage={canManage}
                 onCreate={() => setPayableModal(true)}
                 onReverse={(id) => void reversePayable(id)}
@@ -410,6 +484,9 @@ export function FinancePage() {
                 )}
               </div>
               <CommissionsList
+                payables={data.payables}
+                adjustments={data.commissionAdjustments ?? []}
+                onReconcile={setReconcilingCommission}
                 commissions={data.commissions}
                 canManage={canManage}
                 onToggle={(item) => void toggleCommission(item)}
@@ -424,6 +501,19 @@ export function FinancePage() {
             />
           )}
         </>
+      )}
+      {data && (
+        <>
+          <FinanceClassificationPanel workspace={data} onChanged={reload} />
+          <ExternalOperationsPanel workspace={data} />
+        </>
+      )}
+      {reconcilingCommission && (
+        <CommissionReconciliationModal
+          id={reconcilingCommission}
+          onClose={() => setReconcilingCommission(null)}
+          onChanged={reload}
+        />
       )}
       {payableModal && data && (
         <PayableModal
@@ -474,7 +564,7 @@ export function FinancePage() {
         <SettleModal
           target={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(method) => settle(settling, method)}
+          onConfirm={(method, timing) => settle(settling, method, timing)}
         />
       )}
     </>

@@ -328,6 +328,12 @@ export function createPlansRepository(
           ? await repositoryContext.lockRenewablePlan(client, clinicId, planId)
           : await repositoryContext.findPatientPlan(client, clinicId, planId);
         if (!plan) return null;
+        if (plan.sourceTabId)
+          throw new DomainError(
+            "TAB_PLAN_MANAGED",
+            "O serviço avulso deve ser administrado pela comanda de origem.",
+            409,
+          );
         if (autoRenew && plan.status === "expired") {
           throw new DomainError(
             "PLAN_EXPIRED",
@@ -447,14 +453,23 @@ export function createPlansRepository(
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
-        const current = await client.query<{ status: PlanStatus }>(
-          "SELECT status FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+        const current = await client.query<{
+          status: PlanStatus;
+          sourceTabId: string | null;
+        }>(
+          'SELECT status, source_tab_id AS "sourceTabId" FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE',
           [clinicId, planId],
         );
         if (!current.rows[0]) {
           await client.query("COMMIT");
           return null;
         }
+        if (current.rows[0].sourceTabId)
+          throw new DomainError(
+            "TAB_PLAN_MANAGED",
+            "O serviço avulso deve ser administrado pela comanda de origem.",
+            409,
+          );
         if (current.rows[0].status === "cancelled" && status !== "cancelled") {
           throw new DomainError(
             "PLAN_CANCELLED",
@@ -526,7 +541,7 @@ export function createPlansRepository(
 
     async listSessionMovements(clinicId: string, planId: string) {
       const result = await repositoryContext.pool.query<SessionMovementRow>(
-        `SELECT sm.id, sm.plan_id AS "planId", sm.appointment_id AS "appointmentId",
+        `SELECT sm.id, sm.plan_id AS "planId", sm.appointment_id AS "appointmentId",sm.group_attendance_id AS "groupAttendanceId",
               sm.kind, sm.quantity, sm.reason, sm.service_id AS "serviceId", pps.service_name AS "serviceName", sm.created_at AS "createdAt"
        FROM session_movements sm
        JOIN patient_plans pp ON pp.id = sm.plan_id
@@ -538,6 +553,9 @@ export function createPlansRepository(
       return result.rows.map((row): SessionMovement => ({
         id: row.id,
         planId: row.planId,
+        ...(row.groupAttendanceId
+          ? { groupAttendanceId: row.groupAttendanceId }
+          : {}),
         ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
         kind: row.kind,
         quantity: row.quantity,

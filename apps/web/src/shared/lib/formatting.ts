@@ -139,3 +139,17 @@ export const visitTypeLabels: Record<AppointmentVisitType, string> = {
   trial: "Experimental",
   evaluation: "Avaliação",
 };
+
+export function clinicIsoDate(
+  value: string | Date,
+  timezone = "America/Sao_Paulo",
+) {
+  return typeof value === "string" && value.length === 10
+    ? value
+    : new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(value));
+}

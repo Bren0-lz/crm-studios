@@ -1,4 +1,6 @@
 import {
+  matchesPatientProfile,
+  patientProfileValueLabels,
   patientExportColumnLabels,
   type Patient,
   type PatientExportColumn,
@@ -26,6 +28,7 @@ export function filterPatientsForExport(
   );
   const month = today.slice(5, 7);
   return patients
+    .filter((patient) => matchesPatientProfile(patient, filter))
     .filter((patient) => !filter.status || patient.status === filter.status)
     .filter(
       (patient) =>
@@ -60,8 +63,25 @@ function clinicDate(timestamp: string) {
 
 function cellValue(patient: Patient, column: PatientExportColumn): string {
   switch (column) {
+    case "gender":
+    case "clientType":
+      return (
+        patientProfileValueLabels[
+          patient[column] as keyof typeof patientProfileValueLabels
+        ] ?? ""
+      );
     case "birthDate":
       return patient.birthDate ? brazilianDate(patient.birthDate) : "";
+    case "clientSince":
+      return patient.clientSince ? brazilianDate(patient.clientSince) : "";
+    case "interests":
+      return patient.interests?.join(", ") ?? "";
+    case "imageConsent":
+      return patient.imageConsent === undefined
+        ? ""
+        : patient.imageConsent
+          ? "sim"
+          : "não";
     case "tags":
       return patient.tags.join(", ");
     case "status":
@@ -69,7 +89,7 @@ function cellValue(patient: Patient, column: PatientExportColumn): string {
     case "createdAt":
       return clinicDate(patient.createdAt);
     default:
-      return patient[column] ?? "";
+      return String(patient[column] ?? "");
   }
 }
 

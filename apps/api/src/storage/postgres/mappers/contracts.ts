@@ -17,6 +17,7 @@ export interface DocumentTemplateRow {
 }
 
 export interface IssuedDocumentRow {
+  manualSignature?: IssuedDocument["manualSignature"] | null;
   id: string;
   clinicId: string;
   templateId: string;
@@ -47,7 +48,7 @@ export const issuedDocumentColumns = `
   d.professional_id AS "professionalId", d.title,
   d.template_name AS "templateName", d.template_version AS "templateVersion",
   p.full_name AS "patientName", pp.name AS "planName",
-  d.snapshot_body AS "snapshotBody", d.status,
+  d.manual_signature AS "manualSignature",d.snapshot_body AS "snapshotBody", d.status,
   d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
   d.created_at AS "createdAt", d.updated_at AS "updatedAt"
 `;
@@ -83,6 +84,7 @@ export function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     templateVersion: row.templateVersion,
     patientName: row.patientName,
     ...(row.planName ? { planName: row.planName } : {}),
+    ...(row.manualSignature ? { manualSignature: row.manualSignature } : {}),
     snapshotBody: row.snapshotBody,
     status: row.status,
     ...(row.issuedAt ? { issuedAt: row.issuedAt.toISOString() } : {}),

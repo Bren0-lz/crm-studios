@@ -4,6 +4,7 @@ import {
   type PatientInput,
   type PatientTagInput,
   patientTagKey,
+  patientProfile,
   type PatientTagUpdate,
   type ReceivedPayment,
 } from "@crm/contracts";
@@ -120,7 +121,7 @@ export function createPatientsRepository(
         `
         SELECT ${patientColumns}
         FROM patients
-        WHERE clinic_id = $1
+        WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
           AND (
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
@@ -299,7 +300,7 @@ export function createPatientsRepository(
           `UPDATE patients SET full_name = $3, cpf = $4, email = $5,
                 phone = $6, whatsapp = $7, birth_date = $8, emergency_contact_name = $9,
                 emergency_contact_phone = $10, notes = $11, tags = $12,
-                updated_at = now()
+                profile = profile || $13::jsonb, updated_at = now()
          WHERE clinic_id = $1 AND id = $2
          RETURNING ${patientColumns}`,
           [
@@ -315,6 +316,7 @@ export function createPatientsRepository(
             input.emergencyContactPhone || null,
             input.notes || null,
             input.tags,
+            JSON.stringify(patientProfile(input)),
           ],
         );
         return result.rows[0] ? mapPatient(result.rows[0]) : null;
