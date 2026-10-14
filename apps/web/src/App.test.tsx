@@ -244,7 +244,8 @@ describe("configured plan catalog", () => {
     expect(within(dialog).getByRole("button", { name: "Salvar plano" })).toBeEnabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar plano" }));
     await waitFor(() => expect(writes).toHaveLength(1));
-    expect(writes[0]).toMatchObject({ name: "Plano completo", totalValueInCents: 12550, kind: "custom", planType: "promotional", services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 2550 }] });
+    expect(writes[0]).toMatchObject({ name: "Plano completo", totalValueInCents: 12550,
+       kind: "custom", planType: "promotional", services: [{ serviceId: first.serviceId, totalSessions: 8, totalValueInCents: 10000 }, { serviceId: "77777777-7777-4777-8777-777777777777", totalSessions: 2, totalValueInCents: 2550 }] });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Editar plano Plano completo" }));
     dialog = screen.getByRole("dialog");
