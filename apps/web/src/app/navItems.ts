@@ -16,61 +16,93 @@ import {
   Users,
 } from "lucide-react";
 
-export const navItems: Array<{
+type NavItem = {
   to: string;
   label: string;
   icon: LucideIcon;
   disabled?: boolean;
   /** Módulo exigido; sem módulo (Visão geral) o item aparece para todos. */
   module?: AppModule;
-}> = [
-  { to: "/", label: "Visão geral", icon: LayoutDashboard },
-  { to: "/agenda", label: "Agenda", icon: CalendarDays, module: "agenda" },
-  { to: "/turmas", label: "Turmas", icon: Users, module: "groups" },
-  { to: "/clientes", label: "Clientes", icon: Users, module: "patients" },
+};
+
+export const navGroups: Array<{ label: string; items: NavItem[] }> = [
   {
-    to: "/planos",
-    label: "Planos e sessões",
-    icon: PackageOpen,
-    module: "plans",
-  },
-  { to: "/comercial", label: "CRM comercial", icon: Columns3, module: "crm" },
-  {
-    to: "/relacionamento",
-    label: "Contatos sugeridos",
-    icon: HeartHandshake,
-    module: "relationship",
-  },
-  {
-    to: "/comunicacoes",
-    label: "Comunicações",
-    icon: Bell,
-    module: "communications",
-  },
-  { to: "/contratos", label: "Contratos", icon: FileText, module: "contracts" },
-  {
-    to: "/prontuarios",
-    label: "Prontuários",
-    icon: Stethoscope,
-    module: "clinical",
+    label: "Rotina",
+    items: [
+      { to: "/", label: "Visão geral", icon: LayoutDashboard },
+      { to: "/agenda", label: "Agenda", icon: CalendarDays, module: "agenda" },
+      { to: "/turmas", label: "Turmas", icon: Users, module: "groups" },
+      { to: "/clientes", label: "Clientes", icon: Users, module: "patients" },
+      {
+        to: "/planos",
+        label: "Planos e sessões",
+        icon: PackageOpen,
+        module: "plans",
+      },
+      {
+        to: "/prontuarios",
+        label: "Prontuários",
+        icon: Stethoscope,
+        module: "clinical",
+      },
+    ],
   },
   {
-    to: "/financeiro",
-    label: "Financeiro",
-    icon: CircleDollarSign,
-    module: "finance",
+    label: "Relacionamento",
+    items: [
+      {
+        to: "/comercial",
+        label: "CRM comercial",
+        icon: Columns3,
+        module: "crm",
+      },
+      {
+        to: "/relacionamento",
+        label: "Contatos sugeridos",
+        icon: HeartHandshake,
+        module: "relationship",
+      },
+      {
+        to: "/comunicacoes",
+        label: "Comunicações",
+        icon: Bell,
+        module: "communications",
+      },
+    ],
   },
   {
-    to: "/relatorios",
-    label: "Relatórios",
-    icon: BarChart3,
-    module: "reports",
-  },
-  { to: "/historico", label: "Histórico", icon: FileClock, module: "history" },
-  {
-    to: "/configuracoes",
-    label: "Configurações",
-    icon: Settings,
-    module: "settings",
+    label: "Gestão",
+    items: [
+      {
+        to: "/contratos",
+        label: "Contratos",
+        icon: FileText,
+        module: "contracts",
+      },
+      {
+        to: "/financeiro",
+        label: "Financeiro",
+        icon: CircleDollarSign,
+        module: "finance",
+      },
+      {
+        to: "/relatorios",
+        label: "Relatórios",
+        icon: BarChart3,
+        module: "reports",
+      },
+      {
+        to: "/historico",
+        label: "Histórico",
+        icon: FileClock,
+        module: "history",
+      },
+      {
+        to: "/configuracoes",
+        label: "Configurações",
+        icon: Settings,
+        module: "settings",
+      },
+    ],
   },
 ];

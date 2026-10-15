@@ -1,4 +1,5 @@
 import {
+  appointmentStatusSchema,
   appointmentInputSchema,
   professionalInputSchema,
   externalOperationInputSchema,
@@ -108,6 +109,74 @@ for (const storage of ["memory", "postgres"] as const) {
           }),
         );
       }
+
+      it("counts the whole local day by status, independently of the five pending rows", async () => {
+        const date = "2088-10-12";
+        const client = await patient("Parity Dashboard");
+        const create = (startsAt: string) =>
+          repository.createAppointment(
+            clinicId,
+            appointmentInputSchema.parse({
+              patientId: client.id,
+              professionalId,
+              roomId,
+              serviceId,
+              startsAt,
+            }),
+          );
+        for (const [
+          index,
+          status,
+        ] of appointmentStatusSchema.options.entries()) {
+          const appointment = await create(
+            `${date}T${String(6 + index).padStart(2, "0")}:00:00Z`,
+          );
+          await repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            status,
+          );
+        }
+        // Midnight in São Paulo is 03:00 UTC; the end of the day is exclusive.
+        await create(`${date}T03:00:00Z`);
+        for (let hour = 14; hour < 19; hour++)
+          await create(`${date}T${hour}:00:00Z`);
+        await create("2088-10-13T02:00:00Z");
+        await create("2088-10-11T23:00:00Z");
+        await create("2088-10-13T03:00:00Z");
+
+        expect(await repository.getDashboard(clinicId, date)).toMatchObject({
+          appointmentsToday: 14,
+          nonCancelledAppointmentsToday: 13,
+          pendingToday: 9,
+          awaitingConfirmationToday: 8,
+          completedToday: 1,
+          nextAppointments: expect.any(Array),
+        });
+        expect(
+          (await repository.getDashboard(clinicId, date)).nextAppointments,
+        ).toHaveLength(5);
+        expect(
+          await repository.getDashboard(clinicId, "2088-10-15"),
+        ).toMatchObject({
+          appointmentsToday: 0,
+          nonCancelledAppointmentsToday: 0,
+          pendingToday: 0,
+          awaitingConfirmationToday: 0,
+          completedToday: 0,
+          nextAppointments: [],
+        });
+        expect(await repository.getDashboard(randomUUID(), date)).toMatchObject(
+          {
+            appointmentsToday: 0,
+            nonCancelledAppointmentsToday: 0,
+            pendingToday: 0,
+            awaitingConfirmationToday: 0,
+            completedToday: 0,
+            nextAppointments: [],
+          },
+        );
+      });
 
       it("saves every settings section repeatedly with one database connection", async () => {
         const original = await repository.getClinicSettings(clinicId);

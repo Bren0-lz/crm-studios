@@ -236,6 +236,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         }
         const dashboard = await repository.getDashboard(clinicId, date);
         expect(dashboard.appointmentsToday).toBe(7);
+        expect(dashboard.nonCancelledAppointmentsToday).toBe(6);
+        expect(dashboard.pendingToday).toBe(2);
+        expect(dashboard.awaitingConfirmationToday).toBe(1);
         expect(dashboard.completedToday).toBe(1);
         expect(dashboard.nextAppointments.map((item) => item.id)).toEqual(
           dayIds.slice(0, 2),

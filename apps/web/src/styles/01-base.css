@@ -75,10 +75,10 @@
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
-.sidebar::-webkit-scrollbar-thumb {
+.main-nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18) padding-box;
 }
-.sidebar::-webkit-scrollbar-thumb:hover {
+.main-nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.32) padding-box;
 }
 /* Firefox não aceita os seletores acima; usa as propriedades padrão. */
@@ -87,7 +87,7 @@
     scrollbar-width: thin;
     scrollbar-color: #c9d3cd transparent;
   }
-  .sidebar {
+  .main-nav {
     scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
   }
 }

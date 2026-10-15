@@ -1,5 +1,6 @@
 import type { Appointment, AppointmentStatus } from "@crm/contracts";
 import { MoreHorizontal } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
@@ -44,7 +45,11 @@ export function AgendaCard({
         <div>
           <span className="service-name">
             <i
-              style={{ background: appointment.professionalColor }}
+              style={
+                {
+                  "--professional-color": appointment.professionalColor,
+                } as CSSProperties
+              }
               aria-hidden="true"
             />
             {appointment.serviceName}
@@ -57,6 +62,7 @@ export function AgendaCard({
         </div>
         <div className="agenda-actions">
           <select
+            className={`agenda-status-select agenda-status-${appointment.status}`}
             value={appointment.status}
             onChange={(event) =>
               onStatus?.(event.target.value as AppointmentStatus)

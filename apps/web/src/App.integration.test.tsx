@@ -1578,6 +1578,9 @@ describe("application shell", () => {
           }
         : {
             appointmentsToday: 3,
+            nonCancelledAppointmentsToday: 3,
+            pendingToday: 2,
+            awaitingConfirmationToday: 2,
             completedToday: 1,
             patientsActive: 40,
             noShowsThisMonth: 1,
@@ -2506,6 +2509,9 @@ describe("application shell", () => {
           : url.includes("/dashboard")
             ? {
                 appointmentsToday: 0,
+                nonCancelledAppointmentsToday: 0,
+                pendingToday: 0,
+                awaitingConfirmationToday: 0,
                 completedToday: 0,
                 patientsActive: 3,
                 noShowsThisMonth: 0,
@@ -2586,6 +2592,9 @@ describe("application shell", () => {
             String(input).includes("/dashboard")
               ? {
                   appointmentsToday: 0,
+                  nonCancelledAppointmentsToday: 0,
+                  pendingToday: 0,
+                  awaitingConfirmationToday: 0,
                   completedToday: 0,
                   patientsActive: 3,
                   noShowsThisMonth: 0,
@@ -9972,6 +9981,9 @@ describe("users and permissions", () => {
       const body = String(input).includes("/dashboard")
         ? {
             appointmentsToday: 0,
+            nonCancelledAppointmentsToday: 0,
+            pendingToday: 0,
+            awaitingConfirmationToday: 0,
             completedToday: 0,
             patientsActive: 1,
             noShowsThisMonth: 0,
@@ -11096,6 +11108,9 @@ describe("view-only relationship", () => {
             : url.includes("/dashboard")
               ? {
                   appointmentsToday: 0,
+                  nonCancelledAppointmentsToday: 0,
+                  pendingToday: 0,
+                  awaitingConfirmationToday: 0,
                   completedToday: 0,
                   patientsActive: 3,
                   noShowsThisMonth: 0,
@@ -11149,6 +11164,9 @@ describe("dashboard links by agenda access", () => {
   const dashboard = {
     date: "2026-10-12",
     appointmentsToday: 0,
+    nonCancelledAppointmentsToday: 0,
+    pendingToday: 0,
+    awaitingConfirmationToday: 0,
     completedToday: 0,
     patientsActive: 3,
     noShowsThisMonth: 0,
@@ -11197,6 +11215,9 @@ describe("dashboard links by agenda access", () => {
     renderDashboard(["agenda"], [], {
       ...dashboard,
       appointmentsToday: 1,
+      nonCancelledAppointmentsToday: 1,
+      pendingToday: 0,
+      awaitingConfirmationToday: 0,
       completedToday: 1,
     });
     expect(await screen.findByText("Agenda concluída")).toBeInTheDocument();
@@ -11209,6 +11230,9 @@ describe("dashboard links by agenda access", () => {
     renderDashboard(["agenda"], [], {
       ...dashboard,
       appointmentsToday: 1,
+      nonCancelledAppointmentsToday: 1,
+      pendingToday: 1,
+      awaitingConfirmationToday: 1,
       nextAppointments: [
         {
           id: "a1",
@@ -11347,6 +11371,9 @@ describe("button variants", () => {
             : url.includes("/dashboard")
               ? {
                   appointmentsToday: 1,
+                  nonCancelledAppointmentsToday: 1,
+                  pendingToday: 1,
+                  awaitingConfirmationToday: 1,
                   completedToday: 0,
                   patientsActive: 3,
                   noShowsThisMonth: 0,

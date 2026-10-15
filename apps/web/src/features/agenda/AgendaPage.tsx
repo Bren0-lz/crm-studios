@@ -13,7 +13,13 @@ import type {
   ScheduleBlock,
   Service,
 } from "@crm/contracts";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  LockKeyhole,
+  Plus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -225,6 +231,7 @@ export function AgendaPage() {
                   className="secondary-button"
                   onClick={() => setBlockModalOpen(true)}
                 >
+                  <LockKeyhole size={16} aria-hidden="true" />
                   Bloquear horário
                 </button>
               )}
@@ -246,6 +253,9 @@ export function AgendaPage() {
       <section className="panel agenda-panel">
         <div className="agenda-toolbar">
           <div className="date-navigator">
+            <span className="agenda-calendar-icon" aria-hidden="true">
+              <CalendarDays size={22} />
+            </span>
             <button
               className="icon-button"
               onClick={() => moveDay(-1)}
@@ -296,36 +306,51 @@ export function AgendaPage() {
             </button>
           </div>
           <div className="agenda-toolbar-end">
-            <div className="view-toggle">
+            <div
+              className="view-toggle"
+              role="group"
+              aria-label="Visualização da agenda"
+            >
               <button
                 className={`tab-button ${view === "day" ? "active" : ""}`}
+                aria-pressed={view === "day"}
                 onClick={() => setView("day")}
               >
                 Dia
               </button>
               <button
                 className={`tab-button ${view === "week" ? "active" : ""}`}
+                aria-pressed={view === "week"}
                 onClick={() => setView("week")}
               >
                 Semana
               </button>
               <button
                 className={`tab-button ${view === "month" ? "active" : ""}`}
+                aria-pressed={view === "month"}
                 onClick={() => setView("month")}
               >
                 Mês
               </button>
             </div>
-            <div className="legend">
+          </div>
+        </div>
+        {professionals.length > 0 && (
+          <div className="agenda-professionals">
+            <span className="agenda-legend-label">Profissionais</span>
+            <div className="legend" aria-label="Legenda dos profissionais">
               {professionals.map((professional) => (
                 <span key={professional.id}>
-                  <i style={{ background: professional.color }} />
+                  <i
+                    style={{ background: professional.color }}
+                    aria-hidden="true"
+                  />
                   {professional.fullName.replace(/Dra?\. /, "")}
                 </span>
               ))}
             </div>
           </div>
-        </div>
+        )}
         {loading ? (
           <LoadingBlock />
         ) : view === "month" ? (
@@ -588,6 +613,16 @@ export function AgendaPage() {
           )
         ) : (
           <div className="day-agenda">
+            <header className="agenda-day-heading">
+              <h2>Programação do dia</h2>
+              <span>
+                {appointments.length + groupSessions.length + blocks.length}{" "}
+                {appointments.length + groupSessions.length + blocks.length ===
+                1
+                  ? "evento"
+                  : "eventos"}
+              </span>
+            </header>
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}

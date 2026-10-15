@@ -262,6 +262,9 @@ describe("per-operation API authorization", () => {
     await update(["agenda.view"]);
     const agenda = await get();
     expect(agenda).toHaveProperty("nextAppointments");
+    expect(agenda).toHaveProperty("nonCancelledAppointmentsToday");
+    expect(agenda).toHaveProperty("pendingToday");
+    expect(agenda).toHaveProperty("awaitingConfirmationToday");
     expect(agenda).not.toHaveProperty("patientsActive");
   });
   it("checks combined lead conversion before creating a patient", async () => {

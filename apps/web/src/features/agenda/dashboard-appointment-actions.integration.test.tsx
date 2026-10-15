@@ -146,6 +146,16 @@ describe("dashboard appointment actions", () => {
         return response({
           date,
           appointmentsToday: todayAppointments.length,
+          nonCancelledAppointmentsToday: todayAppointments.filter(
+            (item) => item.status !== "cancelled",
+          ).length,
+          pendingToday: todayAppointments.filter(
+            (item) =>
+              item.status === "scheduled" || item.status === "confirmed",
+          ).length,
+          awaitingConfirmationToday: todayAppointments.filter(
+            (item) => item.status === "scheduled",
+          ).length,
           completedToday: todayAppointments.filter(
             (item) => item.status === "completed",
           ).length,
@@ -336,13 +346,19 @@ describe("dashboard appointment actions", () => {
     ]);
   });
 
-  it("confirms the selected appointment and hides the redundant confirm action", async () => {
-    const { controls } = setup({ count: 2 });
+  it("confirms the selected appointment and updates counts even if refreshing fails", async () => {
+    const { controls } = setup({ count: 2, failRefresh: true });
     const { menu } = await openMenu("Ana 1");
     fireEvent.click(
       within(menu).getByRole("menuitem", { name: "Confirmar atendimento" }),
     );
     expect(await screen.findByText("Confirmado")).toBeInTheDocument();
+    expect(metric("Atendimentos hoje")).toHaveTextContent("2");
+    expect(metric("Pendentes hoje")).toHaveTextContent("2");
+    expect(metric("A confirmar")).toHaveTextContent("1");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Alteração salva, mas não foi possível atualizar o painel.",
+    );
     expect(controls.writes).toEqual([
       {
         url: expect.stringContaining("/appointments/appointment-1/status"),
@@ -367,6 +383,8 @@ describe("dashboard appointment actions", () => {
     const { controls } = setup({ count: 6, status: "confirmed" });
     expect(await screen.findByText("Ana 0")).toBeInTheDocument();
     expect(screen.queryByText("Ana 5")).not.toBeInTheDocument();
+    expect(metric("Pendentes hoje")).toHaveTextContent("6");
+    expect(metric("A confirmar")).toHaveTextContent("0");
     const { menu } = await openMenu();
     fireEvent.click(
       within(menu).getByRole("menuitem", { name: "Finalizar atendimento" }),
@@ -375,13 +393,14 @@ describe("dashboard appointment actions", () => {
     expect(screen.queryByText("Ana 0")).not.toBeInTheDocument();
     expect(metric("Já finalizados")).toHaveTextContent("1");
     expect(metric("Atendimentos hoje")).toHaveTextContent("6");
+    expect(metric("Pendentes hoje")).toHaveTextContent("5");
     expect(controls.writes[0]?.body).toEqual({ status: "completed" });
     expect(controls.dashboardReads).toBe(2);
     expect(controls.salesReads).toBe(2);
     expect(await screen.findByText(/120,00/)).toBeInTheDocument();
   });
 
-  it("requires confirmation before cancelling and keeps today's total", async () => {
+  it("requires confirmation before cancelling and removes it from today's workload", async () => {
     const { controls } = setup();
     const { menu } = await openMenu();
     fireEvent.click(
@@ -394,7 +413,9 @@ describe("dashboard appointment actions", () => {
     fireEvent.click(confirm);
     expect(await screen.findByText("Agenda concluída")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(metric("Atendimentos hoje")).toHaveTextContent("1");
+    expect(metric("Atendimentos hoje")).toHaveTextContent("0");
+    expect(metric("Pendentes hoje")).toHaveTextContent("0");
+    expect(metric("A confirmar")).toHaveTextContent("0");
     expect(metric("Já finalizados")).toHaveTextContent("0");
     expect(controls.writes[0]?.body).toEqual({ status: "cancelled" });
   });
@@ -458,6 +479,8 @@ describe("dashboard appointment actions", () => {
       await screen.findByText("Nenhum atendimento hoje"),
     ).toBeInTheDocument();
     expect(metric("Atendimentos hoje")).toHaveTextContent("0");
+    expect(metric("Pendentes hoje")).toHaveTextContent("0");
+    expect(metric("A confirmar")).toHaveTextContent("0");
     expect(controls.writes[0]).toMatchObject({
       url: expect.stringContaining("/appointments/appointment-0/schedule"),
       method: "PUT",
@@ -552,6 +575,8 @@ describe("dashboard appointment actions", () => {
         "Alteração salva, mas não foi possível atualizar o painel.",
       );
       expect(metric("Já finalizados")).toHaveTextContent("1");
+      expect(metric("Pendentes hoje")).toHaveTextContent("0");
+      expect(metric("A confirmar")).toHaveTextContent("0");
       expect(screen.queryByText("Ana 0")).not.toBeInTheDocument();
       controls[failure] = false;
       fireEvent.click(screen.getByRole("button", { name: "Atualizar painel" }));
