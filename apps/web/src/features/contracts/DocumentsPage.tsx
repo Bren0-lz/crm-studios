@@ -29,7 +29,15 @@ import {
   fetchContractsPageData,
   professionalWithCrefito,
 } from "./model";
+import { TemplateBodyEditor } from "./TemplateBodyEditor";
 import { TemplateVersionModal } from "./TemplateVersionModal";
+import { useToast } from "../../shared/feedback/toast-context";
+
+const emptyTemplateForm: DocumentTemplateInput = {
+  name: "",
+  kind: "contract",
+  body: "",
+};
 
 export function DocumentsPage() {
   const { can, canView, canEdit } = useAuthorization();
@@ -47,11 +55,10 @@ export function DocumentsPage() {
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
   const canManage = canEdit("contracts");
-  const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
-    name: "Contrato de prestação de serviços",
-    kind: "contract",
-    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
-  });
+  const [templateForm, setTemplateForm] =
+    useState<DocumentTemplateInput>(emptyTemplateForm);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const toast = useToast();
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
     patientId: contextPatientId,
@@ -108,14 +115,20 @@ export function DocumentsPage() {
 
   async function createTemplate(event: FormEvent) {
     event.preventDefault();
+    if (creatingTemplate) return;
+    setCreatingTemplate(true);
     setError("");
     setNotice("");
     try {
-      await api.createDocumentTemplate(templateForm);
-      setNotice("Modelo criado com a versão 1.");
+      const created = await api.createDocumentTemplate(templateForm);
+      // Limpa o formulário: um segundo clique não cria o mesmo modelo de novo.
+      setTemplateForm(emptyTemplateForm);
+      toast.success(`Modelo “${created.name}” criado com a versão 1.`);
       await load();
     } catch (cause) {
       setError((cause as Error).message);
+    } finally {
+      setCreatingTemplate(false);
     }
   }
 
@@ -223,28 +236,20 @@ export function DocumentsPage() {
                         )}
                       </select>
                     </label>
-                    <label>
-                      Conteúdo
-                      <textarea
-                        required
-                        rows={8}
-                        value={templateForm.body}
-                        onChange={(event) =>
-                          setTemplateForm({
-                            ...templateForm,
-                            body: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <small>
-                      Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
-                      {"{{plano_servicos}}"}, {"{{profissional_nome}}"},{" "}
-                      {"{{profissional_crefito}}"}, {"{{data_emissao}}"} e{" "}
-                      {"{{clinica_nome}}"}.
-                    </small>
+                    <TemplateBodyEditor
+                      value={templateForm.body}
+                      disabled={creatingTemplate}
+                      onChange={(body) =>
+                        setTemplateForm((current) => ({ ...current, body }))
+                      }
+                    />
                     <div className="modal-actions">
-                      <button className="primary-button">Criar modelo</button>
+                      <button
+                        className="primary-button"
+                        disabled={creatingTemplate}
+                      >
+                        {creatingTemplate ? "Criando…" : "Criar modelo"}
+                      </button>
                     </div>
                   </form>
                 )}

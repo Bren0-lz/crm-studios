@@ -719,3 +719,52 @@
 .profit-rows b {
   text-align: right;
 }
+
+/* Editor de modelo: campo com botões "Inserir campo" e prévia ao lado. */
+.template-body-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.template-body-input {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.template-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.template-fields > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.template-preview {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.template-preview h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.template-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--text-md);
+}
+
+@media (max-width: 700px) {
+  .template-body-editor {
+    grid-template-columns: 1fr;
+  }
+}

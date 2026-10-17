@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U35 — bloco E)
-- **Última concluída:** U34 (bloco D concluído)
+- **Tarefa atual:** Rodada 7, Fase 2 (U37 — bloco E)
+- **Última concluída:** U36
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -176,3 +176,4 @@
 - 2026-10-17 U33: `groupSuggestionsByPatient` (relationship/model.ts) agrupa por cliente na ordem de prioridade; vale em qualquer filtro (com filtro, 1 motivo por cartão). Cartão: um selo por motivo + detalhe de cada; WhatsApp usa a mensagem do motivo mais urgente. `ContactActivityModal` recebe `suggestions[]` e grava uma atividade por motivo (mesmo resultado/observação/adiamento), `onSaved(saved[])`; falha parcial informa quantos já foram. "Todas" conta clientes; motivos contam sugestões.
 - 2026-10-17 U34: menu e módulo já eram "Contatos sugeridos". Trocados: eyebrow da página ("Acompanhamento de clientes"), link do card de aniversariantes ("Ver contatos sugeridos"), aba de Configurações ("Contatos sugeridos", título "Prazos e mensagens") e eyebrows "Relacionamento" do CRM comercial ("Vendas") e da Central de comunicações ("Mensagens da equipe"). Rota /relacionamento mantida. Testes (App.test, settings-tabs, legacy-fixtures, e2e/settings.spec) usam o novo nome da aba.
 - 2026-10-17 Bloco D (U30–U34) concluído.
+- 2026-10-17 U35/U36 (um commit, mesmo formulário): contracts/contracts ganhou `documentTemplateVariables` (7 campos que a emissão já substitui nos dois repositórios — não há CPF nem valor) e `previewDocumentTemplate`. `TemplateBodyEditor` (features/contracts): botões "Inserir campo" inserem `{{chave}}` no cursor + prévia "Prévia com cliente de exemplo"; usado no novo modelo e no TemplateVersionModal. Novo modelo começa vazio, trava durante o salvamento ("Criando…"), limpa ao criar e mostra toast. Teste de API emite documento com todos os campos e confere que nenhum `{{` sobra.

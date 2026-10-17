@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
+import { TemplateBodyEditor } from "./TemplateBodyEditor";
 
 export function TemplateVersionModal({
   template,
@@ -47,15 +48,14 @@ export function TemplateVersionModal({
     >
       {can("contracts.templates_version") && (
         <form className="form-grid" onSubmit={(event) => void submit(event)}>
-          <label className="span-2">
-            Conteúdo
-            <textarea
-              required
-              rows={12}
+          <div className="span-2">
+            <TemplateBodyEditor
               value={body}
-              onChange={(event) => setBody(event.target.value)}
+              rows={12}
+              disabled={saving}
+              onChange={setBody}
             />
-          </label>
+          </div>
           {error && <div className="span-2 form-error">{error}</div>}
           <div className="span-2 modal-actions">
             <button

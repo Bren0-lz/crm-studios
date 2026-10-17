@@ -104,11 +104,12 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    const fields = await screen.findByRole("group", { name: "Inserir campo" });
     expect(
-      await screen.findByText(/\{\{profissional_nome\}\}/),
+      within(fields).getByRole("button", { name: "Profissional" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/\{\{profissional_crefito\}\}/),
+      within(fields).getByRole("button", { name: "CREFITO do profissional" }),
     ).toBeInTheDocument();
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(

@@ -1,4 +1,9 @@
-import { type Appointment, type Lead, groupClassName } from "@crm/contracts";
+import {
+  type Appointment,
+  type Lead,
+  documentTemplateVariables,
+  groupClassName,
+} from "@crm/contracts";
 import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
@@ -1182,6 +1187,42 @@ describe("CRM API", () => {
       payload: { status: "issued" },
     });
     expect(invalidTransition.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("replaces every field offered by the template editor when issuing", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patient = (
+      await app.inject({ method: "GET", url: "/patients", headers })
+    ).json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Todos os campos",
+        kind: "other",
+        body: documentTemplateVariables
+          .map((variable) => `${variable.label}: {{${variable.key}}}`)
+          .join("\n"),
+      },
+    });
+    const document = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        title: "Todos os campos",
+      },
+    });
+    expect(document.statusCode).toBe(201);
+    expect(document.json().snapshotBody).not.toContain("{{");
+    expect(document.json().snapshotBody).toContain(
+      `Nome do cliente: ${patient.fullName}`,
+    );
     await app.close();
   });
 
