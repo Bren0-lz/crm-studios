@@ -783,3 +783,18 @@
     display: none !important;
   }
 }
+
+/* Arrastar e soltar no quadro comercial (desktop). */
+.lead-card[draggable="true"] {
+  cursor: grab;
+}
+
+.lead-card.dragging {
+  opacity: 0.55;
+}
+
+.kanban-column.drag-over {
+  border-color: var(--green-2);
+  background: var(--mint);
+  box-shadow: inset 0 0 0 2px var(--green-2);
+}

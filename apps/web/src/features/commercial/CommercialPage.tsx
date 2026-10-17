@@ -25,6 +25,7 @@ import { LeadAppointmentModal } from "./LeadAppointmentModal";
 import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
+import { useToast } from "../../shared/feedback/toast-context";
 
 export function CommercialPage() {
   const { can, canEdit } = useAuthorization();
@@ -53,6 +54,12 @@ export function CommercialPage() {
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [filter, setFilter] = useState<LeadFilter>({});
   const canManage = canEdit("crm");
+  const toast = useToast();
+  // Arrastar e soltar (desktop): o select de etapa continua no cartão para o celular.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overStage, setOverStage] = useState<LeadStage | null>(null);
+  const canDrag = canManage && can("crm.stage");
+  const draggingLead = leads.find((lead) => lead.id === draggingId);
   useEffect(() => {
     let active = true;
     api
@@ -85,6 +92,30 @@ export function CommercialPage() {
       replaceLead(await api.moveLead(lead.id, stage));
     } catch (cause) {
       setError((cause as Error).message);
+    }
+  }
+  async function drop(stage: LeadStage) {
+    const lead = draggingLead;
+    setDraggingId(null);
+    setOverStage(null);
+    if (!lead || lead.stage === stage) return;
+    // Etapas que pedem dados abrem o modal em vez de mover direto.
+    if (stage === "lost") {
+      setLosingLead(lead);
+      return;
+    }
+    if (stage === "won") {
+      if (can("crm.convert", "patients.create")) setConvertingLead(lead);
+      else toast.error("Você não tem permissão para converter leads.");
+      return;
+    }
+    try {
+      replaceLead(await api.moveLead(lead.id, stage));
+      toast.success(
+        `${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
+      );
+    } catch (cause) {
+      toast.error((cause as Error).message);
     }
   }
   async function markLost(lead: Lead, reason: string) {
@@ -180,7 +211,33 @@ export function CommercialPage() {
           ) : (
             <div className="kanban-board">
               {leadStages.map((stage) => (
-                <section className="kanban-column" key={stage.value}>
+                <section
+                  className={`kanban-column${overStage === stage.value ? " drag-over" : ""}`}
+                  key={stage.value}
+                  aria-label={stage.label}
+                  onDragOver={(event) => {
+                    if (!draggingLead || draggingLead.stage === stage.value)
+                      return;
+                    event.preventDefault();
+                    if (event.dataTransfer)
+                      event.dataTransfer.dropEffect = "move";
+                    if (overStage !== stage.value) setOverStage(stage.value);
+                  }}
+                  onDragLeave={(event) => {
+                    if (
+                      !event.currentTarget.contains(
+                        event.relatedTarget as Node | null,
+                      )
+                    )
+                      setOverStage((current) =>
+                        current === stage.value ? null : current,
+                      );
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void drop(stage.value);
+                  }}
+                >
                   <header>
                     <strong>{stage.label}</strong>
                     <span>
@@ -198,7 +255,23 @@ export function CommercialPage() {
                     {visibleLeads
                       .filter((lead) => lead.stage === stage.value)
                       .map((lead) => (
-                        <article className="lead-card" key={lead.id}>
+                        <article
+                          className={`lead-card${draggingId === lead.id ? " dragging" : ""}`}
+                          key={lead.id}
+                          draggable={
+                            canDrag && !["won", "lost"].includes(lead.stage)
+                          }
+                          onDragStart={(event) => {
+                            event.dataTransfer?.setData("text/plain", lead.id);
+                            if (event.dataTransfer)
+                              event.dataTransfer.effectAllowed = "move";
+                            setDraggingId(lead.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingId(null);
+                            setOverStage(null);
+                          }}
+                        >
                           <span className="lead-source">{lead.source}</span>
                           <h3>{lead.fullName}</h3>
                           <p>{lead.interest}</p>

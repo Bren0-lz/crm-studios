@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U17 — bloco A)
-- **Última concluída:** U18
+- **Tarefa atual:** Rodada 7, Fase 2 (U19 — bloco A)
+- **Última concluída:** U17
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -180,3 +180,4 @@
 - 2026-10-17 U37: documento emitido ganhou "WhatsApp" (`issuedDocumentWhatsappLink` em contracts/model.ts: wa.me SEM número — nem IssuedDocument nem PatientOption trazem telefone; o WhatsApp pede o contato) e "Salvar PDF" (abre o modal de impressão com a dica "Salvar como PDF" e chama window.print via requestAnimationFrame). Rascunho/cancelado não mostram. `.print-hidden` esconde a dica na impressão. Se quiser número direto, a API precisa expor o telefone do cliente no documento.
 - 2026-10-17 Bloco E (U35–U37) concluído.
 - 2026-10-17 U18: 6 etapas (new_contact, contacted, evaluation, proposal, won, lost). Causa vista no navegador (dev em memória): o quadro já rolava, mas a barra horizontal ficava embaixo de colunas de 470px+, fora da tela. `.kanban-board` agora: grid-auto-flow column + grid-auto-columns minmax(240px,1fr), overflow scroll, max-height max(384px, 100dvh − 448px) (barra visível já na abertura), colunas com min-height 320px. Teste lê o CSS com readFileSync(`${process.cwd()}/src/styles/...`) — `?raw` de CSS vem vazio no Vitest e import.meta.url não é file:// no jsdom. Dev local: `STORAGE_MODE=memory JWT_SECRET=<32+> npm run dev`; memória não tem leads de demonstração.
+- 2026-10-17 U17: arrastar e soltar nativo no quadro (CommercialPage): cartão `draggable` (crm.stage, fora de won/lost), coluna com dragover/drop e classe `drag-over`; soltar chama o mesmo api.moveLead com toast de sucesso/erro; "Perdidos" abre LeadLostModal e "Ganhos" abre LeadConvertModal. Colunas têm aria-label = rótulo da etapa (role region nos testes). Select de etapa mantido (celular). Conferido no Chrome real com o dev em memória.

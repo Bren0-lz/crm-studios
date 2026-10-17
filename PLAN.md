@@ -1231,7 +1231,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U14 | Ficha: topo completo e abas na própria ficha | DONE |
 | U15 | Cadastro rápido enxuto com "Mais informações" | DONE |
 | U16 | CEP com máscara e ViaCEP | DONE |
-| U17 | Arrastar e soltar no quadro comercial | TODO |
+| U17 | Arrastar e soltar no quadro comercial | DONE |
 | U18 | Colunas do quadro visíveis | DONE |
 | U19 | Formulário de lead enxuto | TODO |
 | U20 | Origem/Interesse como selects dos catálogos | TODO |
