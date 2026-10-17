@@ -4,6 +4,7 @@ import {
   type ClinicalRecord,
   type Patient,
   type PatientOption,
+  type TherapeuticGoal,
 } from "@crm/contracts";
 import { api } from "../../api";
 import {
@@ -88,3 +89,9 @@ export function missingSoapSteps(
     .filter(([key]) => !record[key].trim())
     .map(([, label]) => label);
 }
+
+export const goalStatusLabels: Record<TherapeuticGoal["status"], string> = {
+  active: "Ativo",
+  achieved: "Alcançado",
+  cancelled: "Cancelado",
+};

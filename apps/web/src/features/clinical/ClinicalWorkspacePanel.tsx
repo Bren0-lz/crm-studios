@@ -21,6 +21,7 @@ import { ClinicalAttachmentModal } from "./ClinicalAttachmentModal";
 import { ClinicalMeasurementModal } from "./ClinicalMeasurementModal";
 import { TherapeuticGoalModal } from "./TherapeuticGoalModal";
 import { TreatmentClosureModal } from "./TreatmentClosureModal";
+import { goalStatusLabels } from "./model";
 
 export function ClinicalWorkspacePanel({
   patients,
@@ -291,11 +292,7 @@ export function ClinicalWorkspacePanel({
                     <article className="clinical-goal-card" key={goal.id}>
                       <div>
                         <span className={`status-pill ${goal.status}`}>
-                          {goal.status === "active"
-                            ? "Ativo"
-                            : goal.status === "achieved"
-                              ? "Alcançado"
-                              : "Cancelado"}
+                          {goalStatusLabels[goal.status]}
                         </span>
                         <h4>{goal.title}</h4>
                         <p>{goal.description || "Sem descrição adicional."}</p>
@@ -448,7 +445,7 @@ export function ClinicalWorkspacePanel({
             {workspace.goals.map((goal) => (
               <article key={goal.id}>
                 <h3>
-                  {goal.title} · {goal.status}
+                  {goal.title} · {goalStatusLabels[goal.status]}
                 </h3>
                 <p>{goal.description}</p>
                 {workspace.measurements

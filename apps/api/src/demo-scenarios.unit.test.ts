@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDemoScenarios } from "./demo-scenarios.js";
+import { buildDemoScenarios, demoProfessionals } from "./demo-scenarios.js";
 
 describe("demonstration scenarios", () => {
   it("keeps balances, invoices, visits and group attendance coherent", () => {
@@ -42,5 +42,10 @@ describe("demonstration scenarios", () => {
         [2, 4].includes(new Date(session.startsAt).getDay()),
       ),
     ).toBe(true);
+  });
+
+  it("uses professional registrations in the real CREFITO format, not internal codes", () => {
+    for (const professional of demoProfessionals)
+      expect(professional.crefito).toMatch(/^CREFITO-\d+ \d{6}-F$/);
   });
 });

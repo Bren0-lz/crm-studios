@@ -1238,7 +1238,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U21 | Contatos do lead sem campo redundante | TODO |
 | U22 | Select de atendimento: recente primeiro e busca | DONE |
 | U23 | Rascunho SOAP sem exigir todos os campos | DONE |
-| U24 | Sem códigos internos na interface | TODO |
+| U24 | Sem códigos internos na interface | DONE |
 | U25 | Nova avaliação sem modelo: atalho para criar | TODO |
 | U26 | Linha do tempo mostra rascunhos | TODO |
 | U27 | Planos: busca e filtros | DONE |
