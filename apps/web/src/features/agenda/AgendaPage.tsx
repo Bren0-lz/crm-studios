@@ -504,7 +504,7 @@ export function AgendaPage() {
                                 )}
                               </time>
                             </span>
-                            <span className="month-event-name">
+                            <span className="month-event-name group-name">
                               {entry.session.groupName}
                             </span>
                           </span>

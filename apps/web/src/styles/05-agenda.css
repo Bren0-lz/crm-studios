@@ -1314,3 +1314,19 @@ button.day-event:focus-visible {
   #f1f1ef;
   box-shadow: 0 0 0 1px var(--appt-status-swatch);
 }
+
+/* V8: nome da turma quebra em até 2 linhas (o nome inteiro fica no title). */
+.month-group {
+  white-space: normal;
+}
+.group-name,
+.week-appointment strong.group-name,
+.month-group .month-event-name.group-name {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}

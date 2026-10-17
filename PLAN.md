@@ -1292,7 +1292,7 @@ fim de cada bloco.
 | V5 | Contato de emergência vermelho só quando ausente | DONE |
 | V6 | Campos de data padronizados (nativo, exceto agendamento) | DONE |
 | V7 | Rótulos uniformes, select "Direção" sem esticar, fieldset do plano | DONE |
-| V8 | Textos truncados: turma nos cards da agenda, etapa do lead | TODO |
+| V8 | Textos truncados: turma nos cards da agenda, etapa do lead | DONE |
 | V9 | `scrollbar-gutter: stable` no contêiner principal | TODO |
 | V10 | Cor do profissional nos avatares e cards (inclui grade do Dia) | TODO |
 | V11 | `EmptyState` com `icon` e `action` (Turmas, Comissões, Prontuários) | TODO |

@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V8)
-- **Última concluída:** V7
+- **Tarefa atual:** Rodada 7, Fase 3 (V9)
+- **Última concluída:** V8
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -197,3 +197,4 @@
 - 2026-10-17 V5: `emergencyContactLabel(patient)` (shared/lib/formatting). Detalhes do atendimento: `.emergency-contact` neutro (borda var(--line)) e `.is-missing` vermelho só quando falta. Ficha (U14): resumo ganhou "Contato de emergência" com a mesma regra.
 - 2026-10-17 V6: já atendido — evidência: 63 campos de data/hora/mês usam input nativo (date, datetime-local, month); o seletor customizado `AppointmentDateTimePicker` só aparece no agendamento (AppointmentForm, AppointmentRescheduleModal, LeadAppointmentModal), que é a exceção aprovada (mostra ocupação). O "date-button" da agenda é o botão "voltar para hoje", não seletor. Sem mudança de código; só teste de guarda (date-fields-standard.unit.test.ts).
 - 2026-10-17 V7 (medido no navegador): rótulo "Cliente" do PatientPicker e "Conteúdo" do editor de modelo saíam em 16px/400 (ficam fora das regras de contêiner como `.form-grid label`/`.document-form > label`) → agora 13px/700, e 12px dentro de `.document-form`; checkbox "Assinantes sem turma vinculada" dos filtros 16px → 13px. "Direção" do CRM já não estica desde o U21 (Canal e Direção dividem a linha); corrigido também "Registro do contato" que ocupava meia largura (`.activity-form > .span-2`). Fieldset de cada serviço no plano do cadastro guiado (GuidedPlanFields) ganhou `form-fieldset` (borda e raio do padrão). Script gerador: barras invertidas em regex se perdem — escrever arquivos com regex pelo Write.
+- 2026-10-17 V8: nome da turma com `.group-name` (line-clamp 2 + title com o nome completo) no cartão compacto da Semana, no cartão da lista, no Mês (month-group deixou de ser nowrap) e na grade do Dia. Select de etapa do lead ocupa a linha inteira do cartão (`.lead-actions select { grid-column: 1 / -1 }`). Conferido no navegador (nome longo → 2 linhas).

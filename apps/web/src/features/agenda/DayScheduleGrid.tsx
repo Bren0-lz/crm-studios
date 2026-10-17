@@ -292,7 +292,10 @@ function GridEvent({
   return (
     <div className={`day-grid-event day-grid-${entry.kind}`}>
       <time>{time}</time>
-      <strong>
+      <strong
+        className={entry.kind === "group" ? "group-name" : undefined}
+        title={entry.kind === "group" ? entry.item.groupName : undefined}
+      >
         {entry.kind === "group" ? entry.item.groupName : "Bloqueio"}
       </strong>
       <span>

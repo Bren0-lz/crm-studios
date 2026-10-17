@@ -145,6 +145,8 @@
 }
 
 .lead-actions select {
+  /* V8: a etapa ocupa a linha inteira do cartão e não corta o nome. */
+  grid-column: 1 / -1;
   min-height: 32px;
   font-size: var(--text-sm);
 }
