@@ -1,6 +1,7 @@
 import {
   patientTagKey,
   type ClinicalAppointmentOption,
+  type ClinicalRecord,
   type Patient,
   type PatientOption,
 } from "@crm/contracts";
@@ -67,4 +68,23 @@ export function filterClinicalAppointments(
         patientTagKey(clinicalAppointmentLabel(appointment)).includes(term),
     )
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+}
+
+const soapSteps = [
+  ["subjective", "S — Subjetivo"],
+  ["objective", "O — Objetivo"],
+  ["assessment", "A — Avaliação"],
+  ["plan", "P — Plano"],
+] as const;
+
+/** Etapas SOAP ainda vazias: o rascunho aceita, mas finalizar exige as quatro. */
+export function missingSoapSteps(
+  record: Pick<
+    ClinicalRecord,
+    "subjective" | "objective" | "assessment" | "plan"
+  >,
+) {
+  return soapSteps
+    .filter(([key]) => !record[key].trim())
+    .map(([, label]) => label);
 }

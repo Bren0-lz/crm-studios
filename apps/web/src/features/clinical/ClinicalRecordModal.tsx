@@ -80,11 +80,14 @@ export function ClinicalRecordModal({
               )}
             </p>
           )}
+          <p className="muted-copy">
+            O rascunho pode ser salvo com qualquer etapa em branco; para
+            finalizar, as quatro etapas precisam estar preenchidas.
+          </p>
           <label>
             S — Subjetivo
             <small>Relato, sintomas e percepção do cliente.</small>
             <textarea
-              required
               rows={4}
               value={form.subjective}
               onChange={(event) =>
@@ -96,7 +99,6 @@ export function ClinicalRecordModal({
             O — Objetivo
             <small>Achados, testes, medidas e intervenções realizadas.</small>
             <textarea
-              required
               rows={4}
               value={form.objective}
               onChange={(event) =>
@@ -108,7 +110,6 @@ export function ClinicalRecordModal({
             <label>
               A — Avaliação
               <textarea
-                required
                 rows={4}
                 value={form.assessment}
                 onChange={(event) =>
@@ -119,7 +120,6 @@ export function ClinicalRecordModal({
             <label>
               P — Plano
               <textarea
-                required
                 rows={4}
                 value={form.plan}
                 onChange={(event) =>

@@ -10,6 +10,47 @@ import {
 import "../../test-support/legacy-setup.js";
 
 describe("CRM API", () => {
+  it("saves a SOAP draft with only the subjective step and requires the rest to finalize", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const appointments = (
+      await app.inject({
+        method: "GET",
+        url: `/appointments?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+        headers,
+      })
+    ).json<Appointment[]>();
+    const draft = await app.inject({
+      method: "POST",
+      url: "/clinical-records",
+      headers,
+      payload: {
+        appointmentId: appointments[0]!.id,
+        subjective: "Cliente relata dor ao subir escadas.",
+      },
+    });
+    expect(draft.statusCode).toBe(201);
+    expect(draft.json()).toMatchObject({
+      status: "draft",
+      subjective: "Cliente relata dor ao subir escadas.",
+      objective: "",
+    });
+    const finalize = await app.inject({
+      method: "POST",
+      url: `/clinical-records/${draft.json<{ id: string }>().id}/finalize`,
+      headers,
+    });
+    expect(finalize.statusCode).toBe(400);
+    expect(finalize.json()).toMatchObject({
+      code: "INCOMPLETE_CLINICAL_RECORD",
+    });
+    await app.close();
+  });
+
   it("versions and finalizes a complete clinical record", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
