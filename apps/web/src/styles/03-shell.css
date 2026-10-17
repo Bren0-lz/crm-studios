@@ -294,3 +294,75 @@
 .metric-note.good {
   color: #3d866e;
 }
+
+/* Notificações e menu do usuário no cabeçalho. */
+.header-popover {
+  position: relative;
+}
+button.top-avatar {
+  border: 0;
+  cursor: pointer;
+}
+.header-popover-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  display: grid;
+  gap: var(--space-2);
+  width: min(320px, calc(100vw - var(--space-6)));
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(24 79 67 / 14%);
+}
+.header-popover-panel p {
+  margin: 0;
+}
+.header-popover-title {
+  font-size: var(--text-md);
+}
+.header-notifications {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.header-notifications .header-notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.header-notifications .header-notification-item:hover,
+.header-notifications .header-notification-item:focus-visible {
+  background: var(--mint);
+}
+.header-notifications span {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+}
+.header-notifications small,
+.header-user small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.header-user {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.header-user-actions {
+  display: grid;
+}

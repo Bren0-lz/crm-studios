@@ -1195,7 +1195,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | C2 | Detalhes do atendimento: confirmar presença, realizado, falta | DONE |
 | C3 | Cancelado fora das contagens e com estilo distinto na agenda | DONE |
 | C4 | 500 em /reports/clients/details (mesma causa do C1) | DONE |
-| C5 | Sino de notificações e menu do usuário | TODO |
+| C5 | Sino de notificações e menu do usuário | DONE |
 | C6 | Datas/horas locais nos campos (medição, comanda) | DONE |
 | C7 | Campo monetário único (BRL, vírgula, vazio) | DONE |
 | C8 | Nova despesa: cadastro inline de categoria/centro, o que falta, centro opcional | DONE |

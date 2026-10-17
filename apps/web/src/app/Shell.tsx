@@ -1,13 +1,14 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { UserSummary } from "@crm/contracts";
-import { Bell, LogOut, Menu, X } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
 import type { NavigationGuard } from "../shared/lib/types";
+import { NotificationsMenu, UserMenu } from "./HeaderMenus";
 import { navItems } from "./navItems";
 
 export function Shell({
@@ -20,6 +21,7 @@ export function Shell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
   const guards = useRef(new Set<NavigationGuard>());
   const registerGuard = useCallback((guard: NavigationGuard) => {
     const set = guards.current;
@@ -28,6 +30,12 @@ export function Shell({
       set.delete(guard);
     };
   }, []);
+
+  /** Navegação dos menus do cabeçalho: respeita os avisos de alterações não salvas. */
+  function guardedNavigate(to: string) {
+    for (const guard of guards.current) if (guard(to)) return;
+    void navigate(to);
+  }
 
   return (
     <div className="app-shell">
@@ -114,10 +122,12 @@ export function Shell({
             <span className="environment-dot">Demonstração</span>
           </div>
           <div className="top-actions">
-            <button className="icon-button" title="Notificações">
-              <Bell size={19} />
-            </button>
-            <span className="top-avatar">{initials(user.fullName)}</span>
+            <NotificationsMenu onNavigate={guardedNavigate} />
+            <UserMenu
+              user={user}
+              onNavigate={guardedNavigate}
+              onLogout={onLogout}
+            />
           </div>
         </header>
         <div className="page-content">
