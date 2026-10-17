@@ -1330,3 +1330,31 @@ button.day-event:focus-visible {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+/* V10: cor do profissional (--pro-color, do cadastro) na borda esquerda dos cartões, nas
+   bolinhas e no avatar do cabeçalho da grade do Dia. O fundo continua com a cor do status. */
+.agenda-card[style*="--pro-color"],
+.week-appointment[style*="--pro-color"],
+.month-event[style*="--pro-color"],
+.day-grid-event[style*="--pro-color"] {
+  border-left: 3px solid var(--pro-color);
+}
+.pro-dot,
+.month-event .pro-dot,
+.week-appointment .pro-dot,
+.service-name .pro-dot,
+.legend .pro-dot {
+  background: var(--pro-color, var(--green-2));
+}
+.appointment-line[style*="--pro-color"] {
+  background: var(--pro-color);
+}
+.pro-avatar {
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-right: var(--space-2);
+  background: var(--pro-color, var(--green-2));
+  color: white;
+  font-size: var(--text-xs);
+  vertical-align: middle;
+}

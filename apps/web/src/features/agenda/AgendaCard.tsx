@@ -4,6 +4,7 @@ import { useAuthorization } from "../../authorization-context";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
 import { appointmentStatusClass } from "./model";
+import { professionalColorStyle } from "../../tag-colors";
 
 export function AgendaCard({
   appointment,
@@ -21,6 +22,7 @@ export function AgendaCard({
   return (
     <article
       className={`agenda-card ${appointmentStatusClass(appointment.status)}`}
+      style={professionalColorStyle(appointment.professionalColor)}
       role="button"
       tabIndex={0}
       aria-label={`Detalhes de ${appointment.patientName}`}
@@ -44,10 +46,7 @@ export function AgendaCard({
       <div className="agenda-main">
         <div>
           <span className="service-name">
-            <i
-              style={{ background: appointment.professionalColor }}
-              aria-hidden="true"
-            />
+            <i className="pro-dot" aria-hidden="true" />
             {appointment.serviceName}
           </span>
           <h3>{appointment.patientName}</h3>

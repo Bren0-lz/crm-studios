@@ -4,6 +4,7 @@ import { useAuthorization } from "../../authorization-context";
 import { statusLabel, timeLabel } from "../lib/formatting";
 import type { ActionMenuItem, DashboardAppointmentAction } from "../lib/types";
 import { ActionMenu } from "./ActionMenu";
+import { professionalColorStyle } from "../lib/tag-colors";
 
 export function AppointmentRow({
   appointment,
@@ -62,7 +63,7 @@ export function AppointmentRow({
       </span>
       <span
         className="appointment-line"
-        style={{ backgroundColor: appointment.professionalColor }}
+        style={professionalColorStyle(appointment.professionalColor)}
       />
       <div className="appointment-copy">
         <strong>{appointment.patientName}</strong>

@@ -55,6 +55,7 @@ import {
 import { DayScheduleGrid } from "./DayScheduleGrid";
 import { sortAgendaEntries } from "./model";
 import { appointmentStatusClass } from "./model";
+import { professionalColorStyle } from "../../tag-colors";
 import { AgendaStatusLegend } from "./AgendaStatusLegend";
 
 export function AgendaPage() {
@@ -383,7 +384,10 @@ export function AgendaPage() {
             <div className="legend">
               {professionals.map((professional) => (
                 <span key={professional.id}>
-                  <i style={{ background: professional.color }} />
+                  <i
+                    className="pro-dot"
+                    style={professionalColorStyle(professional.color)}
+                  />
                   {professional.fullName.replace(/Dra?\. /, "")}
                 </span>
               ))}
@@ -459,6 +463,9 @@ export function AgendaPage() {
                           <button
                             type="button"
                             className={`month-event ${appointmentStatusClass(entry.appointment.status)}`}
+                            style={professionalColorStyle(
+                              entry.appointment.professionalColor,
+                            )}
                             key={entry.appointment.id}
                             onClick={() =>
                               setSelectedAppointmentId(entry.appointment.id)
@@ -466,13 +473,7 @@ export function AgendaPage() {
                             aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}`}
                           >
                             <span className="month-event-time">
-                              <i
-                                style={{
-                                  background:
-                                    entry.appointment.professionalColor,
-                                }}
-                                aria-hidden="true"
-                              />
+                              <i className="pro-dot" aria-hidden="true" />
                               <time>
                                 {timeLabel.format(
                                   new Date(entry.appointment.startsAt),
@@ -585,6 +586,9 @@ export function AgendaPage() {
                       ) : (
                         <article
                           className={`week-appointment ${appointmentStatusClass(entry.appointment.status)}`}
+                          style={professionalColorStyle(
+                            entry.appointment.professionalColor,
+                          )}
                           key={entry.appointment.id}
                           role="button"
                           tabIndex={0}
@@ -602,12 +606,7 @@ export function AgendaPage() {
                             }
                           }}
                         >
-                          <i
-                            style={{
-                              background: entry.appointment.professionalColor,
-                            }}
-                            aria-hidden="true"
-                          />
+                          <i className="pro-dot" aria-hidden="true" />
                           <time>
                             {timeLabel.format(
                               new Date(entry.appointment.startsAt),

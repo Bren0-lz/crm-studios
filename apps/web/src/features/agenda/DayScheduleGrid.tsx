@@ -6,10 +6,12 @@ import type {
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import {
+  initials,
   localIsoDate,
   statusLabel,
   timeLabel,
 } from "../../shared/lib/formatting";
+import { professionalColorStyle } from "../../tag-colors";
 import { appointmentStatusClass } from "./model";
 
 const SLOT_MINUTES = 30;
@@ -143,7 +145,11 @@ export function DayScheduleGrid({
   ];
   // Colunas: profissionais ativos + quem aparece nos compromissos (ex.: já desativado).
   const columns = [
-    ...professionals.map((item) => ({ id: item.id, name: item.fullName })),
+    ...professionals.map((item) => ({
+      id: item.id,
+      name: item.fullName,
+      color: item.color as string | undefined,
+    })),
     ...entries
       .filter(
         (entry) =>
@@ -152,6 +158,10 @@ export function DayScheduleGrid({
       .map((entry) => ({
         id: entry.professionalId,
         name: entry.professionalName,
+        color:
+          entry.kind === "appointment"
+            ? entry.item.professionalColor
+            : undefined,
       })),
   ].filter(
     (column, index, all) =>
@@ -201,6 +211,13 @@ export function DayScheduleGrid({
             </th>
             {columns.map((column) => (
               <th scope="col" key={column.id}>
+                <span
+                  className="avatar pro-avatar"
+                  style={professionalColorStyle(column.color)}
+                  aria-hidden="true"
+                >
+                  {initials(column.name)}
+                </span>
                 {column.name}
               </th>
             ))}
@@ -278,6 +295,7 @@ function GridEvent({
       <button
         type="button"
         className={`text-button day-grid-event ${appointmentStatusClass(entry.item.status)}`}
+        style={professionalColorStyle(entry.item.professionalColor)}
         aria-label={`Detalhes de ${entry.item.patientName}`}
         onClick={() => onOpenAppointment(entry.id)}
       >
