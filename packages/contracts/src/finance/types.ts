@@ -265,7 +265,8 @@ export interface Payable extends PayableInput {
   id: string;
   clinicId: string;
   categoryName: string;
-  costCenterName: string;
+  /** Ausente quando a despesa foi lançada sem centro de custo. */
+  costCenterName?: string;
   status: "open" | "paid" | "cancelled";
   paymentMethod?: PaymentMethod;
   paidAt?: string;

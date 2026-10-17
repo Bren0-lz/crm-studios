@@ -122,9 +122,9 @@ export interface PayableRow {
   description: string;
   supplier: string | null;
   categoryId: string;
-  costCenterId: string;
+  costCenterId: string | null;
   categoryName: string;
-  costCenterName: string;
+  costCenterName: string | null;
   dueDate: string;
   amountInCents: number;
   notes: string | null;
@@ -367,9 +367,9 @@ export function mapPayable(row: PayableRow): Payable {
     description: row.description,
     ...(row.supplier ? { supplier: row.supplier } : {}),
     categoryId: row.categoryId,
-    costCenterId: row.costCenterId,
+    ...(row.costCenterId ? { costCenterId: row.costCenterId } : {}),
     categoryName: row.categoryName,
-    costCenterName: row.costCenterName,
+    ...(row.costCenterName ? { costCenterName: row.costCenterName } : {}),
     dueDate: row.dueDate,
     amountInCents: row.amountInCents,
     ...(row.notes ? { notes: row.notes } : {}),

@@ -639,6 +639,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanupDailyCash();
   });
 
+  it("creates and lists a PostgreSQL payable without cost center", async () => {
+    const category = await pool.query<{ id: string }>(
+      "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
+      [clinicId],
+    );
+    const description = "PG despesa sem centro de custo";
+    try {
+      const payable = await repository.createPayable(clinicId, ownerId, {
+        description,
+        categoryId: category.rows[0]!.id,
+        dueDate: "2026-10-16",
+        amountInCents: 4_590,
+      });
+      expect(payable).not.toHaveProperty("costCenterId");
+      const workspace = await repository.getFinancialWorkspace(clinicId);
+      expect(
+        workspace.payables.find((item) => item.id === payable.id),
+      ).toMatchObject({ description, amountInCents: 4_590 });
+    } finally {
+      await pool.query(
+        "DELETE FROM payable_events WHERE payable_id IN (SELECT id FROM payables WHERE clinic_id = $1 AND description = $2)",
+        [clinicId, description],
+      );
+      await pool.query(
+        "DELETE FROM payables WHERE clinic_id = $1 AND description = $2",
+        [clinicId, description],
+      );
+    }
+  });
+
   it("lists PostgreSQL payments and reversals by event date in the clinic time zone", async () => {
     await cleanupDailyCash();
     const [patients, services] = await Promise.all([

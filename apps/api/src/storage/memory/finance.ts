@@ -862,13 +862,16 @@ export function createFinanceRepository(
           item.kind === "expense" &&
           item.active,
       );
-      const costCenter = repositoryContext.costCenters.find(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.id === input.costCenterId &&
-          item.active,
-      );
-      if (!category || !costCenter)
+      // Centro de custo é opcional; se informado, precisa existir e estar ativo.
+      const costCenter = input.costCenterId
+        ? repositoryContext.costCenters.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === input.costCenterId &&
+              item.active,
+          )
+        : undefined;
+      if (!category || (input.costCenterId && !costCenter))
         throw new DomainError(
           "FINANCIAL_CLASSIFICATION_NOT_FOUND",
           "Categoria de despesa ou centro de custo não encontrado.",
@@ -914,7 +917,7 @@ export function createFinanceRepository(
         id: uuid(),
         clinicId,
         categoryName: category.name,
-        costCenterName: costCenter.name,
+        ...(costCenter ? { costCenterName: costCenter.name } : {}),
         postedOn:
           input.postedOn ??
           clinicDateOf(

@@ -9,6 +9,7 @@ import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
 import { localIsoDate } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { InlineClassificationCreate } from "./InlineClassificationCreate";
 
 export function PayableModal({
   workspace,
@@ -20,9 +21,10 @@ export function PayableModal({
   onCreated: () => void;
 }) {
   const { can } = useAuthorization();
-  const expenseCategories = workspace.categories.filter(
-    (item) => item.kind === "expense",
+  const [expenseCategories, setExpenseCategories] = useState(() =>
+    workspace.categories.filter((item) => item.kind === "expense"),
   );
+  const [costCenters, setCostCenters] = useState(workspace.costCenters);
   const [form, setForm] = useState<PayableInput>({
     description: "",
     supplier: "",
@@ -49,11 +51,22 @@ export function PayableModal({
     };
   }, []);
   const [loading, setLoading] = useState(false);
+  const missing = [
+    form.description.trim().length < 3 && "descrição",
+    !form.categoryId && "categoria",
+    !form.dueDate && "vencimento",
+    form.amountInCents <= 0 && "valor",
+  ].filter((item): item is string => Boolean(item));
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     try {
-      await api.createPayable(form);
+      // Centro de custo é opcional: vazio não vai para a API.
+      const { costCenterId, ...rest } = form;
+      await api.createPayable({
+        ...rest,
+        ...(costCenterId ? { costCenterId } : {}),
+      });
       onCreated();
     } catch (cause) {
       setError((cause as Error).message);
@@ -183,38 +196,78 @@ export function PayableModal({
               }
             />
           </label>
-          <label>
-            Categoria
-            <select
-              required
-              value={form.categoryId}
-              onChange={(event) =>
-                setForm({ ...form, categoryId: event.target.value })
-              }
-            >
-              {expenseCategories.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Centro de custo
-            <select
-              required
-              value={form.costCenterId}
-              onChange={(event) =>
-                setForm({ ...form, costCenterId: event.target.value })
-              }
-            >
-              {workspace.costCenters.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="field-with-hint">
+            <label>
+              Categoria
+              <select
+                required
+                value={form.categoryId}
+                onChange={(event) =>
+                  setForm({ ...form, categoryId: event.target.value })
+                }
+              >
+                {expenseCategories.length === 0 && (
+                  <option value="">Nenhuma categoria cadastrada</option>
+                )}
+                {expenseCategories.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {expenseCategories.length === 0 && (
+              <InlineClassificationCreate
+                emptyLabel="Nenhuma categoria de despesa"
+                createLabel="Criar categoria"
+                canCreate={can("finance.categories_create")}
+                onCreate={async (name) => {
+                  const created = await api.createFinancialCategory({
+                    name,
+                    kind: "expense",
+                  });
+                  setExpenseCategories((items) => [...items, created]);
+                  setForm((current) => ({
+                    ...current,
+                    categoryId: created.id,
+                  }));
+                }}
+              />
+            )}
+          </div>
+          <div className="field-with-hint">
+            <label>
+              Centro de custo (opcional)
+              <select
+                value={form.costCenterId ?? ""}
+                onChange={(event) =>
+                  setForm({ ...form, costCenterId: event.target.value })
+                }
+              >
+                <option value="">Sem centro de custo</option>
+                {costCenters.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {costCenters.length === 0 && (
+              <InlineClassificationCreate
+                emptyLabel="Nenhum centro de custo"
+                createLabel="Criar centro de custo"
+                canCreate={can("finance.cost_centers_create")}
+                onCreate={async (name) => {
+                  const created = await api.createCostCenter({ name });
+                  setCostCenters((items) => [...items, created]);
+                  setForm((current) => ({
+                    ...current,
+                    costCenterId: created.id,
+                  }));
+                }}
+              />
+            )}
+          </div>
           <label>
             Valor
             <MoneyInput
@@ -235,6 +288,11 @@ export function PayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.length > 0 && (
+            <p className="muted-copy payable-missing span-2">
+              Para cadastrar, preencha: {missing.join(", ")}.
+            </p>
+          )}
           <div className="modal-actions span-2">
             <button
               type="button"
@@ -246,7 +304,7 @@ export function PayableModal({
             </button>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId || !form.costCenterId}
+              disabled={loading || !form.categoryId}
             >
               {loading ? "Salvando…" : "Cadastrar despesa"}
             </button>

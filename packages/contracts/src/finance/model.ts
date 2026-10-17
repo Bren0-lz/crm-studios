@@ -201,7 +201,7 @@ export const payableInputSchema = z.object({
   description: z.string().trim().min(3).max(200),
   supplier: z.string().trim().max(160).optional().or(z.literal("")),
   categoryId: z.uuid(),
-  costCenterId: z.uuid(),
+  costCenterId: z.uuid().optional(),
   dueDate: z.iso.date(),
   amountInCents: z.number().int().min(1),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),

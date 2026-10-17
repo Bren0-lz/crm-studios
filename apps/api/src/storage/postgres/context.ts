@@ -1165,7 +1165,7 @@ export class PostgresRepositoryContext {
     const result = await client.query<PayableRow>(
       `SELECT ${payableColumns} FROM payables py
        JOIN financial_categories fc ON fc.id = py.category_id
-       JOIN cost_centers cc ON cc.id = py.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
        WHERE py.clinic_id = $1 AND py.id = $2`,
       [clinicId, payableId],
     );

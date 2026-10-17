@@ -785,7 +785,7 @@ export function createFinanceRepository(
             client.query<PayableRow>(
               `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
-         JOIN cost_centers cc ON cc.id = py.cost_center_id
+         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
          WHERE py.clinic_id = $1 ORDER BY py.due_date, py.created_at`,
               [clinicId],
             ),
@@ -1001,16 +1001,18 @@ export function createFinanceRepository(
            (clinic_id, description, supplier, category_id, cost_center_id,
             due_date, amount_in_cents, notes, created_by_user_id,supplier_id,posted_on,dre_competence,commission_id)
          SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11::date,$12,$13
-         FROM financial_categories fc, cost_centers cc
+         FROM financial_categories fc
+         LEFT JOIN cost_centers cc
+           ON cc.clinic_id = $1 AND cc.id = $5::uuid AND cc.active
          WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
-           AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
+           AND ($5::uuid IS NULL OR cc.id IS NOT NULL)
          RETURNING id`,
           [
             clinicId,
             input.description,
             input.supplier || null,
             input.categoryId,
-            input.costCenterId,
+            input.costCenterId ?? null,
             input.dueDate,
             input.amountInCents,
             input.notes || null,
@@ -1643,7 +1645,7 @@ export function createFinanceRepository(
         const payableResult = await client.query<PayableRow>(
           `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
-         JOIN cost_centers cc ON cc.id = py.cost_center_id
+         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
          JOIN clinics c ON c.id = py.clinic_id
          WHERE py.clinic_id=$1`,
           [clinicId],
