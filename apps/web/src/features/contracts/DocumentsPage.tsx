@@ -10,7 +10,7 @@ import type {
   PatientPlan,
   Professional,
 } from "@crm/contracts";
-import { Printer } from "lucide-react";
+import { FileDown, MessageCircle, Printer } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -27,6 +27,7 @@ import { CancelDocumentModal } from "./CancelDocumentModal";
 import {
   documentKindLabels,
   fetchContractsPageData,
+  issuedDocumentWhatsappLink,
   professionalWithCrefito,
 } from "./model";
 import { TemplateBodyEditor } from "./TemplateBodyEditor";
@@ -51,7 +52,16 @@ export function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [printing, setPrinting] = useState<IssuedDocument | null>(null);
+  const [printing, setPrinting] = useState<{
+    document: IssuedDocument;
+    pdf: boolean;
+  } | null>(null);
+  // "Salvar PDF" abre a impressão do navegador assim que o documento está na tela.
+  useEffect(() => {
+    if (!printing?.pdf) return;
+    const frame = requestAnimationFrame(() => window.print());
+    return () => cancelAnimationFrame(frame);
+  }, [printing]);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
   const canManage = canEdit("contracts");
@@ -454,12 +464,33 @@ export function DocumentsPage() {
                       />
                       <div className="document-actions">
                         {item.status === "issued" && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() => setPrinting(item)}
-                          >
-                            <Printer size={15} /> Imprimir
-                          </button>
+                          <>
+                            <a
+                              className="whatsapp-button button-sm"
+                              href={issuedDocumentWhatsappLink(item)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <MessageCircle size={15} aria-hidden="true" />
+                              WhatsApp
+                            </a>
+                            <button
+                              className="secondary-button button-sm"
+                              onClick={() =>
+                                setPrinting({ document: item, pdf: true })
+                              }
+                            >
+                              <FileDown size={15} /> Salvar PDF
+                            </button>
+                            <button
+                              className="secondary-button button-sm"
+                              onClick={() =>
+                                setPrinting({ document: item, pdf: false })
+                              }
+                            >
+                              <Printer size={15} /> Imprimir
+                            </button>
+                          </>
                         )}
                         {canManage &&
                           item.status === "draft" &&
@@ -524,14 +555,21 @@ export function DocumentsPage() {
       )}
       {printing && (
         <Modal
-          title={printing.title}
-          subtitle={printing.patientName}
+          title={printing.document.title}
+          subtitle={printing.document.patientName}
           eyebrow="Documento emitido"
           onClose={() => setPrinting(null)}
         >
           <div className="receipt-content">
+            {printing.pdf && (
+              <p className="muted-copy print-hidden">
+                Na janela de impressão, escolha “Salvar como PDF” como destino.
+              </p>
+            )}
             <Logo />
-            <p className="document-print-body">{printing.snapshotBody}</p>
+            <p className="document-print-body">
+              {printing.document.snapshotBody}
+            </p>
             <div className="modal-actions">
               <button
                 type="button"
