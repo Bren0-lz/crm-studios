@@ -54,6 +54,8 @@ import {
 } from "./model";
 import { DayScheduleGrid } from "./DayScheduleGrid";
 import { sortAgendaEntries } from "./model";
+import { appointmentStatusClass } from "./model";
+import { AgendaStatusLegend } from "./AgendaStatusLegend";
 
 export function AgendaPage() {
   const { can, canView, canEdit } = useAuthorization();
@@ -377,6 +379,7 @@ export function AgendaPage() {
               />
               Mostrar cancelados
             </label>
+            <AgendaStatusLegend />
             <div className="legend">
               {professionals.map((professional) => (
                 <span key={professional.id}>
@@ -455,7 +458,7 @@ export function AgendaPage() {
                         entry.kind === "appointment" ? (
                           <button
                             type="button"
-                            className={`month-event ${entry.appointment.status === "cancelled" ? "is-cancelled" : ""}`}
+                            className={`month-event ${appointmentStatusClass(entry.appointment.status)}`}
                             key={entry.appointment.id}
                             onClick={() =>
                               setSelectedAppointmentId(entry.appointment.id)
@@ -581,7 +584,7 @@ export function AgendaPage() {
                         />
                       ) : (
                         <article
-                          className={`week-appointment ${entry.appointment.status === "cancelled" ? "is-cancelled" : ""}`}
+                          className={`week-appointment ${appointmentStatusClass(entry.appointment.status)}`}
                           key={entry.appointment.id}
                           role="button"
                           tabIndex={0}

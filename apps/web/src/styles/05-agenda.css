@@ -1240,3 +1240,65 @@ button.day-event:focus-visible {
   color: var(--muted);
   font-size: var(--text-sm);
 }
+
+/* Cores de status na agenda (V4): mesmo tom em Dia, Semana, Mês e lista; a borda esquerda
+   fica livre para a cor do profissional (V10). */
+.appt-status-scheduled {
+  --appt-status-bg: #eef2f5;
+  --appt-status-swatch: #8aa1ad;
+}
+.appt-status-confirmed {
+  --appt-status-bg: #e7eefb;
+  --appt-status-swatch: #3b6fd1;
+}
+.appt-status-completed {
+  --appt-status-bg: #e2f2e8;
+  --appt-status-swatch: #2f8a57;
+}
+.appt-status-no_show,
+.appt-status-excused_absence,
+.appt-status-professional_absence {
+  --appt-status-bg: #fdf1d8;
+  --appt-status-swatch: #c98a12;
+}
+.appt-status-cancelled {
+  --appt-status-bg: #f1f1ef;
+  --appt-status-swatch: #a3a39d;
+}
+.month-event[class*="appt-status-"],
+.week-appointment[class*="appt-status-"],
+.agenda-card[class*="appt-status-"],
+.day-grid-event[class*="appt-status-"] {
+  background: var(--appt-status-bg);
+}
+.agenda-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+}
+.agenda-status-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.appt-status-swatch {
+  width: calc(var(--space-2) + 2px);
+  height: calc(var(--space-2) + 2px);
+  border-radius: 50%;
+  background: var(--appt-status-swatch);
+}
+.appt-status-swatch.appt-status-cancelled {
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom right,
+    transparent 45%,
+    var(--appt-status-swatch) 45% 55%,
+    transparent 55%
+  ),
+  #f1f1ef;
+  box-shadow: 0 0 0 1px var(--appt-status-swatch);
+}

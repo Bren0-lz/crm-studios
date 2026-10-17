@@ -112,3 +112,20 @@ export function storeDayLayout(layout: DayLayout) {
     // Sem armazenamento: o formato só não é lembrado.
   }
 }
+
+/** Classes de status dos cartões da agenda (V4): cor por status; cancelado riscado. */
+export function appointmentStatusClass(status: AppointmentStatus) {
+  return `appt-status-${status}${status === "cancelled" ? " is-cancelled" : ""}`;
+}
+
+/** Legenda: faltas e ausências compartilham o âmbar. */
+export const agendaStatusLegend: Array<{
+  status: AppointmentStatus;
+  label: string;
+}> = [
+  { status: "scheduled", label: "Agendado" },
+  { status: "confirmed", label: "Confirmado" },
+  { status: "completed", label: "Finalizado" },
+  { status: "no_show", label: "Falta ou ausência" },
+  { status: "cancelled", label: "Cancelado" },
+];

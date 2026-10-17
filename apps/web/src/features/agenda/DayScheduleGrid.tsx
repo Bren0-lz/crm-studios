@@ -10,6 +10,7 @@ import {
   statusLabel,
   timeLabel,
 } from "../../shared/lib/formatting";
+import { appointmentStatusClass } from "./model";
 
 const SLOT_MINUTES = 30;
 
@@ -276,7 +277,7 @@ function GridEvent({
     return (
       <button
         type="button"
-        className={`text-button day-grid-event ${entry.item.status === "cancelled" ? "is-cancelled" : ""}`}
+        className={`text-button day-grid-event ${appointmentStatusClass(entry.item.status)}`}
         aria-label={`Detalhes de ${entry.item.patientName}`}
         onClick={() => onOpenAppointment(entry.id)}
       >

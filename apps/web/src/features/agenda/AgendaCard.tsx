@@ -3,6 +3,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
+import { appointmentStatusClass } from "./model";
 
 export function AgendaCard({
   appointment,
@@ -19,7 +20,7 @@ export function AgendaCard({
   const { can } = useAuthorization();
   return (
     <article
-      className={`agenda-card ${appointment.status === "cancelled" ? "is-cancelled" : ""}`}
+      className={`agenda-card ${appointmentStatusClass(appointment.status)}`}
       role="button"
       tabIndex={0}
       aria-label={`Detalhes de ${appointment.patientName}`}
