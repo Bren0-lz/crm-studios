@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U25 — bloco B)
-- **Última concluída:** U24
+- **Tarefa atual:** Rodada 7, Fase 2 (U26 — bloco B)
+- **Última concluída:** U25
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -168,3 +168,4 @@
 - 2026-10-17 U22: `ClinicalAppointmentPicker` (features/clinical; combobox no padrão do PatientPicker, filtro local) substitui o select na nova evolução; edição mostra campo somente leitura. Helpers em clinical/model.ts: `filterClinicalAppointments` (desc por data; padrão 90 dias, `RECENT_APPOINTMENT_DAYS`; "Incluir mais antigos" usa os 180 dias já carregados; busca sem acento no rótulo, que inclui DD/MM/AAAA) e `clinicalAppointmentLabel`. Nova evolução não pré-seleciona mais atendimento. Testes da página de prontuários precisam esperar "Nova evolução" habilitar (só habilita após carregar atendimentos) — corrigido em application-shell-clinical.
 - 2026-10-17 U23: API já aceitava rascunho com etapas vazias (schema com default "") e finalizar já exigia as quatro (memória: DomainError INCOMPLETE_CLINICAL_RECORD 400; PG: UPDATE com length(trim(...)) > 0) — só ganhou teste de integração. Web: textareas SOAP sem `required` + aviso; `missingSoapSteps` (clinical/model.ts) alimenta `validate` e o aviso do `FinalizeRecordModal`, que não chama a API enquanto faltar etapa.
 - 2026-10-17 U24: "CREDITO DEMO-PILATES-02" era o CREFITO das profissionais de demonstração (demo-scenarios.ts) exibido por `professionalWithCrefito`; agora "CREFITO-3 NNNNNN-F" (teste em demo-scenarios.unit.test). O seed usa ON CONFLICT DO NOTHING: produção já semeada mantém DEMO-* até ressemear ou editar a profissional. Varredura: extrato de sessões e linha do tempo já usam motivos legíveis; histórico traduz ações e mostra ids só na aba "Detalhes técnicos" (intencional). Corrigido: status do objetivo cru ("active") no resumo de impressão → `goalStatusLabels` (clinical/model.ts).
+- 2026-10-17 U25: `AssessmentTemplateModal.onSaved` agora recebe o modelo salvo. `ClinicalAssessmentModal` sem modelos publicados mostra "Nenhum modelo de avaliação" + "Criar modelo" (só com clinical.templates_create), abre o modal de modelo por cima e, ao publicar, seleciona o novo; salvo como rascunho, avisa que precisa publicar (rascunho não aparece no select).

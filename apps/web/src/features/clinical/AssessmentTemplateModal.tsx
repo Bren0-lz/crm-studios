@@ -17,7 +17,7 @@ export function AssessmentTemplateModal({
 }: {
   template?: AssessmentTemplate | undefined;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (template: AssessmentTemplate) => void;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<AssessmentTemplateInput>(() =>
@@ -45,8 +45,9 @@ export function AssessmentTemplateModal({
     setError("");
     setSaving(true);
     try {
-      await api.saveAssessmentTemplate({ ...form, status }, template?.id);
-      onSaved();
+      onSaved(
+        await api.saveAssessmentTemplate({ ...form, status }, template?.id),
+      );
     } finally {
       setSaving(false);
     }
