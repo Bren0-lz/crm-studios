@@ -6,6 +6,7 @@ import type {
   LeadAppointmentInput,
 } from "@crm/contracts";
 import {
+  formatPhone,
   type PatientTag,
   patientTagDisplayColor,
   patientTagKey,
@@ -184,4 +185,17 @@ export function clinicIsoDate(
         month: "2-digit",
         day: "2-digit",
       }).format(new Date(value));
+}
+
+/** "Nome · (11) 99999-9999"; vazio quando o contato de emergência não foi informado (V5). */
+export function emergencyContactLabel(patient: {
+  emergencyContactName?: string | undefined;
+  emergencyContactPhone?: string | undefined;
+}) {
+  return [
+    patient.emergencyContactName,
+    patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }

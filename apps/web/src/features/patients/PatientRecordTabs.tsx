@@ -23,6 +23,7 @@ import {
   statusLabel,
   tagColorLookup,
   timeLabel,
+  emergencyContactLabel,
 } from "../../shared/lib/formatting";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { ClinicalWorkspacePanel } from "../clinical/index";
@@ -200,6 +201,12 @@ export function PatientRecordTabs({
               </dd>
             </div>
           )}
+          <div
+            className={`emergency-contact${emergencyContactLabel(patient) ? "" : " is-missing"}`}
+          >
+            <dt>Contato de emergência</dt>
+            <dd>{emergencyContactLabel(patient) || "Não informado"}</dd>
+          </div>
           <div className="patient-overview-tags">
             <dt>Etiquetas</dt>
             <dd>

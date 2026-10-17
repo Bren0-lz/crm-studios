@@ -26,6 +26,7 @@ import {
   tagColorLookup,
   timeLabel,
   visitTypeBadgeText,
+  emergencyContactLabel,
 } from "../../shared/lib/formatting";
 import { addDaysToIsoDate } from "../relationship/index";
 import { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
@@ -326,19 +327,12 @@ export function AppointmentDetailsModal({
                       : "Não informado"}
                   </strong>
                 </div>
-                <div className="detail-wide emergency-contact">
+                <div
+                  className={`detail-wide emergency-contact${emergencyContactLabel(patient) ? "" : " is-missing"}`}
+                >
                   <small>Contato de emergência</small>
                   <strong>
-                    {patient.emergencyContactName ||
-                    patient.emergencyContactPhone
-                      ? [
-                          patient.emergencyContactName,
-                          patient.emergencyContactPhone &&
-                            formatPhone(patient.emergencyContactPhone),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : "Não informado"}
+                    {emergencyContactLabel(patient) || "Não informado"}
                   </strong>
                 </div>
                 <div>

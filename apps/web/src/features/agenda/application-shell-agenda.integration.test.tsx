@@ -290,10 +290,9 @@ describe("application shell", () => {
     expect(
       reschedule.querySelector('[data-date][aria-pressed="true"]'),
     ).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
-    fireEvent.change(
-      within(reschedule).getByLabelText("Horário"),
-      { target: { value: "11:00" } },
-    );
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), {
+      target: { value: "11:00" },
+    });
     expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
     fireEvent.click(
       within(reschedule).getByRole("button", { name: "Fechar calendário" }),
@@ -872,6 +871,8 @@ describe("application shell", () => {
     expect(contact.closest(".emergency-contact")).toHaveTextContent(
       "Contato de emergência",
     );
+    // V5: informado fica neutro; vermelho só quando falta.
+    expect(contact.closest(".emergency-contact")).not.toHaveClass("is-missing");
   });
 
   it("sends the chosen visit type when booking a new appointment", async () => {

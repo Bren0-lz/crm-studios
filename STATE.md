@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V5)
-- **Última concluída:** V4
+- **Tarefa atual:** Rodada 7, Fase 3 (V6)
+- **Última concluída:** V5
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -194,3 +194,4 @@
 - 2026-10-17 V2: topo de Clientes = ActionMenu "Mais" (Mesclar clientes e Inativar antigos só admin; Importar/Exportar pelas mesmas permissões) + "Novo cliente"; `.patients-actions` nowrap. Testes usam `test-support/patient-actions.ts` (clickMoreAction, findMoreAction, moreActionNames). NÃO rodar prettier no App.test.tsx (formatação antiga; vira diff de ~12 mil linhas).
 - 2026-10-17 V3: migração 0080 (patient_tags.category text CHECK financial|service|status, nulo; próxima livre: 0081). Contrato: `patientTagCategorySchema`, `patientTagCategoryLabels`, `patientTagCategoryColors` (financeiro #c2410c, serviço #0f766e, status #6d28d9) e `patientTagDisplayColor(tag)` = cor própria se diferente da padrão (#64748b), senão a da categoria. Update aceita `category: null` para tirar. Dois repositórios + mapper PG; teste PG opt-in no teste de etiquetas. Web: `tagColorLookup` e selos usam a cor exibida; Configurações › Etiquetas com `TagCategorySelect` (criação e edição) e rótulo da categoria na lista; `TagChoice` selecionada mostra ✓ (`.tag-check`) no lugar da bolinha.
 - 2026-10-17 V4: `appointmentStatusClass(status)` (agenda/model.ts) → `appt-status-<status>` (+ is-cancelled) em month-event, week-appointment, agenda-card (lista) e day-grid-event; cor por fundo (`--appt-status-bg`), não pela borda esquerda (reservada à cor do profissional no V10). Faltas e ausências = âmbar; cancelado = cinza riscado (estilo C3 mantido). `AgendaStatusLegend` na barra da agenda (todas as visões). Conferido no navegador na visão Semana.
+- 2026-10-17 V5: `emergencyContactLabel(patient)` (shared/lib/formatting). Detalhes do atendimento: `.emergency-contact` neutro (borda var(--line)) e `.is-missing` vermelho só quando falta. Ficha (U14): resumo ganhou "Contato de emergência" com a mesma regra.

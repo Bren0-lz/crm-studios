@@ -1022,14 +1022,26 @@ button.day-event:focus-visible {
 .appointment-detail-section .appointment-lead-note {
   margin-top: var(--space-4);
 }
+/* Contato de emergência (V5): neutro quando informado; vermelho só quando falta. */
 .appointment-detail-grid .emergency-contact {
   padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+.appointment-detail-grid .emergency-contact.is-missing,
+.patient-overview-grid .emergency-contact.is-missing {
   border: 1px solid var(--red);
   border-radius: var(--radius-sm);
   background: #fbf2ef;
 }
-.appointment-detail-grid .emergency-contact small,
-.appointment-detail-grid .emergency-contact strong {
+.patient-overview-grid .emergency-contact.is-missing {
+  padding: var(--space-2) var(--space-3);
+}
+.appointment-detail-grid .emergency-contact.is-missing small,
+.appointment-detail-grid .emergency-contact.is-missing strong,
+.patient-overview-grid .emergency-contact.is-missing dt,
+.patient-overview-grid .emergency-contact.is-missing dd {
   color: var(--red);
 }
 .agenda-main .status-pill,
