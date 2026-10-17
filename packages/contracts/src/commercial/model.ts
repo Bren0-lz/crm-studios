@@ -81,3 +81,29 @@ export const leadTaskInputSchema = z.object({
   dueAt: z.iso.datetime(),
   assignedUserId: z.uuid().optional().or(z.literal("")),
 });
+
+export const leadContactChannelLabels: Record<
+  z.infer<typeof leadContactChannelSchema>,
+  string
+> = {
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  in_person: "Presencial",
+  note: "Nota interna",
+};
+
+/**
+ * Canal técnico deduzido do nome escolhido no campo único "Canal" (U21): o nome fica em
+ * `contactMethod` (usado na análise do funil) e o canal acompanha por compatibilidade.
+ */
+export function inferLeadContactChannel(
+  method: string,
+): z.infer<typeof leadContactChannelSchema> {
+  const key = method.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  if (key.includes("whats") || key.includes("zap")) return "whatsapp";
+  if (key.includes("mail")) return "email";
+  if (/presencial|visita|pessoal|balcao|recepcao/.test(key)) return "in_person";
+  if (/telefon|ligac|liga|celular/.test(key)) return "phone";
+  return "note";
+}

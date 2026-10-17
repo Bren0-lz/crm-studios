@@ -1,5 +1,11 @@
-import { CatalogInput } from "../../shared/components/CatalogInput";
-import type { Lead, LeadActivity, LeadContactInput } from "@crm/contracts";
+import {
+  inferLeadContactChannel,
+  leadContactChannelLabels,
+  type ClinicCatalogEntry,
+  type Lead,
+  type LeadActivity,
+  type LeadContactInput,
+} from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -28,9 +34,37 @@ export function LeadActivityModal({
   const [tab, setTab] = useState<"contacts" | "tasks">("tasks");
   const [contact, setContact] = useState<LeadContactInput>({
     channel: "phone",
+    contactMethod: leadContactChannelLabels.phone,
     direction: "outbound",
     notes: "",
   });
+  // Campo único "Canal" (U21): canais padrão + formas de contato do catálogo.
+  const [channelCatalog, setChannelCatalog] = useState<ClinicCatalogEntry[]>(
+    [],
+  );
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicCatalog("lead_channel")
+      .then((data) => active && setChannelCatalog(data))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+  const standardChannels = Object.values(leadContactChannelLabels);
+  const channelOptions = [
+    ...standardChannels,
+    ...channelCatalog
+      .filter((item) => item.active)
+      .map((item) => item.name)
+      .filter(
+        (name) =>
+          !standardChannels.some(
+            (label) => label.toLowerCase() === name.toLowerCase(),
+          ),
+      ),
+  ];
   const [task, setTask] = useState({
     title: "Retornar contato",
     notes: "",
@@ -226,30 +260,28 @@ export function LeadActivityModal({
               <label>
                 Canal
                 <select
-                  value={contact.channel}
-                  onChange={(event) =>
+                  value={contact.contactMethod ?? ""}
+                  onChange={(event) => {
+                    const method = event.target.value;
+                    const standard = (
+                      Object.entries(leadContactChannelLabels) as Array<
+                        [LeadContactInput["channel"], string]
+                      >
+                    ).find(([, label]) => label === method)?.[0];
                     setContact({
                       ...contact,
-                      channel: event.target
-                        .value as LeadContactInput["channel"],
-                    })
-                  }
+                      contactMethod: method,
+                      channel: standard ?? inferLeadContactChannel(method),
+                    });
+                  }}
                 >
-                  <option value="phone">Telefone</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="email">E-mail</option>
-                  <option value="in_person">Presencial</option>
-                  <option value="note">Nota interna</option>
+                  {channelOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <CatalogInput
-                kind="lead_channel"
-                label="Forma de contato"
-                value={contact.contactMethod ?? ""}
-                onChange={(value) =>
-                  setContact({ ...contact, contactMethod: value })
-                }
-              />
               <label>
                 Direção
                 <select
@@ -296,16 +328,7 @@ export function LeadActivityModal({
                   </span>
                 </div>
                 <span>
-                  {item.contactMethod ||
-                    (
-                      {
-                        phone: "Telefone",
-                        whatsapp: "WhatsApp",
-                        email: "E-mail",
-                        in_person: "Presencial",
-                        note: "Nota interna",
-                      } as const
-                    )[item.channel]}
+                  {item.contactMethod || leadContactChannelLabels[item.channel]}
                 </span>
               </article>
             ))}

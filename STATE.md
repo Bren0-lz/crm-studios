@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U21 — bloco A)
-- **Última concluída:** U20
+- **Tarefa atual:** Rodada 7, Fase 2 (U38 — bloco F)
+- **Última concluída:** U21 (bloco A concluído)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -183,3 +183,5 @@
 - 2026-10-17 U17: arrastar e soltar nativo no quadro (CommercialPage): cartão `draggable` (crm.stage, fora de won/lost), coluna com dragover/drop e classe `drag-over`; soltar chama o mesmo api.moveLead com toast de sucesso/erro; "Perdidos" abre LeadLostModal e "Ganhos" abre LeadConvertModal. Colunas têm aria-label = rótulo da etapa (role region nos testes). Select de etapa mantido (celular). Conferido no Chrome real com o dev em memória.
 - 2026-10-17 U19: contrato do lead já tinha CPF/emergência/endereço opcionais. Novo `leadConversionInputSchema` (cpf, emergência, CEP/endereço/bairro/cidade/UF; parcial) e POST /leads/:id/convert com corpo opcional; `convertLead(clinicId, actor, leadId, input?)` nos dois repositórios aplica `withConversionInput` (modules/commercial/conversion.ts: vazios não sobrescrevem; dados de cliente existente continuam valendo) antes de casar por telefone/e-mail/CPF e gerar o cliente. Teste PG opt-in em postgresql-repository-patients. Web: LeadModal com nome, telefone, origem, interesse à vista + "Mais informações" (sem CPF, emergência e endereço; `PatientProfileFields withAddress={false}`); LeadConvertModal com os campos e ViaCEP. `ActionModal` com children agora foca o 1º campo do formulário (antes caía no "Fechar").
 - 2026-10-17 U20: `CatalogSelect` (shared/components): select com itens ativos de `clinicCatalog(kind)`, "Selecione", valor antigo fora do catálogo como opção e "Outro" (valor interno `__other__`) que abre o campo "<Rótulo>: qual?". Usado em Origem (lead_source) e Interesse (interest) do LeadModal. `CatalogInput` (datalist) continua nos outros pontos (atividades, motivo de perda).
+- 2026-10-17 U21: o contato do lead grava os dois: `channel` (enum obrigatório; só usado na exibição como reserva) e `contactMethod` (texto do catálogo lead_channel; alimenta "Conversão por forma de contato" e o contact_method do lead, migração 0066). Aba Contatos agora tem um campo único "Canal" = canais padrão (`leadContactChannelLabels`) + itens ativos do catálogo sem repetir rótulo; grava o nome em contactMethod e `channel` = padrão correspondente ou `inferLeadContactChannel(nome)` (palavras-chave; sem correspondência = "note"). Registros antigos exibem contactMethod ou o rótulo do channel. Sem mudança de API/banco.
+- 2026-10-17 Bloco A (U17–U21) concluído.
