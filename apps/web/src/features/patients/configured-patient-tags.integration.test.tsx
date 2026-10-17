@@ -233,6 +233,54 @@ describe("configured patient tags", () => {
     });
   });
 
+  it("creates a tag with a category and shows the category color when it has no own color", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(admin));
+    const tags = [
+      { ...patientTag("Atrasado", "#64748b", 2), category: "financial" },
+    ];
+    const posts: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/patient-tags")) {
+        if (init?.method === "POST") {
+          const body = JSON.parse(String(init.body));
+          posts.push(body);
+          return jsonResponse({ ...patientTag("x"), ...body }, 201);
+        }
+        return jsonResponse(tags);
+      }
+      return jsonResponse(
+        url.includes("/relationship/settings")
+          ? relationshipSettingsFixture()
+          : [],
+      );
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const section = await openSettingsSection("Etiquetas");
+    const list = await within(section).findByRole("list", {
+      name: "Etiquetas configuradas",
+    });
+    const late = within(list).getByText("Atrasado");
+    expect(late.style.getPropertyValue("--tag-color")).toBe("#c2410c");
+    expect(within(list).getByText("Financeiro")).toBeInTheDocument();
+    fireEvent.change(within(section).getByLabelText("Nome da etiqueta"), {
+      target: { value: "Ativo" },
+    });
+    fireEvent.change(within(section).getByLabelText(/^Categoria/), {
+      target: { value: "status" },
+    });
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Adicionar etiqueta" }),
+    );
+    await vi.waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({ name: "Ativo", category: "status" });
+  });
+
   it("shows the tags read-only in Settings for who only views settings", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -334,6 +382,17 @@ describe("configured patient tags", () => {
     expect(
       within(choices).getByRole("button", { name: "Pilates" }),
     ).toHaveAttribute("aria-pressed", "true");
+    // V3: selecionada mostra ✓; não selecionada mostra a bolinha da cor.
+    expect(
+      within(choices)
+        .getByRole("button", { name: "Pilates" })
+        .querySelector(".tag-check"),
+    ).not.toBeNull();
+    expect(
+      within(choices)
+        .getByRole("button", { name: "VIP" })
+        .querySelector(".tag-dot"),
+    ).not.toBeNull();
     const vip = within(choices).getByRole("button", { name: "VIP" });
     expect(vip).toHaveAttribute("aria-pressed", "false");
     expect(vip.style.getPropertyValue("--tag-text")).toBe("#000000");

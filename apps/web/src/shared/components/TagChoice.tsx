@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { tagColorStyle } from "../../tag-colors";
 
 export function TagChoice({
@@ -24,7 +25,11 @@ export function TagChoice({
       disabled={disabled}
       onClick={onToggle}
     >
-      <i className="tag-dot" aria-hidden="true" />
+      {pressed ? (
+        <Check className="tag-check" size={14} aria-hidden="true" />
+      ) : (
+        <i className="tag-dot" aria-hidden="true" />
+      )}
       {name}
       {count !== undefined && <small>{count}</small>}
     </button>

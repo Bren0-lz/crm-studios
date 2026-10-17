@@ -83,20 +83,23 @@ export interface PatientTagRow {
   clinicId: string;
   name: string;
   color: string;
+  category: PatientTag["category"] | null;
   patientCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 /** Colunas de `patient_tags pt` com a contagem de clientes que usam a etiqueta. */
-export const patientTagColumns = `pt.id, pt.clinic_id AS "clinicId", pt.name, pt.color,
+export const patientTagColumns = `pt.id, pt.clinic_id AS "clinicId", pt.name, pt.color, pt.category,
   (SELECT count(*)::int FROM patients p
     WHERE p.clinic_id = pt.clinic_id AND pt.name = ANY(p.tags)) AS "patientCount",
   pt.created_at AS "createdAt", pt.updated_at AS "updatedAt"`;
 
 export function mapPatientTag(row: PatientTagRow): PatientTag {
+  const { category, ...rest } = row;
   return {
-    ...row,
+    ...rest,
+    ...(category ? { category } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

@@ -790,3 +790,12 @@
 .patients-actions .secondary-button {
   white-space: nowrap;
 }
+
+/* Filtro de etiquetas (V3): selecionada mostra ✓ no lugar da bolinha. */
+.tag-choice .tag-check {
+  flex: none;
+}
+.tag-list-info .tag-category {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}

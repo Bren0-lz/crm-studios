@@ -105,9 +105,46 @@ export const patientTagColorSchema = z
   .transform((value) => value.toLowerCase());
 
 /** `POST /patient-tags`: cor opcional (padrão `DEFAULT_PATIENT_TAG_COLOR`). */
+export const patientTagCategorySchema = z.enum([
+  "financial",
+  "service",
+  "status",
+]);
+
+export const patientTagCategoryLabels: Record<
+  z.infer<typeof patientTagCategorySchema>,
+  string
+> = {
+  financial: "Financeiro",
+  service: "Serviço",
+  status: "Status",
+};
+
+/** Cor padrão de cada categoria (V3): vale quando a etiqueta não tem cor própria. */
+export const patientTagCategoryColors: Record<
+  z.infer<typeof patientTagCategorySchema>,
+  string
+> = {
+  financial: "#c2410c",
+  service: "#0f766e",
+  status: "#6d28d9",
+};
+
+/** Cor exibida: a escolhida na etiqueta; sem cor própria, a da categoria. */
+export function patientTagDisplayColor(
+  tag: Pick<PatientTag, "color" | "category">,
+): string {
+  const color = tag.color?.toLowerCase();
+  if (color && color !== DEFAULT_PATIENT_TAG_COLOR.toLowerCase()) return color;
+  return tag.category
+    ? patientTagCategoryColors[tag.category]
+    : DEFAULT_PATIENT_TAG_COLOR;
+}
+
 export const patientTagInputSchema = z.object({
   name: patientTagNameSchema,
   color: patientTagColorSchema.default(DEFAULT_PATIENT_TAG_COLOR),
+  category: patientTagCategorySchema.optional(),
 });
 
 /** `PATCH /patient-tags/:id`: renomear e/ou trocar a cor (ao menos um dos dois). */
@@ -115,10 +152,16 @@ export const patientTagUpdateSchema = z
   .object({
     name: patientTagNameSchema.optional(),
     color: patientTagColorSchema.optional(),
+    /** null tira a categoria. */
+    category: patientTagCategorySchema.nullable().optional(),
   })
-  .refine((value) => value.name !== undefined || value.color !== undefined, {
-    message: "Informe o novo nome ou a nova cor.",
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.color !== undefined ||
+      value.category !== undefined,
+    { message: "Informe o novo nome, a nova cor ou a categoria." },
+  );
 
 /**
  * Chave de comparação do nome da etiqueta: sem acentos, minúsculas e espaços internos

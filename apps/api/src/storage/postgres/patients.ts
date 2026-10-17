@@ -354,9 +354,15 @@ export function createPatientsRepository(
       try {
         return await repositoryContext.inTransaction(async (client) => {
           const inserted = await client.query<{ id: string }>(
-            `INSERT INTO patient_tags (clinic_id, name, name_key, color)
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-            [clinicId, input.name, patientTagKey(input.name), input.color],
+            `INSERT INTO patient_tags (clinic_id, name, name_key, color, category)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [
+              clinicId,
+              input.name,
+              patientTagKey(input.name),
+              input.color,
+              input.category ?? null,
+            ],
           );
           const tag = (await repositoryContext.getPatientTag(
             client,
@@ -401,9 +407,19 @@ export function createPatientsRepository(
           const name = input.name ?? previousName;
           await client.query(
             `UPDATE patient_tags
-           SET name = $3, name_key = $4, color = coalesce($5, color), updated_at = now()
+           SET name = $3, name_key = $4, color = coalesce($5, color),
+               category = CASE WHEN $6::boolean THEN $7 ELSE category END,
+               updated_at = now()
            WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, tagId, name, patientTagKey(name), input.color ?? null],
+            [
+              clinicId,
+              tagId,
+              name,
+              patientTagKey(name),
+              input.color ?? null,
+              input.category !== undefined,
+              input.category ?? null,
+            ],
           );
           let patientsUpdated = 0;
           if (name !== previousName) {

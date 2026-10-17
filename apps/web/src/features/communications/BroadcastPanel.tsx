@@ -1,3 +1,4 @@
+import { patientTagDisplayColor } from "@crm/contracts";
 import {
   broadcastSkipReasonLabels,
   type BroadcastInput,
@@ -136,7 +137,7 @@ export function BroadcastPanel({
                       <TagChoice
                         key={tag.id}
                         name={tag.name}
-                        color={tag.color}
+                        color={patientTagDisplayColor(tag)}
                         count={countTag(tag.name)}
                         pressed={tags.includes(tag.name)}
                         onToggle={() =>

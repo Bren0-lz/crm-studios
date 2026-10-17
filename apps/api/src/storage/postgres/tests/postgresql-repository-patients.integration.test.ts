@@ -1417,6 +1417,19 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           color: "#112233",
         }),
       ).toMatchObject({ name: names[1], color: "#112233" });
+      // V3: categoria opcional (migração 0080).
+      expect(
+        await repository.updatePatientTag(clinicId, ownerId, tag.id, {
+          category: "financial",
+        }),
+      ).toMatchObject({ color: "#112233", category: "financial" });
+      const cleared = await repository.updatePatientTag(
+        clinicId,
+        ownerId,
+        tag.id,
+        { category: null },
+      );
+      expect(cleared).not.toHaveProperty("category");
       expect(
         await repository.updatePatientTag(
           clinicId,

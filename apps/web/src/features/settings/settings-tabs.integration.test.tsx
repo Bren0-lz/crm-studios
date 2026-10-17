@@ -131,7 +131,9 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(screen.getByRole("tab", { name: "Contatos sugeridos" })).toHaveFocus();
+    expect(
+      screen.getByRole("tab", { name: "Contatos sugeridos" }),
+    ).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), {
       key: "Home",
     });
@@ -705,7 +707,9 @@ describe("settings tabs", () => {
           <App />
         </MemoryRouter>,
       );
-      const toggle = await screen.findByRole("tab", { name: "Contatos sugeridos" });
+      const toggle = await screen.findByRole("tab", {
+        name: "Contatos sugeridos",
+      });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText(
         "Saldo baixo: sessões restantes",

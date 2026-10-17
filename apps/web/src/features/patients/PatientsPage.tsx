@@ -1,3 +1,4 @@
+import { patientTagDisplayColor } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientManagementModal } from "./PatientManagementModal";
@@ -405,7 +406,7 @@ export function PatientsPage() {
                       <TagChoice
                         key={tag.id}
                         name={tag.name}
-                        color={tag.color}
+                        color={patientTagDisplayColor(tag)}
                         count={countTag(tag.name)}
                         pressed={filters.tags.includes(tag.name)}
                         onToggle={() => toggleTag(tag.name)}

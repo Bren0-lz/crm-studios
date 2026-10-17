@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V3)
-- **Última concluída:** V2
+- **Tarefa atual:** Rodada 7, Fase 3 (V4)
+- **Última concluída:** V3
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -192,3 +192,4 @@
 - 2026-10-17 Bloco F (U38–U41) concluído. Fase 2 completa.
 - 2026-10-17 V1: conferido no navegador (dev em memória; celular simulado com iframe de 390px sobre a página). Desktop: etiquetas `.tags-cell > .tag` encolhem com reticências e o "+N" não some; "+N" com aria-label listando as escondidas. Celular: linha em 2 trilhas (situação à esquerda, "Editar" à direita na última linha; demais células ocupam as duas) e etiquetas quebram linha. Dev local: TaskStop não mata os filhos no Windows — matar os node.exe das portas 3333/5173 (netstat -ano) antes de subir de novo; HMR pode deixar módulo velho em cache → ctrl+shift+r.
 - 2026-10-17 V2: topo de Clientes = ActionMenu "Mais" (Mesclar clientes e Inativar antigos só admin; Importar/Exportar pelas mesmas permissões) + "Novo cliente"; `.patients-actions` nowrap. Testes usam `test-support/patient-actions.ts` (clickMoreAction, findMoreAction, moreActionNames). NÃO rodar prettier no App.test.tsx (formatação antiga; vira diff de ~12 mil linhas).
+- 2026-10-17 V3: migração 0080 (patient_tags.category text CHECK financial|service|status, nulo; próxima livre: 0081). Contrato: `patientTagCategorySchema`, `patientTagCategoryLabels`, `patientTagCategoryColors` (financeiro #c2410c, serviço #0f766e, status #6d28d9) e `patientTagDisplayColor(tag)` = cor própria se diferente da padrão (#64748b), senão a da categoria. Update aceita `category: null` para tirar. Dois repositórios + mapper PG; teste PG opt-in no teste de etiquetas. Web: `tagColorLookup` e selos usam a cor exibida; Configurações › Etiquetas com `TagCategorySelect` (criação e edição) e rótulo da categoria na lista; `TagChoice` selecionada mostra ✓ (`.tag-check`) no lugar da bolinha.

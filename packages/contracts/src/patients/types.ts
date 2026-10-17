@@ -12,6 +12,7 @@ import {
   patientInputSchema,
   patientListQuerySchema,
   patientStatusSchema,
+  patientTagCategorySchema,
   patientTagInputSchema,
   patientTagUpdateSchema,
 } from "./model.js";
@@ -21,6 +22,7 @@ export type PatientStatus = z.infer<typeof patientStatusSchema>;
 export type PatientInput = z.infer<typeof patientInputSchema>;
 
 export type PatientTagInput = z.infer<typeof patientTagInputSchema>;
+export type PatientTagCategory = z.infer<typeof patientTagCategorySchema>;
 
 export type PatientTagUpdate = z.infer<typeof patientTagUpdateSchema>;
 
@@ -31,6 +33,8 @@ export interface PatientTag {
   name: string;
   /** `#rrggbb` (minúsculas). */
   color: string;
+  /** Categoria opcional (V3); a cor dela vale quando a etiqueta não tem cor própria. */
+  category?: PatientTagCategory;
   /** Quantos clientes têm a etiqueta. */
   patientCount: number;
   createdAt: string;

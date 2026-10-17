@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_PATIENT_TAG_COLOR,
+  patientTagDisplayColor,
   adminUserInputSchema,
   adminUserUpdateSchema,
   appModuleLabels,
@@ -633,6 +635,29 @@ describe("relationship center contracts", () => {
         nome: "Viviane Araújo",
       }),
     ).toBe("Olá, Viviane! Até 01/10.");
+  });
+});
+
+describe("patient tag categories", () => {
+  it("uses the manual color first and the category color only without one", () => {
+    expect(
+      patientTagDisplayColor({ color: "#aa3366", category: "financial" }),
+    ).toBe("#aa3366");
+    expect(
+      patientTagDisplayColor({
+        color: DEFAULT_PATIENT_TAG_COLOR,
+        category: "financial",
+      }),
+    ).toBe("#c2410c");
+    expect(patientTagDisplayColor({ color: DEFAULT_PATIENT_TAG_COLOR })).toBe(
+      DEFAULT_PATIENT_TAG_COLOR,
+    );
+    expect(patientTagUpdateSchema.safeParse({ category: null }).success).toBe(
+      true,
+    );
+    expect(
+      patientTagUpdateSchema.safeParse({ category: "outro" }).success,
+    ).toBe(false);
   });
 });
 

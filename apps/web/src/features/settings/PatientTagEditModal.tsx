@@ -1,4 +1,5 @@
-import type { PatientTag } from "@crm/contracts";
+import type { PatientTag, PatientTagCategory } from "@crm/contracts";
+import { TagCategorySelect } from "./TagCategorySelect";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -19,6 +20,9 @@ export function PatientTagEditModal({
   const { can } = useAuthorization();
   const [name, setName] = useState(tag.name);
   const [color, setColor] = useState(normalizeTagColor(tag.color));
+  const [category, setCategory] = useState<PatientTagCategory | "">(
+    tag.category ?? "",
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -33,8 +37,11 @@ export function PatientTagEditModal({
     const update = {
       ...(trimmed !== tag.name ? { name: trimmed } : {}),
       ...(color !== normalizeTagColor(tag.color) ? { color } : {}),
+      ...(category !== (tag.category ?? "")
+        ? { category: category || null }
+        : {}),
     };
-    if (!update.name && !update.color) {
+    if (!update.name && !update.color && update.category === undefined) {
       onClose();
       return;
     }
@@ -75,6 +82,7 @@ export function PatientTagEditModal({
               onChange={(e) => setName(e.target.value)}
             />
           </label>
+          <TagCategorySelect value={category} onChange={setCategory} />
           <TagColorPicker
             value={color}
             previewName={name.trim() || tag.name}

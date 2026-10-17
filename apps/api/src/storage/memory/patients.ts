@@ -23,10 +23,7 @@ export function createPatientsRepository(
     async listPatients(clinicId: string, search = "") {
       // Sem diferenciar maiúsculas nem acentos: "andre" acha "André".
       const fold = (value: string) =>
-        value
-          .normalize("NFD")
-          .replace(/[̀-ͯ]/g, "")
-          .toLocaleLowerCase("pt-BR");
+        value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR");
       const normalized = fold(search.trim());
       const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
         ? normalized.replace(/\D/g, "")
@@ -272,6 +269,7 @@ export function createPatientsRepository(
         clinicId,
         name: input.name,
         color: input.color,
+        ...(input.category ? { category: input.category } : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -332,6 +330,8 @@ export function createPatientsRepository(
         color: input.color ?? tag.color,
         updatedAt: now(),
       });
+      if (input.category === null) delete tag.category;
+      else if (input.category) tag.category = input.category;
       if (clinicId === CLINIC_ID)
         repositoryContext.addAdminAudit(
           actorUserId,

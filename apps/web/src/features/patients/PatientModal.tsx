@@ -1,3 +1,4 @@
+import { patientTagDisplayColor } from "@crm/contracts";
 import {
   isValidCpf,
   patientTagKey,
@@ -79,7 +80,7 @@ export function PatientModal({
   const tagChoices = [
     ...(configuredTags.tags ?? []).map((tag) => ({
       name: tag.name,
-      color: tag.color,
+      color: patientTagDisplayColor(tag),
     })),
     ...form.tags
       .filter((tag) => !configuredKeys.has(patientTagKey(tag)))
@@ -310,7 +311,7 @@ export function PatientModal({
                     <TagChoice
                       key={tag.name}
                       name={tag.name}
-                      color={tag.color}
+                      color={patientTagDisplayColor(tag)}
                       pressed={form.tags.includes(tag.name)}
                       disabled={!editable}
                       onToggle={() => toggleTag(tag.name)}

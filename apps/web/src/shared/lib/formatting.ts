@@ -7,6 +7,7 @@ import type {
 } from "@crm/contracts";
 import {
   type PatientTag,
+  patientTagDisplayColor,
   patientTagKey,
   type UserRole,
   userRoleLabels,
@@ -129,7 +130,10 @@ export function statusLabel(status: AppointmentStatus) {
 
 export function tagColorLookup(tags: readonly PatientTag[] | null) {
   const colors = new Map(
-    (tags ?? []).map((tag) => [patientTagKey(tag.name), tag.color]),
+    (tags ?? []).map((tag) => [
+      patientTagKey(tag.name),
+      patientTagDisplayColor(tag),
+    ]),
   );
   return (name: string) => normalizeTagColor(colors.get(patientTagKey(name)));
 }
