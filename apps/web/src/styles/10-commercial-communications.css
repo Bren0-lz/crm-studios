@@ -1,14 +1,23 @@
-/* audit: mobile-ok colunas de no mínimo 230px com rolagem horizontal (overflow-x) */
+/* Uma coluna por etapa, todas na mesma linha com largura mínima fixa: o quadro rola na
+   horizontal em vez de cortar as últimas etapas. A altura fica limitada à da tela para a
+   barra horizontal (embaixo do quadro) estar sempre à vista; o excesso rola dentro dele. */
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(230px, 1fr));
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 16px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(calc(var(--space-8) * 4 - var(--space-4)), 1fr);
+  gap: var(--space-3);
+  max-width: 100%;
+  /* Cabe abaixo do título, filtros e métricas já na abertura da página. */
+  max-height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 7));
+  overflow: scroll;
+  scrollbar-gutter: stable;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-4);
 }
 
 .kanban-column {
-  min-height: 470px;
+  scroll-snap-align: start;
+  min-height: calc(var(--space-8) * 5);
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 15px;

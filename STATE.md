@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U18 — bloco A)
-- **Última concluída:** U37 (bloco E concluído)
+- **Tarefa atual:** Rodada 7, Fase 2 (U17 — bloco A)
+- **Última concluída:** U18
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -179,3 +179,4 @@
 - 2026-10-17 U35/U36 (um commit, mesmo formulário): contracts/contracts ganhou `documentTemplateVariables` (7 campos que a emissão já substitui nos dois repositórios — não há CPF nem valor) e `previewDocumentTemplate`. `TemplateBodyEditor` (features/contracts): botões "Inserir campo" inserem `{{chave}}` no cursor + prévia "Prévia com cliente de exemplo"; usado no novo modelo e no TemplateVersionModal. Novo modelo começa vazio, trava durante o salvamento ("Criando…"), limpa ao criar e mostra toast. Teste de API emite documento com todos os campos e confere que nenhum `{{` sobra.
 - 2026-10-17 U37: documento emitido ganhou "WhatsApp" (`issuedDocumentWhatsappLink` em contracts/model.ts: wa.me SEM número — nem IssuedDocument nem PatientOption trazem telefone; o WhatsApp pede o contato) e "Salvar PDF" (abre o modal de impressão com a dica "Salvar como PDF" e chama window.print via requestAnimationFrame). Rascunho/cancelado não mostram. `.print-hidden` esconde a dica na impressão. Se quiser número direto, a API precisa expor o telefone do cliente no documento.
 - 2026-10-17 Bloco E (U35–U37) concluído.
+- 2026-10-17 U18: 6 etapas (new_contact, contacted, evaluation, proposal, won, lost). Causa vista no navegador (dev em memória): o quadro já rolava, mas a barra horizontal ficava embaixo de colunas de 470px+, fora da tela. `.kanban-board` agora: grid-auto-flow column + grid-auto-columns minmax(240px,1fr), overflow scroll, max-height max(384px, 100dvh − 448px) (barra visível já na abertura), colunas com min-height 320px. Teste lê o CSS com readFileSync(`${process.cwd()}/src/styles/...`) — `?raw` de CSS vem vazio no Vitest e import.meta.url não é file:// no jsdom. Dev local: `STORAGE_MODE=memory JWT_SECRET=<32+> npm run dev`; memória não tem leads de demonstração.
