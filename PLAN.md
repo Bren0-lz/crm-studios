@@ -1220,8 +1220,8 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U3 | Rótulo do módulo no lugar de "CADASTRO RÁPIDO" | DONE |
 | U4 | Confirmação em Pausar plano e Emitir contrato | DONE |
 | U5 | Agenda Dia em grade por profissional, clique no vazio | TODO |
-| U6 | Lembrar visão da agenda | TODO |
-| U7 | Título da semana com intervalo | TODO |
+| U6 | Lembrar visão da agenda | DONE |
+| U7 | Título da semana com intervalo | DONE |
 | U8 | Seletor de data contido no modal, sem horário duplicado | TODO |
 | U9 | Aviso ao agendar cliente com pendência/sem plano | TODO |
 | U10 | Serviços filtrados por profissional/sala | TODO |

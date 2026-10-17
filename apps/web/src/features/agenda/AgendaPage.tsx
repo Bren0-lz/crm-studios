@@ -42,7 +42,13 @@ import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
 import { useToast } from "../../shared/feedback/toast-context";
-import { appointmentStatusToast } from "./model";
+import {
+  type AgendaView,
+  appointmentStatusToast,
+  storeAgendaView,
+  storedAgendaView,
+  weekRangeLabel,
+} from "./model";
 import { sortAgendaEntries } from "./model";
 
 export function AgendaPage() {
@@ -50,7 +56,11 @@ export function AgendaPage() {
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState<"day" | "week" | "month">("day");
+  const [view, setViewState] = useState<AgendaView>(storedAgendaView);
+  function setView(next: AgendaView) {
+    setViewState(next);
+    storeAgendaView(next);
+  }
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
@@ -277,7 +287,9 @@ export function AgendaPage() {
                       month: "long",
                       year: "numeric",
                     })
-                  : dateLabel.format(selectedDate)}
+                  : view === "week"
+                    ? weekRangeLabel(weekStart, weekDays[6]!)
+                    : dateLabel.format(selectedDate)}
               </strong>
               <small>
                 {view === "month"

@@ -56,3 +56,36 @@ export function appointmentStatusToast(status: AppointmentStatus) {
     cancelled: "Atendimento cancelado.",
   }[status];
 }
+
+export type AgendaView = "day" | "week" | "month";
+
+const viewStorageKey = "crm.agenda.view";
+
+/** Última visão escolhida neste navegador (Dia, Semana ou Mês); Dia por padrão. */
+export function storedAgendaView(): AgendaView {
+  try {
+    const value = localStorage.getItem(viewStorageKey);
+    return value === "week" || value === "month" ? value : "day";
+  } catch {
+    return "day";
+  }
+}
+
+export function storeAgendaView(view: AgendaView) {
+  try {
+    localStorage.setItem(viewStorageKey, view);
+  } catch {
+    // Sem armazenamento (janela privada): a visão só não é lembrada.
+  }
+}
+
+/** Intervalo da semana: "19 – 25 de outubro", "28 de set. – 4 de out." ou com anos. */
+export function weekRangeLabel(start: Date, end: Date) {
+  const month = (date: Date, style: "long" | "short") =>
+    date.toLocaleDateString("pt-BR", { month: style });
+  if (start.getFullYear() !== end.getFullYear())
+    return `${start.getDate()} de ${month(start, "short")} de ${start.getFullYear()} – ${end.getDate()} de ${month(end, "short")} de ${end.getFullYear()}`;
+  if (start.getMonth() !== end.getMonth())
+    return `${start.getDate()} de ${month(start, "short")} – ${end.getDate()} de ${month(end, "short")}`;
+  return `${start.getDate()} – ${end.getDate()} de ${month(start, "long")}`;
+}
