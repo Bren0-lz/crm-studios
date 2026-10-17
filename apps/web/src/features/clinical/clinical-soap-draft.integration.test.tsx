@@ -29,7 +29,12 @@ describe("SOAP draft", () => {
     };
     const appointmentId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
     const startsAt = new Date().toISOString();
+    const other = {
+      id: "88888888-8888-4888-8888-888888888888",
+      fullName: "Ana Lima",
+    };
     const posts: Array<{ url: string; body: unknown }> = [];
+    let savedRecord: unknown = null;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
       if (init?.method === "POST") {
@@ -38,34 +43,36 @@ describe("SOAP draft", () => {
           body: init.body ? JSON.parse(String(init.body)) : null,
         });
         const input = JSON.parse(String(init.body ?? "{}"));
+        savedRecord = {
+          id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          appointmentId,
+          patientId: patient.id,
+          patientName: patient.fullName,
+          professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          professionalName: "Dra. Ana Martins",
+          professionalCrefito: "CREFITO-3 1-F",
+          appointmentStartsAt: startsAt,
+          status: "draft",
+          version: 1,
+          authorName: "Aryana Dutra",
+          subjective: input.subjective,
+          objective: input.objective,
+          assessment: input.assessment,
+          plan: input.plan,
+          createdAt: startsAt,
+          updatedAt: startsAt,
+        };
         return {
           ok: true,
           status: 201,
-          json: async () => ({
-            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            appointmentId,
-            patientId: patient.id,
-            patientName: patient.fullName,
-            professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-            professionalName: "Dra. Ana Martins",
-            professionalCrefito: "CREFITO-3 1-F",
-            appointmentStartsAt: startsAt,
-            status: "draft",
-            version: 1,
-            authorName: "Aryana Dutra",
-            subjective: input.subjective,
-            objective: input.objective,
-            assessment: input.assessment,
-            plan: input.plan,
-            createdAt: startsAt,
-            updatedAt: startsAt,
-          }),
+          json: async () => savedRecord,
         } as Response;
       }
       const body = url.includes("/clinical-workspace/")
         ? {
-            patient,
-            records: [],
+            patient: url.includes(patient.id) ? patient : other,
+            records:
+              url.includes(patient.id) && savedRecord ? [savedRecord] : [],
             templates: [],
             assessments: [],
             goals: [],
@@ -75,7 +82,7 @@ describe("SOAP draft", () => {
         : url.includes("/clinical-records")
           ? []
           : url.includes("/patients")
-            ? [patient]
+            ? [other, patient]
             : url.includes("/appointments")
               ? [
                   {
@@ -123,6 +130,15 @@ describe("SOAP draft", () => {
       subjective: "Dor ao subir escadas.",
       objective: "",
     });
+
+    const timeline = (
+      await screen.findByRole("heading", { name: "Linha do tempo" })
+    ).closest(".clinical-timeline") as HTMLElement;
+    const item = await within(timeline).findByText("Dor ao subir escadas.");
+    expect(item.closest("article")).toHaveTextContent("Rascunho");
+    expect(
+      within(timeline).queryByText("Nenhum evento clínico registrado."),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
     const finalize = screen.getByRole("dialog", { name: "Finalizar evolução" });

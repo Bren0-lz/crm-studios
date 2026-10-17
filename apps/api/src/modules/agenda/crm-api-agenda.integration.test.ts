@@ -48,6 +48,17 @@ describe("CRM API", () => {
     expect(finalize.json()).toMatchObject({
       code: "INCOMPLETE_CLINICAL_RECORD",
     });
+    // A linha do tempo clínica do cliente inclui o rascunho.
+    const workspace = await app.inject({
+      method: "GET",
+      url: `/clinical-workspace/${appointments[0]!.patientId}`,
+      headers,
+    });
+    expect(
+      workspace
+        .json<{ records: Array<{ id: string; status: string }> }>()
+        .records.find((item) => item.id === draft.json<{ id: string }>().id),
+    ).toMatchObject({ status: "draft" });
     await app.close();
   });
 

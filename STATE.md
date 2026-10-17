@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U26 — bloco B)
-- **Última concluída:** U25
+- **Tarefa atual:** Rodada 7, Fase 2 (U30 — bloco D)
+- **Última concluída:** U26 (bloco B concluído)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -169,3 +169,5 @@
 - 2026-10-17 U23: API já aceitava rascunho com etapas vazias (schema com default "") e finalizar já exigia as quatro (memória: DomainError INCOMPLETE_CLINICAL_RECORD 400; PG: UPDATE com length(trim(...)) > 0) — só ganhou teste de integração. Web: textareas SOAP sem `required` + aviso; `missingSoapSteps` (clinical/model.ts) alimenta `validate` e o aviso do `FinalizeRecordModal`, que não chama a API enquanto faltar etapa.
 - 2026-10-17 U24: "CREDITO DEMO-PILATES-02" era o CREFITO das profissionais de demonstração (demo-scenarios.ts) exibido por `professionalWithCrefito`; agora "CREFITO-3 NNNNNN-F" (teste em demo-scenarios.unit.test). O seed usa ON CONFLICT DO NOTHING: produção já semeada mantém DEMO-* até ressemear ou editar a profissional. Varredura: extrato de sessões e linha do tempo já usam motivos legíveis; histórico traduz ações e mostra ids só na aba "Detalhes técnicos" (intencional). Corrigido: status do objetivo cru ("active") no resumo de impressão → `goalStatusLabels` (clinical/model.ts).
 - 2026-10-17 U25: `AssessmentTemplateModal.onSaved` agora recebe o modelo salvo. `ClinicalAssessmentModal` sem modelos publicados mostra "Nenhum modelo de avaliação" + "Criar modelo" (só com clinical.templates_create), abre o modal de modelo por cima e, ao publicar, seleciona o novo; salvo como rascunho, avisa que precisa publicar (rascunho não aparece no select).
+- 2026-10-17 U26: a API não omite rascunhos (listClinicalRecords sem filtro de status nos dois repositórios; PG usa JOIN users em author_user_id, que é sempre gravado) — teste da API confere o rascunho em GET /clinical-workspace/:id. Causa na tela: em /prontuarios o painel de acompanhamento abre no 1º cliente e não recarregava após salvar/finalizar. Agora `ClinicalRecordsPage` remonta o painel (`key` por versão) com `initialPatientId` = cliente da evolução; timeline marca rascunho com `status-pill draft` "Rascunho" e usa o "S" como título se "A" estiver vazio.
+- 2026-10-17 Bloco B (U22–U26) concluído.

@@ -26,13 +26,18 @@ import { goalStatusLabels } from "./model";
 export function ClinicalWorkspacePanel({
   patients,
   editable,
+  initialPatientId,
 }: {
   patients: PatientOption[];
+  /** Cliente aberto ao montar (ex.: o da evolução recém-salva). */
+  initialPatientId?: string | undefined;
   /** Sem edição de Prontuários: só consulta, impressão e exportação. */
   editable: boolean;
 }) {
   const { can } = useAuthorization();
-  const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
+  const [patientId, setPatientId] = useState(
+    initialPatientId ?? patients[0]?.id ?? "",
+  );
   const [workspace, setWorkspace] = useState<ClinicalWorkspace | null>(null);
   const [templateEditing, setTemplateEditing] = useState<
     AssessmentTemplate | undefined
@@ -112,14 +117,22 @@ export function ClinicalWorkspacePanel({
     }
   }
 
-  const timeline = workspace
+  const timeline: Array<{
+    id: string;
+    date: string;
+    kind: string;
+    title: string;
+    author: string;
+    draft?: boolean;
+  }> = workspace
     ? [
         ...workspace.records.map((item) => ({
           id: `record-${item.id}`,
           date: item.appointmentStartsAt,
           kind: "Evolução SOAP",
-          title: item.assessment || "Evolução clínica",
+          title: item.assessment || item.subjective || "Evolução clínica",
           author: item.authorName,
+          draft: item.status === "draft",
         })),
         ...workspace.assessments.map((item) => ({
           id: `assessment-${item.id}`,
@@ -343,7 +356,12 @@ export function ClinicalWorkspacePanel({
               ) : (
                 timeline.map((event) => (
                   <article key={event.id}>
-                    <span>{event.kind}</span>
+                    <span>
+                      {event.kind}
+                      {event.draft && (
+                        <span className="status-pill draft">Rascunho</span>
+                      )}
+                    </span>
                     <strong>{event.title}</strong>
                     <small>
                       {new Date(event.date).toLocaleString("pt-BR")} ·{" "}

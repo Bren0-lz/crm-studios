@@ -1240,7 +1240,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U23 | Rascunho SOAP sem exigir todos os campos | DONE |
 | U24 | Sem códigos internos na interface | DONE |
 | U25 | Nova avaliação sem modelo: atalho para criar | DONE |
-| U26 | Linha do tempo mostra rascunhos | TODO |
+| U26 | Linha do tempo mostra rascunhos | DONE |
 | U27 | Planos: busca e filtros | DONE |
 | U28 | Subtítulo do plano sem duplicação | DONE |
 | U29 | Pausar: retorno/motivo e validade | DONE |

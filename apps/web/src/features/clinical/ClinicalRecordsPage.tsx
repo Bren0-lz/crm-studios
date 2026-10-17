@@ -33,6 +33,11 @@ export function ClinicalRecordsPage() {
   );
   const [finalizing, setFinalizing] = useState<ClinicalRecord | null>(null);
   const canManage = canEdit("clinical");
+  // Depois de salvar ou finalizar, o acompanhamento recarrega no cliente da evolução.
+  const [workspaceFocus, setWorkspaceFocus] = useState<{
+    patientId: string;
+    version: number;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -67,6 +72,10 @@ export function ClinicalRecordsPage() {
   }, []);
 
   function replaceRecord(record: ClinicalRecord) {
+    setWorkspaceFocus((current) => ({
+      patientId: record.patientId,
+      version: (current?.version ?? 0) + 1,
+    }));
     setRecords((current) =>
       [record, ...current.filter((item) => item.id !== record.id)].sort(
         (a, b) => b.appointmentStartsAt.localeCompare(a.appointmentStartsAt),
@@ -213,7 +222,12 @@ export function ClinicalRecordsPage() {
         )}
       </section>
       {!loading && patients.length > 0 && (
-        <ClinicalWorkspacePanel patients={patients} editable={canManage} />
+        <ClinicalWorkspacePanel
+          key={workspaceFocus?.version ?? 0}
+          patients={patients}
+          editable={canManage}
+          initialPatientId={workspaceFocus?.patientId}
+        />
       )}
       {editor && (
         <ClinicalRecordModal
