@@ -656,3 +656,28 @@
 .more-info > .form-grid {
   padding: 0 var(--space-4) var(--space-4);
 }
+
+/* V7: rótulos com o mesmo tamanho. O rótulo do seletor de cliente e o "Conteúdo" do modelo
+   ficam fora das regras de contêiner ("form-grid label"); seguem o padrão dos campos. */
+.patient-picker-header label,
+.template-body-input > label {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.document-form .patient-picker-header label,
+.document-form .template-body-input > label {
+  font-size: var(--text-xs);
+}
+
+/* Checkbox nos filtros e formulários: mesmo tamanho dos rótulos vizinhos. */
+.patient-filters .checkbox-field {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* Contatos do lead: o registro ocupa a linha inteira. */
+.activity-form > .span-2 {
+  grid-column: 1 / -1;
+}

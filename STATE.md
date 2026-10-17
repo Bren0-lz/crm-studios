@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V7)
-- **Última concluída:** V6
+- **Tarefa atual:** Rodada 7, Fase 3 (V8)
+- **Última concluída:** V7
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -196,3 +196,4 @@
 - 2026-10-17 V4: `appointmentStatusClass(status)` (agenda/model.ts) → `appt-status-<status>` (+ is-cancelled) em month-event, week-appointment, agenda-card (lista) e day-grid-event; cor por fundo (`--appt-status-bg`), não pela borda esquerda (reservada à cor do profissional no V10). Faltas e ausências = âmbar; cancelado = cinza riscado (estilo C3 mantido). `AgendaStatusLegend` na barra da agenda (todas as visões). Conferido no navegador na visão Semana.
 - 2026-10-17 V5: `emergencyContactLabel(patient)` (shared/lib/formatting). Detalhes do atendimento: `.emergency-contact` neutro (borda var(--line)) e `.is-missing` vermelho só quando falta. Ficha (U14): resumo ganhou "Contato de emergência" com a mesma regra.
 - 2026-10-17 V6: já atendido — evidência: 63 campos de data/hora/mês usam input nativo (date, datetime-local, month); o seletor customizado `AppointmentDateTimePicker` só aparece no agendamento (AppointmentForm, AppointmentRescheduleModal, LeadAppointmentModal), que é a exceção aprovada (mostra ocupação). O "date-button" da agenda é o botão "voltar para hoje", não seletor. Sem mudança de código; só teste de guarda (date-fields-standard.unit.test.ts).
+- 2026-10-17 V7 (medido no navegador): rótulo "Cliente" do PatientPicker e "Conteúdo" do editor de modelo saíam em 16px/400 (ficam fora das regras de contêiner como `.form-grid label`/`.document-form > label`) → agora 13px/700, e 12px dentro de `.document-form`; checkbox "Assinantes sem turma vinculada" dos filtros 16px → 13px. "Direção" do CRM já não estica desde o U21 (Canal e Direção dividem a linha); corrigido também "Registro do contato" que ocupava meia largura (`.activity-form > .span-2`). Fieldset de cada serviço no plano do cadastro guiado (GuidedPlanFields) ganhou `form-fieldset` (borda e raio do padrão). Script gerador: barras invertidas em regex se perdem — escrever arquivos com regex pelo Write.

@@ -1291,7 +1291,7 @@ fim de cada bloco.
 | V4 | Cores de status na agenda com legenda (Dia, Semana, Mês, lista) | DONE |
 | V5 | Contato de emergência vermelho só quando ausente | DONE |
 | V6 | Campos de data padronizados (nativo, exceto agendamento) | DONE |
-| V7 | Rótulos uniformes, select "Direção" sem esticar, fieldset do plano | TODO |
+| V7 | Rótulos uniformes, select "Direção" sem esticar, fieldset do plano | DONE |
 | V8 | Textos truncados: turma nos cards da agenda, etapa do lead | TODO |
 | V9 | `scrollbar-gutter: stable` no contêiner principal | TODO |
 | V10 | Cor do profissional nos avatares e cards (inclui grade do Dia) | TODO |

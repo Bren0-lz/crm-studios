@@ -386,6 +386,9 @@ describe("guided client registration", () => {
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual(["Pacote fixo", "Recorrente"]);
+    // V7: o bloco de cada serviço do plano usa a borda e o raio do padrão.
+    for (const group of dialog.querySelectorAll("fieldset fieldset"))
+      expect(group).toHaveClass("form-fieldset");
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",

@@ -117,7 +117,10 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
       </label>
       {kindField}
       {form.services.map((entry, index) => (
-        <fieldset className="span-2 form-grid" key={entry.serviceId}>
+        <fieldset
+          className="form-fieldset span-2 form-grid"
+          key={entry.serviceId}
+        >
           <legend>
             {services.find((item) => item.id === entry.serviceId)?.name ??
               "Serviço"}
