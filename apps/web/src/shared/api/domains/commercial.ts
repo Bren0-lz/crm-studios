@@ -4,6 +4,7 @@ import type {
   LeadContact,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -26,8 +27,11 @@ export const commercialApi = {
       method: "PATCH",
       body: JSON.stringify({ stage, lostReason }),
     }),
-  convertLead: (id: string) =>
-    request<LeadConversion>(`/leads/${id}/convert`, { method: "POST" }),
+  convertLead: (id: string, input: LeadConversionInput = {}) =>
+    request<LeadConversion>(`/leads/${id}/convert`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   leadActivity: (id: string) => request<LeadActivity>(`/leads/${id}/activity`),
   createLeadContact: (id: string, input: LeadContactInput) =>
     request<LeadContact>(`/leads/${id}/contacts`, {

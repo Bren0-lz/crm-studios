@@ -4,7 +4,12 @@ import {
   buildLeadInsights,
   type LeadFilter,
 } from "@crm/contracts";
-import { type Lead, type LeadStage, formatPhone } from "@crm/contracts";
+import {
+  type Lead,
+  type LeadConversionInput,
+  type LeadStage,
+  formatPhone,
+} from "@crm/contracts";
 import { CalendarDays, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -122,8 +127,8 @@ export function CommercialPage() {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
   }
-  async function convert(lead: Lead) {
-    const result = await api.convertLead(lead.id);
+  async function convert(lead: Lead, input: LeadConversionInput) {
+    const result = await api.convertLead(lead.id, input);
     replaceLead(result.lead);
     setConvertingLead(null);
   }
@@ -404,7 +409,7 @@ export function CommercialPage() {
         <LeadConvertModal
           lead={convertingLead}
           onClose={() => setConvertingLead(null)}
-          onConfirm={() => convert(convertingLead)}
+          onConfirm={(input) => convert(convertingLead, input)}
         />
       )}
       {trialLead && (

@@ -1,10 +1,14 @@
-import { leadConversionData } from "../../modules/commercial/conversion.js";
+import {
+  leadConversionData,
+  withConversionInput,
+} from "../../modules/commercial/conversion.js";
 import type {
   Lead,
   LeadActivity,
   LeadContact,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -163,6 +167,7 @@ export function createCommercialRepository(
       clinicId: string,
       _actorUserId: string,
       leadId: string,
+      input?: LeadConversionInput,
     ): Promise<LeadConversion | null> {
       const lead = repositoryContext.leads.find(
         (item) => item.clinicId === clinicId && item.id === leadId,
@@ -185,6 +190,7 @@ export function createCommercialRepository(
           ? { lead, patient: canonical, reusedExisting: true }
           : null;
       }
+      const source = withConversionInput(lead, input);
       let patient = repositoryContext.patients.find(
         (item) =>
           item.clinicId === clinicId &&
@@ -194,7 +200,7 @@ export function createCommercialRepository(
               item.email?.toLocaleLowerCase() ===
                 lead.email.toLocaleLowerCase(),
             ) ||
-            Boolean(lead.cpf && item.cpf === lead.cpf)),
+            Boolean(source.cpf && item.cpf === source.cpf)),
       );
       if (patient?.mergedIntoPatientId)
         patient = repositoryContext.patients.find(
@@ -203,7 +209,7 @@ export function createCommercialRepository(
             item.id === patient!.mergedIntoPatientId,
         );
       const reusedExisting = Boolean(patient);
-      const data = leadConversionData(lead, patient);
+      const data = leadConversionData(source, patient);
       for (const tag of data.tags)
         repositoryContext.ensurePatientTag(clinicId, tag);
       if (patient) Object.assign(patient, data, { updatedAt: now() });

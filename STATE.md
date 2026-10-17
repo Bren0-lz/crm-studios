@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U19 — bloco A)
-- **Última concluída:** U17
+- **Tarefa atual:** Rodada 7, Fase 2 (U20 — bloco A)
+- **Última concluída:** U19
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -181,3 +181,4 @@
 - 2026-10-17 Bloco E (U35–U37) concluído.
 - 2026-10-17 U18: 6 etapas (new_contact, contacted, evaluation, proposal, won, lost). Causa vista no navegador (dev em memória): o quadro já rolava, mas a barra horizontal ficava embaixo de colunas de 470px+, fora da tela. `.kanban-board` agora: grid-auto-flow column + grid-auto-columns minmax(240px,1fr), overflow scroll, max-height max(384px, 100dvh − 448px) (barra visível já na abertura), colunas com min-height 320px. Teste lê o CSS com readFileSync(`${process.cwd()}/src/styles/...`) — `?raw` de CSS vem vazio no Vitest e import.meta.url não é file:// no jsdom. Dev local: `STORAGE_MODE=memory JWT_SECRET=<32+> npm run dev`; memória não tem leads de demonstração.
 - 2026-10-17 U17: arrastar e soltar nativo no quadro (CommercialPage): cartão `draggable` (crm.stage, fora de won/lost), coluna com dragover/drop e classe `drag-over`; soltar chama o mesmo api.moveLead com toast de sucesso/erro; "Perdidos" abre LeadLostModal e "Ganhos" abre LeadConvertModal. Colunas têm aria-label = rótulo da etapa (role region nos testes). Select de etapa mantido (celular). Conferido no Chrome real com o dev em memória.
+- 2026-10-17 U19: contrato do lead já tinha CPF/emergência/endereço opcionais. Novo `leadConversionInputSchema` (cpf, emergência, CEP/endereço/bairro/cidade/UF; parcial) e POST /leads/:id/convert com corpo opcional; `convertLead(clinicId, actor, leadId, input?)` nos dois repositórios aplica `withConversionInput` (modules/commercial/conversion.ts: vazios não sobrescrevem; dados de cliente existente continuam valendo) antes de casar por telefone/e-mail/CPF e gerar o cliente. Teste PG opt-in em postgresql-repository-patients. Web: LeadModal com nome, telefone, origem, interesse à vista + "Mais informações" (sem CPF, emergência e endereço; `PatientProfileFields withAddress={false}`); LeadConvertModal com os campos e ViaCEP. `ActionModal` com children agora foca o 1º campo do formulário (antes caía no "Fechar").

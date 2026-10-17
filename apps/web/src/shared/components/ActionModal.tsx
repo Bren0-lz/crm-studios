@@ -49,6 +49,10 @@ export function ActionModal({
       title={title}
       subtitle={subtitle}
       busy={saving}
+      // Com campos, o foco vai para o primeiro; sem campos, para Confirmar (autoFocus).
+      {...(children
+        ? { initialFocus: "form input, form select, form textarea" }
+        : {})}
       onClose={onClose}
     >
       <form

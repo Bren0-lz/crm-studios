@@ -158,10 +158,8 @@ describe("action modals instead of browser dialogs", () => {
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // Sem campos, o foco vai para Confirmar: Enter confirma.
-      expect(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      ).toHaveFocus();
+      // Os dados opcionais da conversão (U19) vêm primeiro: o foco abre no CPF.
+      expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
@@ -183,7 +181,12 @@ describe("action modals instead of browser dialogs", () => {
       expect(writes()).toHaveLength(1);
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
-      expect(writes()[0]![1]?.body).toBeUndefined();
+      // Sem dados opcionais preenchidos: campos vazios, que a API ignora.
+      expect(
+        Object.values(JSON.parse(String(writes()[0]![1]?.body))).every(
+          (value) => value === "",
+        ),
+      ).toBe(true);
     });
 
     it("keeps the modal open with the API error", async () => {

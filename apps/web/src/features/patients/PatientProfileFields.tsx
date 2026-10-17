@@ -13,7 +13,10 @@ import { formatCep, lookupCep } from "../../shared/lib/cep";
 export function PatientProfileFields({
   form,
   onChange,
+  withAddress = true,
 }: {
+  /** O lead não guarda endereço (U19): só é pedido na conversão. */
+  withAddress?: boolean;
   form: PatientInput;
   onChange: <K extends keyof PatientInput>(
     key: K,
@@ -66,10 +69,9 @@ export function PatientProfileFields({
   }
   // CEP primeiro: o endereço vem preenchido pelo ViaCEP (U16).
   const textFields = [
-    "address",
-    "neighborhood",
-    "city",
-    "state",
+    ...(withAddress
+      ? (["address", "neighborhood", "city", "state"] as const)
+      : []),
     "guardianName",
     "occupation",
     "source",
@@ -78,24 +80,26 @@ export function PatientProfileFields({
     <fieldset className="form-fieldset span-2">
       <legend>Informações complementares</legend>
       <div className="form-fieldset-grid">
-        <div className="field-with-hint">
-          <label>
-            {patientProfileLabels.postalCode}
-            <input
-              inputMode="numeric"
-              autoComplete="postal-code"
-              placeholder="00000-000"
-              maxLength={9}
-              value={form.postalCode ?? ""}
-              onChange={(event) => void changeCep(event.target.value)}
-            />
-          </label>
-          {cepStatus && (
-            <small className="field-hint" role="status">
-              {cepStatus}
-            </small>
-          )}
-        </div>
+        {withAddress && (
+          <div className="field-with-hint">
+            <label>
+              {patientProfileLabels.postalCode}
+              <input
+                inputMode="numeric"
+                autoComplete="postal-code"
+                placeholder="00000-000"
+                maxLength={9}
+                value={form.postalCode ?? ""}
+                onChange={(event) => void changeCep(event.target.value)}
+              />
+            </label>
+            {cepStatus && (
+              <small className="field-hint" role="status">
+                {cepStatus}
+              </small>
+            )}
+          </div>
+        )}
         {textFields.map((key) => (
           <label key={key}>
             {patientProfileLabels[key]}

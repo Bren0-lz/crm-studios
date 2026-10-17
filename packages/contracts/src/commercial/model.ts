@@ -33,6 +33,20 @@ export const leadInputSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
+/** Dados pedidos só na conversão (U19): o lead não guarda CPF, emergência nem endereço. */
+export const leadConversionInputSchema = leadPatientProfileSchema
+  .pick({
+    cpf: true,
+    emergencyContactName: true,
+    emergencyContactPhone: true,
+    postalCode: true,
+    address: true,
+    neighborhood: true,
+    city: true,
+    state: true,
+  })
+  .partial();
+
 export const leadMoveSchema = z
   .object({
     stage: leadStageSchema,

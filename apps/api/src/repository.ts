@@ -110,6 +110,7 @@ import type {
   LeadContact,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -976,6 +977,7 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
     leadId: string,
+    input?: LeadConversionInput,
   ): Promise<LeadConversion | null>;
   getLeadActivity(
     clinicId: string,

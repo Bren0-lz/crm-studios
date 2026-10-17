@@ -897,6 +897,45 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(movedToExisting).not.toHaveProperty("leadId");
   });
 
+  it("fills CPF, emergency contact and address asked only on conversion", async () => {
+    await cleanupLeadConversion();
+    try {
+      const lead = await repository.createLead(clinicId, {
+        fullName: "Lead Só Nome e Telefone",
+        phone: leadConversionPhones[1]!,
+        source: "Instagram",
+        interest: "Pilates",
+        tags: [],
+      });
+      const conversion = await repository.convertLead(
+        clinicId,
+        ownerId,
+        lead.id,
+        {
+          cpf: "52998224725",
+          emergencyContactName: "Joana Mãe",
+          emergencyContactPhone: "11988887777",
+          postalCode: "01310-100",
+          address: "Avenida Paulista, 1000",
+          city: "São Paulo",
+          state: "SP",
+          neighborhood: "",
+        },
+      );
+      expect(conversion?.patient).toMatchObject({
+        cpf: "52998224725",
+        emergencyContactName: "Joana Mãe",
+        emergencyContactPhone: "11988887777",
+        postalCode: "01310-100",
+        address: "Avenida Paulista, 1000",
+        city: "São Paulo",
+        state: "SP",
+      });
+    } finally {
+      await cleanupLeadConversion();
+    }
+  });
+
   it("lists contact suggestions and hides them after a registered contact", async () => {
     await pool.query(
       `DELETE FROM contact_activities WHERE patient_id IN

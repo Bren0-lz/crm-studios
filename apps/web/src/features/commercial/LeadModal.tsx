@@ -104,40 +104,6 @@ export function LeadModal({
                 onChange={(digits) => setForm({ ...form, phone: digits })}
               />
             </label>
-            <label>
-              E-mail
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </label>
-            <label>
-              WhatsApp
-              <PhoneInput
-                value={form.whatsapp ?? ""}
-                onChange={(value) => setForm({ ...form, whatsapp: value })}
-              />
-            </label>
-            <label>
-              Contato de emergência
-              <input
-                maxLength={120}
-                value={form.emergencyContactName ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, emergencyContactName: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Telefone de emergência
-              <PhoneInput
-                value={form.emergencyContactPhone ?? ""}
-                onChange={(value) =>
-                  setForm({ ...form, emergencyContactPhone: value })
-                }
-              />
-            </label>
             <CatalogInput
               kind="lead_source"
               label="Origem"
@@ -154,77 +120,96 @@ export function LeadModal({
                 onChange={(e) => setForm({ ...form, interest: e.target.value })}
               />
             </label>
-            <CatalogInput
-              kind="lead_channel"
-              label="Forma de contato inicial"
-              value={form.contactMethod ?? ""}
-              onChange={(value) => setForm({ ...form, contactMethod: value })}
-            />
-            <label>
-              CPF do interessado
-              <input
-                value={form.cpf ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, cpf: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Nascimento do interessado
-              <input
-                type="date"
-                value={form.birthDate ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, birthDate: event.target.value })
-                }
-              />
-            </label>
-            <div className="span-2">
-              <PatientProfileFields
-                form={form}
-                onChange={(key, value) =>
-                  setForm((current) => ({ ...current, [key]: value }))
-                }
-              />
-            </div>
-            <label className="span-2">
-              Observações
-              <textarea
-                rows={3}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </label>
-            <label>
-              Responsável
-              <select
-                value={form.responsibleUserId}
-                onChange={(e) =>
-                  setForm({ ...form, responsibleUserId: e.target.value })
-                }
-              >
-                <option value="">Não atribuído</option>
-                {lead?.responsibleUserId &&
-                  lead.responsibleUserId !== getStoredUser()?.id && (
-                    <option value={lead.responsibleUserId}>
-                      {lead.responsibleName ?? "Responsável atual"}
-                    </option>
-                  )}
-                {getStoredUser() && (
-                  <option value={getStoredUser()!.id}>
-                    {getStoredUser()!.fullName}
-                  </option>
-                )}
-              </select>
-            </label>
-            <label>
-              Etiquetas
-              <input
-                value={tagText}
-                onChange={(e) => setTagText(e.target.value)}
-                placeholder="Ortopedia, indicação, prioridade"
-              />
-            </label>
+            {/* Cadastro enxuto (U19): nome, telefone, origem e interesse à vista. */}
+            <details className="more-info span-2" open={Boolean(lead)}>
+              <summary>Mais informações</summary>
+              <div className="form-grid">
+                <label>
+                  E-mail
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm({ ...form, email: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  WhatsApp
+                  <PhoneInput
+                    value={form.whatsapp ?? ""}
+                    onChange={(value) => setForm({ ...form, whatsapp: value })}
+                  />
+                </label>
+                <CatalogInput
+                  kind="lead_channel"
+                  label="Forma de contato inicial"
+                  value={form.contactMethod ?? ""}
+                  onChange={(value) =>
+                    setForm({ ...form, contactMethod: value })
+                  }
+                />
+                <label>
+                  Nascimento do interessado
+                  <input
+                    type="date"
+                    value={form.birthDate ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, birthDate: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Responsável
+                  <select
+                    value={form.responsibleUserId}
+                    onChange={(e) =>
+                      setForm({ ...form, responsibleUserId: e.target.value })
+                    }
+                  >
+                    <option value="">Não atribuído</option>
+                    {lead?.responsibleUserId &&
+                      lead.responsibleUserId !== getStoredUser()?.id && (
+                        <option value={lead.responsibleUserId}>
+                          {lead.responsibleName ?? "Responsável atual"}
+                        </option>
+                      )}
+                    {getStoredUser() && (
+                      <option value={getStoredUser()!.id}>
+                        {getStoredUser()!.fullName}
+                      </option>
+                    )}
+                  </select>
+                </label>
+                <label>
+                  Etiquetas
+                  <input
+                    value={tagText}
+                    onChange={(e) => setTagText(e.target.value)}
+                    placeholder="Ortopedia, indicação, prioridade"
+                  />
+                </label>
+                <label className="span-2">
+                  Observações
+                  <textarea
+                    rows={3}
+                    value={form.notes}
+                    onChange={(e) =>
+                      setForm({ ...form, notes: e.target.value })
+                    }
+                  />
+                </label>
+                <div className="span-2">
+                  <PatientProfileFields
+                    withAddress={false}
+                    form={form}
+                    onChange={(key, value) =>
+                      setForm((current) => ({ ...current, [key]: value }))
+                    }
+                  />
+                </div>
+              </div>
+            </details>
             {error && <div className="form-error span-2">{error}</div>}
             <div className="modal-actions span-2">
               <button

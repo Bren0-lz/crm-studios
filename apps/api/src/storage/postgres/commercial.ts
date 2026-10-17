@@ -1,10 +1,14 @@
-import { leadConversionData } from "../../modules/commercial/conversion.js";
+import {
+  leadConversionData,
+  withConversionInput,
+} from "../../modules/commercial/conversion.js";
 import { leadPatientProfile } from "@crm/contracts/commercial";
 import { patientProfile } from "@crm/contracts/patients";
 import type {
   LeadActivity,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
   LeadInput,
   LeadStage,
   LeadTaskInput,
@@ -212,6 +216,7 @@ export function createCommercialRepository(
       clinicId: string,
       actorUserId: string,
       leadId: string,
+      input?: LeadConversionInput,
     ): Promise<LeadConversion | null> {
       const client = await repositoryContext.pool.connect();
       try {
@@ -229,7 +234,10 @@ export function createCommercialRepository(
           await client.query("COMMIT");
           return null;
         }
-        const original = mapLead(leadResult.rows[0]);
+        const original = withConversionInput(
+          mapLead(leadResult.rows[0]),
+          input,
+        );
         let patientResult = original.convertedPatientId
           ? await client.query<PatientRow>(
               `SELECT ${patientColumns} FROM patients

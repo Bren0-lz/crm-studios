@@ -5,6 +5,7 @@ import {
   buildLeadInsights,
   leadContactInputSchema,
   leadInputSchema,
+  leadConversionInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
@@ -92,6 +93,7 @@ export function registerCommercialRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
+        leadConversionInputSchema.parse(request.body ?? {}),
       );
       if (!conversion)
         return reply.status(404).send({
