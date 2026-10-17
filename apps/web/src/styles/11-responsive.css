@@ -395,7 +395,7 @@
 
   /* audit: mobile-ok hora (48px) + barra (3px) + texto flexível cabem em 390px */
   .appointment-row {
-    grid-template-columns: 48px 3px minmax(0, 1fr) 32px;
+    grid-template-columns: 48px 3px minmax(0, 1fr) auto;
     gap: 11px;
     padding: 14px 15px;
   }

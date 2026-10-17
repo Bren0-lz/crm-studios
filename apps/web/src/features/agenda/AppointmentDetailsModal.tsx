@@ -1,5 +1,6 @@
 import {
   type Appointment,
+  type AppointmentStatus,
   type Patient,
   type SatisfactionSurvey,
   type Service,
@@ -32,7 +33,7 @@ export function AppointmentDetailsModal({
   service,
   onClose,
   onReschedule,
-  onCancelled,
+  onUpdated,
   editable,
   initialCancelConfirmation = false,
 }: {
@@ -41,7 +42,8 @@ export function AppointmentDetailsModal({
   service: Service | undefined;
   onClose: () => void;
   onReschedule: () => void;
-  onCancelled: (appointment: Appointment) => void;
+  /** Recebe o atendimento com o novo status (cancelado, confirmado, realizado ou falta). */
+  onUpdated: (appointment: Appointment) => void;
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
   initialCancelConfirmation?: boolean;
@@ -49,6 +51,9 @@ export function AppointmentDetailsModal({
   const { can } = useAuthorization();
   const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmNoShow, setConfirmNoShow] = useState(false);
+  const [noShowReason, setNoShowReason] = useState("");
+  const [savingStatus, setSavingStatus] = useState(false);
   const [error, setError] = useState("");
   const canChange =
     appointment.status === "scheduled" || appointment.status === "confirmed";
@@ -88,13 +93,36 @@ export function AppointmentDetailsModal({
       active = false;
     };
   }, [appointment.id, appointment.startsAt, isCompleted]);
+  async function changeStatus(
+    status: Extract<AppointmentStatus, "confirmed" | "completed" | "no_show">,
+  ) {
+    setSavingStatus(true);
+    setError("");
+    try {
+      const reason = noShowReason.trim();
+      const updated = await api.updateAppointmentStatus(
+        appointment.id,
+        status,
+        status === "no_show" && reason ? reason : undefined,
+      );
+      setConfirmNoShow(false);
+      setNoShowReason("");
+      onUpdated(updated);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível alterar o atendimento.",
+      );
+    } finally {
+      setSavingStatus(false);
+    }
+  }
   async function cancelAppointment() {
     setCancelling(true);
     setError("");
     try {
-      onCancelled(
-        await api.updateAppointmentStatus(appointment.id, "cancelled"),
-      );
+      onUpdated(await api.updateAppointmentStatus(appointment.id, "cancelled"));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -125,7 +153,7 @@ export function AppointmentDetailsModal({
     <Modal
       title="Detalhes do atendimento"
       subtitle={appointment.patientName}
-      busy={cancelling}
+      busy={cancelling || savingStatus}
       onClose={onClose}
     >
       <div className="appointment-details">
@@ -356,7 +384,70 @@ export function AppointmentDetailsModal({
               Remarcar ausência
             </button>
           )}
-        {editable && !confirmCancel && canChange && (
+        {confirmNoShow && (
+          <div className="appointment-cancel-confirm">
+            <strong>Registrar falta?</strong>
+            <span>A falta não consome sessão do plano.</span>
+            <label className="appointment-no-show-reason">
+              Motivo (opcional)
+              <textarea
+                rows={2}
+                maxLength={500}
+                value={noShowReason}
+                disabled={savingStatus}
+                onChange={(event) => setNoShowReason(event.target.value)}
+              />
+            </label>
+            <div>
+              <button
+                className="secondary-button"
+                onClick={() => setConfirmNoShow(false)}
+                disabled={savingStatus}
+              >
+                Voltar
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => void changeStatus("no_show")}
+                disabled={savingStatus || noShowReason.trim().length === 1}
+              >
+                {savingStatus ? "Registrando…" : "Registrar falta"}
+              </button>
+            </div>
+          </div>
+        )}
+        {editable &&
+          !confirmCancel &&
+          !confirmNoShow &&
+          canChange &&
+          can("agenda.attendance") && (
+            <div className="appointment-detail-actions">
+              {appointment.status === "scheduled" && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void changeStatus("confirmed")}
+                  disabled={savingStatus}
+                >
+                  Confirmar presença
+                </button>
+              )}
+              <button
+                className="secondary-button"
+                onClick={() => setConfirmNoShow(true)}
+                disabled={savingStatus}
+              >
+                Marcar falta
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => void changeStatus("completed")}
+                disabled={savingStatus}
+              >
+                Marcar como realizado
+              </button>
+            </div>
+          )}
+        {editable && !confirmCancel && !confirmNoShow && canChange && (
           <div className="appointment-detail-actions">
             {can("agenda.cancel") && (
               <button

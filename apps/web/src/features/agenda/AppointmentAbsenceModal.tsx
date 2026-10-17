@@ -13,6 +13,8 @@ export function AppointmentAbsenceModal({
   onConfirm: (reason: string) => Promise<void>;
 }) {
   const [reason, setReason] = useState(appointment.absenceReason ?? "");
+  // Na falta do cliente o motivo é opcional; nas ausências justificadas, obrigatório.
+  const optional = status === "no_show";
   return (
     <ActionModal
       eyebrow="Agenda"
@@ -25,15 +27,17 @@ export function AppointmentAbsenceModal({
       }
       confirmLabel="Registrar ausência"
       validate={() =>
-        reason.trim().length >= 2 ? "" : "Informe o motivo da ausência."
+        reason.trim().length >= 2 || (optional && reason.trim().length === 0)
+          ? ""
+          : "Informe o motivo da ausência."
       }
       onClose={onClose}
       onConfirm={() => onConfirm(reason.trim())}
     >
       <label>
-        Motivo da ausência
+        {optional ? "Motivo da ausência (opcional)" : "Motivo da ausência"}
         <textarea
-          required
+          required={!optional}
           minLength={2}
           maxLength={500}
           value={reason}

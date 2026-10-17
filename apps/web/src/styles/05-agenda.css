@@ -1095,3 +1095,9 @@ button.day-event:focus-visible {
   margin-top: 8px;
   font-size: var(--text-sm);
 }
+.appointment-no-show-reason {
+  display: grid;
+  gap: var(--space-1);
+  color: #7f5144;
+  font-size: var(--text-sm);
+}

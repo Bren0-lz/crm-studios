@@ -685,7 +685,7 @@ export function AgendaPage() {
             const updated = await api.updateAppointmentStatus(
               absence.appointment.id,
               absence.status,
-              reason,
+              reason || undefined,
             );
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
@@ -729,11 +729,12 @@ export function AgendaPage() {
             setSelectedAppointmentId(null);
             setRescheduling(selectedAppointment);
           }}
-          onCancelled={(updated) => {
+          onUpdated={(updated) => {
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
-            setSelectedAppointmentId(null);
+            // Realizado continua aberto para registrar a satisfação; os demais fecham.
+            if (updated.status !== "completed") setSelectedAppointmentId(null);
           }}
         />
       )}

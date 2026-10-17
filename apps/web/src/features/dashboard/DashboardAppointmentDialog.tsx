@@ -136,7 +136,7 @@ export function DashboardAppointmentDialog({
       initialCancelConfirmation={kind === "cancel"}
       onClose={onClose}
       onReschedule={onReschedule}
-      onCancelled={onUpdated}
+      onUpdated={onUpdated}
     />
   );
 }

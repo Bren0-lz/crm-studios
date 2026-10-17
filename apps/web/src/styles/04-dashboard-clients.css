@@ -52,7 +52,7 @@
 
 .appointment-row {
   display: grid;
-  grid-template-columns: 66px 3px minmax(0, 1fr) auto 32px;
+  grid-template-columns: 66px 3px minmax(0, 1fr) auto auto;
   gap: 17px;
   align-items: center;
   padding: 16px 23px;
@@ -647,4 +647,14 @@
 
 .empty-state span {
   font-size: var(--text-xs);
+}
+
+.appointment-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.appointment-complete-button {
+  color: var(--green-2);
 }
