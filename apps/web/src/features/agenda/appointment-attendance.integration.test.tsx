@@ -118,3 +118,44 @@ describe("AppointmentDetailsModal attendance actions", () => {
     );
   });
 });
+
+describe("AppointmentDetailsModal cancellation", () => {
+  it("requires a reason to cancel and sends it with the optional details", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ ...appointment, status: "cancelled" }),
+    );
+    render(
+      <MemoryRouter>
+        <AuthorizationContext.Provider value={authorization}>
+          <AppointmentDetailsModal
+            appointment={appointment}
+            patient={undefined}
+            service={undefined}
+            editable
+            initialCancelConfirmation
+            onClose={() => undefined}
+            onReschedule={() => undefined}
+            onUpdated={() => undefined}
+          />
+        </AuthorizationContext.Provider>
+      </MemoryRouter>,
+    );
+    const confirm = screen.getByRole("button", {
+      name: "Confirmar cancelamento",
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
+      target: { value: "Profissional indisponível" },
+    });
+    fireEvent.change(screen.getByLabelText("Detalhes (opcional)"), {
+      target: { value: "Curso externo" },
+    });
+    fireEvent.click(confirm);
+    await vi.waitFor(() =>
+      expect(patchBody()).toEqual({
+        status: "cancelled",
+        absenceReason: "Profissional indisponível: Curso externo",
+      }),
+    );
+  });
+});

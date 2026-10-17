@@ -895,13 +895,14 @@ describe("application shell", () => {
     expect(screen.getByText(/50 min/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancelar atendimento" }));
     expect(vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "PATCH")).toBe(false);
+    fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), { target: { value: "Cliente desmarcou" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
     await vi.waitFor(() => {
       const call = vi.mocked(fetch).mock.calls.find(([, options]) => options?.method === "PATCH");
       expect(call?.[0]).toContain(`/appointments/${appointment.id}/status`);
-      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ status: "cancelled" });
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ status: "cancelled", absenceReason: "Cliente desmarcou" });
     });
-    await vi.waitFor(() => expect(screen.queryByRole("heading", { name: "Detalhes do atendimento" })).not.toBeInTheDocument());
+    expect(await screen.findByRole("link", { name: "Avisar cliente por WhatsApp" })).toBeInTheDocument();
   });
 
   it("keeps the monthly summary readable and opens detailed lists on demand", async () => {

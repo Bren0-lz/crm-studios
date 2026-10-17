@@ -1225,7 +1225,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U8 | Seletor de data contido no modal, sem horário duplicado | DONE |
 | U9 | Aviso ao agendar cliente com pendência/sem plano | DONE |
 | U10 | Serviços filtrados por profissional/sala | DONE |
-| U11 | Motivo no cancelamento e aviso por WhatsApp | TODO |
+| U11 | Motivo no cancelamento e aviso por WhatsApp | DONE |
 | U12 | Busca de clientes sem acento e com debounce | TODO |
 | U13 | Linha abre a ficha | TODO |
 | U14 | Ficha: topo completo e abas na própria ficha | TODO |

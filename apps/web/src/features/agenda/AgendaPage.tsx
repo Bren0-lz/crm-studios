@@ -772,8 +772,13 @@ export function AgendaPage() {
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
-            // Realizado continua aberto para registrar a satisfação; os demais fecham.
-            if (updated.status !== "completed") setSelectedAppointmentId(null);
+            // Realizado continua aberto (satisfação) e cancelado também (avisar o
+            // cliente por WhatsApp); os demais fecham.
+            if (
+              updated.status !== "completed" &&
+              updated.status !== "cancelled"
+            )
+              setSelectedAppointmentId(null);
           }}
         />
       )}

@@ -391,12 +391,19 @@ describe("dashboard appointment actions", () => {
       name: "Confirmar cancelamento",
     });
     expect(controls.writes).toHaveLength(0);
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
+      target: { value: "Cliente desmarcou" },
+    });
     fireEvent.click(confirm);
     expect(await screen.findByText("Agenda concluída")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(metric("Atendimentos hoje")).toHaveTextContent("1");
     expect(metric("Já finalizados")).toHaveTextContent("0");
-    expect(controls.writes[0]?.body).toEqual({ status: "cancelled" });
+    expect(controls.writes[0]?.body).toEqual({
+      status: "cancelled",
+      absenceReason: "Cliente desmarcou",
+    });
   });
 
   it.each([
@@ -406,7 +413,12 @@ describe("dashboard appointment actions", () => {
     const { controls } = setup({ failSave: true });
     const { menu } = await openMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: action! }));
-    fireEvent.click(await screen.findByRole("button", { name: confirmation! }));
+    const confirm = await screen.findByRole("button", { name: confirmation! });
+    if (action === "Cancelar atendimento")
+      fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
+        target: { value: "Cliente desmarcou" },
+      });
+    fireEvent.click(confirm);
     expect(
       await screen.findByText("Não foi possível salvar o atendimento."),
     ).toBeInTheDocument();

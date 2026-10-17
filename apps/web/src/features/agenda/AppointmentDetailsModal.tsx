@@ -6,7 +6,9 @@ import {
   type Service,
   formatCpf,
   formatPhone,
+  whatsappLink,
 } from "@crm/contracts";
+import { MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
@@ -26,6 +28,21 @@ import {
 } from "../../shared/lib/formatting";
 import { addDaysToIsoDate } from "../relationship/index";
 import { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
+
+const cancellationReasons = [
+  "Cliente desmarcou",
+  "Cliente não pode comparecer",
+  "Profissional indisponível",
+  "Remarcação",
+  "Outro",
+];
+
+/** Mensagem para avisar o cliente do cancelamento (primeiro nome, data e horário). */
+function cancellationMessage(appointment: Appointment) {
+  const firstName = appointment.patientName.trim().split(/s+/)[0] ?? "";
+  const start = new Date(appointment.startsAt);
+  return `Olá, ${firstName}! Seu atendimento de ${appointment.serviceName} em ${start.toLocaleDateString("pt-BR")} às ${timeLabel.format(start)} foi cancelado. Se quiser remarcar, é só responder esta mensagem.`;
+}
 
 export function AppointmentDetailsModal({
   appointment,
@@ -51,6 +68,8 @@ export function AppointmentDetailsModal({
   const { can } = useAuthorization();
   const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelDetails, setCancelDetails] = useState("");
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [noShowReason, setNoShowReason] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
@@ -59,6 +78,7 @@ export function AppointmentDetailsModal({
     appointment.status === "scheduled" || appointment.status === "confirmed";
   // Atendimento de lead não tem prontuário, NPS nem histórico de cliente.
   const isLead = Boolean(appointment.leadId);
+  const contactPhone = isLead ? "" : patient?.whatsapp || patient?.phone || "";
   const isCompleted = appointment.status === "completed" && !isLead;
   // Cores das etiquetas só quando o cliente tem alguma; sem acesso à lista, fica a cor padrão.
   const patientTagNames = !isLead && patient?.tags?.length ? patient.tags : [];
@@ -122,7 +142,15 @@ export function AppointmentDetailsModal({
     setCancelling(true);
     setError("");
     try {
-      onUpdated(await api.updateAppointmentStatus(appointment.id, "cancelled"));
+      const details = cancelDetails.trim();
+      onUpdated(
+        await api.updateAppointmentStatus(
+          appointment.id,
+          "cancelled",
+          details ? `${cancelReason}: ${details}` : cancelReason,
+        ),
+      );
+      setConfirmCancel(false);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -205,7 +233,11 @@ export function AppointmentDetailsModal({
             )}
             {appointment.absenceReason && (
               <div className="detail-wide">
-                <small>Motivo da ausência</small>
+                <small>
+                  {appointment.status === "cancelled"
+                    ? "Motivo do cancelamento"
+                    : "Motivo da ausência"}
+                </small>
                 <strong>{appointment.absenceReason}</strong>
               </div>
             )}
@@ -351,10 +383,51 @@ export function AppointmentDetailsModal({
           </section>
         )}
         {error && <div className="form-error">{error}</div>}
+        {appointment.status === "cancelled" && contactPhone && (
+          <div className="appointment-cancel-notify">
+            <span>Atendimento cancelado. Quer avisar o cliente?</span>
+            <a
+              className="whatsapp-button button-sm"
+              href={whatsappLink(
+                contactPhone,
+                cancellationMessage(appointment),
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle size={15} aria-hidden="true" />
+              Avisar cliente por WhatsApp
+            </a>
+          </div>
+        )}
         {confirmCancel && (
           <div className="appointment-cancel-confirm">
             <strong>Cancelar este atendimento?</strong>
             <span>O horário será liberado na agenda.</span>
+            <label className="appointment-no-show-reason">
+              Motivo do cancelamento
+              <select
+                required
+                value={cancelReason}
+                disabled={cancelling}
+                onChange={(event) => setCancelReason(event.target.value)}
+              >
+                <option value="">Selecione</option>
+                {cancellationReasons.map((reason) => (
+                  <option key={reason}>{reason}</option>
+                ))}
+              </select>
+            </label>
+            <label className="appointment-no-show-reason">
+              Detalhes (opcional)
+              <textarea
+                rows={2}
+                maxLength={400}
+                value={cancelDetails}
+                disabled={cancelling}
+                onChange={(event) => setCancelDetails(event.target.value)}
+              />
+            </label>
             <div>
               <button
                 className="secondary-button"
@@ -367,7 +440,7 @@ export function AppointmentDetailsModal({
                 <button
                   className="danger-button"
                   onClick={() => void cancelAppointment()}
-                  disabled={cancelling}
+                  disabled={cancelling || !cancelReason}
                 >
                   {cancelling ? "Cancelando…" : "Confirmar cancelamento"}
                 </button>

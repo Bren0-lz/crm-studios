@@ -85,6 +85,9 @@ describe("application shell", () => {
         .mocked(fetch)
         .mock.calls.some(([, options]) => options?.method === "PATCH"),
     ).toBe(false);
+    fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
+      target: { value: "Cliente desmarcou" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar cancelamento" }),
     );
@@ -95,12 +98,16 @@ describe("application shell", () => {
       expect(call?.[0]).toContain(`/appointments/${appointment.id}/status`);
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({
         status: "cancelled",
+        absenceReason: "Cliente desmarcou",
       });
     });
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Detalhes do atendimento" }),
-      ).not.toBeInTheDocument(),
+    // Depois de cancelar, o modal fica aberto para avisar o cliente por WhatsApp.
+    const notify = await screen.findByRole("link", {
+      name: "Avisar cliente por WhatsApp",
+    });
+    expect(notify).toHaveAttribute(
+      "href",
+      expect.stringContaining("foi%20cancelado"),
     );
   });
 
