@@ -14,15 +14,17 @@ import {
   contactReasonLabels,
 } from "./model";
 
+/** Registra o mesmo resultado para todos os motivos sugeridos do cliente. */
 export function ContactActivityModal({
-  suggestion,
+  suggestions,
   onClose,
   onSaved,
 }: {
-  suggestion: ContactSuggestion;
+  suggestions: ContactSuggestion[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved: ContactSuggestion[]) => void;
 }) {
+  const suggestion = suggestions[0]!;
   const { can } = useAuthorization();
   const today = saoPauloToday();
   const [outcome, setOutcome] = useState<ContactOutcome>("contacted");
@@ -37,29 +39,43 @@ export function ContactActivityModal({
     event.preventDefault();
     setError("");
     setLoading(true);
+    const saved: ContactSuggestion[] = [];
     try {
       const trimmedNotes = notes.trim();
-      const input: ContactActivityInput = {
-        patientId: suggestion.patientId,
-        reason: suggestion.reason,
-        referenceKey: suggestion.referenceKey,
-        outcome,
-        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
-        ...(outcome === "snoozed" ? { snoozeUntil } : {}),
-      };
-      await api.createContactActivity(input);
-      onSaved();
+      for (const item of suggestions) {
+        const input: ContactActivityInput = {
+          patientId: item.patientId,
+          reason: item.reason,
+          referenceKey: item.referenceKey,
+          outcome,
+          ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+          ...(outcome === "snoozed" ? { snoozeUntil } : {}),
+        };
+        await api.createContactActivity(input);
+        saved.push(item);
+      }
+      onSaved(saved);
     } catch (cause) {
-      setError((cause as Error).message);
+      setError(
+        saved.length
+          ? `${(cause as Error).message} (${saved.length} de ${suggestions.length} motivos já registrados.)`
+          : (cause as Error).message,
+      );
       setLoading(false);
     }
   }
 
   return (
     <Modal
-      eyebrow={contactReasonLabels[suggestion.reason]}
+      eyebrow={suggestions
+        .map((item) => contactReasonLabels[item.reason])
+        .join(" · ")}
       title="Registrar contato"
-      subtitle={`${suggestion.patientName} · ${suggestion.detail}`}
+      subtitle={
+        suggestions.length === 1
+          ? `${suggestion.patientName} · ${suggestion.detail}`
+          : `${suggestion.patientName} · vale para os ${suggestions.length} motivos`
+      }
       busy={loading}
       onClose={onClose}
     >

@@ -91,3 +91,17 @@ export function markBirthdaySent(patientId: string, referenceKey: string) {
 export function suggestionKey(suggestion: ContactSuggestion) {
   return `${suggestion.patientId}:${suggestion.reason}:${suggestion.referenceKey}`;
 }
+
+/**
+ * Um grupo por cliente, na ordem de prioridade da lista (o mais urgente primeiro). Cliente em
+ * várias categorias aparece uma vez, com todos os motivos.
+ */
+export function groupSuggestionsByPatient(suggestions: ContactSuggestion[]) {
+  const groups = new Map<string, ContactSuggestion[]>();
+  for (const suggestion of suggestions) {
+    const group = groups.get(suggestion.patientId);
+    if (group) group.push(suggestion);
+    else groups.set(suggestion.patientId, [suggestion]);
+  }
+  return [...groups.values()];
+}

@@ -1247,7 +1247,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U30 | Mensagens com primeiro nome | DONE |
 | U31 | Fila: filtros, lote e layout compacto | DONE |
 | U32 | WhatsApp + registrar envio unificados | DONE |
-| U33 | Contatos sugeridos agrupados por cliente | TODO |
+| U33 | Contatos sugeridos agrupados por cliente | DONE |
 | U34 | Nomenclatura "Contatos sugeridos" | TODO |
 | U35 | Contratos: inserir campo e prévia | TODO |
 | U36 | Limpar formulário após criar modelo | TODO |

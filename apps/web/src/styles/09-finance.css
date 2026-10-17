@@ -782,3 +782,14 @@
   color: #8a5a12;
   font-size: var(--text-sm);
 }
+
+/* Contatos sugeridos: um selo por motivo do mesmo cliente. */
+.suggestion-reasons {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.suggestion-reasons > .status-pill.open:last-child {
+  color: #4e6975;
+  font-weight: 800;
+}

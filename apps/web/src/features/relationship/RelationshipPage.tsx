@@ -19,7 +19,11 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { shortDate } from "../../shared/lib/formatting";
 import { BirthdaysMonthPanel } from "./BirthdaysMonthPanel";
 import { ContactActivityModal } from "./ContactActivityModal";
-import { contactReasonLabels, suggestionKey } from "./model";
+import {
+  contactReasonLabels,
+  groupSuggestionsByPatient,
+  suggestionKey,
+} from "./model";
 
 export function RelationshipPage() {
   const { can, canEdit } = useAuthorization();
@@ -30,7 +34,7 @@ export function RelationshipPage() {
   const [reasonFilter, setReasonFilter] = useState<ContactReason | "all">(
     "all",
   );
-  const [recording, setRecording] = useState<ContactSuggestion | null>(null);
+  const [recording, setRecording] = useState<ContactSuggestion[] | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -70,9 +74,15 @@ export function RelationshipPage() {
     return fillPatientMessage(template, suggestion.patientName);
   }
 
-  function recorded(suggestion: ContactSuggestion) {
-    const key = suggestionKey(suggestion);
-    const remaining = suggestions.filter((item) => suggestionKey(item) !== key);
+  const visibleGroups = groupSuggestionsByPatient(visibleClients);
+  const clientCount = new Set(suggestions.map((item) => item.patientId)).size;
+
+  function recorded(saved: ContactSuggestion[]) {
+    const suggestion = saved[0]!;
+    const keys = new Set(saved.map(suggestionKey));
+    const remaining = suggestions.filter(
+      (item) => !keys.has(suggestionKey(item)),
+    );
     setSuggestions(remaining);
     if (!remaining.some((item) => item.reason === reasonFilter)) {
       setReasonFilter("all");
@@ -143,7 +153,7 @@ export function RelationshipPage() {
                   onClick={() => setReasonFilter("all")}
                 >
                   Todas
-                  <small>{suggestions.length}</small>
+                  <small>{clientCount}</small>
                 </button>
                 {reasonOptions.map((reason) => (
                   <button
@@ -169,17 +179,20 @@ export function RelationshipPage() {
             />
           ) : (
             <div className="plans-grid">
-              {visibleClients.map((suggestion) => {
+              {visibleGroups.map((group) => {
+                const suggestion = group[0]!;
                 const contactPhone = suggestion.whatsapp || suggestion.phone;
                 return (
-                  <article
-                    className="plan-card"
-                    key={suggestionKey(suggestion)}
-                  >
-                    <div className="plan-card-head">
-                      <span className="status-pill open">
-                        {contactReasonLabels[suggestion.reason]}
-                      </span>
+                  <article className="plan-card" key={suggestion.patientId}>
+                    <div className="plan-card-head suggestion-reasons">
+                      {group.map((item) => (
+                        <span
+                          className="status-pill open"
+                          key={suggestionKey(item)}
+                        >
+                          {contactReasonLabels[item.reason]}
+                        </span>
+                      ))}
                       {suggestion.dueDate && (
                         <span>
                           {shortDate.format(
@@ -189,7 +202,9 @@ export function RelationshipPage() {
                       )}
                     </div>
                     <h3>{suggestion.patientName}</h3>
-                    <p>{suggestion.detail}</p>
+                    {group.map((item) => (
+                      <p key={suggestionKey(item)}>{item.detail}</p>
+                    ))}
                     <div className="plan-meta">
                       <span>Telefone</span>
                       <strong>{formatPhone(suggestion.phone)}</strong>
@@ -213,7 +228,7 @@ export function RelationshipPage() {
                             className="secondary-button button-sm"
                             onClick={() => {
                               setNotice("");
-                              setRecording(suggestion);
+                              setRecording(group);
                             }}
                           >
                             <PhoneCall size={15} />
@@ -230,9 +245,9 @@ export function RelationshipPage() {
       )}
       {recording && (
         <ContactActivityModal
-          suggestion={recording}
+          suggestions={recording}
           onClose={() => setRecording(null)}
-          onSaved={() => recorded(recording)}
+          onSaved={recorded}
         />
       )}
     </>
