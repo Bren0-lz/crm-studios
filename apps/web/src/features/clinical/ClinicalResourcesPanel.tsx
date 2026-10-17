@@ -1,5 +1,5 @@
 import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
-import { clinicIsoDate } from "../../shared/lib/formatting";
+import { clinicIsoDate, formatIsoDate } from "../../shared/lib/formatting";
 import {
   clinicalResourceLabels,
   type ClinicalResource,
@@ -119,8 +119,8 @@ function ResourceContent({
       {data.kind === "training" && (
         <>
           <p>
-            Vigência: {data.validFrom}{" "}
-            {data.validUntil ? `até ${data.validUntil}` : ""}
+            Vigência: {formatIsoDate(data.validFrom)}{" "}
+            {data.validUntil ? `até ${formatIsoDate(data.validUntil)}` : ""}
             {data.sessionLimit ? ` · ${data.sessionLimit} execuções` : ""}
           </p>
           <ol>

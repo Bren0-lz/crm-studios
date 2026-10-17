@@ -6,7 +6,11 @@ import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { currency, localIsoDate } from "../../shared/lib/formatting";
+import {
+  currency,
+  formatIsoDate,
+  localIsoDate,
+} from "../../shared/lib/formatting";
 import { dreGroupLabels } from "../finance/index";
 
 export function DreSection() {
@@ -98,7 +102,8 @@ export function DreSection() {
       <div className="table-scroll">
         <table className="dre-table">
           <caption>
-            DRE por competência · {data.from} a {data.to}
+            DRE por competência · {formatIsoDate(data.from)} a{" "}
+            {formatIsoDate(data.to)}
           </caption>
           <thead>
             <tr>

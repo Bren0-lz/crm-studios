@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U43 — bloco G)
-- **Última concluída:** U42
+- **Tarefa atual:** Rodada 7, Fase 2 (U44 — bloco G)
+- **Última concluída:** U43
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -158,3 +158,4 @@
 - 2026-10-17 U10: migração 0078 (services.professional_ids/room_ids uuid[] DEFAULT '{}'; próxima livre: 0079). `serviceAvailableFor` (contracts/administration) filtra o Serviço no AppointmentForm; Configurações › serviço tem as listas (nenhum = todos). Atualização via registry usa COALESCE (campo ausente mantém).
 - 2026-10-17 Dono aceitou as sugestões de U17, U31, U33, V3 e V12 (registradas no PLAN.md) e a ordem G → C → B → D → E → A → F → Fase 3. Fase 3 (V1–V12) adicionada ao PLAN.md.
 - 2026-10-17 U42: `TrendBadge` (shared/components; helpers `trendDirection`/`formatTrendPercent` em shared/lib/trend.ts — lint react-refresh não aceita função exportada junto do componente). Só Painel e Relatórios › Vendas mostram variação (`changePercent`); não havia "~" no código, o problema era "102.1%" com ponto. Sem base anterior = "Novo · sem base anterior"; `higherIsBetter` inverte as cores.
+- 2026-10-17 U43: `formatIsoDate` já gera DD/MM/AAAA. Só a legenda do DRE e a vigência do treino (ClinicalResourcesPanel) mostravam ISO cru; cabeçalhos de mês do DRE já eram MM/AAAA. Teste: detalhes do DRE abertos com `details.open = true` + `fireEvent(details, new Event("toggle"))`.

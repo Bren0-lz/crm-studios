@@ -84,6 +84,69 @@ describe("application shell", () => {
     ).toBe(false);
   });
 
+  it("shows the DRE period in Brazilian date format", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (!String(input).includes("/dre")) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ message: "Dados indisponíveis" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          from: "2026-10-01",
+          to: "2026-10-16",
+          months: [
+            {
+              month: "2026-10",
+              serviceRevenueInCents: 50000,
+              productRevenueInCents: 0,
+              otherRevenueInCents: 0,
+              expenses: {},
+              resultInCents: 50000,
+            },
+          ],
+          totals: {
+            revenueInCents: 50000,
+            expensesInCents: 0,
+            resultInCents: 50000,
+          },
+          categories: [],
+        }),
+      } as Response;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/relatorios"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const details = (await screen.findByText("DRE por competência"))
+      .parentElement as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(
+      await screen.findByText("DRE por competência · 01/10/2026 a 16/10/2026"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "10/2026" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/2026-10-01/)).not.toBeInTheDocument();
+  });
+
   it("shows the NPS card on the reports page for the filtered period", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
