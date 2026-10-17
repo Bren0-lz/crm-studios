@@ -1286,7 +1286,7 @@ fim de cada bloco.
 | ID | Item | Status |
 |----|------|--------|
 | V1 | Lista de clientes: coluna "Ações" e "+N" nas etiquetas (alinhamento e celular) | DONE |
-| V2 | Topo de Clientes sem quebra; ações secundárias no menu "Mais" | TODO |
+| V2 | Topo de Clientes sem quebra; ações secundárias no menu "Mais" | DONE |
 | V3 | Etiquetas com categoria/paleta e estado selecionado no filtro | TODO |
 | V4 | Cores de status na agenda com legenda (Dia, Semana, Mês, lista) | TODO |
 | V5 | Contato de emergência vermelho só quando ausente | TODO |

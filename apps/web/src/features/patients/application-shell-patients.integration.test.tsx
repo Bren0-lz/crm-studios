@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { patientTag, storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  clickMoreAction,
+  findMoreAction,
+  moreActionNames,
+} from "../../test-support/patient-actions";
 
 describe("application shell", () => {
   it("shows patient and booking details before cancelling an appointment", async () => {
@@ -739,7 +744,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
-    fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+    clickMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     const template = within(dialog).getByRole("link", {
       name: /Baixar modelo/,
@@ -840,7 +845,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Importar" }));
+    await findMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
       target: {
@@ -899,9 +904,7 @@ describe("application shell", () => {
     expect(
       screen.queryByRole("button", { name: /Novo cliente/ }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Importar" }),
-    ).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Importar");
     expect(
       vi
         .mocked(fetch)
@@ -987,7 +990,7 @@ describe("application shell", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: /^pilates/ }));
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(
         within(dialog).getByText(
@@ -1080,7 +1083,7 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("Ordenar por"), {
       target: { value: "newest" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    clickMoreAction("Exportar");
     const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
     expect(
       within(dialog).getByText("Cadastro: Com e-mail"),
@@ -1223,7 +1226,7 @@ describe("application shell", () => {
       ).toBeInTheDocument();
 
       // A exportação ignora a página: segue só com os filtros da tela.
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(
         within(dialog).getByText(

@@ -6,6 +6,7 @@ import { togglePermissions, permissionCatalog, legacyPermissions, effectiveEditM
 import { useState } from "react";
 import App, { Modal } from "./App";
 import { AppointmentDateTimePicker } from "./AppointmentDateTimePicker";
+import { clickMoreAction, findMoreAction, moreActionNames } from "./test-support/patient-actions";
 
 vi.stubGlobal("fetch", vi.fn());
 
@@ -2328,7 +2329,7 @@ describe("application shell", () => {
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
-    fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+    clickMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     const template = within(dialog).getByRole("link", { name: /Baixar modelo/ });
     expect(template).toHaveAttribute("download", "modelo-clientes.csv");
@@ -2370,7 +2371,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Importar" }));
+    await findMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
       target: { files: [new File(["telefone\n11999990000\n"], "clientes.csv", { type: "text/csv" })] },
@@ -2389,7 +2390,7 @@ describe("application shell", () => {
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
     // Desde a T053 a fisioterapeuta só consulta Clientes: sem criar nem importar.
     expect(screen.queryByRole("button", { name: /Novo cliente/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Importar");
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/patients/import"))).toBe(false);
   });
 
@@ -2428,7 +2429,7 @@ describe("application shell", () => {
       fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "birthday_month" } });
       fireEvent.click(screen.getByRole("button", { name: /^pilates/ }));
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(within(dialog).getByText("Busca: “Hel” · Situação: ativos · Aniversariantes do mês")).toBeInTheDocument();
       // A etiqueta do filtro aparece como selo na cor configurada.
@@ -2476,7 +2477,7 @@ describe("application shell", () => {
     fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
     fireEvent.change(screen.getByLabelText("Cadastro"), { target: { value: "with_email" } });
     fireEvent.change(screen.getByLabelText("Ordenar por"), { target: { value: "newest" } });
-    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    clickMoreAction("Exportar");
     const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
     expect(within(dialog).getByText("Nenhum filtro: todos os clientes serão exportados.")).toBeInTheDocument();
     expect(within(dialog).getByText(/“Com e-mail” não se aplica/)).toBeInTheDocument();
@@ -2506,7 +2507,7 @@ describe("application shell", () => {
     vi.mocked(fetch).mockImplementation(async () => ({ ok: true, status: 200, json: async () => [patient] }) as Response);
     render(<MemoryRouter initialEntries={["/clientes"]}><App /></MemoryRouter>);
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
-    expect(screen.queryByRole("button", { name: "Exportar" })).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Exportar");
   });
 
   it("paginates the patient list 20 at a time and resets to page 1 on search and filters", async () => {
@@ -2563,7 +2564,7 @@ describe("application shell", () => {
       expect(screen.getByText("Página 2 de 3 · 45 clientes")).toBeInTheDocument();
 
       // A exportação ignora a página: segue só com os filtros da tela.
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(within(dialog).getByText("Nenhum filtro: todos os clientes serão exportados.")).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
@@ -4793,7 +4794,7 @@ describe("users and permissions", () => {
     expect(within(nav).queryByText("Configurações")).not.toBeInTheDocument();
     // Só consulta em Clientes: sem criar/importar, com explicação.
     expect(screen.queryByRole("button", { name: "Novo cliente" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Importar" })).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Importar");
     expect(screen.getByRole("note")).toHaveTextContent("Seu acesso a Clientes é só de consulta");
     fireEvent.click(screen.getByRole("button", { name: "Editar Helena Almeida" }));
     const dialog = screen.getByRole("dialog", { name: "Editar cliente" });

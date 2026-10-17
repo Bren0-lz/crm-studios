@@ -26,6 +26,7 @@ import {
   withPermissions,
 } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { moreActionNames } from "../../test-support/patient-actions";
 
 describe("users and permissions", () => {
   const ownerSession = {
@@ -1486,9 +1487,7 @@ describe("users and permissions", () => {
     expect(
       screen.queryByRole("button", { name: "Novo cliente" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Importar" }),
-    ).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Importar");
     expect(screen.getByRole("note")).toHaveTextContent(
       "Seu acesso a Clientes é só de consulta",
     );

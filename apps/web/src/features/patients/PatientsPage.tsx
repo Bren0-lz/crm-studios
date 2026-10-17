@@ -17,6 +17,8 @@ import {
   SlidersHorizontal,
   UserPlus,
 } from "lucide-react";
+import { ActionMenu } from "../../shared/components/ActionMenu";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
@@ -167,6 +169,39 @@ export function PatientsPage() {
     void load(appliedSearch, withoutGroup);
   }
 
+  const moreActions: ActionMenuItem[] = [
+    ...(user?.role === "admin"
+      ? [
+          {
+            label: "Mesclar clientes",
+            onSelect: () => setManagement("merge"),
+          },
+          {
+            label: "Inativar antigos",
+            onSelect: () => setManagement("inactive"),
+          },
+        ]
+      : []),
+    ...(canManage && can("patients.import")
+      ? [
+          {
+            label: "Importar",
+            icon: <FileDown size={16} aria-hidden="true" />,
+            onSelect: () => setImportOpen(true),
+          },
+        ]
+      : []),
+    ...(canExport && can("patients.export")
+      ? [
+          {
+            label: "Exportar",
+            icon: <FileUp size={16} aria-hidden="true" />,
+            onSelect: () => setExportOpen(true),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
       {management && (
@@ -186,40 +221,10 @@ export function PatientsPage() {
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
-          <div className="page-actions">
-            {user?.role === "admin" && (
-              <>
-                <button
-                  className="secondary-button"
-                  onClick={() => setManagement("merge")}
-                >
-                  Mesclar clientes
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => setManagement("inactive")}
-                >
-                  Inativar antigos
-                </button>
-              </>
-            )}
-            {canManage && can("patients.import") && (
-              <button
-                className="secondary-button"
-                onClick={() => setImportOpen(true)}
-              >
-                <FileDown size={18} aria-hidden="true" />
-                Importar
-              </button>
-            )}
-            {canExport && can("patients.export") && (
-              <button
-                className="secondary-button"
-                onClick={() => setExportOpen(true)}
-              >
-                <FileUp size={18} aria-hidden="true" />
-                Exportar
-              </button>
+          <div className="page-actions patients-actions">
+            {/* V2: ações secundárias no menu "Mais"; só "Novo cliente" fica à vista. */}
+            {moreActions.length > 0 && (
+              <ActionMenu label="Mais" align="end" items={moreActions} />
             )}
             {canManage && can("patients.create") && (
               <button

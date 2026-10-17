@@ -780,3 +780,13 @@
 .trend-badge.new {
   color: #4e6975;
 }
+
+/* Topo de Clientes (V2): botões sem quebra de texto. */
+.patients-actions {
+  flex-wrap: nowrap;
+}
+
+.patients-actions .primary-button,
+.patients-actions .secondary-button {
+  white-space: nowrap;
+}
