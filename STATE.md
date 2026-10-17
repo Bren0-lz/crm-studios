@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U31 — bloco D)
-- **Última concluída:** U30
+- **Tarefa atual:** Rodada 7, Fase 2 (U33 — bloco D)
+- **Última concluída:** U32
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -172,3 +172,4 @@
 - 2026-10-17 U26: a API não omite rascunhos (listClinicalRecords sem filtro de status nos dois repositórios; PG usa JOIN users em author_user_id, que é sempre gravado) — teste da API confere o rascunho em GET /clinical-workspace/:id. Causa na tela: em /prontuarios o painel de acompanhamento abre no 1º cliente e não recarregava após salvar/finalizar. Agora `ClinicalRecordsPage` remonta o painel (`key` por versão) com `initialPatientId` = cliente da evolução; timeline marca rascunho com `status-pill draft` "Rascunho" e usa o "S" como título se "A" estiver vazio.
 - 2026-10-17 Bloco B (U22–U26) concluído.
 - 2026-10-17 U30: contracts/communications ganhou `patientFirstName` e `fillPatientMessage(template, fullName, vars)` (nome sempre = primeiro nome, sobrepõe vars). Lembretes automáticos (`buildReminderCandidates`, usado pelos dois repositórios) usavam o nome completo — corrigido, com teste unitário. Comunicados, Contatos sugeridos, aniversários e aviso de cancelamento passam pelo helper. Mensagens já geradas na fila mantêm o texto antigo. Script de edição: `node -e` no Git Bash perde barras invertidas (\s vira s) — usar arquivo .cjs no scratchpad.
+- 2026-10-17 U31/U32 (um commit, mesma linha da fila): lista da fila em `MessageQueue` (filtros "Tipo de mensagem"/"Situação da mensagem", seleção só de mensagens na fila, barra "Ações em lote" com "Marcar como enviadas (N elegíveis)" e "Descartar (N)" via ActionModal; chamadas sequenciais a POST /communications/messages/:id/complete, sem endpoint novo). Linha compacta: nome · tipo · canal + status-pill na mesma linha. `ManualMessageActions`: 1 botão principal "Enviar pelo WhatsApp"/"Enviar por e-mail" (só se no horário e autorizado) + ActionMenu (Copiar texto, Registrar envio manual, Cancelar mensagem); ao voltar para a aba (`visibilitychange`) pergunta "Mensagem enviada para {nome}?" (Sim registra envio). Helpers em communications/model.ts (`queueKindLabels`, `queueStatusLabels`, `canMarkSent`, `messageLink`). Testes: legacy-setup trata mock cujo código contém "/me" como sessão real — evitar "/messages/" no mock.

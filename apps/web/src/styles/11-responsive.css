@@ -528,16 +528,9 @@
     width: 100%;
   }
 
-  /* audit: mobile-ok nome + situação curta; a mensagem ocupa a linha inteira */
-  .message-list article {
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    padding: 14px 16px;
-  }
-
-  .message-list article p {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .message-list article,
+  .message-bulk-bar {
+    padding: var(--space-3) var(--space-4);
   }
 
   /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */

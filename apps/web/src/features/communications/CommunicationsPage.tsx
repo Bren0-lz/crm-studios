@@ -1,7 +1,6 @@
-import { NpsResponseAction } from "./NpsResponseAction";
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
-import { ManualMessageActions } from "./ManualMessageActions";
+import { MessageQueue } from "./MessageQueue";
 import type {
   CommunicationCenter,
   CommunicationChannel,
@@ -14,7 +13,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
-import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
@@ -321,59 +319,18 @@ export function CommunicationsPage() {
               </div>
               <span className="list-count">{center.messages.length}</span>
             </div>
-            {center.messages.length === 0 ? (
-              <EmptyState
-                title="Fila vazia"
-                copy="Gere lembretes ou adicione uma mensagem individual."
-              />
-            ) : (
-              <div className="message-list">
-                {center.messages
-                  .filter(
-                    (message) =>
-                      !contextPatientId ||
-                      message.patientId === contextPatientId,
-                  )
-                  .map((message) => (
-                    <article key={message.id}>
-                      <div>
-                        <strong>{message.patientName}</strong>
-                        <span>
-                          {message.channel === "whatsapp"
-                            ? "WhatsApp"
-                            : "E-mail"}{" "}
-                          ·{" "}
-                          {message.kind === "manual"
-                            ? "individual"
-                            : message.kind === "appointment_reminder"
-                              ? "atendimento"
-                              : message.kind === "birthday_reminder"
-                                ? "aniversário"
-                                : message.kind === "satisfaction_followup"
-                                  ? "NPS"
-                                  : "cobrança"}
-                        </span>
-                      </div>
-                      <p>{message.body}</p>
-                      <NpsResponseAction message={message} onChanged={load} />
-                      <ManualMessageActions
-                        message={message}
-                        allowed={allowed(message.patientId, message.channel)}
-                        onChanged={load}
-                      />
-                      <span className={`status-pill ${message.status}`}>
-                        {message.status === "queued"
-                          ? "Na fila"
-                          : message.status === "sent"
-                            ? "Enviada manualmente"
-                            : message.status === "cancelled"
-                              ? "Cancelada"
-                              : "Falha"}
-                      </span>
-                    </article>
-                  ))}
-              </div>
-            )}
+            <MessageQueue
+              messages={center.messages.filter(
+                (message) =>
+                  !contextPatientId || message.patientId === contextPatientId,
+              )}
+              allowed={allowed}
+              onChanged={load}
+              onNotice={(message) => {
+                setError("");
+                setNotice(message);
+              }}
+            />
           </section>
         </div>
       )}

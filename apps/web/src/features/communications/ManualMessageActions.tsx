@@ -1,10 +1,18 @@
 import type { OutboundMessage } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { Modal } from "../../shared/components/Modal";
+import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { Modal } from "../../shared/components/Modal";
 import { useAuthorization } from "../../authorization-context";
+import { canMarkSent, messageLink } from "./model";
 
+type Confirm = "sent" | "cancelled" | "returned";
+
+/**
+ * Ações da linha da fila: um botão principal abre o WhatsApp (ou e-mail) e, quando a pessoa
+ * volta para a aba, pergunta se a mensagem foi enviada; o resto fica no menu "…".
+ */
 export function ManualMessageActions({
   message,
   onChanged,
@@ -20,15 +28,27 @@ export function ManualMessageActions({
     const id = window.setInterval(() => setCurrentTime(Date.now()), 30000);
     return () => window.clearInterval(id);
   }, []);
-  const [confirm, setConfirm] = useState<"sent" | "cancelled" | null>(null),
+  const [confirm, setConfirm] = useState<Confirm | null>(null),
+    [awaitingReturn, setAwaitingReturn] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  async function complete() {
-    if (!confirm) return;
+
+  useEffect(() => {
+    if (!awaitingReturn) return;
+    function onReturn() {
+      if (document.visibilityState !== "visible") return;
+      setAwaitingReturn(false);
+      setConfirm("returned");
+    }
+    document.addEventListener("visibilitychange", onReturn);
+    return () => document.removeEventListener("visibilitychange", onReturn);
+  }, [awaitingReturn]);
+
+  async function complete(status: "sent" | "cancelled") {
     setBusy(true);
     setError("");
     try {
-      await api.completeManualMessage(message.id, confirm);
+      await api.completeManualMessage(message.id, status);
       await onChanged();
       setConfirm(null);
     } catch (cause) {
@@ -49,72 +69,82 @@ export function ManualMessageActions({
     );
   if (message.status !== "queued" || !can("communications.messages"))
     return null;
-  const link =
-    message.channel === "whatsapp"
-      ? `https://wa.me/${message.recipient.replace(/\D/g, "").length > 11 && message.recipient.replace(/\D/g, "").startsWith("55") ? "" : "55"}${message.recipient.replace(/\D/g, "")}?text=${encodeURIComponent(message.body)}`
-      : `mailto:${encodeURIComponent(message.recipient)}?body=${encodeURIComponent(message.body)}`;
+  const sendable = canMarkSent(message, allowed, currentTime);
+  const whatsapp = message.channel === "whatsapp";
   return (
     <>
-      <div className="page-actions">
-        {allowed && (
+      <div className="message-actions">
+        {sendable && (
           <a
-            className={
-              message.channel === "whatsapp"
-                ? "whatsapp-button"
-                : "secondary-button"
-            }
-            href={link}
+            className={whatsapp ? "whatsapp-button" : "primary-button"}
+            href={messageLink(message)}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => setAwaitingReturn(true)}
           >
-            Abrir {message.channel === "whatsapp" ? "WhatsApp" : "e-mail"}
+            {whatsapp ? "Enviar pelo WhatsApp" : "Enviar por e-mail"}
           </a>
         )}
-        <button
-          className="secondary-button"
-          onClick={() => {
-            void (
-              navigator.clipboard
-                ? navigator.clipboard.writeText(message.body)
-                : Promise.reject(
-                    new Error("A cópia não está disponível neste navegador."),
-                  )
-            ).catch((cause: Error) => setError(cause.message));
-          }}
-        >
-          Copiar texto
-        </button>
-        <button
-          className="primary-button"
-          disabled={
-            !allowed || new Date(message.scheduledFor).getTime() > currentTime
-          }
-          onClick={() => setConfirm("sent")}
-        >
-          Registrar envio manual
-        </button>
-        <button
-          className="secondary-button"
-          onClick={() => setConfirm("cancelled")}
-        >
-          Cancelar mensagem
-        </button>
+        <ActionMenu
+          label={`Mais ações da mensagem para ${message.patientName}`}
+          iconOnly
+          align="end"
+          items={[
+            {
+              label: "Copiar texto",
+              onSelect: () => {
+                void (
+                  navigator.clipboard
+                    ? navigator.clipboard.writeText(message.body)
+                    : Promise.reject(
+                        new Error(
+                          "A cópia não está disponível neste navegador.",
+                        ),
+                      )
+                ).catch((cause: Error) => setError(cause.message));
+              },
+            },
+            ...(sendable
+              ? [
+                  {
+                    label: "Registrar envio manual",
+                    onSelect: () => setConfirm("sent"),
+                  },
+                ]
+              : []),
+            {
+              label: "Cancelar mensagem",
+              danger: true,
+              onSelect: () => setConfirm("cancelled"),
+            },
+          ]}
+        />
       </div>
       {!allowed && (
         <p className="muted-copy">
           O cliente não autoriza mensagens neste canal.
         </p>
       )}
-      {error && <ErrorBanner error={error} />}
+      {allowed && !sendable && (
+        <p className="muted-copy">
+          Programada para{" "}
+          {new Date(message.scheduledFor).toLocaleString("pt-BR")}.
+        </p>
+      )}
+      {error && !confirm && <ErrorBanner error={error} />}
       {confirm && (
         <Modal
           title={
-            confirm === "sent" ? "Registrar envio manual" : "Cancelar mensagem"
+            confirm === "returned"
+              ? `Mensagem enviada para ${message.patientName}?`
+              : confirm === "sent"
+                ? "Registrar envio manual"
+                : "Cancelar mensagem"
           }
           subtitle={
-            confirm === "sent"
-              ? "Confirme que você realizou o envio fora do CRM. Este registro não confirma a entrega ao destinatário."
-              : "A mensagem será retirada da fila de trabalho."
+            confirm === "cancelled"
+              ? "A mensagem será retirada da fila de trabalho."
+              : "Confirme só se você realizou o envio. O registro não confirma a entrega ao destinatário."
           }
           busy={busy}
           onClose={() => setConfirm(null)}
@@ -126,14 +156,16 @@ export function ManualMessageActions({
               disabled={busy}
               onClick={() => setConfirm(null)}
             >
-              Voltar
+              {confirm === "returned" ? "Não" : "Voltar"}
             </button>
             <button
               className="primary-button"
               disabled={busy}
-              onClick={() => void complete()}
+              onClick={() =>
+                void complete(confirm === "cancelled" ? "cancelled" : "sent")
+              }
             >
-              Confirmar
+              {confirm === "returned" ? "Sim, enviada" : "Confirmar"}
             </button>
           </div>
         </Modal>

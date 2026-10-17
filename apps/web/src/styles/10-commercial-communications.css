@@ -439,27 +439,54 @@
 
 .message-list article {
   display: grid;
-  grid-template-columns: minmax(180px, 0.55fr) minmax(260px, 1.5fr) auto;
-  gap: 18px;
-  align-items: center;
-  padding: 14px 22px;
+  gap: var(--space-2);
+  padding: var(--space-3) calc(var(--space-5) - 2px);
   border-bottom: 1px solid var(--line);
+}
+
+/* Linha compacta da fila: nome, tipo e situação na mesma linha. */
+.message-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.message-row-head .status-pill {
+  margin-left: auto;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.message-queue-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.message-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) calc(var(--space-5) - 2px);
+  border-bottom: 1px solid var(--line);
+  background: var(--mint);
 }
 
 .message-list article:last-child {
   border-bottom: 0;
 }
 
-.message-list article > div strong,
-.message-list article > div span {
-  display: block;
+.message-row-head strong {
+  font-size: var(--text-sm);
 }
 
-.message-list article > div strong {
-  font-size: var(--text-xs);
-}
-
-.message-list article > div span,
+.message-row-head > span:not(.status-pill),
 .message-list article p {
   color: var(--muted);
   font-size: var(--text-xs);
