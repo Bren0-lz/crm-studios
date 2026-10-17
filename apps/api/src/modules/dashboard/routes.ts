@@ -27,6 +27,10 @@ export function registerDashboardRoutes(context: RouteContext) {
       ...(access.modules.includes("agenda")
         ? {
             appointmentsToday: summary.appointmentsToday,
+            nonCancelledAppointmentsToday:
+              summary.nonCancelledAppointmentsToday,
+            pendingToday: summary.pendingToday,
+            awaitingConfirmationToday: summary.awaitingConfirmationToday,
             completedToday: summary.completedToday,
             noShowsThisMonth: summary.noShowsThisMonth,
             nextAppointments: summary.nextAppointments,

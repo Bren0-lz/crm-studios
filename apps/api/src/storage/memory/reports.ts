@@ -27,6 +27,15 @@ export function createReportsRepository(
       return {
         date,
         appointmentsToday: appointmentsToday.length,
+        nonCancelledAppointmentsToday: appointmentsToday.filter(
+          (item) => item.status !== "cancelled",
+        ).length,
+        pendingToday: appointmentsToday.filter(
+          (item) => item.status === "scheduled" || item.status === "confirmed",
+        ).length,
+        awaitingConfirmationToday: appointmentsToday.filter(
+          (item) => item.status === "scheduled",
+        ).length,
         completedToday: appointmentsToday.filter(
           (item) => item.status === "completed",
         ).length,

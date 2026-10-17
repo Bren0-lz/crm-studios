@@ -66,6 +66,116 @@
   font-weight: 700;
 }
 
+.patient-picker-results[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+}
+
+.modal.emergency-modal {
+  height: calc(var(--space-7) * 10);
+}
+
+.emergency-modal > .modal-body {
+  flex: 1;
+}
+
+.emergency-content.clinical-form {
+  gap: var(--space-5);
+}
+
+.emergency-patient-picker {
+  margin-bottom: 0;
+}
+
+.emergency-contact-card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--mint);
+  overflow-wrap: anywhere;
+}
+
+.emergency-content h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+}
+
+.emergency-content h3 svg,
+.emergency-contact-details svg {
+  flex-shrink: 0;
+}
+
+.emergency-contact-card p {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.emergency-contact-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.emergency-contact-details > div {
+  display: grid;
+  flex: 1 1 calc(var(--space-7) * 3);
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.emergency-contact-details strong {
+  font-size: var(--text-lg);
+}
+
+.emergency-contact-details span {
+  font-size: var(--text-md);
+}
+
+.emergency-content a,
+.emergency-content button {
+  min-width: 0;
+  min-height: calc(var(--space-7) - var(--space-1));
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.emergency-service-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.emergency-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.emergency-error .error-banner {
+  width: 100%;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .emergency-service-links {
+    grid-template-columns: 1fr;
+  }
+
+  .emergency-contact-details > a {
+    width: 100%;
+  }
+}
+
 .modal {
   --modal-content-padding: 27px;
   --modal-scroll-inset: 8px;

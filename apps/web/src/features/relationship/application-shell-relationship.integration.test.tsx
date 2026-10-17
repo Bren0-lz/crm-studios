@@ -243,6 +243,9 @@ describe("application shell", () => {
           : url.includes("/dashboard")
             ? {
                 appointmentsToday: 0,
+                nonCancelledAppointmentsToday: 0,
+                pendingToday: 0,
+                awaitingConfirmationToday: 0,
                 completedToday: 0,
                 patientsActive: 3,
                 noShowsThisMonth: 0,
@@ -327,6 +330,9 @@ describe("application shell", () => {
             String(input).includes("/dashboard")
               ? {
                   appointmentsToday: 0,
+                  nonCancelledAppointmentsToday: 0,
+                  pendingToday: 0,
+                  awaitingConfirmationToday: 0,
                   completedToday: 0,
                   patientsActive: 3,
                   noShowsThisMonth: 0,

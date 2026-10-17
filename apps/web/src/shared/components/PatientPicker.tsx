@@ -1,5 +1,12 @@
 import type { PatientOption } from "@crm/contracts";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { api } from "../../api";
 
 type PatientPickerProps = {
@@ -8,6 +15,8 @@ type PatientPickerProps = {
   onChange: (id: string, patient?: PatientOption) => void;
   required?: boolean;
   disabled?: boolean;
+  loading?: boolean;
+  popover?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
   onAddPatient?: (() => void) | undefined;
   className?: string;
@@ -20,6 +29,8 @@ export function PatientPicker({
   onChange,
   required = false,
   disabled = false,
+  loading: initialLoading = false,
+  popover = false,
   inputRef,
   onAddPatient,
   className = "",
@@ -27,6 +38,8 @@ export function PatientPicker({
   const localRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? localRef;
   const listRef = useRef<HTMLUListElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const [query, setQuery] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState<PatientOption | null>(
@@ -46,10 +59,88 @@ export function PatientPicker({
     (selectedResult?.id === value ? selectedResult : undefined);
   const term = query?.trim() ?? "";
   const isOpen = open && !disabled;
-  const loading = Boolean(term && response?.term !== term);
+  const loading = term ? response?.term !== term : initialLoading;
   const error = term && response?.term === term ? response.error : "";
   const choices =
     loading || error ? [] : term ? (response?.items ?? []) : patients;
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const input = ref.current;
+    if (!popover || !isOpen || !panel || !input) return;
+
+    // The top layer escapes the modal's overflow while keeping the list inside
+    // its DOM subtree, combobox and focus trap.
+    panel.showPopover?.();
+    function positionPanel() {
+      if (!panel || !input) return;
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0;
+      const top = viewport?.offsetTop ?? 0;
+      const width =
+        viewport?.width ??
+        (document.documentElement.clientWidth || window.innerWidth);
+      const height = viewport?.height ?? window.innerHeight;
+      const margin = 12;
+      const gap = 8;
+      const anchor = input.getBoundingClientRect();
+      const panelWidth = Math.max(
+        0,
+        Math.min(anchor.width, width - margin * 2),
+      );
+      panel.style.width = `${panelWidth}px`;
+      panel.style.maxHeight = `${Math.max(0, Math.min(240, height - margin * 2))}px`;
+      const desiredHeight = panel.getBoundingClientRect().height;
+      const below = top + height - margin - anchor.bottom - gap;
+      const above = anchor.top - gap - top - margin;
+      const placeAbove = desiredHeight > below && above > below;
+      const available = Math.max(
+        0,
+        Math.min(240, height - margin * 2, placeAbove ? above : below),
+      );
+      panel.style.maxHeight = `${available}px`;
+      const panelHeight = Math.min(desiredHeight, available);
+      panel.style.left = `${Math.max(left + margin, Math.min(anchor.left, left + width - margin - panelWidth))}px`;
+      const panelTop = placeAbove
+        ? anchor.top - gap - panelHeight
+        : anchor.bottom + gap;
+      panel.style.top = `${Math.max(top + margin, Math.min(panelTop, top + height - margin - panelHeight))}px`;
+    }
+    function onScroll(event: Event) {
+      if (event.target instanceof Node && panel?.contains(event.target)) return;
+      positionPanel();
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !pickerRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+        setActive(-1);
+      }
+    }
+    positionPanel();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(positionPanel);
+    observer?.observe(panel);
+    observer?.observe(input);
+    window.addEventListener("resize", positionPanel);
+    document.addEventListener("scroll", onScroll, true);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.visualViewport?.addEventListener("resize", positionPanel);
+    window.visualViewport?.addEventListener("scroll", positionPanel);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", positionPanel);
+      document.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.visualViewport?.removeEventListener("resize", positionPanel);
+      window.visualViewport?.removeEventListener("scroll", positionPanel);
+      if (panel.isConnected) panel.hidePopover?.();
+    };
+  }, [popover, isOpen, ref]);
 
   useEffect(() => {
     if (!isOpen || !term) return;
@@ -99,7 +190,7 @@ export function PatientPicker({
   }
 
   return (
-    <div className={`patient-picker ${className}`}>
+    <div ref={pickerRef} className={`patient-picker ${className}`}>
       <div className="patient-picker-header">
         <label htmlFor={`${listId}-input`}>Cliente</label>
         {onAddPatient && (
@@ -165,7 +256,11 @@ export function PatientPicker({
         }}
       />
       {isOpen && (
-        <div className="patient-picker-results">
+        <div
+          ref={panelRef}
+          popover={popover ? "manual" : undefined}
+          className="patient-picker-results"
+        >
           {loading ? (
             <p role="status">Buscando clientes…</p>
           ) : error ? (

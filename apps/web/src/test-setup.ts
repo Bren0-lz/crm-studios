@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+
+// Lazy routes and real-handler workflows can take over one second under
+// coverage on Windows. Keep async UI waits within Vitest's existing 20s limit.
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(() => {
   cleanup();

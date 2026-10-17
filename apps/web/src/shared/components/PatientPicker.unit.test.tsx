@@ -61,10 +61,127 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe("PatientPicker", () => {
+  it("opens an opt-in native popover inside the picker and closes before the outer Escape handler", () => {
+    const show = vi.spyOn(HTMLElement.prototype, "showPopover");
+    const onChange = vi.fn();
+    const outerEscape = vi.fn();
+    const view = render(
+      <div onKeyDown={outerEscape}>
+        <PatientPicker patients={[ana]} value="" onChange={onChange} popover />
+      </div>,
+    );
+    fireEvent.focus(picker());
+    const panel = screen.getByRole("listbox").parentElement!;
+    expect(panel).toHaveAttribute("popover", "manual");
+    expect(view.container).toContainElement(panel);
+    expect(show).toHaveBeenCalledTimes(1);
+    fireEvent.pointerDown(screen.getByRole("option", { name: ana.fullName }));
+    fireEvent.click(screen.getByRole("option", { name: ana.fullName }));
+    expect(onChange).toHaveBeenCalledWith(ana.id, ana);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.focus(picker());
+    fireEvent.keyDown(picker(), { key: "Escape" });
+    expect(outerEscape).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.keyDown(picker(), { key: "Escape" });
+    expect(outerEscape).toHaveBeenCalledTimes(1);
+  });
+
+  it("positions the popover within the viewport and switches above a low field", () => {
+    vi.stubGlobal("innerWidth", 320);
+    vi.stubGlobal("innerHeight", 480);
+    let anchor = new DOMRect(30, 100, 220, 44);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("patient-picker-results")
+          ? new DOMRect(
+              0,
+              0,
+              parseFloat(this.style.width),
+              Math.min(240, parseFloat(this.style.maxHeight)),
+            )
+          : anchor;
+      },
+    );
+    render(
+      <PatientPicker patients={[ana]} value="" onChange={vi.fn()} popover />,
+    );
+    fireEvent.focus(picker());
+    const panel = screen.getByRole("listbox").parentElement!;
+    expect(panel.style.width).toBe("220px");
+    expect(panel.style.top).toBe("152px");
+    expect(panel.style.left).toBe("30px");
+    anchor = new DOMRect(240, 400, 220, 44);
+    fireEvent(window, new Event("resize"));
+    expect(panel.style.left).toBe("88px");
+    expect(panel.style.top).toBe("152px");
+    expect(panel.style.maxHeight).toBe("240px");
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.focus(picker());
+    fireEvent.blur(picker());
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("repositions within the visual viewport when the mobile keyboard reduces the visible area", () => {
+    const viewport = Object.assign(new EventTarget(), {
+      width: 320,
+      height: 480,
+      offsetTop: 0,
+      offsetLeft: 0,
+    });
+    vi.stubGlobal("visualViewport", viewport);
+    let anchor = new DOMRect(20, 100, 220, 44);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("patient-picker-results")
+          ? new DOMRect(
+              0,
+              0,
+              parseFloat(this.style.width),
+              Math.min(240, parseFloat(this.style.maxHeight)),
+            )
+          : anchor;
+      },
+    );
+    const view = render(
+      <PatientPicker patients={[ana]} value="" onChange={vi.fn()} popover />,
+    );
+    fireEvent.focus(picker());
+    const panel = screen.getByRole("listbox").parentElement!;
+    expect(panel.style.top).toBe("152px");
+    viewport.height = 200;
+    viewport.offsetTop = 40;
+    viewport.dispatchEvent(new Event("resize"));
+    expect(panel.style.maxHeight).toBe("76px");
+    anchor = new DOMRect(20, 380, 220, 44);
+    viewport.dispatchEvent(new Event("scroll"));
+    expect(panel.style.maxHeight).toBe("176px");
+    expect(panel.style.top).toBe("52px");
+    const remove = vi.spyOn(viewport, "removeEventListener");
+    view.unmount();
+    expect(remove).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function));
+  });
+
+  it("distinguishes initial loading from an empty list", () => {
+    const props = { patients: [], value: "", onChange: vi.fn() };
+    const view = render(<PatientPicker {...props} loading />);
+    fireEvent.focus(picker());
+    expect(screen.getByRole("status")).toHaveTextContent("Buscando clientes");
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "true");
+    view.rerender(<PatientPicker {...props} />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Nenhum cliente encontrado",
+    );
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "false");
+  });
+
   it.each(["Breno", "12345678909", "123.456.789-09"])(
     "searches %s and retains a result outside the initial list",
     async (term) => {

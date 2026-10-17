@@ -1799,7 +1799,7 @@ export function createFinanceRepository(
        JOIN patients p ON p.id=r.patient_id
        WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
          AND (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE c.timezone)::date BETWEEN $2::date AND $3::date
-       ORDER BY fe.created_at, fe.id`,
+       ORDER BY coalesce(dc.occurred_at,fe.occurred_at,fe.created_at), fe.id`,
         [clinicId, from, to],
       );
       return result.rows.map((item) => ({

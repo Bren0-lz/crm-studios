@@ -719,17 +719,18 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     const nextDate = nextDay.toISOString().slice(0, 10);
     await pool.query(
-      `UPDATE financial_events SET created_at = $2::timestamptz
+      `UPDATE financial_events SET occurred_at = $2::timestamptz, cash_available_at = $2::timestamptz
        WHERE receivable_id = $1 AND kind = 'payment'`,
       [receivableId, `${nextDate}T02:30:00.000Z`],
     );
     await pool.query(
-      `UPDATE financial_events SET created_at = $2::timestamptz
+      `UPDATE financial_events SET occurred_at = $2::timestamptz, cash_available_at = $2::timestamptz
        WHERE receivable_id = $1 AND kind = 'payment_reversal'`,
       [receivableId, `${nextDate}T02:40:00.000Z`],
     );
-    await pool.query(
-      "UPDATE payables SET paid_at = $2::timestamptz WHERE id = $1",
+    const payableEvents = await pool.query<{ id: string }>(
+      `UPDATE payable_events SET occurred_at = $2::timestamptz, cash_available_at = $2::timestamptz
+       WHERE payable_id = $1 AND kind = 'payment' RETURNING id`,
       [payable.id, `${dailyCashDay}T15:00:00.000Z`],
     );
 
@@ -739,7 +740,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       [receivableId],
     );
     const ownIds = new Set([
-      `payable:${payable.id}`,
+      ...payableEvents.rows.map((item) => `payable:${item.id}`),
       ...events.rows.flatMap((item) => [
         `receipt:${item.id}`,
         `receipt_reversal:${item.id}`,
@@ -848,7 +849,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ];
     for (const [index, row] of events.rows.entries())
       await pool.query(
-        "UPDATE financial_events SET created_at = $2::timestamptz WHERE id = $1",
+        "UPDATE financial_events SET occurred_at = $2::timestamptz, cash_available_at = $2::timestamptz WHERE id = $1",
         [row.id, moves[index]],
       );
 

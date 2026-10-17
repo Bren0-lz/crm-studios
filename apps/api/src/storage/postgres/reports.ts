@@ -31,6 +31,9 @@ export function createReportsRepository(
       const [totals, patients, nextAppointments] = await Promise.all([
         repositoryContext.pool.query<{
           appointmentsToday: number;
+          nonCancelledAppointmentsToday: number;
+          pendingToday: number;
+          awaitingConfirmationToday: number;
           completedToday: number;
           noShowsThisMonth: number;
         }>(
@@ -40,6 +43,21 @@ export function createReportsRepository(
               WHERE a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
                 AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
             )::int AS "appointmentsToday",
+            count(*) FILTER (
+              WHERE a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
+                AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
+                AND a.status <> 'cancelled'
+            )::int AS "nonCancelledAppointmentsToday",
+            count(*) FILTER (
+              WHERE a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
+                AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
+                AND a.status IN ('scheduled', 'confirmed')
+            )::int AS "pendingToday",
+            count(*) FILTER (
+              WHERE a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
+                AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
+                AND a.status = 'scheduled'
+            )::int AS "awaitingConfirmationToday",
             count(*) FILTER (
               WHERE a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
                 AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
@@ -80,6 +98,9 @@ export function createReportsRepository(
 
       const summary = totals.rows[0] ?? {
         appointmentsToday: 0,
+        nonCancelledAppointmentsToday: 0,
+        pendingToday: 0,
+        awaitingConfirmationToday: 0,
         completedToday: 0,
         noShowsThisMonth: 0,
       };

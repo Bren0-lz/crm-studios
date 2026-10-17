@@ -1,7 +1,7 @@
 import { useAuthorization } from "../../authorization-context";
 import { Link } from "react-router-dom";
 import type { GroupSession } from "@crm/contracts";
-import { Users } from "lucide-react";
+import { ArrowUpRight, Users } from "lucide-react";
 import { timeLabel } from "../../shared/lib/formatting";
 
 export function GroupSessionCard({
@@ -51,15 +51,16 @@ export function GroupSessionCard({
             {session.professionalName} · {session.roomName}
           </p>
         </div>
+        {can("groups.view") && (
+          <Link
+            className="secondary-button"
+            to={`/turmas?sessionId=${session.id}`}
+          >
+            Abrir encontro
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </Link>
+        )}
       </div>
-      {can("groups.view") && (
-        <Link
-          className="secondary-button"
-          to={`/turmas?sessionId=${session.id}`}
-        >
-          Abrir encontro
-        </Link>
-      )}
     </article>
   );
 }

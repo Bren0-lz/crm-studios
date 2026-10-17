@@ -3,7 +3,7 @@ import type {
   DashboardViewSummary,
   SalesReport,
 } from "@crm/contracts";
-import { CalendarDays, ChevronRight, Plus, Users } from "lucide-react";
+import { CalendarDays, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, getStoredUser } from "../../api";
@@ -26,6 +26,25 @@ import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { appointmentStatusToast } from "../agenda/index";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
+
+function appointmentCounts(appointment: Appointment, date: string) {
+  const isToday = localIsoDate(new Date(appointment.startsAt)) === date;
+  return {
+    appointmentsToday: Number(isToday),
+    nonCancelledAppointmentsToday: Number(
+      isToday && appointment.status !== "cancelled",
+    ),
+    pendingToday: Number(
+      isToday &&
+        (appointment.status === "scheduled" ||
+          appointment.status === "confirmed"),
+    ),
+    awaitingConfirmationToday: Number(
+      isToday && appointment.status === "scheduled",
+    ),
+    completedToday: Number(isToday && appointment.status === "completed"),
+  };
+}
 
 export function DashboardPage() {
   const { can, canView } = useAuthorization();
@@ -136,13 +155,18 @@ export function DashboardPage() {
   ) {
     setData((current) => {
       if (!current) return current;
-      const staysToday = localIsoDate(new Date(updated.startsAt)) === today;
       const next = { ...current };
-      if (next.appointmentsToday !== undefined)
-        next.appointmentsToday -= staysToday ? 0 : 1;
-      if (next.completedToday !== undefined)
-        next.completedToday +=
-          staysToday && updated.status === "completed" ? 1 : 0;
+      const before = appointmentCounts(previous, today);
+      const after = appointmentCounts(updated, today);
+      for (const key of [
+        "appointmentsToday",
+        "nonCancelledAppointmentsToday",
+        "pendingToday",
+        "awaitingConfirmationToday",
+        "completedToday",
+      ] as const) {
+        if (next[key] !== undefined) next[key] += after[key] - before[key];
+      }
       if (next.nextAppointments) {
         next.nextAppointments = next.nextAppointments
           .map((item) => (item.id === previous.id ? updated : item))
@@ -218,44 +242,57 @@ export function DashboardPage() {
         <LoadingBlock />
       ) : (
         <>
-          <section className="metric-grid">
-            {data.appointmentsToday !== undefined && (
-              <article className="metric-card accent">
-                <div>
-                  <span>Atendimentos hoje</span>
-                  <strong>{data.appointmentsToday}</strong>
-                </div>
-                <CalendarDays size={23} />
-              </article>
-            )}
-            {data.completedToday !== undefined && (
-              <article className="metric-card">
-                <div>
-                  <span>Já finalizados</span>
-                  <strong>{data.completedToday}</strong>
-                </div>
-                <span className="metric-note">de {data.appointmentsToday}</span>
-              </article>
-            )}
-            {data.patientsActive !== undefined && (
-              <article className="metric-card">
-                <div>
-                  <span>Clientes ativos</span>
-                  <strong>{data.patientsActive}</strong>
-                </div>
-                <Users size={23} />
-              </article>
-            )}
-            {data.noShowsThisMonth !== undefined && (
-              <article className="metric-card">
-                <div>
-                  <span>Faltas no mês</span>
-                  <strong>{data.noShowsThisMonth}</strong>
-                </div>
-                <span className="metric-note">neste mês</span>
-              </article>
-            )}
-          </section>
+          {(data.nonCancelledAppointmentsToday !== undefined ||
+            data.pendingToday !== undefined ||
+            data.awaitingConfirmationToday !== undefined ||
+            data.completedToday !== undefined) && (
+            <section
+              className="metric-grid"
+              aria-label="Resumo da agenda de hoje"
+            >
+              {data.nonCancelledAppointmentsToday !== undefined && (
+                <article className="metric-card accent">
+                  <div>
+                    <span>Atendimentos hoje</span>
+                    <strong>{data.nonCancelledAppointmentsToday}</strong>
+                  </div>
+                  <CalendarDays size={23} />
+                  <span className="metric-note">Sem cancelados</span>
+                </article>
+              )}
+              {data.pendingToday !== undefined && (
+                <article className="metric-card">
+                  <div>
+                    <span>Pendentes hoje</span>
+                    <strong>{data.pendingToday}</strong>
+                  </div>
+                  <span className="metric-note">Aguardando finalização</span>
+                </article>
+              )}
+              {data.awaitingConfirmationToday !== undefined && (
+                <article className="metric-card">
+                  <div>
+                    <span>A confirmar</span>
+                    <strong>{data.awaitingConfirmationToday}</strong>
+                  </div>
+                  <span className="metric-note">Ainda sem confirmação</span>
+                </article>
+              )}
+              {data.completedToday !== undefined && (
+                <article className="metric-card">
+                  <div>
+                    <span>Já finalizados</span>
+                    <strong>{data.completedToday}</strong>
+                  </div>
+                  {data.nonCancelledAppointmentsToday !== undefined && (
+                    <span className="metric-note">
+                      de {data.nonCancelledAppointmentsToday} atendimentos hoje
+                    </span>
+                  )}
+                </article>
+              )}
+            </section>
+          )}
           {canSeeSales && sales && (
             <section className="dashboard-sales panel">
               <div className="panel-head">

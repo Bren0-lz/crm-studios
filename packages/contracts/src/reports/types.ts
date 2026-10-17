@@ -55,6 +55,12 @@ export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
 export interface DashboardSummary {
   date: string;
   appointmentsToday: number;
+  /** Todos os status do dia, exceto cancelados. */
+  nonCancelledAppointmentsToday: number;
+  /** Agendados e confirmados do dia, inclusive horários já passados. */
+  pendingToday: number;
+  /** Agendados do dia que ainda não foram confirmados. */
+  awaitingConfirmationToday: number;
   completedToday: number;
   patientsActive: number;
   noShowsThisMonth: number;

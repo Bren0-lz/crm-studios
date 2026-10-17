@@ -19,15 +19,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm run test:coverage
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage
-          path: |
-            apps/*/coverage
-            packages/contracts/coverage
-          if-no-files-found: warn
 
   browser:
     runs-on: ubuntu-latest
@@ -72,3 +63,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:postgres
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage
+          path: |
+            apps/*/coverage
+            packages/contracts/coverage
+          if-no-files-found: warn

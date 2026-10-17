@@ -1,5 +1,5 @@
 import type { DashboardViewSummary } from "@crm/contracts";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -9,6 +9,9 @@ describe("dashboard links by agenda access", () => {
   const dashboard = {
     date: "2026-10-12",
     appointmentsToday: 0,
+    nonCancelledAppointmentsToday: 0,
+    pendingToday: 0,
+    awaitingConfirmationToday: 0,
     completedToday: 0,
     patientsActive: 3,
     noShowsThisMonth: 0,
@@ -35,7 +38,7 @@ describe("dashboard links by agenda access", () => {
       const body = String(input).includes("/dashboard") ? summary : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
-    render(
+    return render(
       <MemoryRouter initialEntries={["/"]}>
         <App />
       </MemoryRouter>,
@@ -51,12 +54,39 @@ describe("dashboard links by agenda access", () => {
       screen.getByText("Não há atendimentos agendados para hoje."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Agenda concluída")).not.toBeInTheDocument();
+    const metrics = screen.getByRole("region", {
+      name: "Resumo da agenda de hoje",
+    });
+    expect(within(metrics).getAllByRole("article")).toHaveLength(4);
+    for (const card of within(metrics).getAllByRole("article"))
+      expect(card.querySelector("strong")).toHaveTextContent("0");
+    expect(within(metrics).getByText("Sem cancelados")).toBeInTheDocument();
+    expect(
+      within(metrics).getByText("Ainda sem confirmação"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the metric section without authorized agenda indicators", async () => {
+    const { container } = renderDashboard(["patients"], [], {
+      date: dashboard.date,
+      patientsActive: 3,
+    });
+    await waitFor(() =>
+      expect(container.querySelector(".loading-block")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("region", { name: "Resumo da agenda de hoje" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Clientes ativos")).not.toBeInTheDocument();
   });
 
   it("shows a completed agenda when today's appointments have been resolved", async () => {
     renderDashboard(["agenda"], [], {
       ...dashboard,
       appointmentsToday: 1,
+      nonCancelledAppointmentsToday: 1,
+      pendingToday: 0,
+      awaitingConfirmationToday: 0,
       completedToday: 1,
     });
     expect(await screen.findByText("Agenda concluída")).toBeInTheDocument();
@@ -69,6 +99,9 @@ describe("dashboard links by agenda access", () => {
     renderDashboard(["agenda"], [], {
       ...dashboard,
       appointmentsToday: 1,
+      nonCancelledAppointmentsToday: 1,
+      pendingToday: 1,
+      awaitingConfirmationToday: 1,
       nextAppointments: [
         {
           id: "a1",

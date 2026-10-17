@@ -57,6 +57,7 @@ export function AgendaCard({
         </div>
         <div className="agenda-actions">
           <select
+            className={`agenda-status-select agenda-status-${appointment.status}`}
             value={appointment.status}
             onChange={(event) =>
               onStatus?.(event.target.value as AppointmentStatus)

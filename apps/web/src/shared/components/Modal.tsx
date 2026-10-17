@@ -20,6 +20,7 @@ export function Modal({
   initialFocus,
   busy = false,
   inactive = false,
+  className = "",
   onClose,
   children,
 }: {
@@ -34,6 +35,7 @@ export function Modal({
   busy?: boolean;
   /** Mantém o formulário montado, mas inacessível sob outro modal. */
   inactive?: boolean;
+  className?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -70,7 +72,8 @@ export function Modal({
         ref={sectionRef}
         className={
           (wide ? "modal modal-wide" : "modal") +
-          (settingsPanel ? " settings-modal" : "")
+          (settingsPanel ? " settings-modal" : "") +
+          (className ? ` ${className}` : "")
         }
         role="dialog"
         aria-modal="true"

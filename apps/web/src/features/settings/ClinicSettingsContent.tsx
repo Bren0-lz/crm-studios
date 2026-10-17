@@ -1,4 +1,12 @@
 import { formatTaxId, isValidTaxId, type ClinicSettings } from "@crm/contracts";
+import {
+  Building2,
+  CheckCircle2,
+  CircleDot,
+  MapPin,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -106,116 +114,152 @@ export function ClinicSettingsContent() {
           }}
           onChange={() => setNotice("")}
         >
-          <fieldset disabled={saving} className="settings-fieldset">
-            <legend>Identificação</legend>
-            <label>
-              Logotipo
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                disabled={saving}
-                onChange={async (event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  setError("");
-                  try {
-                    if (
-                      file.size > 2 * 1024 * 1024 ||
-                      !["image/png", "image/jpeg"].includes(file.type)
-                    )
-                      throw new Error("Use PNG ou JPEG de até 2 MB.");
-                    const result = await new Promise<string>(
-                      (resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(String(reader.result));
-                        reader.onerror = () =>
-                          reject(new Error("Não foi possível ler o logotipo."));
-                        reader.readAsDataURL(file);
-                      },
-                    );
-                    setSettings((current) =>
-                      current ? { ...current, logoDataUrl: result } : current,
-                    );
-                  } catch (cause) {
-                    setError((cause as Error).message);
-                  }
-                }}
-              />
-            </label>
-            {settings.logoDataUrl && (
-              <div>
-                <img
-                  className="clinic-logo-preview"
-                  src={settings.logoDataUrl}
-                  alt="Logotipo da clínica"
-                />
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setSettings({ ...settings, logoDataUrl: "" })}
-                >
-                  Remover logotipo
-                </button>
+          <fieldset
+            disabled={saving}
+            className="settings-clinic-section"
+            aria-labelledby="clinic-identification-title"
+          >
+            <div className="settings-clinic-section-heading">
+              <span className="settings-clinic-section-icon">
+                <Building2 size={20} aria-hidden="true" />
+              </span>
+              <h3 id="clinic-identification-title">Identificação</h3>
+              <p>Informações utilizadas nos documentos da clínica.</p>
+            </div>
+            <div className="settings-clinic-section-fields">
+              <div className="settings-clinic-logo">
+                <div className="settings-clinic-logo-preview">
+                  {settings.logoDataUrl ? (
+                    <img src={settings.logoDataUrl} alt="Logotipo da clínica" />
+                  ) : (
+                    <Building2 size={30} aria-hidden="true" />
+                  )}
+                </div>
+                <div className="settings-clinic-logo-controls">
+                  <label htmlFor="clinic-logo">Logotipo</label>
+                  <input
+                    id="clinic-logo"
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    aria-describedby="clinic-logo-help"
+                    disabled={saving}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setError("");
+                      try {
+                        if (
+                          file.size > 2 * 1024 * 1024 ||
+                          !["image/png", "image/jpeg"].includes(file.type)
+                        )
+                          throw new Error("Use PNG ou JPEG de até 2 MB.");
+                        const result = await new Promise<string>(
+                          (resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () =>
+                              resolve(String(reader.result));
+                            reader.onerror = () =>
+                              reject(
+                                new Error("Não foi possível ler o logotipo."),
+                              );
+                            reader.readAsDataURL(file);
+                          },
+                        );
+                        setSettings((current) =>
+                          current
+                            ? { ...current, logoDataUrl: result }
+                            : current,
+                        );
+                      } catch (cause) {
+                        setError((cause as Error).message);
+                      }
+                    }}
+                  />
+                  <p id="clinic-logo-help">PNG ou JPEG de até 2 MB.</p>
+                  {settings.logoDataUrl && (
+                    <button
+                      type="button"
+                      className="text-button settings-clinic-logo-remove"
+                      onClick={() => {
+                        setSettings({ ...settings, logoDataUrl: "" });
+                        setNotice("");
+                      }}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      Remover logotipo
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
-            <p className="muted-copy">
-              Informações utilizadas nos documentos da clínica.
-            </p>
-            <div className="form-grid">
-              <label>
-                Nome
-                <input
-                  required
-                  value={settings.name}
-                  onChange={(event) =>
-                    setSettings({ ...settings, name: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Razão social
-                <input
-                  value={settings.legalName}
-                  onChange={(event) =>
-                    setSettings({ ...settings, legalName: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                CNPJ/CPF
-                <input
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="00.000.000/0000-00"
-                  maxLength={18}
-                  value={formatTaxId(settings.taxId ?? "")}
-                  aria-invalid={taxIdInvalid || undefined}
-                  aria-describedby={
-                    taxIdInvalid ? "clinic-tax-id-error" : undefined
-                  }
-                  onBlur={() => setTaxIdChecked(true)}
-                  onChange={(event) => {
-                    setTaxIdChecked(false);
-                    setSettings({
-                      ...settings,
-                      taxId: formatTaxId(event.target.value),
-                    });
-                  }}
-                />
-                {taxIdInvalid && (
-                  <small
-                    id="clinic-tax-id-error"
-                    className="field-error"
-                    aria-live="polite"
-                  >
-                    Informe um CPF ou CNPJ válido.
-                  </small>
-                )}
-              </label>
+              <div className="form-grid">
+                <label className="span-2">
+                  Nome
+                  <input
+                    required
+                    value={settings.name}
+                    onChange={(event) =>
+                      setSettings({ ...settings, name: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Razão social
+                  <input
+                    value={settings.legalName}
+                    onChange={(event) =>
+                      setSettings({
+                        ...settings,
+                        legalName: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  CNPJ/CPF
+                  <input
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="00.000.000/0000-00"
+                    maxLength={18}
+                    value={formatTaxId(settings.taxId ?? "")}
+                    aria-invalid={taxIdInvalid || undefined}
+                    aria-describedby={
+                      taxIdInvalid ? "clinic-tax-id-error" : undefined
+                    }
+                    onBlur={() => setTaxIdChecked(true)}
+                    onChange={(event) => {
+                      setTaxIdChecked(false);
+                      setSettings({
+                        ...settings,
+                        taxId: formatTaxId(event.target.value),
+                      });
+                    }}
+                  />
+                  {taxIdInvalid && (
+                    <small
+                      id="clinic-tax-id-error"
+                      className="field-error"
+                      aria-live="polite"
+                    >
+                      Informe um CPF ou CNPJ válido.
+                    </small>
+                  )}
+                </label>
+              </div>
             </div>
           </fieldset>
-          <fieldset disabled={saving} className="settings-fieldset">
-            <legend>Contato e localização</legend>
+          <fieldset
+            disabled={saving}
+            className="settings-clinic-section"
+            aria-labelledby="clinic-contact-title"
+          >
+            <div className="settings-clinic-section-heading">
+              <span className="settings-clinic-section-icon">
+                <MapPin size={20} aria-hidden="true" />
+              </span>
+              <h3 id="clinic-contact-title">Contato e localização</h3>
+              <p>Canais de contato e endereço da sua clínica.</p>
+            </div>
             <div className="form-grid">
               <label>
                 Telefone
@@ -253,6 +297,11 @@ export function ClinicSettingsContent() {
           )}
           <div className="modal-actions settings-save-bar">
             <span className="settings-dirty" data-dirty={dirty} role="status">
+              {dirty ? (
+                <CircleDot size={16} aria-hidden="true" />
+              ) : (
+                <CheckCircle2 size={16} aria-hidden="true" />
+              )}
               {dirty ? "Alterações não salvas" : "Dados atualizados"}
             </span>
             <button
@@ -268,6 +317,7 @@ export function ClinicSettingsContent() {
               Descartar alterações
             </button>
             <button className="primary-button" disabled={!dirty || saving}>
+              <Save size={16} aria-hidden="true" />
               {saving ? "Salvando…" : "Salvar configurações"}
             </button>
           </div>
