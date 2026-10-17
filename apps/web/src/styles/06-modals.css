@@ -641,3 +641,18 @@
 .activity-form > .modal-actions {
   grid-column: 1 / -1;
 }
+
+/* Cadastro rápido: "Mais informações" recolhe os campos opcionais. */
+.more-info {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.more-info > summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.more-info > .form-grid {
+  padding: 0 var(--space-4) var(--space-4);
+}

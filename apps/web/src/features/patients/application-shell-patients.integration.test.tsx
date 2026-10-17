@@ -109,6 +109,10 @@ describe("application shell", () => {
       "href",
       expect.stringContaining("foi%20cancelado"),
     );
+    // Mensagem com o primeiro nome, não o nome completo.
+    expect(decodeURIComponent(notify.getAttribute("href")!)).toContain(
+      "Olá, Helena! Seu atendimento",
+    );
   });
 
   it("filters patients by status, tags and record data", async () => {

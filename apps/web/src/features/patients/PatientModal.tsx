@@ -249,13 +249,6 @@ export function PatientModal({
           />
         </label>
         <label>
-          CPF
-          <CpfInput
-            value={form.cpf ?? ""}
-            onChange={(digits) => field("cpf", digits)}
-          />
-        </label>
-        <label>
           Data de nascimento
           <input
             type="date"
@@ -263,62 +256,79 @@ export function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <PatientProfileFields form={form} onChange={field} />
-        <fieldset className="form-fieldset emergency-fieldset span-2">
-          <legend>Contato de emergência</legend>
-          <div className="form-fieldset-grid">
+        {/* Cadastro rápido (U15): o essencial à vista; o restante fica recolhido. */}
+        <details className="more-info span-2" open={Boolean(patient)}>
+          <summary>Mais informações</summary>
+          <div className="form-grid">
             <label>
-              Nome
-              <input
-                autoComplete="off"
-                placeholder="Ex.: Maria Souza (mãe)"
-                value={form.emergencyContactName}
-                onChange={(e) => field("emergencyContactName", e.target.value)}
+              CPF
+              <CpfInput
+                value={form.cpf ?? ""}
+                onChange={(digits) => field("cpf", digits)}
               />
             </label>
-            <label>
-              Telefone
-              <PhoneInput
-                value={form.emergencyContactPhone ?? ""}
-                onChange={(digits) => field("emergencyContactPhone", digits)}
+            <PatientProfileFields form={form} onChange={field} />
+            <fieldset className="form-fieldset emergency-fieldset span-2">
+              <legend>Contato de emergência</legend>
+              <div className="form-fieldset-grid">
+                <label>
+                  Nome
+                  <input
+                    autoComplete="off"
+                    placeholder="Ex.: Maria Souza (mãe)"
+                    value={form.emergencyContactName}
+                    onChange={(e) =>
+                      field("emergencyContactName", e.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Telefone
+                  <PhoneInput
+                    value={form.emergencyContactPhone ?? ""}
+                    onChange={(digits) =>
+                      field("emergencyContactPhone", digits)
+                    }
+                  />
+                </label>
+              </div>
+            </fieldset>
+            <fieldset className="form-fieldset span-2">
+              <legend>Etiquetas</legend>
+              {configuredTags.error ? (
+                <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+              ) : configuredTags.tags === null ? (
+                <LoadingBlock />
+              ) : tagChoices.length === 0 ? (
+                <p className="muted-copy">
+                  Nenhuma etiqueta configurada. Cadastre as etiquetas em
+                  Configurações › Etiquetas.
+                </p>
+              ) : (
+                <div className="tag-filter-list">
+                  {tagChoices.map((tag) => (
+                    <TagChoice
+                      key={tag.name}
+                      name={tag.name}
+                      color={tag.color}
+                      pressed={form.tags.includes(tag.name)}
+                      disabled={!editable}
+                      onToggle={() => toggleTag(tag.name)}
+                    />
+                  ))}
+                </div>
+              )}
+            </fieldset>
+            <label className="span-2">
+              Observações
+              <textarea
+                value={form.notes}
+                onChange={(e) => field("notes", e.target.value)}
+                rows={3}
               />
             </label>
           </div>
-        </fieldset>
-        <fieldset className="form-fieldset span-2">
-          <legend>Etiquetas</legend>
-          {configuredTags.error ? (
-            <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
-          ) : configuredTags.tags === null ? (
-            <LoadingBlock />
-          ) : tagChoices.length === 0 ? (
-            <p className="muted-copy">
-              Nenhuma etiqueta configurada. Cadastre as etiquetas em
-              Configurações › Etiquetas.
-            </p>
-          ) : (
-            <div className="tag-filter-list">
-              {tagChoices.map((tag) => (
-                <TagChoice
-                  key={tag.name}
-                  name={tag.name}
-                  color={tag.color}
-                  pressed={form.tags.includes(tag.name)}
-                  disabled={!editable}
-                  onToggle={() => toggleTag(tag.name)}
-                />
-              ))}
-            </div>
-          )}
-        </fieldset>
-        <label className="span-2">
-          Observações
-          <textarea
-            value={form.notes}
-            onChange={(e) => field("notes", e.target.value)}
-            rows={3}
-          />
-        </label>
+        </details>
         {guidedSteps.length > 0 && (
           <fieldset className="form-fieldset span-2">
             <legend>O que o cliente vai fazer?</legend>
