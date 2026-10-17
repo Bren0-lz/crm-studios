@@ -658,3 +658,32 @@
 .appointment-complete-button {
   color: var(--green-2);
 }
+
+/* Clientes: coluna Ações à direita (a linha abre a ficha). */
+.patient-table .table-row {
+  grid-template-columns:
+    minmax(210px, 1.4fr) minmax(180px, 1fr) minmax(170px, 1fr)
+    100px auto;
+}
+.table-actions-head,
+.table-actions {
+  justify-self: end;
+  text-align: right;
+}
+.table-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.tags-cell {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.tag-more {
+  flex: 0 0 auto;
+  padding: calc(var(--space-1) / 2) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #eef1ef;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}

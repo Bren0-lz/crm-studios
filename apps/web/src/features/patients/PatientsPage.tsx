@@ -11,13 +11,14 @@ import {
   ChevronRight,
   FileDown,
   FileUp,
+  Pencil,
   Plus,
   Search,
   SlidersHorizontal,
   UserPlus,
 } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -46,6 +47,7 @@ import type { PatientRecordFilter, PatientSort } from "./types";
 
 export function PatientsPage() {
   const { can, canEdit, user } = useAuthorization();
+  const navigate = useNavigate();
   const [management, setManagement] = useState<"merge" | "inactive" | null>(
     null,
   );
@@ -438,7 +440,7 @@ export function PatientsPage() {
                 <span>Contato</span>
                 <span>Etiquetas</span>
                 <span>Situação</span>
-                <span />
+                <span className="table-actions-head">Ações</span>
               </div>
               {pagePatients.map((patient) => (
                 <div
@@ -446,15 +448,19 @@ export function PatientsPage() {
                   key={patient.id}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Editar ${patient.fullName}`}
-                  onClick={() => setEditingPatient(patient)}
+                  aria-label={`Abrir ficha de ${patient.fullName}`}
+                  // A linha abre a ficha (U13); editar fica no botão da coluna Ações.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest("a, button"))
+                      void navigate(`/clientes/${patient.id}`);
+                  }}
                   onKeyDown={(event) => {
                     if (
                       event.target === event.currentTarget &&
                       (event.key === "Enter" || event.key === " ")
                     ) {
                       event.preventDefault();
-                      setEditingPatient(patient);
+                      void navigate(`/clientes/${patient.id}`);
                     }
                   }}
                 >
@@ -491,23 +497,24 @@ export function PatientsPage() {
                         )}
                       </>
                     )}
-                    <Link
-                      className="secondary-button"
-                      to={`/clientes/${patient.id}`}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      Detalhes
-                    </Link>
                     {patient.tags.length ? (
-                      patient.tags
-                        .slice(0, 2)
-                        .map((tag) => (
+                      <>
+                        {patient.tags.slice(0, 2).map((tag) => (
                           <PatientTagBadge
                             key={tag}
                             name={tag}
                             color={tagColor(tag)}
                           />
-                        ))
+                        ))}
+                        {patient.tags.length > 2 && (
+                          <span
+                            className="tag-more"
+                            title={patient.tags.slice(2).join(", ")}
+                          >
+                            +{patient.tags.length - 2}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <small>Sem etiquetas</small>
                     )}
@@ -518,11 +525,17 @@ export function PatientsPage() {
                     <i />
                     {patient.status === "inactive" ? "Inativo" : "Ativo"}
                   </span>
-                  <ChevronRight
-                    className="row-chevron"
-                    size={18}
-                    aria-hidden="true"
-                  />
+                  <div className="table-actions">
+                    <button
+                      type="button"
+                      className="secondary-button button-sm"
+                      aria-label={`Editar ${patient.fullName}`}
+                      onClick={() => setEditingPatient(patient)}
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                      Editar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

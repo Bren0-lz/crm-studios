@@ -193,7 +193,7 @@ describe("application shell", () => {
     ]);
     expect(
       within(
-        screen.getByRole("button", { name: "Editar Bruno Souza" }),
+        screen.getByRole("button", { name: "Abrir ficha de Bruno Souza" }),
       ).getByText("Inativo"),
     ).toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: /Filtros/ });
@@ -239,10 +239,7 @@ describe("application shell", () => {
       "Editar Ana Lima",
     ]);
 
-    fireEvent.keyDown(
-      screen.getByRole("button", { name: "Editar Carla Dias" }),
-      { key: "Enter" },
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Editar Carla Dias" }));
     expect(
       screen.getByRole("heading", { name: "Editar cliente" }),
     ).toBeInTheDocument();

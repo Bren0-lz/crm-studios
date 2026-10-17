@@ -273,6 +273,14 @@
     padding: var(--space-3) var(--space-4);
   }
 
+  .patient-table .table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .table-actions {
+    justify-self: start;
+  }
+
   .admin-user-row {
     grid-template-columns: 1fr;
     justify-items: start;

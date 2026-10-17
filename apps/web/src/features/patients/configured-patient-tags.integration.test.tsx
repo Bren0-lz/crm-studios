@@ -301,7 +301,7 @@ describe("configured patient tags", () => {
       </MemoryRouter>,
     );
     const row = await screen.findByRole("button", {
-      name: "Editar Helena Almeida",
+      name: "Abrir ficha de Helena Almeida",
     });
     const badge = within(row).getByText("Pilates");
     expect(badge).toHaveClass("tag-colored");
@@ -322,7 +322,9 @@ describe("configured patient tags", () => {
         .style.getPropertyValue("--tag-color"),
     ).toBe("#facc15");
 
-    fireEvent.click(row);
+    fireEvent.click(
+      within(row).getByRole("button", { name: "Editar Helena Almeida" }),
+    );
     const dialog = screen.getByRole("dialog");
     expect(
       within(dialog).queryByLabelText(/separadas por vírgula/),

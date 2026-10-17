@@ -63,7 +63,7 @@ describe("application shell", () => {
     });
     fireEvent.click(newRecord);
     expect(
-      screen.getByRole("heading", { name: "Nova evolução clínica" }),
+      await screen.findByRole("heading", { name: "Nova evolução clínica" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/S — Subjetivo/)).toBeInTheDocument();
   });

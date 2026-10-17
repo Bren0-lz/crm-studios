@@ -616,7 +616,9 @@ describe("guided client registration", () => {
     expect(screen.getByRole("button", { name: /Filtros/ })).toHaveTextContent(
       "1",
     );
-    const row = screen.getByRole("button", { name: "Editar Helena Almeida" });
+    const row = screen.getByRole("button", {
+      name: "Abrir ficha de Helena Almeida",
+    });
     expect(within(row).getByText("Sem turma")).toHaveClass("status-pill");
     const link = within(row).getByRole("link", {
       name: "Matricular Helena Almeida em uma turma",
@@ -659,7 +661,9 @@ describe("guided client registration", () => {
       ).not.toBeInTheDocument(),
     );
     // Sem editar Turmas: o selo aparece, mas sem o atalho para matricular.
-    const row = screen.getByRole("button", { name: "Editar Helena Almeida" });
+    const row = screen.getByRole("button", {
+      name: "Abrir ficha de Helena Almeida",
+    });
     expect(within(row).getByText("Sem turma")).toBeInTheDocument();
     expect(
       within(row).queryByRole("link", { name: "Matricular" }),
