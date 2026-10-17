@@ -37,11 +37,14 @@ describe("modal scroll lock", () => {
   it("locks body scroll while a modal is open and restores it on close", () => {
     render(<StackedModals />);
     expect(document.body).not.toHaveClass("modal-open");
+    expect(document.documentElement).not.toHaveClass("modal-open");
     fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
     expect(document.body).toHaveClass("modal-open");
+    expect(document.documentElement).toHaveClass("modal-open");
     fireEvent.click(screen.getByRole("button", { name: "Fechar primeiro" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body).not.toHaveClass("modal-open");
+    expect(document.documentElement).not.toHaveClass("modal-open");
   });
 
   it("keeps the lock with stacked modals until the last one closes", () => {
@@ -52,16 +55,20 @@ describe("modal scroll lock", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fechar segundo" }));
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(document.body).toHaveClass("modal-open");
+    expect(document.documentElement).toHaveClass("modal-open");
     fireEvent.click(screen.getByRole("button", { name: "Fechar primeiro" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body).not.toHaveClass("modal-open");
+    expect(document.documentElement).not.toHaveClass("modal-open");
   });
 
   it("releases the lock when an open modal is unmounted", () => {
     render(<StackedModals />);
     fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
     expect(document.body).toHaveClass("modal-open");
+    expect(document.documentElement).toHaveClass("modal-open");
     cleanup();
     expect(document.body).not.toHaveClass("modal-open");
+    expect(document.documentElement).not.toHaveClass("modal-open");
   });
 });

@@ -53,6 +53,15 @@
   box-sizing: border-box;
 }
 
+/* V9: a página rola no documento; reservar o espaço da barra evita que o conteúdo "pule"
+   ao trocar entre telas curtas e longas (ex.: Dia, Semana e Mês na agenda). Com a barra
+   estilizada (::-webkit-scrollbar) o Chrome não reserva o espaço só com scrollbar-gutter,
+   por isso a barra fica sempre presente (overflow-y: scroll). */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 /* Barras de rolagem no tom da interface: trilho discreto e alça verde-acinzentada. */
 ::-webkit-scrollbar {
   width: 10px;
@@ -99,6 +108,7 @@ body {
 }
 
 /* Modal ou gaveta aberta: a página de trás não rola. */
+html.modal-open,
 body.modal-open {
   overflow: hidden;
 }
