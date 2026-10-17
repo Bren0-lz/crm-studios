@@ -7,11 +7,14 @@ import {
   planTemplateInputSchema,
   planTemplateUpdateSchema,
   planTransitionSchema,
+  isRecurringChargeValid,
+  recurringSingleChargeIssue,
   type ApiError,
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js";
+import { DomainError } from "../../repository.js";
 
 export function registerPlansRoutes(context: RouteContext) {
   const { app, authenticate, repository, assertPermissions, assertNoHoliday } =
@@ -202,11 +205,27 @@ export function registerPlansRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = planRenewalInputSchema.parse(request.body);
+      const current = (
+        await repository.listPatientPlans(request.user.clinicId)
+      ).find((item) => item.id === id);
+      if (
+        current &&
+        !isRecurringChargeValid({
+          kind: current.kind,
+          installments: input.installments,
+        })
+      )
+        throw new DomainError(
+          "RECURRING_SINGLE_CHARGE",
+          recurringSingleChargeIssue,
+          400,
+        );
       const plan = await repository.renewPatientPlan(
         request.user.clinicId,
         request.user.sub,
         id,
-        planRenewalInputSchema.parse(request.body),
+        input,
       );
       if (!plan)
         return reply.status(404).send({

@@ -216,6 +216,38 @@ describe("plan types and weekly sessions", () => {
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue("");
     expect(within(dialog).getByRole("checkbox")).not.toBeChecked();
   });
+  it("charges a recurring plan once per cycle and warns about installments after the validity", async () => {
+    vi.mocked(api.planTemplates).mockResolvedValue([template]);
+    page("/planos");
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByLabelText("Plano cadastrado"),
+      ).not.toBeDisabled(),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-10" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-10" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
+      target: { value: template.id },
+    });
+    expect(within(dialog).queryByLabelText("Parcelas")).not.toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Plano recorrente: 1 cobrança por ciclo.");
+
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "fixed_package" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Parcelas"), {
+      target: { value: "3" },
+    });
+    expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "A última parcela vence em 10/12/2026, depois do fim da validade (09/11/2026).",
+    );
+  });
   it("keeps the catalog read-only for settings viewers", async () => {
     vi.mocked(api.me).mockRestore();
     session(["settings.view"]);

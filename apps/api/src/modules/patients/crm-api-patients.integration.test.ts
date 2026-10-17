@@ -4468,7 +4468,7 @@ describe("CRM API", () => {
       const withGroup = await guided({
         next: "plan",
         patient: { fullName: "Assinante Com Turma", phone: "11966660001" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId,
       });
       expect(withGroup.statusCode).toBe(201);
@@ -4519,13 +4519,14 @@ describe("CRM API", () => {
       ).json().receivables as { planId?: string }[];
       expect(
         receivables.filter((item) => item.planId === withGroupBody.plan.id),
-      ).toHaveLength(2);
+        // Recorrente: uma cobrança por ciclo.
+      ).toHaveLength(1);
 
       // Turma de outro serviço: nada fica gravado.
       const mismatch = await guided({
         next: "plan",
         patient: { fullName: "Turma Errada", phone: "11966660004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: otherGroupId,
       });
       expect(mismatch.statusCode).toBe(400);
@@ -4533,7 +4534,7 @@ describe("CRM API", () => {
       const missingGroup = await guided({
         next: "plan",
         patient: { fullName: "Turma Errada", phone: "11966660004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: "99999999-9999-4999-8999-999999999999",
       });
       expect(missingGroup.statusCode).toBe(404);
@@ -4604,13 +4605,13 @@ describe("CRM API", () => {
       const enrolled = await create({
         next: "plan",
         patient: { fullName: "Filtro Matriculada", phone: "11977771001" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId,
       });
       const noGroup = await create({
         next: "plan",
         patient: { fullName: "Filtro Sem Turma", phone: "11977771002" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
       });
       const otherService = await create({
         next: "plan",
@@ -4627,13 +4628,13 @@ describe("CRM API", () => {
       await create({
         next: "plan",
         patient: { fullName: "Filtro Ocupa Vaga", phone: "11977771004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
       const waitlisted = await create({
         next: "plan",
         patient: { fullName: "Filtro Espera", phone: "11977771005" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
       await create({
@@ -4644,7 +4645,7 @@ describe("CRM API", () => {
       const paused = await create({
         next: "plan",
         patient: { fullName: "Filtro Pausado", phone: "11977771007" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
       });
       const pause = await app.inject({
         method: "PATCH",
@@ -4720,7 +4721,7 @@ describe("CRM API", () => {
       const plan = (name: string, withGroup = false) => ({
         next: "plan",
         patient: patient(name),
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         ...(withGroup ? { groupId } : {}),
       });
 

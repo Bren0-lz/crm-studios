@@ -12,6 +12,11 @@ describe("demonstration scenarios", () => {
       ),
     ).toBe(true);
     expect(data.receivables.some((item) => item.overdue)).toBe(true);
+    expect(
+      data.plans
+        .filter((plan) => plan.kind === "recurring")
+        .every((plan) => plan.installments === 1),
+    ).toBe(true);
     expect(data.appointments.some((item) => item.status === "confirmed")).toBe(
       true,
     );

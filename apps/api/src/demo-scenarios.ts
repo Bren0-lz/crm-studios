@@ -250,7 +250,13 @@ export function buildDemoScenarios(): DemoData {
             ? 3
             : 5;
     const start = cancelled || lapsed ? -100 : single ? -15 : -50;
-    const installments = dance ? 3 : single ? 1 : 2;
+    const kind: PatientPlan["kind"] = single
+      ? "single"
+      : dance || cohort === 1 || overdue
+        ? "recurring"
+        : "fixed_package";
+    // Recorrente: uma cobrança por ciclo; pacotes fixos em 2 parcelas.
+    const installments = kind === "fixed_package" ? 2 : 1;
     const totalValue = dance
       ? 149700
       : single
@@ -286,11 +292,7 @@ export function buildDemoScenarios(): DemoData {
         },
       ],
       name,
-      kind: single
-        ? "single"
-        : dance || cohort === 1 || overdue
-          ? "recurring"
-          : "fixed_package",
+      kind,
       totalSessions,
       remainingSessions: totalSessions - consumed,
       validFrom: date(start),
@@ -324,7 +326,8 @@ export function buildDemoScenarios(): DemoData {
       const dueOffset = start + 10 + installment * 30;
       const paid =
         (single && index % 4 !== 0) ||
-        (!single && installment === 0) ||
+        // A cobrança do ciclo dos atrasados fica em aberto (vencida).
+        (!single && installment === 0 && !overdue) ||
         (!cancelled && !overdue && !lapsed && installment === 1);
       const status =
         cancelled && installment > 0 ? "cancelled" : paid ? "paid" : "open";

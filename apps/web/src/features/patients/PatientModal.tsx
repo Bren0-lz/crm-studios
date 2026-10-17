@@ -363,6 +363,9 @@ export function PatientModal({
                       setPlanForm({
                         ...planForm,
                         kind,
+                        // Recorrente: uma cobrança por ciclo.
+                        installments:
+                          kind === "recurring" ? 1 : planForm.installments,
                         autoRenew:
                           kind === "recurring" && Boolean(planForm.validUntil),
                       });

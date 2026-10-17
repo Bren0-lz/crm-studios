@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
+import { PlanInstallmentsField } from "./PlanInstallmentsField";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -94,7 +95,7 @@ export function PlanForm({
         }),
       ),
       totalValueInCents: renewing.totalValueInCents,
-      installments: renewing.installments,
+      installments: renewing.kind === "recurring" ? 1 : renewing.installments,
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -212,6 +213,9 @@ export function PlanForm({
                       setForm({
                         ...form,
                         kind,
+                        // Recorrente: uma cobrança por ciclo.
+                        installments:
+                          kind === "recurring" ? 1 : form.installments,
                         autoRenew: kind === "recurring",
                       });
                       if (kind === "single") setGroupId("");
@@ -262,6 +266,9 @@ export function PlanForm({
                       ) {
                         setGroupId("");
                       }
+                      const templateKind = template?.planType
+                        ? planTypeKind(template.planType)
+                        : (template?.kind ?? "fixed_package");
                       setForm({
                         ...form,
                         planTemplateId: template?.id ?? "",
@@ -270,9 +277,9 @@ export function PlanForm({
                         services:
                           template?.services.map((entry) => ({ ...entry })) ??
                           [],
-                        kind: template?.planType
-                          ? planTypeKind(template.planType)
-                          : (template?.kind ?? "fixed_package"),
+                        kind: templateKind,
+                        installments:
+                          templateKind === "recurring" ? 1 : form.installments,
                         ...(template?.planType
                           ? {
                               validUntil: planPeriodEnd(
@@ -463,19 +470,13 @@ export function PlanForm({
                 }
               />
             </label>
-            <label>
-              Parcelas
-              <input
-                required
-                type="number"
-                min="1"
-                max="36"
-                value={form.installments}
-                onChange={(e) =>
-                  setForm({ ...form, installments: Number(e.target.value) })
-                }
-              />
-            </label>
+            <PlanInstallmentsField
+              kind={form.kind}
+              installments={form.installments}
+              firstDueDate={form.firstDueDate}
+              validUntil={form.validUntil}
+              onChange={(installments) => setForm({ ...form, installments })}
+            />
             <label>
               Primeiro vencimento
               <input

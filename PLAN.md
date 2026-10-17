@@ -1200,5 +1200,5 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | C7 | Campo monetário único (BRL, vírgula, vazio) | DONE |
 | C8 | Nova despesa: cadastro inline de categoria/centro, o que falta, centro opcional | DONE |
 | C9 | Encoding do modal "Novo atendimento" | DONE |
-| C10 | Recorrente 1 cobrança por ciclo; aviso no pacote; "Esgotado" | TODO |
+| C10 | Recorrente 1 cobrança por ciclo; aviso no pacote; "Esgotado" | DONE |
 | C11 | Histórico: ordem por criação, sem duplicar, responsável sempre gravado, seed sem datas futuras | TODO |

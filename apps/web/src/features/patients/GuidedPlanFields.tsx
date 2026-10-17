@@ -1,4 +1,5 @@
 import {
+  type PatientPlan,
   planPeriodEnd,
   planPeriodMonths,
   type PlanTemplate,
@@ -17,6 +18,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PlanInstallmentsField } from "../plans/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
@@ -85,11 +87,17 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               services: template?.services.map((entry) => ({ ...entry })) ?? [],
               totalValueInCents: template?.totalValueInCents ?? 0,
               ...("kind" in form
-                ? {
-                    kind: template?.planType
+                ? (() => {
+                    const kind = template?.planType
                       ? planTypeKind(template.planType)
-                      : (template?.kind ?? "fixed_package"),
-                  }
+                      : (template?.kind ?? "fixed_package");
+                    // Recorrente: uma cobrança por ciclo.
+                    return {
+                      kind,
+                      installments:
+                        kind === "recurring" ? 1 : form.installments,
+                    };
+                  })()
                 : {}),
               validUntil: template?.planType
                 ? planPeriodEnd(template.planType, form.validFrom)
@@ -204,19 +212,13 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           }
         />
       </label>
-      <label>
-        Parcelas
-        <input
-          required
-          type="number"
-          min="1"
-          max="36"
-          value={form.installments}
-          onChange={(event) =>
-            setForm({ ...form, installments: Number(event.target.value) })
-          }
-        />
-      </label>
+      <PlanInstallmentsField
+        kind={"kind" in form ? (form.kind as PatientPlan["kind"]) : undefined}
+        installments={form.installments}
+        firstDueDate={form.firstDueDate}
+        validUntil={form.validUntil}
+        onChange={(installments) => setForm({ ...form, installments })}
+      />
       <label>
         Primeiro vencimento
         <input

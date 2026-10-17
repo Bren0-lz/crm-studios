@@ -6,6 +6,8 @@ import {
   type PlanStatus,
   type Service,
   nextPlanPeriod,
+  planDisplayStatus,
+  planDisplayStatusLabels,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -171,18 +173,14 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                 return (
                   <article className="plan-card" key={plan.id}>
                     <div className="plan-card-head">
-                      <span className={`status-pill ${plan.status}`}>
+                      <span
+                        className={`status-pill ${planDisplayStatus(plan)}`}
+                      >
                         {plan.sourceTabId &&
                         plan.remainingSessions === 0 &&
                         plan.status === "expired"
                           ? "Utilizado"
-                          : plan.status === "active"
-                            ? "Ativo"
-                            : plan.status === "paused"
-                              ? "Pausado"
-                              : plan.status === "expired"
-                                ? "Expirado"
-                                : "Cancelado"}
+                          : planDisplayStatusLabels[planDisplayStatus(plan)]}
                       </span>
                       <span>{planKindLabels[plan.kind]}</span>
                     </div>

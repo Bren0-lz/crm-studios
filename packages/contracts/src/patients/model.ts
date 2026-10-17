@@ -13,6 +13,8 @@ import {
 import {
   autoRenewIssue,
   guidedPlanTermsSchema,
+  isRecurringChargeValid,
+  recurringSingleChargeIssue,
   planPeriodIssue,
   renewablePlanPeriod,
   validPlanPeriod,
@@ -261,6 +263,10 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     plan: guidedPlanTermsSchema
       .extend({ kind: z.enum(["recurring", "fixed_package"]) })
       .refine(validPlanPeriod, planPeriodIssue)
+      .refine(isRecurringChargeValid, {
+        message: recurringSingleChargeIssue,
+        path: ["installments"],
+      })
       .refine(renewablePlanPeriod, autoRenewIssue)
       .refine(
         (value) =>
