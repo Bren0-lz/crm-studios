@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U30 — bloco D)
-- **Última concluída:** U26 (bloco B concluído)
+- **Tarefa atual:** Rodada 7, Fase 2 (U31 — bloco D)
+- **Última concluída:** U30
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -171,3 +171,4 @@
 - 2026-10-17 U25: `AssessmentTemplateModal.onSaved` agora recebe o modelo salvo. `ClinicalAssessmentModal` sem modelos publicados mostra "Nenhum modelo de avaliação" + "Criar modelo" (só com clinical.templates_create), abre o modal de modelo por cima e, ao publicar, seleciona o novo; salvo como rascunho, avisa que precisa publicar (rascunho não aparece no select).
 - 2026-10-17 U26: a API não omite rascunhos (listClinicalRecords sem filtro de status nos dois repositórios; PG usa JOIN users em author_user_id, que é sempre gravado) — teste da API confere o rascunho em GET /clinical-workspace/:id. Causa na tela: em /prontuarios o painel de acompanhamento abre no 1º cliente e não recarregava após salvar/finalizar. Agora `ClinicalRecordsPage` remonta o painel (`key` por versão) com `initialPatientId` = cliente da evolução; timeline marca rascunho com `status-pill draft` "Rascunho" e usa o "S" como título se "A" estiver vazio.
 - 2026-10-17 Bloco B (U22–U26) concluído.
+- 2026-10-17 U30: contracts/communications ganhou `patientFirstName` e `fillPatientMessage(template, fullName, vars)` (nome sempre = primeiro nome, sobrepõe vars). Lembretes automáticos (`buildReminderCandidates`, usado pelos dois repositórios) usavam o nome completo — corrigido, com teste unitário. Comunicados, Contatos sugeridos, aniversários e aviso de cancelamento passam pelo helper. Mensagens já geradas na fila mantêm o texto antigo. Script de edição: `node -e` no Git Bash perde barras invertidas (\s vira s) — usar arquivo .cjs no scratchpad.

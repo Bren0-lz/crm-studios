@@ -3,7 +3,7 @@ import { PatientContextNotice } from "../../shared/components/PatientContextNoti
 import {
   type ContactReason,
   type ContactSuggestion,
-  fillMessageTemplate,
+  fillPatientMessage,
   formatPhone,
   type RelationshipSettings,
   whatsappLink,
@@ -67,9 +67,7 @@ export function RelationshipPage() {
 
   function messageFor(suggestion: ContactSuggestion) {
     const template = settings?.messages[suggestion.reason] ?? "";
-    const firstName =
-      suggestion.patientName.trim().split(/\s+/)[0] ?? suggestion.patientName;
-    return fillMessageTemplate(template, { nome: firstName });
+    return fillPatientMessage(template, suggestion.patientName);
   }
 
   function recorded(suggestion: ContactSuggestion) {

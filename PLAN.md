@@ -1244,7 +1244,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U27 | Planos: busca e filtros | DONE |
 | U28 | Subtítulo do plano sem duplicação | DONE |
 | U29 | Pausar: retorno/motivo e validade | DONE |
-| U30 | Mensagens com primeiro nome | TODO |
+| U30 | Mensagens com primeiro nome | DONE |
 | U31 | Fila: filtros, lote e layout compacto | TODO |
 | U32 | WhatsApp + registrar envio unificados | TODO |
 | U33 | Contatos sugeridos agrupados por cliente | TODO |

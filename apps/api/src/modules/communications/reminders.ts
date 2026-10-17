@@ -1,5 +1,6 @@
 import { clinicDateOf } from "../finance/daily-cash.js";
 import {
+  patientFirstName,
   type CommunicationKind,
   type ReminderGenerationOptions,
 } from "@crm/contracts";
@@ -74,7 +75,7 @@ export function buildReminderCandidates(
         key: `appointment:${encounter.id}:whatsapp`,
         legacyKey: `appointment_reminder:${encounter.id}:whatsapp`,
         appointmentId: encounter.id,
-        body: `Olá, ${patient.fullName}. Lembramos do seu atendimento em ${dateLabel(referenceDate)} às ${time}.`,
+        body: `Olá, ${patientFirstName(patient.fullName)}. Lembramos do seu atendimento em ${dateLabel(referenceDate)} às ${time}.`,
       });
     }
     if (
@@ -93,7 +94,7 @@ export function buildReminderCandidates(
           patient,
           kind: "satisfaction_followup",
           key,
-          body: `Olá, ${patient.fullName}. Como foi sua experiência com a clínica? De 0 a 10, qual a chance de nos recomendar? A equipe registrará sua resposta.`,
+          body: `Olá, ${patientFirstName(patient.fullName)}. Como foi sua experiência com a clínica? De 0 a 10, qual a chance de nos recomendar? A equipe registrará sua resposta.`,
         });
     }
   }
@@ -112,7 +113,7 @@ export function buildReminderCandidates(
         key: `receivable:${invoice.id}:whatsapp`,
         legacyKey: `payment_reminder:${invoice.id}:whatsapp`,
         receivableId: invoice.id,
-        body: `Olá, ${patient.fullName}. Identificamos uma parcela com vencimento em ${dateLabel(invoice.dueDate)}. Fale com a clínica se precisar de ajuda.`,
+        body: `Olá, ${patientFirstName(patient.fullName)}. Identificamos uma parcela com vencimento em ${dateLabel(invoice.dueDate)}. Fale com a clínica se precisar de ajuda.`,
       });
     }
   if (options.birthdays)
@@ -125,7 +126,7 @@ export function buildReminderCandidates(
           patient,
           kind: "birthday_reminder",
           key: `birthday:${patient.id}:${referenceDate}:whatsapp`,
-          body: `Olá, ${patient.fullName}. A equipe deseja um feliz aniversário e um novo ano com saúde e bem-estar!`,
+          body: `Olá, ${patientFirstName(patient.fullName)}. A equipe deseja um feliz aniversário e um novo ano com saúde e bem-estar!`,
         });
   return candidates;
 }

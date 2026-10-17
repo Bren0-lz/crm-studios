@@ -1,4 +1,5 @@
 import {
+  patientFirstName,
   type Appointment,
   type AppointmentStatus,
   type Patient,
@@ -39,7 +40,7 @@ const cancellationReasons = [
 
 /** Mensagem para avisar o cliente do cancelamento (primeiro nome, data e horário). */
 function cancellationMessage(appointment: Appointment) {
-  const firstName = appointment.patientName.trim().split(/\s+/)[0] ?? "";
+  const firstName = patientFirstName(appointment.patientName);
   const start = new Date(appointment.startsAt);
   return `Olá, ${firstName}! Seu atendimento de ${appointment.serviceName} em ${start.toLocaleDateString("pt-BR")} às ${timeLabel.format(start)} foi cancelado. Se quiser remarcar, é só responder esta mensagem.`;
 }

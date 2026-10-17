@@ -22,6 +22,8 @@ import {
   effectiveEditModules,
   effectiveModules,
   fillMessageTemplate,
+  fillPatientMessage,
+  patientFirstName,
   formatCpf,
   formatPhone,
   groupClassInputSchema,
@@ -620,6 +622,17 @@ describe("relationship center contracts", () => {
     expect(fillMessageTemplate("Oi, {{nome}} {{outro}}", { nome: "Ana" })).toBe(
       "Oi, Ana {{outro}}",
     );
+  });
+
+  it("always fills {{nome}} with the client first name", () => {
+    expect(patientFirstName("  Viviane   Araújo ")).toBe("Viviane");
+    expect(patientFirstName("")).toBe("");
+    expect(
+      fillPatientMessage("Olá, {{nome}}! Até {{data}}.", "Viviane Araújo", {
+        data: "01/10",
+        nome: "Viviane Araújo",
+      }),
+    ).toBe("Olá, Viviane! Até 01/10.");
   });
 });
 

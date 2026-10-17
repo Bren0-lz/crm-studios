@@ -4,7 +4,7 @@ import type {
   ContactSuggestion,
   LeadStage,
 } from "@crm/contracts";
-import { type RelationshipSettings, fillMessageTemplate } from "@crm/contracts";
+import { type RelationshipSettings, fillPatientMessage } from "@crm/contracts";
 import { api } from "../../api";
 
 export function addDaysToIsoDate(value: string, days: number) {
@@ -17,10 +17,7 @@ export function birthdayMessage(
   settings: RelationshipSettings | null,
   patientName: string,
 ) {
-  const firstName = patientName.trim().split(/\s+/)[0] ?? patientName;
-  return fillMessageTemplate(settings?.messages.birthday ?? "", {
-    nome: firstName,
-  });
+  return fillPatientMessage(settings?.messages.birthday ?? "", patientName);
 }
 
 export const contactOutcomeLabels: Record<ContactOutcome, string> = {
