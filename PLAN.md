@@ -1228,7 +1228,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U11 | Motivo no cancelamento e aviso por WhatsApp | DONE |
 | U12 | Busca de clientes sem acento e com debounce | DONE |
 | U13 | Linha abre a ficha | DONE |
-| U14 | Ficha: topo completo e abas na própria ficha | TODO |
+| U14 | Ficha: topo completo e abas na própria ficha | DONE |
 | U15 | Cadastro rápido enxuto com "Mais informações" | TODO |
 | U16 | CEP com máscara e ViaCEP | TODO |
 | U17 | Arrastar e soltar no quadro comercial | TODO |

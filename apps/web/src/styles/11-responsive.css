@@ -277,6 +277,16 @@
     grid-template-columns: 1fr;
   }
 
+  .patient-tab-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-tab-list li > .status-pill {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+
   .table-actions {
     justify-self: start;
   }
