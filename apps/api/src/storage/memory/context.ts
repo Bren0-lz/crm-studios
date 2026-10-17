@@ -227,6 +227,10 @@ export class MemoryRepositoryContext {
     availableAt?: string | undefined;
     amountInCents: number;
     paymentMethod?: PaymentMethod;
+    /** U39: desconto e juros aplicados na baixa; saldo de pagamento parcial. */
+    discountInCents?: number;
+    interestInCents?: number;
+    balanceReceivableId?: string;
   }> = [];
 
   readonly receivableRenegotiations: ReceivableRenegotiation[] = [];

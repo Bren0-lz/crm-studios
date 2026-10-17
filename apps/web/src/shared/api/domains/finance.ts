@@ -9,7 +9,11 @@ import type {
   ExternalOperationInput,
   ExternalOperationContent,
 } from "@crm/contracts";
-import type { PaymentTiming, FinancialDatesInput } from "@crm/contracts";
+import type {
+  PaymentTiming,
+  FinancialDatesInput,
+  SettlementAdjustments,
+} from "@crm/contracts";
 import type {
   InventoryWorkspace,
   Product,
@@ -215,10 +219,14 @@ export const financeApi = {
     id: string,
     paymentMethod: PaymentMethod = "pix",
     timing?: PaymentTiming,
+    adjustments?: SettlementAdjustments,
   ) =>
     request<FinancialSummary["receivables"][number]>(
       `/finance/receivables/${id}/pay`,
-      { method: "POST", body: JSON.stringify({ paymentMethod, ...timing }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod, ...timing, ...adjustments }),
+      },
     ),
   reverseReceivable: (id: string) =>
     request<FinancialSummary["receivables"][number]>(

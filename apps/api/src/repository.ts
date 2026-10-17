@@ -4,7 +4,11 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
-import type { PaymentTiming, FinancialDatesInput } from "@crm/contracts";
+import type {
+  PaymentTiming,
+  FinancialDatesInput,
+  SettlementAdjustments,
+} from "@crm/contracts";
 import type {
   AdministrativeRegistryInput,
   AdministrativeRegistryWorkspace,
@@ -869,6 +873,7 @@ export interface ClinicRepository {
     receivableId: string,
     paymentMethod: PaymentMethod,
     timing?: PaymentTiming,
+    adjustments?: SettlementAdjustments,
   ): Promise<FinancialSummary["receivables"][number] | null>;
   reverseReceivablePayment(
     clinicId: string,

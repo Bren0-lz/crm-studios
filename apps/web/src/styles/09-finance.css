@@ -793,3 +793,19 @@
   color: #4e6975;
   font-weight: 800;
 }
+
+/* Baixa de parcela (U39): valor final calculado. */
+.settle-summary {
+  display: grid;
+  align-content: end;
+  gap: var(--space-1);
+}
+
+.settle-summary span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.settle-summary strong {
+  font-size: var(--text-xl);
+}

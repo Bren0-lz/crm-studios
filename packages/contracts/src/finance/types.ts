@@ -63,6 +63,7 @@ import {
   paymentMethodSchema,
   productInputSchema,
   receivableRenegotiationInputSchema,
+  receivableSettlementSchema,
   receivableStatusSchema,
   recurringPayableInputSchema,
   stockMovementInputSchema,
@@ -212,6 +213,11 @@ export interface InventoryWorkspace {
 }
 
 export type PaymentTiming = z.infer<typeof paymentTimingSchema>;
+/** Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio. */
+export type SettlementAdjustments = Pick<
+  z.input<typeof receivableSettlementSchema>,
+  "discountInCents" | "interestInCents" | "receivedInCents" | "balanceDueDate"
+>;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
   postedOn?: string | undefined;

@@ -7,4 +7,6 @@ export interface SettleTarget {
   title: string;
   description: string;
   amountInCents: number;
+  /** Vencimento original (parcela): padrão do vencimento do saldo no pagamento parcial. */
+  dueDate?: string;
 }

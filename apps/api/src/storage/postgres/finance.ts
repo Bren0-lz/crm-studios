@@ -8,7 +8,7 @@ import {
   createTabServiceCredits,
   cancelTabServiceCredits,
 } from "./tab-service-credits.js";
-import type { PaymentTiming } from "@crm/contracts";
+import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
   type AdminUserCommissionInput,
   type CommissionRuleInput,
@@ -649,6 +649,7 @@ export function createFinanceRepository(
       receivableId: string,
       paymentMethod: PaymentMethod,
       timing?: PaymentTiming,
+      adjustments?: SettlementAdjustments,
     ) {
       return repositoryContext.changeReceivablePayment(
         clinicId,
@@ -657,6 +658,7 @@ export function createFinanceRepository(
         "payment",
         paymentMethod,
         timing,
+        adjustments,
       );
     },
 

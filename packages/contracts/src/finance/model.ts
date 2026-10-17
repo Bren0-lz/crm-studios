@@ -287,3 +287,55 @@ export const financeForecastFilterSchema = z.object({
     .max(12, "A previsão vai de 1 a 12 meses.")
     .default(6),
 });
+
+/** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
+export const receivableSettlementSchema = paymentInputSchema.extend({
+  discountInCents: z.number().int().min(0).default(0),
+  interestInCents: z.number().int().min(0).default(0),
+  /** Sem valor = recebe o valor final inteiro. */
+  receivedInCents: z.number().int().positive().optional(),
+  /** Vencimento da parcela com o saldo; sem data, mantém o vencimento original. */
+  balanceDueDate: z.iso.date().optional(),
+});
+
+export interface SettlementBreakdown {
+  finalInCents: number;
+  receivedInCents: number;
+  balanceInCents: number;
+  error?: string;
+}
+
+/** Valor final = parcela − desconto + juros; o que faltar do recebido vira saldo. */
+export function settlementBreakdown(
+  amountInCents: number,
+  input: {
+    discountInCents?: number | undefined;
+    interestInCents?: number | undefined;
+    receivedInCents?: number | undefined;
+  },
+): SettlementBreakdown {
+  const discount = input.discountInCents ?? 0;
+  const interest = input.interestInCents ?? 0;
+  const finalInCents = amountInCents - discount + interest;
+  const receivedInCents = input.receivedInCents ?? finalInCents;
+  const result = {
+    finalInCents,
+    receivedInCents,
+    balanceInCents: Math.max(0, finalInCents - receivedInCents),
+  };
+  if (discount > amountInCents)
+    return {
+      ...result,
+      error: "O desconto não pode ser maior que o valor da parcela.",
+    };
+  if (finalInCents <= 0)
+    return { ...result, error: "O valor final precisa ser maior que zero." };
+  if (receivedInCents <= 0)
+    return { ...result, error: "Informe o valor recebido." };
+  if (receivedInCents > finalInCents)
+    return {
+      ...result,
+      error: "O valor recebido não pode passar do valor final.",
+    };
+  return result;
+}

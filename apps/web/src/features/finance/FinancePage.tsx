@@ -1,6 +1,8 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
+  settlementBreakdown,
+  type SettlementAdjustments,
   type FinancialEntryFilter,
 } from "@crm/contracts";
 import { FinanceEntryFilters } from "./FinanceEntryFilters";
@@ -134,12 +136,21 @@ export function FinancePage() {
     target: SettleTarget,
     method: PaymentMethod,
     timing?: PaymentTiming,
+    adjustments?: SettlementAdjustments,
   ) {
     if (target.kind === "receivable")
-      await api.settleReceivable(target.id, method, timing);
+      await api.settleReceivable(target.id, method, timing, adjustments);
     else await api.settlePayable(target.id, method, timing);
+    const balance =
+      target.kind === "receivable" && adjustments
+        ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
+        : 0;
     toast.success(
-      target.kind === "receivable" ? "Pagamento recebido." : "Conta paga.",
+      target.kind !== "receivable"
+        ? "Conta paga."
+        : balance > 0
+          ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+          : "Pagamento recebido.",
     );
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
@@ -417,6 +428,7 @@ export function FinancePage() {
                     title: item.patientName,
                     description: item.description,
                     amountInCents: item.amountInCents,
+                    dueDate: item.dueDate,
                   })
                 }
                 onReverse={(id) => void reverseReceivable(id)}
@@ -585,7 +597,9 @@ export function FinancePage() {
         <SettleModal
           target={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(method, timing) => settle(settling, method, timing)}
+          onConfirm={(method, timing, adjustments) =>
+            settle(settling, method, timing, adjustments)
+          }
         />
       )}
     </>

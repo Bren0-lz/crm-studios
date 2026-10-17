@@ -1000,6 +1000,71 @@ describe("application shell", () => {
       });
     });
 
+    it("settles with discount and partial payment, turning the balance into a new installment", async () => {
+      const today = saoPauloToday();
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(
+        within(rowOf("Ana Souza")).getByRole("button", { name: "Dar baixa" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Dar baixa na parcela",
+      });
+      const posts = () =>
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, options]) =>
+              options?.method === "POST" &&
+              String(url).includes("/finance/receivables/"),
+          );
+      fireEvent.change(within(dialog).getByLabelText("Desconto"), {
+        target: { value: "10,00" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Juros"), {
+        target: { value: "2,50" },
+      });
+      expect(dialog).toHaveTextContent("Valor final");
+      expect(dialog).toHaveTextContent("R$ 242,50");
+      // Recebido acima do valor final: avisa e não envia.
+      fireEvent.change(within(dialog).getByLabelText("Valor recebido"), {
+        target: { value: "300,00" },
+      });
+      fireEvent.submit(dialog.querySelector("form")!);
+      expect(
+        await within(dialog).findByText(
+          "O valor recebido não pode passar do valor final.",
+        ),
+      ).toBeInTheDocument();
+      expect(posts()).toHaveLength(0);
+
+      fireEvent.change(within(dialog).getByLabelText("Valor recebido"), {
+        target: { value: "100,00" },
+      });
+      expect(dialog).toHaveTextContent(
+        "o saldo de R$ 142,50 vira uma nova parcela",
+      );
+      const dueDate = within(dialog).getByLabelText("Vencimento do saldo");
+      expect(dueDate).toHaveValue(shiftDate(today, 10));
+      fireEvent.change(dueDate, { target: { value: shiftDate(today, 40) } });
+      fireEvent.submit(dialog.querySelector("form")!);
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
+        paymentMethod: "pix",
+        discountInCents: 1000,
+        interestInCents: 250,
+        receivedInCents: 10000,
+        balanceDueDate: shiftDate(today, 40),
+      });
+      expect(
+        await screen.findByText(
+          "Pagamento parcial recebido. O saldo de R$ 142,50 virou uma nova parcela.",
+        ),
+      ).toBeInTheDocument();
+    });
+
     it("shows the reload error on the page after a successful settlement", async () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem(

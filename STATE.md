@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U39 — bloco F)
-- **Última concluída:** U38
+- **Tarefa atual:** Rodada 7, Fase 2 (U40 — bloco F)
+- **Última concluída:** U39
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -186,3 +186,4 @@
 - 2026-10-17 U21: o contato do lead grava os dois: `channel` (enum obrigatório; só usado na exibição como reserva) e `contactMethod` (texto do catálogo lead_channel; alimenta "Conversão por forma de contato" e o contact_method do lead, migração 0066). Aba Contatos agora tem um campo único "Canal" = canais padrão (`leadContactChannelLabels`) + itens ativos do catálogo sem repetir rótulo; grava o nome em contactMethod e `channel` = padrão correspondente ou `inferLeadContactChannel(nome)` (palavras-chave; sem correspondência = "note"). Registros antigos exibem contactMethod ou o rótulo do channel. Sem mudança de API/banco.
 - 2026-10-17 Bloco A (U17–U21) concluído.
 - 2026-10-17 U38: "Todas 123 ≠ 11+18+78" eram as canceladas (status open/paid/cancelled; vencida é derivada). Nova aba "Canceladas" (`ReceivableFilter` ganhou "cancelled") e contadores calculados sobre a lista já filtrada pela busca em ReceivablesList.
+- 2026-10-17 U39: migração 0079 (financial_events.discount_in_cents, interest_in_cents, balance_receivable_id; próxima livre: 0080). Contrato: `receivableSettlementSchema` (paymentInput + discountInCents, interestInCents, receivedInCents?, balanceDueDate?), `settlementBreakdown` (final = valor − desconto + juros; erros pt-BR) e tipo `SettlementAdjustments`. `settleReceivable(..., timing, adjustments?)` nos dois repositórios: a parcela passa a valer o recebido (evento adjustment no PG), o evento payment grava o recebido + desconto/juros, e o saldo (final − recebido) vira parcela aberta "<descrição> · saldo" do mesmo plano com installment_number = máx+1 (UNIQUE plan_id+number), copiando competência/categoria/centro; vencimento = balanceDueDate ou o original. Assim caixa do dia/mês/vendas (somam eventos) e DRE (soma parcelas por competência = valor − desconto + juros) batem sem mudar consultas. Estorno: parcela volta a valor + desconto − juros (saldo continua existindo → total aberto = original). Erro 400 INVALID_SETTLEMENT. Web: SettleModal com Desconto, Juros, Valor recebido (MoneyInput), "Valor final" e, se parcial, aviso + "Vencimento do saldo"; envia só os ajustes informados (baixa simples mantém o corpo antigo). Juros entram como receita do serviço no DRE (não há grupo de receita financeira). Teste PG opt-in em postgresql-repository-finance (SQL revisado por leitura; não executado).

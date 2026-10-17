@@ -3,11 +3,12 @@ import {
   assertTabCreditsReversible,
   cancelTabCredits,
 } from "./tab-service-credits.js";
-import type { PaymentTiming } from "@crm/contracts";
+import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
+  settlementBreakdown,
   type AdminUserCommissionInput,
   type CommissionRule,
   type CommissionRuleInput,
@@ -499,6 +500,7 @@ export function createFinanceRepository(
       receivableId: string,
       paymentMethod: PaymentMethod,
       timing?: PaymentTiming,
+      adjustments: SettlementAdjustments = {},
     ) {
       const receivable = repositoryContext.receivables.find(
         (item) => item.clinicId === clinicId && item.id === receivableId,
@@ -511,6 +513,48 @@ export function createFinanceRepository(
           409,
         );
       }
+      const breakdown = settlementBreakdown(
+        receivable.amountInCents,
+        adjustments,
+      );
+      if (breakdown.error)
+        throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
+      // Pagamento parcial: o saldo vira uma nova parcela aberta do mesmo plano.
+      let balanceReceivableId: string | undefined;
+      if (breakdown.balanceInCents > 0) {
+        const {
+          paidAt: _paidAt,
+          paymentMethod: _method,
+          cashAvailableAt: _available,
+          ...base
+        } = receivable;
+        void _paidAt;
+        void _method;
+        void _available;
+        const dueDate = adjustments.balanceDueDate ?? receivable.dueDate;
+        const balance: Receivable = {
+          ...base,
+          id: uuid(),
+          installmentNumber: receivable.planId
+            ? Math.max(
+                ...repositoryContext.receivables
+                  .filter((item) => item.planId === receivable.planId)
+                  .map((item) => item.installmentNumber),
+              ) + 1
+            : receivable.installmentNumber,
+          description: `${receivable.description} · saldo`,
+          dueDate,
+          amountInCents: breakdown.balanceInCents,
+          status: "open",
+          overdue: dueDate < today(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        repositoryContext.receivables.push(balance);
+        balanceReceivableId = balance.id;
+      }
+      // A parcela fica com o valor efetivamente quitado nela (DRE por competência).
+      receivable.amountInCents = breakdown.receivedInCents;
       receivable.status = "paid";
       receivable.paidAt = timing?.paidAt ?? now();
       if (timing?.availableAt) receivable.cashAvailableAt = timing.availableAt;
@@ -527,6 +571,9 @@ export function createFinanceRepository(
           : {}),
         amountInCents: receivable.amountInCents,
         paymentMethod,
+        discountInCents: adjustments.discountInCents ?? 0,
+        interestInCents: adjustments.interestInCents ?? 0,
+        ...(balanceReceivableId ? { balanceReceivableId } : {}),
       });
       return receivable;
     },
@@ -555,6 +602,15 @@ export function createFinanceRepository(
         occurredAt: now(),
         amountInCents: -receivable.amountInCents,
       });
+      // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
+      const payment = repositoryContext.receiptEvents
+        .filter(
+          (item) =>
+            item.receivableId === receivableId && item.kind === "payment",
+        )
+        .at(-1);
+      receivable.amountInCents +=
+        (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
       delete receivable.paidAt;
       delete receivable.paymentMethod;
       receivable.overdue = receivable.dueDate < today();
