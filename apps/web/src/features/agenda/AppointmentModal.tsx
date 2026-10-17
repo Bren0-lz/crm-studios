@@ -14,7 +14,7 @@ export function AppointmentModal({
   return (
     <Modal
       title="Novo atendimento"
-      subtitle="A dura??o e o valor seguem o servi?o selecionado."
+      subtitle="A duração e o valor seguem o serviço selecionado."
       busy={busy}
       inactive={inactive}
       onClose={onClose}
