@@ -34,6 +34,7 @@ export function AppointmentForm({
   onSubmit,
   onPatientCreated,
   onNestedModalChange,
+  initialSlot,
 }: {
   patients: PatientOption[];
   professionals: Professional[];
@@ -48,15 +49,16 @@ export function AppointmentForm({
   ) => Promise<void>;
   onPatientCreated?: (patient: Patient) => void;
   onNestedModalChange?: (open: boolean) => void;
+  initialSlot?: { professionalId: string; startsAt: string } | undefined;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState({
     patientId: fixedPatient?.id ?? "",
     visitType: "" as AppointmentVisitType | "",
-    professionalId: "",
+    professionalId: initialSlot?.professionalId ?? "",
     roomId: "",
     serviceId: "",
-    startsAt: "",
+    startsAt: initialSlot?.startsAt ?? "",
     notes: "",
     recurring: can("agenda.recurring") && !can("agenda.create"),
     occurrences: 4,

@@ -45,10 +45,14 @@ import { useToast } from "../../shared/feedback/toast-context";
 import {
   type AgendaView,
   appointmentStatusToast,
+  type DayLayout,
   storeAgendaView,
+  storeDayLayout,
   storedAgendaView,
+  storedDayLayout,
   weekRangeLabel,
 } from "./model";
+import { DayScheduleGrid } from "./DayScheduleGrid";
 import { sortAgendaEntries } from "./model";
 
 export function AgendaPage() {
@@ -57,6 +61,16 @@ export function AgendaPage() {
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setViewState] = useState<AgendaView>(storedAgendaView);
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>(storedDayLayout);
+  function setDayLayout(next: DayLayout) {
+    setDayLayoutState(next);
+    storeDayLayout(next);
+  }
+  // Horário livre clicado na grade: abre o Novo atendimento já preenchido.
+  const [newSlot, setNewSlot] = useState<{
+    professionalId: string;
+    startsAt: string;
+  } | null>(null);
   function setView(next: AgendaView) {
     setViewState(next);
     storeAgendaView(next);
@@ -249,7 +263,10 @@ export function AgendaPage() {
               {canSchedule && can("agenda.create") && (
                 <button
                   className="primary-button"
-                  onClick={() => setModalOpen(true)}
+                  onClick={() => {
+                    setNewSlot(null);
+                    setModalOpen(true);
+                  }}
                 >
                   <Plus size={18} />
                   Novo atendimento
@@ -336,6 +353,22 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            {view === "day" && (
+              <div className="view-toggle" aria-label="Formato do dia">
+                <button
+                  className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
+                  onClick={() => setDayLayout("grid")}
+                >
+                  Grade
+                </button>
+                <button
+                  className={`tab-button ${dayLayout === "list" ? "active" : ""}`}
+                  onClick={() => setDayLayout("list")}
+                >
+                  Lista
+                </button>
+              </div>
+            )}
             <label className="checkbox-field agenda-cancelled-toggle">
               <input
                 type="checkbox"
@@ -598,6 +631,28 @@ export function AgendaPage() {
               );
             })}
           </div>
+        ) : dayLayout === "grid" && professionals.length > 0 ? (
+          <div className="day-agenda">
+            {selectedHoliday && (
+              <p className="holiday-notice">Feriado: {selectedHoliday}</p>
+            )}
+            <DayScheduleGrid
+              day={selectedDate}
+              professionals={professionals}
+              appointments={visibleAppointments}
+              groupSessions={groupSessions}
+              blocks={blocks}
+              onOpenAppointment={setSelectedAppointmentId}
+              onCreate={
+                canSchedule && can("agenda.create") && !selectedHoliday
+                  ? (professionalId, startsAt) => {
+                      setNewSlot({ professionalId, startsAt });
+                      setModalOpen(true);
+                    }
+                  : undefined
+              }
+            />
+          </div>
         ) : visibleAppointments.length === 0 &&
           blocks.length === 0 &&
           groupSessions.length === 0 ? (
@@ -675,6 +730,7 @@ export function AgendaPage() {
               patient,
             ]);
           }}
+          initialSlot={newSlot ?? undefined}
           onClose={() => setModalOpen(false)}
           onCreated={(appointment) => {
             toast.success(

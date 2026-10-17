@@ -1150,3 +1150,93 @@ button.day-event:focus-visible {
   background: #f1f1ef;
   font-size: var(--text-sm);
 }
+
+/* Visão Dia em grade: linhas de 30 min × uma coluna por profissional. */
+.day-grid-scroll {
+  overflow-x: auto;
+}
+.day-grid {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-sm);
+}
+.day-grid th,
+.day-grid td {
+  border: 1px solid #ece9e2;
+  vertical-align: top;
+}
+.day-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2);
+  background: #faf9f5;
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.day-grid .day-grid-time {
+  width: calc(var(--space-8) - var(--space-2));
+  padding: 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: right;
+}
+.day-grid tr.half-hour td,
+.day-grid tr.half-hour th {
+  border-top-style: dashed;
+}
+.day-grid-free {
+  height: calc(var(--space-6) + var(--space-1));
+}
+.day-grid-add {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: calc(var(--space-6) + var(--space-1));
+  color: transparent;
+}
+.day-grid-free:hover .day-grid-add,
+.day-grid-add:focus-visible {
+  background: var(--mint);
+  color: var(--green);
+}
+.day-grid-busy {
+  padding: var(--space-1);
+}
+.day-grid-event {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #edf7f2;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  text-align: left;
+}
+.day-grid-event + .day-grid-event {
+  margin-top: var(--space-1);
+}
+.day-grid-event strong {
+  font-size: var(--text-sm);
+}
+.day-grid-event .status-pill {
+  justify-self: start;
+}
+.day-grid-group {
+  background: #eef1fb;
+}
+.day-grid-block {
+  background: #f1f1ef;
+  color: var(--muted);
+}
+.day-grid-empty {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

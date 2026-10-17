@@ -89,3 +89,26 @@ export function weekRangeLabel(start: Date, end: Date) {
     return `${start.getDate()} de ${month(start, "short")} – ${end.getDate()} de ${month(end, "short")}`;
   return `${start.getDate()} – ${end.getDate()} de ${month(start, "long")}`;
 }
+
+export type DayLayout = "grid" | "list";
+
+const dayLayoutStorageKey = "crm.agenda.dayLayout";
+
+/** Formato da visão Dia neste navegador: grade por profissional (padrão) ou lista. */
+export function storedDayLayout(): DayLayout {
+  try {
+    return localStorage.getItem(dayLayoutStorageKey) === "list"
+      ? "list"
+      : "grid";
+  } catch {
+    return "grid";
+  }
+}
+
+export function storeDayLayout(layout: DayLayout) {
+  try {
+    localStorage.setItem(dayLayoutStorageKey, layout);
+  } catch {
+    // Sem armazenamento: o formato só não é lembrado.
+  }
+}
