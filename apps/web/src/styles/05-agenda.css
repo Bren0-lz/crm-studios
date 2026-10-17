@@ -1101,3 +1101,23 @@ button.day-event:focus-visible {
   color: #7f5144;
   font-size: var(--text-sm);
 }
+
+/* Atendimento cancelado: horário livre, mostrado só com "Mostrar cancelados". */
+.agenda-card.is-cancelled,
+.week-appointment.is-cancelled,
+.month-event.is-cancelled,
+.day-event.is-cancelled {
+  background: #f1f1ef;
+  color: #8a8a85;
+  opacity: 0.75;
+}
+.agenda-card.is-cancelled strong,
+.week-appointment.is-cancelled strong,
+.month-event.is-cancelled .month-event-name,
+.day-event.is-cancelled strong {
+  text-decoration: line-through;
+}
+.agenda-cancelled-toggle {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}

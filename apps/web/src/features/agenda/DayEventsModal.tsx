@@ -58,7 +58,9 @@ export function DayEventsModal({
               appointment: undefined,
             },
   );
-  const count = events.length;
+  const count = events.filter(
+    (event) => event.appointment?.status !== "cancelled",
+  ).length;
   return (
     <Modal
       eyebrow="Agenda do dia"
@@ -109,7 +111,7 @@ export function DayEventsModal({
                   {event.kind === "appointment" ? (
                     <button
                       type="button"
-                      className="day-event appointment"
+                      className={`day-event appointment ${event.appointment?.status === "cancelled" ? "is-cancelled" : ""}`}
                       onClick={() => onOpenAppointment(event.id)}
                       aria-label={`Detalhes de ${event.title}`}
                     >

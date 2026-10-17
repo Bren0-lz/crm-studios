@@ -1193,7 +1193,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 |----|------|--------|
 | C1 | Turmas: 500 em GET /groups/workspace (SQL com `gs` fora do FROM); selects de "Nova turma" independentes do workspace | DONE |
 | C2 | Detalhes do atendimento: confirmar presença, realizado, falta | DONE |
-| C3 | Cancelado fora das contagens e com estilo distinto na agenda | TODO |
+| C3 | Cancelado fora das contagens e com estilo distinto na agenda | DONE |
 | C4 | 500 em /reports/clients/details (mesma causa do C1) | DONE |
 | C5 | Sino de notificações e menu do usuário | TODO |
 | C6 | Datas/horas locais nos campos (medição, comanda) | DONE |

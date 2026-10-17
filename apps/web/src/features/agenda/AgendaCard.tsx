@@ -19,7 +19,7 @@ export function AgendaCard({
   const { can } = useAuthorization();
   return (
     <article
-      className="agenda-card"
+      className={`agenda-card ${appointment.status === "cancelled" ? "is-cancelled" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`Detalhes de ${appointment.patientName}`}

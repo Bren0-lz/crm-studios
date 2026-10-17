@@ -79,6 +79,11 @@ export function AgendaPage() {
     string | null
   >(null);
   const [eventsDay, setEventsDay] = useState<Date | null>(null);
+  // Cancelados não ocupam horário: ficam fora das contagens e, por padrão, da agenda.
+  const [showCancelled, setShowCancelled] = useState(false);
+  const visibleAppointments = showCancelled
+    ? appointments
+    : appointments.filter((item) => item.status !== "cancelled");
   const selectedAppointment = appointments.find(
     (item) => item.id === selectedAppointmentId,
   );
@@ -316,6 +321,14 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            <label className="checkbox-field agenda-cancelled-toggle">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(event) => setShowCancelled(event.target.checked)}
+              />
+              Mostrar cancelados
+            </label>
             <div className="legend">
               {professionals.map((professional) => (
                 <span key={professional.id}>
@@ -338,9 +351,12 @@ export function AgendaPage() {
             <div className="month-grid">
               {monthDays.map((day) => {
                 const dayKey = localIsoDate(day);
-                const dayAppointments = appointments.filter(
+                const dayAppointments = visibleAppointments.filter(
                   (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
                 );
+                const activeCount = dayAppointments.filter(
+                  (item) => item.status !== "cancelled",
+                ).length;
                 const dayBlocks = blocks.filter(
                   (item) =>
                     localIsoDate(new Date(item.startsAt)) === dayKey &&
@@ -368,15 +384,13 @@ export function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => setEventsDay(day)}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
                     >
                       <strong>{day.getDate()}</strong>
-                      {dayAppointments.length > 0 && (
+                      {activeCount > 0 && (
                         <small>
-                          {dayAppointments.length}{" "}
-                          {dayAppointments.length === 1
-                            ? "atendimento"
-                            : "atendimentos"}
+                          {activeCount}{" "}
+                          {activeCount === 1 ? "atendimento" : "atendimentos"}
                         </small>
                       )}
                     </button>
@@ -393,7 +407,7 @@ export function AgendaPage() {
                         entry.kind === "appointment" ? (
                           <button
                             type="button"
-                            className="month-event"
+                            className={`month-event ${entry.appointment.status === "cancelled" ? "is-cancelled" : ""}`}
                             key={entry.appointment.id}
                             onClick={() =>
                               setSelectedAppointmentId(entry.appointment.id)
@@ -471,7 +485,7 @@ export function AgendaPage() {
           <div className="week-agenda">
             {weekDays.map((day) => {
               const dayKey = localIsoDate(day);
-              const dayAppointments = appointments.filter(
+              const dayAppointments = visibleAppointments.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               const dayBlocks = blocks.filter(
@@ -519,7 +533,7 @@ export function AgendaPage() {
                         />
                       ) : (
                         <article
-                          className="week-appointment"
+                          className={`week-appointment ${entry.appointment.status === "cancelled" ? "is-cancelled" : ""}`}
                           key={entry.appointment.id}
                           role="button"
                           tabIndex={0}
@@ -569,7 +583,7 @@ export function AgendaPage() {
               );
             })}
           </div>
-        ) : appointments.length === 0 &&
+        ) : visibleAppointments.length === 0 &&
           blocks.length === 0 &&
           groupSessions.length === 0 ? (
           selectedHoliday ? (
@@ -591,39 +605,40 @@ export function AgendaPage() {
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
-            {sortAgendaEntries({ appointments, groupSessions, blocks }).map(
-              (entry) =>
-                entry.kind === "block" ? (
-                  <ScheduleBlockCard
-                    block={entry.block}
-                    key={entry.block.id}
-                    onCancel={
-                      can("agenda.blocks_cancel")
-                        ? () => setCancellingBlock(entry.block)
-                        : undefined
-                    }
-                  />
-                ) : entry.kind === "group" ? (
-                  <GroupSessionCard
-                    session={entry.session}
-                    key={entry.session.id}
-                  />
-                ) : (
-                  <AgendaCard
-                    appointment={entry.appointment}
-                    key={entry.appointment.id}
-                    onOpen={() =>
-                      setSelectedAppointmentId(entry.appointment.id)
-                    }
-                    onHistory={() => setHistoryAppointment(entry.appointment)}
-                    onStatus={
-                      can("agenda.attendance") || can("agenda.cancel")
-                        ? (status) =>
-                            changeAppointmentStatus(entry.appointment, status)
-                        : undefined
-                    }
-                  />
-                ),
+            {sortAgendaEntries({
+              appointments: visibleAppointments,
+              groupSessions,
+              blocks,
+            }).map((entry) =>
+              entry.kind === "block" ? (
+                <ScheduleBlockCard
+                  block={entry.block}
+                  key={entry.block.id}
+                  onCancel={
+                    can("agenda.blocks_cancel")
+                      ? () => setCancellingBlock(entry.block)
+                      : undefined
+                  }
+                />
+              ) : entry.kind === "group" ? (
+                <GroupSessionCard
+                  session={entry.session}
+                  key={entry.session.id}
+                />
+              ) : (
+                <AgendaCard
+                  appointment={entry.appointment}
+                  key={entry.appointment.id}
+                  onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
+                  onHistory={() => setHistoryAppointment(entry.appointment)}
+                  onStatus={
+                    can("agenda.attendance") || can("agenda.cancel")
+                      ? (status) =>
+                          changeAppointmentStatus(entry.appointment, status)
+                      : undefined
+                  }
+                />
+              ),
             )}
           </div>
         )}
@@ -742,7 +757,7 @@ export function AgendaPage() {
         <DayEventsModal
           day={eventsDay}
           holidayName={holidayNames.get(localIsoDate(eventsDay))}
-          appointments={appointments.filter(
+          appointments={visibleAppointments.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
