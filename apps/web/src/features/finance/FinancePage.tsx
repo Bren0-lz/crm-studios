@@ -25,7 +25,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
-import { currency } from "../../shared/lib/formatting";
+import { currency, localIsoDate } from "../../shared/lib/formatting";
 import {
   type CommissionRuleDraft,
   CommissionRuleModal,
@@ -206,7 +206,7 @@ export function FinancePage() {
   async function generateCommissions() {
     setError("");
     try {
-      await api.generateCommissions(new Date().toISOString().slice(0, 7));
+      await api.generateCommissions(localIsoDate().slice(0, 7));
       await reload();
     } catch (cause) {
       setError((cause as Error).message);

@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
+import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function ClinicalMeasurementModal({
   patientId,
@@ -98,13 +99,14 @@ export function ClinicalMeasurementModal({
               <input
                 required
                 type="datetime-local"
-                value={form.measuredAt.slice(0, 16)}
-                onChange={(e) =>
+                value={toLocalDateTimeInput(new Date(form.measuredAt))}
+                onChange={(e) => {
+                  if (!e.target.value) return;
                   setForm({
                     ...form,
                     measuredAt: new Date(e.target.value).toISOString(),
-                  })
-                }
+                  });
+                }}
               />
             </label>
           </div>

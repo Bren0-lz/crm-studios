@@ -13,7 +13,7 @@ import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { CurrencyField } from "../../shared/components/CurrencyField";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import { currency, localIsoDate, shortDate } from "../../shared/lib/formatting";
 import { AppointmentForm } from "../agenda/index";
 
 export function PatientTabModal({
@@ -41,8 +41,8 @@ export function PatientTabModal({
     [options, setOptions] = useState<TabAppointmentOption[]>([]),
     [appointmentId, setAppointmentId] = useState("");
   const [dates, setDates] = useState(() => ({
-    from: new Date().toISOString().slice(0, 10),
-    to: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+    from: localIsoDate(),
+    to: localIsoDate(new Date(Date.now() + 90 * 86400000)),
   }));
   const [references, setReferences] = useState<{
     professionals: Professional[];
@@ -51,7 +51,7 @@ export function PatientTabModal({
   } | null>(null);
   const [closeInput, setCloseInput] = useState<PatientTabCloseInput>({
     settlement: "receivable",
-    dueDate: new Date().toISOString().slice(0, 10),
+    dueDate: localIsoDate(),
     paymentMethod: "pix",
   });
   const editable = tab.status === "open" && can("patients.tabs_items");
