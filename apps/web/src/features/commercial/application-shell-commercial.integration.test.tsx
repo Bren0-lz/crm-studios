@@ -147,7 +147,7 @@ describe("application shell", () => {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), {
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
       target: { value: "09:00" },
     });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");

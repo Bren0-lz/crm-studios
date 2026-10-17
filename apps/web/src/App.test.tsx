@@ -1422,7 +1422,7 @@ describe("application shell", () => {
     fireEvent.click(within(reschedule).getByRole("button", { name: "Data" }));
     expect(await within(reschedule).findByText("Nenhum compromisso registrado.")).toBeInTheDocument();
     expect(reschedule.querySelector('[data-date][aria-pressed="true"]')).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
-    fireEvent.change(within(reschedule).getByLabelText("Horário do atendimento"), { target: { value: "11:00" } });
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), { target: { value: "11:00" } });
     expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
     fireEvent.click(within(reschedule).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar reagendamento" }));
@@ -3003,7 +3003,7 @@ describe("application shell", () => {
     fillAppointmentForm(dialog, "Helena Almeida");
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][aria-pressed="true"]')!.dataset.date!;
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "14:30" } });
+    fireEvent.change(within(dialog).getByLabelText("Horário"), { target: { value: "14:30" } });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmar atendimento" }));
@@ -3050,7 +3050,7 @@ describe("application shell", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!.dataset.date!;
     fireEvent.click(dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!);
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), { target: { value: "09:00" } });
+    fireEvent.change(within(dialog).getByLabelText("Horário"), { target: { value: "09:00" } });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar calendário" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar agendamento" }));

@@ -344,18 +344,13 @@
   min-height: 43px;
 }
 /* Preserve usable width when occupied days introduce vertical scrolling. */
+/* Dentro do modal, logo abaixo dos campos: não sai do modal nem cobre o cabeçalho. */
 .appointment-calendar {
-  position: fixed;
-  inset: auto;
-  z-index: 110;
-  width: min(340px, calc(100vw - 24px));
+  position: static;
+  width: min(100%, 360px);
   min-width: 0;
-  max-height: calc(100dvh - 24px);
-  margin: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  overscroll-behavior: contain;
-  padding: 18px;
+  margin: var(--space-2) 0 0;
+  padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
   border-radius: 16px;
   background: #fffefa;
@@ -363,10 +358,6 @@
   box-shadow:
     0 16px 48px rgba(26, 45, 36, 0.14),
     0 2px 8px rgba(26, 45, 36, 0.05);
-}
-.appointment-calendar::backdrop {
-  background: transparent;
-  pointer-events: none;
 }
 .appointment-calendar-head {
   display: flex;

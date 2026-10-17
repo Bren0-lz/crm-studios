@@ -168,54 +168,10 @@ export function AppointmentDateTimePicker({
     };
   }, [expanded, from, to, holidayFrom, holidayTo, requestKey]);
 
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    const trigger = triggerRef.current;
-    if (!expanded || !panel || !trigger) return;
-
-    // The native top layer escapes the modal's scrolling area without moving the
-    // panel out of its DOM subtree (and therefore out of the modal's focus trap).
-    panel.showPopover?.();
-
-    function positionPanel() {
-      if (!panel || !trigger) return;
-      const viewport = window.visualViewport;
-      const viewportLeft = viewport?.offsetLeft ?? 0;
-      const viewportTop = viewport?.offsetTop ?? 0;
-      const viewportWidth =
-        viewport?.width ??
-        (document.documentElement.clientWidth || window.innerWidth);
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const margin = 12;
-      const gap = 8;
-      const width = Math.max(0, Math.min(340, viewportWidth - margin * 2));
-      const maxHeight = Math.max(0, viewportHeight - margin * 2);
-      panel.style.width = `${width}px`;
-      panel.style.maxHeight = `${maxHeight}px`;
-
-      const anchor = trigger.getBoundingClientRect();
-      const height = panel.getBoundingClientRect().height;
-      const below = viewportTop + viewportHeight - margin - anchor.bottom - gap;
-      const above = anchor.top - gap - viewportTop - margin;
-      const placeAbove = height > below && above > below;
-      const available = Math.max(
-        0,
-        Math.min(maxHeight, placeAbove ? above : below),
-      );
-      panel.style.maxHeight = `${available}px`;
-      const panelHeight = Math.min(height, available);
-      const top = placeAbove
-        ? anchor.top - gap - panelHeight
-        : anchor.bottom + gap;
-      panel.style.left = `${Math.max(viewportLeft + margin, Math.min(anchor.left, viewportLeft + viewportWidth - margin - width))}px`;
-      panel.style.top = `${Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - margin - panelHeight))}px`;
-    }
-
-    function onScroll(event: Event) {
-      if (event.target instanceof Node && panel?.contains(event.target)) return;
-      positionPanel();
-    }
-
+  // O calendário abre dentro do modal (logo abaixo dos campos): rola com o formulário e
+  // não cobre o cabeçalho. Clique fora do seletor fecha.
+  useEffect(() => {
+    if (!expanded) return;
     function onPointerDown(event: PointerEvent) {
       if (
         event.target instanceof Node &&
@@ -223,28 +179,9 @@ export function AppointmentDateTimePicker({
       )
         setOpen(false);
     }
-
-    positionPanel();
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(positionPanel);
-    observer?.observe(panel);
-    observer?.observe(trigger);
-    window.addEventListener("resize", positionPanel);
-    document.addEventListener("scroll", onScroll, true);
     document.addEventListener("pointerdown", onPointerDown, true);
-    window.visualViewport?.addEventListener("resize", positionPanel);
-    window.visualViewport?.addEventListener("scroll", positionPanel);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", positionPanel);
-      document.removeEventListener("scroll", onScroll, true);
+    return () =>
       document.removeEventListener("pointerdown", onPointerDown, true);
-      window.visualViewport?.removeEventListener("resize", positionPanel);
-      window.visualViewport?.removeEventListener("scroll", positionPanel);
-      if (panel.isConnected) panel.hidePopover?.();
-    };
   }, [expanded]);
 
   useLayoutEffect(() => {
@@ -437,9 +374,6 @@ export function AppointmentDateTimePicker({
             required
             disabled={disabled}
             value={time}
-            onFocus={() => {
-              if (!expanded && !disabled) showCalendar(false);
-            }}
             onChange={(event) => onChange(`${date}T${event.target.value}`)}
           />
         </label>
@@ -448,7 +382,6 @@ export function AppointmentDateTimePicker({
         <div
           ref={panelRef}
           id={`${id}-panel`}
-          popover="manual"
           className="appointment-calendar"
           role="region"
           aria-label="Calendário de agendamento"
@@ -570,16 +503,6 @@ export function AppointmentDateTimePicker({
                 ? "Do profissional ou da sala selecionados"
                 : "Resumo geral da agenda"}
             </small>
-            <label className="appointment-calendar-time-field">
-              <span>Horário do atendimento</span>
-              <input
-                type="time"
-                required
-                disabled={disabled}
-                value={time}
-                onChange={(event) => onChange(`${date}T${event.target.value}`)}
-              />
-            </label>
             {error ? (
               <div role="alert">
                 <p>{error}</p>

@@ -291,7 +291,7 @@ describe("application shell", () => {
       reschedule.querySelector('[data-date][aria-pressed="true"]'),
     ).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
     fireEvent.change(
-      within(reschedule).getByLabelText("Horário do atendimento"),
+      within(reschedule).getByLabelText("Horário"),
       { target: { value: "11:00" } },
     );
     expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
@@ -953,7 +953,7 @@ describe("application shell", () => {
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][aria-pressed="true"]',
     )!.dataset.date!;
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), {
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
       target: { value: "14:30" },
     });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
