@@ -19,6 +19,7 @@ import {
   currency,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
+import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
 
 export function AppointmentForm({
@@ -150,6 +151,13 @@ export function AppointmentForm({
                 />
               </div>
             )}
+            <AppointmentPatientWarnings
+              patient={
+                fixedPatient ??
+                patientChoices.find((item) => item.id === form.patientId)
+              }
+              checkPlan={form.visitType === "regular"}
+            />
             <label>
               Tipo
               <select

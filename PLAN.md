@@ -1223,7 +1223,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U6 | Lembrar visão da agenda | DONE |
 | U7 | Título da semana com intervalo | DONE |
 | U8 | Seletor de data contido no modal, sem horário duplicado | DONE |
-| U9 | Aviso ao agendar cliente com pendência/sem plano | TODO |
+| U9 | Aviso ao agendar cliente com pendência/sem plano | DONE |
 | U10 | Serviços filtrados por profissional/sala | TODO |
 | U11 | Motivo no cancelamento e aviso por WhatsApp | TODO |
 | U12 | Busca de clientes sem acento e com debounce | TODO |
@@ -1261,3 +1261,9 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U44 | Aba própria para serviços, salas e profissionais | TODO |
 | U45 | Validar CNPJ/CPF da clínica | TODO |
 | U46 | "Ver todos" em sem retorno | TODO |
+- **U29:** ao reativar um plano pausado, a validade avança os dias em pausa; motivo e previsão
+  de retorno gravados (migração 0077).
+- **U10:** serviço ganha vínculo opcional com profissionais e salas (vazio = todos); o
+  agendamento filtra por isso (migração nova).
+- **U39:** baixa com desconto e/ou juros (valor final registrado); pagamento parcial gera
+  nova parcela com o saldo restante.
