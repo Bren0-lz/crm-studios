@@ -84,6 +84,66 @@ describe("application shell", () => {
     ).toBe(false);
   });
 
+  it("opens the full list of clients without return from the dashboard link", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const month = new Date().toLocaleDateString("sv-SE").slice(0, 7);
+    const withoutReturn = Array.from({ length: 15 }, (_, index) => ({
+      patientId: `patient-${index}`,
+      patientName: `Cliente Sem Retorno ${index + 1}`,
+      lastCompletedAt: "2026-08-20T15:00:00Z",
+    }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (!String(input).includes("/reports/sales?")) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ message: "Dados indisponíveis" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          current: {
+            from: `${month}-01`,
+            to: `${month}-15`,
+            netSalesInCents: 0,
+            grossSalesInCents: 0,
+            cancelledSalesInCents: 0,
+            receivedInCents: 0,
+            attendedPatients: 0,
+          },
+          previousComparable: { from: "2026-08-01", to: "2026-08-15" },
+          changePercent: null,
+          sales: [],
+          patientsWithoutReturn: withoutReturn,
+        }),
+      } as Response;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/relatorios?secao=sem-retorno"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Vendido no mês")).toBeInTheDocument();
+    const details = screen.getByText("Ver vendas e clientes do mês")
+      .parentElement as HTMLDetailsElement;
+    expect(details.open).toBe(true);
+    expect(screen.getAllByText(/^Cliente Sem Retorno [0-9]+$/)).toHaveLength(
+      15,
+    );
+  });
+
   it("shows the DRE period in Brazilian date format", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

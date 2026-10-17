@@ -358,6 +358,15 @@ export function DashboardPage() {
                     <span className="eyebrow">Acompanhamento</span>
                     <h2>Clientes sem retorno</h2>
                   </div>
+                  {sales.patientsWithoutReturn.length > 0 && (
+                    <NavLink
+                      to="/relatorios?secao=sem-retorno"
+                      className="text-link"
+                    >
+                      Ver todos ({sales.patientsWithoutReturn.length}){" "}
+                      <ChevronRight size={16} />
+                    </NavLink>
+                  )}
                 </div>
                 <div className="attention-list">
                   {sales.patientsWithoutReturn.length === 0 ? (

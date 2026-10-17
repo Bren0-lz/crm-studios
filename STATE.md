@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U46 — bloco G)
-- **Última concluída:** U45
+- **Tarefa atual:** Rodada 7, Fase 2 (U27 — bloco C)
+- **Última concluída:** U46 (bloco G concluído)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -161,3 +161,5 @@
 - 2026-10-17 U43: `formatIsoDate` já gera DD/MM/AAAA. Só a legenda do DRE e a vigência do treino (ClinicalResourcesPanel) mostravam ISO cru; cabeçalhos de mês do DRE já eram MM/AAAA. Teste: detalhes do DRE abertos com `details.open = true` + `fireEvent(details, new Event("toggle"))`.
 - 2026-10-17 U44: aba `registry` ("Serviços e salas", título "Serviços, salas e profissionais") depois de Cadastros; `AdministrativeRegistrySection` sem acordeão, carrega ao abrir a aba. `settingsTabFromSection` (settings/model.ts) mapeia `?secao=` etiquetas/cadastros/servicos/salas/profissionais. Listas de abas nos testes de settings atualizadas.
 - 2026-10-17 U45: contracts/common ganhou `cnpjDigits`, `isValidCnpj`, `isValidTaxId` (11 = CPF, 14 = CNPJ) e `formatTaxId` (máscara parcial). `clinicSettingsInputSchema.taxId` recusa dígito verificador errado e grava formatado; a rota devolve 400 INVALID_TAX_ID com mensagem pt-BR (o handler genérico de zod só diz "Revise os dados informados."). `ClinicSettings.taxId` é opcional — usar `?? ""`. Fixtures com 12.345.678/0001-90 (inválido) trocadas por 11.222.333/0001-81 (inclui e2e/settings.spec.ts). Sem mudança de storage: o teste PG de paridade só teve a fixture trocada.
+- 2026-10-17 U46: decisão do dono — "Sem retorno" (atendido no mês anterior, sem atendimento concluído neste mês) não equivale a nenhum motivo de Contatos sugeridos, então "Ver todos (N)" do painel leva a `/relatorios?secao=sem-retorno`: SalesInsights abre "Ver vendas e clientes do mês" e rola até `#sales-no-return`; a lista de sem retorno não corta mais em 12. Gate oscilou 1× (teste SOAP do prontuário, passa isolado; 2ª execução completa exit 0).
+- 2026-10-17 Bloco G (U42–U46) concluído.

@@ -63,6 +63,10 @@ describe("application shell", () => {
       screen.getByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver todos (1)" })).toHaveAttribute(
+      "href",
+      "/relatorios?secao=sem-retorno",
+    );
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
       screen.getByText("Studios Aryana", { selector: ".clinic-label" }),
