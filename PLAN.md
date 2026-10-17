@@ -1255,7 +1255,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U38 | Contadores das abas do financeiro | DONE |
 | U39 | Baixa parcial, desconto e juros | DONE |
 | U40 | Recibo completo e WhatsApp | DONE |
-| U41 | Ajuda em termos técnicos | TODO |
+| U41 | Ajuda em termos técnicos | DONE |
 | U42 | Variação percentual com seta e cor | DONE |
 | U43 | Datas brasileiras no DRE | DONE |
 | U44 | Aba própria para serviços, salas e profissionais | DONE |

@@ -1044,6 +1044,11 @@ describe("application shell", () => {
       expect(dialog).toHaveTextContent(
         "o saldo de R$ 142,50 vira uma nova parcela",
       );
+      expect(
+        within(dialog).getByRole("button", {
+          name: "Ajuda: Disponibilidade no caixa",
+        }),
+      ).toBeInTheDocument();
       const dueDate = within(dialog).getByLabelText("Vencimento do saldo");
       expect(dueDate).toHaveValue(shiftDate(today, 10));
       fireEvent.change(dueDate, { target: { value: shiftDate(today, 40) } });
@@ -1802,9 +1807,22 @@ describe("application shell", () => {
       fireEvent.click(
         within(section).getByRole("button", { name: "Nova despesa" }),
       );
-      expect(
-        await screen.findByRole("dialog", { name: "Nova conta a pagar" }),
-      ).toBeInTheDocument();
+      const dialog = await screen.findByRole("dialog", {
+        name: "Nova conta a pagar",
+      });
+      // Ajuda acessível nos termos técnicos (U41), sem tirar o rótulo do campo.
+      for (const term of ["Lançamento", "Competência", "Centro de custo"])
+        expect(
+          within(dialog).getByRole("button", { name: `Ajuda: ${term}` }),
+        ).toHaveAttribute("tabindex", "0");
+      expect(within(dialog).getByLabelText(/^Lançamento/)).toHaveAttribute(
+        "type",
+        "date",
+      );
+      expect(within(dialog).getByLabelText(/^Competência/)).toHaveAttribute(
+        "type",
+        "month",
+      );
     });
 
     it("shows commissions with full labels, signed values aligned right and clear actions", async () => {

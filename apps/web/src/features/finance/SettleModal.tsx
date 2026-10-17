@@ -8,8 +8,9 @@ import { useState, type FormEvent } from "react";
 import { Modal } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { currency } from "../../shared/lib/formatting";
-import { paymentMethodOptions } from "./model";
+import { paymentMethodOptions, financeTermHelp } from "./model";
 import type { SettleTarget } from "./types";
+import { HelpTip } from "../../shared/components/HelpTip";
 
 export function SettleModal({
   target,
@@ -168,7 +169,13 @@ export function SettleModal({
               />
             </label>
             <label>
-              Disponibilidade no caixa
+              <span className="label-with-help">
+                Disponibilidade no caixa
+                <HelpTip
+                  term="Disponibilidade no caixa"
+                  text={financeTermHelp.cashAvailable}
+                />
+              </span>
               <input
                 type="datetime-local"
                 value={availableAt}

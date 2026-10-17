@@ -10,6 +10,8 @@ import { Modal } from "../../shared/components/Modal";
 import { localIsoDate } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { InlineClassificationCreate } from "./InlineClassificationCreate";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 
 export function PayableModal({
   workspace,
@@ -166,7 +168,10 @@ export function PayableModal({
             />
           </label>
           <label>
-            Lançamento
+            <span className="label-with-help">
+              Lançamento
+              <HelpTip term="Lançamento" text={financeTermHelp.posted} />
+            </span>
             <input
               type="date"
               value={form.postedOn ?? localIsoDate()}
@@ -176,7 +181,10 @@ export function PayableModal({
             />
           </label>
           <label>
-            Competência
+            <span className="label-with-help">
+              Competência
+              <HelpTip term="Competência" text={financeTermHelp.competence} />
+            </span>
             <input
               type="month"
               value={form.dreCompetence ?? localIsoDate().slice(0, 7)}
@@ -237,7 +245,13 @@ export function PayableModal({
           </div>
           <div className="field-with-hint">
             <label>
-              Centro de custo (opcional)
+              <span className="label-with-help">
+                Centro de custo (opcional)
+                <HelpTip
+                  term="Centro de custo"
+                  text={financeTermHelp.costCenter}
+                />
+              </span>
               <select
                 value={form.costCenterId ?? ""}
                 onChange={(event) =>

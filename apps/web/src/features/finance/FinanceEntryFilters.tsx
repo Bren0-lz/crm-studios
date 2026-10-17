@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import type { Supplier } from "@crm/contracts";
-import { dailyCashMethodLabels } from "./model";
+import { dailyCashMethodLabels, financeTermHelp } from "./model";
+import { HelpTip } from "../../shared/components/HelpTip";
 export function FinanceEntryFilters({
   value,
   onChange,
@@ -91,7 +92,10 @@ export function FinanceEntryFilters({
             />
           </label>
           <label>
-            Competência
+            <span className="label-with-help">
+              Competência
+              <HelpTip term="Competência" text={financeTermHelp.competence} />
+            </span>
             <input
               type="month"
               value={value.competence ?? ""}
@@ -141,7 +145,13 @@ export function FinanceEntryFilters({
             </select>
           </label>
           <label>
-            Centro de custo do lançamento
+            <span className="label-with-help">
+              Centro de custo do lançamento
+              <HelpTip
+                term="Centro de custo"
+                text={financeTermHelp.costCenter}
+              />
+            </span>
             <select
               value={value.costCenterId ?? ""}
               onChange={(event) =>

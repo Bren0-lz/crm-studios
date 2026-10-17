@@ -7,6 +7,8 @@ import {
   localIsoDate,
   toLocalDateTimeInput,
 } from "../../shared/lib/formatting";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 export function FinancialDatesModal({
   kind,
   entry,
@@ -70,7 +72,10 @@ export function FinancialDatesModal({
         {error && <ErrorBanner error={error} />}
         <fieldset disabled={busy} className="form-fields form-grid">
           <label>
-            Lançamento
+            <span className="label-with-help">
+              Lançamento
+              <HelpTip term="Lançamento" text={financeTermHelp.posted} />
+            </span>
             <input
               required
               type="date"
@@ -98,7 +103,13 @@ export function FinancialDatesModal({
             </label>
           )}
           <label>
-            Disponibilidade no caixa
+            <span className="label-with-help">
+              Disponibilidade no caixa
+              <HelpTip
+                term="Disponibilidade no caixa"
+                text={financeTermHelp.cashAvailable}
+              />
+            </span>
             <input
               type="datetime-local"
               value={availableAt}

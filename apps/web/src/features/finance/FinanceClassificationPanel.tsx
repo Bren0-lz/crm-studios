@@ -19,6 +19,8 @@ import { PatientPicker } from "../../PatientPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 
 import { dreGroupLabels } from "./dre-labels";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 export function FinanceClassificationPanel({
   workspace,
   onChanged,
@@ -297,7 +299,13 @@ export function FinanceClassificationPanel({
                       </>
                     )}
                     <label>
-                      Competência
+                      <span className="label-with-help">
+                        Competência
+                        <HelpTip
+                          term="Competência"
+                          text={financeTermHelp.competence}
+                        />
+                      </span>
                       <input
                         type="month"
                         required
@@ -355,7 +363,13 @@ export function FinanceClassificationPanel({
                       </select>
                     </label>
                     <label>
-                      Centro de custo
+                      <span className="label-with-help">
+                        Centro de custo
+                        <HelpTip
+                          term="Centro de custo"
+                          text={financeTermHelp.costCenter}
+                        />
+                      </span>
                       <select
                         required={kind === "payable"}
                         value={
