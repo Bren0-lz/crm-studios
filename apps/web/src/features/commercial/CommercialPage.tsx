@@ -103,7 +103,7 @@ export function CommercialPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Relacionamento"
+        eyebrow="Vendas"
         title="CRM comercial"
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={

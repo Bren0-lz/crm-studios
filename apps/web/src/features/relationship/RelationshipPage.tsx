@@ -102,7 +102,7 @@ export function RelationshipPage() {
         }))}
       />
       <PageHeader
-        eyebrow="Central de relacionamento"
+        eyebrow="Acompanhamento de clientes"
         title="Contatos sugeridos"
         description="Clientes que merecem um contato agora, com a mensagem pronta para o WhatsApp."
       />

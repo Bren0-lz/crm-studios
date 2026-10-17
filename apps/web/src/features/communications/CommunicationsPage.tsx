@@ -152,7 +152,7 @@ export function CommunicationsPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Relacionamento operacional"
+        eyebrow="Mensagens da equipe"
         title="Central de comunicações"
         description="Prepare lembretes e mensagens sem misturar conteúdo clínico."
       />

@@ -86,7 +86,7 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Relacionamento",
+      "Contatos sugeridos",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
       "aria-selected",
@@ -131,8 +131,8 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(screen.getByRole("tab", { name: "Relacionamento" })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Relacionamento" }), {
+    expect(screen.getByRole("tab", { name: "Contatos sugeridos" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), {
       key: "Home",
     });
     expect(clinicTab).toHaveFocus();
@@ -327,7 +327,7 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Relacionamento",
+      "Contatos sugeridos",
     ]);
     expect(fetched("/relationship/settings")).toBe(false);
     await openSettingsSection("Prazos e mensagens");
@@ -705,7 +705,7 @@ describe("settings tabs", () => {
           <App />
         </MemoryRouter>,
       );
-      const toggle = await screen.findByRole("tab", { name: "Relacionamento" });
+      const toggle = await screen.findByRole("tab", { name: "Contatos sugeridos" });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText(
         "Saldo baixo: sessões restantes",

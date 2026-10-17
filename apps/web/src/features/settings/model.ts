@@ -160,7 +160,7 @@ export const settingsTabs: Array<{
   },
   {
     key: "relationship",
-    label: "Relacionamento",
+    label: "Contatos sugeridos",
     title: "Prazos e mensagens",
     description:
       "Configure quando entrar em contato e as mensagens sugeridas para cada situação.",

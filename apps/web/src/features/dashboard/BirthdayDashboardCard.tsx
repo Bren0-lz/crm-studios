@@ -66,7 +66,7 @@ export function BirthdayDashboardCard() {
           <h2>Aniversariantes</h2>
         </div>
         <NavLink to="/relacionamento" className="text-link">
-          Ver relacionamento <ChevronRight size={16} />
+          Ver contatos sugeridos <ChevronRight size={16} />
         </NavLink>
       </div>
       {error && <div className="form-error">{error}</div>}

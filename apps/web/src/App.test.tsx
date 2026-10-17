@@ -333,7 +333,7 @@ beforeEach(() => {
 async function openSettingsSection(...names: string[]) {
   let section: HTMLElement | null = null;
   for (const name of names) {
-    const label = name === "Dados da clínica" ? "Clínica" : name === "Prazos e mensagens" ? "Relacionamento" : name;
+    const label = name === "Dados da clínica" ? "Clínica" : name === "Prazos e mensagens" ? "Contatos sugeridos" : name;
     const tab = await screen.findByRole("tab", { name: label });
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
     section = document.getElementById(tab.getAttribute("aria-controls")!);
@@ -4904,7 +4904,7 @@ describe("settings tabs", () => {
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     expect(await screen.findByLabelText("Razão social")).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Clínica", "Usuários", "Planos", "Feriados", "Etiquetas", "Relacionamento"]);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Clínica", "Usuários", "Planos", "Feriados", "Etiquetas", "Contatos sugeridos"]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(fetched("/admin/users")).toBe(false);
@@ -4937,8 +4937,8 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(screen.getByRole("tab", { name: "Relacionamento" })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Relacionamento" }), { key: "Home" });
+    expect(screen.getByRole("tab", { name: "Contatos sugeridos" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), { key: "Home" });
     expect(clinicTab).toHaveFocus();
   });
 
@@ -4984,7 +4984,7 @@ describe("settings tabs", () => {
     mockSettings();
     render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("tab", { name: "Planos" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Planos", "Etiquetas", "Relacionamento"]);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Planos", "Etiquetas", "Contatos sugeridos"]);
     expect(fetched("/relationship/settings")).toBe(false);
     await openSettingsSection("Prazos e mensagens");
     expect(await screen.findByLabelText("Saldo baixo: sessões restantes")).toHaveAttribute("readonly");
@@ -5194,7 +5194,7 @@ describe("settings tabs", () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(owner));
       render(<MemoryRouter initialEntries={["/configuracoes"]}><App /></MemoryRouter>);
-      const toggle = await screen.findByRole("tab", { name: "Relacionamento" });
+      const toggle = await screen.findByRole("tab", { name: "Contatos sugeridos" });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText("Saldo baixo: sessões restantes");
       const original = (field as HTMLInputElement).value;

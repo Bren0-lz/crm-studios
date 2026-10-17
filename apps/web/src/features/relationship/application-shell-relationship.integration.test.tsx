@@ -105,6 +105,14 @@ describe("application shell", () => {
     expect(
       await screen.findByRole("link", { name: /Contatos sugeridos/ }),
     ).toBeInTheDocument();
+    await screen.findByText("Helena Almeida");
+    // A rota /relacionamento continua valendo, mas o nome visível é um só.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Contatos sugeridos" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".page-content")).not.toHaveTextContent(
+      /relacionamento/i,
+    );
     const helenaCard = (await screen.findByText("Helena Almeida")).closest(
       "article",
     )!;
@@ -254,6 +262,10 @@ describe("application shell", () => {
     await waitFor(() =>
       expect(card).toHaveTextContent("Hoje e próximos 7 dias"),
     );
+    expect(
+      within(card).getByRole("link", { name: "Ver contatos sugeridos" }),
+    ).toHaveAttribute("href", "/relacionamento");
+    expect(card).not.toHaveTextContent(/relacionamento/i);
     const helena = (await within(card).findByText("Helena Almeida")).closest(
       ".attention-item",
     ) as HTMLElement;
