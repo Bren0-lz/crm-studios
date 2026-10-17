@@ -8,13 +8,14 @@ import {
 } from "react";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
+import { ModuleLabelContext } from "../lib/ModuleLabelContext";
 import { SettingsPanelContext } from "../workflows/SettingsPanelContext";
 import { useSettingsBusy } from "../workflows/useSettingsBusy";
 
 export function Modal({
   title,
   subtitle,
-  eyebrow = "Cadastro rápido",
+  eyebrow,
   wide = false,
   initialFocus,
   busy = false,
@@ -37,6 +38,7 @@ export function Modal({
   children: ReactNode;
 }) {
   const settingsPanel = useContext(SettingsPanelContext);
+  const moduleLabel = useContext(ModuleLabelContext);
   useBodyScrollLock();
   useSettingsBusy(true);
   useEscapeToClose(onClose, busy);
@@ -97,7 +99,7 @@ export function Modal({
       >
         <div className="modal-head">
           <div>
-            <span className="eyebrow">{eyebrow}</span>
+            <span className="eyebrow">{eyebrow ?? moduleLabel}</span>
             <h2 id={titleId}>{title}</h2>
             <p>{subtitle}</p>
           </div>

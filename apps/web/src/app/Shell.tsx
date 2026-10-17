@@ -9,7 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { ModuleLabelContext } from "../shared/lib/ModuleLabelContext";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
@@ -29,6 +30,17 @@ export function Shell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // Rótulo dos modais: o módulo da página aberta (o item de menu mais específico).
+  const moduleLabel =
+    navItems
+      .filter(
+        (item) =>
+          item.to !== "/" &&
+          (pathname === item.to || pathname.startsWith(`${item.to}/`)),
+      )
+      .sort((a, b) => b.to.length - a.to.length)[0]?.label ??
+    (pathname === "/" ? "Visão geral" : "Studios Aryana");
   // Validação dos formulários abaixo de cada campo, no lugar dos balões do navegador.
   useEffect(() => installInlineValidation(document), []);
   const guards = useRef(new Set<NavigationGuard>());
@@ -141,7 +153,9 @@ export function Shell({
         </header>
         <div className="page-content">
           <NavigationGuardContext.Provider value={registerGuard}>
-            {children}
+            <ModuleLabelContext.Provider value={moduleLabel}>
+              {children}
+            </ModuleLabelContext.Provider>
           </NavigationGuardContext.Provider>
         </div>
       </section>

@@ -193,6 +193,7 @@ export function PatientModal({
   }
   return (
     <Modal
+      eyebrow={patient ? "Clientes" : "Cadastro rápido"}
       title={patient ? "Editar cliente" : "Novo cliente"}
       subtitle={
         patient

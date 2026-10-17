@@ -75,3 +75,56 @@ describe("cancelled appointments in the agenda", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("modal eyebrow", () => {
+  it("shows the module name instead of 'Cadastro rápido' in agenda modals", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const startsAt = new Date();
+    startsAt.setHours(10, 0, 0, 0);
+    vi.mocked(fetch).mockImplementation(
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () =>
+            String(input).includes("/appointments?")
+              ? [
+                  {
+                    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                    patientName: "Helena Almeida",
+                    professionalColor: "#5c6f68",
+                    startsAt: startsAt.toISOString(),
+                    endsAt: startsAt.toISOString(),
+                    serviceName: "Pilates",
+                    professionalName: "Dra. Ana Martins",
+                    roomName: "Sala Movimento",
+                    status: "scheduled",
+                  },
+                ]
+              : [],
+        }) as Response,
+    );
+    render(
+      <MemoryRouter initialEntries={["/agenda"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Detalhes de Helena Almeida" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Detalhes do atendimento",
+    });
+    expect(dialog).toHaveTextContent("Agenda");
+    expect(dialog).not.toHaveTextContent("Cadastro rápido");
+  });
+});

@@ -1217,7 +1217,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 |----|------|--------|
 | U1 | Toast único de sucesso/erro | DONE |
 | U2 | Validação inline e `*` nos obrigatórios | DONE |
-| U3 | Rótulo do módulo no lugar de "CADASTRO RÁPIDO" | TODO |
+| U3 | Rótulo do módulo no lugar de "CADASTRO RÁPIDO" | DONE |
 | U4 | Confirmação em Pausar plano e Emitir contrato | TODO |
 | U5 | Agenda Dia em grade por profissional, clique no vazio | TODO |
 | U6 | Lembrar visão da agenda | TODO |
