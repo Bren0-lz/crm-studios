@@ -1256,7 +1256,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U39 | Baixa parcial, desconto e juros | TODO |
 | U40 | Recibo completo e WhatsApp | TODO |
 | U41 | Ajuda em termos técnicos | TODO |
-| U42 | Variação percentual com seta e cor | TODO |
+| U42 | Variação percentual com seta e cor | DONE |
 | U43 | Datas brasileiras no DRE | TODO |
 | U44 | Aba própria para serviços, salas e profissionais | TODO |
 | U45 | Validar CNPJ/CPF da clínica | TODO |
@@ -1267,3 +1267,33 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
   agendamento filtra por isso (migração nova).
 - **U39:** baixa com desconto e/ou juros (valor final registrado); pagamento parcial gera
   nova parcela com o saldo restante.
+- **U17:** arrastar e soltar só no desktop (API nativa); no celular continua o select de etapa.
+  "Perdido" e "Ganho" abrem o modal correspondente em vez de mover direto.
+- **U31:** ações em lote na fila: "Marcar como enviadas" e "Descartar" para as selecionadas.
+- **U33:** em "Todas", um cartão por cliente com todos os motivos (selos) e uma ação
+  "Registrar contato" que vale para todos os motivos.
+- **V3:** campo "categoria" opcional na etiqueta (financeiro, serviço, status; migração nova)
+  com paleta por categoria; a cor manual continua valendo.
+- **V12:** pode renomear os clientes de demonstração corrigindo o gerador; ressemear a
+  produção fica a critério do dono.
+
+Ordem (pedido do dono, 17/10/2026): G (U42–U46) → C (U27–U28) → B (U22–U26) → D (U30–U34)
+→ E (U35–U37) → A (U17–U21) → F (U38–U41) → Fase 3 → verificação dos não testados. Resumo ao
+fim de cada bloco.
+
+### Fase 3 — Visual
+
+| ID | Item | Status |
+|----|------|--------|
+| V1 | Lista de clientes: coluna "Ações" e "+N" nas etiquetas (alinhamento e celular) | TODO |
+| V2 | Topo de Clientes sem quebra; ações secundárias no menu "Mais" | TODO |
+| V3 | Etiquetas com categoria/paleta e estado selecionado no filtro | TODO |
+| V4 | Cores de status na agenda com legenda (Dia, Semana, Mês, lista) | TODO |
+| V5 | Contato de emergência vermelho só quando ausente | TODO |
+| V6 | Campos de data padronizados (nativo, exceto agendamento) | TODO |
+| V7 | Rótulos uniformes, select "Direção" sem esticar, fieldset do plano | TODO |
+| V8 | Textos truncados: turma nos cards da agenda, etapa do lead | TODO |
+| V9 | `scrollbar-gutter: stable` no contêiner principal | TODO |
+| V10 | Cor do profissional nos avatares e cards (inclui grade do Dia) | TODO |
+| V11 | `EmptyState` com `icon` e `action` (Turmas, Comissões, Prontuários) | TODO |
+| V12 | Demo com nomes realistas e sem datas futuras no histórico | TODO |

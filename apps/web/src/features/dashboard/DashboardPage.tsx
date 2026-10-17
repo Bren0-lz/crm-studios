@@ -13,6 +13,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   dateLabel,
@@ -277,11 +278,11 @@ export function DashboardPage() {
                   <strong>
                     {currency.format(sales.current.netSalesInCents / 100)}
                   </strong>
-                  <small>
-                    {sales.changePercent === null
-                      ? "Sem base anterior"
-                      : `${sales.changePercent > 0 ? "+" : ""}${sales.changePercent}% vs. mês anterior comparável`}
-                  </small>
+                  <TrendBadge
+                    changePercent={sales.changePercent}
+                    hasCurrentValue={sales.current.netSalesInCents !== 0}
+                    comparison="vs. mês anterior comparável"
+                  />
                 </article>
                 <article>
                   <span>Recebido</span>

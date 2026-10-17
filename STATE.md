@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U1)
-- **Última concluída:** T072 (organização e testes)
+- **Tarefa atual:** Rodada 7, Fase 2 (U43 — bloco G)
+- **Última concluída:** U42
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -156,3 +156,5 @@
 - 2026-10-16 C11: GET /history/audit-events passa por `mergeOperationEvents` (modules/history): par operação+domínio do mesmo entityId em ≤10 s vira um registro (rótulo do domínio, responsável da operação). Histórico ignora created_at futuro (PG: `<= now() + 1 min`; memória compara por instante, não por texto). Seed demo-patients só com datas passadas. Gatilhos do banco continuam sem responsável (exigiria SET LOCAL por requisição). Fase 1 concluída (C1–C11).
 - 2026-10-16 U4/U29: migração 0077 (patient_plans.paused_at/pause_reason/pause_expected_return; próxima livre: 0078). PATCH /plans/:id/status aceita `pause: {reason?, expectedReturn?}`; reativar de paused soma os dias em pausa (fuso da clínica) ao valid_until. `validityAfterPause`/`daysBetweenIsoDates` nos contratos. Emitir contrato pede confirmação.
 - 2026-10-17 U10: migração 0078 (services.professional_ids/room_ids uuid[] DEFAULT '{}'; próxima livre: 0079). `serviceAvailableFor` (contracts/administration) filtra o Serviço no AppointmentForm; Configurações › serviço tem as listas (nenhum = todos). Atualização via registry usa COALESCE (campo ausente mantém).
+- 2026-10-17 Dono aceitou as sugestões de U17, U31, U33, V3 e V12 (registradas no PLAN.md) e a ordem G → C → B → D → E → A → F → Fase 3. Fase 3 (V1–V12) adicionada ao PLAN.md.
+- 2026-10-17 U42: `TrendBadge` (shared/components; helpers `trendDirection`/`formatTrendPercent` em shared/lib/trend.ts — lint react-refresh não aceita função exportada junto do componente). Só Painel e Relatórios › Vendas mostram variação (`changePercent`); não havia "~" no código, o problema era "102.1%" com ponto. Sem base anterior = "Novo · sem base anterior"; `higherIsBetter` inverte as cores.

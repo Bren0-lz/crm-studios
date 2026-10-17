@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   formatIsoDate,
@@ -108,11 +109,11 @@ export function SalesInsights() {
               <strong>
                 {currency.format(report.current.netSalesInCents / 100)}
               </strong>
-              <small>
-                {report.changePercent === null
-                  ? "Sem vendas no período anterior"
-                  : `${report.changePercent > 0 ? "+" : ""}${report.changePercent}% frente ao mês anterior`}
-              </small>
+              <TrendBadge
+                changePercent={report.changePercent}
+                hasCurrentValue={report.current.netSalesInCents !== 0}
+                comparison="frente ao mês anterior"
+              />
               <small>
                 Antes dos cancelamentos:{" "}
                 {currency.format(report.current.grossSalesInCents / 100)}
