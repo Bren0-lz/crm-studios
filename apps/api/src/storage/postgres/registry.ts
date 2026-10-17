@@ -15,7 +15,7 @@ const professionalColumns =
   'id,clinic_id AS "clinicId",full_name AS "fullName",crefito,specialty,color,active';
 const roomColumns = 'id,clinic_id AS "clinicId",name,capacity,active';
 const serviceColumns =
-  'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",price_in_cents AS "priceInCents",color,active';
+  'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",price_in_cents AS "priceInCents",color,active,professional_ids::text[] AS "professionalIds",room_ids::text[] AS "roomIds"';
 export function createRegistryRepository(context: PostgresRepositoryContext) {
   return {
     async getAdministrativeRegistry(clinicId: string) {
@@ -97,7 +97,7 @@ export function createRegistryRepository(context: PostgresRepositoryContext) {
           } else {
             const data = input.data,
               result = await client.query<Service>(
-                `UPDATE services SET name=$3,duration_minutes=$4,price_in_cents=$5,color=$6,active=$7 WHERE clinic_id=$1 AND id=$2 RETURNING ${serviceColumns}`,
+                `UPDATE services SET name=$3,duration_minutes=$4,price_in_cents=$5,color=$6,active=$7,professional_ids=COALESCE($8::uuid[],professional_ids),room_ids=COALESCE($9::uuid[],room_ids) WHERE clinic_id=$1 AND id=$2 RETURNING ${serviceColumns}`,
                 [
                   clinicId,
                   id,
@@ -106,6 +106,8 @@ export function createRegistryRepository(context: PostgresRepositoryContext) {
                   data.priceInCents,
                   data.color,
                   data.active,
+                  data.professionalIds ?? null,
+                  data.roomIds ?? null,
                 ],
               );
             record = result.rows[0];

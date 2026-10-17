@@ -1222,3 +1222,28 @@
     transition: none;
   }
 }
+
+/* Profissionais e salas de um serviço (nenhum marcado = todos). */
+.resource-checklist {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.resource-checklist legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.resource-checklist small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.resource-checklist > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}

@@ -472,7 +472,14 @@ export function createAdministrationRepository(
     },
 
     async createService(clinicId: string, input: ServiceInput) {
-      const service: Service = { ...input, id: uuid(), clinicId, active: true };
+      const service: Service = {
+        professionalIds: [],
+        roomIds: [],
+        ...input,
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
       repositoryContext.services.push(service);
       return service;
     },

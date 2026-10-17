@@ -639,7 +639,8 @@ export function createAdministrationRepository(
       const result = await repositoryContext.pool.query<ServiceRow>(
         `
         SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-               price_in_cents AS "priceInCents", color, active
+               price_in_cents AS "priceInCents", color, active,
+               professional_ids::text[] AS "professionalIds", room_ids::text[] AS "roomIds"
         FROM services WHERE clinic_id = $1 AND active = true ORDER BY name
       `,
         [clinicId],
@@ -650,10 +651,11 @@ export function createAdministrationRepository(
     async createService(clinicId: string, input: ServiceInput) {
       const result = await repositoryContext.pool.query<ServiceRow>(
         `
-        INSERT INTO services (clinic_id, name, duration_minutes, price_in_cents, color)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO services (clinic_id, name, duration_minutes, price_in_cents, color, professional_ids, room_ids)
+        VALUES ($1, $2, $3, $4, $5, $6::uuid[], $7::uuid[])
         RETURNING id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-                  price_in_cents AS "priceInCents", color, active
+                  price_in_cents AS "priceInCents", color, active,
+                  professional_ids::text[] AS "professionalIds", room_ids::text[] AS "roomIds"
       `,
         [
           clinicId,
@@ -661,6 +663,8 @@ export function createAdministrationRepository(
           input.durationMinutes,
           input.priceInCents,
           input.color,
+          input.professionalIds ?? [],
+          input.roomIds ?? [],
         ],
       );
       return result.rows[0]!;

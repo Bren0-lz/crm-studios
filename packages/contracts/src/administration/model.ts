@@ -186,7 +186,29 @@ export const serviceInputSchema = z.object({
   durationMinutes: z.number().int().min(15).max(480),
   priceInCents: z.number().int().min(0),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
+  professionalIds: z.array(z.uuid()).max(200).optional(),
+  roomIds: z.array(z.uuid()).max(200).optional(),
 });
+
+/** O serviço pode ser agendado com este profissional e esta sala? (vazio = todos). */
+export function serviceAvailableFor(
+  service: {
+    professionalIds?: string[] | undefined;
+    roomIds?: string[] | undefined;
+  },
+  professionalId: string,
+  roomId: string,
+) {
+  const professionals = service.professionalIds ?? [];
+  const rooms = service.roomIds ?? [];
+  return (
+    (!professionalId ||
+      professionals.length === 0 ||
+      professionals.includes(professionalId)) &&
+    (!roomId || rooms.length === 0 || rooms.includes(roomId))
+  );
+}
 
 /** Liga o usuário a um profissional da agenda; `null` desliga. Ligar outro troca a ligação. */
 export const adminUserProfessionalInputSchema = z.object({

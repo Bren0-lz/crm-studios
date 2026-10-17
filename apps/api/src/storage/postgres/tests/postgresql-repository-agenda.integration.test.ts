@@ -209,6 +209,35 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
   }
 
+  it("stores the professionals and rooms of a service", async () => {
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = await repository.listRooms(clinicId);
+    const name = `PG serviço vinculado ${Date.now()}`;
+    try {
+      const created = await repository.createService(clinicId, {
+        name,
+        durationMinutes: 50,
+        priceInCents: 9000,
+        color: "#547A6B",
+        professionalIds: [professional!.id],
+        roomIds: [room!.id],
+      });
+      expect(created).toMatchObject({
+        professionalIds: [professional!.id],
+        roomIds: [room!.id],
+      });
+      const listed = (await repository.listServices(clinicId)).find(
+        (item) => item.id === created.id,
+      );
+      expect(listed?.professionalIds).toEqual([professional!.id]);
+    } finally {
+      await pool.query(
+        "DELETE FROM services WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    }
+  });
+
   it("loads the group workspace with each class's professional", async () => {
     const workspace = await repository.getGroupWorkspace(
       clinicId,

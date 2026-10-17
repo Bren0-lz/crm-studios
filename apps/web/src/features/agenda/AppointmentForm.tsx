@@ -7,6 +7,7 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
+import { serviceAvailableFor } from "@crm/contracts";
 import { useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { ApiClientError } from "../../api";
@@ -61,6 +62,17 @@ export function AppointmentForm({
     occurrences: 4,
     intervalWeeks: 1,
   });
+  // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
+  const availableServices = services.filter((item) =>
+    serviceAvailableFor(item, form.professionalId, form.roomId),
+  );
+  function keepAvailableService(next: typeof form) {
+    const service = services.find((item) => item.id === next.serviceId);
+    return service &&
+      !serviceAvailableFor(service, next.professionalId, next.roomId)
+      ? { ...next, serviceId: "" }
+      : next;
+  }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const submitting = useRef(false);
@@ -229,7 +241,12 @@ export function AppointmentForm({
                 required
                 value={form.professionalId}
                 onChange={(e) =>
-                  setForm({ ...form, professionalId: e.target.value })
+                  setForm(
+                    keepAvailableService({
+                      ...form,
+                      professionalId: e.target.value,
+                    }),
+                  )
                 }
               >
                 <option value="">Selecione</option>
@@ -245,7 +262,11 @@ export function AppointmentForm({
               <select
                 required
                 value={form.roomId}
-                onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+                onChange={(e) =>
+                  setForm(
+                    keepAvailableService({ ...form, roomId: e.target.value }),
+                  )
+                }
               >
                 <option value="">Selecione</option>
                 {rooms.map((item) => (
@@ -265,7 +286,7 @@ export function AppointmentForm({
                 }
               >
                 <option value="">Selecione</option>
-                {services.map((item) => (
+                {availableServices.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name} · {currency.format(item.priceInCents / 100)}
                   </option>

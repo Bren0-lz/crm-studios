@@ -143,6 +143,8 @@ export function AdministrativeRegistrySection() {
         <RegistryEditor
           key={editor.id ?? editor.input.kind}
           editor={editor}
+          professionals={data?.professionals ?? []}
+          rooms={data?.rooms ?? []}
           onClose={() => setEditor(null)}
           onSaved={load}
         />
@@ -152,10 +154,14 @@ export function AdministrativeRegistrySection() {
 }
 function RegistryEditor({
   editor,
+  professionals,
+  rooms,
   onClose,
   onSaved,
 }: {
   editor: Editor;
+  professionals: AdministrativeRegistryWorkspace["professionals"];
+  rooms: AdministrativeRegistryWorkspace["rooms"];
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -299,6 +305,37 @@ function RegistryEditor({
                   value={form.data.priceInCents}
                   onChange={(value) => patch({ priceInCents: value })}
                 />
+                <ResourceChecklist
+                  legend="Profissionais que atendem"
+                  items={professionals
+                    .filter((item) => item.active)
+                    .map((item) => ({ id: item.id, name: item.fullName }))}
+                  value={form.data.professionalIds ?? []}
+                  onChange={(professionalIds) =>
+                    setForm((current) =>
+                      current.kind === "service"
+                        ? {
+                            ...current,
+                            data: { ...current.data, professionalIds },
+                          }
+                        : current,
+                    )
+                  }
+                />
+                <ResourceChecklist
+                  legend="Salas onde é atendido"
+                  items={rooms
+                    .filter((item) => item.active)
+                    .map((item) => ({ id: item.id, name: item.name }))}
+                  value={form.data.roomIds ?? []}
+                  onChange={(roomIds) =>
+                    setForm((current) =>
+                      current.kind === "service"
+                        ? { ...current, data: { ...current.data, roomIds } }
+                        : current,
+                    )
+                  }
+                />
               </>
             )}
             {form.kind !== "room" && (
@@ -339,5 +376,43 @@ function RegistryEditor({
       </Modal>
       {prompt.modal}
     </>
+  );
+}
+
+/** Lista de marcação de profissionais ou salas; nenhum marcado = todos. */
+function ResourceChecklist({
+  legend,
+  items,
+  value,
+  onChange,
+}: {
+  legend: string;
+  items: { id: string; name: string }[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  return (
+    <fieldset className="resource-checklist span-2">
+      <legend>{legend}</legend>
+      <small>Nenhum marcado: todos podem ser usados no agendamento.</small>
+      <div>
+        {items.map((item) => (
+          <label className="checkbox-field" key={item.id}>
+            <input
+              type="checkbox"
+              checked={value.includes(item.id)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...value, item.id]
+                    : value.filter((id) => id !== item.id),
+                )
+              }
+            />
+            {item.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

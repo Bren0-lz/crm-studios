@@ -57,6 +57,8 @@ export interface ServiceRow {
   priceInCents: number;
   color: string;
   active: boolean;
+  professionalIds: string[];
+  roomIds: string[];
 }
 
 export function present(value: string | null) {
