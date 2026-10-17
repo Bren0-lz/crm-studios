@@ -415,3 +415,54 @@ select option:disabled {
   border: 0;
   border-radius: calc(var(--radius-md) - 1px);
 }
+
+/* Campo obrigatório: "*" ao lado do rótulo (o texto do rótulo continua igual). */
+/* audit: mobile-ok a 2ª trilha é só o "*" do rótulo; o campo ocupa a linha toda */
+.form-grid
+  label:has(
+    > :is(
+        input:not([type="checkbox"], [type="radio"]),
+        select,
+        textarea
+      ):required
+  ) {
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-1);
+}
+.form-grid
+  label:has(
+    > :is(
+        input:not([type="checkbox"], [type="radio"]),
+        select,
+        textarea
+      ):required
+  )
+  > * {
+  grid-column: 1 / -1;
+}
+.form-grid
+  label:has(
+    > :is(
+        input:not([type="checkbox"], [type="radio"]),
+        select,
+        textarea
+      ):required
+  )::after {
+  content: "*";
+  grid-row: 1;
+  grid-column: 2;
+  color: #b44d36;
+}
+
+/* Mensagem de validação abaixo do campo (substitui o balão do navegador). */
+[aria-invalid="true"] {
+  border-color: #b44d36;
+}
+.inline-field-error::before {
+  content: attr(data-message);
+}
+.inline-field-error {
+  color: #a3412c;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}

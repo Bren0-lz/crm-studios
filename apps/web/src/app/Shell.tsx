@@ -2,12 +2,19 @@ import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { UserSummary } from "@crm/contracts";
 import { LogOut, Menu, X } from "lucide-react";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
 import type { NavigationGuard } from "../shared/lib/types";
+import { installInlineValidation } from "../shared/feedback/inline-validation";
 import { NotificationsMenu, UserMenu } from "./HeaderMenus";
 import { navItems } from "./navItems";
 
@@ -22,6 +29,8 @@ export function Shell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
+  // Validação dos formulários abaixo de cada campo, no lugar dos balões do navegador.
+  useEffect(() => installInlineValidation(document), []);
   const guards = useRef(new Set<NavigationGuard>());
   const registerGuard = useCallback((guard: NavigationGuard) => {
     const set = guards.current;
