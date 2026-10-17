@@ -1174,3 +1174,31 @@ Decisões do dono na V6 (04/10/2026):
 - Unitários, integração, paridade PostgreSQL e navegador desktop/celular: implementados.
 - Cobertura sem regressão, limites de imports, instruções curtas e GitHub Actions: implementados.
 - Validação final: concluída; resultados registrados em STATE.md.
+
+## Rodada 7 — Correções do teste manual (pedido do dono, 16/10/2026)
+
+Origem: teste manual completo em produção (modo Demonstração). Ordem: Fase 1 (críticos) →
+Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>): …` em pt-BR.
+
+### Decisões do dono
+
+- **C10 Recorrente:** 1 cobrança por ciclo (valor cheio), sem campo "Parcelas"; a próxima nasce
+  na renovação. **Pacote fixo:** parcela com vencimento após a validade é permitida, com aviso.
+  **Esgotado:** status derivado na exibição/filtros (ativo + 0 sessões restantes), sem migração.
+- **C8:** centro de custo da despesa passa a ser opcional; categoria continua obrigatória.
+
+### Fase 1 — Críticos
+
+| ID | Item | Status |
+|----|------|--------|
+| C1 | Turmas: 500 em GET /groups/workspace (SQL com `gs` fora do FROM); selects de "Nova turma" independentes do workspace | DONE |
+| C2 | Detalhes do atendimento: confirmar presença, realizado, falta | TODO |
+| C3 | Cancelado fora das contagens e com estilo distinto na agenda | TODO |
+| C4 | 500 em /reports/clients/details (mesma causa do C1) | DONE |
+| C5 | Sino de notificações e menu do usuário | TODO |
+| C6 | Datas/horas locais nos campos (medição, comanda) | TODO |
+| C7 | Campo monetário único (BRL, vírgula, vazio) | TODO |
+| C8 | Nova despesa: cadastro inline de categoria/centro, o que falta, centro opcional | TODO |
+| C9 | Encoding do modal "Novo atendimento" | TODO |
+| C10 | Recorrente 1 cobrança por ciclo; aviso no pacote; "Esgotado" | TODO |
+| C11 | Histórico: ordem por criação, sem duplicar, responsável sempre gravado, seed sem datas futuras | TODO |

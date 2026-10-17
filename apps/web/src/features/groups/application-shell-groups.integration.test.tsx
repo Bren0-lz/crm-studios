@@ -97,4 +97,72 @@ describe("application shell", () => {
       });
     });
   });
+
+  it("keeps the new group options available when the workspace fails", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/groups/workspace?"))
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({
+            code: "INTERNAL",
+            message: "Não foi possível concluir a operação.",
+          }),
+        } as Response;
+      const body = url.includes("/rooms")
+        ? [
+            {
+              id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              name: "Sala Movimento",
+              capacity: 8,
+            },
+          ]
+        : url.includes("/services")
+          ? [
+              {
+                id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                name: "Dançaterapia",
+              },
+            ]
+          : url.includes("/professionals")
+            ? [
+                {
+                  id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                  fullName: "Dra. Ana Martins",
+                },
+              ]
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/turmas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByText("Não foi possível concluir a operação."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nova turma" }));
+    expect(
+      within(screen.getByLabelText("Serviço")).getByRole("option", {
+        name: "Dançaterapia",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Sala")).getByRole("option", {
+        name: /Sala Movimento/,
+      }),
+    ).toBeInTheDocument();
+  });
 });

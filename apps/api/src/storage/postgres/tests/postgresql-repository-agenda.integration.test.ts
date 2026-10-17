@@ -209,6 +209,18 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
   }
 
+  it("loads the group workspace with each class's professional", async () => {
+    const workspace = await repository.getGroupWorkspace(
+      clinicId,
+      "2026-01-01T00:00:00.000Z",
+      "2026-12-31T23:59:59.000Z",
+    );
+    expect(Array.isArray(workspace.groups)).toBe(true);
+    expect(Array.isArray(workspace.sessions)).toBe(true);
+    for (const group of workspace.groups)
+      expect(typeof group.professionalName).toBe("string");
+  });
+
   it("lists only pending dashboard appointments even after their scheduled time", async () => {
     const ids: string[] = [];
     try {

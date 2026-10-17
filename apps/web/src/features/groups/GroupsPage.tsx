@@ -28,6 +28,21 @@ import {
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
 
+/**
+ * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
+ * continuam disponíveis para "Nova turma" e "Matricular cliente".
+ */
+function fetchGroupsData() {
+  const dates = groupOperationRange();
+  return Promise.allSettled([
+    api.groupWorkspace(dates.from, dates.to),
+    api.patientOptions(),
+    api.professionals(),
+    api.rooms(),
+    api.services(),
+  ]);
+}
+
 export function GroupsPage() {
   const { can, canEdit } = useAuthorization();
   const contextPatientId = usePatientContext();
@@ -73,50 +88,36 @@ export function GroupsPage() {
     groupId: "",
     patientId: enrollPatientId || contextPatientId,
   });
+  function applyGroupsData(
+    results: Awaited<ReturnType<typeof fetchGroupsData>>,
+  ) {
+    const [data, patientData, professionalData, roomData, serviceData] =
+      results;
+    if (data.status === "fulfilled") setWorkspace(data.value);
+    if (patientData.status === "fulfilled") setPatients(patientData.value);
+    if (professionalData.status === "fulfilled")
+      setProfessionals(professionalData.value);
+    if (roomData.status === "fulfilled") setRooms(roomData.value);
+    if (serviceData.status === "fulfilled") setServices(serviceData.value);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) setError((failure.reason as Error).message);
+  }
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const dates = groupOperationRange();
-      const [data, patientData, professionalData, roomData, serviceData] =
-        await Promise.all([
-          api.groupWorkspace(dates.from, dates.to),
-          api.patientOptions(),
-          api.professionals(),
-          api.rooms(),
-          api.services(),
-        ]);
-      setWorkspace(data);
-      setPatients(patientData);
-      setProfessionals(professionalData);
-      setRooms(roomData);
-      setServices(serviceData);
-    } catch (cause) {
-      setError((cause as Error).message);
+      applyGroupsData(await fetchGroupsData());
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => {
     let active = true;
-    const dates = groupOperationRange();
-    Promise.all([
-      api.groupWorkspace(dates.from, dates.to),
-      api.patientOptions(),
-      api.professionals(),
-      api.rooms(),
-      api.services(),
-    ])
-      .then(([data, patientData, professionalData, roomData, serviceData]) => {
-        if (!active) return;
-        setWorkspace(data);
-        setPatients(patientData);
-        setProfessionals(professionalData);
-        setRooms(roomData);
-        setServices(serviceData);
-      })
-      .catch((cause: Error) => active && setError(cause.message))
-      .finally(() => active && setLoading(false));
+    void fetchGroupsData().then((results) => {
+      if (!active) return;
+      applyGroupsData(results);
+      setLoading(false);
+    });
     return () => {
       active = false;
     };
