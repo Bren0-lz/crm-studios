@@ -7,6 +7,7 @@ import {
   planTemplateInputSchema,
   planTemplateUpdateSchema,
   planTransitionSchema,
+  planPauseDetailsSchema,
   isRecurringChargeValid,
   recurringSingleChargeIssue,
   type ApiError,
@@ -180,6 +181,9 @@ export function registerPlansRoutes(context: RouteContext) {
       const status = planTransitionSchema.parse(
         (request.body as { status?: unknown }).status,
       );
+      const pause = planPauseDetailsSchema.parse(
+        (request.body as { pause?: unknown }).pause ?? {},
+      );
 
       assertPermissions(
         request,
@@ -190,6 +194,7 @@ export function registerPlansRoutes(context: RouteContext) {
         request.user.sub,
         id,
         status,
+        pause,
       );
       if (!plan)
         return reply.status(404).send({

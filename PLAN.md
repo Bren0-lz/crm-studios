@@ -1218,7 +1218,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U1 | Toast único de sucesso/erro | DONE |
 | U2 | Validação inline e `*` nos obrigatórios | DONE |
 | U3 | Rótulo do módulo no lugar de "CADASTRO RÁPIDO" | DONE |
-| U4 | Confirmação em Pausar plano e Emitir contrato | TODO |
+| U4 | Confirmação em Pausar plano e Emitir contrato | DONE |
 | U5 | Agenda Dia em grade por profissional, clique no vazio | TODO |
 | U6 | Lembrar visão da agenda | TODO |
 | U7 | Título da semana com intervalo | TODO |
@@ -1243,7 +1243,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U26 | Linha do tempo mostra rascunhos | TODO |
 | U27 | Planos: busca e filtros | TODO |
 | U28 | Subtítulo do plano sem duplicação | TODO |
-| U29 | Pausar: retorno/motivo e validade | TODO |
+| U29 | Pausar: retorno/motivo e validade | DONE |
 | U30 | Mensagens com primeiro nome | TODO |
 | U31 | Fila: filtros, lote e layout compacto | TODO |
 | U32 | WhatsApp + registrar envio unificados | TODO |

@@ -3,6 +3,7 @@ import {
   type PatientPlanInput,
   type PlanCatalogInput,
   type PlanRenewalInput,
+  type PlanPauseDetails,
   type PlanStatus,
   type PlanTemplateInput,
   planTemplateInputSchema,
@@ -449,6 +450,7 @@ export function createPlansRepository(
       actorUserId: string,
       planId: string,
       status: PlanStatus,
+      pause: PlanPauseDetails = {},
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -497,13 +499,30 @@ export function createPlansRepository(
                 )
               ).rows[0]!.amountInCents
             : 0;
+        // Pausa grava início, motivo e retorno; ao reativar, a validade avança os dias
+        // em pausa (datas no fuso da clínica) e a pausa é limpa (U29).
         await client.query(
-          `UPDATE patient_plans
+          `UPDATE patient_plans pp
          SET status = $3, updated_at = now(),
              cancelled_at = CASE WHEN $3::plan_status = 'cancelled' THEN now() ELSE cancelled_at END,
-             cancelled_value_in_cents = CASE WHEN $3::plan_status = 'cancelled' THEN $4::int ELSE cancelled_value_in_cents END
-         WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, planId, status, cancellationValue],
+             cancelled_value_in_cents = CASE WHEN $3::plan_status = 'cancelled' THEN $4::int ELSE cancelled_value_in_cents END,
+             valid_until = CASE
+               WHEN $3::plan_status = 'active' AND pp.status = 'paused' AND pp.paused_at IS NOT NULL AND pp.valid_until IS NOT NULL
+               THEN pp.valid_until + GREATEST(0, (now() AT TIME ZONE c.timezone)::date - (pp.paused_at AT TIME ZONE c.timezone)::date)
+               ELSE pp.valid_until END,
+             paused_at = CASE WHEN $3::plan_status = 'paused' THEN now() ELSE NULL END,
+             pause_reason = CASE WHEN $3::plan_status = 'paused' THEN NULLIF($5, '') ELSE NULL END,
+             pause_expected_return = CASE WHEN $3::plan_status = 'paused' THEN NULLIF($6, '')::date ELSE NULL END
+         FROM clinics c
+         WHERE pp.clinic_id = $1 AND pp.id = $2 AND c.id = pp.clinic_id`,
+          [
+            clinicId,
+            planId,
+            status,
+            cancellationValue,
+            pause.reason ?? "",
+            pause.expectedReturn ?? "",
+          ],
         );
         if (status === "cancelled") {
           const cancelled = await client.query<{

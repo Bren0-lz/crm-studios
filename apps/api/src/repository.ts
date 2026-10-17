@@ -137,6 +137,7 @@ import type {
   PlanCatalogEntry,
   PlanCatalogInput,
   PlanRenewalInput,
+  PlanPauseDetails,
   PlanStatus,
   PlanTemplate,
   PlanTemplateInput,
@@ -840,6 +841,7 @@ export interface ClinicRepository {
     actorUserId: string,
     planId: string,
     status: PlanStatus,
+    pause?: PlanPauseDetails,
   ): Promise<PatientPlan | null>;
   renewPatientPlan(
     clinicId: string,

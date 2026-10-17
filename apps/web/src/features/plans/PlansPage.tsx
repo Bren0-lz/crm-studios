@@ -17,11 +17,16 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import {
+  currency,
+  formatIsoDate,
+  shortDate,
+} from "../../shared/lib/formatting";
 import { planKindLabels } from "./model";
 import { PlanCancelModal } from "./PlanCancelModal";
 import { PlanModal } from "./PlanModal";
 import { useToast } from "../../shared/feedback/toast-context";
+import { PlanPauseModal } from "./PlanPauseModal";
 import { SessionMovementsModal } from "./SessionMovementsModal";
 
 export function PlansPage({ canManage }: { canManage: boolean }) {
@@ -35,6 +40,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
   const [renewingPlan, setRenewingPlan] = useState<PatientPlan | null>(null);
+  const [pausingPlan, setPausingPlan] = useState<PatientPlan | null>(null);
   const [cancellingPlan, setCancellingPlan] = useState<PatientPlan | null>(
     null,
   );
@@ -67,12 +73,13 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   async function changeStatus(plan: PatientPlan, status: PlanStatus) {
     setError("");
     try {
-      replacePlan(await api.updatePlanStatus(plan.id, status));
+      const updated = await api.updatePlanStatus(plan.id, status);
+      replacePlan(updated);
       toast.success(
-        status === "paused"
-          ? "Plano pausado."
-          : status === "cancelled"
-            ? "Plano cancelado."
+        status === "cancelled"
+          ? "Plano cancelado."
+          : updated.validUntil && updated.validUntil !== plan.validUntil
+            ? `Plano reativado. Nova validade: ${formatIsoDate(updated.validUntil)}.`
             : "Plano reativado.",
       );
     } catch (cause) {
@@ -227,6 +234,18 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                           : " · contínuo"}
                       </strong>
                     </div>
+                    {plan.status === "paused" && plan.pausedAt && (
+                      <div className="plan-meta plan-pause">
+                        <span>Pausa</span>
+                        <strong>
+                          Desde {shortDate.format(new Date(plan.pausedAt))}
+                          {plan.pauseExpectedReturn
+                            ? ` · retorno previsto ${shortDate.format(new Date(`${plan.pauseExpectedReturn}T12:00:00`))}`
+                            : ""}
+                          {plan.pauseReason ? ` · ${plan.pauseReason}` : ""}
+                        </strong>
+                      </div>
+                    )}
                     {!plan.sourceTabId && plan.status !== "cancelled" && (
                       <div className="plan-meta plan-renewal">
                         <span>Renovação</span>
@@ -275,9 +294,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                               ? can("plans.status") && (
                                   <button
                                     className="secondary-button button-sm"
-                                    onClick={() =>
-                                      void changeStatus(plan, "paused")
-                                    }
+                                    onClick={() => setPausingPlan(plan)}
                                   >
                                     <Pause size={15} />
                                     Pausar
@@ -340,6 +357,19 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
               ),
             ]);
             setRenewingPlan(null);
+          }}
+        />
+      )}
+      {pausingPlan && (
+        <PlanPauseModal
+          plan={pausingPlan}
+          onClose={() => setPausingPlan(null)}
+          onConfirm={async (pause) => {
+            replacePlan(
+              await api.updatePlanStatus(pausingPlan.id, "paused", pause),
+            );
+            toast.success("Plano pausado.");
+            setPausingPlan(null);
           }}
         />
       )}

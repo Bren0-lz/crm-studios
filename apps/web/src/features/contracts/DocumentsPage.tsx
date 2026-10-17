@@ -22,6 +22,7 @@ import { Logo } from "../../shared/components/Logo";
 import { Modal } from "../../shared/components/Modal";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
+import { ActionModal } from "../../shared/components/ActionModal";
 import { CancelDocumentModal } from "./CancelDocumentModal";
 import {
   documentKindLabels,
@@ -34,6 +35,7 @@ export function DocumentsPage() {
   const { can, canView, canEdit } = useAuthorization();
   const contextPatientId = usePatientContext();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [issuing, setIssuing] = useState<IssuedDocument | null>(null);
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [plans, setPlans] = useState<PatientPlan[]>([]);
@@ -156,15 +158,6 @@ export function DocumentsPage() {
         document.id === updated.id ? updated : document,
       ),
     );
-  }
-
-  async function issueDocument(item: IssuedDocument) {
-    setError("");
-    try {
-      replaceDocument(await api.updateDocumentStatus(item.id, "issued"));
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
   }
 
   const patientPlans = plans.filter(
@@ -468,7 +461,7 @@ export function DocumentsPage() {
                           can("contracts.status") && (
                             <button
                               className="primary-button button-sm"
-                              onClick={() => void issueDocument(item)}
+                              onClick={() => setIssuing(item)}
                             >
                               Emitir
                             </button>
@@ -496,6 +489,22 @@ export function DocumentsPage() {
           template={versioning}
           onClose={() => setVersioning(null)}
           onCreated={() => void templateVersioned(versioning)}
+        />
+      )}
+      {issuing && (
+        <ActionModal
+          eyebrow="Contratos"
+          title="Emitir contrato"
+          subtitle={`${issuing.title} · ${issuing.patientName}`}
+          effect="Depois de emitido, o texto do contrato não pode mais ser editado; ele fica disponível para impressão e assinatura."
+          confirmLabel="Emitir contrato"
+          onClose={() => setIssuing(null)}
+          onConfirm={async () => {
+            replaceDocument(
+              await api.updateDocumentStatus(issuing.id, "issued"),
+            );
+            setIssuing(null);
+          }}
         />
       )}
       {cancelling && (

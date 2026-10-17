@@ -209,6 +209,31 @@ export const planStatusSchema = z.enum([
 
 export const planTransitionSchema = z.enum(["active", "paused", "cancelled"]);
 
+/** Dados opcionais ao pausar: motivo e previsão de retorno. */
+export const planPauseDetailsSchema = z.object({
+  reason: z.string().trim().max(500).optional().or(z.literal("")),
+  expectedReturn: z.iso.date().optional().or(z.literal("")),
+});
+
+/** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
+export function daysBetweenIsoDates(from: string, to: string) {
+  return Math.round(
+    (Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) /
+      86_400_000,
+  );
+}
+
+/** Validade depois da reativação: avança os dias em que o plano ficou pausado. */
+export function validityAfterPause(
+  validUntil: string | undefined,
+  pausedOn: string,
+  resumedOn: string,
+) {
+  if (!validUntil) return validUntil;
+  const days = Math.max(0, daysBetweenIsoDates(pausedOn, resumedOn));
+  return addDaysToIsoDate(validUntil, days);
+}
+
 /** Situação exibida: um plano ativo sem saldo aparece como "Esgotado" (não é gravado). */
 export type PlanDisplayStatus = PatientPlan["status"] | "exhausted";
 

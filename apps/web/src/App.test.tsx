@@ -1841,6 +1841,9 @@ describe("application shell", () => {
     expect(await screen.findByText("Contrato de prestação de serviços", { selector: "strong" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Imprimir" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Emitir contrato" }),
+    );
     await vi.waitFor(() => expect(patched).toEqual([{ status: "issued" }]));
     fireEvent.click(await screen.findByRole("button", { name: "Imprimir" }));
     const dialog = await screen.findByRole("dialog");
