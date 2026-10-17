@@ -124,6 +124,9 @@ export function createPatientsRepository(
         WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
           AND (
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
+            -- Sem diferenciar acentos: "andre" acha "André" (mesma tabela da migração 0044).
+            OR translate(full_name, 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ',
+              'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY') ILIKE '%' || $5 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
             OR ($3 <> '' AND (phone LIKE '%' || $3 || '%' OR coalesce(whatsapp, '') LIKE '%' || $3 || '%'))
             OR ($4 <> '' AND regexp_replace(coalesce(cpf, ''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%')
@@ -136,6 +139,8 @@ export function createPatientsRepository(
           term,
           phoneSearchDigits(term),
           /^[\d\s.-]+$/.test(term) ? term.replace(/\D/g, "") : "",
+          // Termo sem acentos (NFD sem marcas) para comparar com o nome traduzido.
+          term.normalize("NFD").replace(/[̀-ͯ]/g, ""),
         ],
       );
       return result.rows.map(mapPatient);

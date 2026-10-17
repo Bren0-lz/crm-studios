@@ -21,7 +21,13 @@ export function createPatientsRepository(
 ) {
   return {
     async listPatients(clinicId: string, search = "") {
-      const normalized = search.trim().toLocaleLowerCase("pt-BR");
+      // Sem diferenciar maiúsculas nem acentos: "andre" acha "André".
+      const fold = (value: string) =>
+        value
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .toLocaleLowerCase("pt-BR");
+      const normalized = fold(search.trim());
       const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
         ? normalized.replace(/\D/g, "")
         : "";
@@ -42,9 +48,7 @@ export function createPatientsRepository(
                 item.recordNumber,
               ]
                 .filter(Boolean)
-                .some((value) =>
-                  value!.toLocaleLowerCase("pt-BR").includes(normalized),
-                ) ||
+                .some((value) => fold(value!).includes(normalized)) ||
               Boolean(
                 cpfDigits && item.cpf?.replace(/\D/g, "").includes(cpfDigits),
               ) ||

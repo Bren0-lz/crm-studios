@@ -16,7 +16,7 @@ import {
   SlidersHorizontal,
   UserPlus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -72,19 +72,35 @@ export function PatientsPage() {
   const configuredTags = usePatientTags();
   const tagColor = tagColorLookup(configuredTags.tags);
 
+  // Só a busca mais recente vale: uma resposta atrasada não sobrescreve a lista.
+  const latestRequest = useRef(0);
+  const searchTimer = useRef<number | undefined>(undefined);
   async function load(query = search, withoutGroup = filters.withoutGroup) {
+    window.clearTimeout(searchTimer.current);
+    const request = ++latestRequest.current;
     setLoading(true);
     setError("");
     try {
-      setPatients(await api.patients(query, { withoutGroup }));
+      const data = await api.patients(query, { withoutGroup });
+      if (request !== latestRequest.current) return;
+      setPatients(data);
       setAppliedSearch(query);
       setPage(1);
     } catch (cause) {
-      setError((cause as Error).message);
+      if (request === latestRequest.current) setError((cause as Error).message);
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }
+  // Busca enquanto digita (U12): 350 ms depois da última tecla; Enter/Buscar continua.
+  const searchTyped = useEffectEvent((value: string) => {
+    if (value.trim() === appliedSearch.trim()) return;
+    searchTimer.current = window.setTimeout(() => void load(value), 350);
+  });
+  useEffect(() => {
+    searchTyped(search);
+    return () => window.clearTimeout(searchTimer.current);
+  }, [search]);
   useEffect(() => {
     let active = true;
     api
