@@ -168,8 +168,8 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(400);
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(50);
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
@@ -182,7 +182,7 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(120.5);
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),

@@ -11,7 +11,12 @@ import {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { Modal } from "../../shared/components/Modal";
-import { currency, reaisToCents } from "../../shared/lib/formatting";
+import {
+  centsToMoneyText,
+  currency,
+  reaisToCents,
+} from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanTemplateModal({
   item,
@@ -26,7 +31,7 @@ export function PlanTemplateModal({
 }) {
   const [form, setForm] = useState({
     name: item?.name ?? "",
-    value: item ? String(item.totalValueInCents / 100) : "",
+    value: item ? centsToMoneyText(item.totalValueInCents) : "",
     planType: item?.planType ?? (item ? "" : "monthly"),
     services: item?.services.length
       ? item.services.map((entry) => ({
@@ -35,7 +40,7 @@ export function PlanTemplateModal({
           sessionsPerWeek: entry.sessionsPerWeek
             ? String(entry.sessionsPerWeek)
             : "",
-          value: String(entry.totalValueInCents / 100),
+          value: centsToMoneyText(entry.totalValueInCents),
         }))
       : [{ serviceId: "", sessions: "1", sessionsPerWeek: "", value: "" }],
   });
@@ -142,15 +147,11 @@ export function PlanTemplateModal({
         </label>
         <label>
           Valor total
-          <input
+          <MoneyInput
             required
-            type="number"
-            min="0"
-            max="21474836.47"
-            step="0.01"
-            value={form.value}
-            onChange={(event) => {
-              const value = event.target.value;
+            valueInCents={reaisToCents(form.value)}
+            onChange={(cents) => {
+              const value = centsToMoneyText(cents);
               setForm({
                 ...form,
                 value,
@@ -249,15 +250,11 @@ export function PlanTemplateModal({
             {form.services.length > 1 && (
               <label>
                 Valor do serviço {index + 1}
-                <input
+                <MoneyInput
                   required
-                  type="number"
-                  min="0"
-                  max="21474836.47"
-                  step="0.01"
-                  value={entry.value}
-                  onChange={(event) =>
-                    updateRow(index, { value: event.target.value })
+                  valueInCents={reaisToCents(entry.value)}
+                  onChange={(cents) =>
+                    updateRow(index, { value: centsToMoneyText(cents) })
                   }
                 />
               </label>

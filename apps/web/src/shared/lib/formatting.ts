@@ -74,10 +74,38 @@ export function localIsoDate(date = new Date()) {
 }
 
 export function reaisToCents(value: string) {
-  const amount = Number(value.replace(",", "."));
-  if (value.trim() === "" || !Number.isFinite(amount) || amount < 0)
-    return null;
-  return Math.round(amount * 100);
+  return parseMoneyToCents(value);
+}
+
+/**
+ * Converte o valor digitado em centavos: aceita "45,90", "45.90", "1.234,56", "1234" e
+ * "R$ 10"; vazio, negativo ou inválido devolve null.
+ */
+export function parseMoneyToCents(value: string): number | null {
+  const text = value.replace(/R\$|\s/g, "");
+  if (!text) return null;
+  const commas = text.split(",").length - 1;
+  const dots = text.split(".").length - 1;
+  let normalized = text;
+  if (commas > 0 && dots > 0) {
+    const decimal = text.lastIndexOf(",") > text.lastIndexOf(".") ? "," : ".";
+    const thousands = decimal === "," ? "." : ",";
+    normalized = text.split(thousands).join("").replace(decimal, ".");
+  } else if (commas === 1) normalized = text.replace(",", ".");
+  else if (commas > 1) return null;
+  else if (dots > 1 || (dots === 1 && text.length - text.indexOf(".") === 4))
+    normalized = text.split(".").join("");
+  if (!/^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(normalized)) return null;
+  return Math.round(Number(normalized) * 100);
+}
+
+/** Texto de um valor em centavos para campo de edição ("1.234,56"); null vira vazio. */
+export function centsToMoneyText(cents: number | null) {
+  if (cents === null) return "";
+  return (cents / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export const roleLabels: Record<UserRole, string> = userRoleLabels;

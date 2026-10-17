@@ -1,3 +1,5 @@
+import { MoneyInput } from "./MoneyInput";
+
 export function CurrencyField({
   label,
   value,
@@ -12,16 +14,10 @@ export function CurrencyField({
   return (
     <label>
       {label} (R$)
-      <input
-        type="number"
-        inputMode="decimal"
-        min={0}
-        step="0.01"
+      <MoneyInput
         required={required}
-        value={value / 100 || ""}
-        onChange={(event) =>
-          onChange(Math.round(Number(event.target.value) * 100))
-        }
+        valueInCents={value}
+        onChange={(cents) => onChange(cents ?? 0)}
       />
     </label>
   );

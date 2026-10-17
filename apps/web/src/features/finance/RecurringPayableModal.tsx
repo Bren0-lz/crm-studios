@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function RecurringPayableModal({
   workspace,
@@ -83,17 +84,11 @@ export function RecurringPayableModal({
           </label>
           <label>
             Valor mensal
-            <input
+            <MoneyInput
               required
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amountInCents / 100}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  amountInCents: Math.round(Number(event.target.value) * 100),
-                })
+              valueInCents={form.amountInCents}
+              onChange={(cents) =>
+                setForm({ ...form, amountInCents: cents ?? 0 })
               }
             />
           </label>

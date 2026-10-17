@@ -1,7 +1,12 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
-import { currency, reaisToCents } from "../../shared/lib/formatting";
+import {
+  centsToMoneyText,
+  currency,
+  reaisToCents,
+} from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function RenegotiateModal({
   receivables,
@@ -18,7 +23,7 @@ export function RenegotiateModal({
   }) => Promise<void>;
 }) {
   const total = receivables.reduce((sum, item) => sum + item.amountInCents, 0);
-  const [value, setValue] = useState(String(total / 100));
+  const [value, setValue] = useState(centsToMoneyText(total));
   const [installments, setInstallments] = useState(String(receivables.length));
   const [firstDueDate, setFirstDueDate] = useState(saoPauloToday());
   const [reason, setReason] = useState("");
@@ -54,14 +59,10 @@ export function RenegotiateModal({
     >
       <label>
         Novo valor total (R$)
-        <input
+        <MoneyInput
           autoFocus
-          type="number"
-          min="0"
-          step="0.01"
-          inputMode="decimal"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          valueInCents={reaisToCents(value)}
+          onChange={(cents) => setValue(centsToMoneyText(cents))}
         />
       </label>
       <label>

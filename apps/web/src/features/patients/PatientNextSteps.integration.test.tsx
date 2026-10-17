@@ -613,7 +613,7 @@ describe("client next steps", () => {
     );
     await within(planDialog).findByText("Falha ao vincular plano");
     expect(within(planDialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      150,
+      "150",
     );
     fireEvent.click(within(planDialog).getByRole("button", { name: "Voltar" }));
     const appointmentDialog = await openAppointment();

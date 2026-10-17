@@ -29,6 +29,7 @@ import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
 import { planKindLabels } from "./model";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanForm({
   patients,
@@ -389,21 +390,15 @@ export function PlanForm({
                 </label>
                 <label>
                   Valor do serviço {index + 1}
-                  <input
+                  <MoneyInput
                     required
-                    type="number"
-                    min="0"
-                    max="21474836.47"
-                    step="0.01"
-                    value={entry.totalValueInCents / 100}
-                    onChange={(event) => {
+                    valueInCents={entry.totalValueInCents}
+                    onChange={(cents) => {
                       const entries = form.services.map((item, position) =>
                         position === index
                           ? {
                               ...item,
-                              totalValueInCents: Math.round(
-                                Number(event.target.value) * 100,
-                              ),
+                              totalValueInCents: cents ?? 0,
                             }
                           : item,
                       );

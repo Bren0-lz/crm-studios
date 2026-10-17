@@ -16,6 +16,7 @@ import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
@@ -135,20 +136,15 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           </label>
           <label>
             Valor do serviço {index + 1}
-            <input
+            <MoneyInput
               required
-              type="number"
-              min="0"
-              step="0.01"
-              value={entry.totalValueInCents / 100}
-              onChange={(event) => {
+              valueInCents={entry.totalValueInCents}
+              onChange={(cents) => {
                 const entries = form.services.map((item, position) =>
                   position === index
                     ? {
                         ...item,
-                        totalValueInCents: Math.round(
-                          Number(event.target.value) * 100,
-                        ),
+                        totalValueInCents: cents ?? 0,
                       }
                     : item,
                 );

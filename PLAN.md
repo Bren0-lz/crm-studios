@@ -1197,7 +1197,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | C4 | 500 em /reports/clients/details (mesma causa do C1) | DONE |
 | C5 | Sino de notificações e menu do usuário | TODO |
 | C6 | Datas/horas locais nos campos (medição, comanda) | DONE |
-| C7 | Campo monetário único (BRL, vírgula, vazio) | TODO |
+| C7 | Campo monetário único (BRL, vírgula, vazio) | DONE |
 | C8 | Nova despesa: cadastro inline de categoria/centro, o que falta, centro opcional | TODO |
 | C9 | Encoding do modal "Novo atendimento" | DONE |
 | C10 | Recorrente 1 cobrança por ciclo; aviso no pacote; "Esgotado" | TODO |

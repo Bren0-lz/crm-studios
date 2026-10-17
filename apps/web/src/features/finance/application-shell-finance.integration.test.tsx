@@ -1131,7 +1131,7 @@ describe("application shell", () => {
       });
       const value = within(dialog).getByLabelText("Novo valor (R$)");
       // Abre com o valor atual e o foco no primeiro campo.
-      expect(value).toHaveValue(250);
+      expect(value).toHaveValue("250,00");
       expect(value).toHaveFocus();
       expect(
         within(dialog).getByText(/Hoje a parcela vale R\$\s250,00/),
@@ -1264,7 +1264,7 @@ describe("application shell", () => {
       ).toBeInTheDocument();
       expect(
         within(dialog).getByLabelText("Novo valor total (R$)"),
-      ).toHaveValue(250);
+      ).toHaveValue("250,00");
       expect(
         within(dialog).getByLabelText("Novo valor total (R$)"),
       ).toHaveFocus();

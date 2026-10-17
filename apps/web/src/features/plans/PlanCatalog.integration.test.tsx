@@ -197,7 +197,7 @@ describe("plan types and weekly sessions", () => {
       8,
     );
     expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      160,
+      "160,00",
     );
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue(
       "2026-11-09",
@@ -248,6 +248,6 @@ describe("plan types and weekly sessions", () => {
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
     await within(dialog).findByText("Falha ao salvar");
-    expect(within(dialog).getByLabelText("Valor total")).toHaveValue(180);
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("180");
   });
 });
