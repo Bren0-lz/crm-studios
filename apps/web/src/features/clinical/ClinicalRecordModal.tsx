@@ -9,6 +9,7 @@ import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
 import { shortDate } from "../../shared/lib/formatting";
 import { professionalWithCrefito } from "../contracts/index";
+import { ClinicalAppointmentPicker } from "./ClinicalAppointmentPicker";
 
 export function ClinicalRecordModal({
   record,
@@ -23,7 +24,7 @@ export function ClinicalRecordModal({
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalRecordInput>({
-    appointmentId: record?.appointmentId ?? appointments[0]?.id ?? "",
+    appointmentId: record?.appointmentId ?? "",
     subjective: record?.subjective ?? "",
     objective: record?.objective ?? "",
     assessment: record?.assessment ?? "",
@@ -55,30 +56,21 @@ export function ClinicalRecordModal({
     >
       {can(record ? "clinical.records_update" : "clinical.records_create") && (
         <form className="clinical-form" onSubmit={submit}>
-          <label>
-            Atendimento
-            <select
-              required
-              disabled={Boolean(record)}
+          {record ? (
+            <label>
+              Atendimento
+              <input
+                readOnly
+                value={`${shortDate.format(new Date(record.appointmentStartsAt))} · ${record.patientName}`}
+              />
+            </label>
+          ) : (
+            <ClinicalAppointmentPicker
+              appointments={appointments}
               value={form.appointmentId}
-              onChange={(event) =>
-                setForm({ ...form, appointmentId: event.target.value })
-              }
-            >
-              {appointments.map((appointment) => (
-                <option value={appointment.id} key={appointment.id}>
-                  {shortDate.format(new Date(appointment.startsAt))} ·{" "}
-                  {appointment.patientName} · {appointment.professionalName}
-                </option>
-              ))}
-              {record && (
-                <option value={record.appointmentId}>
-                  {shortDate.format(new Date(record.appointmentStartsAt))} ·{" "}
-                  {record.patientName}
-                </option>
-              )}
-            </select>
-          </label>
+              onChange={(appointmentId) => setForm({ ...form, appointmentId })}
+            />
+          )}
           {record && (
             <p className="muted-copy">
               Profissional:{" "}

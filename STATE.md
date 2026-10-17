@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U22 — bloco B)
-- **Última concluída:** U28 (bloco C concluído)
+- **Tarefa atual:** Rodada 7, Fase 2 (U23 — bloco B)
+- **Última concluída:** U22
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -165,3 +165,4 @@
 - 2026-10-17 Bloco G (U42–U46) concluído.
 - 2026-10-17 U27/U28 (um commit, mesmo cartão): plans/model.ts ganhou `PlanListFilter` (all/active/paused/exhausted/expiring), `planMatchesFilter` (Vencendo = exibido ativo e validade entre hoje e +15 dias, `PLAN_EXPIRING_DAYS`), `planMatchesSearch` (nome do cliente via `patientTagKey`, sem acento) e `planSubtitle` (omite serviço já citado no nome; vários serviços = nome · lista dos que faltam). Contadores calculados sobre a lista já buscada. Chips de filtro precisam de `text-button tag-filter` (button-variants.integration.test reprova `tag-filter` sozinho; outras telas antigas com só `tag-filter` não são cobertas por esse teste). Teste "opens a plan sale" tinha corrida (clicava antes de carregar clientes): agora espera "Nenhum plano cadastrado".
 - 2026-10-17 Bloco C (U27–U28) concluído.
+- 2026-10-17 U22: `ClinicalAppointmentPicker` (features/clinical; combobox no padrão do PatientPicker, filtro local) substitui o select na nova evolução; edição mostra campo somente leitura. Helpers em clinical/model.ts: `filterClinicalAppointments` (desc por data; padrão 90 dias, `RECENT_APPOINTMENT_DAYS`; "Incluir mais antigos" usa os 180 dias já carregados; busca sem acento no rótulo, que inclui DD/MM/AAAA) e `clinicalAppointmentLabel`. Nova evolução não pré-seleciona mais atendimento. Testes da página de prontuários precisam esperar "Nova evolução" habilitar (só habilita após carregar atendimentos) — corrigido em application-shell-clinical.

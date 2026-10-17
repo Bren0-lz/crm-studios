@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -61,6 +61,8 @@ describe("application shell", () => {
     const newRecord = await screen.findByRole("button", {
       name: "Nova evolução",
     });
+    // O botão só habilita depois de carregar os atendimentos.
+    await waitFor(() => expect(newRecord).toBeEnabled());
     fireEvent.click(newRecord);
     expect(
       await screen.findByRole("heading", { name: "Nova evolução clínica" }),
