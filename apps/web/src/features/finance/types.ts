@@ -1,4 +1,5 @@
-export type ReceivableFilter = "all" | "open" | "overdue" | "paid";
+export type ReceivableFilter =
+  "all" | "open" | "overdue" | "paid" | "cancelled";
 
 export interface SettleTarget {
   kind: "receivable" | "payable";

@@ -54,17 +54,22 @@ export function ReceivablesList({
     item,
     situation: receivableSituation(item, today),
   }));
-  const counts: Record<ReceivableFilter, number> = {
-    all: rows.length,
-    open: rows.filter((row) => row.situation.key === "open").length,
-    overdue: rows.filter((row) => row.situation.key === "overdue").length,
-    paid: rows.filter((row) => row.situation.key === "paid").length,
-  };
   const term = normalizeSearch(search);
-  const visible = rows.filter(
-    (row) =>
-      (filter === "all" || row.situation.key === filter) &&
-      (!term || normalizeSearch(row.item.patientName).includes(term)),
+  // Contadores sobre a lista já buscada: a soma das abas é sempre igual a "Todas".
+  const searched = rows.filter(
+    (row) => !term || normalizeSearch(row.item.patientName).includes(term),
+  );
+  const count = (key: Exclude<ReceivableFilter, "all">) =>
+    searched.filter((row) => row.situation.key === key).length;
+  const counts: Record<ReceivableFilter, number> = {
+    all: searched.length,
+    open: count("open"),
+    overdue: count("overdue"),
+    paid: count("paid"),
+    cancelled: count("cancelled"),
+  };
+  const visible = searched.filter(
+    (row) => filter === "all" || row.situation.key === filter,
   );
   const selectable = canManage
     ? visible.filter((row) => row.item.status === "open")

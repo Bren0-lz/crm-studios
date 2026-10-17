@@ -109,6 +109,7 @@ export const receivableFilterLabels: Record<ReceivableFilter, string> = {
   open: "Em aberto",
   overdue: "Vencidas",
   paid: "Pagas",
+  cancelled: "Canceladas",
 };
 
 export function receivableSituation(

@@ -909,6 +909,63 @@ describe("application shell", () => {
       expect(screen.getByText("Carla Mendes")).toBeInTheDocument();
     });
 
+    it("counts the tabs over the searched list, with Cancelled closing the sum", async () => {
+      renderFinance([
+        {
+          clinicId: "11111111-1111-4111-8111-111111111111",
+          planId: "plan-elisa",
+          installmentCount: 3,
+          createdAt: "2026-01-01T12:00:00.000Z",
+          updatedAt: "2026-01-01T12:00:00.000Z",
+          id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
+          patientId: "p5",
+          patientName: "Elisa Prado",
+          description: "Pilates 1x · parcela 3/3",
+          installmentNumber: 3,
+          dueDate: saoPauloToday(),
+          amountInCents: 12000,
+          status: "cancelled",
+          overdue: false,
+        },
+      ]);
+      await screen.findByText("Ana Souza");
+      const filters = screen.getByRole("group", {
+        name: "Filtrar parcelas por situação",
+      });
+      const counts = () =>
+        Object.fromEntries(
+          within(filters)
+            .getAllByRole("button")
+            .map((button) => [
+              button.firstChild?.textContent?.trim(),
+              Number(button.querySelector("small")?.textContent),
+            ]),
+        );
+      expect(counts()).toEqual({
+        Todas: 4,
+        "Em aberto": 1,
+        Vencidas: 1,
+        Pagas: 1,
+        Canceladas: 1,
+      });
+      fireEvent.click(
+        within(filters).getByRole("button", { name: /^Canceladas/ }),
+      );
+      expect(screen.getByText("Elisa Prado")).toBeInTheDocument();
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+      fireEvent.click(within(filters).getByRole("button", { name: /^Todas/ }));
+      fireEvent.change(screen.getByLabelText("Buscar cliente"), {
+        target: { value: "bruno" },
+      });
+      expect(counts()).toEqual({
+        Todas: 1,
+        "Em aberto": 0,
+        Vencidas: 1,
+        Pagas: 0,
+        Canceladas: 0,
+      });
+    });
+
     it("asks for the payment method in a modal when settling an installment", async () => {
       renderFinance();
       await screen.findByText("Ana Souza");

@@ -1252,7 +1252,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U35 | Contratos: inserir campo e prévia | DONE |
 | U36 | Limpar formulário após criar modelo | DONE |
 | U37 | Contrato emitido: WhatsApp e PDF | DONE |
-| U38 | Contadores das abas do financeiro | TODO |
+| U38 | Contadores das abas do financeiro | DONE |
 | U39 | Baixa parcial, desconto e juros | TODO |
 | U40 | Recibo completo e WhatsApp | TODO |
 | U41 | Ajuda em termos técnicos | TODO |

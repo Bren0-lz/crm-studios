@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U38 — bloco F)
-- **Última concluída:** U21 (bloco A concluído)
+- **Tarefa atual:** Rodada 7, Fase 2 (U39 — bloco F)
+- **Última concluída:** U38
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -185,3 +185,4 @@
 - 2026-10-17 U20: `CatalogSelect` (shared/components): select com itens ativos de `clinicCatalog(kind)`, "Selecione", valor antigo fora do catálogo como opção e "Outro" (valor interno `__other__`) que abre o campo "<Rótulo>: qual?". Usado em Origem (lead_source) e Interesse (interest) do LeadModal. `CatalogInput` (datalist) continua nos outros pontos (atividades, motivo de perda).
 - 2026-10-17 U21: o contato do lead grava os dois: `channel` (enum obrigatório; só usado na exibição como reserva) e `contactMethod` (texto do catálogo lead_channel; alimenta "Conversão por forma de contato" e o contact_method do lead, migração 0066). Aba Contatos agora tem um campo único "Canal" = canais padrão (`leadContactChannelLabels`) + itens ativos do catálogo sem repetir rótulo; grava o nome em contactMethod e `channel` = padrão correspondente ou `inferLeadContactChannel(nome)` (palavras-chave; sem correspondência = "note"). Registros antigos exibem contactMethod ou o rótulo do channel. Sem mudança de API/banco.
 - 2026-10-17 Bloco A (U17–U21) concluído.
+- 2026-10-17 U38: "Todas 123 ≠ 11+18+78" eram as canceladas (status open/paid/cancelled; vencida é derivada). Nova aba "Canceladas" (`ReceivableFilter` ganhou "cancelled") e contadores calculados sobre a lista já filtrada pela busca em ReceivablesList.
