@@ -1,4 +1,9 @@
-import type { Appointment, GroupSession, ScheduleBlock } from "@crm/contracts";
+import type {
+  Appointment,
+  AppointmentStatus,
+  GroupSession,
+  ScheduleBlock,
+} from "@crm/contracts";
 import type { AgendaEntry } from "./types";
 
 export const agendaKindOrder: Record<AgendaEntry["kind"], number> = {
@@ -37,4 +42,17 @@ export function sortAgendaEntries({
       new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime() ||
       agendaKindOrder[a.kind] - agendaKindOrder[b.kind],
   );
+}
+
+/** Mensagem do aviso depois de mudar o status de um atendimento. */
+export function appointmentStatusToast(status: AppointmentStatus) {
+  return {
+    scheduled: "Atendimento reaberto.",
+    confirmed: "Presença confirmada.",
+    completed: "Atendimento marcado como realizado.",
+    no_show: "Falta registrada.",
+    excused_absence: "Ausência registrada.",
+    professional_absence: "Ausência do profissional registrada.",
+    cancelled: "Atendimento cancelado.",
+  }[status];
 }

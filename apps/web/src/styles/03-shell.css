@@ -366,3 +366,38 @@ button.top-avatar {
 .header-user-actions {
   display: grid;
 }
+
+/* Avisos (toast) de sucesso e erro, no canto inferior direito. */
+.toast-stack {
+  position: fixed;
+  z-index: 80;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - var(--space-6)));
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid #b8d8ca;
+  border-radius: var(--radius-md);
+  background: #edf7f2;
+  color: #286450;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgb(24 79 67 / 14%);
+}
+.toast span {
+  flex: 1;
+}
+.toast-error {
+  border-color: #e8c8be;
+  background: #fbf2ef;
+  color: #8d3d2a;
+}
+.toast-close {
+  color: inherit;
+}

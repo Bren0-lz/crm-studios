@@ -1202,3 +1202,62 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | C9 | Encoding do modal "Novo atendimento" | DONE |
 | C10 | Recorrente 1 cobrança por ciclo; aviso no pacote; "Esgotado" | DONE |
 | C11 | Histórico: ordem por criação, sem duplicar, responsável sempre gravado, seed sem datas futuras | DONE |
+
+### Decisões do dono — Fase 2
+
+- **U16:** máscara de CEP + ViaCEP ao completar 8 dígitos; falha → preenchimento manual.
+- **U37:** contrato emitido com WhatsApp (wa.me, mensagem pronta) e PDF pela impressão do
+  navegador; sem envio automático de e-mail.
+- **U5:** visão Dia em grade por profissional, clique no vazio abre Novo atendimento
+  preenchido; sem arrastar (remarcar continua pelo modal).
+
+### Fase 2 — Usabilidade
+
+| ID | Item | Status |
+|----|------|--------|
+| U1 | Toast único de sucesso/erro | DONE |
+| U2 | Validação inline e `*` nos obrigatórios | TODO |
+| U3 | Rótulo do módulo no lugar de "CADASTRO RÁPIDO" | TODO |
+| U4 | Confirmação em Pausar plano e Emitir contrato | TODO |
+| U5 | Agenda Dia em grade por profissional, clique no vazio | TODO |
+| U6 | Lembrar visão da agenda | TODO |
+| U7 | Título da semana com intervalo | TODO |
+| U8 | Seletor de data contido no modal, sem horário duplicado | TODO |
+| U9 | Aviso ao agendar cliente com pendência/sem plano | TODO |
+| U10 | Serviços filtrados por profissional/sala | TODO |
+| U11 | Motivo no cancelamento e aviso por WhatsApp | TODO |
+| U12 | Busca de clientes sem acento e com debounce | TODO |
+| U13 | Linha abre a ficha | TODO |
+| U14 | Ficha: topo completo e abas na própria ficha | TODO |
+| U15 | Cadastro rápido enxuto com "Mais informações" | TODO |
+| U16 | CEP com máscara e ViaCEP | TODO |
+| U17 | Arrastar e soltar no quadro comercial | TODO |
+| U18 | Colunas do quadro visíveis | TODO |
+| U19 | Formulário de lead enxuto | TODO |
+| U20 | Origem/Interesse como selects dos catálogos | TODO |
+| U21 | Contatos do lead sem campo redundante | TODO |
+| U22 | Select de atendimento: recente primeiro e busca | TODO |
+| U23 | Rascunho SOAP sem exigir todos os campos | TODO |
+| U24 | Sem códigos internos na interface | TODO |
+| U25 | Nova avaliação sem modelo: atalho para criar | TODO |
+| U26 | Linha do tempo mostra rascunhos | TODO |
+| U27 | Planos: busca e filtros | TODO |
+| U28 | Subtítulo do plano sem duplicação | TODO |
+| U29 | Pausar: retorno/motivo e validade | TODO |
+| U30 | Mensagens com primeiro nome | TODO |
+| U31 | Fila: filtros, lote e layout compacto | TODO |
+| U32 | WhatsApp + registrar envio unificados | TODO |
+| U33 | Contatos sugeridos agrupados por cliente | TODO |
+| U34 | Nomenclatura "Contatos sugeridos" | TODO |
+| U35 | Contratos: inserir campo e prévia | TODO |
+| U36 | Limpar formulário após criar modelo | TODO |
+| U37 | Contrato emitido: WhatsApp e PDF | TODO |
+| U38 | Contadores das abas do financeiro | TODO |
+| U39 | Baixa parcial, desconto e juros | TODO |
+| U40 | Recibo completo e WhatsApp | TODO |
+| U41 | Ajuda em termos técnicos | TODO |
+| U42 | Variação percentual com seta e cor | TODO |
+| U43 | Datas brasileiras no DRE | TODO |
+| U44 | Aba própria para serviços, salas e profissionais | TODO |
+| U45 | Validar CNPJ/CPF da clínica | TODO |
+| U46 | "Ver todos" em sem retorno | TODO |

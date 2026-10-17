@@ -21,6 +21,7 @@ import { currency, shortDate } from "../../shared/lib/formatting";
 import { planKindLabels } from "./model";
 import { PlanCancelModal } from "./PlanCancelModal";
 import { PlanModal } from "./PlanModal";
+import { useToast } from "../../shared/feedback/toast-context";
 import { SessionMovementsModal } from "./SessionMovementsModal";
 
 export function PlansPage({ canManage }: { canManage: boolean }) {
@@ -58,6 +59,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     };
   }, []);
 
+  const toast = useToast();
   function replacePlan(plan: PatientPlan) {
     setPlans((items) => [plan, ...items.filter((item) => item.id !== plan.id)]);
   }
@@ -66,6 +68,13 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     setError("");
     try {
       replacePlan(await api.updatePlanStatus(plan.id, status));
+      toast.success(
+        status === "paused"
+          ? "Plano pausado."
+          : status === "cancelled"
+            ? "Plano cancelado."
+            : "Plano reativado.",
+      );
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -75,6 +84,11 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     setError("");
     try {
       const updated = await api.setPlanAutoRenew(plan.id, !plan.autoRenew);
+      toast.success(
+        updated.autoRenew
+          ? "Renovação automática ativada."
+          : "Renovação automática desativada.",
+      );
       setPlans((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );

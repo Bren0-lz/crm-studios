@@ -1,6 +1,6 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7 — Fase 1 concluída; aguardando o dono para a Fase 2
+- **Tarefa atual:** Rodada 7, Fase 2 (U1)
 - **Última concluída:** T072 (organização e testes)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum

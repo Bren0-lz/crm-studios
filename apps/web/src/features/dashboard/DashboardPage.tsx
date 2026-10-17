@@ -22,6 +22,8 @@ import {
 } from "../../shared/lib/formatting";
 import type { DashboardAppointmentAction } from "../../shared/lib/types";
 import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
+import { useToast } from "../../shared/feedback/toast-context";
+import { appointmentStatusToast } from "../agenda/index";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
 
 export function DashboardPage() {
@@ -156,6 +158,7 @@ export function DashboardPage() {
     await refreshDashboard();
   }
 
+  const toast = useToast();
   async function changeDashboardStatus(
     appointment: Appointment,
     status: "confirmed" | "completed",
@@ -168,6 +171,7 @@ export function DashboardPage() {
     try {
       const updated = await api.updateAppointmentStatus(appointment.id, status);
       await appointmentUpdated(updated, appointment);
+      toast.success(appointmentStatusToast(updated.status));
     } catch (cause) {
       setError(
         cause instanceof Error

@@ -41,10 +41,13 @@ import { DayEventsModal } from "./DayEventsModal";
 import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
+import { useToast } from "../../shared/feedback/toast-context";
+import { appointmentStatusToast } from "./model";
 import { sortAgendaEntries } from "./model";
 
 export function AgendaPage() {
   const { can, canView, canEdit } = useAuthorization();
+  const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<"day" | "week" | "month">("day");
@@ -662,6 +665,11 @@ export function AgendaPage() {
           }}
           onClose={() => setModalOpen(false)}
           onCreated={(appointment) => {
+            toast.success(
+              appointment.length > 1
+                ? `${appointment.length} atendimentos agendados.`
+                : "Atendimento agendado.",
+            );
             setAppointments((items) =>
               [
                 ...items,
@@ -681,6 +689,7 @@ export function AgendaPage() {
           rooms={rooms}
           onClose={() => setBlockModalOpen(false)}
           onCreated={(block) => {
+            toast.success("Bloqueio criado.");
             if (block.startsAt < rangeTo && block.endsAt > rangeFrom)
               setBlocks((items) =>
                 [...items, block].sort((a, b) =>
@@ -705,6 +714,7 @@ export function AgendaPage() {
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
+            toast.success(appointmentStatusToast(updated.status));
             setAbsence(null);
           }}
         />
@@ -716,6 +726,7 @@ export function AgendaPage() {
           rooms={rooms}
           onClose={() => setRescheduling(null)}
           onSaved={(updated) => {
+            toast.success("Atendimento remarcado.");
             setAppointments((items) =>
               items
                 .map((item) => (item.id === updated.id ? updated : item))
@@ -745,6 +756,7 @@ export function AgendaPage() {
             setRescheduling(selectedAppointment);
           }}
           onUpdated={(updated) => {
+            toast.success(appointmentStatusToast(updated.status));
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
@@ -813,8 +825,10 @@ export function AgendaPage() {
       setAppointments((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );
+      toast.success(appointmentStatusToast(updated.status));
     } catch (cause) {
       setError((cause as Error).message);
+      toast.error((cause as Error).message);
     }
   }
 
@@ -822,5 +836,6 @@ export function AgendaPage() {
     const updated = await api.cancelScheduleBlock(block.id);
     setBlocks((items) => items.filter((item) => item.id !== updated.id));
     setCancellingBlock(null);
+    toast.success("Bloqueio cancelado.");
   }
 }

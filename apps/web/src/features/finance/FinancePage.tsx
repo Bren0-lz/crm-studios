@@ -42,6 +42,7 @@ import { ReceivablesList } from "./ReceivablesList";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
+import { useToast } from "../../shared/feedback/toast-context";
 import type { ReceivableFilter, SettleTarget } from "./types";
 
 export function FinancePage() {
@@ -106,10 +107,12 @@ export function FinancePage() {
       active = false;
     };
   }, []);
+  const toast = useToast();
   async function reverseReceivable(id: string) {
     setError("");
     try {
       await api.reverseReceivable(id);
+      toast.success("Pagamento estornado.");
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
       await reload();
@@ -121,6 +124,7 @@ export function FinancePage() {
     setError("");
     try {
       await api.reversePayable(id);
+      toast.success("Pagamento da conta estornado.");
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -134,6 +138,9 @@ export function FinancePage() {
     if (target.kind === "receivable")
       await api.settleReceivable(target.id, method, timing);
     else await api.settlePayable(target.id, method, timing);
+    toast.success(
+      target.kind === "receivable" ? "Pagamento recebido." : "Conta paga.",
+    );
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
     if (target.kind === "receivable") setSelectedReceivables([]);
@@ -168,6 +175,7 @@ export function FinancePage() {
     reason: string,
   ) {
     await api.adjustReceivable(id, amountInCents, reason);
+    toast.success("Valor da parcela ajustado.");
     setAdjusting(null);
     setSelectedReceivables([]);
     await reloadAfterAction();
@@ -176,6 +184,11 @@ export function FinancePage() {
     if (kind === "category")
       await api.createFinancialCategory({ name, kind: "expense" });
     else await api.createCostCenter({ name });
+    toast.success(
+      kind === "category"
+        ? "Categoria cadastrada."
+        : "Centro de custo cadastrado.",
+    );
     setRegistry(null);
     await reloadAfterAction();
   }
@@ -189,6 +202,7 @@ export function FinancePage() {
       receivableIds: selectedReceivables,
       ...input,
     });
+    toast.success("Parcelas renegociadas.");
     setRenegotiating(false);
     setSelectedReceivables([]);
     await reloadAfterAction();
@@ -198,6 +212,11 @@ export function FinancePage() {
     try {
       if (item.status === "paid") await api.reverseCommission(item.id);
       else await api.settleCommission(item.id);
+      toast.success(
+        item.status === "paid"
+          ? "Pagamento da comissão estornado."
+          : "Comissão paga.",
+      );
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -207,6 +226,7 @@ export function FinancePage() {
     setError("");
     try {
       await api.generateCommissions(localIsoDate().slice(0, 7));
+      toast.success("Comissões do mês geradas.");
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -215,6 +235,7 @@ export function FinancePage() {
   async function createCommissionRule(input: CommissionRuleDraft) {
     if ("userId" in input) await api.setUserCommission(input.userId, input);
     else await api.createCommissionRule(input);
+    toast.success("Regra de comissão salva.");
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }

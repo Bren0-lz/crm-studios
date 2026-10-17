@@ -4,3 +4,4 @@ export { AppointmentRescheduleHistoryModal } from "./AppointmentRescheduleHistor
 export { AppointmentRescheduleModal } from "./AppointmentRescheduleModal";
 
 export { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
+export { appointmentStatusToast } from "./model";
