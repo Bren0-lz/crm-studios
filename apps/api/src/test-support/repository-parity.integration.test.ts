@@ -121,7 +121,7 @@ for (const storage of ["memory", "postgres"] as const) {
           const input = clinicSettingsInputSchema.parse({
             name: "Clínica de teste",
             legalName: "Clínica de teste Ltda.",
-            taxId: "12.345.678/0001-90",
+            taxId: "11.222.333/0001-81",
             phone: "(11) 99999-1234",
             email: "clinica@example.com",
             address: "Rua de teste, 123",

@@ -258,6 +258,49 @@ describe("settings tabs", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("masks the clinic CPF/CNPJ and refuses invalid check digits before saving", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const taxId = await screen.findByLabelText(/^CNPJ.CPF/);
+    fireEvent.change(taxId, { target: { value: "12345678000190" } });
+    expect(taxId).toHaveValue("12.345.678/0001-90");
+    fireEvent.blur(taxId);
+    expect(
+      await screen.findByText("Informe um CPF ou CNPJ válido."),
+    ).toBeInTheDocument();
+    expect(taxId).toHaveAttribute("aria-invalid", "true");
+    fireEvent.submit(taxId.closest("form")!);
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Informe um CPF ou CNPJ válido.",
+      ),
+    );
+    const putCalls = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([input, init]) =>
+            String(input).includes("/admin/clinic-settings") &&
+            init?.method === "PUT",
+        );
+    expect(putCalls()).toHaveLength(0);
+    fireEvent.change(taxId, { target: { value: "11222333000181" } });
+    fireEvent.blur(taxId);
+    expect(taxId).toHaveValue("11.222.333/0001-81");
+    expect(taxId).not.toHaveAttribute("aria-invalid");
+    fireEvent.submit(taxId.closest("form")!);
+    await waitFor(() => expect(putCalls()).toHaveLength(1));
+    expect(JSON.parse(String(putCalls()[0]![1]!.body))).toMatchObject({
+      taxId: "11.222.333/0001-81",
+    });
+  });
+
   it("opens the first available tab for reception and keeps relationship read-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

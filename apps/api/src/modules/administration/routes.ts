@@ -7,6 +7,7 @@ import {
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
   clinicSettingsInputSchema,
+  isValidTaxId,
   passwordResetSchema,
   type PermissionMatrixItem,
 } from "@crm/contracts";
@@ -196,6 +197,13 @@ export function registerAdministrationRoutes(context: RouteContext) {
 }
 
 function validatedClinicSettings(body: unknown) {
+  const taxId = (body as { taxId?: unknown } | null)?.taxId;
+  if (typeof taxId === "string" && taxId.trim() && !isValidTaxId(taxId))
+    throw new DomainError(
+      "INVALID_TAX_ID",
+      "Informe um CPF ou CNPJ válido, com os dígitos verificadores corretos.",
+      400,
+    );
   const input = clinicSettingsInputSchema.parse(body);
   if (input.logoDataUrl) {
     const match = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(

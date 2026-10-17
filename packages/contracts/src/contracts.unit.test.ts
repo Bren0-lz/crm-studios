@@ -8,6 +8,10 @@ import {
   broadcastInputSchema,
   broadcastSkipReasonLabels,
   broadcastSkipReasons,
+  clinicSettingsInputSchema,
+  formatTaxId,
+  isValidCnpj,
+  isValidTaxId,
   clinicalRecordInputSchema,
   contactActivityInputSchema,
   contactOutcomeSchema,
@@ -265,6 +269,32 @@ describe("shared contracts", () => {
     expect(formatPhone("11999998888")).toBe("(11) 99999-8888");
     expect(formatPhone("(11) 99999-88887")).toBe("(11) 99999-8888");
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
+  });
+
+  it("validates and formats the clinic CPF/CNPJ", () => {
+    expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
+    expect(isValidCnpj("12.345.678/0001-90")).toBe(false);
+    expect(isValidCnpj("00.000.000/0000-00")).toBe(false);
+    expect(isValidTaxId("529.982.247-25")).toBe(true);
+    expect(isValidTaxId("1122233300018")).toBe(false);
+    expect(formatTaxId("11222333000181")).toBe("11.222.333/0001-81");
+    expect(formatTaxId("1122233300")).toBe("112.223.330-0");
+    const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
+    expect(
+      clinicSettingsInputSchema.parse({ ...base, taxId: "11222333000181" })
+        .taxId,
+    ).toBe("11.222.333/0001-81");
+    expect(clinicSettingsInputSchema.parse({ ...base, taxId: "" }).taxId).toBe(
+      "",
+    );
+    const invalid = clinicSettingsInputSchema.safeParse({
+      ...base,
+      taxId: "12.345.678/0001-90",
+    });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error?.issues[0]?.message).toBe(
+      "Informe um CPF ou CNPJ válido.",
+    );
   });
 
   it("formats, normalizes and validates Brazilian CPF numbers", () => {

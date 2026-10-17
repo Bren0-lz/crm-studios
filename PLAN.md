@@ -1259,7 +1259,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U42 | Variação percentual com seta e cor | DONE |
 | U43 | Datas brasileiras no DRE | DONE |
 | U44 | Aba própria para serviços, salas e profissionais | DONE |
-| U45 | Validar CNPJ/CPF da clínica | TODO |
+| U45 | Validar CNPJ/CPF da clínica | DONE |
 | U46 | "Ver todos" em sem retorno | TODO |
 - **U29:** ao reativar um plano pausado, a validade avança os dias em pausa; motivo e previsão
   de retorno gravados (migração 0077).

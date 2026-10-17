@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { optionalPhoneSchema } from "../common/model.js";
+import {
+  formatTaxId,
+  isValidTaxId,
+  optionalPhoneSchema,
+} from "../common/model.js";
 import { adminUserCommissionInputSchema } from "../finance/model.js";
 import {
   userPermissionsSchema,
@@ -150,7 +154,16 @@ export const clinicSettingsInputSchema = z.object({
     .or(z.literal("")),
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional().or(z.literal("")),
-  taxId: z.string().trim().max(20).optional().or(z.literal("")),
+  taxId: z
+    .string()
+    .trim()
+    .max(20)
+    .refine(
+      (value) => value === "" || isValidTaxId(value),
+      "Informe um CPF ou CNPJ válido.",
+    )
+    .transform((value) => (value === "" ? "" : formatTaxId(value)))
+    .optional(),
   phone: optionalPhoneSchema,
   email: z.email().optional().or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),

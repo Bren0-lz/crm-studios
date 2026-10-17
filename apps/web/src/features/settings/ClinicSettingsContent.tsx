@@ -1,4 +1,4 @@
-import type { ClinicSettings } from "@crm/contracts";
+import { formatTaxId, isValidTaxId, type ClinicSettings } from "@crm/contracts";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -9,6 +9,7 @@ import { useUnsavedChangesPrompt } from "./useUnsavedChangesPrompt";
 
 export function ClinicSettingsContent() {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
+  const [taxIdChecked, setTaxIdChecked] = useState(false);
   const [savedSettings, setSavedSettings] = useState<ClinicSettings | null>(
     null,
   );
@@ -44,6 +45,11 @@ export function ClinicSettingsContent() {
     if (savingRef.current || !settings) return;
     if (!formRef.current?.reportValidity())
       throw new Error("Revise os campos obrigatórios antes de salvar.");
+    const taxId = settings.taxId?.trim() ?? "";
+    if (taxId && !isValidTaxId(taxId)) {
+      setTaxIdChecked(true);
+      throw new Error("Informe um CPF ou CNPJ válido.");
+    }
     savingRef.current = true;
     setSaving(true);
     setError("");
@@ -59,6 +65,8 @@ export function ClinicSettingsContent() {
       setSaving(false);
     }
   }
+  const taxIdInvalid =
+    taxIdChecked && !!settings?.taxId?.trim() && !isValidTaxId(settings.taxId);
   const prompt = useUnsavedChangesPrompt({
     section: "Dados da clínica",
     dirty,
@@ -176,11 +184,33 @@ export function ClinicSettingsContent() {
               <label>
                 CNPJ/CPF
                 <input
-                  value={settings.taxId}
-                  onChange={(event) =>
-                    setSettings({ ...settings, taxId: event.target.value })
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="00.000.000/0000-00"
+                  maxLength={18}
+                  value={formatTaxId(settings.taxId ?? "")}
+                  aria-invalid={taxIdInvalid || undefined}
+                  aria-describedby={
+                    taxIdInvalid ? "clinic-tax-id-error" : undefined
                   }
+                  onBlur={() => setTaxIdChecked(true)}
+                  onChange={(event) => {
+                    setTaxIdChecked(false);
+                    setSettings({
+                      ...settings,
+                      taxId: formatTaxId(event.target.value),
+                    });
+                  }}
                 />
+                {taxIdInvalid && (
+                  <small
+                    id="clinic-tax-id-error"
+                    className="field-error"
+                    aria-live="polite"
+                  >
+                    Informe um CPF ou CNPJ válido.
+                  </small>
+                )}
               </label>
             </div>
           </fieldset>

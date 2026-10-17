@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 2 (U45 — bloco G)
-- **Última concluída:** U44
+- **Tarefa atual:** Rodada 7, Fase 2 (U46 — bloco G)
+- **Última concluída:** U45
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -160,3 +160,4 @@
 - 2026-10-17 U42: `TrendBadge` (shared/components; helpers `trendDirection`/`formatTrendPercent` em shared/lib/trend.ts — lint react-refresh não aceita função exportada junto do componente). Só Painel e Relatórios › Vendas mostram variação (`changePercent`); não havia "~" no código, o problema era "102.1%" com ponto. Sem base anterior = "Novo · sem base anterior"; `higherIsBetter` inverte as cores.
 - 2026-10-17 U43: `formatIsoDate` já gera DD/MM/AAAA. Só a legenda do DRE e a vigência do treino (ClinicalResourcesPanel) mostravam ISO cru; cabeçalhos de mês do DRE já eram MM/AAAA. Teste: detalhes do DRE abertos com `details.open = true` + `fireEvent(details, new Event("toggle"))`.
 - 2026-10-17 U44: aba `registry` ("Serviços e salas", título "Serviços, salas e profissionais") depois de Cadastros; `AdministrativeRegistrySection` sem acordeão, carrega ao abrir a aba. `settingsTabFromSection` (settings/model.ts) mapeia `?secao=` etiquetas/cadastros/servicos/salas/profissionais. Listas de abas nos testes de settings atualizadas.
+- 2026-10-17 U45: contracts/common ganhou `cnpjDigits`, `isValidCnpj`, `isValidTaxId` (11 = CPF, 14 = CNPJ) e `formatTaxId` (máscara parcial). `clinicSettingsInputSchema.taxId` recusa dígito verificador errado e grava formatado; a rota devolve 400 INVALID_TAX_ID com mensagem pt-BR (o handler genérico de zod só diz "Revise os dados informados."). `ClinicSettings.taxId` é opcional — usar `?? ""`. Fixtures com 12.345.678/0001-90 (inválido) trocadas por 11.222.333/0001-81 (inclui e2e/settings.spec.ts). Sem mudança de storage: o teste PG de paridade só teve a fixture trocada.
