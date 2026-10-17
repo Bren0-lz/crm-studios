@@ -678,6 +678,14 @@
   flex-wrap: nowrap;
   overflow: hidden;
 }
+/* Etiquetas longas encolhem com reticências; o "+N" nunca some (V1). */
+.tags-cell > .tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tag-more {
   flex: 0 0 auto;
   padding: calc(var(--space-1) / 2) var(--space-2);

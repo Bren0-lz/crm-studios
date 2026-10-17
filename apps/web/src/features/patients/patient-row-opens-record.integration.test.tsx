@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -48,10 +49,29 @@ describe("patient list rows", () => {
       name: "Abrir ficha de Helena Almeida",
     });
     expect(row).toHaveTextContent("+2");
+    // V1: o "+N" diz quais etiquetas estão escondidas.
+    expect(
+      within(row).getByLabelText(
+        "Mais 2 etiquetas: Pós-operatório, Recorrente",
+      ),
+    ).toHaveClass("tag-more");
     fireEvent.click(row);
     expect(
       await screen.findByRole("heading", { level: 1, name: "Helena Almeida" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps the +N visible and fits the row on a phone (CSS)", () => {
+    const css = (name: string) =>
+      readFileSync(`${process.cwd()}/src/styles/${name}`, "utf8");
+    expect(css("04-dashboard-clients.css")).toMatch(
+      /\.tags-cell > \.tag \{[^}]*text-overflow: ellipsis/,
+    );
+    const mobile = css("11-responsive.css");
+    expect(mobile).toMatch(
+      /\.patient-table \.table-row \{\s*grid-template-columns: 1fr auto;/,
+    );
+    expect(mobile).toMatch(/\.patient-table \.tags-cell \{\s*flex-wrap: wrap;/);
   });
 });

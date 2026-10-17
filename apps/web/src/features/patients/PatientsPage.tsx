@@ -510,6 +510,7 @@ export function PatientsPage() {
                           <span
                             className="tag-more"
                             title={patient.tags.slice(2).join(", ")}
+                            aria-label={`Mais ${patient.tags.length - 2} ${patient.tags.length - 2 === 1 ? "etiqueta" : "etiquetas"}: ${patient.tags.slice(2).join(", ")}`}
                           >
                             +{patient.tags.length - 2}
                           </span>

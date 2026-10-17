@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V1)
-- **Última concluída:** U41 (bloco F e Fase 2 concluídos)
+- **Tarefa atual:** Rodada 7, Fase 3 (V2)
+- **Última concluída:** V1
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -190,3 +190,4 @@
 - 2026-10-17 U40: `PaymentReceipt` ganhou clinicName, clinicLegalName?, clinicTaxId?, clinicAddress?, patientPhone? (WhatsApp ou telefone), discountInCents?, interestInCents? — preenchidos nos dois repositórios (memória: clinicSettings + paciente + último evento; PG: JOIN clinics/patients + LATERAL do último payment) via `receiptWithClinic` (modules/finance/receipt.ts, omite vazios). Dados da clínica vêm na API do recibo porque /admin/clinic-settings exige admin. ReceiptModal: razão social/nome, CNPJ/CPF formatado, endereço, forma de pagamento com rótulo (Pix, Cartão…), desconto/juros e "Enviar por WhatsApp" (`receiptMessage` em finance/model.ts). Scripts de edição: arquivos do checkout podem estar em CRLF — usar scratchpad/rep-lib.cjs (troca tolerante a CRLF e sem padrões $).
 - 2026-10-17 U41: `HelpTip` (shared/components) com gatilho `span role="button"` tabIndex 0 (NÃO usar <button> dentro de <label> sem htmlFor: vira o controle rotulado e o campo perde o rótulo), aria-label "Ajuda: <termo>", aria-describedby → `role="tooltip"` sempre no DOM (hidden quando fechado); abre ao clicar/focar/Enter/Espaço, fecha com Esc/blur. Textos em `financeTermHelp` (finance/model.ts). Aplicado em PayableModal (Lançamento, Competência, Centro de custo), FinancialDatesModal (Lançamento, Disponibilidade), SettleModal (Disponibilidade), FinanceClassificationPanel e FinanceEntryFilters (Competência, Centro de custo). Teste em features/finance (shared não pode importar de features).
 - 2026-10-17 Bloco F (U38–U41) concluído. Fase 2 completa.
+- 2026-10-17 V1: conferido no navegador (dev em memória; celular simulado com iframe de 390px sobre a página). Desktop: etiquetas `.tags-cell > .tag` encolhem com reticências e o "+N" não some; "+N" com aria-label listando as escondidas. Celular: linha em 2 trilhas (situação à esquerda, "Editar" à direita na última linha; demais células ocupam as duas) e etiquetas quebram linha. Dev local: TaskStop não mata os filhos no Windows — matar os node.exe das portas 3333/5173 (netstat -ano) antes de subir de novo; HMR pode deixar módulo velho em cache → ctrl+shift+r.

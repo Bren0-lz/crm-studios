@@ -273,8 +273,21 @@
     padding: var(--space-3) var(--space-4);
   }
 
+  /* audit: mobile-ok situação e "Editar" dividem a última linha; o resto ocupa as duas colunas */
   .patient-table .table-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
+  }
+
+  .patient-table .table-row > :not(.active-label):not(.table-actions) {
+    grid-column: 1 / -1;
+  }
+
+  .patient-table .table-actions {
+    justify-self: end;
+  }
+
+  .patient-table .tags-cell {
+    flex-wrap: wrap;
   }
 
   .patient-tab-list li {
