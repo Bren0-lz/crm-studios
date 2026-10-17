@@ -290,6 +290,8 @@ export class PostgresRepositoryContext {
               ae.metadata, ae.created_at AS "createdAt"
        FROM audit_events ae LEFT JOIN users u ON u.id = ae.actor_user_id
        WHERE ae.clinic_id = $1
+         -- Evento com data futura (dado inconsistente) não entra no histórico.
+         AND ae.created_at <= now() + interval '1 minute'
          ${predicates.map((predicate) => `AND ${predicate}`).join("\n")}
          AND ($2::uuid IS NULL OR (ae.created_at, ae.id) < (
            SELECT created_at, id FROM audit_events WHERE clinic_id = $1 AND id = $2::uuid

@@ -102,7 +102,8 @@ export const demoPatients: Patient[] = Array.from(
     const specialty = specialties[index % specialties.length]!;
     const scenario = Math.floor(index / 8);
     const timestamp = new Date(
-      Date.UTC(2024 + (index % 3), index % 12, 2 + (index % 25)),
+      // Sempre no passado (2023–2025): data de cadastro futura bagunça o histórico.
+      Date.UTC(2023 + (index % 3), index % 12, 2 + (index % 25)),
     ).toISOString();
 
     return {

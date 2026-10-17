@@ -1,5 +1,6 @@
 import { auditHistoryQuerySchema } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { mergeOperationEvents } from "./merge-operation-events.js";
 
 export function registerHistoryRoutes(context: RouteContext) {
   const { app, authenticate, repository, visibleHistory } = context;
@@ -18,7 +19,9 @@ export function registerHistoryRoutes(context: RouteContext) {
       );
       return {
         ...page,
-        items: page.items.map((event) => visibleHistory(request, event)),
+        items: mergeOperationEvents(page.items).map((event) =>
+          visibleHistory(request, event),
+        ),
       };
     },
   );

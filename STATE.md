@@ -1,6 +1,6 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 1 (C1)
+- **Tarefa atual:** Rodada 7 — Fase 1 concluída; aguardando o dono para a Fase 2
 - **Última concluída:** T072 (organização e testes)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
@@ -153,3 +153,4 @@
 - 2026-10-16 C7: campos de valor usam `MoneyInput` (shared/components; texto com inputMode decimal, centavos ou null) e `parseMoneyToCents`/`centsToMoneyText` (shared/lib/formatting); `reaisToCents` delega ao parser. Testes: valor vindo de fora aparece formatado ("250,00"); valor digitado fica cru até o blur.
 - 2026-10-16 C8: migração 0076 (payables.cost_center_id nulo; próxima livre: 0077). `Payable.costCenterId/costCenterName` opcionais; PG usa LEFT JOIN cost_centers nas leituras de payables. Despesa fixa continua exigindo centro de custo. `InlineClassificationCreate` (features/finance) cria categoria/centro sem sair do modal.
 - 2026-10-16 C10: `isRecurringChargeValid`/`recurringSingleChargeIssue` (contracts/plans) validam POST /plans e cadastro guiado; renovação checa na rota (400 RECURRING_SINGLE_CHARGE). `planDisplayStatus` deriva "exhausted" (Esgotado). `installmentsBeyondValidity` dá o aviso do pacote. `PlanInstallmentsField` (features/plans) usado no PlanForm e no GuidedPlanFields. Demo: recorrentes com 1 cobrança (banco demo já semeado em produção só muda se for semeado de novo).
+- 2026-10-16 C11: GET /history/audit-events passa por `mergeOperationEvents` (modules/history): par operação+domínio do mesmo entityId em ≤10 s vira um registro (rótulo do domínio, responsável da operação). Histórico ignora created_at futuro (PG: `<= now() + 1 min`; memória compara por instante, não por texto). Seed demo-patients só com datas passadas. Gatilhos do banco continuam sem responsável (exigiria SET LOCAL por requisição). Fase 1 concluída (C1–C11).

@@ -373,13 +373,19 @@ export function createAdministrationRepository(
           .toLowerCase()
           .split(/\s+/)
           .filter(Boolean) ?? [];
+      // Datas em formatos diferentes (Z e -03:00): compara pelo instante, não pelo texto.
+      const time = (event: { createdAt: string }) =>
+        Date.parse(event.createdAt);
+      // Evento com data futura (dado inconsistente) não entra no histórico.
+      const latest = Date.now() + 60_000;
       const events = allEvents
         .filter((event) => {
+          if (time(event) > latest) return false;
           if (
             anchor &&
             !(
-              event.createdAt < anchor.createdAt ||
-              (event.createdAt === anchor.createdAt && event.id < anchor.id)
+              time(event) < time(anchor) ||
+              (time(event) === time(anchor) && event.id < anchor.id)
             )
           )
             return false;
@@ -402,8 +408,7 @@ export function createAdministrationRepository(
         })
         .sort(
           (a, b) =>
-            b.createdAt.localeCompare(a.createdAt) ||
-            (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+            time(b) - time(a) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
         );
       const items = events.slice(0, 50);
       return {
