@@ -1234,7 +1234,7 @@ Fase 2 (usabilidade, U1–U46) → Fase 3 (visual, V1–V12). Commits `fix(<ID>)
 | U17 | Arrastar e soltar no quadro comercial | DONE |
 | U18 | Colunas do quadro visíveis | DONE |
 | U19 | Formulário de lead enxuto | DONE |
-| U20 | Origem/Interesse como selects dos catálogos | TODO |
+| U20 | Origem/Interesse como selects dos catálogos | DONE |
 | U21 | Contatos do lead sem campo redundante | TODO |
 | U22 | Select de atendimento: recente primeiro e busca | DONE |
 | U23 | Rascunho SOAP sem exigir todos os campos | DONE |

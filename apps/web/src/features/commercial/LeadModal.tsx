@@ -1,6 +1,7 @@
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
 import { PatientProfileFields } from "../patients/index";
 import { CatalogInput } from "../../shared/components/CatalogInput";
+import { CatalogSelect } from "../../shared/components/CatalogSelect";
 import { leadInputSchema, type Lead, type LeadInput } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
@@ -104,22 +105,20 @@ export function LeadModal({
                 onChange={(digits) => setForm({ ...form, phone: digits })}
               />
             </label>
-            <CatalogInput
+            <CatalogSelect
               kind="lead_source"
               label="Origem"
               required
               value={form.source}
               onChange={(value) => setForm({ ...form, source: value })}
             />
-            <label>
-              Interesse
-              <input
-                required
-                maxLength={80}
-                value={form.interest}
-                onChange={(e) => setForm({ ...form, interest: e.target.value })}
-              />
-            </label>
+            <CatalogSelect
+              kind="interest"
+              label="Interesse"
+              required
+              value={form.interest}
+              onChange={(value) => setForm({ ...form, interest: value })}
+            />
             {/* Cadastro enxuto (U19): nome, telefone, origem e interesse à vista. */}
             <details className="more-info span-2" open={Boolean(lead)}>
               <summary>Mais informações</summary>
