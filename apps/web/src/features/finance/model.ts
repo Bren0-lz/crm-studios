@@ -9,6 +9,7 @@ import type {
   RecurringPayable,
   RecurringPayableInput,
 } from "@crm/contracts";
+import { patientFirstName, type PaymentReceipt } from "@crm/contracts";
 import { currency } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
@@ -173,4 +174,9 @@ export const saoPauloTime = new Intl.DateTimeFormat("pt-BR", {
 
 export function signedCurrency(effectInCents: number) {
   return `${effectInCents < 0 ? "-" : "+"} ${currency.format(Math.abs(effectInCents) / 100)}`;
+}
+
+/** Mensagem pronta para enviar o recibo pelo WhatsApp (U40). */
+export function receiptMessage(receipt: PaymentReceipt) {
+  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)} referente a ${receipt.description}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}. Obrigado! ${receipt.clinicName}`;
 }

@@ -809,3 +809,14 @@
 .settle-summary strong {
   font-size: var(--text-xl);
 }
+
+/* Recibo (U40): identificação da clínica. */
+.receipt-clinic {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.receipt-clinic span {
+  color: var(--muted);
+}

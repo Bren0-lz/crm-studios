@@ -639,6 +639,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         interestInCents: 500,
       });
       expect(payment.rows[0]!.balanceReceivableId).toBeTruthy();
+      const receipt = await repository.getPaymentReceipt(
+        clinicId,
+        receivableId,
+      );
+      expect(receipt).toMatchObject({
+        amountInCents: 4_000,
+        discountInCents: 1_000,
+        interestInCents: 500,
+        clinicName: expect.any(String),
+      });
 
       const reversed = await repository.reverseReceivablePayment(
         clinicId,

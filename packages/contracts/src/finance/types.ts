@@ -457,10 +457,20 @@ export interface FinanceForecast {
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;
+  /** WhatsApp do cliente (ou telefone) para enviar o recibo (U40). */
+  patientPhone?: string;
   description: string;
   amountInCents: number;
   paymentMethod: PaymentMethod;
   paidAt: string;
+  /** Dados da clínica (Configurações › Dados da clínica). */
+  clinicName: string;
+  clinicLegalName?: string;
+  clinicTaxId?: string;
+  clinicAddress?: string;
+  /** Desconto e juros aplicados na baixa (U39). */
+  discountInCents?: number;
+  interestInCents?: number;
 }
 
 export interface TabAppointmentOption {

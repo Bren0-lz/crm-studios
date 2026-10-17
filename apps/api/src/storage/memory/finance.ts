@@ -1,3 +1,4 @@
+import { receiptWithClinic } from "../../modules/finance/receipt.js";
 import {
   prepareTabServiceCredits,
   assertTabCreditsReversible,
@@ -662,14 +663,32 @@ export function createFinanceRepository(
           "O recibo fica disponível após a baixa.",
           409,
         );
-      return {
+      const clinic = repositoryContext.clinicSettings;
+      const patient = repositoryContext.patients.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === receivable.patientId,
+      );
+      const payment = repositoryContext.receiptEvents
+        .filter(
+          (item) =>
+            item.receivableId === receivableId && item.kind === "payment",
+        )
+        .at(-1);
+      return receiptWithClinic({
         receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
         patientName: receivable.patientName,
+        patientPhone: patient?.whatsapp || patient?.phone || "",
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
         paidAt: receivable.paidAt,
-      };
+        clinicName: clinic.name,
+        clinicLegalName: clinic.legalName ?? "",
+        clinicTaxId: clinic.taxId ?? "",
+        clinicAddress: clinic.address ?? "",
+        discountInCents: payment?.discountInCents ?? 0,
+        interestInCents: payment?.interestInCents ?? 0,
+      });
     },
 
     async getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace> {

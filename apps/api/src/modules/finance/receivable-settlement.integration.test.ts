@@ -102,6 +102,19 @@ describe("receivable settlement with discount, interest and partial payment", ()
     expect(await receivables()).toHaveLength(1);
     expect((await inflow()) - cashBefore).toBe(9_300);
     expect((await revenue()) - revenueBefore).toBe(-700);
+    const receipt = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/receipt`,
+      headers,
+    });
+    expect(receipt.json()).toMatchObject({
+      amountInCents: 9_300,
+      paymentMethod: "pix",
+      discountInCents: 1_000,
+      interestInCents: 300,
+      clinicName: expect.any(String),
+      patientPhone: expect.stringMatching(/^\d{10,11}$/),
+    });
 
     const reversed = await app.inject({
       method: "POST",

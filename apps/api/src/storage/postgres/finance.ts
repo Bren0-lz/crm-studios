@@ -1,3 +1,4 @@
+import { receiptWithClinic } from "../../modules/finance/receipt.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -750,14 +751,47 @@ export function createFinanceRepository(
           "O recibo fica disponível após a baixa.",
           409,
         );
-      return {
+      const extra = await repositoryContext.pool.query<{
+        clinicName: string;
+        clinicLegalName: string | null;
+        clinicTaxId: string | null;
+        clinicAddress: string | null;
+        patientPhone: string | null;
+        discountInCents: number | null;
+        interestInCents: number | null;
+      }>(
+        `SELECT c.name AS "clinicName", c.legal_name AS "clinicLegalName",
+                c.tax_id AS "clinicTaxId", c.address AS "clinicAddress",
+                coalesce(nullif(p.whatsapp, ''), p.phone) AS "patientPhone",
+                fe.discount_in_cents AS "discountInCents",
+                fe.interest_in_cents AS "interestInCents"
+         FROM receivables r
+         JOIN clinics c ON c.id = r.clinic_id
+         JOIN patients p ON p.id = r.patient_id AND p.clinic_id = r.clinic_id
+         LEFT JOIN LATERAL (
+           SELECT discount_in_cents, interest_in_cents FROM financial_events
+           WHERE clinic_id = r.clinic_id AND receivable_id = r.id AND kind = 'payment'
+           ORDER BY created_at DESC LIMIT 1
+         ) fe ON true
+         WHERE r.clinic_id = $1 AND r.id = $2`,
+        [clinicId, receivableId],
+      );
+      const row = extra.rows[0];
+      return receiptWithClinic({
         receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
         patientName: receivable.patientName,
+        patientPhone: row?.patientPhone ?? "",
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
         paidAt: receivable.paidAt,
-      };
+        clinicName: row?.clinicName ?? "",
+        clinicLegalName: row?.clinicLegalName ?? "",
+        clinicTaxId: row?.clinicTaxId ?? "",
+        clinicAddress: row?.clinicAddress ?? "",
+        discountInCents: row?.discountInCents ?? 0,
+        interestInCents: row?.interestInCents ?? 0,
+      });
     },
 
     async getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace> {

@@ -1065,6 +1065,75 @@ describe("application shell", () => {
       ).toBeInTheDocument();
     });
 
+    it("shows a complete receipt with clinic data and a WhatsApp button", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem(
+        "crm.auth.user",
+        storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+      );
+      const workspace = receivablesWorkspace();
+      const paid = workspace.summary.receivables.find(
+        (item) => item.status === "paid",
+      )!;
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        const body = url.endsWith("/receipt")
+          ? {
+              receiptNumber: "REC-C1C1C1C1",
+              patientName: paid.patientName,
+              patientPhone: "11987654321",
+              description: paid.description,
+              amountInCents: 29000,
+              paymentMethod: "pix",
+              paidAt: "2026-10-10T15:00:00.000Z",
+              clinicName: "Studios Aryana",
+              clinicLegalName: "Studios Aryana Ltda.",
+              clinicTaxId: "11222333000181",
+              clinicAddress: "Rua das Flores, 10 · São Paulo/SP",
+              discountInCents: 1000,
+            }
+          : url.includes("/finance/workspace")
+            ? workspace
+            : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(
+        <MemoryRouter initialEntries={["/financeiro"]}>
+          <App />
+        </MemoryRouter>,
+      );
+      await screen.findByText(paid.patientName);
+      fireEvent.click(
+        within(rowOf(paid.patientName)).getByRole("button", { name: "Recibo" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Recibo de pagamento",
+      });
+      expect(dialog).toHaveTextContent("Studios Aryana Ltda.");
+      expect(dialog).toHaveTextContent("CNPJ/CPF 11.222.333/0001-81");
+      expect(dialog).toHaveTextContent("Rua das Flores, 10 · São Paulo/SP");
+      expect(within(dialog).getByText("Pix")).toBeInTheDocument();
+      expect(within(dialog).queryByText("pix")).not.toBeInTheDocument();
+      expect(dialog).toHaveTextContent("Desconto");
+      const firstName = paid.patientName.split(" ")[0];
+      const whatsapp = within(dialog).getByRole("link", {
+        name: /Enviar por WhatsApp/,
+      });
+      expect(whatsapp.getAttribute("href")).toMatch(
+        /^https:\/\/wa\.me\/5511987654321\?text=/,
+      );
+      expect(
+        decodeURIComponent(whatsapp.getAttribute("href")!.split("text=")[1]!),
+      ).toContain(
+        `Olá, ${firstName}! Segue o recibo REC-C1C1C1C1: recebemos R$`,
+      );
+    });
+
     it("shows the reload error on the page after a successful settlement", async () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem(
