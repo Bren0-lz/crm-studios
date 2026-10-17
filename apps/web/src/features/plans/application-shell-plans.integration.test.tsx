@@ -111,6 +111,8 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     const action = await screen.findByRole("button", { name: "Novo plano" });
+    // Os clientes do seletor chegam junto com a lista de planos.
+    await screen.findByText("Nenhum plano cadastrado");
     fireEvent.click(action);
     expect(
       screen.getByRole("heading", { name: "Novo plano" }),
