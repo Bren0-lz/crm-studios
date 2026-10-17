@@ -7,6 +7,7 @@ export type RelationshipDeadlineKey = Exclude<
 
 export type SettingsTabKey =
   | "catalogs"
+  | "registry"
   | "clinic"
   | "users"
   | "plans"

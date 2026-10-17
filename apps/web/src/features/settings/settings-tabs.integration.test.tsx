@@ -85,6 +85,7 @@ describe("settings tabs", () => {
       "Feriados",
       "Etiquetas",
       "Cadastros",
+      "Serviços e salas",
       "Relacionamento",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
@@ -209,6 +210,54 @@ describe("settings tabs", () => {
     );
   });
 
+  it("opens services, rooms and professionals in their own tab, also from the old ?secao= link", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/admin/registry")
+        ? {
+            services: [
+              {
+                id: "s1",
+                name: "Pilates em grupo",
+                durationMinutes: 60,
+                priceInCents: 0,
+                color: "#547A6B",
+                active: true,
+              },
+            ],
+            rooms: [],
+            professionals: [],
+          }
+        : url.includes("/admin/clinic-settings")
+          ? clinic
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes?secao=servicos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole("tab", { name: "Serviços e salas" }),
+    ).toHaveAttribute("aria-selected", "true");
+    const panel = screen.getByRole("tabpanel");
+    expect(
+      within(panel).getByRole("heading", {
+        name: "Serviços, salas e profissionais",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await within(panel).findByText("Pilates em grupo"),
+    ).toBeInTheDocument();
+    const catalogs = await openSettingsSection("Cadastros");
+    expect(
+      within(catalogs).queryByText("Serviços, salas e profissionais"),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens the first available tab for reception and keeps relationship read-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -234,6 +283,7 @@ describe("settings tabs", () => {
       "Planos",
       "Etiquetas",
       "Cadastros",
+      "Serviços e salas",
       "Relacionamento",
     ]);
     expect(fetched("/relationship/settings")).toBe(false);

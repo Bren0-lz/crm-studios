@@ -1,5 +1,4 @@
 import { ClinicalResourcesPanel } from "../clinical/index";
-import { AdministrativeRegistrySection } from "./AdministrativeRegistrySection";
 import { SuppliersSection } from "../finance/index";
 import {
   clinicCatalogLabels,
@@ -70,7 +69,6 @@ export function ClinicCatalogsContent() {
   }
   return (
     <div className="settings-panel-body">
-      <AdministrativeRegistrySection />
       <div className="list-toolbar">
         <label>
           Cadastro

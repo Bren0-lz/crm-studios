@@ -2,7 +2,7 @@ import type {
   AdministrativeRegistryInput,
   AdministrativeRegistryWorkspace,
 } from "@crm/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
@@ -14,8 +14,8 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 type Editor = { id?: string; input: AdministrativeRegistryInput };
 export function AdministrativeRegistrySection() {
   const { can } = useAuthorization();
-  const [opened, setOpened] = useState(false),
-    [kind, setKind] = useState<AdministrativeRegistryInput["kind"]>("service"),
+  const [kind, setKind] =
+      useState<AdministrativeRegistryInput["kind"]>("service"),
     [data, setData] = useState<AdministrativeRegistryWorkspace | null>(null),
     [error, setError] = useState(""),
     [editor, setEditor] = useState<Editor | null>(null);
@@ -27,6 +27,16 @@ export function AdministrativeRegistrySection() {
       setError((cause as Error).message);
     }
   }
+  useEffect(() => {
+    let active = true;
+    api
+      .administrativeRegistry()
+      .then((workspace) => active && setData(workspace))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
   const entries =
     kind === "service"
       ? data?.services
@@ -68,77 +78,57 @@ export function AdministrativeRegistrySection() {
     });
   }
   return (
-    <section className="panel">
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open && !opened) {
-            setOpened(true);
-            void load();
-          }
-        }}
-      >
-        <summary className="panel-head">
-          Serviços, salas e profissionais
-        </summary>
-        {opened && (
-          <div className="inventory-body">
-            {error && <ErrorBanner error={error} />}
-            <div className="form-grid">
-              <label>
-                Cadastro
-                <select
-                  value={kind}
-                  onChange={(event) =>
-                    setKind(event.target.value as typeof kind)
-                  }
-                >
-                  <option value="service">Serviços</option>
-                  <option value="room">Salas</option>
-                  <option value="professional">Profissionais</option>
-                </select>
-              </label>
-              {can(createPermission) && (
-                <button className="primary-button" onClick={create}>
-                  Novo cadastro
-                </button>
-              )}
-            </div>
-            {!data ? (
-              !error && <LoadingBlock />
-            ) : !entries?.length ? (
-              <EmptyState
-                title="Nenhum cadastro"
-                copy="Cadastre os recursos utilizados na agenda."
-              />
-            ) : (
-              entries.map((item) => (
-                <div className="table-row" key={item.id}>
-                  <strong>
-                    {"fullName" in item ? item.fullName : item.name}
-                  </strong>
-                  <span>{item.active ? "Ativo" : "Inativo"}</span>
-                  {can("settings.registry_manage") && (
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        setEditor({
-                          id: item.id,
-                          input: {
-                            kind,
-                            data: item,
-                          } as AdministrativeRegistryInput,
-                        })
-                      }
-                    >
-                      Editar cadastro
-                    </button>
-                  )}
-                </div>
-              ))
+    <div className="settings-panel-body registry-settings">
+      {error && <ErrorBanner error={error} />}
+      <div className="form-grid">
+        <label>
+          Cadastro
+          <select
+            value={kind}
+            onChange={(event) => setKind(event.target.value as typeof kind)}
+          >
+            <option value="service">Serviços</option>
+            <option value="room">Salas</option>
+            <option value="professional">Profissionais</option>
+          </select>
+        </label>
+        {can(createPermission) && (
+          <button className="primary-button" onClick={create}>
+            Novo cadastro
+          </button>
+        )}
+      </div>
+      {!data ? (
+        !error && <LoadingBlock />
+      ) : !entries?.length ? (
+        <EmptyState
+          title="Nenhum cadastro"
+          copy="Cadastre os recursos utilizados na agenda."
+        />
+      ) : (
+        entries.map((item) => (
+          <div className="table-row" key={item.id}>
+            <strong>{"fullName" in item ? item.fullName : item.name}</strong>
+            <span>{item.active ? "Ativo" : "Inativo"}</span>
+            {can("settings.registry_manage") && (
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  setEditor({
+                    id: item.id,
+                    input: {
+                      kind,
+                      data: item,
+                    } as AdministrativeRegistryInput,
+                  })
+                }
+              >
+                Editar cadastro
+              </button>
             )}
           </div>
-        )}
-      </details>
+        ))
+      )}
       {editor && (
         <RegistryEditor
           key={editor.id ?? editor.input.kind}
@@ -149,7 +139,7 @@ export function AdministrativeRegistrySection() {
           onSaved={load}
         />
       )}
-    </section>
+    </div>
   );
 }
 function RegistryEditor({

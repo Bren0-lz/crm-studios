@@ -1247,3 +1247,8 @@
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-4);
 }
+
+.registry-settings {
+  display: grid;
+  gap: var(--space-4);
+}
