@@ -1817,4 +1817,114 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       client.release();
     }
   });
+
+  it("merges clients moving plan, balance and receivables in one transaction", async () => {
+    const marker = `Mescla PG ${randomUUID()}`;
+    const phones = ["11955502001", "11955502002"];
+    const plans =
+      "SELECT id FROM patient_plans WHERE clinic_id = $1 AND name = $2";
+    const cleanup = async () => {
+      await pool.query(
+        `DELETE FROM financial_events WHERE receivable_id IN
+           (SELECT id FROM receivables WHERE plan_id IN (${plans}))`,
+        [clinicId, marker],
+      );
+      await pool.query(
+        `DELETE FROM session_movements WHERE plan_id IN (${plans})`,
+        [clinicId, marker],
+      );
+      await pool.query(`DELETE FROM receivables WHERE plan_id IN (${plans})`, [
+        clinicId,
+        marker,
+      ]);
+      await pool.query(
+        "DELETE FROM patient_plans WHERE clinic_id = $1 AND name = $2",
+        [clinicId, marker],
+      );
+      await pool.query(
+        "DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[]) AND merged_into_patient_id IS NOT NULL",
+        [clinicId, phones],
+      );
+      await pool.query(
+        "DELETE FROM patients WHERE clinic_id = $1 AND phone = ANY($2::text[])",
+        [clinicId, phones],
+      );
+    };
+    try {
+      const source = await repository.createPatient(clinicId, {
+        fullName: "Mescla PG duplicado",
+        phone: phones[0]!,
+        tags: [],
+      });
+      const target = await repository.createPatient(clinicId, {
+        fullName: "Mescla PG principal",
+        phone: phones[1]!,
+        tags: [],
+      });
+      const [service] = await repository.listServices(clinicId);
+      const today = saoPauloToday();
+      const plan = await repository.createPatientPlan(
+        clinicId,
+        ownerId,
+        await configuredPlan({
+          patientId: source.id,
+          serviceId: service!.id,
+          name: marker,
+          kind: "fixed_package",
+          totalSessions: 4,
+          validFrom: today,
+          totalValueInCents: 40_000,
+          installments: 2,
+          firstDueDate: today,
+        }),
+      );
+      const receivableIds = (
+        await pool.query<{ id: string }>(
+          "SELECT id FROM receivables WHERE plan_id = $1 ORDER BY due_date",
+          [plan.id],
+        )
+      ).rows.map((row) => row.id);
+      expect(receivableIds).toHaveLength(2);
+      await repository.settleReceivable(
+        clinicId,
+        ownerId,
+        receivableIds[0]!,
+        "pix",
+      );
+      const preview = await repository.previewPatientMerge(
+        clinicId,
+        source.id,
+        target.id,
+      );
+      await repository.mergePatients(clinicId, ownerId, {
+        sourceId: source.id,
+        targetId: target.id,
+        fieldSources: Object.fromEntries(
+          preview.fields.map((field) => [field.key, "target" as const]),
+        ),
+      });
+      const another = new PostgresClinicRepository(pool);
+      expect(await another.listPatientPlans(clinicId, source.id)).toEqual([]);
+      expect(
+        (await another.listPatientPlans(clinicId, target.id)).find(
+          (item) => item.id === plan.id,
+        ),
+      ).toMatchObject({ patientId: target.id, remainingSessions: 4 });
+      const receivables = (await another.getFinancialSummary(clinicId))
+        .receivables;
+      expect(
+        receivables.filter((item) => item.patientId === source.id),
+      ).toEqual([]);
+      const moved = receivables.filter((item) => item.planId === plan.id);
+      expect(moved.map((item) => item.patientId)).toEqual([
+        target.id,
+        target.id,
+      ]);
+      expect(moved.find((item) => item.id === receivableIds[0])?.status).toBe(
+        "paid",
+      );
+    } finally {
+      await cleanup();
+    }
+  });
 });
