@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7 — verificação dos itens não testados
-- **Última concluída:** V12 (Fase 3 concluída)
+- **Tarefa atual:** nenhuma (Rodada 7 concluída)
+- **Última concluída:** verificação dos itens não testados (Rodada 7)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 

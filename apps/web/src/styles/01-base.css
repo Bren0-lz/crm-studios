@@ -112,6 +112,11 @@ html.modal-open,
 body.modal-open {
   overflow: hidden;
 }
+/* Sem a calha reservada: o padding-right do body (useBodyScrollLock) ocupa o lugar da
+   barra, e o fundo do modal cobre a largura toda da janela. */
+html.modal-open {
+  scrollbar-gutter: auto;
+}
 
 button,
 input,
@@ -458,7 +463,8 @@ select option:disabled {
         textarea
       ):required
   )::after {
-  content: "*";
+  /* Texto alternativo vazio: o * é visual e não entra no nome acessível. */
+  content: "*" / "";
   grid-row: 1;
   grid-column: 2;
   color: #b44d36;
