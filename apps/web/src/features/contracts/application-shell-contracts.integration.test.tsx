@@ -119,8 +119,12 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const issue = screen.getByRole("button", { name: "Criar rascunho" });
     expect(issue).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: patient.fullName }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: patient.fullName },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: patient.fullName }),
+    );
     fireEvent.click(issue);
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");

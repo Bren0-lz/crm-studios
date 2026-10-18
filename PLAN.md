@@ -1463,7 +1463,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   todos os usos (agendamento, matrícula, prontuário, contratos, plano, SOS). Testes web.
 - **Gate:** gate completo
 - **Depende de:** QC9
-- **Status:** TODO
+- **Status:** DONE
 
 ### Fase 2 — Usabilidade
 

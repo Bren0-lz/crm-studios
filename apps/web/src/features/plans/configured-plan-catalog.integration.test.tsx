@@ -159,8 +159,12 @@ describe("configured plan catalog", () => {
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: "Cliente teste" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Cliente teste" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Cliente teste" }),
+    );
     expect(
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();

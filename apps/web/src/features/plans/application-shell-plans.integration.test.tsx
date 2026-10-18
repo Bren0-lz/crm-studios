@@ -119,8 +119,12 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const picker = screen.getByRole("combobox", { name: "Cliente" });
     expect(picker).toHaveValue("");
-    fireEvent.focus(picker);
-    fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
+    fireEvent.change(picker, {
+      target: { value: "Helena Almeida" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Helena Almeida" }),
+    );
     expect(picker).toHaveValue("Helena Almeida");
   });
 

@@ -149,7 +149,12 @@ describe("group enrollment period", () => {
     fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: group.id },
     });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena Almeida" },
+      },
+    );
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );

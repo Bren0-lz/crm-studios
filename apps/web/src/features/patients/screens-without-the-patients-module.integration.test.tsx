@@ -84,7 +84,12 @@ describe("screens without the patients module", () => {
       await screen.findByRole("button", { name: /Novo atendimento/ }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena" },
+      },
+    );
     expect(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -96,7 +101,9 @@ describe("screens without the patients module", () => {
 
   it("opens communications with the client list and the broadcast tags", async () => {
     renderAs("communications", "/comunicacoes");
-    fireEvent.focus(await screen.findByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Helena" },
+    });
     expect(
       await screen.findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -114,7 +121,9 @@ describe("screens without the patients module", () => {
     expect(
       await screen.findByRole("button", { name: "Criar rascunho" }),
     ).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Helena" },
+    });
     expect(
       await screen.findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -136,7 +145,12 @@ describe("screens without the patients module", () => {
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena" },
+      },
+    );
     expect(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();

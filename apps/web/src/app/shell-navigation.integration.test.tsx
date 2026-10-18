@@ -162,7 +162,12 @@ describe("shell navigation", () => {
       within(dialog).getByRole("link", { name: "Bombeiros · 193" }),
     ).toHaveAttribute("href", "tel:193");
     await waitFor(() => expect(api.patientOptions).toHaveBeenCalled());
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena Almeida" },
+      },
+    );
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
@@ -186,7 +191,12 @@ describe("shell navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "SOS" }));
     const dialog = screen.getByRole("dialog", { name: "SOS" });
     await waitFor(() => expect(api.patientOptions).toHaveBeenCalled());
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena Almeida" },
+      },
+    );
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
@@ -196,15 +206,18 @@ describe("shell navigation", () => {
     expect(within(dialog).getAllByRole("link")).toHaveLength(3);
   });
 
-  it("opens with the search collapsed, distinguishes loading on focus and closes the list before the dialog", async () => {
+  it("opens with the search collapsed, only lists clients for typed text, distinguishes loading and closes the list before the dialog", async () => {
     let resolvePatients!: (
       items: Awaited<ReturnType<typeof api.patientOptions>>,
     ) => void;
-    vi.mocked(api.patientOptions).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolvePatients = resolve;
-        }),
+    vi.mocked(api.patientOptions).mockImplementation((term) =>
+      term
+        ? new Promise((resolve) => {
+            resolvePatients = resolve;
+          })
+        : Promise.resolve([
+            { id: "client-1", fullName: "Helena Almeida", tags: [] },
+          ]),
     );
     renderShell(["agenda"]);
     const sos = screen.getByRole("button", { name: "SOS" });
@@ -217,7 +230,15 @@ describe("shell navigation", () => {
     expect(input).not.toHaveFocus();
     expect(input).toHaveAttribute("aria-expanded", "false");
     expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(api.patientOptions).toHaveBeenCalledWith());
     fireEvent.focus(input);
+    // Sem texto digitado a lista não abre com os clientes já carregados.
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("option", { name: "Helena Almeida" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Ninguém" } });
     expect(within(dialog).getByText("Emergência")).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent(
       "Buscando clientes",
@@ -226,6 +247,9 @@ describe("shell navigation", () => {
       within(dialog).queryByText("Nenhum cliente encontrado"),
     ).not.toBeInTheDocument();
     expect(within(dialog).getAllByRole("link")).toHaveLength(3);
+    await waitFor(() =>
+      expect(api.patientOptions).toHaveBeenCalledWith("Ninguém"),
+    );
     await act(async () => resolvePatients([]));
     expect(within(dialog).getByRole("status")).toHaveTextContent(
       "Nenhum cliente encontrado",
@@ -259,7 +283,7 @@ describe("shell navigation", () => {
     );
     await waitFor(() => expect(api.patientOptions).toHaveBeenCalledTimes(2));
     const input = within(dialog).getByRole("combobox", { name: "Cliente" });
-    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Helena" } });
     await within(dialog).findByRole("option", { name: "Helena Almeida" });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -282,7 +306,12 @@ describe("shell navigation", () => {
     renderShell(["agenda"]);
     fireEvent.click(screen.getByRole("button", { name: "SOS" }));
     const dialog = screen.getByRole("dialog", { name: "SOS" });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena Almeida" },
+      },
+    );
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
@@ -324,12 +353,18 @@ describe("shell navigation", () => {
     fireEvent.click(sos);
     let dialog = screen.getByRole("dialog", { name: "SOS" });
     let input = within(dialog).getByRole("combobox", { name: "Cliente" });
-    fireEvent.focus(input);
+    fireEvent.change(input, {
+      target: { value: "Helena Almeida" },
+    });
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
-    fireEvent.focus(input);
-    fireEvent.click(within(dialog).getByRole("option", { name: "Ana Souza" }));
+    fireEvent.change(input, {
+      target: { value: "Ana Souza" },
+    });
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: "Ana Souza" }),
+    );
     await act(async () =>
       pending[1]!({ name: "Contato correto", phone: "11988887777" }),
     );
@@ -341,15 +376,21 @@ describe("shell navigation", () => {
       within(dialog).queryByText("Contato antigo"),
     ).not.toBeInTheDocument();
     // Selecting the same client again must also finish loading.
-    fireEvent.focus(input);
-    fireEvent.click(within(dialog).getByRole("option", { name: "Ana Souza" }));
+    fireEvent.change(input, {
+      target: { value: "Ana" },
+    });
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: "Ana Souza" }),
+    );
     await act(async () =>
       pending[2]!({ name: "Contato atualizado", phone: "11988887777" }),
     );
     expect(within(dialog).getByText("Contato atualizado")).toBeInTheDocument();
-    fireEvent.focus(input);
+    fireEvent.change(input, {
+      target: { value: "Helena Almeida" },
+    });
     fireEvent.click(
-      within(dialog).getByRole("option", { name: "Helena Almeida" }),
+      await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
     fireEvent.change(input, { target: { value: "" } });
     await act(async () =>
@@ -358,8 +399,10 @@ describe("shell navigation", () => {
     expect(
       within(dialog).queryByText("Contato após limpar"),
     ).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Helena" } });
     fireEvent.click(
-      within(dialog).getByRole("option", { name: "Helena Almeida" }),
+      await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
     fireEvent.click(sos);
@@ -390,7 +433,9 @@ describe("shell navigation", () => {
     fireEvent.click(sos);
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     fireEvent.click(sos);
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Helena" },
+    });
     await screen.findByRole("option", { name: "Helena Almeida" });
     await act(async () =>
       resolveOld([{ id: "old", fullName: "Cliente antigo", tags: [] }]),

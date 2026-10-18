@@ -175,8 +175,12 @@ describe("configured plan catalog", () => {
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: "Cliente teste" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Cliente teste" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Cliente teste" }),
+    );
     expect(
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();
@@ -548,10 +552,17 @@ afterEach(() => {
   vi.mocked(fetch).mockReset();
 });
 
-function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+async function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
   if (patientName) {
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: patientName },
+      },
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: patientName }),
+    );
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
@@ -607,7 +618,9 @@ describe("appointment client search and creation", () => {
           : response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
       return response(
         url.includes("/patients/options?")
-          ? [created]
+          ? url.includes("search=Helena")
+            ? [existing]
+            : [created]
           : url.includes("/patients")
             ? [existing]
             : url.includes("/professionals")
@@ -670,7 +683,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps appointment values, traps focus, and selects the saved client", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment);
+    await fillAppointmentForm(appointment);
     fireEvent.change(within(appointment).getByLabelText("Observação"), {
       target: { value: "Manter observação" },
     });
@@ -753,7 +766,7 @@ describe("appointment client search and creation", () => {
 
   it("closes only the client modal on Escape and keeps the previous selection", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -770,7 +783,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -1746,8 +1759,12 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const picker = screen.getByRole("combobox", { name: "Cliente" });
     expect(picker).toHaveValue("");
-    fireEvent.focus(picker);
-    fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
+    fireEvent.change(picker, {
+      target: { value: "Helena Almeida" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Helena Almeida" }),
+    );
     expect(picker).toHaveValue("Helena Almeida");
   });
 
@@ -3155,8 +3172,12 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const issue = screen.getByRole("button", { name: "Criar rascunho" });
     expect(issue).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: patient.fullName }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: patient.fullName },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: patient.fullName }),
+    );
     fireEvent.click(issue);
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");
@@ -5577,7 +5598,7 @@ describe("application shell", () => {
     ).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
-    fillAppointmentForm(
+    await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
     );
@@ -5909,7 +5930,7 @@ describe("application shell", () => {
     ).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
-    fillAppointmentForm(dialog, "Helena Almeida");
+    await fillAppointmentForm(dialog, "Helena Almeida");
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][aria-pressed="true"]',
@@ -12268,7 +12289,12 @@ describe("screens without the patients module", () => {
       await screen.findByRole("button", { name: /Novo atendimento/ }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena" },
+      },
+    );
     expect(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -12280,7 +12306,9 @@ describe("screens without the patients module", () => {
 
   it("opens communications with the client list and the broadcast tags", async () => {
     renderAs("communications", "/comunicacoes");
-    fireEvent.focus(await screen.findByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Helena" },
+    });
     expect(
       await screen.findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -12298,7 +12326,9 @@ describe("screens without the patients module", () => {
     expect(
       await screen.findByRole("button", { name: "Criar rascunho" }),
     ).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Helena" },
+    });
     expect(
       await screen.findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();
@@ -12320,7 +12350,12 @@ describe("screens without the patients module", () => {
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: "Helena" },
+      },
+    );
     expect(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     ).toBeInTheDocument();

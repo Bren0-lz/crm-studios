@@ -792,7 +792,7 @@ describe("application shell", () => {
     ).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
-    fillAppointmentForm(
+    await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
     );
@@ -949,7 +949,7 @@ describe("application shell", () => {
     ).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
-    fillAppointmentForm(dialog, "Helena Almeida");
+    await fillAppointmentForm(dialog, "Helena Almeida");
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][aria-pressed="true"]',

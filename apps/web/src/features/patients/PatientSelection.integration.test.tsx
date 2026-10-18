@@ -162,7 +162,7 @@ beforeEach(() => {
   );
   vi.spyOn(api, "me").mockResolvedValue(user);
   vi.spyOn(api, "patientOptions").mockImplementation(async (term) =>
-    term ? [breno] : [ana],
+    term === ana.fullName ? [ana] : term ? [breno] : [ana],
   );
   vi.spyOn(api, "patientTags").mockResolvedValue([]);
   vi.spyOn(api, "services").mockResolvedValue([service]);
@@ -260,8 +260,10 @@ describe("searchable client selection across modules", () => {
     const save = await screen.findByRole("button", { name: "Criar rascunho" });
     expect(save).toBeDisabled();
     const input = screen.getByRole("combobox", { name: "Cliente" });
-    fireEvent.focus(input);
-    fireEvent.click(screen.getByRole("option", { name: ana.fullName }));
+    fireEvent.change(input, {
+      target: { value: ana.fullName },
+    });
+    fireEvent.click(await screen.findByRole("option", { name: ana.fullName }));
     const linked = screen.getByLabelText("Plano vinculado");
     fireEvent.change(linked, { target: { value: plan.id } });
     expect(linked).toHaveValue(plan.id);

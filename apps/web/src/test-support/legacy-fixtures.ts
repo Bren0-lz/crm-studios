@@ -155,10 +155,20 @@ export function patientTag(name: string, color = "#64748b", patientCount = 0) {
   };
 }
 
-export function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+export async function fillAppointmentForm(
+  dialog: HTMLElement,
+  patientName?: string,
+) {
   if (patientName) {
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: patientName },
+      },
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: patientName }),
+    );
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;

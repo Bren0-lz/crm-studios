@@ -24,8 +24,9 @@ describe("client management through real HTTP handlers", () => {
       ["Cadastro duplicado", source],
       ["Cadastro principal", target],
     ] as const) {
-      fireEvent.focus(
+      fireEvent.change(
         within(dialog).getByRole("combobox", { name: new RegExp(`^${label}`) }),
+        { target: { value: patient.fullName } },
       );
       fireEvent.click(
         await within(dialog).findByRole("option", { name: patient.fullName }),

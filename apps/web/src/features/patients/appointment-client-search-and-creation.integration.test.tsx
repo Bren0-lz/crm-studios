@@ -48,7 +48,9 @@ describe("appointment client search and creation", () => {
           : response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
       return response(
         url.includes("/patients/options?")
-          ? [created]
+          ? url.includes("search=Helena")
+            ? [existing]
+            : [created]
           : url.includes("/patients")
             ? [existing]
             : url.includes("/professionals")
@@ -111,7 +113,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps appointment values, traps focus, and selects the saved client", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment);
+    await fillAppointmentForm(appointment);
     fireEvent.change(within(appointment).getByLabelText("Observação"), {
       target: { value: "Manter observação" },
     });
@@ -194,7 +196,7 @@ describe("appointment client search and creation", () => {
 
   it("closes only the client modal on Escape and keeps the previous selection", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -211,7 +213,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );

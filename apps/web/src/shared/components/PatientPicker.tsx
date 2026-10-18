@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { api } from "../../api";
+import { clearInlineValidation } from "../feedback/inline-validation";
 
 type PatientPickerProps = {
   patients: PatientOption[];
@@ -15,6 +16,7 @@ type PatientPickerProps = {
   onChange: (id: string, patient?: PatientOption) => void;
   required?: boolean;
   disabled?: boolean;
+  /** Sem efeito visual: a lista só abre com texto digitado e busca no servidor. */
   loading?: boolean;
   popover?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
@@ -29,7 +31,6 @@ export function PatientPicker({
   onChange,
   required = false,
   disabled = false,
-  loading: initialLoading = false,
   popover = false,
   inputRef,
   onAddPatient,
@@ -58,11 +59,11 @@ export function PatientPicker({
     patients.find((patient) => patient.id === value) ??
     (selectedResult?.id === value ? selectedResult : undefined);
   const term = query?.trim() ?? "";
-  const isOpen = open && !disabled;
-  const loading = term ? response?.term !== term : initialLoading;
-  const error = term && response?.term === term ? response.error : "";
-  const choices =
-    loading || error ? [] : term ? (response?.items ?? []) : patients;
+  // A lista só abre com texto digitado e sempre filtrada por ele.
+  const isOpen = open && !disabled && Boolean(term);
+  const loading = response?.term !== term;
+  const error = response?.term === term ? response.error : "";
+  const choices = loading || error ? [] : (response?.items ?? []);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -170,9 +171,14 @@ export function PatientPicker({
   }, [isOpen, term, query]);
 
   useEffect(() => {
-    ref.current?.setCustomValidity(
-      required && !value ? "Selecione um cliente encontrado na busca." : "",
+    const input = ref.current;
+    if (!input) return;
+    const missing = required && !value;
+    input.setCustomValidity(
+      missing ? "Selecione um cliente encontrado na busca." : "",
     );
+    // Escolher (na lista ou pelo cadastro rápido) tira o erro do último envio.
+    if (!missing && input.validity.valid) clearInlineValidation(input);
   }, [ref, required, value]);
 
   useEffect(() => {

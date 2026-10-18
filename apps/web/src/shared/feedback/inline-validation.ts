@@ -32,6 +32,15 @@ export function validationMessage(field: Field) {
   return field.validationMessage || "Valor inválido.";
 }
 
+/** Remove a mensagem abaixo do campo e os atributos de erro (ex.: ao escolher um cliente). */
+export function clearInlineValidation(field: Field) {
+  if (field.getAttribute("aria-invalid") !== "true") return;
+  field.removeAttribute("aria-invalid");
+  const container = field.closest("label") ?? field.parentElement;
+  container?.querySelector(":scope > .inline-field-error")?.remove();
+  field.removeAttribute("aria-description");
+}
+
 /**
  * Troca os balões nativos do navegador ("Preencha este campo") por mensagens abaixo do
  * campo, em todo o sistema. Foca o primeiro campo inválido; a mensagem some ao corrigir.
@@ -53,13 +62,6 @@ export function installInlineValidation(root: Document) {
     }
     return error;
   }
-  function clear(field: Field) {
-    if (field.getAttribute("aria-invalid") !== "true") return;
-    field.removeAttribute("aria-invalid");
-    const container = field.closest("label") ?? field.parentElement;
-    container?.querySelector(":scope > .inline-field-error")?.remove();
-    field.removeAttribute("aria-description");
-  }
   function onInvalid(event: Event) {
     if (!isField(event.target)) return;
     event.preventDefault();
@@ -78,8 +80,20 @@ export function installInlineValidation(root: Document) {
     }
   }
   function onEdit(event: Event) {
-    if (isField(event.target) && event.target.checkValidity())
-      clear(event.target);
+    // Sem `checkValidity()` (que dispara `invalid`): editar nunca cria erro em campo sem
+    // erro; num campo já marcado, a mensagem acompanha a regra ainda não cumprida.
+    if (!isField(event.target)) return;
+    const field = event.target;
+    if (field.validity.valid) {
+      clearInlineValidation(field);
+      return;
+    }
+    if (field.getAttribute("aria-invalid") !== "true") return;
+    const message = validationMessage(field);
+    field.setAttribute("aria-description", message);
+    (field.closest("label") ?? field.parentElement)
+      ?.querySelector(":scope > .inline-field-error")
+      ?.setAttribute("data-message", message);
   }
   root.addEventListener("invalid", onInvalid, true);
   root.addEventListener("input", onEdit, true);
