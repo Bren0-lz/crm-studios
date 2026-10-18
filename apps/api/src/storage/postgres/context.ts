@@ -1505,7 +1505,8 @@ export class PostgresRepositoryContext {
          AND (pp.source_appointment_id IS NULL OR pp.source_appointment_id = $5)
          AND pp.valid_from <= ($4::timestamptz AT TIME ZONE c.timezone)::date
          AND (pp.valid_until IS NULL OR pp.valid_until >= ($4::timestamptz AT TIME ZONE c.timezone)::date)
-       ORDER BY pp.valid_until NULLS LAST, pp.created_at
+       ORDER BY coalesce(pp.source_appointment_id = $5, false) DESC,
+         pp.valid_until NULLS LAST, pp.created_at
        LIMIT 1 FOR UPDATE OF pp, pps`,
       [clinicId, patientId, serviceId, startsAt, appointmentId],
     );

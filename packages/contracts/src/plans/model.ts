@@ -253,6 +253,21 @@ export const planDisplayStatusLabels: Record<PlanDisplayStatus, string> = {
   exhausted: "Esgotado",
 };
 
+/** Crédito de serviço avulso vendido na comanda (não é plano contratado). */
+export function isTabCreditPlan(plan: { sourceTabId?: string | null }) {
+  return Boolean(plan.sourceTabId);
+}
+
+/** Nome exibido do crédito da comanda, sem o código interno da comanda. */
+export function tabCreditPlanName(serviceName: string) {
+  return `${serviceName} · pago na comanda`;
+}
+
+export const tabCreditHistoryLabel = "Serviço avulso na comanda";
+
+/** Selo do crédito da comanda: aguarda o atendimento até ser consumido. */
+export const tabCreditAwaitingLabel = "Aguarda atendimento";
+
 /** Plano recorrente gera uma cobrança por ciclo; a próxima nasce na renovação. */
 export const recurringSingleChargeIssue =
   "No plano recorrente a cobrança é uma por ciclo: use 1 parcela.";

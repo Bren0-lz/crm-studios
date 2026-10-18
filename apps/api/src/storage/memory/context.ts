@@ -915,7 +915,9 @@ export class MemoryRepositoryContext {
             ? `financial.${data.kind}`
             : source.action === "clinical.access"
               ? `clinical.access.${data.action}`
-              : source.action;
+              : source.action === "plan.created" && data.sourceTabId
+                ? "plan.tab_credit"
+                : source.action;
         const actorUserId =
           source.event && typeof data.actorUserId === "string"
             ? data.actorUserId
@@ -1732,10 +1734,15 @@ export class MemoryRepositoryContext {
           plan.validFrom <= appointmentDate &&
           (!plan.validUntil || plan.validUntil >= appointmentDate),
       )
-      .sort((a, b) =>
-        (a.validUntil || "9999-12-31").localeCompare(
-          b.validUntil || "9999-12-31",
-        ),
+      // O crédito pago na comanda deste atendimento tem prioridade sobre
+      // qualquer outro plano válido para o serviço.
+      .sort(
+        (a, b) =>
+          Number(b.sourceAppointmentId === appointment.id) -
+            Number(a.sourceAppointmentId === appointment.id) ||
+          (a.validUntil || "9999-12-31").localeCompare(
+            b.validUntil || "9999-12-31",
+          ),
       );
     const plan = plans[0];
     if (!plan) {

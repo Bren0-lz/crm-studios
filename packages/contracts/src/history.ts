@@ -307,6 +307,11 @@ export const historyActions: {
   },
   { action: "plan.created", module: "plans", label: "Plano contratado" },
   {
+    action: "plan.tab_credit",
+    module: "plans",
+    label: "Serviço avulso na comanda",
+  },
+  {
     action: "lead.updated",
     module: "crm",
     label: "Cadastro do lead atualizado",

@@ -5,8 +5,8 @@ import {
   type PatientPlan,
   type Receivable,
   formatPhone,
+  isTabCreditPlan,
   planDisplayStatus,
-  planDisplayStatusLabels,
 } from "@crm/contracts";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -29,6 +29,7 @@ import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
+import { planBadgeLabel } from "../plans/index";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
@@ -136,14 +137,14 @@ export function PatientRecordTabs({
     canView("contracts"),
     id,
     "contracts",
-    async () =>
-      (await api.documents()).filter((item) => item.patientId === id),
+    async () => (await api.documents()).filter((item) => item.patientId === id),
   );
   const today = localIsoDate();
   // Instante em que a ficha abriu: referência para o "próximo atendimento".
   const [openedAt] = useState(() => Date.now());
   const currentPlan = plans.data?.find(
     (plan) =>
+      !isTabCreditPlan(plan) &&
       plan.status === "active" &&
       plan.validFrom <= today &&
       (!plan.validUntil || plan.validUntil >= today),
@@ -307,7 +308,7 @@ export function PatientRecordTabs({
                       <span
                         className={`status-pill ${planDisplayStatus(plan)}`}
                       >
-                        {planDisplayStatusLabels[planDisplayStatus(plan)]}
+                        {planBadgeLabel(plan)}
                       </span>
                     </li>
                   ))

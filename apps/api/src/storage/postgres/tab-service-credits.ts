@@ -1,3 +1,4 @@
+import { tabCreditHistoryLabel, tabCreditPlanName } from "@crm/contracts";
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 
@@ -43,7 +44,7 @@ export async function createTabServiceCredits(
         clinicId,
         item.patientId,
         item.serviceId,
-        `${item.serviceName} · Comanda ${tabId.slice(0, 8).toUpperCase()}`,
+        tabCreditPlanName(item.serviceName),
         item.date,
         item.amountInCents,
         tabId,
@@ -54,6 +55,12 @@ export async function createTabServiceCredits(
     await client.query(
       `INSERT INTO patient_plan_services(clinic_id,plan_id,service_id,service_name,position,total_sessions,remaining_sessions,total_value_in_cents) VALUES($1,$2,$3,$4,0,1,1,$5)`,
       [clinicId, planId, item.serviceId, item.serviceName, item.amountInCents],
+    );
+    // O gatilho do histórico grava "Plano contratado"; o crédito da comanda
+    // aparece como serviço avulso.
+    await client.query(
+      `UPDATE audit_events SET action='plan.tab_credit',description=$3 WHERE clinic_id=$1 AND source_table='patient_plans' AND source_id=$2 AND action='plan.created'`,
+      [clinicId, planId, tabCreditHistoryLabel],
     );
     await client.query(
       `INSERT INTO session_movements(clinic_id,plan_id,service_id,kind,quantity,reason,actor_user_id) VALUES($1,$2,$3,'credit',1,'Crédito do serviço vendido na comanda',$4)`,

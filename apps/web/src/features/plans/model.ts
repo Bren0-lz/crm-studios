@@ -2,6 +2,8 @@ import {
   addDaysToIsoDate,
   patientTagKey,
   planDisplayStatus,
+  planDisplayStatusLabels,
+  tabCreditAwaitingLabel,
   type PatientPlan,
 } from "@crm/contracts";
 
@@ -47,6 +49,25 @@ export function planMatchesFilter(
 export function planMatchesSearch(plan: PatientPlan, search: string): boolean {
   const term = patientTagKey(search);
   return !term || patientTagKey(plan.patientName).includes(term);
+}
+
+/** Texto do selo: o crédito da comanda aguarda o atendimento até ser consumido. */
+export function planBadgeLabel(
+  plan: Pick<PatientPlan, "sourceTabId" | "status" | "remainingSessions">,
+): string {
+  if (
+    plan.sourceTabId &&
+    plan.status === "active" &&
+    plan.remainingSessions > 0
+  )
+    return tabCreditAwaitingLabel;
+  if (
+    plan.sourceTabId &&
+    plan.status === "expired" &&
+    plan.remainingSessions === 0
+  )
+    return "Utilizado";
+  return planDisplayStatusLabels[planDisplayStatus(plan)];
 }
 
 /**

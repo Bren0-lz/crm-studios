@@ -1421,7 +1421,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   atendimento). Testes API (prioridade de consumo, rótulo) e web.
 - **Gate:** gate completo
 - **Depende de:** QC5
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC1 — Variação de vendas sem percentual impossível
 

@@ -1,10 +1,11 @@
-import type {
-  PatientPlan,
-  PatientPlanService,
-  PlanCatalogEntry,
-  PlanStatus,
-  PlanTemplate,
-  SessionMovement,
+import {
+  tabCreditPlanName,
+  type PatientPlan,
+  type PatientPlanService,
+  type PlanCatalogEntry,
+  type PlanStatus,
+  type PlanTemplate,
+  type SessionMovement,
 } from "@crm/contracts";
 
 export type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & {
@@ -104,7 +105,8 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     clinicId: row.clinicId,
     patientId: row.patientId,
     serviceId: row.serviceId,
-    name: row.name,
+    // Créditos antigos da comanda foram gravados com o código no nome.
+    name: row.sourceTabId ? tabCreditPlanName(row.serviceName) : row.name,
     kind: row.kind,
     totalSessions: row.totalSessions,
     remainingSessions: row.remainingSessions,

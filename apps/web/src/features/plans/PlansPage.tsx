@@ -5,9 +5,9 @@ import {
   type PatientPlan,
   type PlanStatus,
   type Service,
+  isTabCreditPlan,
   nextPlanPeriod,
   planDisplayStatus,
-  planDisplayStatusLabels,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,6 +24,7 @@ import {
   shortDate,
 } from "../../shared/lib/formatting";
 import {
+  planBadgeLabel,
   planKindLabels,
   planListFilterLabels,
   planMatchesFilter,
@@ -127,6 +128,9 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     searchedPlans.filter((plan) => planMatchesFilter(plan, filter, today))
       .length;
 
+  // Crédito pago na comanda não é plano contratado: fica fora dos totais.
+  const contractedPlans = plans.filter((plan) => !isTabCreditPlan(plan));
+
   function planRenewalLabel(plan: PatientPlan) {
     if (plan.renewedByPlanId) {
       const next = plans.find((item) => item.id === plan.renewedByPlanId);
@@ -165,20 +169,23 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
       <section className="plan-metrics">
         <div>
           <strong>
-            {plans.filter((plan) => plan.status === "active").length}
+            {contractedPlans.filter((plan) => plan.status === "active").length}
           </strong>
           <span>planos ativos</span>
         </div>
         <div>
           <strong>
-            {plans.reduce((sum, plan) => sum + plan.remainingSessions, 0)}
+            {contractedPlans.reduce(
+              (sum, plan) => sum + plan.remainingSessions,
+              0,
+            )}
           </strong>
           <span>sessões disponíveis</span>
         </div>
         <div>
           <strong>
             {
-              plans.filter(
+              contractedPlans.filter(
                 (plan) =>
                   plan.remainingSessions <= 2 && plan.status === "active",
               ).length
@@ -257,11 +264,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                 <article className="plan-card" key={plan.id}>
                   <div className="plan-card-head">
                     <span className={`status-pill ${planDisplayStatus(plan)}`}>
-                      {plan.sourceTabId &&
-                      plan.remainingSessions === 0 &&
-                      plan.status === "expired"
-                        ? "Utilizado"
-                        : planDisplayStatusLabels[planDisplayStatus(plan)]}
+                      {planBadgeLabel(plan)}
                     </span>
                     <span>{planKindLabels[plan.kind]}</span>
                   </div>
