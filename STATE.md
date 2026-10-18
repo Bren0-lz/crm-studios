@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** QC2 (Rodada 8, branch `fix/qa-out-2026`)
-- **Última concluída:** QC6
+- **Tarefa atual:** QC3 (Rodada 8, branch `fix/qa-out-2026`)
+- **Última concluída:** QC2
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -220,3 +220,4 @@
 - 2026-10-17 Verificação celular: 390px sem rolagem horizontal em 12 telas (iframe no navegador). `npm run test:e2e` falhava em 15/38: (1) o `*` dos obrigatórios (U2, `::after`) entrava no nome acessível ("Tipo *") → `content: "*" / ""`; (2) specs ainda usavam a ficha antiga (U14) → abas "Prontuário", "Planos", "Comandas"; (3) V9 deixava uma faixa de 10px sem escurecer à direita do fundo do modal e deslocava o conteúdo 5px (calha + padding) → `html.modal-open { scrollbar-gutter: auto }`. Agora 38/38.
 - 2026-10-18 RODADA 8 iniciada (QA ponta a ponta de 17/10): QC1–QC10, QM1–QM17, QV1–QV9, QR1–QR2 no PLAN.md, com triagem no código e decisões do dono (comanda pré-paga mantida; realizado/falta a partir de 15 min antes; "Pagamento atrasado" automático; estoque em aba do Financeiro). Branch local `fix/qa-out-2026`. Próxima migração livre: 0081.
 - 2026-10-18 QC6 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 709 testes). `shared/api/data-version.ts` (versão por domínio: agenda, finance, inventory, plans, patients, history, clinical, contracts) incrementada em `request()` do transport.ts após escrita bem-sucedida (mapa `domainsForMutation`; /preview e /auth fora). Telas assinam com `useDataVersion(...domínios)` nas deps do efeito, recarga silenciosa: ficha (abas, Histórico, estoque/comandas), FinancePage (lista = contadores), Caixa do dia, Previsão, Dashboard. AgendaPage/PlansPage/PatientDetailPage NÃO assinam (gerariam GET duplicado e quebram mocks que contam leituras). Rota nova de escrita precisa entrar em `domainsForMutation`. Financeiro e estoque ainda fazem reload manual redundante. Teste instável: finance/workspace-flows "classifies a supplier expense" clica em "Nova despesa" antes de `data` carregar.
+- 2026-10-18 QC2 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; contracts 134, API 295, web 715). contracts/agenda: `isAppointmentPendingFinalization(appt, now)` (scheduled/confirmed com endsAt < agora, comparação por instante ISO) e `pendingFinalizationLabel`. Repo: `listPendingFinalizationAppointments(clinicId, now)` (memória e PG). `GET /appointments/pending-finalization` (viewAny agenda); `/dashboard` devolve `pendingFinalization?` só com módulo agenda. Web: rota `/agenda/a-finalizar` (`PendingFinalizationPage`) com lote = PATCH /appointments/:id/status em sequência (sem rota de lote → a regra da QC3 nessa rota já cobre o lote); `PendingFinalizationBadge` em lista, Semana, Mês, Dia e DayEventsModal; card no Dashboard só com N > 0; HelpTip em atendidos/sem retorno. Mês mostra 2 eventos por dia: pendente no "+N" fica sem selo.

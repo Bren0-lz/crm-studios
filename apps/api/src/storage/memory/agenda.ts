@@ -1,4 +1,5 @@
 import {
+  isAppointmentPendingFinalization,
   type Appointment,
   type AppointmentInput,
   type AppointmentRescheduleEvent,
@@ -107,6 +108,17 @@ export function createAgendaRepository(
             item.clinicId === clinicId &&
             item.startsAt < to &&
             item.endsAt > from,
+        )
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    },
+
+    async listPendingFinalizationAppointments(clinicId: string, now: string) {
+      const instant = new Date(now);
+      return repositoryContext.appointments
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            isAppointmentPendingFinalization(item, instant),
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },

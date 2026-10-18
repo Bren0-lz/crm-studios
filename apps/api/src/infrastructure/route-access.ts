@@ -100,6 +100,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/options": view("clinical"),
   "GET /appointments": viewAny("agenda"),
   "GET /appointments/:id/reschedules": viewAny("agenda"),
+  "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /schedule-blocks": viewAny("agenda"),
   "GET /group-sessions": viewAny("groups", "agenda"),
 

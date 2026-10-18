@@ -34,6 +34,8 @@ import {
   groupLetter,
   guidedPatientInputSchema,
   isValidCpf,
+  isAppointmentPendingFinalization,
+  pendingFinalizationLabel,
   leadMoveSchema,
   nextPlanPeriod,
   patientDefaultExportColumns,
@@ -959,5 +961,60 @@ describe("user edit modules", () => {
         editModules: ["admin"],
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("appointment pending finalization", () => {
+  const now = new Date("2026-10-18T15:00:00.000Z");
+
+  it("flags scheduled and confirmed appointments whose end already passed", () => {
+    for (const status of ["scheduled", "confirmed"] as const) {
+      expect(
+        isAppointmentPendingFinalization(
+          { status, endsAt: "2026-10-18T14:59:00.000Z" },
+          now,
+        ),
+      ).toBe(true);
+    }
+    expect(pendingFinalizationLabel).toBe("Pendente de finalização");
+  });
+
+  it("compares instants regardless of the offset used (clinic time zone)", () => {
+    // 11:59 em São Paulo (-03:00) = 14:59Z: já terminou ao meio-dia de Brasília.
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "confirmed", endsAt: "2026-10-18T11:59:00-03:00" },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "confirmed", endsAt: "2026-10-18T12:30:00-03:00" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores appointments still running, in the future or already resolved", () => {
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "scheduled", endsAt: "2026-10-18T15:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    for (const status of [
+      "completed",
+      "no_show",
+      "excused_absence",
+      "professional_absence",
+      "cancelled",
+    ] as const) {
+      expect(
+        isAppointmentPendingFinalization(
+          { status, endsAt: "2026-10-01T10:00:00.000Z" },
+          now,
+        ),
+      ).toBe(false);
+    }
   });
 });

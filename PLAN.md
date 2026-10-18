@@ -1377,7 +1377,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   com `HelpTip` explicando. Testes contracts, API (lote, se houver) e web.
 - **Gate:** gate completo
 - **Depende de:** QC6
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC3 — Bloquear ações clínicas em atendimento futuro
 

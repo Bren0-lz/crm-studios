@@ -1,6 +1,7 @@
 import type { Appointment, GroupSession, ScheduleBlock } from "@crm/contracts";
 import { Modal } from "../../shared/components/Modal";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 import { statusLabel, timeLabel } from "../../shared/lib/formatting";
 import { professionalColorStyle } from "../../tag-colors";
 import { sortAgendaEntries } from "./model";
@@ -103,7 +104,13 @@ export function DayEventsModal({
                     </strong>
                     <small>{event.detail}</small>
                     {event.appointment && (
-                      <VisitTypeBadge appointment={event.appointment} />
+                      <>
+                        <VisitTypeBadge appointment={event.appointment} />
+                        <PendingFinalizationBadge
+                          compact
+                          appointment={event.appointment}
+                        />
+                      </>
                     )}
                   </span>
                 </>

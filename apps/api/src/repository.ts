@@ -604,6 +604,11 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<Appointment[]>;
+  /** Agendados/confirmados com término antes de `now` (pendentes de finalização). */
+  listPendingFinalizationAppointments(
+    clinicId: string,
+    now: string,
+  ): Promise<Appointment[]>;
   createAppointment(
     clinicId: string,
     input: AppointmentInput,

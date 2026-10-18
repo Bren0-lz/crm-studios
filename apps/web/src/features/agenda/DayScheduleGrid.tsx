@@ -13,6 +13,7 @@ import {
 } from "../../shared/lib/formatting";
 import { professionalColorStyle } from "../../tag-colors";
 import { appointmentStatusClass } from "./model";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 const SLOT_MINUTES = 30;
 
@@ -305,6 +306,7 @@ function GridEvent({
         <span className={`status-pill ${entry.item.status}`}>
           {statusLabel(entry.item.status)}
         </span>
+        <PendingFinalizationBadge compact appointment={entry.item} />
       </button>
     );
   return (

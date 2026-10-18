@@ -22,6 +22,14 @@ export function registerDashboardRoutes(context: RouteContext) {
     )
       return { date } satisfies DashboardViewSummary;
     const summary = await repository.getDashboard(request.user.clinicId, date);
+    const pendingFinalization = access.modules.includes("agenda")
+      ? (
+          await repository.listPendingFinalizationAppointments(
+            request.user.clinicId,
+            new Date().toISOString(),
+          )
+        ).length
+      : undefined;
     return {
       date,
       ...(access.modules.includes("agenda")
@@ -34,6 +42,7 @@ export function registerDashboardRoutes(context: RouteContext) {
             completedToday: summary.completedToday,
             noShowsThisMonth: summary.noShowsThisMonth,
             nextAppointments: summary.nextAppointments,
+            pendingFinalization,
           }
         : {}),
       ...(access.modules.includes("patients")

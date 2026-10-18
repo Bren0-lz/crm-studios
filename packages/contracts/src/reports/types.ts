@@ -50,7 +50,10 @@ export interface SalesReport {
 }
 
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
-  Partial<Omit<DashboardSummary, "date">>;
+  Partial<Omit<DashboardSummary, "date">> & {
+    /** Atendimentos passados ainda agendados/confirmados (qualquer data). */
+    pendingFinalization?: number | undefined;
+  };
 
 export interface DashboardSummary {
   date: string;

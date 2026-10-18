@@ -239,6 +239,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.listSubscriberIdsWithoutGroup =
       this.agenda.listSubscriberIdsWithoutGroup;
     this.listAppointments = this.agenda.listAppointments;
+    this.listPendingFinalizationAppointments =
+      this.agenda.listPendingFinalizationAppointments;
     this.createAppointment = this.agenda.createAppointment;
     this.createLeadAppointment = this.agenda.createLeadAppointment;
     this.rescheduleAppointment = this.agenda.rescheduleAppointment;
@@ -577,6 +579,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listAppointments: ReturnType<
     typeof createAgendaRepository
   >["listAppointments"];
+
+  readonly listPendingFinalizationAppointments: ReturnType<
+    typeof createAgendaRepository
+  >["listPendingFinalizationAppointments"];
 
   readonly createAppointment: ReturnType<
     typeof createAgendaRepository

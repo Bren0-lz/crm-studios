@@ -132,6 +132,22 @@ export function createAgendaRepository(
       return result.rows.map(mapAppointment);
     },
 
+    async listPendingFinalizationAppointments(clinicId: string, now: string) {
+      const result = await repositoryContext.pool.query<AppointmentRow>(
+        `
+        SELECT ${appointmentColumns}
+        FROM appointments a
+        ${appointmentJoins}
+        WHERE a.clinic_id = $1
+          AND a.status IN ('scheduled', 'confirmed')
+          AND a.ends_at < $2
+        ORDER BY a.starts_at
+      `,
+        [clinicId, now],
+      );
+      return result.rows.map(mapAppointment);
+    },
+
     async createAppointment(clinicId: string, input: AppointmentInput) {
       const related = await repositoryContext.pool.query<{
         durationMinutes: number;

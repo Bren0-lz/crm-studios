@@ -14,6 +14,10 @@ import type {
   Service,
 } from "@crm/contracts";
 import {
+  isAppointmentPendingFinalization,
+  pendingFinalizationLabel,
+} from "@crm/contracts";
+import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -63,6 +67,7 @@ import { sortAgendaEntries } from "./model";
 import { appointmentStatusClass } from "./model";
 import { professionalColorStyle } from "../../tag-colors";
 import { AgendaStatusLegend } from "./AgendaStatusLegend";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 export function AgendaPage() {
   const { can, canView, canEdit } = useAuthorization();
@@ -497,7 +502,7 @@ export function AgendaPage() {
                             onClick={() =>
                               setSelectedAppointmentId(entry.appointment.id)
                             }
-                            aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}`}
+                            aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}${isAppointmentPendingFinalization(entry.appointment) ? `, ${pendingFinalizationLabel.toLowerCase()}` : ""}`}
                           >
                             <span className="month-event-time">
                               <i className="pro-dot" aria-hidden="true" />
@@ -514,6 +519,10 @@ export function AgendaPage() {
                             <span className="month-event-name">
                               {entry.appointment.patientName}
                             </span>
+                            <PendingFinalizationBadge
+                              compact
+                              appointment={entry.appointment}
+                            />
                           </button>
                         ) : entry.kind === "group" ? (
                           <span
@@ -646,6 +655,10 @@ export function AgendaPage() {
                           <strong>{entry.appointment.patientName}</strong>
                           <span>{entry.appointment.serviceName}</span>
                           <VisitTypeBadge appointment={entry.appointment} />
+                          <PendingFinalizationBadge
+                            compact
+                            appointment={entry.appointment}
+                          />
                         </article>
                       ),
                     )}

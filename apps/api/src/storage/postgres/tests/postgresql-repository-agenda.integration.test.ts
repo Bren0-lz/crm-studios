@@ -296,6 +296,57 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("lists past scheduled and confirmed appointments as pending finalization", async () => {
+    const ids: string[] = [];
+    try {
+      for (const [index, status] of appointmentStatusSchema.options.entries()) {
+        const created = await repository.createAppointment(clinicId, {
+          patientId: "99999999-9999-4999-8999-999999999999",
+          professionalId: "33333333-3333-4333-8333-333333333333",
+          roomId: "55555555-5555-4555-8555-555555555555",
+          serviceId: "77777777-7777-4777-8777-777777777777",
+          startsAt: `2000-11-14T${String(12 + index).padStart(2, "0")}:00:00.000Z`,
+          visitType: "regular",
+          notes: "postgres-pending-finalization-test",
+        });
+        ids.push(created.id);
+        await pool.query("UPDATE appointments SET status = $2 WHERE id = $1", [
+          created.id,
+          status,
+        ]);
+      }
+      const future = await repository.createAppointment(clinicId, {
+        patientId: "99999999-9999-4999-8999-999999999999",
+        professionalId: "33333333-3333-4333-8333-333333333333",
+        roomId: "55555555-5555-4555-8555-555555555555",
+        serviceId: "77777777-7777-4777-8777-777777777777",
+        startsAt: "2000-11-15T12:00:00.000Z",
+        visitType: "regular",
+        notes: "postgres-pending-finalization-test",
+      });
+      ids.push(future.id);
+      const pending = (
+        await repository.listPendingFinalizationAppointments(
+          clinicId,
+          "2000-11-15T00:00:00.000Z",
+        )
+      ).filter((item) => ids.includes(item.id));
+      expect(pending.map((item) => item.id)).toEqual(ids.slice(0, 2));
+      expect(
+        (
+          await repository.listPendingFinalizationAppointments(
+            "00000000-0000-4000-8000-000000000000",
+            "2000-11-15T00:00:00.000Z",
+          )
+        ).filter((item) => ids.includes(item.id)),
+      ).toEqual([]);
+    } finally {
+      await pool.query("DELETE FROM appointments WHERE id = ANY($1::uuid[])", [
+        ids,
+      ]);
+    }
+  });
+
   async function cleanupPermissionsUser() {
     const ids = `SELECT id FROM users WHERE clinic_id = $1 AND email = $2`;
     await pool.query(

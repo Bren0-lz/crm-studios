@@ -4,6 +4,7 @@ import { useAuthorization } from "../../authorization-context";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
 import { appointmentStatusClass } from "./model";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 import { professionalColorStyle } from "../../tag-colors";
 
 export function AgendaCard({
@@ -54,6 +55,7 @@ export function AgendaCard({
             {appointment.professionalName} · {appointment.roomName}
           </p>
           <VisitTypeBadge appointment={appointment} />
+          <PendingFinalizationBadge appointment={appointment} />
         </div>
         <div className="agenda-actions">
           <select

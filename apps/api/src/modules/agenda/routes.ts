@@ -144,6 +144,18 @@ export function registerAgendaRoutes(context: RouteContext) {
     );
   });
 
+  // Atendimentos passados ainda agendados/confirmados (QC2): o instante é absoluto, então
+  // "agora" no servidor vale para o fuso da clínica.
+  app.get(
+    "/appointments/pending-finalization",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.listPendingFinalizationAppointments(
+        request.user.clinicId,
+        new Date().toISOString(),
+      ),
+  );
+
   app.post(
     "/appointments",
     { preHandler: authenticate },

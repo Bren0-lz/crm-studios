@@ -4,7 +4,7 @@ import {
   clockTimeSchema,
   joinWithAnd,
 } from "../common/model.js";
-import type { GroupWeeklySlot } from "./types.js";
+import type { Appointment, GroupWeeklySlot } from "./types.js";
 
 export const appointmentStatusSchema = z.enum([
   "scheduled",
@@ -183,6 +183,25 @@ export const replacementBookingInputSchema = z.object({
   creditId: z.uuid(),
   sessionId: z.uuid(),
 });
+
+/** Rótulo do estado derivado de atendimento passado sem desfecho registrado. */
+export const pendingFinalizationLabel = "Pendente de finalização";
+
+/**
+ * Atendimento "Pendente de finalização": ainda agendado ou confirmado e com o término já
+ * passado. O término é um instante com fuso (ISO), então a comparação vale para o fuso da
+ * clínica (America/Sao_Paulo) sem conversão. Não é um status gravado: é derivado na leitura.
+ */
+export function isAppointmentPendingFinalization(
+  appointment: Pick<Appointment, "status" | "endsAt">,
+  now: Date = new Date(),
+): boolean {
+  return (
+    (appointment.status === "scheduled" ||
+      appointment.status === "confirmed") &&
+    Date.parse(appointment.endsAt) < now.getTime()
+  );
+}
 
 export const appointmentStatusInputSchema = z.object({
   absenceReason: z.string().trim().min(2).max(500).optional(),

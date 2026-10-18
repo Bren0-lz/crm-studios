@@ -10,6 +10,7 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { AppointmentRow } from "../../shared/components/AppointmentRow";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { HelpTip } from "../../shared/components/HelpTip";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
@@ -306,6 +307,28 @@ export function DashboardPage() {
               )}
             </section>
           )}
+          {data.pendingFinalization !== undefined &&
+            data.pendingFinalization > 0 && (
+              <section className="panel dashboard-pending-finalization">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">Pendências da agenda</span>
+                    <h2>
+                      Atendimentos a finalizar ({data.pendingFinalization})
+                    </h2>
+                  </div>
+                  {canView("agenda") && (
+                    <NavLink to="/agenda/a-finalizar" className="text-link">
+                      Finalizar atendimentos <ChevronRight size={16} />
+                    </NavLink>
+                  )}
+                </div>
+                <p>
+                  Já terminaram e continuam como agendados ou confirmados.
+                  Enquanto não forem finalizados, não contam como atendidos.
+                </p>
+              </section>
+            )}
           {canSeeSales && sales && (
             <section className="dashboard-sales panel">
               <div className="panel-head">
@@ -321,6 +344,10 @@ export function DashboardPage() {
               </div>
               <p className="dashboard-sales-context">
                 {sales.current.attendedPatients} clientes atendidos neste mês.
+                <HelpTip
+                  term="Clientes atendidos"
+                  text="Conta só atendimentos marcados como realizados. Atendimentos a finalizar ainda não entram."
+                />
               </p>
               <div className="sales-metrics">
                 <article>
@@ -342,7 +369,13 @@ export function DashboardPage() {
                   <small>Pela data da baixa</small>
                 </article>
                 <article>
-                  <span>Sem retorno neste mês</span>
+                  <span>
+                    Sem retorno neste mês
+                    <HelpTip
+                      term="Sem retorno"
+                      text="Clientes com atendimento realizado no mês anterior e nenhum realizado neste mês. Atendimentos a finalizar não contam como retorno."
+                    />
+                  </span>
                   <strong>{sales.patientsWithoutReturn.length}</strong>
                   <small>Atendidos no mês anterior</small>
                 </article>

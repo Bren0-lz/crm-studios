@@ -70,6 +70,9 @@ export const agendaApi = {
     request<Appointment[]>(
       `/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  /** Atendimentos passados ainda agendados/confirmados, de qualquer data (QC2). */
+  pendingFinalizationAppointments: () =>
+    request<Appointment[]>("/appointments/pending-finalization"),
   createAppointment: (input: AppointmentInput) =>
     request<Appointment>("/appointments", {
       method: "POST",
