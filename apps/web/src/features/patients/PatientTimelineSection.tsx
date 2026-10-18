@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency } from "../../shared/lib/formatting";
 import {
   timelineDate,
@@ -17,6 +18,7 @@ export function PatientTimelineSection({ patientId }: { patientId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<TimelineFilter>("all");
+  const version = useDataVersion("history");
   useEffect(() => {
     let active = true;
     api
@@ -40,7 +42,7 @@ export function PatientTimelineSection({ patientId }: { patientId: string }) {
     return () => {
       active = false;
     };
-  }, [patientId]);
+  }, [patientId, version]);
   const counts = entries.reduce<Partial<Record<TimelineFilter, number>>>(
     (acc, entry) => {
       const key = timelineKindConfig[entry.kind].filter;

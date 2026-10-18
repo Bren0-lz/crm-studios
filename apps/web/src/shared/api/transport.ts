@@ -1,4 +1,5 @@
 import { ApiClientError } from "./ApiClientError";
+import { bumpDataVersion, domainsForMutation } from "./data-version";
 import { TOKEN_KEY, clearSession } from "./session";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
@@ -18,8 +19,13 @@ export async function request<T>(
       ...options.headers,
     },
   });
+  const changed = () =>
+    bumpDataVersion(domainsForMutation(options.method ?? "GET", path));
   // 204 não tem corpo (ex.: exclusão de feriado): não há JSON para ler.
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) {
+    changed();
+    return undefined as T;
+  }
   const body = await response.json();
   if (!response.ok) {
     if (response.status === 401 && path !== "/auth/login") {
@@ -35,6 +41,7 @@ export async function request<T>(
       body.details,
     );
   }
+  changed();
   return body as T;
 }
 

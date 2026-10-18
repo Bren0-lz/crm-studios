@@ -13,6 +13,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
@@ -65,6 +66,8 @@ export function DashboardPage() {
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
+  // Mutações na agenda, no financeiro e nos planos refazem o painel em silêncio (QC6).
+  const dataVersion = useDataVersion("agenda", "finance", "plans");
 
   useEffect(() => {
     let active = true;
@@ -180,8 +183,18 @@ export function DashboardPage() {
       return next;
     });
     closeAppointmentAction();
-    await refreshDashboard();
+    // A mutação já mudou a versão da agenda: o efeito abaixo recarrega o painel.
   }
+  // Qualquer mutação na agenda, no financeiro ou nos planos (aqui ou em outra tela)
+  // recarrega o painel uma única vez, com o mesmo aviso de falha da atualização (QC6).
+  const seenVersion = useRef(dataVersion);
+  useEffect(() => {
+    if (seenVersion.current === dataVersion) return;
+    seenVersion.current = dataVersion;
+    void refreshDashboard();
+    // `refreshDashboard` muda a cada render; só a versão dispara o recarregamento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
 
   const toast = useToast();
   async function changeDashboardStatus(

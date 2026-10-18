@@ -18,6 +18,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { PatientTabModal } from "./PatientTabModal";
 
 export function InventoryPanel({
@@ -58,18 +59,17 @@ export function InventoryPanel({
   async function load() {
     setData(await api.inventoryWorkspace());
   }
+  const version = useDataVersion("inventory");
   useEffect(() => {
     if (!opened) return;
     let alive = true;
     Promise.all([
-      api.inventoryWorkspace(),
       api.clinicCatalog("product_category"),
       api.clinicCatalog("product_brand"),
       api.patientOptions(),
     ])
-      .then(([workspace, categoryData, brandData, patientData]) => {
+      .then(([categoryData, brandData, patientData]) => {
         if (alive) {
-          setData(workspace);
           setCategories(categoryData);
           setBrands(brandData);
           setPatients(patientData);
@@ -82,6 +82,22 @@ export function InventoryPanel({
       alive = false;
     };
   }, [opened]);
+  // Estoque e comandas: recarrega em silêncio quando uma mutação muda o domínio (QC6).
+  useEffect(() => {
+    if (!opened) return;
+    let alive = true;
+    api
+      .inventoryWorkspace()
+      .then((workspace) => {
+        if (alive) setData(workspace);
+      })
+      .catch((cause: Error) => {
+        if (alive) setError(cause.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [opened, version]);
   if (!can("patients.inventory_view")) return null;
   function edit(product: Product | "new") {
     setForm(

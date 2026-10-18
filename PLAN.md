@@ -1365,7 +1365,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   comanda atualiza a aba Financeiro da ficha sem remontar; contador atualiza.
 - **Gate:** gate completo
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC2 — Atendimentos passados "Pendente de finalização"
 

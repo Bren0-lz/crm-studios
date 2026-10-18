@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency } from "../../shared/lib/formatting";
 import { forecastFlowCells } from "./forecastFlowCells";
 import { forecastHorizons, forecastIsEmpty, formatCompetence } from "./model";
@@ -12,6 +13,7 @@ export function FinanceForecastSection() {
   const [months, setMonths] = useState(6);
   const [forecast, setForecast] = useState<FinanceForecast | null>(null);
   const [error, setError] = useState("");
+  const version = useDataVersion("finance");
   useEffect(() => {
     let active = true;
     api
@@ -21,7 +23,7 @@ export function FinanceForecastSection() {
     return () => {
       active = false;
     };
-  }, [months]);
+  }, [months, version]);
   const overdue = forecast?.overdue;
   const hasOverdue =
     !!overdue && (overdue.inflowInCents !== 0 || overdue.outflowInCents !== 0);

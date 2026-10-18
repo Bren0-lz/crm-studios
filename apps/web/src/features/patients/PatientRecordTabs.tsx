@@ -26,6 +26,8 @@ import {
   emergencyContactLabel,
 } from "../../shared/lib/formatting";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
+import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientTimelineSection } from "./PatientTimelineSection";
@@ -39,12 +41,17 @@ type TabKey =
   | "clinical"
   | "history";
 
-/** Consulta de dados do cliente com carregando/erro, refeita ao trocar de cliente. */
+/**
+ * Consulta de dados do cliente com carregando/erro, refeita ao trocar de cliente e, em
+ * silêncio (mantendo os dados atuais), quando uma mutação muda o domínio (QC6).
+ */
 function usePatientData<T>(
   enabled: boolean,
   patientId: string,
+  domain: DataDomain,
   load: () => Promise<T>,
 ) {
+  const version = useDataVersion(domain);
   const [state, setState] = useState<{
     key: string;
     data: T | null;
@@ -63,9 +70,9 @@ function usePatientData<T>(
     return () => {
       active = false;
     };
-    // `load` muda a cada render; o cliente e a permissão definem a consulta.
+    // `load` muda a cada render; o cliente, a permissão e a versão definem a consulta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, patientId]);
+  }, [enabled, patientId, version]);
   const current = state?.key === patientId ? state : null;
   return {
     data: current?.data ?? null,
@@ -102,23 +109,35 @@ export function PatientRecordTabs({
   const id = patient.id;
   const tags = usePatientTags(patient.tags.length > 0);
   const tagColor = tagColorLookup(tags.tags);
-  const plans = usePatientData(canView("plans"), id, () => api.plans(id));
-  const appointments = usePatientData(canView("agenda"), id, async () => {
-    const range = appointmentWindow();
-    return (await api.appointments(range.from, range.to)).filter(
-      (item) => item.patientId === id,
-    );
-  });
+  const plans = usePatientData(canView("plans"), id, "plans", () =>
+    api.plans(id),
+  );
+  const appointments = usePatientData(
+    canView("agenda"),
+    id,
+    "agenda",
+    async () => {
+      const range = appointmentWindow();
+      return (await api.appointments(range.from, range.to)).filter(
+        (item) => item.patientId === id,
+      );
+    },
+  );
   const finance = usePatientData(
     canView("finance") && can("finance.view"),
     id,
+    "finance",
     async () =>
       (await api.financialSummary()).receivables.filter(
         (item) => item.patientId === id,
       ),
   );
-  const contracts = usePatientData(canView("contracts"), id, async () =>
-    (await api.documents()).filter((item) => item.patientId === id),
+  const contracts = usePatientData(
+    canView("contracts"),
+    id,
+    "contracts",
+    async () =>
+      (await api.documents()).filter((item) => item.patientId === id),
   );
   const today = localIsoDate();
   // Instante em que a ficha abriu: referência para o "próximo atendimento".

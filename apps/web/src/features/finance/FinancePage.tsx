@@ -45,6 +45,7 @@ import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
 import { useToast } from "../../shared/feedback/toast-context";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { ReceivableFilter, SettleTarget } from "./types";
 
 export function FinancePage() {
@@ -97,18 +98,27 @@ export function FinancePage() {
   }
   useEffect(() => {
     let active = true;
-    Promise.all([api.financialWorkspace(), api.professionals()])
-      .then(([workspace, professionalData]) => {
-        if (active) {
-          setData(workspace);
-          setProfessionals(professionalData);
-        }
-      })
+    api
+      .professionals()
+      .then((professionalData) => active && setProfessionals(professionalData))
       .catch((cause: Error) => active && setError(cause.message));
     return () => {
       active = false;
     };
   }, []);
+  // Lista e contadores das abas vêm da mesma consulta, refeita em silêncio quando uma
+  // mutação muda o financeiro (QC6).
+  const financeVersion = useDataVersion("finance");
+  useEffect(() => {
+    let active = true;
+    api
+      .financialWorkspace()
+      .then((workspace) => active && setData(workspace))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [financeVersion]);
   const toast = useToast();
   async function reverseReceivable(id: string) {
     setError("");

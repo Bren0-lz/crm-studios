@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** QC6 (Rodada 8, branch `fix/qa-out-2026`)
-- **Última concluída:** verificação dos itens não testados (Rodada 7)
+- **Tarefa atual:** QC2 (Rodada 8, branch `fix/qa-out-2026`)
+- **Última concluída:** QC6
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -219,3 +219,4 @@
 - 2026-10-17 Verificação mesclar/inativar: inativação já coberta; mescla cobria só agendamentos → teste (memória) e teste PostgreSQL opt-in (não executado, sem TEST_DATABASE_URL) com plano, saldo de sessões e parcelas (inclusive paga) indo para o cliente principal. Prontuário fica no cadastro de origem de propósito e é lido via `merged_into_patient_id`.
 - 2026-10-17 Verificação celular: 390px sem rolagem horizontal em 12 telas (iframe no navegador). `npm run test:e2e` falhava em 15/38: (1) o `*` dos obrigatórios (U2, `::after`) entrava no nome acessível ("Tipo *") → `content: "*" / ""`; (2) specs ainda usavam a ficha antiga (U14) → abas "Prontuário", "Planos", "Comandas"; (3) V9 deixava uma faixa de 10px sem escurecer à direita do fundo do modal e deslocava o conteúdo 5px (calha + padding) → `html.modal-open { scrollbar-gutter: auto }`. Agora 38/38.
 - 2026-10-18 RODADA 8 iniciada (QA ponta a ponta de 17/10): QC1–QC10, QM1–QM17, QV1–QV9, QR1–QR2 no PLAN.md, com triagem no código e decisões do dono (comanda pré-paga mantida; realizado/falta a partir de 15 min antes; "Pagamento atrasado" automático; estoque em aba do Financeiro). Branch local `fix/qa-out-2026`. Próxima migração livre: 0081.
+- 2026-10-18 QC6 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 709 testes). `shared/api/data-version.ts` (versão por domínio: agenda, finance, inventory, plans, patients, history, clinical, contracts) incrementada em `request()` do transport.ts após escrita bem-sucedida (mapa `domainsForMutation`; /preview e /auth fora). Telas assinam com `useDataVersion(...domínios)` nas deps do efeito, recarga silenciosa: ficha (abas, Histórico, estoque/comandas), FinancePage (lista = contadores), Caixa do dia, Previsão, Dashboard. AgendaPage/PlansPage/PatientDetailPage NÃO assinam (gerariam GET duplicado e quebram mocks que contam leituras). Rota nova de escrita precisa entrar em `domainsForMutation`. Financeiro e estoque ainda fazem reload manual redundante. Teste instável: finance/workspace-flows "classifies a supplier expense" clica em "Nova despesa" antes de `data` carregar.
