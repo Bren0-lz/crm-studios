@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** QC9 (Rodada 8, branch `fix/qa-out-2026`)
-- **Última concluída:** QC7
+- **Tarefa atual:** QC10 (Rodada 8, branch `fix/qa-out-2026`)
+- **Última concluída:** QC9
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -228,3 +228,4 @@
 - 2026-10-18 QC1 FAIL 1/3: legenda em Relatórios chamava o bruto de "Vendido líquido" e mostrava "antes dos estornos" sem estorno. Corrigido.
 - 2026-10-18 QC1 DONE (verifier PASS na 2ª tentativa; gate completo exit 0 rodado de novo pelo orquestrador após ajuste no TrendBadge: contracts 140, API 309, web 732). contracts/reports: `salesChangePercent(atual, anterior)` → null com base ≤ 0, usado por sales-report.ts e sales-workbook.ts (Excel escreve "Sem base de comparação"). `TrendBadge` ganhou `changeInCents?`: sem percentual, seta/cor pelo sinal da diferença e texto "Sem base de comparação · +R$ X" (`formatTrendCurrency` em shared/lib/trend.ts); com percentual continua `trendDirection` (faixa de estável <0,05%). Dashboard e Relatórios: rótulo "Vendido líquido" no valor líquido e "Antes dos estornos: R$ X · Estornos: R$ Y" só com `cancelledSalesInCents > 0`. Instável novo: App.integration "puts Matricular cliente in the page header".
 - 2026-10-18 QC7 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; contracts 144, API 310, web 733). contracts/patients/automatic-tags.ts: `OVERDUE_PAYMENT_TAG`, `isAutomaticPatientTag`, `withoutAutomaticPatientTags`, `isOverdueReceivable` (também usado por contact-suggestions), `overduePatientIds`, `withAutomaticPatientTags`. Repo `listOverduePatientIds(clinicId, today)` (memória e PG). API: `modules/patients/automatic-tags.ts` (`automaticPatientTagger`) aplica a etiqueta em GET /patients, /patients/options, /patients/:id, export e PUT; só para quem tem módulo finance (recepção/fisio não veem, inclusive no aviso da agenda). Gravação manual ignorada (PUT, importação, conversão de lead); POST/PATCH /patient-tags com o nome → 400 PATIENT_TAG_AUTOMATIC. Migração 0083_automatic_overdue_tag (remove dos clientes e de patient_tags; próxima livre: 0084). Planos web: filtros novos Expirado, Cancelado e "Pago na comanda" (`tab_credit`, créditos de comanda só nele); `planPartitionFilters` somam Todos; card = `planMatchesFilter(plan, "active")`; "Vencendo" separado com legenda "Recorte de Ativo (fora da soma)". Divergência só em bordas: sugestões ignoram inativos e adiadas. Comunicado por etiqueta (BroadcastPanel) não usa a etiqueta automática.
+- 2026-10-18 QC9 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 734). Parágrafo "Receitas e despesas pela baixa…" removido de AppointmentRescheduleHistoryModal.tsx; texto não existia em outro lugar; `.report-definition` segue em uso em ReportsDetails.tsx. Teste novo: features/agenda/reschedule-history-modal.integration.test.tsx.

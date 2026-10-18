@@ -1453,7 +1453,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   `AppointmentRescheduleHistoryModal.tsx`; teste web confere a ausência.
 - **Gate:** gate completo
 - **Depende de:** QC7
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC10 — Busca de cliente sem erro preso
 
