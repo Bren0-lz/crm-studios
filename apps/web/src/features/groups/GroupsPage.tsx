@@ -11,7 +11,8 @@ import {
   describeGroupSchedule,
   groupClassName,
 } from "@crm/contracts";
-import { Plus, UserMinus, UserPlus } from "lucide-react";
+import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
+import { EmptyState } from "../../shared/components/EmptyState";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
@@ -467,10 +468,22 @@ export function GroupsPage() {
               Acompanhe ocupação, participantes e lista de espera.
             </p>
             {workspace?.groups.length === 0 && (
-              <p className="group-empty">
-                Nenhuma turma cadastrada. Use “Nova turma” para criar a
-                primeira.
-              </p>
+              <EmptyState
+                icon={UsersRound}
+                title="Nenhuma turma cadastrada"
+                copy="Crie a primeira turma para matricular clientes e controlar a ocupação."
+                action={
+                  can("groups.create") ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => setGroupDialog("create")}
+                    >
+                      <Plus size={18} /> Criar primeira turma
+                    </button>
+                  ) : undefined
+                }
+              />
             )}
             <div className="group-card-grid">
               {workspace?.groups.map((group) => (

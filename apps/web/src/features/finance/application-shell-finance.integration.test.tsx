@@ -1910,6 +1910,17 @@ describe("application shell", () => {
           /Cadastre uma regra de comissão e use “Gerar comissões do mês”/,
         ),
       ).toBeInTheDocument();
+      // V11: ilustração e ação principal no estado vazio.
+      const empty = screen
+        .getByText("Nenhuma comissão gerada")
+        .closest(".empty-state") as HTMLElement;
+      expect(empty.querySelector(".empty-state-icon svg")).not.toBeNull();
+      fireEvent.click(
+        within(empty).getByRole("button", {
+          name: "Cadastrar regra de comissão",
+        }),
+      );
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
     });
 
     it("creates a commission rule in a modal with professional, percentage and start date", async () => {

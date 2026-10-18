@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V11)
-- **Última concluída:** V10
+- **Tarefa atual:** Rodada 7, Fase 3 (V12)
+- **Última concluída:** V11
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -211,3 +211,4 @@
 - 2026-10-17 V8: nome da turma com `.group-name` (line-clamp 2 + title com o nome completo) no cartão compacto da Semana, no cartão da lista, no Mês (month-group deixou de ser nowrap) e na grade do Dia. Select de etapa do lead ocupa a linha inteira do cartão (`.lead-actions select { grid-column: 1 / -1 }`). Conferido no navegador (nome longo → 2 linhas).
 - 2026-10-17 V9: quem rola é o documento (html). Medido no Chrome 155: com a barra estilizada (::-webkit-scrollbar) `scrollbar-gutter: stable` sozinho NÃO reserva o espaço (1920→1910 ao crescer); `html { overflow-y: scroll; scrollbar-gutter: stable }` deixa a largura fixa (1910/1910). Efeito colateral corrigido: com o html rolável, `body.modal-open { overflow:hidden }` deixava a página rolar atrás do modal → `useBodyScrollLock` põe `modal-open` também no html (`html.modal-open { overflow: hidden }`); conferido no navegador (não rola, padding de 10px compensa).
 - 2026-10-17 V10: `professionalColorStyle(cor)` (shared/lib/tag-colors.ts; só #rrggbb) → `--pro-color`. Borda esquerda de 3px nos cartões da lista, Semana, Mês e grade do Dia; bolinhas (`.pro-dot`) e linha do painel (`.appointment-line`) leem a variável; cabeçalho da grade do Dia com avatar de iniciais na cor (`.pro-avatar`). Sem `style={{ background }}` na agenda (só variável CSS, como a regra permite). Corrigido junto: cartão da grade herdava `justify-content: center` de `.text-button` (texto recuado ~64px). Parte do V10 entrou no commit "atualizações" (84757a8) do dono; o merge aca1334 trouxe a T073 (App.test.tsx → App.integration.test.tsx, 204 testes a mais); com ele o gate oscila em testes de modal de Turmas sob carga (passam isolados; npm test repetido exit 0).
+- 2026-10-17 V11: `EmptyState` ganhou `icon` (LucideIcon; padrão CalendarDays) dentro de `.empty-state-icon` (círculo menta, 72px) e mantém `action`. Turmas: parágrafo "Nenhuma turma cadastrada" virou EmptyState com "Criar primeira turma" (groups.create); Comissões: `CommissionsList.onCreateRule` → "Cadastrar regra de comissão" (finance.commission_rules); Prontuários: "Registrar primeira evolução" quando há atendimento sem prontuário. Botões com nomes diferentes dos do topo para não duplicar nos testes.

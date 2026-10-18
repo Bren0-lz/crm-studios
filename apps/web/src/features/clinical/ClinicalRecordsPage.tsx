@@ -147,8 +147,22 @@ export function ClinicalRecordsPage() {
           <LoadingBlock />
         ) : records.length === 0 ? (
           <EmptyState
+            icon={FileText}
             title="Nenhuma evolução registrada"
             copy="Crie o primeiro prontuário a partir de um atendimento realizado."
+            action={
+              canManage &&
+              can("clinical.records_create") &&
+              availableAppointments.length > 0 ? (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => setEditor("new")}
+                >
+                  <FileText size={18} /> Registrar primeira evolução
+                </button>
+              ) : undefined
+            }
           />
         ) : (
           <div className="clinical-list">

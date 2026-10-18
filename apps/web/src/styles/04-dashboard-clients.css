@@ -799,3 +799,14 @@
   color: var(--muted);
   font-size: var(--text-xs);
 }
+
+/* V11: ilustração do estado vazio (ícone grande do lucide num círculo suave). */
+.empty-state-icon {
+  display: grid;
+  width: calc(var(--space-8) + var(--space-2));
+  height: calc(var(--space-8) + var(--space-2));
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green-2);
+}

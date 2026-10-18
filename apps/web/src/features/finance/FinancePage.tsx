@@ -520,6 +520,11 @@ export function FinancePage() {
                 payables={data.payables}
                 adjustments={data.commissionAdjustments ?? []}
                 onReconcile={setReconcilingCommission}
+                onCreateRule={
+                  canManage && can("finance.commission_rules")
+                    ? () => setCommissionRuleOpen(true)
+                    : undefined
+                }
                 commissions={data.commissions}
                 canManage={canManage}
                 onToggle={(item) => void toggleCommission(item)}
