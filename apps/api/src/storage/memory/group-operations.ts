@@ -7,6 +7,7 @@ import {
 } from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import { DomainError } from "../../repository.js";
+import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 
@@ -235,6 +236,11 @@ export function createGroupOperationsRepository(
       const meeting = session(clinicId, input.sessionId),
         destination = group(clinicId, meeting.groupId),
         original = session(clinicId, credit.sourceSessionId);
+      assertReplacementTarget(
+        meeting.id,
+        credit.sourceSessionId,
+        meeting.startsAt,
+      );
       if (
         meeting.status !== "scheduled" ||
         group(clinicId, original.groupId).serviceId !== destination.serviceId

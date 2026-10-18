@@ -1409,7 +1409,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   "Bruna reservada em 20/10". Testes API e web.
 - **Gate:** gate completo
 - **Depende de:** QC4
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC8 — Crédito da comanda com rótulo e consumo corretos
 

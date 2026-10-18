@@ -5,6 +5,7 @@ import {
 } from "@crm/contracts";
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
+import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
   groupEnrollmentCoversSessionSql,
@@ -221,8 +222,9 @@ export function createGroupOperationsRepository(
           serviceId: string;
           capacity: number;
           status: string;
+          startsAt: Date;
         }>(
-          `SELECT gs.id,gs.group_id AS "groupId",g.service_id AS "serviceId",g.capacity,gs.status FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=ANY($2::uuid[]) ORDER BY gs.id FOR UPDATE OF gs,g`,
+          `SELECT gs.id,gs.group_id AS "groupId",g.service_id AS "serviceId",g.capacity,gs.status,gs.starts_at AS "startsAt" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=ANY($2::uuid[]) ORDER BY gs.id FOR UPDATE OF gs,g`,
           [clinicId, [input.sessionId, credit.sourceSessionId]],
         );
         const meeting = sessions.rows.find(
@@ -230,6 +232,12 @@ export function createGroupOperationsRepository(
           ),
           original = sessions.rows.find(
             (item) => item.id === credit.sourceSessionId,
+          );
+        if (meeting)
+          assertReplacementTarget(
+            meeting.id,
+            credit.sourceSessionId,
+            meeting.startsAt,
           );
         if (
           !meeting ||

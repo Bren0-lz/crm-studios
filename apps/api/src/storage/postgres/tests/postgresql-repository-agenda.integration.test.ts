@@ -354,6 +354,96 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("books a replacement only in a future session other than the source", async () => {
+    const phone = "11977770582";
+    const from = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const to = new Date(Date.now() + 60 * 86_400_000).toISOString();
+    const cleanup = async () => {
+      const patients = "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
+      for (const table of [
+        "group_attendance",
+        "replacement_credits",
+        "group_enrollments",
+      ])
+        await pool.query(
+          `DELETE FROM ${table} WHERE clinic_id=$1 AND patient_id IN (${patients})`,
+          [clinicId, phone],
+        );
+      await pool.query("DELETE FROM patients WHERE clinic_id=$1 AND phone=$2", [
+        clinicId,
+        phone,
+      ]);
+    };
+    await cleanup();
+    try {
+      const workspace = await repository.getGroupWorkspace(clinicId, from, to);
+      const group = workspace.groups.find(
+        (item) => item.active && item.activeEnrollments < item.capacity,
+      );
+      if (!group) return;
+      const sessions = workspace.sessions.filter(
+        (item) => item.groupId === group.id && item.status === "scheduled",
+      );
+      const future = sessions.filter(
+        (item) => new Date(item.startsAt).getTime() > Date.now(),
+      );
+      if (future.length < 2) return;
+      const patient = await repository.createPatient(clinicId, {
+        fullName: "PG reposição futura",
+        phone,
+        tags: [],
+      });
+      await repository.createGroupEnrollment(clinicId, {
+        groupId: group.id,
+        patientId: patient.id,
+      });
+      await repository.recordGroupAttendance(
+        clinicId,
+        ownerId,
+        future[0]!.id,
+        patient.id,
+        { status: "excused_absence" },
+      );
+      const credit = (
+        await repository.getGroupWorkspace(clinicId, from, to)
+      ).replacementCredits.find(
+        (item) =>
+          item.patientId === patient.id &&
+          item.sourceSessionId === future[0]!.id,
+      )!;
+      await expect(
+        repository.bookReplacement(clinicId, ownerId, {
+          creditId: credit.id,
+          sessionId: future[0]!.id,
+        }),
+      ).rejects.toThrow(
+        "A reposição precisa ser em outro encontro, não no da falta.",
+      );
+      const past = workspace.sessions.find(
+        (item) =>
+          item.status === "scheduled" &&
+          new Date(item.startsAt).getTime() <= Date.now() &&
+          workspace.groups.find((entry) => entry.id === item.groupId)
+            ?.serviceId === group.serviceId,
+      );
+      if (past)
+        await expect(
+          repository.bookReplacement(clinicId, ownerId, {
+            creditId: credit.id,
+            sessionId: past.id,
+          }),
+        ).rejects.toThrow("Escolha um encontro futuro.");
+      await expect(
+        repository.bookReplacement(clinicId, ownerId, {
+          creditId: credit.id,
+          sessionId: future[1]!.id,
+        }),
+      ).resolves.toMatchObject({ credit: { status: "used" } });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("lists only pending dashboard appointments even after their scheduled time", async () => {
     const ids: string[] = [];
     try {
