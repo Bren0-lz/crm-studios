@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { formatTrendPercent, trendDirection } from "../lib/trend";
+import {
+  formatTrendCurrency,
+  formatTrendPercent,
+  trendDirection,
+} from "../lib/trend";
 import { TrendBadge } from "./TrendBadge";
 
 describe("TrendBadge", () => {
@@ -59,6 +63,44 @@ describe("TrendBadge", () => {
         changePercent={null}
         hasCurrentValue={false}
         comparison="no mês anterior"
+      />,
+    );
+    expect(screen.getByText("Sem movimento nos dois períodos")).toHaveClass(
+      "none",
+    );
+  });
+
+  it("usa o sinal da diferença em reais e mostra R$ quando não há base de comparação", () => {
+    expect(formatTrendCurrency(749000)).toBe("+R$ 7.490,00");
+    expect(formatTrendCurrency(-5000)).toBe("−R$ 50,00");
+    const { container, rerender } = render(
+      <TrendBadge
+        changePercent={null}
+        changeInCents={749000}
+        hasCurrentValue
+        comparison="vs. mês"
+      />,
+    );
+    const badge = screen.getByText("Sem base de comparação · +R$ 7.490,00");
+    expect(badge).toHaveClass("trend-badge", "better");
+    expect(container.querySelector(".lucide-arrow-up")).not.toBeNull();
+    rerender(
+      <TrendBadge
+        changePercent={null}
+        changeInCents={-5000}
+        hasCurrentValue
+        comparison="vs. mês"
+      />,
+    );
+    expect(screen.getByText("Sem base de comparação · −R$ 50,00")).toHaveClass(
+      "worse",
+    );
+    rerender(
+      <TrendBadge
+        changePercent={null}
+        changeInCents={0}
+        hasCurrentValue={false}
+        comparison="vs. mês"
       />,
     );
     expect(screen.getByText("Sem movimento nos dois períodos")).toHaveClass(

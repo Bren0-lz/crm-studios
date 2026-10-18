@@ -115,21 +115,24 @@ export function SalesInsights() {
           </p>
           <div className="sales-metrics">
             <article>
-              <span>Vendido no mês</span>
+              <span>Vendido líquido</span>
               <strong>
                 {currency.format(report.current.netSalesInCents / 100)}
               </strong>
               <TrendBadge
                 changePercent={report.changePercent}
+                changeInCents={report.changeInCents}
                 hasCurrentValue={report.current.netSalesInCents !== 0}
                 comparison="frente ao mês anterior"
               />
-              <small>
-                Antes dos cancelamentos:{" "}
-                {currency.format(report.current.grossSalesInCents / 100)}
-                {" · "}Cancelado:{" "}
-                {currency.format(report.current.cancelledSalesInCents / 100)}
-              </small>
+              {report.current.cancelledSalesInCents > 0 && (
+                <small>
+                  Antes dos estornos:{" "}
+                  {currency.format(report.current.grossSalesInCents / 100)}
+                  {" · "}Estornos:{" "}
+                  {currency.format(report.current.cancelledSalesInCents / 100)}
+                </small>
+              )}
             </article>
             <article>
               <span>Dinheiro recebido</span>

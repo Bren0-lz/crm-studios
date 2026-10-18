@@ -67,7 +67,10 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Vendido no mês")).toBeInTheDocument();
+    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
+    expect(
+      screen.getByText("Antes dos estornos: R$ 1.300,00 · Estornos: R$ 100,00"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
     expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
     const details = screen.getByText("Ver vendas e clientes do mês")
@@ -135,7 +138,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Vendido no mês")).toBeInTheDocument();
+    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
     const details = screen.getByText("Ver vendas e clientes do mês")
       .parentElement as HTMLDetailsElement;
     expect(details.open).toBe(true);
@@ -711,5 +714,71 @@ describe("application shell", () => {
     expect(
       await screen.findByText("Não foi possível carregar as experimentais."),
     ).toBeInTheDocument();
+  });
+
+  it("shows the sales change without an impossible percent when the previous base is negative", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const month = new Date().toLocaleDateString("sv-SE").slice(0, 7);
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (!String(input).includes("/reports/sales?")) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ message: "Dados indisponíveis" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          current: {
+            from: `${month}-01`,
+            to: `${month}-15`,
+            netSalesInCents: 49000,
+            grossSalesInCents: 49000,
+            cancelledSalesInCents: 0,
+            receivedInCents: 0,
+            attendedPatients: 1,
+          },
+          previousComparable: {
+            from: "2026-08-01",
+            to: "2026-08-15",
+            netSalesInCents: -700000,
+            grossSalesInCents: 0,
+            cancelledSalesInCents: 700000,
+            receivedInCents: 0,
+            attendedPatients: 0,
+          },
+          changeInCents: 749000,
+          changePercent: null,
+          sales: [],
+          payments: [],
+          patientsWithoutReturn: [],
+        }),
+      } as Response;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/relatorios"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const badge = await screen.findByText(
+      "Sem base de comparação · +R$ 7.490,00",
+    );
+    expect(badge).toHaveClass("trend-badge", "better");
+    expect(badge).not.toHaveClass("worse");
+    expect(badge.textContent).not.toMatch(/%/);
+    expect(screen.queryByText(/Antes dos estornos/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Estornos:/)).not.toBeInTheDocument();
   });
 });

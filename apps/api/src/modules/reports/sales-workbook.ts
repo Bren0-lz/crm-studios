@@ -1,4 +1,4 @@
-import type { SalesReport } from "@crm/contracts";
+import { salesChangePercent, type SalesReport } from "@crm/contracts";
 import ExcelJS from "exceljs";
 
 const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
@@ -61,11 +61,13 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
     report.previousComparable.attendedPatients,
   ]);
   summary.addRow(["Variação de vendas (R$)", report.changeInCents / 100, null]);
+  const changePercent = salesChangePercent(
+    report.current.netSalesInCents,
+    report.previousComparable.netSalesInCents,
+  );
   summary.addRow([
     "Variação de vendas (%)",
-    report.changePercent === null
-      ? "Sem base anterior"
-      : report.changePercent / 100,
+    changePercent === null ? "Sem base de comparação" : changePercent / 100,
     null,
   ]);
   summary.addRow([

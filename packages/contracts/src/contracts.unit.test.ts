@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  salesChangePercent,
   DEFAULT_PATIENT_TAG_COLOR,
   patientTagDisplayColor,
   adminUserInputSchema,
@@ -1131,5 +1132,14 @@ describe("group enrollment period", () => {
       groupEnrollmentInputSchema.safeParse({ ...base, startsOn: "17/10/2026" })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("sales change percent", () => {
+  it("calcula a variação só com base anterior positiva", () => {
+    expect(salesChangePercent(12000, 10000)).toBe(20);
+    expect(salesChangePercent(5000, 10000)).toBe(-50);
+    expect(salesChangePercent(49000, 0)).toBeNull();
+    expect(salesChangePercent(49000, -700000)).toBeNull();
   });
 });

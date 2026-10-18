@@ -357,9 +357,20 @@ export function DashboardPage() {
                   </strong>
                   <TrendBadge
                     changePercent={sales.changePercent}
+                    changeInCents={sales.changeInCents}
                     hasCurrentValue={sales.current.netSalesInCents !== 0}
                     comparison="vs. mês anterior comparável"
                   />
+                  {sales.current.cancelledSalesInCents > 0 && (
+                    <small>
+                      Antes dos estornos:{" "}
+                      {currency.format(sales.current.grossSalesInCents / 100)}
+                      {" · "}Estornos:{" "}
+                      {currency.format(
+                        sales.current.cancelledSalesInCents / 100,
+                      )}
+                    </small>
+                  )}
                 </article>
                 <article>
                   <span>Recebido</span>

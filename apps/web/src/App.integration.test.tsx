@@ -1536,7 +1536,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Vendido no mês")).toBeInTheDocument();
+    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
     expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
     expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
     const details = screen.getByText("Ver vendas e clientes do mês")

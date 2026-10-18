@@ -1432,7 +1432,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   anterior −R$ 7.000 e atual R$ 490 → sem % e sem seta vermelha.
 - **Gate:** gate completo
 - **Depende de:** QC8
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC7 — Contadores consistentes e "Pagamento atrasado" automático
 
