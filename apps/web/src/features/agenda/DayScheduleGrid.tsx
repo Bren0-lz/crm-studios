@@ -99,6 +99,7 @@ export function DayScheduleGrid({
   blocks,
   onOpenAppointment,
   onCreate,
+  highlightedIds = [],
 }: {
   day: Date;
   professionals: Professional[];
@@ -106,6 +107,8 @@ export function DayScheduleGrid({
   groupSessions: GroupSession[];
   blocks: ScheduleBlock[];
   onOpenAppointment: (id: string) => void;
+  /** Atendimentos recém-salvos, com realce temporário. */
+  highlightedIds?: string[];
   /** Sem permissão para agendar (ou feriado), os horários livres não são clicáveis. */
   onCreate?: ((professionalId: string, startsAt: string) => void) | undefined;
 }) {
@@ -246,6 +249,10 @@ export function DayScheduleGrid({
                         <GridEvent
                           key={`${entry.kind}-${entry.id}`}
                           entry={entry}
+                          highlighted={
+                            entry.kind === "appointment" &&
+                            highlightedIds.includes(entry.id)
+                          }
                           onOpenAppointment={onOpenAppointment}
                         />
                       ))}
@@ -286,16 +293,18 @@ export function DayScheduleGrid({
 function GridEvent({
   entry,
   onOpenAppointment,
+  highlighted,
 }: {
   entry: GridEntry;
   onOpenAppointment: (id: string) => void;
+  highlighted: boolean;
 }) {
   const time = `${timeLabel.format(new Date(entry.start))}–${timeLabel.format(new Date(entry.end))}`;
   if (entry.kind === "appointment")
     return (
       <button
         type="button"
-        className={`text-button day-grid-event ${appointmentStatusClass(entry.item.status)}`}
+        className={`text-button day-grid-event ${appointmentStatusClass(entry.item.status)}${highlighted ? " agenda-just-saved" : ""}`}
         style={professionalColorStyle(entry.item.professionalColor)}
         aria-label={`Detalhes de ${entry.item.patientName}`}
         onClick={() => onOpenAppointment(entry.id)}

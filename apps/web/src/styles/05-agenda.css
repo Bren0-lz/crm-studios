@@ -1618,3 +1618,25 @@ button.day-event:focus-visible {
   color: var(--muted);
   font-size: var(--text-sm);
 }
+
+/* QM2: atendimento recém-salvo, realçado por 2 s depois que a agenda vai até a data dele. */
+.agenda-just-saved {
+  outline: calc(var(--space-1) - 1px) solid var(--green-2);
+  outline-offset: calc(var(--space-1) - 6px);
+  animation: agenda-just-saved 2s ease-out;
+}
+
+@keyframes agenda-just-saved {
+  from {
+    box-shadow: 0 0 0 var(--space-2) rgb(38 112 95 / 35%);
+  }
+  to {
+    box-shadow: 0 0 0 0 rgb(38 112 95 / 0%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agenda-just-saved {
+    animation: none;
+  }
+}

@@ -17,8 +17,11 @@ export function AgendaCard({
   onOpen,
   onStatus,
   onHistory,
+  highlighted = false,
 }: {
   appointment: Appointment;
+  /** Recém-salvo: realce temporário (a agenda tira depois de 2 s). */
+  highlighted?: boolean;
   onOpen: () => void;
   /** Sem `onStatus` (agenda só de consulta) o status fica desabilitado. */
   onStatus?: ((status: AppointmentStatus) => void) | undefined;
@@ -31,7 +34,7 @@ export function AgendaCard({
     : appointmentNotStartedMessage(appointment.startsAt);
   return (
     <article
-      className={`agenda-card ${appointmentStatusClass(appointment.status)}`}
+      className={`agenda-card ${appointmentStatusClass(appointment.status)}${highlighted ? " agenda-just-saved" : ""}`}
       style={professionalColorStyle(appointment.professionalColor)}
       role="button"
       tabIndex={0}

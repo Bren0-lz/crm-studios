@@ -157,6 +157,15 @@ export function AgendaPage() {
     string | null
   >(null);
   const [eventsDay, setEventsDay] = useState<Date | null>(null);
+  // Atendimentos recém-salvos ficam destacados por 2 s depois que aparecem na tela.
+  const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (highlightedIds.length === 0 || loading) return;
+    const timer = setTimeout(() => setHighlightedIds([]), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightedIds, loading]);
+  const highlightClass = (id: string) =>
+    highlightedIds.includes(id) ? " agenda-just-saved" : "";
   // Cancelados não ocupam horário: ficam fora das contagens e, por padrão, da agenda.
   const [showCancelled, setShowCancelled] = useState(false);
   const visibleAppointments = showCancelled
@@ -295,6 +304,29 @@ export function AgendaPage() {
       }
       return next;
     });
+  }
+  // Período exibido (dia, semana ou mês) que contém a data, para saber se a busca muda.
+  function periodKey(day: Date) {
+    if (view === "month") return `${day.getFullYear()}-${day.getMonth()}`;
+    const start = new Date(day);
+    start.setHours(12, 0, 0, 0);
+    if (view === "week")
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    return localIsoDate(start);
+  }
+  /** Leva a agenda à data do (primeiro) atendimento salvo e o destaca. */
+  function showSaved(saved: Appointment[]) {
+    const first = [...saved].sort((a, b) =>
+      a.startsAt.localeCompare(b.startsAt),
+    )[0];
+    if (!first) return;
+    const target = new Date(first.startsAt);
+    if (periodKey(target) !== periodKey(selectedDate)) {
+      setLoading(true);
+      setError("");
+    }
+    setSelectedDate(target);
+    setHighlightedIds(saved.map((item) => item.id));
   }
 
   return (
@@ -531,7 +563,7 @@ export function AgendaPage() {
                         entry.kind === "appointment" ? (
                           <button
                             type="button"
-                            className={`month-event ${appointmentStatusClass(entry.appointment.status)}`}
+                            className={`month-event ${appointmentStatusClass(entry.appointment.status)}${highlightClass(entry.appointment.id)}`}
                             style={professionalColorStyle(
                               entry.appointment.professionalColor,
                             )}
@@ -587,7 +619,15 @@ export function AgendaPage() {
                       {dayEvents.length > 2 && (
                         <button
                           type="button"
-                          className="month-more"
+                          className={`month-more${dayEvents
+                            .slice(2)
+                            .some(
+                              (entry) =>
+                                entry.kind === "appointment" &&
+                                highlightedIds.includes(entry.appointment.id),
+                            )
+                            ? " agenda-just-saved"
+                            : ""}`}
                           onClick={() => setEventsDay(day)}
                         >
                           +{dayEvents.length - 2}{" "}
@@ -658,7 +698,7 @@ export function AgendaPage() {
                         />
                       ) : (
                         <article
-                          className={`week-appointment ${appointmentStatusClass(entry.appointment.status)}`}
+                          className={`week-appointment ${appointmentStatusClass(entry.appointment.status)}${highlightClass(entry.appointment.id)}`}
                           style={professionalColorStyle(
                             entry.appointment.professionalColor,
                           )}
@@ -722,6 +762,7 @@ export function AgendaPage() {
               groupSessions={groupSessions}
               blocks={blocks}
               onOpenAppointment={setSelectedAppointmentId}
+              highlightedIds={highlightedIds}
               onCreate={
                 canSchedule && can("agenda.create") && !selectedHoliday
                   ? (professionalId, startsAt) => {
@@ -784,6 +825,7 @@ export function AgendaPage() {
                 <AgendaCard
                   appointment={entry.appointment}
                   key={entry.appointment.id}
+                  highlighted={highlightedIds.includes(entry.appointment.id)}
                   onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
                   onHistory={() => setHistoryAppointment(entry.appointment)}
                   onStatus={
@@ -831,6 +873,7 @@ export function AgendaPage() {
                 ),
               ].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
             );
+            showSaved(appointment);
             setModalOpen(false);
           }}
         />
@@ -888,7 +931,7 @@ export function AgendaPage() {
                 )
                 .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
             );
-            setSelectedDate(new Date(updated.startsAt));
+            showSaved([updated]);
             setRescheduling(null);
           }}
         />
