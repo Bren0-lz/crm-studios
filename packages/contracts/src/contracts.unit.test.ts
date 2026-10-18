@@ -39,6 +39,8 @@ import {
   appointmentActionLeadMinutes,
   appointmentActionsAvailableAt,
   isAppointmentStarted,
+  groupEnrollmentCoversSession,
+  groupEnrollmentInputSchema,
   appointmentNotStartedMessage,
   leadMoveSchema,
   nextPlanPeriod,
@@ -1049,5 +1051,85 @@ describe("appointment pending finalization", () => {
         ),
       ).toBe(false);
     }
+  });
+});
+
+describe("group enrollment period", () => {
+  const session = (startsAt: string) => ({ startsAt });
+  it("covers sessions from the start date on, in the clinic time zone", () => {
+    const enrollment = { status: "active" as const, startsOn: "2026-10-17" };
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-16T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    // 23:30 de 16/10 em São Paulo já é 17/10 em UTC: continua fora.
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-17T02:30:00.000Z"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-17T08:00:00-03:00"),
+      ),
+    ).toBe(true);
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-11-03T18:00:00-03:00"),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a cancelled enrollment until the end date and ignores the waitlist", () => {
+    const cancelled = {
+      status: "cancelled" as const,
+      startsOn: "2026-10-01",
+      endedOn: "2026-10-20",
+    };
+    expect(
+      groupEnrollmentCoversSession(
+        cancelled,
+        session("2026-10-20T18:00:00-03:00"),
+      ),
+    ).toBe(true);
+    expect(
+      groupEnrollmentCoversSession(
+        cancelled,
+        session("2026-10-21T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        { status: "cancelled", startsOn: "2026-10-01" },
+        session("2026-10-05T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        { status: "waitlisted", startsOn: "2026-10-01" },
+        session("2026-10-05T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts an optional start date in the enrollment input", () => {
+    const base = {
+      groupId: "11111111-1111-4111-8111-111111111111",
+      patientId: "22222222-2222-4222-8222-222222222222",
+    };
+    expect(groupEnrollmentInputSchema.safeParse(base).success).toBe(true);
+    expect(
+      groupEnrollmentInputSchema.safeParse({ ...base, startsOn: "2026-10-17" })
+        .success,
+    ).toBe(true);
+    expect(
+      groupEnrollmentInputSchema.safeParse({ ...base, startsOn: "17/10/2026" })
+        .success,
+    ).toBe(false);
   });
 });

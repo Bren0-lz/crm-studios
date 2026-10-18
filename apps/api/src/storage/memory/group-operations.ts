@@ -1,4 +1,5 @@
 import {
+  groupEnrollmentCoversSession,
   type GroupAttendance,
   type GroupAttendanceInput,
   type ReplacementBookingInput,
@@ -31,6 +32,18 @@ export function createGroupOperationsRepository(
     context.groupClasses.find(
       (item) => item.clinicId === clinicId && item.id === id,
     )!;
+  /** Matrículas que participam do encontro (período da matrícula cobre a data). */
+  const participants = (clinicId: string, meeting: GroupSession) =>
+    context.groupEnrollments.filter(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.groupId === meeting.groupId &&
+        groupEnrollmentCoversSession(
+          item,
+          meeting,
+          context.clinicSettings.timezone,
+        ),
+    );
   function movement(
     attendance: GroupAttendance,
     meeting: GroupSession,
@@ -135,12 +148,8 @@ export function createGroupOperationsRepository(
       input: GroupAttendanceInput,
     ) {
       const meeting = session(clinicId, sessionId);
-      const enrolled = context.groupEnrollments.find(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.groupId === meeting.groupId &&
-          item.patientId === patientId &&
-          item.status === "active",
+      const enrolled = participants(clinicId, meeting).find(
+        (item) => item.patientId === patientId,
       );
       if (!enrolled)
         throw new DomainError(
@@ -253,11 +262,8 @@ export function createGroupOperationsRepository(
           "O cliente já possui presença registrada nesta sessão.",
           409,
         );
-      const regular = context.groupEnrollments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.groupId === meeting.groupId &&
-          item.status === "active",
+      const regular = new Set(
+        participants(clinicId, meeting).map((item) => item.patientId),
       );
       const replacements = context.groupAttendance.filter(
         (item) =>
@@ -267,8 +273,8 @@ export function createGroupOperationsRepository(
           !["cancelled", "excused_absence"].includes(item.outcome ?? ""),
       );
       if (
-        !regular.some((item) => item.patientId === credit.patientId) &&
-        regular.length + replacements.length >= destination.capacity
+        !regular.has(credit.patientId) &&
+        regular.size + replacements.length >= destination.capacity
       )
         throw new DomainError(
           "GROUP_SESSION_FULL",

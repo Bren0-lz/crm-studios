@@ -16,6 +16,8 @@ export type {
 export {
   appointmentColumns,
   appointmentJoins,
+  groupEnrollmentColumns,
+  groupEnrollmentCoversSessionSql,
   groupSessionColumns,
   hasGroupSessionConflict,
   holidayColumns,

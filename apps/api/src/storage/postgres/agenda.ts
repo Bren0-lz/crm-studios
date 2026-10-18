@@ -32,6 +32,7 @@ import {
   type GroupAttendanceRow,
   type GroupClassRow,
   type GroupEnrollmentRow,
+  groupEnrollmentColumns,
   groupSessionColumns,
   type GroupSessionRow,
   hasDatabaseCode,
@@ -633,7 +634,7 @@ export function createAgendaRepository(
             [clinicId],
           ),
           repositoryContext.pool.query<GroupEnrollmentRow>(
-            `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 ORDER BY e.enrolled_at`,
+            `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 ORDER BY e.enrolled_at`,
             [clinicId],
           ),
           repositoryContext.pool.query<GroupSessionRow>(
@@ -804,7 +805,7 @@ export function createAgendaRepository(
         );
         if (input.capacity > activeCount) {
           await client.query(
-            `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now() FROM waiting WHERE e.id=waiting.id`,
+            `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now(),enrolled_at=GREATEST(e.enrolled_at,now()) FROM waiting WHERE e.id=waiting.id`,
             [clinicId, groupId, input.capacity - activeCount],
           );
         }
@@ -837,7 +838,7 @@ export function createAgendaRepository(
       try {
         await client.query("BEGIN");
         const current = await client.query<GroupEnrollmentRow>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$2 AND e.clinic_id=$1 FOR UPDATE OF e`,
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$2 AND e.clinic_id=$1 FOR UPDATE OF e`,
           [clinicId, enrollmentId],
         );
         const row = current.rows[0];
@@ -846,12 +847,12 @@ export function createAgendaRepository(
           return null;
         }
         await client.query(
-          `UPDATE group_enrollments SET status='cancelled',queue_position=NULL,updated_at=now() WHERE id=$1`,
+          `UPDATE group_enrollments SET status='cancelled',queue_position=NULL,updated_at=now(),ended_at=CASE WHEN status='active' THEN now() ELSE ended_at END WHERE id=$1`,
           [enrollmentId],
         );
         if (row.status === "active")
           await client.query(
-            `UPDATE group_enrollments SET status='active',queue_position=NULL,updated_at=now() WHERE id=(SELECT id FROM group_enrollments WHERE group_id=$1 AND status='waitlisted' ORDER BY queue_position,enrolled_at FOR UPDATE SKIP LOCKED LIMIT 1)`,
+            `UPDATE group_enrollments SET status='active',queue_position=NULL,updated_at=now(),enrolled_at=GREATEST(enrolled_at,now()) WHERE id=(SELECT id FROM group_enrollments WHERE group_id=$1 AND status='waitlisted' ORDER BY queue_position,enrolled_at FOR UPDATE SKIP LOCKED LIMIT 1)`,
             [row.groupId],
           );
         await client.query(
@@ -859,7 +860,7 @@ export function createAgendaRepository(
           [row.groupId],
         );
         const updated = await client.query<GroupEnrollmentRow>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$1`,
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$1`,
           [enrollmentId],
         );
         await client.query("COMMIT");

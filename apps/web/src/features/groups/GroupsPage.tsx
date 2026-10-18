@@ -10,6 +10,7 @@ import {
   type Service,
   describeGroupSchedule,
   groupClassName,
+  saoPauloToday,
 } from "@crm/contracts";
 import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -88,6 +89,7 @@ export function GroupsPage() {
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
     patientId: enrollPatientId || contextPatientId,
+    startsOn: saoPauloToday(),
   });
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
@@ -442,6 +444,21 @@ export function GroupsPage() {
                             setEnrollmentForm({ ...enrollmentForm, patientId })
                           }
                         />
+                        <label>
+                          Início da matrícula
+                          <input
+                            type="date"
+                            required
+                            disabled={saving}
+                            value={enrollmentForm.startsOn}
+                            onChange={(event) =>
+                              setEnrollmentForm({
+                                ...enrollmentForm,
+                                startsOn: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
                       </div>
                     </section>
                     <div className="modal-actions group-modal-actions">

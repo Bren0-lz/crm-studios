@@ -385,6 +385,8 @@ export function buildDemoScenarios(): DemoData {
         patientName: patient.fullName,
         status: cancelled ? "cancelled" : "active",
         enrolledAt: stamp(start),
+        startsOn: date(start),
+        ...(cancelled ? { endedOn: date(-25) } : {}),
         updatedAt: cancelledAt ?? stamp(start),
       });
       const pastSessions = sessions.filter(

@@ -4,7 +4,12 @@ import {
   clockTimeSchema,
   joinWithAnd,
 } from "../common/model.js";
-import type { Appointment, GroupWeeklySlot } from "./types.js";
+import type {
+  Appointment,
+  GroupEnrollment,
+  GroupSession,
+  GroupWeeklySlot,
+} from "./types.js";
 
 export const appointmentStatusSchema = z.enum([
   "scheduled",
@@ -172,7 +177,33 @@ export const groupClassUpdateSchema = z.object({
 export const groupEnrollmentInputSchema = z.object({
   groupId: z.uuid(),
   patientId: z.uuid(),
+  /** Data de início (aaaa-mm-dd, fuso da clínica); sem ela a matrícula começa hoje. */
+  startsOn: z.iso.date("Informe uma data de início válida.").optional(),
 });
+
+/**
+ * A matrícula participa do encontro quando começou até a data do encontro (fuso da clínica)
+ * e ainda vale nessa data: ativa, ou cancelada com fim (`endedOn`) igual ou posterior.
+ * Lista de espera não participa.
+ */
+export function groupEnrollmentCoversSession(
+  enrollment: Pick<GroupEnrollment, "status" | "startsOn"> & {
+    endedOn?: string | undefined;
+  },
+  session: Pick<GroupSession, "startsAt">,
+  timeZone = "America/Sao_Paulo",
+): boolean {
+  if (enrollment.status === "waitlisted") return false;
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(session.startsAt));
+  if (enrollment.startsOn > date) return false;
+  if (enrollment.status === "active") return true;
+  return enrollment.endedOn !== undefined && enrollment.endedOn >= date;
+}
 
 export const groupAttendanceInputSchema = z.object({
   status: z.enum(["present", "absent", "excused_absence"]),

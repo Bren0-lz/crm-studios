@@ -1399,7 +1399,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   ou fim ≥ data). Vale também para lotação e presença. Memória + PG; teste PG opt-in.
 - **Gate:** gate completo
 - **Depende de:** QC3
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC5 — Reposição só em sessão futura, com vagas e retorno
 

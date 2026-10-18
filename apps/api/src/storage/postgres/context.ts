@@ -61,6 +61,7 @@ import {
   mapClinicalRecord,
   mapCommissionEntry,
   mapCommissionRule,
+  groupEnrollmentColumns,
   mapGroupEnrollment,
   mapIssuedDocument,
   mapLead,
@@ -518,7 +519,8 @@ export class PostgresRepositoryContext {
           ? "active"
           : "waitlisted";
       const result = await client.query<GroupEnrollmentRow>(
-        `INSERT INTO group_enrollments(clinic_id,group_id,patient_id,status,queue_position) VALUES($1,$2,$3,$4,$5) RETURNING id,clinic_id AS "clinicId",group_id AS "groupId",patient_id AS "patientId",$6::text AS "patientName",status,queue_position AS "queuePosition",enrolled_at AS "enrolledAt",updated_at AS "updatedAt"`,
+        // Início em outra data que não hoje (fuso da clínica): meia-noite desse dia.
+        `WITH clinic AS (SELECT timezone FROM clinics WHERE id=$1) INSERT INTO group_enrollments AS e(clinic_id,group_id,patient_id,status,queue_position,enrolled_at) SELECT $1,$2::uuid,$3::uuid,$4::text,$5::int,CASE WHEN $7::date IS NULL OR $7::date=(now() AT TIME ZONE clinic.timezone)::date THEN now() ELSE ($7::date+time '00:00') AT TIME ZONE clinic.timezone END FROM clinic RETURNING ${groupEnrollmentColumns.replace('p.full_name AS "patientName"', '$6::text AS "patientName"')}`,
         [
           clinicId,
           input.groupId,
@@ -526,6 +528,7 @@ export class PostgresRepositoryContext {
           status,
           status === "waitlisted" ? (counts.rows[0]!.maxQueue ?? 0) + 1 : null,
           patient.rows[0].fullName,
+          input.startsOn ?? null,
         ],
       );
       return mapGroupEnrollment(result.rows[0]!);

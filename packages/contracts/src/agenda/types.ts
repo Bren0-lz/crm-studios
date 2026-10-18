@@ -123,6 +123,10 @@ export interface GroupEnrollment extends GroupEnrollmentInput {
   status: "active" | "waitlisted" | "cancelled";
   queuePosition?: number;
   enrolledAt: string;
+  /** Início da matrícula (aaaa-mm-dd, fuso da clínica): data de `enrolledAt`. */
+  startsOn: string;
+  /** Fim (aaaa-mm-dd, fuso da clínica): data do cancelamento da matrícula ativa. */
+  endedOn?: string;
   updatedAt: string;
 }
 

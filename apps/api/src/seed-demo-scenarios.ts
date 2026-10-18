@@ -80,8 +80,9 @@ export async function seedDemoScenarios(client: PoolClient) {
     [JSON.stringify(data.groups)],
   );
   await client.query(
-    `INSERT INTO group_enrollments (id, clinic_id, group_id, patient_id, status, enrolled_at, updated_at)
-    SELECT id, "clinicId", "groupId", "patientId", status, "enrolledAt"::timestamptz, "updatedAt"::timestamptz
+    `INSERT INTO group_enrollments (id, clinic_id, group_id, patient_id, status, enrolled_at, updated_at, ended_at)
+    SELECT id, "clinicId", "groupId", "patientId", status, "enrolledAt"::timestamptz, "updatedAt"::timestamptz,
+      CASE WHEN status = 'cancelled' THEN "updatedAt"::timestamptz END
     FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "groupId" uuid, "patientId" uuid, status text, "enrolledAt" text, "updatedAt" text)
     ON CONFLICT DO NOTHING`,
     [JSON.stringify(data.enrollments)],

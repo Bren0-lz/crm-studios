@@ -117,6 +117,7 @@ const enrollment: GroupEnrollment = {
   groupId: group.id,
   status: "active",
   enrolledAt: timestamp,
+  startsOn: timestamp.slice(0, 10),
   updatedAt: timestamp,
 };
 const appointment: Appointment = {

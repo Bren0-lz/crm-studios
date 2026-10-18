@@ -250,6 +250,110 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       expect(typeof group.professionalName).toBe("string");
   });
 
+  it("limits group session participants to the enrollment period", async () => {
+    const phone = "11977770481";
+    const from = new Date().toISOString();
+    const to = new Date(Date.now() + 60 * 86_400_000).toISOString();
+    const clinicDate = (value: string) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(value));
+    const cleanup = async () => {
+      const patients = "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
+      for (const table of [
+        "group_attendance",
+        "replacement_credits",
+        "group_enrollments",
+      ])
+        await pool.query(
+          `DELETE FROM ${table} WHERE clinic_id=$1 AND patient_id IN (${patients})`,
+          [clinicId, phone],
+        );
+      await pool.query("DELETE FROM patients WHERE clinic_id=$1 AND phone=$2", [
+        clinicId,
+        phone,
+      ]);
+    };
+    await cleanup();
+    try {
+      const workspace = await repository.getGroupWorkspace(clinicId, from, to);
+      const group = workspace.groups.find((item) => item.active)!;
+      const [first, second] = workspace.sessions.filter(
+        (item) =>
+          item.groupId === group.id &&
+          item.status === "scheduled" &&
+          clinicDate(item.startsAt) > saoPauloToday(),
+      );
+      expect(second).toBeDefined();
+      if (clinicDate(first!.startsAt) === clinicDate(second!.startsAt)) return;
+      if (group.activeEnrollments >= group.capacity) return;
+      const patient = await repository.createPatient(clinicId, {
+        fullName: "PG período da matrícula",
+        phone,
+        tags: [],
+      });
+      const enrollment = await repository.createGroupEnrollment(clinicId, {
+        groupId: group.id,
+        patientId: patient.id,
+        startsOn: clinicDate(second!.startsAt),
+      });
+      expect(enrollment).toMatchObject({
+        status: "active",
+        startsOn: clinicDate(second!.startsAt),
+      });
+      expect(enrollment.endedOn).toBeUndefined();
+      await expect(
+        repository.recordGroupAttendance(
+          clinicId,
+          ownerId,
+          first!.id,
+          patient.id,
+          { status: "absent" },
+        ),
+      ).rejects.toMatchObject({ code: "GROUP_ATTENDANCE_NOT_ALLOWED" });
+      await expect(
+        repository.recordGroupAttendance(
+          clinicId,
+          ownerId,
+          second!.id,
+          patient.id,
+          { status: "absent" },
+        ),
+      ).resolves.toMatchObject({ status: "absent" });
+      const cancelled = await repository.cancelGroupEnrollment(
+        clinicId,
+        enrollment.id,
+      );
+      expect(cancelled).toMatchObject({
+        status: "cancelled",
+        startsOn: clinicDate(second!.startsAt),
+        endedOn: saoPauloToday(),
+      });
+      // Cancelada hoje: o encontro futuro deixa de aceitar presença.
+      await expect(
+        repository.recordGroupAttendance(
+          clinicId,
+          ownerId,
+          second!.id,
+          patient.id,
+          { status: "present" },
+        ),
+      ).rejects.toMatchObject({ code: "GROUP_ATTENDANCE_NOT_ALLOWED" });
+      const listed = (
+        await repository.getGroupWorkspace(clinicId, from, to)
+      ).enrollments.find((item) => item.id === enrollment.id);
+      expect(listed).toMatchObject({
+        startsOn: clinicDate(second!.startsAt),
+        endedOn: saoPauloToday(),
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("lists only pending dashboard appointments even after their scheduled time", async () => {
     const ids: string[] = [];
     try {

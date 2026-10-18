@@ -83,7 +83,26 @@ export interface GroupEnrollmentRow {
   status: GroupEnrollment["status"];
   queuePosition: number | null;
   enrolledAt: Date;
+  startsOn: string;
+  endedOn: string | null;
   updatedAt: Date;
+}
+
+/** Fuso da clínica da matrícula `alias` (subconsulta em `clinics`). */
+const enrollmentTimezone = (alias: string) =>
+  `(SELECT timezone FROM clinics WHERE id=${alias}.clinic_id)`;
+
+/** Colunas de `GroupEnrollmentRow` para a matrícula `e` com o cliente `p`. */
+export const groupEnrollmentColumns = `e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",to_char(e.enrolled_at AT TIME ZONE ${enrollmentTimezone("e")},'YYYY-MM-DD') AS "startsOn",to_char(e.ended_at AT TIME ZONE ${enrollmentTimezone("e")},'YYYY-MM-DD') AS "endedOn",e.updated_at AS "updatedAt"`;
+
+/**
+ * A matrícula `e` participa do encontro `gs`: começou até a data do encontro e vale nessa
+ * data (ativa, ou cancelada com fim igual ou posterior). Espelha `groupEnrollmentCoversSession`.
+ */
+export function groupEnrollmentCoversSessionSql(e: string, gs: string) {
+  const timezone = enrollmentTimezone(e);
+  const sessionDate = `(${gs}.starts_at AT TIME ZONE ${timezone})::date`;
+  return `(${e}.status<>'waitlisted' AND (${e}.enrolled_at AT TIME ZONE ${timezone})::date<=${sessionDate} AND (${e}.status='active' OR (${e}.ended_at AT TIME ZONE ${timezone})::date>=${sessionDate}))`;
 }
 
 export interface GroupSessionRow {
@@ -237,6 +256,8 @@ export function mapGroupEnrollment(row: GroupEnrollmentRow): GroupEnrollment {
     status: row.status,
     ...(row.queuePosition !== null ? { queuePosition: row.queuePosition } : {}),
     enrolledAt: row.enrolledAt.toISOString(),
+    startsOn: row.startsOn,
+    ...(row.endedOn !== null ? { endedOn: row.endedOn } : {}),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

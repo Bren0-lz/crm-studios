@@ -22,9 +22,11 @@ import {
   type ScheduleBlock,
   type ScheduleBlockInput,
 } from "@crm/contracts";
+import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   clampGroupSessionUntil,
   groupSessionHorizon,
+  zonedTimeToUtc,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
@@ -34,6 +36,19 @@ import { now, today, uuid } from "./helpers.js";
 export function createAgendaRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  const clinicDate = (value: string) =>
+    clinicDateOf(value, repositoryContext.clinicSettings.timezone);
+  /** Sai da lista de espera: começa hoje, salvo se o início escolhido for posterior. */
+  const promote = (enrollment: GroupEnrollment) => {
+    const timestamp = now();
+    enrollment.status = "active";
+    delete enrollment.queuePosition;
+    enrollment.updatedAt = timestamp;
+    if (Date.parse(enrollment.enrolledAt) < Date.parse(timestamp)) {
+      enrollment.enrolledAt = timestamp;
+      enrollment.startsOn = clinicDate(timestamp);
+    }
+  };
   return {
     async listHolidays(clinicId: string, from?: string, to?: string) {
       return (repositoryContext.holidays.get(clinicId) ?? [])
@@ -607,9 +622,7 @@ export function createAgendaRepository(
         index < Math.min(input.capacity - activeCount, waitlist.length);
         index += 1
       ) {
-        waitlist[index]!.status = "active";
-        delete waitlist[index]!.queuePosition;
-        waitlist[index]!.updatedAt = now();
+        promote(waitlist[index]!);
       }
       waitlist
         .filter((item) => item.status === "waitlisted")
@@ -660,6 +673,16 @@ export function createAgendaRepository(
         (item) => item.groupId === group.id && item.status === "waitlisted",
       );
       const timestamp = now();
+      const startsOn = input.startsOn ?? clinicDate(timestamp);
+      // Início em outra data: meia-noite desse dia no fuso da clínica.
+      const enrolledAt =
+        startsOn === clinicDate(timestamp)
+          ? timestamp
+          : zonedTimeToUtc(
+              startsOn,
+              "00:00",
+              repositoryContext.clinicSettings.timezone,
+            ).toISOString();
       const status = activeCount < group.capacity ? "active" : "waitlisted";
       const enrollment: GroupEnrollment = {
         ...input,
@@ -676,7 +699,8 @@ export function createAgendaRepository(
                 ) + 1,
             }
           : {}),
-        enrolledAt: timestamp,
+        enrolledAt,
+        startsOn,
         updatedAt: timestamp,
       };
       repositoryContext.groupEnrollments.push(enrollment);
@@ -693,6 +717,8 @@ export function createAgendaRepository(
       enrollment.status = "cancelled";
       delete enrollment.queuePosition;
       enrollment.updatedAt = now();
+      // Só a matrícula ativa ganha fim; quem estava na espera nunca participou.
+      if (wasActive) enrollment.endedOn = clinicDate(enrollment.updatedAt);
       if (wasActive) {
         const next = repositoryContext.groupEnrollments
           .filter(
@@ -705,11 +731,7 @@ export function createAgendaRepository(
               (a.queuePosition ?? 0) - (b.queuePosition ?? 0) ||
               a.enrolledAt.localeCompare(b.enrolledAt),
           )[0];
-        if (next) {
-          next.status = "active";
-          delete next.queuePosition;
-          next.updatedAt = now();
-        }
+        if (next) promote(next);
       }
       const remaining = repositoryContext.groupEnrollments
         .filter(

@@ -7,6 +7,7 @@ import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
+  groupEnrollmentCoversSessionSql,
   groupSessionColumns,
   mapGroupSession,
   mapGroupAttendance,
@@ -126,7 +127,7 @@ export function createGroupOperationsRepository(
           [clinicId],
         );
         const allowed = await client.query(
-          `SELECT gs.id FROM group_sessions gs JOIN group_enrollments e ON e.group_id=gs.group_id AND e.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=$2 AND gs.status<>'cancelled' AND e.patient_id=$3 AND e.status='active' FOR UPDATE OF gs`,
+          `SELECT gs.id FROM group_sessions gs JOIN group_enrollments e ON e.group_id=gs.group_id AND e.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=$2 AND gs.status<>'cancelled' AND e.patient_id=$3 AND ${groupEnrollmentCoversSessionSql("e", "gs")} FOR UPDATE OF gs`,
           [clinicId, sessionId, patientId],
         );
         if (!allowed.rowCount)
@@ -267,7 +268,7 @@ export function createGroupOperationsRepository(
           replacements: number;
           enrolled: boolean;
         }>(
-          `SELECT (SELECT count(*)::int FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='active') AS regular,(SELECT count(*)::int FROM group_attendance WHERE clinic_id=$1 AND session_id=$3 AND status='replacement' AND coalesce(outcome,'scheduled') NOT IN ('cancelled','excused_absence')) AS replacements,EXISTS(SELECT 1 FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND patient_id=$4 AND status='active') AS enrolled`,
+          `SELECT (SELECT count(DISTINCT e.patient_id)::int FROM group_enrollments e JOIN group_sessions gs ON gs.id=$3 AND gs.clinic_id=e.clinic_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND ${groupEnrollmentCoversSessionSql("e", "gs")}) AS regular,(SELECT count(*)::int FROM group_attendance WHERE clinic_id=$1 AND session_id=$3 AND status='replacement' AND coalesce(outcome,'scheduled') NOT IN ('cancelled','excused_absence')) AS replacements,EXISTS(SELECT 1 FROM group_enrollments e JOIN group_sessions gs ON gs.id=$3 AND gs.clinic_id=e.clinic_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND e.patient_id=$4 AND ${groupEnrollmentCoversSessionSql("e", "gs")}) AS enrolled`,
           [clinicId, meeting.groupId, meeting.id, credit.patientId],
         );
         const occupancy = seats.rows[0]!;

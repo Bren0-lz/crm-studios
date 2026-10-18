@@ -1,8 +1,9 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
-import type {
-  GroupWorkspace,
-  GroupSession,
-  Professional,
+import {
+  groupEnrollmentCoversSession,
+  type GroupWorkspace,
+  type GroupSession,
+  type Professional,
 } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
@@ -73,12 +74,19 @@ export function GroupOperationsPanel({
           (!patientId || item.patientId === patientId),
       )
     : [];
+  // Participantes do encontro: matrícula vigente na data (início ≤ data ≤ fim), um por cliente.
   const regular = meeting
     ? workspace.enrollments.filter(
-        (item) =>
+        (item, index, all) =>
           item.groupId === meeting.groupId &&
-          item.status === "active" &&
-          (!patientId || item.patientId === patientId),
+          groupEnrollmentCoversSession(item, meeting) &&
+          (!patientId || item.patientId === patientId) &&
+          all.findIndex(
+            (other) =>
+              other.patientId === item.patientId &&
+              other.groupId === meeting.groupId &&
+              groupEnrollmentCoversSession(other, meeting),
+          ) === index,
       )
     : [];
   const available = workspace.replacementCredits.filter(

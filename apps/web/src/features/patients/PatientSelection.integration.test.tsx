@@ -2,6 +2,7 @@ import {
   effectivePermissions,
   permissionEditModules,
   permissionModules,
+  saoPauloToday,
   type ClinicalWorkspace,
   type GroupClass,
   type Patient,
@@ -327,6 +328,7 @@ describe("searchable client selection across modules", () => {
       expect(enroll).toHaveBeenCalledWith({
         patientId: breno.id,
         groupId: group.id,
+        startsOn: saoPauloToday(),
       }),
     );
     cleanup();
