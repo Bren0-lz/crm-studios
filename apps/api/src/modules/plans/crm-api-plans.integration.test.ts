@@ -8,6 +8,7 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import { patchStatusAt } from "../../test-support/clock.js";
 
 describe("CRM API", () => {
   it("treats an empty client filter as every client in plans and clinical records", async () => {
@@ -95,14 +96,12 @@ describe("CRM API", () => {
       expect(response.statusCode).toBe(201);
       return response.json().id as string;
     };
+    // Desfechos registrados depois de todos os atendimentos de março (início − 15 min).
     const setStatus = async (id: string, status: string) =>
       expect(
         (
-          await app.inject({
-            method: "PATCH",
-            url: `/appointments/${id}/status`,
-            headers,
-            payload: { status },
+          await patchStatusAt(app, headers, "2032-03-10T12:00:00.000Z", id, {
+            status,
           })
         ).statusCode,
       ).toBe(200);
@@ -288,29 +287,30 @@ describe("CRM API", () => {
     expect(upcoming.statusCode).toBe(201);
 
     // Sessões: finalizar e reabrir não mexe em plano nenhum.
+    // Desfecho só depois do início do atendimento de 06/05.
+    const afterDone = "2031-05-07T12:00:00.000Z";
     const plansBefore = (
       await app.inject({ method: "GET", url: "/plans", headers })
     ).json();
-    const completed = await app.inject({
-      method: "PATCH",
-      url: `/appointments/${done.json().id}/status`,
+    const completed = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "completed" },
-    });
+      afterDone,
+      done.json().id,
+      { status: "completed" },
+    );
     expect(completed.statusCode).toBe(200);
     expect(completed.json()).toMatchObject({ status: "completed", leadId });
-    const reopened = await app.inject({
-      method: "PATCH",
-      url: `/appointments/${done.json().id}/status`,
+    const reopened = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "confirmed" },
-    });
+      afterDone,
+      done.json().id,
+      { status: "confirmed" },
+    );
     expect(reopened.statusCode).toBe(200);
-    await app.inject({
-      method: "PATCH",
-      url: `/appointments/${done.json().id}/status`,
-      headers,
-      payload: { status: "completed" },
+    await patchStatusAt(app, headers, afterDone, done.json().id, {
+      status: "completed",
     });
     expect(
       (await app.inject({ method: "GET", url: "/plans", headers })).json(),

@@ -1,4 +1,8 @@
-import type { Appointment } from "@crm/contracts";
+import {
+  appointmentNotStartedMessage,
+  isAppointmentStarted,
+  type Appointment,
+} from "@crm/contracts";
 import { CheckCircle2 } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { statusLabel, timeLabel } from "../lib/formatting";
@@ -20,6 +24,8 @@ export function AppointmentRow({
   const { can, canView } = useAuthorization();
   const pending =
     appointment.status === "scheduled" || appointment.status === "confirmed";
+  // Realizado só a partir de 15 min antes do início (a API também recusa).
+  const started = isAppointmentStarted(appointment);
   const items: ActionMenuItem[] = [
     { label: "Ver detalhes", onSelect: () => onAction("details") },
     ...(appointment.status === "scheduled"
@@ -31,13 +37,17 @@ export function AppointmentRow({
           },
         ]
       : []),
-    ...(pending
+    ...(pending && started
       ? [
           {
             label: "Finalizar atendimento",
             permission: "agenda.attendance" as const,
             onSelect: () => onStatus("completed"),
           },
+        ]
+      : []),
+    ...(pending
+      ? [
           {
             label: "Remarcar atendimento",
             permission: "agenda.reschedule" as const,
@@ -79,9 +89,13 @@ export function AppointmentRow({
           <button
             type="button"
             className="icon-button appointment-complete-button"
-            title="Marcar como realizado"
+            title={
+              started
+                ? "Marcar como realizado"
+                : appointmentNotStartedMessage(appointment.startsAt)
+            }
             aria-label={`Marcar ${appointment.patientName} como realizado`}
-            disabled={disabled}
+            disabled={disabled || !started}
             onClick={() => onStatus("completed")}
           >
             <CheckCircle2 size={18} />

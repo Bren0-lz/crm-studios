@@ -1179,6 +1179,12 @@ button.day-event:focus-visible {
   gap: 10px;
   flex-wrap: wrap;
 }
+/* Dica de liberação (realizado/falta só a partir de 15 min antes do início). */
+.appointment-detail-hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
 .appointment-cancel-confirm {
   display: grid;
   gap: 8px;

@@ -20,6 +20,11 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import {
+  atInstant,
+  patchStatusAt,
+  reissuedHeaders,
+} from "../../test-support/clock.js";
 import { localParts, zonedTimeToUtc } from "../groups/group-schedule.js";
 
 describe("CRM API", () => {
@@ -777,11 +782,10 @@ describe("CRM API", () => {
       }),
     });
     expect(plan.statusCode).toBe(201);
-    const completed = await app.inject({
-      method: "PATCH",
-      url: `/appointments/${ids[0]}/status`,
-      headers,
-      payload: { status: "completed" },
+    // Desfecho e evolução só depois do início (atendimentos em 15 e 16/05/2031).
+    const afterStart = "2031-05-20T12:00:00.000Z";
+    const completed = await patchStatusAt(app, headers, afterStart, ids[0]!, {
+      status: "completed",
     });
     expect(completed.statusCode).toBe(200);
     const plans = await app.inject({ method: "GET", url: "/plans", headers });
@@ -792,18 +796,20 @@ describe("CRM API", () => {
     ).toBe(3);
 
     // Prontuário e NPS passam a ser aceitos.
-    const record = await app.inject({
-      method: "POST",
-      url: "/clinical-records",
-      headers,
-      payload: {
-        appointmentId: ids[0],
-        subjective: "Relato",
-        objective: "Exame",
-        assessment: "Avaliação",
-        plan: "Plano",
-      },
-    });
+    const record = await atInstant(afterStart, () =>
+      app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers: reissuedHeaders(app, headers),
+        payload: {
+          appointmentId: ids[0],
+          subjective: "Relato",
+          objective: "Exame",
+          assessment: "Avaliação",
+          plan: "Plano",
+        },
+      }),
+    );
     expect(record.statusCode).toBe(201);
     expect(record.json()).toMatchObject({ patientId });
     const survey = await app.inject({
@@ -1799,7 +1805,7 @@ describe("CRM API", () => {
         professionalId: professionals.json()[0].id,
         roomId: rooms.json()[0].id,
         serviceId: services.json()[0].id,
-        startsAt: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000).toISOString(),
+        startsAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
       },
     });
     expect(appointment.statusCode).toBe(201);

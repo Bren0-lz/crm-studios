@@ -13,6 +13,7 @@ import { runMigrations, seedDemoData } from "../../database.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { PostgresClinicRepository } from "../../postgres-repository.js";
 import type { ClinicRepository } from "../../repository.js";
+import { atInstant } from "../../test-support/clock.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -207,7 +208,9 @@ for (const backend of ["memory", "postgres"] as const) {
       }
       it("consumes and restores only the matching service, without duplicate consumption or partial completion", async () => {
         const { patient, services, plan } = await setup();
-        const appointments = [];
+        const appointments: Awaited<
+          ReturnType<ClinicRepository["createAppointment"]>
+        >[] = [];
         for (const [index, serviceId] of [
           services[0]!.id,
           services[0]!.id,
@@ -224,16 +227,18 @@ for (const backend of ["memory", "postgres"] as const) {
             }),
           );
         }
-        const results = await Promise.allSettled(
-          appointments
-            .slice(0, 2)
-            .map((appointment) =>
-              repository.updateAppointmentStatus(
-                clinicId,
-                appointment.id,
-                "completed",
+        const results = await atInstant("2050-01-04T12:00:00Z", () =>
+          Promise.allSettled(
+            appointments
+              .slice(0, 2)
+              .map((appointment) =>
+                repository.updateAppointmentStatus(
+                  clinicId,
+                  appointment.id,
+                  "completed",
+                ),
               ),
-            ),
+          ),
         );
         expect(
           results.filter((result) => result.status === "fulfilled"),
@@ -243,15 +248,19 @@ for (const backend of ["memory", "postgres"] as const) {
         ).toHaveLength(1);
         const completed =
           appointments[results[0]!.status === "fulfilled" ? 0 : 1]!;
-        await repository.updateAppointmentStatus(
-          clinicId,
-          completed.id,
-          "completed",
+        await atInstant("2050-01-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            completed.id,
+            "completed",
+          ),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointments[2]!.id,
-          "completed",
+        await atInstant("2050-01-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointments[2]!.id,
+            "completed",
+          ),
         );
         let sold = (await repository.listPatientPlans(clinicId)).find(
           (item) => item.id === plan.id,
@@ -260,10 +269,12 @@ for (const backend of ["memory", "postgres"] as const) {
           0, 1,
         ]);
         expect(sold.remainingSessions).toBe(1);
-        await repository.updateAppointmentStatus(
-          clinicId,
-          completed.id,
-          "scheduled",
+        await atInstant("2050-01-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            completed.id,
+            "scheduled",
+          ),
         );
         sold = (await repository.listPatientPlans(clinicId)).find(
           (item) => item.id === plan.id,

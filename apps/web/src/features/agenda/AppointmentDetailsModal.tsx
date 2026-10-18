@@ -1,4 +1,6 @@
 import {
+  appointmentNotStartedMessage,
+  isAppointmentStarted,
   patientFirstName,
   type Appointment,
   type AppointmentStatus,
@@ -78,6 +80,12 @@ export function AppointmentDetailsModal({
   const [error, setError] = useState("");
   const canChange =
     appointment.status === "scheduled" || appointment.status === "confirmed";
+  // Realizado/falta só a partir de 15 min antes do início (a API também recusa).
+  const started = isAppointmentStarted(appointment);
+  const availability = started
+    ? undefined
+    : appointmentNotStartedMessage(appointment.startsAt);
+  const availabilityHintId = `appointment-availability-${appointment.id}`;
   // Atendimento de lead não tem prontuário, NPS nem histórico de cliente.
   const isLead = Boolean(appointment.leadId);
   const contactPhone = isLead ? "" : patient?.whatsapp || patient?.phone || "";
@@ -502,17 +510,29 @@ export function AppointmentDetailsModal({
               <button
                 className="secondary-button"
                 onClick={() => setConfirmNoShow(true)}
-                disabled={savingStatus}
+                disabled={savingStatus || !started}
+                title={availability}
+                aria-describedby={started ? undefined : availabilityHintId}
               >
                 Marcar falta
               </button>
               <button
                 className="primary-button"
                 onClick={() => void changeStatus("completed")}
-                disabled={savingStatus}
+                disabled={savingStatus || !started}
+                title={availability}
+                aria-describedby={started ? undefined : availabilityHintId}
               >
                 Marcar como realizado
               </button>
+              {availability && (
+                <p
+                  className="field-hint appointment-detail-hint"
+                  id={availabilityHintId}
+                >
+                  {availability}
+                </p>
+              )}
             </div>
           )}
         {editable && !confirmCancel && !confirmNoShow && canChange && (

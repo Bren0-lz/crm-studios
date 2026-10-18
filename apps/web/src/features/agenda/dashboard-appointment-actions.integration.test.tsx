@@ -12,12 +12,21 @@ import {
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { withPermissions } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 describe("dashboard appointment actions", () => {
+  // Relógio fixo às 15:00 de São Paulo: os atendimentos de hoje (09:00 a 14:00) já começaram,
+  // então "Finalizar atendimento" está liberado (QC3) em qualquer hora do dia da execução.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-12T18:00:00.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   const permissions: PermissionKey[] = [
     "agenda.view",
     "agenda.attendance",
@@ -292,6 +301,32 @@ describe("dashboard appointment actions", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("keeps completion unavailable until 15 minutes before the start (QC3)", async () => {
+    // 08:00 em São Paulo: o atendimento das 09:00 só libera às 08:45.
+    vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
+    const { controls } = setup();
+    const complete = await screen.findByRole("button", {
+      name: "Marcar Ana 0 como realizado",
+    });
+    expect(complete).toBeDisabled();
+    expect(complete).toHaveAccessibleDescription(
+      "Disponível a partir de 12/10 às 08:45",
+    );
+    const { menu } = await openMenu();
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Ver detalhes",
+      "Confirmar atendimento",
+      "Remarcar atendimento",
+      "Cancelar atendimento",
+      "Histórico de reagendamentos",
+    ]);
+    expect(controls.writes).toEqual([]);
   });
 
   it("offers only consultation actions for view-only access and does not fetch patient records", async () => {

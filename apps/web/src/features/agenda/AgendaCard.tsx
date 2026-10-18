@@ -1,4 +1,9 @@
-import type { Appointment, AppointmentStatus } from "@crm/contracts";
+import {
+  appointmentNotStartedMessage,
+  isAppointmentStarted,
+  type Appointment,
+  type AppointmentStatus,
+} from "@crm/contracts";
 import { MoreHorizontal } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
@@ -20,6 +25,10 @@ export function AgendaCard({
   onHistory: () => void;
 }) {
   const { can } = useAuthorization();
+  // Finalizado/falta só a partir de 15 min antes do início (a API também recusa).
+  const availability = isAppointmentStarted(appointment)
+    ? undefined
+    : appointmentNotStartedMessage(appointment.startsAt);
   return (
     <article
       className={`agenda-card ${appointmentStatusClass(appointment.status)}`}
@@ -80,10 +89,22 @@ export function AgendaCard({
             )}
             {(appointment.status === "completed" ||
               can("agenda.attendance")) && (
-              <option value="completed">Finalizado</option>
+              <option
+                value="completed"
+                disabled={Boolean(availability)}
+                title={availability}
+              >
+                Finalizado
+              </option>
             )}
             {(appointment.status === "no_show" || can("agenda.attendance")) && (
-              <option value="no_show">Não compareceu</option>
+              <option
+                value="no_show"
+                disabled={Boolean(availability)}
+                title={availability}
+              >
+                Não compareceu
+              </option>
             )}
             {(appointment.status === "excused_absence" ||
               can("agenda.attendance")) && (

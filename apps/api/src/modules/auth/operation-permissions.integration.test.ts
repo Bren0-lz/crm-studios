@@ -61,7 +61,7 @@ describe("per-operation API authorization", () => {
       professionalId: professionals[0]!.id,
       roomId: rooms[0]!.id,
       serviceId: services[0]!.id,
-      startsAt: "2039-01-10T12:00:00.000Z",
+      startsAt: "2025-01-10T12:00:00.000Z",
       visitType: "regular",
       notes: "",
     });
@@ -72,7 +72,7 @@ describe("per-operation API authorization", () => {
       assessment: "",
       plan: "",
     };
-    const range = "from=2039-01-10T00:00:00.000Z&to=2039-01-11T00:00:00.000Z";
+    const range = "from=2025-01-10T00:00:00.000Z&to=2025-01-11T00:00:00.000Z";
     expect(
       (
         await app.inject({

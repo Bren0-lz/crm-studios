@@ -19,6 +19,7 @@ import { databaseConnectionConfig } from "../infrastructure/database-connection.
 import { MemoryClinicRepository } from "../memory-repository.js";
 import { PostgresClinicRepository } from "../postgres-repository.js";
 import type { ClinicRepository } from "../repository.js";
+import { atInstant } from "./clock.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -131,10 +132,12 @@ for (const storage of ["memory", "postgres"] as const) {
           const appointment = await create(
             `${date}T${String(6 + index).padStart(2, "0")}:00:00Z`,
           );
-          await repository.updateAppointmentStatus(
-            clinicId,
-            appointment.id,
-            status,
+          await atInstant(`${date}T23:00:00Z`, () =>
+            repository.updateAppointmentStatus(
+              clinicId,
+              appointment.id,
+              status,
+            ),
           );
         }
         // Midnight in São Paulo is 03:00 UTC; the end of the day is exclusive.
@@ -561,10 +564,12 @@ for (const storage of ["memory", "postgres"] as const) {
         );
         const appointmentId = scheduled.services![0]!.appointmentId;
         await expect(
-          repository.updateAppointmentStatus(
-            clinicId,
-            appointmentId,
-            "completed",
+          atInstant("2059-02-04T12:00:00Z", () =>
+            repository.updateAppointmentStatus(
+              clinicId,
+              appointmentId,
+              "completed",
+            ),
           ),
         ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
         const closed = await Promise.allSettled([
@@ -607,24 +612,26 @@ for (const storage of ["memory", "postgres"] as const) {
             startsAt: "2059-02-03T12:00:00Z",
           }),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          other.id,
-          "completed",
+        await atInstant("2059-02-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(clinicId, other.id, "completed"),
         );
         expect(
           (await repository.listPatientPlans(clinicId, created.id))[0]!
             .remainingSessions,
         ).toBe(1);
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointmentId,
-          "completed",
+        await atInstant("2059-02-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointmentId,
+            "completed",
+          ),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointmentId,
-          "completed",
+        await atInstant("2059-02-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointmentId,
+            "completed",
+          ),
         );
         await expect(
           repository.cancelPatientTab(clinicId, actorId, tab.id),
@@ -634,10 +641,12 @@ for (const storage of ["memory", "postgres"] as const) {
             (item) => item.id === product.id,
           )?.currentStock,
         ).toBe(2);
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointmentId,
-          "confirmed",
+        await atInstant("2059-02-04T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointmentId,
+            "confirmed",
+          ),
         );
         expect(
           (await repository.listPatientPlans(clinicId, created.id))[0]!
@@ -668,6 +677,66 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(
           await repository.listPatientPlans(randomUUID(), created.id),
         ).toEqual([]);
+      });
+
+      it("refuses outcomes and evolutions before start − 15 min and accepts them from then on", async () => {
+        const created = await patient("Parity Início");
+        await plan(created.id);
+        // 10:00 em São Paulo; libera às 09:45.
+        const startsAt = "2055-02-07T13:00:00Z";
+        const appointment = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            patientId: created.id,
+            professionalId,
+            roomId,
+            serviceId,
+            startsAt,
+          }),
+        );
+        const notStarted = {
+          code: "APPOINTMENT_NOT_STARTED",
+          message: "Disponível a partir de 07/02 às 09:45.",
+          statusCode: 409,
+        };
+        const evolution = {
+          appointmentId: appointment.id,
+          subjective: "Relato",
+          objective: "Exame",
+          assessment: "Avaliação",
+          plan: "Plano",
+        };
+        for (const status of ["completed", "no_show"] as const)
+          await expect(
+            atInstant("2055-02-07T12:44:59Z", () =>
+              repository.updateAppointmentStatus(
+                clinicId,
+                appointment.id,
+                status,
+              ),
+            ),
+          ).rejects.toMatchObject(notStarted);
+        await expect(
+          atInstant("2055-02-07T12:44:59Z", () =>
+            repository.saveClinicalRecord(clinicId, actorId, evolution),
+          ),
+        ).rejects.toMatchObject(notStarted);
+        expect(
+          (await repository.listPatientPlans(clinicId, created.id))[0]
+            ?.remainingSessions,
+        ).toBe(4);
+        const done = await atInstant("2055-02-07T12:45:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
+        );
+        expect(done?.status).toBe("completed");
+        const record = await atInstant("2055-02-07T12:45:00Z", () =>
+          repository.saveClinicalRecord(clinicId, actorId, evolution),
+        );
+        expect(record.appointmentId).toBe(appointment.id);
       });
 
       it("persists and finds a patient without exposing the record to another clinic", async () => {
@@ -730,24 +799,30 @@ for (const storage of ["memory", "postgres"] as const) {
             startsAt: "2055-01-04T12:00:00Z",
           }),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          "completed",
+        await atInstant("2055-01-05T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          "completed",
+        await atInstant("2055-01-05T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
         );
         expect(
           (await repository.listPatientPlans(clinicId, created.id))[0]
             ?.remainingSessions,
         ).toBe(3);
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          "confirmed",
+        await atInstant("2055-01-05T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "confirmed",
+          ),
         );
         expect(
           (await repository.listPatientPlans(clinicId, created.id))[0]
@@ -947,10 +1022,12 @@ for (const storage of ["memory", "postgres"] as const) {
             visitType: "trial",
           }),
         );
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          "completed",
+        await atInstant("2057-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
         );
         const generated = await repository.generateCommissions(
             clinicId,
@@ -967,10 +1044,12 @@ for (const storage of ["memory", "postgres"] as const) {
             ),
           ),
           beforeCash = await repository.getDailyCash(clinicId, saoPauloToday());
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          "confirmed",
+        await atInstant("2057-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "confirmed",
+          ),
         );
         const preview = await repository.getCommissionReconciliationPreview(
             clinicId,

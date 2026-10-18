@@ -1,7 +1,8 @@
-import type {
-  ClinicalAppointmentOption,
-  ClinicalRecord,
-  PatientOption,
+import {
+  isAppointmentStarted,
+  type ClinicalAppointmentOption,
+  type ClinicalRecord,
+  type PatientOption,
 } from "@crm/contracts";
 import { FileClock, FileText, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -55,8 +56,11 @@ export function ClinicalRecordsPage() {
         setRecords(recordData);
         setPatients(patientData);
         setAppointments(
+          // Evolução só para atendimento já iniciado (início − 15 min); a API também recusa.
           appointmentData.filter(
-            (appointment) => appointment.status !== "cancelled",
+            (appointment) =>
+              appointment.status !== "cancelled" &&
+              isAppointmentStarted(appointment),
           ),
         );
       })

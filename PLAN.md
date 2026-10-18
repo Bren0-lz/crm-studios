@@ -1389,7 +1389,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   (memória; PG se tocar SQL) e web.
 - **Gate:** gate completo
 - **Depende de:** QC2
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC4 — Matrícula não aparece em sessões anteriores
 

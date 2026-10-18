@@ -203,6 +203,48 @@ export function isAppointmentPendingFinalization(
   );
 }
 
+/**
+ * Tolerância (minutos antes do início) para registrar realizado/falta ou vincular evolução
+ * clínica a um atendimento. Decisão do dono: constante, sem configuração.
+ */
+export const appointmentActionLeadMinutes = 15;
+
+/** Instante a partir do qual realizado/falta/evolução ficam liberados. */
+export function appointmentActionsAvailableAt(startsAt: string): Date {
+  return new Date(Date.parse(startsAt) - appointmentActionLeadMinutes * 60_000);
+}
+
+/** Atendimento já "iniciado" para ações clínicas (início − 15 min ≤ agora). */
+export function isAppointmentStarted(
+  appointment: Pick<Appointment, "startsAt">,
+  now: Date = new Date(),
+): boolean {
+  return (
+    appointmentActionsAvailableAt(appointment.startsAt).getTime() <=
+    now.getTime()
+  );
+}
+
+/** "Disponível a partir de 19/10 às 09:45" no fuso da clínica (sem ponto final). */
+export function appointmentNotStartedMessage(
+  startsAt: string,
+  timeZone = "America/Sao_Paulo",
+): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone,
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(appointmentActionsAvailableAt(startsAt))
+      .map((part) => [part.type, part.value]),
+  );
+  return `Disponível a partir de ${parts.day}/${parts.month} às ${parts.hour}:${parts.minute}`;
+}
+
 export const appointmentStatusInputSchema = z.object({
   absenceReason: z.string().trim().min(2).max(500).optional(),
   status: appointmentStatusSchema,

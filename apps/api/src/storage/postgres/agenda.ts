@@ -22,6 +22,7 @@ import {
   clampGroupSessionUntil,
   groupSessionHorizon,
 } from "../../modules/groups/group-schedule.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -1096,6 +1097,11 @@ export function createAgendaRepository(
             "Este atendimento conflita com uma turma no mesmo horário.",
             409,
           );
+        if (
+          (status === "completed" || status === "no_show") &&
+          current.rows[0].status !== status
+        )
+          assertAppointmentStarted(current.rows[0].startsAt);
         const patientId = current.rows[0].patientId;
         // Atendimento de lead (sem cliente) não consome sessão de plano.
         if (

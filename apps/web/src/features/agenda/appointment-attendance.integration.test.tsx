@@ -8,6 +8,7 @@ import {
 } from "../../authorization-context";
 import { jsonResponse } from "../../test-support/http";
 import "../../test-support/legacy-setup";
+import { AgendaCard } from "./AgendaCard";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
 
 const authorization: Authorization = {
@@ -40,12 +41,15 @@ const appointment: Appointment = {
   updatedAt: "2026-10-01T12:00:00.000Z",
 };
 
-function mount(onUpdated: (updated: Appointment) => void) {
+function mount(
+  onUpdated: (updated: Appointment) => void,
+  shown: Appointment = appointment,
+) {
   return render(
     <MemoryRouter>
       <AuthorizationContext.Provider value={authorization}>
         <AppointmentDetailsModal
-          appointment={appointment}
+          appointment={shown}
           patient={undefined}
           service={undefined}
           editable
@@ -157,5 +161,81 @@ describe("AppointmentDetailsModal cancellation", () => {
         absenceReason: "Profissional indisponível: Curso externo",
       }),
     );
+  });
+
+  it("disables completion and no-show before 15 minutes ahead of the start (QC3)", () => {
+    // 10:00 em São Paulo amanhã: libera às 09:45.
+    const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    start.setUTCHours(13, 0, 0, 0);
+    const future = {
+      ...appointment,
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + 3_600_000).toISOString(),
+    };
+    const day = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+    }).format(start);
+    const hint = `Disponível a partir de ${day} às 09:45`;
+    mount(vi.fn(), future);
+    for (const name of ["Marcar como realizado", "Marcar falta"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription(hint);
+    }
+    expect(screen.getByText(hint)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Confirmar presença" }),
+    ).toBeEnabled();
+    expect(fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("/status"),
+      expect.anything(),
+    );
+  });
+
+  it("shows the API refusal when the appointment has not started", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(
+        {
+          code: "APPOINTMENT_NOT_STARTED",
+          message: "Disponível a partir de 12/10 às 09:45.",
+        },
+        409,
+      ),
+    );
+    const onUpdated = vi.fn();
+    mount(onUpdated);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Marcar como realizado" }),
+    );
+    expect(
+      await screen.findByText("Disponível a partir de 12/10 às 09:45."),
+    ).toBeInTheDocument();
+    expect(onUpdated).not.toHaveBeenCalled();
+  });
+
+  it("keeps finished and no-show unavailable in the agenda card status before the start (QC3)", () => {
+    const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const future = {
+      ...appointment,
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + 3_600_000).toISOString(),
+    };
+    render(
+      <AuthorizationContext.Provider value={authorization}>
+        <AgendaCard
+          appointment={future}
+          onOpen={() => undefined}
+          onStatus={() => undefined}
+          onHistory={() => undefined}
+        />
+      </AuthorizationContext.Provider>,
+    );
+    expect(screen.getByRole("option", { name: "Finalizado" })).toBeDisabled();
+    expect(
+      screen.getByRole("option", { name: "Não compareceu" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("option", { name: "Confirmado" })).toBeEnabled();
   });
 });

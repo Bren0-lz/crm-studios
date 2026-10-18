@@ -36,6 +36,10 @@ import {
   isValidCpf,
   isAppointmentPendingFinalization,
   pendingFinalizationLabel,
+  appointmentActionLeadMinutes,
+  appointmentActionsAvailableAt,
+  isAppointmentStarted,
+  appointmentNotStartedMessage,
   leadMoveSchema,
   nextPlanPeriod,
   patientDefaultExportColumns,
@@ -961,6 +965,35 @@ describe("user edit modules", () => {
         editModules: ["admin"],
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("appointment clinical actions availability", () => {
+  it("opens actions 15 minutes before the start", () => {
+    expect(appointmentActionLeadMinutes).toBe(15);
+    const startsAt = "2026-10-19T10:00:00-03:00";
+    expect(appointmentActionsAvailableAt(startsAt).toISOString()).toBe(
+      "2026-10-19T12:45:00.000Z",
+    );
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-19T12:44:59.000Z")),
+    ).toBe(false);
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-19T12:45:00.000Z")),
+    ).toBe(true);
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-20T12:00:00.000Z")),
+    ).toBe(true);
+  });
+
+  it("describes the availability in the clinic time zone", () => {
+    expect(appointmentNotStartedMessage("2026-10-19T10:15:00-03:00")).toBe(
+      "Disponível a partir de 19/10 às 10:00",
+    );
+    // 00:10 em São Paulo: a liberação cai no dia anterior (23:55).
+    expect(appointmentNotStartedMessage("2026-10-20T03:10:00.000Z")).toBe(
+      "Disponível a partir de 19/10 às 23:55",
+    );
   });
 });
 

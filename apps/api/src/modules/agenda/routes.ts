@@ -3,6 +3,7 @@ import {
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   holidayInputSchema,
+  isAppointmentStarted,
   leadAppointmentInputSchema,
   professionalInputSchema,
   recurringAppointmentInputSchema,
@@ -118,15 +119,18 @@ export function registerAgendaRoutes(context: RouteContext) {
         from,
         to,
       );
-      return appointments
-        .filter((item) => item.patientId)
-        .map(({ id, startsAt, patientName, professionalName, status }) => ({
-          id,
-          startsAt,
-          patientName,
-          professionalName,
-          status,
-        }));
+      return (
+        appointments
+          // Evolução só para atendimento já iniciado (início − 15 min).
+          .filter((item) => item.patientId && isAppointmentStarted(item))
+          .map(({ id, startsAt, patientName, professionalName, status }) => ({
+            id,
+            startsAt,
+            patientName,
+            professionalName,
+            status,
+          }))
+      );
     },
   );
 

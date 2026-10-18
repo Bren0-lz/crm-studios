@@ -1,3 +1,4 @@
+import { isAppointmentStarted } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { demoPatients } from "./demo-patients.js";
 import { buildDemoScenarios, demoProfessionals } from "./demo-scenarios.js";
@@ -97,5 +98,14 @@ describe("demonstration scenarios", () => {
         }
     }
     expect(future).toEqual([]);
+  });
+
+  it("only records completed or no-show outcomes for appointments already started (QC3)", () => {
+    const early = buildDemoScenarios().appointments.filter(
+      (item) =>
+        (item.status === "completed" || item.status === "no_show") &&
+        !isAppointmentStarted(item),
+    );
+    expect(early).toEqual([]);
   });
 });

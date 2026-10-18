@@ -26,6 +26,7 @@ import {
   clampGroupSessionUntil,
   groupSessionHorizon,
 } from "../../modules/groups/group-schedule.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
@@ -918,6 +919,11 @@ export function createAgendaRepository(
       );
       if (!appointment) return null;
       const previousStatus = appointment.status;
+      if (
+        (status === "completed" || status === "no_show") &&
+        previousStatus !== status
+      )
+        assertAppointmentStarted(appointment.startsAt);
       if (previousStatus !== "completed" && status === "completed") {
         repositoryContext.consumeSession(appointment);
       } else if (previousStatus === "completed" && status !== "completed") {

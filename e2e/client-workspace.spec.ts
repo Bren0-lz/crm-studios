@@ -285,7 +285,7 @@ test("reconciles a paid commission without rewriting the original payout", async
           kind: "fixed",
           percentage: 0,
           fixedAmountInCents: 1500,
-          effectiveFrom: "2039-01-01",
+          effectiveFrom: "2025-01-01",
         },
       })
     ).status(),
@@ -296,7 +296,7 @@ test("reconciles a paid commission without rewriting the original payout", async
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
       serviceId: services[0].id,
-      startsAt: "2039-02-10T12:00:00Z",
+      startsAt: "2025-02-10T12:00:00Z",
       visitType: "trial",
       notes: "",
     },
@@ -312,7 +312,7 @@ test("reconciles a paid commission without rewriting the original payout", async
   ).toBe(200);
   const generated = await (
       await api.post("/finance/commissions/generate", {
-        data: { competence: "2039-02" },
+        data: { competence: "2025-02" },
       })
     ).json(),
     commission = generated.find(
@@ -511,7 +511,7 @@ test("records an NPS response from manual work without treating opening a link a
       serviceId: services[0].id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
-      startsAt: "2039-02-10T12:00:00Z",
+      startsAt: "2025-02-10T12:00:00Z",
       visitType: "trial",
       notes: "",
     },
@@ -529,7 +529,7 @@ test("records an NPS response from manual work without treating opening a link a
     (
       await api.post("/communications/reminders/generate", {
         data: {
-          referenceDate: "2039-02-10",
+          referenceDate: "2025-02-10",
           appointments: false,
           payments: false,
           satisfaction: true,

@@ -214,6 +214,73 @@ describe("appointments pending finalization", () => {
     ]);
   });
 
+  it("shows the refusal for an appointment that has not started and keeps it pending (QC3)", async () => {
+    signIn(["agenda"], ["agenda"]);
+    let pending = [
+      appointment(
+        "a1",
+        "Paula Pendente",
+        "confirmed",
+        new Date("2026-10-01T13:00:00Z"),
+      ),
+      appointment(
+        "a2",
+        "Otávio Remarcado",
+        "scheduled",
+        new Date("2026-10-10T13:00:00Z"),
+      ),
+    ];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "PATCH") {
+        const id = url.split("/").at(-2)!;
+        // a2 foi remarcado para o futuro por outra pessoa: a API recusa.
+        if (id === "a2")
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              code: "APPOINTMENT_NOT_STARTED",
+              message: "Disponível a partir de 19/10 às 09:45.",
+            }),
+          } as Response;
+        const updated = pending.find((item) => item.id === id)!;
+        pending = pending.filter((item) => item.id !== id);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...updated, status: "completed" }),
+        } as Response;
+      }
+      const body = url.includes("/appointments/pending-finalization")
+        ? pending
+        : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/agenda/a-finalizar"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByLabelText("Selecionar todos"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Marcar como realizados" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Marcar como realizados" }),
+    );
+    expect(
+      await screen.findByText(
+        "1 atendimento não pôde ser atualizado: Disponível a partir de 19/10 às 09:45.",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("Paula Pendente")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Otávio Remarcado")).toBeInTheDocument();
+  });
+
   it("lists without batch actions for read-only agenda access", async () => {
     signIn(["agenda"], []);
     vi.mocked(fetch).mockImplementation(async (input) => {

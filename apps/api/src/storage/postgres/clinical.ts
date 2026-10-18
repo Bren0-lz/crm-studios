@@ -20,6 +20,7 @@ import {
   assertClinicalWritePermission,
   inspectClinicalAttachment,
 } from "../../modules/clinical/clinical-integrity.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -92,10 +93,11 @@ export function createClinicalRepository(
             409,
           );
         // Serialize creation/updating of the same appointment before deciding the operation.
-        await client.query(
-          "SELECT id FROM appointments WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
+        const locked = await client.query<{ startsAt: Date }>(
+          `SELECT starts_at AS "startsAt" FROM appointments WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
           [clinicId, input.appointmentId],
         );
+        if (locked.rows[0]) assertAppointmentStarted(locked.rows[0].startsAt);
         const current = await repositoryContext.findClinicalRecordByAppointment(
           client,
           clinicId,

@@ -123,11 +123,18 @@ describe("finance workflows through real HTTP handlers", () => {
       startsAt: "2039-02-10T12:00:00Z",
       visitType: "trial",
     });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
-    );
+    // Realizado só depois do início do atendimento (QC3): relógio no dia seguinte.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
+    try {
+      await repository.updateAppointmentStatus(
+        clinicId,
+        appointment.id,
+        "completed",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
     const commission = (
       await repository.generateCommissions(clinicId, "2039-02")
     ).find((item) => item.appointmentId === appointment.id)!;
@@ -197,11 +204,17 @@ describe("finance workflows through real HTTP handlers", () => {
       "Estorno conciliado registrado sem remover o pagamento original.",
     );
     expect(within(dialog).getByText(/Estornado/)).toBeInTheDocument();
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
-    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
+    try {
+      await repository.updateAppointmentStatus(
+        clinicId,
+        appointment.id,
+        "completed",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Atualizar conta conciliada",
