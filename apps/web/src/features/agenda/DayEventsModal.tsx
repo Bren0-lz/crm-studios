@@ -2,6 +2,7 @@ import type { Appointment, GroupSession, ScheduleBlock } from "@crm/contracts";
 import { Modal } from "../../shared/components/Modal";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { statusLabel, timeLabel } from "../../shared/lib/formatting";
+import { professionalColorStyle } from "../../tag-colors";
 import { sortAgendaEntries } from "./model";
 
 export function DayEventsModal({
@@ -93,7 +94,8 @@ export function DayEventsModal({
                     <strong>
                       {event.color && (
                         <i
-                          style={{ background: event.color }}
+                          className="pro-dot"
+                          style={professionalColorStyle(event.color)}
                           aria-hidden="true"
                         />
                       )}

@@ -1539,3 +1539,7 @@ button.day-event:focus-visible {
   font-size: var(--text-xs);
   vertical-align: middle;
 }
+/* O cartão da grade herda justify-content: center de .text-button; o texto começa à esquerda. */
+.day-grid-event {
+  justify-content: stretch;
+}
