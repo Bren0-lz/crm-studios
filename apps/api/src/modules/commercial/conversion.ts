@@ -5,6 +5,7 @@ import {
   type LeadConversionInput,
   type Patient,
   type PatientInput,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 /** Junta ao lead os dados informados na conversão (campos vazios não apagam nada). */
@@ -35,8 +36,8 @@ export function leadConversionData(
         fields[key] = value;
   const tags = [
     ...new Set([
-      ...(existing?.tags ?? []),
-      ...lead.tags,
+      ...withoutAutomaticPatientTags(existing?.tags ?? []),
+      ...withoutAutomaticPatientTags(lead.tags),
       ...(lead.tags.length < 20 ? ["Convertido do CRM"] : []),
     ]),
   ];

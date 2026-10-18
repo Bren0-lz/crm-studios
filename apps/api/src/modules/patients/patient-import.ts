@@ -3,6 +3,7 @@ import {
   patientProfileLabels,
   patientProfileValueLabels,
   resolvePatientTags,
+  withoutAutomaticPatientTags,
   type Patient,
   type PatientImportAnalysis,
   type PatientImportDuplicate,
@@ -383,8 +384,9 @@ export function validatePatientImport(
       }
     }
     if (parsed.success && configuredTags) {
+      // Etiqueta automática ("Pagamento atrasado") vinda da planilha é ignorada.
       const { tags, unknown } = resolvePatientTags(
-        parsed.data.tags,
+        withoutAutomaticPatientTags(parsed.data.tags),
         configuredTags,
       );
       if (unknown.length > 0)

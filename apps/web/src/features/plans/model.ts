@@ -1,5 +1,6 @@
 import {
   addDaysToIsoDate,
+  isTabCreditPlan,
   patientTagKey,
   planDisplayStatus,
   planDisplayStatusLabels,
@@ -15,15 +16,39 @@ export const planKindLabels: Record<PatientPlan["kind"], string> = {
 };
 
 export type PlanListFilter =
-  "all" | "active" | "paused" | "exhausted" | "expiring";
+  | "all"
+  | "active"
+  | "paused"
+  | "exhausted"
+  | "expired"
+  | "cancelled"
+  | "tab_credit"
+  | "expiring";
 
 export const planListFilterLabels: Record<PlanListFilter, string> = {
   all: "Todos",
   active: "Ativo",
   paused: "Pausado",
   exhausted: "Esgotado",
+  expired: "Expirado",
+  cancelled: "Cancelado",
+  tab_credit: "Pago na comanda",
   expiring: "Vencendo",
 };
+
+/**
+ * Filtros que dividem a lista: cada plano entra em exatamente um, e a soma dá "Todos".
+ * Crédito pago na comanda não é plano contratado: fica só em "Pago na comanda" (como no card
+ * "planos ativos"). "Vencendo" fica de fora: é um recorte de "Ativo".
+ */
+export const planPartitionFilters = [
+  "active",
+  "paused",
+  "exhausted",
+  "expired",
+  "cancelled",
+  "tab_credit",
+] as const satisfies readonly PlanListFilter[];
 
 /** "Vencendo" = plano ativo com validade de hoje até daqui a 15 dias. */
 export const PLAN_EXPIRING_DAYS = 15;
@@ -35,6 +60,8 @@ export function planMatchesFilter(
 ): boolean {
   const status = planDisplayStatus(plan);
   if (filter === "all") return true;
+  if (filter === "tab_credit") return isTabCreditPlan(plan);
+  if (isTabCreditPlan(plan)) return false;
   if (filter === "expiring")
     return (
       status === "active" &&

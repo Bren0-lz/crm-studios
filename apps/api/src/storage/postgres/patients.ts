@@ -346,6 +346,17 @@ export function createPatientsRepository(
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     },
 
+    async listOverduePatientIds(clinicId: string, today: string) {
+      // Mesma regra de `isOverdueReceivable` (contracts): em aberto e vencida antes de hoje.
+      const result = await repositoryContext.pool.query<{ patientId: string }>(
+        `SELECT DISTINCT patient_id AS "patientId" FROM receivables
+         WHERE clinic_id = $1 AND status = 'open' AND due_date < $2::date
+           AND patient_id IS NOT NULL`,
+        [clinicId, today],
+      );
+      return result.rows.map((row) => row.patientId);
+    },
+
     async createPatientTag(
       clinicId: string,
       actorUserId: string,

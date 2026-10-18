@@ -266,6 +266,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.importPatients = this.patients.importPatients;
     this.updatePatient = this.patients.updatePatient;
     this.listPatientTags = this.patients.listPatientTags;
+    this.listOverduePatientIds = this.patients.listOverduePatientIds;
     this.createPatientTag = this.patients.createPatientTag;
     this.updatePatientTag = this.patients.updatePatientTag;
     this.deletePatientTag = this.patients.deletePatientTag;
@@ -683,6 +684,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listPatientTags: ReturnType<
     typeof createPatientsRepository
   >["listPatientTags"];
+
+  readonly listOverduePatientIds: ReturnType<
+    typeof createPatientsRepository
+  >["listOverduePatientIds"];
 
   readonly createPatientTag: ReturnType<
     typeof createPatientsRepository

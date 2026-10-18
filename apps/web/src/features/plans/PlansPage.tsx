@@ -29,6 +29,7 @@ import {
   planListFilterLabels,
   planMatchesFilter,
   planMatchesSearch,
+  planPartitionFilters,
   planSubtitle,
   type PlanListFilter,
 } from "./model";
@@ -130,6 +131,23 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
 
   // Crédito pago na comanda não é plano contratado: fica fora dos totais.
   const contractedPlans = plans.filter((plan) => !isTabCreditPlan(plan));
+  // Mesmo critério do filtro "Ativo" (situação exibida: esgotado não conta).
+  const activePlanCount = plans.filter((plan) =>
+    planMatchesFilter(plan, "active", today),
+  ).length;
+  const filterButton = (filter: PlanListFilter, describedBy?: string) => (
+    <button
+      type="button"
+      key={filter}
+      className="text-button tag-filter"
+      aria-pressed={listFilter === filter}
+      aria-describedby={describedBy}
+      onClick={() => setListFilter(filter)}
+    >
+      {planListFilterLabels[filter]}
+      <small>{filterCount(filter)}</small>
+    </button>
+  );
 
   function planRenewalLabel(plan: PatientPlan) {
     if (plan.renewedByPlanId) {
@@ -168,9 +186,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
       {error && <ErrorBanner error={error} />}
       <section className="plan-metrics">
         <div>
-          <strong>
-            {contractedPlans.filter((plan) => plan.status === "active").length}
-          </strong>
+          <strong>{activePlanCount}</strong>
           <span>planos ativos</span>
         </div>
         <div>
@@ -222,20 +238,14 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                 role="group"
                 aria-labelledby="plans-status-filter"
               >
-                {(Object.keys(planListFilterLabels) as PlanListFilter[]).map(
-                  (filter) => (
-                    <button
-                      type="button"
-                      key={filter}
-                      className="text-button tag-filter"
-                      aria-pressed={listFilter === filter}
-                      onClick={() => setListFilter(filter)}
-                    >
-                      {planListFilterLabels[filter]}
-                      <small>{filterCount(filter)}</small>
-                    </button>
-                  ),
-                )}
+                {filterButton("all")}
+                {planPartitionFilters.map((filter) => filterButton(filter))}
+                <span className="plans-filter-subset">
+                  <span className="filter-label" id="plans-expiring-note">
+                    Recorte de Ativo (fora da soma)
+                  </span>
+                  {filterButton("expiring", "plans-expiring-note")}
+                </span>
               </div>
             </div>
           </div>

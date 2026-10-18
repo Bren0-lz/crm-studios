@@ -562,6 +562,11 @@ export interface ClinicRepository {
 
   listPatientTags(clinicId: string): Promise<PatientTag[]>;
   /**
+   * Clientes com parcela vencida e em aberto (`status = open` e vencimento antes de `today`),
+   * base da etiqueta automática "Pagamento atrasado" (QC7).
+   */
+  listOverduePatientIds(clinicId: string, today: string): Promise<string[]>;
+  /**
    * Cria a etiqueta (auditoria `patient_tag.created`). Nome igual a outro da clínica sem
    * diferenciar maiúsculas/acentos: 409 `PATIENT_TAG_DUPLICATE`.
    */

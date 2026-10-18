@@ -7,11 +7,13 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { automaticPatientTagger } from "./automatic-tags.js";
 
 export function registerPatientManagementRoutes({
   app,
   authenticate,
   repository,
+  requestAccess,
 }: RouteContext) {
   app.get(
     "/patients/:id/emergency-contact",
@@ -36,8 +38,13 @@ export function registerPatientManagementRoutes({
     async (request, reply) => {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
       const patient = await repository.getPatient(request.user.clinicId, id);
+      const tag = await automaticPatientTagger(
+        repository,
+        request.user.clinicId,
+        requestAccess.get(request)?.modules ?? [],
+      );
       return (
-        patient ??
+        (patient && tag(patient)) ??
         reply.status(404).send({
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",

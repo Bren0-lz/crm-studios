@@ -1445,7 +1445,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   mesmo número. Testes contracts, API e web.
 - **Gate:** gate completo
 - **Depende de:** QC1
-- **Status:** TODO
+- **Status:** DONE
 
 ### QC9 — Histórico de reagendamentos sem texto do Financeiro
 

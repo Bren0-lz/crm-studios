@@ -6,7 +6,10 @@ import type {
   LeadAppointmentInput,
 } from "@crm/contracts";
 import {
+  automaticPatientTagCategory,
   formatPhone,
+  isAutomaticPatientTag,
+  patientTagCategoryColors,
   type PatientTag,
   patientTagDisplayColor,
   patientTagKey,
@@ -136,7 +139,13 @@ export function tagColorLookup(tags: readonly PatientTag[] | null) {
       patientTagDisplayColor(tag),
     ]),
   );
-  return (name: string) => normalizeTagColor(colors.get(patientTagKey(name)));
+  return (name: string) =>
+    normalizeTagColor(
+      colors.get(patientTagKey(name)) ??
+        (isAutomaticPatientTag(name)
+          ? patientTagCategoryColors[automaticPatientTagCategory]
+          : undefined),
+    );
 }
 
 export function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {

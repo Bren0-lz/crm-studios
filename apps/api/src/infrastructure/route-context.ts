@@ -15,6 +15,7 @@ import {
   permissionCatalog,
   type PermissionKey,
   resolvePatientTags,
+  withoutAutomaticPatientTags,
   saoPauloToday,
   type UserSummary,
 } from "@crm/contracts";
@@ -370,15 +371,17 @@ export async function createRouteContext({
 
   /**
    * O cliente só recebe etiquetas configuradas: troca cada uma pela grafia oficial (sem
-   * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas.
+   * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
+   * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
    */
   async function withConfiguredTags(
     clinicId: string,
     input: PatientInput,
   ): Promise<PatientInput> {
-    if (input.tags.length === 0) return input;
+    const manualTags = withoutAutomaticPatientTags(input.tags);
+    if (manualTags.length === 0) return { ...input, tags: manualTags };
     const { tags, unknown } = resolvePatientTags(
-      input.tags,
+      manualTags,
       await repository.listPatientTags(clinicId),
     );
     if (unknown.length > 0)

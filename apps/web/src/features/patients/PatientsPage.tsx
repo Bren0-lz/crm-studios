@@ -1,4 +1,9 @@
-import { patientTagDisplayColor } from "@crm/contracts";
+import {
+  automaticPatientTagCategory,
+  OVERDUE_PAYMENT_TAG,
+  patientTagCategoryColors,
+  patientTagDisplayColor,
+} from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientManagementModal } from "./PatientManagementModal";
@@ -49,7 +54,7 @@ import { PatientNextSteps } from "./PatientNextSteps";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
 export function PatientsPage() {
-  const { can, canEdit, user } = useAuthorization();
+  const { can, canEdit, canView, user } = useAuthorization();
   const navigate = useNavigate();
   const [management, setManagement] = useState<"merge" | "inactive" | null>(
     null,
@@ -138,6 +143,8 @@ export function PatientsPage() {
   // Filtro mostra as etiquetas configuradas (com a cor), com quantos clientes da lista têm cada uma.
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
+  // Etiqueta automática (parcela vencida e em aberto): a API só calcula para quem vê o Financeiro.
+  const automaticTagOptions = canView("finance") ? [OVERDUE_PAYMENT_TAG] : [];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) +
     (filters.record !== "all" ? 1 : 0) +
@@ -392,7 +399,7 @@ export function PatientsPage() {
                 <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
               </div>
             ) : (
-              tagOptions.length > 0 && (
+              tagOptions.length + automaticTagOptions.length > 0 && (
                 <div className="filter-group filter-tags">
                   <span className="filter-label" id="patient-tag-filter">
                     Etiquetas
@@ -410,6 +417,19 @@ export function PatientsPage() {
                         count={countTag(tag.name)}
                         pressed={filters.tags.includes(tag.name)}
                         onToggle={() => toggleTag(tag.name)}
+                      />
+                    ))}
+                    {automaticTagOptions.map((name) => (
+                      <TagChoice
+                        key={`automatic-${name}`}
+                        name={name}
+                        color={
+                          patientTagCategoryColors[automaticPatientTagCategory]
+                        }
+                        count={countTag(name)}
+                        hint="Etiqueta automática: cliente com parcela vencida e em aberto."
+                        pressed={filters.tags.includes(name)}
+                        onToggle={() => toggleTag(name)}
                       />
                     ))}
                   </div>

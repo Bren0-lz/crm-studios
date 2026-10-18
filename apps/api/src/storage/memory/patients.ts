@@ -1,5 +1,6 @@
 import {
   type GuidedPatientInput,
+  overduePatientIds,
   type GuidedPatientResult,
   type Patient,
   type PatientInput,
@@ -249,6 +250,15 @@ export function createPatientsRepository(
         .filter((tag) => tag.clinicId === clinicId)
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
         .map((tag) => repositoryContext.withPatientCount(tag));
+    },
+
+    async listOverduePatientIds(clinicId: string, today: string) {
+      return overduePatientIds(
+        repositoryContext.receivables.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        today,
+      );
     },
 
     async createPatientTag(

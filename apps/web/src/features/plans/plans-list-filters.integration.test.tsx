@@ -86,6 +86,16 @@ describe("plans list", () => {
       plan({ id: "p3", patientName: "Joana Prado", status: "paused" }),
       plan({ id: "p4", patientName: "Ana Lima", validUntil: inDays(40) }),
       plan({ id: "p5", patientName: "Maria Souza", status: "cancelled" }),
+      plan({ id: "p6", patientName: "Bia Torres", status: "expired" }),
+      plan({
+        id: "p7",
+        patientName: "Caio Reis",
+        name: "Pilates · pago na comanda",
+        kind: "single",
+        totalSessions: 1,
+        remainingSessions: 1,
+        sourceTabId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      }),
     ];
     vi.mocked(fetch).mockImplementation(
       async (input) =>
@@ -104,11 +114,38 @@ describe("plans list", () => {
     const count = (label: string) =>
       within(group).getByRole("button", { name: new RegExp(`^${label}`) })
         .textContent;
-    expect(count("Todos")).toBe("Todos5");
+    expect(count("Todos")).toBe("Todos7");
     expect(count("Ativo")).toBe("Ativo2");
     expect(count("Pausado")).toBe("Pausado1");
     expect(count("Esgotado")).toBe("Esgotado1");
+    expect(count("Expirado")).toBe("Expirado1");
+    expect(count("Cancelado")).toBe("Cancelado1");
+    expect(count("Pago na comanda")).toBe("Pago na comanda1");
     expect(count("Vencendo")).toBe("Vencendo1");
+    // A soma dos filtros (exceto "Vencendo", recorte sinalizado de Ativo) é igual a "Todos".
+    const total = (label: string) =>
+      Number(
+        within(group)
+          .getByRole("button", { name: new RegExp(`^${label}`) })
+          .querySelector("small")?.textContent,
+      );
+    expect(
+      [
+        "Ativo",
+        "Pausado",
+        "Esgotado",
+        "Expirado",
+        "Cancelado",
+        "Pago na comanda",
+      ].reduce((sum, label) => sum + total(label), 0),
+    ).toBe(total("Todos"));
+    expect(
+      within(group).getByRole("button", { name: /^Vencendo/ }),
+    ).toHaveAccessibleDescription("Recorte de Ativo (fora da soma)");
+    // O card "planos ativos" usa o mesmo critério do filtro "Ativo".
+    expect(
+      screen.getByText("planos ativos").previousElementSibling?.textContent,
+    ).toBe(String(total("Ativo")));
     expect(screen.getByText("Dançaterapia 2x")).toBeInTheDocument();
 
     fireEvent.click(within(group).getByRole("button", { name: /^Vencendo/ }));

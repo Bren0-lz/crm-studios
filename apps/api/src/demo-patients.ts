@@ -125,7 +125,8 @@ const scenarioTags = [
   ["Depilação", "Serviço avulso"],
   ["Dançaterapia", "Assinatura cancelada"],
   ["Fisioterapia", "Sem retorno"],
-  ["Pilates", "Pagamento atrasado"],
+  // "Pagamento atrasado" é automática (QC7): vem das parcelas vencidas do cenário.
+  ["Pilates", "Assinatura ativa"],
 ];
 const scenarioNotes = [
   "Participa de dançaterapia duas vezes por semana e mantém o plano ativo.",

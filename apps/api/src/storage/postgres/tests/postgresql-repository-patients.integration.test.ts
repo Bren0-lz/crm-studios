@@ -1337,6 +1337,39 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("computes the automatic overdue tag with the overdue_payment rule and keeps no manual copy", async () => {
+    const today = saoPauloToday();
+    const overdue = await repository.listOverduePatientIds(clinicId, today);
+    expect(overdue.length).toBeGreaterThan(0);
+    expect(new Set(overdue).size).toBe(overdue.length);
+    const check = await pool.query<{ patientId: string }>(
+      `SELECT DISTINCT patient_id AS "patientId" FROM receivables
+       WHERE clinic_id = $1 AND status = 'open' AND due_date < $2::date`,
+      [clinicId, today],
+    );
+    expect([...overdue].sort()).toEqual(
+      check.rows.map((row) => row.patientId).sort(),
+    );
+    const suggested = (
+      await repository.listContactSuggestions(
+        clinicId,
+        legacyRoleDefaultModules.finance,
+      )
+    )
+      .filter((item) => item.reason === "overdue_payment")
+      .map((item) => item.patientId);
+    for (const id of suggested) expect(overdue).toContain(id);
+    // Migração 0083: a etiqueta manual some dos clientes e das configuradas.
+    const manual = await pool.query(
+      "SELECT 1 FROM patients WHERE clinic_id = $1 AND 'Pagamento atrasado' = ANY(tags)",
+      [clinicId],
+    );
+    expect(manual.rowCount).toBe(0);
+    expect(
+      (await repository.listPatientTags(clinicId)).map((tag) => tag.name),
+    ).not.toContain("Pagamento atrasado");
+  });
+
   it("configures the demo clients' tags after the seed", async () => {
     const used = await pool.query<{ tag: string }>(
       "SELECT DISTINCT unnest(tags) AS tag FROM patients WHERE clinic_id = $1 AND tags && ARRAY['Pós-operatório','Pilates']",

@@ -8,6 +8,7 @@ import {
   type Patient,
   type PatientInput,
   type PatientTag,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
@@ -61,7 +62,8 @@ export function PatientModal({
     emergencyContactName: patient?.emergencyContactName ?? "",
     emergencyContactPhone: patient?.emergencyContactPhone ?? "",
     notes: patient?.notes ?? "",
-    tags: patient?.tags ?? [],
+    // "Pagamento atrasado" é automática: não aparece para marcar nem desmarcar.
+    tags: withoutAutomaticPatientTags(patient?.tags ?? []),
   }));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && can("patients.timeline");
