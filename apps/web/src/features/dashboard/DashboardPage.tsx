@@ -232,7 +232,7 @@ export function DashboardPage() {
         description={dateLabel.format(new Date())}
         action={
           can("agenda.create") && (
-            <NavLink to="/agenda" className="primary-button">
+            <NavLink to="/agenda?novo=1" className="primary-button">
               <Plus size={18} />
               Novo atendimento
             </NavLink>

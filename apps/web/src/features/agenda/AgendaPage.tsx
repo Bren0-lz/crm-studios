@@ -25,6 +25,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -104,11 +105,47 @@ export function AgendaPage() {
   const [patientRecords, setPatientRecords] = useState<Patient[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [blockModalOpen, setBlockModalOpen] = useState(false);
   const canSchedule = canEdit("agenda");
   // Bloqueios exigem editar Agenda E Clientes (mesma regra da API).
   const canBlock = can("agenda.blocks_create");
+  const canCreateAppointment = canSchedule && can("agenda.create");
+  // "Novo atendimento" do Dashboard chega como /agenda?novo=1. A página é remontada quando a
+  // busca muda (as rotas são chaveadas por pathname + search), então o pedido passa em duas
+  // etapas, sempre com replace: o parâmetro vira um estado de navegação, e esse estado abre o
+  // modal e é limpo em seguida. Assim recarregar ou voltar não reabre o modal.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const wantsNewAppointment =
+    new URLSearchParams(location.search).get("novo") === "1";
+  const newAppointmentRequested =
+    (location.state as { newAppointment?: boolean } | null)?.newAppointment ===
+    true;
+  const [modalOpen, setModalOpen] = useState(
+    () => newAppointmentRequested && canCreateAppointment,
+  );
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  useEffect(() => {
+    if (wantsNewAppointment) {
+      const params = new URLSearchParams(location.search);
+      params.delete("novo");
+      const search = params.toString();
+      navigate(
+        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        { replace: true, state: { newAppointment: true } },
+      );
+    } else if (newAppointmentRequested) {
+      navigate(
+        { pathname: location.pathname, search: location.search },
+        { replace: true, state: null },
+      );
+    }
+  }, [
+    wantsNewAppointment,
+    newAppointmentRequested,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
   const [absence, setAbsence] = useState<{
     appointment: Appointment;
     status: AppointmentStatus;

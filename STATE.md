@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** QM1 (Rodada 8, branch `fix/qa-out-2026`)
-- **Última concluída:** QC10
+- **Tarefa atual:** QM2 (Rodada 8, branch `fix/qa-out-2026`)
+- **Última concluída:** QM1
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -231,3 +231,4 @@
 - 2026-10-18 QC9 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 734). Parágrafo "Receitas e despesas pela baixa…" removido de AppointmentRescheduleHistoryModal.tsx; texto não existia em outro lugar; `.report-definition` segue em uso em ReportsDetails.tsx. Teste novo: features/agenda/reschedule-history-modal.integration.test.tsx.
 - 2026-10-18 QC10 FAIL 1/3: mudança global em inline-validation.ts deixava a mensagem de campo já marcado desatualizada ao corrigir. Corrigido.
 - 2026-10-18 QC10 DONE (verifier PASS na 2ª tentativa, exit 0 em todos os gates; contracts 144, API 310, web 737). PatientPicker: lista só abre com texto e mostra só `api.patientOptions(term)` (nunca os `patients` pré-carregados; prop `loading` ficou sem efeito); seleção externa não reabre; editar desfaz a seleção; `clearInlineValidation(field)` (exportado de shared/feedback/inline-validation.ts) roda quando a seleção fica válida. Validação inline do sistema todo: `onEdit` não chama mais checkValidity (que recriava erro a cada tecla); campo sem erro nunca ganha erro ao digitar; campo já marcado atualiza a mensagem enquanto inválido e limpa ao ficar válido. Testes que escolhem cliente: digitar no combobox e usar `findByRole("option")` (foco não abre a lista); jsdom não calcula tooShort por script. Fase 1 (QC1–QC10) concluída.
+- 2026-10-18 QM1 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 739). Dashboard → `/agenda?novo=1` (só com agenda.create). ATENÇÃO para abrir modal por URL: `AppRoutes.tsx:66` chaveia `<Routes key={pathname + search}>`, então mudar a busca remonta a página e perde estado local. Solução em duas etapas (replace): `?novo=1` → estado de navegação `{ newAppointment: true }` (remonta); na remontagem o estado inicializa `modalOpen` e é limpo com `state: null` (não remonta). Sem permissão, só limpa a URL. Teste: features/agenda/dashboard-new-appointment.integration.test.tsx.

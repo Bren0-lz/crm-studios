@@ -707,7 +707,7 @@ describe("dashboard appointment actions", () => {
     expect(agenda).toHaveAttribute("href", "/agenda");
     expect(
       screen.getByRole("link", { name: /Novo atendimento/ }),
-    ).toHaveAttribute("href", "/agenda");
+    ).toHaveAttribute("href", "/agenda?novo=1");
     fireEvent.click(agenda);
     expect(
       await screen.findByRole("heading", { name: "Agenda" }),

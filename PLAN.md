@@ -1472,7 +1472,7 @@ Gate completo em todos, na ordem da tabela.
 
 | ID | Item | Status |
 |----|------|--------|
-| QM1 | "Novo atendimento" do Dashboard abre o modal (`/agenda?novo=1`) | TODO |
+| QM1 | "Novo atendimento" do Dashboard abre o modal (`/agenda?novo=1`) | DONE |
 | QM2 | Após agendar, a agenda vai para a data salva e destaca o bloco por 2 s | TODO |
 | QM3 | Serviço↔profissional↔sala (U10): vínculos no demo e conferir filtro; `*` em Cliente quando obrigatório | TODO |
 | QM4 | Seletor de data fecha ao escolher, nunca cortado, dias passados com estilo próprio | TODO |
