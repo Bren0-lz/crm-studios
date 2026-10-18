@@ -1310,4 +1310,4 @@ fim de cada bloco.
 | V9 | `scrollbar-gutter: stable` no contêiner principal | DONE |
 | V10 | Cor do profissional nos avatares e cards (inclui grade do Dia) | DONE |
 | V11 | `EmptyState` com `icon` e `action` (Turmas, Comissões, Prontuários) | DONE |
-| V12 | Demo com nomes realistas e sem datas futuras no histórico | TODO |
+| V12 | Demo com nomes realistas e sem datas futuras no histórico | DONE |

@@ -47,10 +47,11 @@ describe("CRM API", () => {
       roomId: rooms.json()[0].id,
       serviceId,
     };
-    const [clientA, clientB] = [
-      patients.json()[0].id as string,
-      patients.json()[1].id as string,
-    ];
+    // Clientes ativos da demonstração (inativos não contratam plano).
+    const active = patients
+      .json()
+      .filter((item: { status: string }) => item.status === "active");
+    const [clientA, clientB] = [active[0].id as string, active[1].id as string];
     const createLead = async (fullName: string, phone: string) =>
       (
         await app.inject({

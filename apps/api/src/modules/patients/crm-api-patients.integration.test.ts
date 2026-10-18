@@ -1928,7 +1928,10 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/rooms", headers }),
     ]);
     const references = {
-      patients: patients.json(),
+      // Só clientes ativos podem ser matriculados.
+      patients: patients
+        .json()
+        .filter((item: { status: string }) => item.status === "active"),
       service: services.json()[0],
       professional: professionals.json()[0],
       room: rooms

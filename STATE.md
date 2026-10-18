@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** Rodada 7, Fase 3 (V12)
-- **Última concluída:** V11
+- **Tarefa atual:** Rodada 7 — verificação dos itens não testados
+- **Última concluída:** V12 (Fase 3 concluída)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -212,3 +212,5 @@
 - 2026-10-17 V9: quem rola é o documento (html). Medido no Chrome 155: com a barra estilizada (::-webkit-scrollbar) `scrollbar-gutter: stable` sozinho NÃO reserva o espaço (1920→1910 ao crescer); `html { overflow-y: scroll; scrollbar-gutter: stable }` deixa a largura fixa (1910/1910). Efeito colateral corrigido: com o html rolável, `body.modal-open { overflow:hidden }` deixava a página rolar atrás do modal → `useBodyScrollLock` põe `modal-open` também no html (`html.modal-open { overflow: hidden }`); conferido no navegador (não rola, padding de 10px compensa).
 - 2026-10-17 V10: `professionalColorStyle(cor)` (shared/lib/tag-colors.ts; só #rrggbb) → `--pro-color`. Borda esquerda de 3px nos cartões da lista, Semana, Mês e grade do Dia; bolinhas (`.pro-dot`) e linha do painel (`.appointment-line`) leem a variável; cabeçalho da grade do Dia com avatar de iniciais na cor (`.pro-avatar`). Sem `style={{ background }}` na agenda (só variável CSS, como a regra permite). Corrigido junto: cartão da grade herdava `justify-content: center` de `.text-button` (texto recuado ~64px). Parte do V10 entrou no commit "atualizações" (84757a8) do dono; o merge aca1334 trouxe a T073 (App.test.tsx → App.integration.test.tsx, 204 testes a mais); com ele o gate oscila em testes de modal de Turmas sob carga (passam isolados; npm test repetido exit 0).
 - 2026-10-17 V11: `EmptyState` ganhou `icon` (LucideIcon; padrão CalendarDays) dentro de `.empty-state-icon` (círculo menta, 72px) e mantém `action`. Turmas: parágrafo "Nenhuma turma cadastrada" virou EmptyState com "Criar primeira turma" (groups.create); Comissões: `CommissionsList.onCreateRule` → "Cadastrar regra de comissão" (finance.commission_rules); Prontuários: "Registrar primeira evolução" quando há atendimento sem prontuário. Botões com nomes diferentes dos do topo para não duplicar nos testes.
+- 2026-10-17 V12: demo-patients.ts com 48 primeiros nomes e 28 sobrenomes; `surnamesFor(index)` usa passos distintos e garante os dois sobrenomes diferentes (sumiram "Renata Azevedo Azevedo" e afins; todas as "Ana" não são mais "… Gomes"); contato de emergência realista com parentesco coerente com o gênero (`emergencyContactFor`), no lugar de "Contato fictício N". Datas futuras: varredura nos cenários e clientes não achou nenhuma (C11 já resolvia) — teste de guarda em demo-scenarios.unit.test. "Cliente Relacionamento" NÃO é do gerador: é fixture do teste PG (postgresql-repository-patients), que limpa antes/depois; se aparece em produção, os testes PostgreSQL rodaram contra esse banco (limpeza manual a critério do dono). Testes de API que pegavam `patients[0..1]` da demonstração passaram a filtrar ativos (a ordem alfabética mudou e o 1º virou cliente inativo). Produção só muda se ressemear (seed usa ON CONFLICT DO NOTHING; IDs estáveis).
+- 2026-10-17 Fase 3 (V1–V12) concluída.
