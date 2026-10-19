@@ -28,13 +28,15 @@ import {
 import type { GroupChoices } from "../../shared/workflows/types";
 import { AppointmentForm } from "../agenda/index";
 import { PlanForm } from "../plans/index";
-import type { NextStepResources } from "./types";
+import type { NextStepResources, PatientRegistrationResult } from "./types";
 
 export function PatientNextSteps({
   patient,
+  initialResult,
   onClose,
 }: {
   patient: Patient;
+  initialResult?: PatientRegistrationResult;
   onClose: () => void;
 }) {
   const { can } = useAuthorization();
@@ -50,11 +52,17 @@ export function PatientNextSteps({
     busyRef.current = value;
     setBusy(value);
   }, []);
-  const [plan, setPlan] = useState<PatientPlan | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
-  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(null);
+  const [plan, setPlan] = useState<PatientPlan | null>(
+    initialResult?.plan ?? null,
+  );
+  const [appointments, setAppointments] = useState<Appointment[] | null>(
+    initialResult?.appointment ? [initialResult.appointment] : null,
+  );
+  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(
+    initialResult?.enrollment ?? null,
+  );
   const [enrollmentGroup, setEnrollmentGroup] = useState<GroupClass | null>(
-    null,
+    initialResult?.group ?? null,
   );
   const [pendingGroup, setPendingGroup] = useState("");
   const [enrollmentError, setEnrollmentError] = useState("");

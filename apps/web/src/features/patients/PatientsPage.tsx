@@ -42,7 +42,11 @@ import { PatientExportModal } from "./PatientExportModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
 import { PatientNextSteps } from "./PatientNextSteps";
-import type { PatientRecordFilter, PatientSort } from "./types";
+import type {
+  PatientRecordFilter,
+  PatientRegistrationResult,
+  PatientSort,
+} from "./types";
 
 export function PatientsPage() {
   const { can, canEdit, user } = useAuthorization();
@@ -58,7 +62,8 @@ export function PatientsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [createdPatient, setCreatedPatient] = useState<Patient | null>(null);
+  const [createdPatient, setCreatedPatient] =
+    useState<PatientRegistrationResult | null>(null);
   const newPatientButton = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -551,7 +556,7 @@ export function PatientsPage() {
             setModalOpen(false);
             setEditingPatient(null);
           }}
-          onSaved={(patient, savedNotice) => {
+          onSaved={(patient, savedNotice, result) => {
             setPatients((current) =>
               [
                 ...current.filter((item) => item.id !== patient.id),
@@ -560,14 +565,15 @@ export function PatientsPage() {
             );
             setNotice(savedNotice ?? "");
             setModalOpen(false);
-            if (!editingPatient && !savedNotice) setCreatedPatient(patient);
+            if (!editingPatient) setCreatedPatient(result ?? { patient });
             setEditingPatient(null);
           }}
         />
       )}
       {createdPatient && (
         <PatientNextSteps
-          patient={createdPatient}
+          patient={createdPatient.patient}
+          initialResult={createdPatient}
           onClose={() => {
             setCreatedPatient(null);
             requestAnimationFrame(() => newPatientButton.current?.focus());

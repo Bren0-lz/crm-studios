@@ -33,7 +33,11 @@ import {
 } from "./model";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 import { PatientProfileFields } from "./PatientProfileFields";
-import type { GuidedPlanForm, GuidedSingleForm } from "./types";
+import type {
+  GuidedPlanForm,
+  GuidedSingleForm,
+  PatientRegistrationResult,
+} from "./types";
 
 export function PatientModal({
   patient,
@@ -45,8 +49,12 @@ export function PatientModal({
   /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
   configuredTags: { tags: PatientTag[] | null; error: string };
   onClose: () => void;
-  /** `notice`: resumo do passo guiado (demonstração agendada, plano criado, turma/lista de espera). */
-  onSaved: (patient: Patient, notice?: string) => void;
+  /** `result` preserva os registros já criados para continuar sem repetir as operações. */
+  onSaved: (
+    patient: Patient,
+    notice?: string,
+    result?: PatientRegistrationResult,
+  ) => void;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<PatientInput>(() => ({
@@ -182,7 +190,10 @@ export function PatientModal({
         return;
       }
       const result = await api.createGuidedPatient(input);
-      onSaved(result.patient, guidedNotice(result, groups ?? []));
+      onSaved(result.patient, guidedNotice(result, groups ?? []), {
+        ...result,
+        group: groups?.find((group) => group.id === result.enrollment?.groupId),
+      });
     } catch (cause) {
       // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);

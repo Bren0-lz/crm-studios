@@ -13161,7 +13161,9 @@ describe("guided client registration", () => {
     expect(
       await screen.findByText(/Aula de demonstração agendada para/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
+    ).toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -13317,14 +13319,19 @@ describe("guided client registration", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );
-    // O aviso aparece fora do modal (a opção "turma cheia (lista de espera)" some com ele).
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "A turma Pilates 2 está cheia: o cliente entrou na lista de espera (posição 2).",
-    );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const nextSteps = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(
+      screen.getByText(
+        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(nextSteps).getByText(
+        "Na lista de espera de Pilates 2 · posição 2",
+      ),
+    ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "plan",
       groupId: groups[1]!.id,

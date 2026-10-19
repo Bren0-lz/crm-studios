@@ -301,6 +301,117 @@ async function saveAppointment(dialog: HTMLElement) {
 }
 
 describe("client next steps", () => {
+  it("continues to scheduling after creating a plan in guided registration", async () => {
+    const createGuided = vi
+      .spyOn(api, "createGuidedPatient")
+      .mockResolvedValue({ patient, plan });
+    const dialog = await openCreation();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    const selector = await within(dialog).findByLabelText("Plano cadastrado");
+    await within(dialog).findByRole("option", { name: /Pilates mensal/ });
+    fireEvent.change(selector, { target: { value: template.id } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+
+    const hub = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(within(hub).getByText("Plano vinculado")).toBeInTheDocument();
+    expect(
+      within(hub).queryByRole("button", { name: "Vincular a plano" }),
+    ).not.toBeInTheDocument();
+    await saveAppointment(await openAppointment());
+    expect(createGuided).toHaveBeenCalledTimes(1);
+    expect(api.createPlan).not.toHaveBeenCalled();
+    expect(api.createPatient).not.toHaveBeenCalled();
+    expect(api.createAppointment).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ patientId: patient.id }),
+    );
+  });
+
+  it("continues to a plan after scheduling a demonstration in guided registration", async () => {
+    const createGuided = vi
+      .spyOn(api, "createGuidedPatient")
+      .mockResolvedValue({
+        patient,
+        appointment: { ...appointment, visitType: "trial" },
+      });
+    const dialog = await openCreation();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+    );
+    const startsAt = await within(dialog).findByLabelText("Data e horário");
+    fireEvent.change(startsAt, { target: { value: "2035-10-10T09:00" } });
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Salvar e agendar demonstração",
+      }),
+    );
+
+    const hub = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(within(hub).getByText("Atendimento agendado")).toBeInTheDocument();
+    expect(
+      within(hub).queryByRole("button", { name: "Agendar atendimento" }),
+    ).not.toBeInTheDocument();
+    await savePlan(await openPlan());
+    expect(createGuided).toHaveBeenCalledTimes(1);
+    expect(api.createAppointment).not.toHaveBeenCalled();
+    expect(api.createPatient).not.toHaveBeenCalled();
+    expect(api.createPlan).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ patientId: patient.id }),
+    );
+  });
+
+  it.each(["active", "waitlisted"] as const)(
+    "retains the completed guided enrollment: %s",
+    async (status) => {
+      vi.spyOn(api, "createGuidedPatient").mockResolvedValue({
+        patient,
+        plan,
+        enrollment: {
+          ...enrollment,
+          status,
+          ...(status === "waitlisted" ? { queuePosition: 3 } : {}),
+        },
+      });
+      const dialog = await openCreation();
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      );
+      const selector = await within(dialog).findByLabelText("Plano cadastrado");
+      await within(dialog).findByRole("option", { name: /Pilates mensal/ });
+      fireEvent.change(selector, { target: { value: template.id } });
+      await within(dialog).findByRole("option", { name: /Pilates 01/ });
+      fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+        target: { value: group.id },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+
+      const hub = await screen.findByRole("dialog", {
+        name: "Cliente cadastrado",
+      });
+      expect(
+        within(hub).getByText(
+          status === "active"
+            ? "Matriculado na turma Pilates 01"
+            : "Na lista de espera de Pilates 01 · posição 3",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(hub).queryByRole("button", { name: "Retomar matrícula" }),
+      ).not.toBeInTheDocument();
+      expect(api.createPlan).not.toHaveBeenCalled();
+      expect(api.createGroupEnrollment).not.toHaveBeenCalled();
+    },
+  );
+
   it("saves once, updates the list and completes without loading other actions", async () => {
     const hub = await createClient();
     expect(within(hub).getByText(patient.fullName)).toBeInTheDocument();

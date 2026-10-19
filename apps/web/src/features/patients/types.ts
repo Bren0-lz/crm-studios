@@ -1,10 +1,16 @@
 import type {
   GuidedPatientInput,
+  GuidedPatientResult,
+  GroupClass,
   Professional,
   Room,
   Service,
 } from "@crm/contracts";
 import { guidedPlanKinds } from "./model";
+
+export type PatientRegistrationResult = GuidedPatientResult & {
+  group?: GroupClass | undefined;
+};
 
 export interface GuidedDemonstrationForm {
   serviceId: string;
