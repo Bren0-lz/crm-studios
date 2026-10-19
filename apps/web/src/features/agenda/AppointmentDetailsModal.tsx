@@ -59,6 +59,7 @@ export function AppointmentDetailsModal({
   onEdited,
   editable,
   initialCancelConfirmation = false,
+  initialEditing = false,
 }: {
   appointment: Appointment;
   patient: Patient | undefined;
@@ -72,6 +73,8 @@ export function AppointmentDetailsModal({
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
   initialCancelConfirmation?: boolean;
+  /** Aberto pelo "Editar" do menu "⋯" (QM7): sair da edição fecha tudo. */
+  initialEditing?: boolean;
 }) {
   const { can } = useAuthorization();
   const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
@@ -102,7 +105,7 @@ export function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing);
   // Ações do rodapé: com uma confirmação aberta (cancelar/falta), só ela aparece.
   const idle = editable && !confirmCancel && !confirmNoShow;
   const canCancel = idle && canChange && can("agenda.cancel");
@@ -211,10 +214,11 @@ export function AppointmentDetailsModal({
     return (
       <AppointmentEditModal
         appointment={appointment}
-        onClose={() => setEditing(false)}
+        onClose={() => (initialEditing ? onClose() : setEditing(false))}
         onSaved={(updated) => {
           setEditing(false);
           onEdited(updated);
+          if (initialEditing) onClose();
         }}
       />
     );

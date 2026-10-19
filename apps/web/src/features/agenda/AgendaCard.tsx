@@ -4,8 +4,9 @@ import {
   type Appointment,
   type AppointmentStatus,
 } from "@crm/contracts";
-import { MoreHorizontal } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
+import { ActionMenu } from "../../shared/components/ActionMenu";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
 import { appointmentStatusClass } from "./model";
@@ -17,6 +18,9 @@ export function AgendaCard({
   onOpen,
   onStatus,
   onHistory,
+  onEdit,
+  onReschedule,
+  onCancel,
   highlighted = false,
 }: {
   appointment: Appointment;
@@ -26,8 +30,46 @@ export function AgendaCard({
   /** Sem `onStatus` (agenda só de consulta) o status fica desabilitado. */
   onStatus?: ((status: AppointmentStatus) => void) | undefined;
   onHistory: () => void;
+  /** Menu "⋯" (QM7): sem o callback (agenda só de consulta) a opção some. */
+  onEdit?: (() => void) | undefined;
+  onReschedule?: (() => void) | undefined;
+  onCancel?: (() => void) | undefined;
 }) {
   const { can } = useAuthorization();
+  // Editar/Remarcar/Cancelar só enquanto agendado ou confirmado; Histórico sempre.
+  const pending =
+    appointment.status === "scheduled" || appointment.status === "confirmed";
+  const menuItems: ActionMenuItem[] = [
+    ...(pending && onEdit
+      ? [
+          {
+            label: "Editar",
+            permission: "agenda.reschedule" as const,
+            onSelect: onEdit,
+          },
+        ]
+      : []),
+    ...(pending && onReschedule
+      ? [
+          {
+            label: "Remarcar",
+            permission: "agenda.reschedule" as const,
+            onSelect: onReschedule,
+          },
+        ]
+      : []),
+    { label: "Histórico", onSelect: onHistory },
+    ...(pending && onCancel
+      ? [
+          {
+            label: "Cancelar",
+            permission: "agenda.cancel" as const,
+            danger: true,
+            onSelect: onCancel,
+          },
+        ]
+      : []),
+  ];
   // Finalizado/falta só a partir de 15 min antes do início (a API também recusa).
   const availability = isAppointmentStarted(appointment)
     ? undefined
@@ -40,7 +82,12 @@ export function AgendaCard({
       tabIndex={0}
       aria-label={`Detalhes de ${appointment.patientName}`}
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("button, select")) onOpen();
+        if (
+          !(event.target as HTMLElement).closest(
+            "button, select, [role='menu']",
+          )
+        )
+          onOpen();
       }}
       onKeyDown={(event) => {
         if (
@@ -123,14 +170,12 @@ export function AgendaCard({
               <option value="cancelled">Cancelado</option>
             )}
           </select>
-          <button
-            className="icon-button button-sm"
-            aria-label={`Histórico de ${appointment.patientName}`}
-            title="Histórico de reagendamentos"
-            onClick={onHistory}
-          >
-            <MoreHorizontal size={19} />
-          </button>
+          <ActionMenu
+            label={`Mais ações do atendimento de ${appointment.patientName}`}
+            items={menuItems}
+            iconOnly
+            align="end"
+          />
         </div>
       </div>
     </article>

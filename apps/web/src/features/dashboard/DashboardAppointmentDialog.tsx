@@ -42,7 +42,8 @@ export function DashboardAppointmentDialog({
   const { appointment, kind } = action;
 
   useEffect(() => {
-    if (kind === "history") return;
+    // Histórico e edição (QM7) carregam os próprios dados.
+    if (kind === "history" || kind === "edit") return;
     let active = true;
     Promise.all([
       kind !== "reschedule" && !appointment.leadId && canSeePatients
@@ -86,6 +87,21 @@ export function DashboardAppointmentDialog({
       <AppointmentRescheduleHistoryModal
         appointment={appointment}
         onClose={onClose}
+      />
+    );
+  if (kind === "edit")
+    // Abre direto na edição da QM6: fechar ou salvar fecha tudo.
+    return (
+      <AppointmentDetailsModal
+        appointment={appointment}
+        patient={undefined}
+        service={undefined}
+        editable={canEdit("agenda")}
+        initialEditing
+        onClose={onClose}
+        onReschedule={onReschedule}
+        onUpdated={onUpdated}
+        onEdited={onUpdated}
       />
     );
   if (!resources)

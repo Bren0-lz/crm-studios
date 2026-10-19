@@ -156,6 +156,18 @@ export function AgendaPage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<
     string | null
   >(null);
+  // Menu "⋯" do cartão (QM7): abre os detalhes já em Editar ou no Cancelar com motivo.
+  const [detailsMode, setDetailsMode] = useState<"view" | "edit" | "cancel">(
+    "view",
+  );
+  function openAppointment(id: string, mode: "view" | "edit" | "cancel") {
+    setDetailsMode(mode);
+    setSelectedAppointmentId(id);
+  }
+  function closeAppointment() {
+    setSelectedAppointmentId(null);
+    setDetailsMode("view");
+  }
   const [eventsDay, setEventsDay] = useState<Date | null>(null);
   // Atendimentos recém-salvos ficam destacados por 2 s depois que aparecem na tela.
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
@@ -826,8 +838,23 @@ export function AgendaPage() {
                   appointment={entry.appointment}
                   key={entry.appointment.id}
                   highlighted={highlightedIds.includes(entry.appointment.id)}
-                  onOpen={() => setSelectedAppointmentId(entry.appointment.id)}
+                  onOpen={() => openAppointment(entry.appointment.id, "view")}
                   onHistory={() => setHistoryAppointment(entry.appointment)}
+                  onEdit={
+                    canSchedule
+                      ? () => openAppointment(entry.appointment.id, "edit")
+                      : undefined
+                  }
+                  onReschedule={
+                    canSchedule
+                      ? () => setRescheduling(entry.appointment)
+                      : undefined
+                  }
+                  onCancel={
+                    canSchedule
+                      ? () => openAppointment(entry.appointment.id, "cancel")
+                      : undefined
+                  }
                   onStatus={
                     can("agenda.attendance") || can("agenda.cancel")
                       ? (status) =>
@@ -941,6 +968,9 @@ export function AgendaPage() {
       )}
       {selectedAppointment && (
         <AppointmentDetailsModal
+          key={`${selectedAppointment.id}-${detailsMode}`}
+          initialEditing={detailsMode === "edit"}
+          initialCancelConfirmation={detailsMode === "cancel"}
           appointment={selectedAppointment}
           patient={patientRecords.find(
             (item) => item.id === selectedAppointment.patientId,
@@ -948,10 +978,10 @@ export function AgendaPage() {
           service={services.find(
             (item) => item.id === selectedAppointment.serviceId,
           )}
-          onClose={() => setSelectedAppointmentId(null)}
+          onClose={closeAppointment}
           editable={canSchedule}
           onReschedule={() => {
-            setSelectedAppointmentId(null);
+            closeAppointment();
             setRescheduling(selectedAppointment);
           }}
           onEdited={(updated) => {
@@ -972,7 +1002,7 @@ export function AgendaPage() {
               updated.status !== "completed" &&
               updated.status !== "cancelled"
             )
-              setSelectedAppointmentId(null);
+              closeAppointment();
           }}
         />
       )}

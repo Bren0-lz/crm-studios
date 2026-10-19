@@ -10,7 +10,7 @@ export type ActionMenuItem = {
 };
 
 export type DashboardAppointmentAction = {
-  kind: "details" | "cancel" | "reschedule" | "history";
+  kind: "details" | "edit" | "cancel" | "reschedule" | "history";
   appointment: Appointment;
 };
 

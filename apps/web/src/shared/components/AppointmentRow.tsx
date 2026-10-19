@@ -49,6 +49,11 @@ export function AppointmentRow({
     ...(pending
       ? [
           {
+            label: "Editar atendimento",
+            permission: "agenda.reschedule" as const,
+            onSelect: () => onAction("edit"),
+          },
+          {
             label: "Remarcar atendimento",
             permission: "agenda.reschedule" as const,
             onSelect: () => onAction("reschedule"),

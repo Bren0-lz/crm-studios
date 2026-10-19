@@ -128,12 +128,16 @@ describe("dashboard appointment actions", () => {
             { message: "Não foi possível salvar o atendimento." },
             500,
           );
-        const index = appointments.findIndex((item) =>
-          url.includes(`/${item.id}/`),
+        const index = appointments.findIndex(
+          (item) =>
+            url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
         );
         const original = appointments[index]!;
+        // PATCH sem status é a edição de serviço, sala e observação (QM6/QM7).
         appointments[index] =
-          init.method === "PATCH"
+          init.method === "PATCH" && !("status" in body)
+            ? { ...original, ...body }
+            : init.method === "PATCH"
             ? { ...original, status: body.status as Appointment["status"] }
             : {
                 ...original,
@@ -277,6 +281,7 @@ describe("dashboard appointment actions", () => {
       "Ver detalhes",
       "Confirmar atendimento",
       "Finalizar atendimento",
+      "Editar atendimento",
       "Remarcar atendimento",
       "Cancelar atendimento",
       "Histórico de reagendamentos",
@@ -322,6 +327,7 @@ describe("dashboard appointment actions", () => {
     ).toEqual([
       "Ver detalhes",
       "Confirmar atendimento",
+      "Editar atendimento",
       "Remarcar atendimento",
       "Cancelar atendimento",
       "Histórico de reagendamentos",
@@ -566,6 +572,60 @@ describe("dashboard appointment actions", () => {
           /\/(patients|services|professionals|rooms)/.test(String(url)),
         ),
     ).toBe(false);
+  });
+
+  it("edits service, room and note from the menu and refreshes the panel (QM7)", async () => {
+    const { controls } = setup({ count: 2 });
+    const { menu, trigger } = await openMenu("Ana 1");
+    fireEvent.click(
+      within(menu).getByRole("menuitem", { name: "Editar atendimento" }),
+    );
+    // Abre direto na edição da QM6, sem passar pelos detalhes.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Editar atendimento",
+    });
+    expect(
+      screen.queryByRole("dialog", { name: "Detalhes do atendimento" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(await within(dialog).findByLabelText("Observação"), {
+      target: { value: "Trazer exames" },
+    });
+    const readsBefore = controls.dashboardReads;
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar alterações" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(controls.writes).toEqual([
+      {
+        url: expect.stringMatching(/\/appointments\/appointment-1$/),
+        method: "PATCH",
+        body: { serviceId: "service", roomId: "room", notes: "Trazer exames" },
+      },
+    ]);
+    await waitFor(() =>
+      expect(controls.dashboardReads).toBeGreaterThan(readsBefore),
+    );
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("closes everything when leaving the edit opened from the menu (QM7)", async () => {
+    const { controls } = setup();
+    const { menu } = await openMenu();
+    fireEvent.click(
+      within(menu).getByRole("menuitem", { name: "Editar atendimento" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Editar atendimento",
+    });
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Voltar" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(controls.writes).toEqual([]);
   });
 
   it("opens lead details without requesting patient records", async () => {
