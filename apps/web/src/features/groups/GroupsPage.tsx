@@ -34,6 +34,10 @@ import {
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 
 /**
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
@@ -98,6 +102,21 @@ export function GroupsPage() {
     startsOn: saoPauloToday(),
   });
   const createDirty = useFormDirty(groupForm, groupDialog === "create");
+  const createMissing = useMissingFields(
+    [
+      ...missingLabels([
+        ["Serviço", groupForm.serviceId],
+        ["Profissional", groupForm.professionalId],
+        ["Sala", groupForm.roomId],
+      ]),
+      ...(groupForm.weeklySlots.length ? [] : ["Horários semanais"]),
+    ],
+    "field-hint",
+  );
+  const editMissing = useMissingFields(
+    editingSlots.length ? [] : ["Horários semanais"],
+    "field-hint",
+  );
   const enrollDirty = useFormDirty(enrollmentForm, groupDialog === "enroll");
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
@@ -379,10 +398,12 @@ export function GroupsPage() {
                         {describeGroupSchedule(groupForm.weeklySlots)}
                       </div>
                     </section>
+                    {createMissing.hint}
                     <div className="modal-actions group-modal-actions">
                       <button
                         className="primary-button"
-                        disabled={groupForm.weeklySlots.length === 0}
+                        disabled={createMissing.blocked}
+                        aria-describedby={createMissing.describedBy}
                       >
                         Criar turma
                       </button>
@@ -677,10 +698,12 @@ export function GroupsPage() {
                             onChange={setEditingSlots}
                             weekDayNames={weekDayNames}
                           />
+                          {editMissing.hint}
                           <div className="modal-actions group-modal-actions">
                             <button
                               className="primary-button"
-                              disabled={editingSlots.length === 0}
+                              disabled={editMissing.blocked}
+                              aria-describedby={editMissing.describedBy}
                             >
                               Salvar alterações
                             </button>

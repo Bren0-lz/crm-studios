@@ -119,12 +119,16 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const issue = screen.getByRole("button", { name: "Criar rascunho" });
     expect(issue).toBeDisabled();
+    // Sem cliente, o botão diz o que falta (QM14).
+    expect(issue).toHaveAccessibleDescription("Falta: Cliente.");
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: patient.fullName },
     });
     fireEvent.click(
       await screen.findByRole("option", { name: patient.fullName }),
     );
+    expect(issue).toBeEnabled();
+    expect(issue).not.toHaveAttribute("aria-describedby");
     fireEvent.click(issue);
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");

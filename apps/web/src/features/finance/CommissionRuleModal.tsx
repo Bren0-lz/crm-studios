@@ -77,21 +77,23 @@ export function CommissionRuleModal({
       subtitle="Regra geral ou específica de serviço"
       effect="A regra do usuário prevalece sobre a do profissional. Em cada origem, a regra do serviço prevalece sobre a geral. Os lançamentos preservam a regra utilizada."
       confirmLabel="Salvar"
+      missing={[
+        ...((origin === "user" ? userId : professionalId)
+          ? []
+          : [origin === "user" ? "Usuário" : "Profissional"]),
+        ...(kind === "percentage" && percentage.trim() === ""
+          ? ["Percentual (%)"]
+          : []),
+        ...(effectiveFrom ? [] : ["Vale a partir de"]),
+      ]}
+      // Regras, não faltas: percentual fora de 0–100 e vigência invertida.
       validate={() => {
-        if (origin === "user" ? !userId : !professionalId)
-          return "Selecione o responsável pela regra.";
         if (
           kind === "percentage" &&
-          (percentage.trim() === "" ||
-            !Number.isFinite(value) ||
-            value < 0 ||
-            value > 100)
+          (!Number.isFinite(value) || value < 0 || value > 100)
         )
           return "Informe um percentual entre 0 e 100.";
-        if (
-          !effectiveFrom ||
-          (effectiveUntil && effectiveUntil < effectiveFrom)
-        )
+        if (effectiveUntil && effectiveUntil < effectiveFrom)
           return "Revise a vigência da regra.";
         return "";
       }}

@@ -167,9 +167,20 @@ afterEach(() => vi.useRealTimers());
 describe("replacement booking", () => {
   it("offers only future sessions with seats, other than the source, and confirms with a toast", async () => {
     renderGroups([credit]);
+    const book = await screen.findByRole("button", {
+      name: "Reservar reposição",
+    });
+    // O que falta fica listado e ligado ao botão desativado (QM14).
+    expect(book).toBeDisabled();
+    expect(book).toHaveAccessibleDescription(
+      "Falta: Crédito de reposição, Encontro de reposição.",
+    );
     fireEvent.change(await screen.findByLabelText("Crédito de reposição"), {
       target: { value: credit.id },
     });
+    expect(book).toHaveAccessibleDescription(
+      "Falta: Encontro de reposição.",
+    );
     const target = screen.getByLabelText("Encontro de reposição");
     expect(
       within(target)
@@ -177,6 +188,8 @@ describe("replacement booking", () => {
         .map((item) => item.textContent),
     ).toEqual(["Selecione", "20/10 · 18:00 · 3 vagas"]);
     fireEvent.change(target, { target: { value: sessionId["2026-10-20"] } });
+    expect(book).toBeEnabled();
+    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reservar reposição" }));
     const toast = await vi.waitFor(() => {
       const found = document.querySelector(".toast-success");

@@ -80,13 +80,24 @@ describe("assessment without templates", () => {
     const templateDialog = screen.getByRole("dialog", {
       name: "Novo modelo de avaliação",
     });
+    // O que falta para publicar fica listado e ligado aos botões (QM14).
+    const publish = within(templateDialog).getByRole("button", {
+      name: "Publicar modelo",
+    });
+    expect(publish).toBeDisabled();
+    expect(publish).toHaveAccessibleDescription(
+      "Falta: Nome do modelo (pelo menos 3 caracteres), Pergunta do campo 1.",
+    );
     fireEvent.change(within(templateDialog).getByLabelText("Nome do modelo"), {
       target: { value: "Avaliação postural" },
     });
+    expect(publish).toHaveAccessibleDescription("Falta: Pergunta do campo 1.");
     fireEvent.change(
       within(templateDialog).getByLabelText("Pergunta ou título"),
       { target: { value: "Queixa principal" } },
     );
+    expect(publish).toBeEnabled();
+    expect(within(templateDialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(templateDialog).getByRole("button", { name: "Publicar modelo" }),
     );

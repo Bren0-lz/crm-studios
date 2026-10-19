@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
@@ -39,6 +40,24 @@ export function ClinicalAssessmentModal({
   const [saving, setSaving] = useState(false);
   const dirty = useFormDirty({ templateId, values, notes });
   const template = templates.find((item) => item.id === templateId);
+  // Modelo e campos obrigatórios do modelo: Registrar fica desativado listando o que falta.
+  const missing = useMissingFields(
+    [
+      ...(templateId ? [] : ["Modelo"]),
+      ...(template?.fields ?? [])
+        .filter((field) => field.type !== "section" && field.required)
+        .filter((field) => {
+          const value = values[field.key];
+          return (
+            value === undefined ||
+            (typeof value === "string" && !value.trim()) ||
+            (Array.isArray(value) && value.length === 0)
+          );
+        })
+        .map((field) => field.label),
+    ],
+    "field-hint",
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -126,9 +145,14 @@ export function ClinicalAssessmentModal({
             />
           </label>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
             <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={!templateId || saving}>
+            <button
+              className="primary-button"
+              disabled={missing.blocked || saving}
+              aria-describedby={missing.describedBy}
+            >
               Registrar avaliação
             </button>
           </div>

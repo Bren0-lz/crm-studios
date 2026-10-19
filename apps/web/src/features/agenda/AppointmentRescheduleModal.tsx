@@ -4,6 +4,10 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
+import {
+  isCompleteDateTime,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
@@ -48,6 +52,13 @@ export function AppointmentRescheduleModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      !form.professionalId && "Profissional",
+      !form.roomId && "Sala",
+      !isCompleteDateTime(form.startsAt) && "Nova data e horário",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -134,9 +145,14 @@ export function AppointmentRescheduleModal({
             />
           </div>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading ? "Salvando…" : "Confirmar reagendamento"}
             </button>
           </div>

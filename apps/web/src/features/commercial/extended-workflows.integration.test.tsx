@@ -111,7 +111,16 @@ describe("extended commercial workflows", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Atividades" }));
     const activity = screen.getByRole("dialog");
     const task = await within(activity).findByLabelText("Tarefa");
+    // Sem título, "Adicionar tarefa" fica desativado dizendo o que falta (QM14).
+    fireEvent.change(task, { target: { value: " " } });
+    const addTask = within(activity).getByRole("button", {
+      name: "Adicionar tarefa",
+    });
+    expect(addTask).toBeDisabled();
+    expect(addTask).toHaveAccessibleDescription("Falta: Tarefa.");
     fireEvent.change(task, { target: { value: "Retorno programado" } });
+    expect(addTask).toBeEnabled();
+    expect(within(activity).queryByText(/Falta:/)).not.toBeInTheDocument();
     change(activity, "Observações", "Confirmar disponibilidade");
     fireEvent.submit(task.closest("form")!);
     await within(activity).findByText("Retorno programado", { exact: true });

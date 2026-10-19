@@ -20,6 +20,14 @@ describe("client management through real HTTP handlers", () => {
     open("/clientes");
     await findMoreAction("Mesclar clientes");
     const dialog = screen.getByRole("dialog", { name: "Mesclar clientes" });
+    // Sem os dois cadastros, a prévia diz o que falta (QM14).
+    const previewButton = within(dialog).getByRole("button", {
+      name: "Visualizar prévia",
+    });
+    expect(previewButton).toBeDisabled();
+    expect(previewButton).toHaveAccessibleDescription(
+      "Falta: Cadastro duplicado, Cadastro principal.",
+    );
     for (const [label, patient] of [
       ["Cadastro duplicado", source],
       ["Cadastro principal", target],
@@ -41,8 +49,11 @@ describe("client management through real HTTP handlers", () => {
       name: "Confirmar mesclagem",
     });
     expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAccessibleDescription("Falta: Nome, Telefone.");
     for (const select of within(dialog).getAllByRole("combobox"))
       fireEvent.change(select, { target: { value: "target" } });
+    expect(confirm).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     await save("Mesclar clientes", "Confirmar mesclagem");
     expect(
       await screen.findByText(
@@ -134,13 +145,16 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     await within(dialog).findByRole("option", {
       name: new RegExp(service!.name),
     });
+    // Sem atendimento escolhido, o botão diz o que falta (QM14).
+    const link = within(dialog)
+      .getAllByRole("button", { name: "Vincular atendimento" })
+      .at(-1)!;
+    expect(link).toBeDisabled();
+    expect(link).toHaveAccessibleDescription("Falta: Atendimento.");
     change("Atendimento", appointment.id, dialog);
-    fireEvent.submit(
-      within(dialog)
-        .getAllByRole("button", { name: "Vincular atendimento" })
-        .at(-1)!
-        .closest("form")!,
-    );
+    expect(link).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+    fireEvent.submit(link.closest("form")!);
     await within(dialog).findByText("Serviço adicionado à comanda.");
     expect(
       (await repository.getInventoryWorkspace(clinicId)).tabs.find(
@@ -208,7 +222,15 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     const dialog = await screen.findByRole("dialog", {
       name: `Comanda · ${patient.fullName}`,
     });
+    // Sem produto, o botão diz o que falta (QM14).
+    const addProduct = within(dialog)
+      .getAllByRole("button", { name: "Adicionar produto" })
+      .at(-1)!;
+    expect(addProduct).toBeDisabled();
+    expect(addProduct).toHaveAccessibleDescription("Falta: Produto.");
     change("Produto", product.id, dialog);
+    expect(addProduct).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     change("Quantidade", "2", dialog);
     fireEvent.click(
       within(dialog)

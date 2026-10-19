@@ -12,7 +12,7 @@ import {
   whatsappLink,
 } from "@crm/contracts";
 import { MessageCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -80,6 +80,8 @@ export function AppointmentDetailsModal({
   const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const cancelMissingId = useId();
+  const noShowMissingId = useId();
   const [cancelDetails, setCancelDetails] = useState("");
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [noShowReason, setNoShowReason] = useState("");
@@ -126,11 +128,7 @@ export function AppointmentDetailsModal({
     !alreadyRated &&
     can("agenda.satisfaction_create");
   const hasActions =
-    canCancel ||
-    canEditDetails ||
-    canRescheduleAbsence ||
-    canAttend ||
-    canRate;
+    canCancel || canEditDetails || canRescheduleAbsence || canAttend || canRate;
   const hasFooter =
     hasActions ||
     Boolean(error) ||
@@ -496,6 +494,11 @@ export function AppointmentDetailsModal({
                     onChange={(event) => setCancelDetails(event.target.value)}
                   />
                 </label>
+                {!cancelReason && (
+                  <p className="field-hint" id={cancelMissingId}>
+                    Falta: Motivo do cancelamento.
+                  </p>
+                )}
                 <div>
                   <button
                     className="secondary-button"
@@ -509,6 +512,9 @@ export function AppointmentDetailsModal({
                       className="danger-button"
                       onClick={() => void cancelAppointment()}
                       disabled={cancelling || !cancelReason}
+                      aria-describedby={
+                        cancelReason ? undefined : cancelMissingId
+                      }
                     >
                       {cancelling ? "Cancelando…" : "Confirmar cancelamento"}
                     </button>
@@ -530,6 +536,11 @@ export function AppointmentDetailsModal({
                     onChange={(event) => setNoShowReason(event.target.value)}
                   />
                 </label>
+                {noShowReason.trim().length === 1 && (
+                  <p className="field-hint" id={noShowMissingId}>
+                    Falta: Motivo (pelo menos 2 caracteres).
+                  </p>
+                )}
                 <div>
                   <button
                     className="secondary-button"
@@ -542,6 +553,11 @@ export function AppointmentDetailsModal({
                     className="primary-button"
                     onClick={() => void changeStatus("no_show")}
                     disabled={savingStatus || noShowReason.trim().length === 1}
+                    aria-describedby={
+                      noShowReason.trim().length === 1
+                        ? noShowMissingId
+                        : undefined
+                    }
                   >
                     {savingStatus ? "Registrando…" : "Registrar falta"}
                   </button>

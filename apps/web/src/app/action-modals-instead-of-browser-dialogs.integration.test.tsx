@@ -97,12 +97,13 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), {
         target: { value: "   " },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
+      // Sem motivo, Confirmar fica desativado e diz o que falta (QM14).
       expect(
-        within(dialog).getByText("Informe o motivo da perda."),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toHaveAccessibleDescription("Falta: Motivo da perda.");
       expect(writes()).toHaveLength(0);
       expect(
         within(dialog).getByRole("button", { name: "Confirmar" }),

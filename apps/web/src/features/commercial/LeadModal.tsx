@@ -16,6 +16,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 
@@ -47,6 +48,14 @@ export function LeadModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [baseline] = useState(() => JSON.stringify({ form, tagText }));
+  const missing = useMissingFields(
+    [
+      !form.fullName.trim() && "Nome completo",
+      !form.phone.trim() && "Telefone",
+      !form.source.trim() && "Origem",
+      !form.interest.trim() && "Interesse",
+    ].filter((item): item is string => Boolean(item)),
+  );
   const navigate = useNavigate();
   const contactKey = (input: LeadInput) =>
     JSON.stringify([
@@ -297,6 +306,7 @@ export function LeadModal({
               </div>
             )}
             {error && <div className="form-error span-2">{error}</div>}
+            {missing.hint}
             <div className="modal-actions span-2">
               <button
                 type="button"
@@ -306,7 +316,11 @@ export function LeadModal({
               >
                 Cancelar
               </button>
-              <button className="primary-button" disabled={loading}>
+              <button
+                className="primary-button"
+                disabled={loading || missing.blocked}
+                aria-describedby={missing.describedBy}
+              >
                 {loading
                   ? "Salvando…"
                   : lead

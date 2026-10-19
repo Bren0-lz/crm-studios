@@ -6,6 +6,7 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
@@ -35,6 +36,11 @@ export function ClinicalRecordModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
+  // O rascunho aceita etapas em branco, mas precisa do atendimento.
+  const missing = useMissingFields(
+    form.appointmentId ? [] : ["Atendimento"],
+    "field-hint",
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -144,9 +150,14 @@ export function ClinicalRecordModal({
             />
           </label>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
             <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading ? "Salvando…" : "Salvar rascunho"}
             </button>
           </div>

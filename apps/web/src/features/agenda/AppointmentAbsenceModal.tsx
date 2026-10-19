@@ -28,10 +28,10 @@ export function AppointmentAbsenceModal({
           : "A falta não consome sessão. Uma correção de presença restitui o débito original."
       }
       confirmLabel="Registrar ausência"
-      validate={() =>
+      missing={
         reason.trim().length >= 2 || (optional && reason.trim().length === 0)
-          ? ""
-          : "Informe o motivo da ausência."
+          ? []
+          : ["Motivo da ausência (pelo menos 2 caracteres)"]
       }
       dirty={dirty}
       onClose={onClose}

@@ -11,6 +11,7 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
@@ -80,6 +81,15 @@ export function LeadActivityModal({
     contact: contact.notes,
     task: [task.title, task.notes],
   });
+  const taskMissing = useMissingFields(
+    [
+      !task.title.trim() && "Tarefa",
+      !task.dueAt && "Vencimento",
+    ].filter((item): item is string => Boolean(item)),
+  );
+  const contactMissing = useMissingFields(
+    contact.notes.trim() ? [] : ["Registro do contato"],
+  );
   useEffect(() => {
     let active = true;
     api
@@ -217,8 +227,13 @@ export function LeadActivityModal({
                   }
                 />
               </label>
+              {taskMissing.hint}
               <div className="modal-actions">
-                <button className="primary-button" disabled={saving}>
+                <button
+                  className="primary-button"
+                  disabled={saving || taskMissing.blocked}
+                  aria-describedby={taskMissing.describedBy}
+                >
                   Adicionar tarefa
                 </button>
               </div>
@@ -323,8 +338,13 @@ export function LeadActivityModal({
                   }
                 />
               </label>
+              {contactMissing.hint}
               <div className="modal-actions">
-                <button className="primary-button" disabled={saving}>
+                <button
+                  className="primary-button"
+                  disabled={saving || contactMissing.blocked}
+                  aria-describedby={contactMissing.describedBy}
+                >
                   Registrar contato
                 </button>
               </div>

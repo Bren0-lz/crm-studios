@@ -103,12 +103,20 @@ describe("lead origin and interest selects", () => {
       name: "Interesse",
     });
     await waitFor(() => expect(options(interest)).toContain("Dançaterapia"));
+    // Sem nome e telefone, o botão diz o que falta (QM14).
+    const add = within(dialog).getByRole("button", {
+      name: "Adicionar ao funil",
+    });
+    expect(add).toBeDisabled();
+    expect(add).toHaveAccessibleDescription("Falta: Nome completo, Telefone.");
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Lead Novo" },
     });
     fireEvent.change(within(dialog).getByLabelText("Telefone"), {
       target: { value: "11977776666" },
     });
+    expect(add).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.change(interest, { target: { value: "Dançaterapia" } });
     fireEvent.change(origin, { target: { value: "__other__" } });
     fireEvent.change(within(dialog).getByLabelText("Origem: qual?"), {

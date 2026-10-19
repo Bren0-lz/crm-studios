@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -31,6 +32,11 @@ export function CommissionReconciliationModal({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const reasonMissing = useMissingFields(
+    reason.trim().length < 5
+      ? ["Motivo da conciliação (pelo menos 5 caracteres)"]
+      : [],
+  );
   const [confirmation, setConfirmation] = useState<
     | { kind: "pay"; balance: CommissionAccountBalance }
     | { kind: "reverse"; payment: CommissionAccountPayment }
@@ -204,8 +210,13 @@ export function CommissionReconciliationModal({
                         onChange={(event) => setReason(event.target.value)}
                       />
                     </label>
+                    {reasonMissing.hint}
                     <div className="modal-actions span-2">
-                      <button className="primary-button" disabled={busy}>
+                      <button
+                        className="primary-button"
+                        disabled={busy || reasonMissing.blocked}
+                        aria-describedby={reasonMissing.describedBy}
+                      >
                         Confirmar conciliação
                       </button>
                       <button

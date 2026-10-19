@@ -7,6 +7,7 @@ import {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
@@ -36,6 +37,9 @@ export function ContactActivityModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty({ outcome, notes, snoozeUntil });
+  const missing = useMissingFields(
+    outcome === "snoozed" && !snoozeUntil ? ["Adiar até"] : [],
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -120,9 +124,14 @@ export function ContactActivityModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading ? "Salvando…" : "Salvar contato"}
             </button>
           </div>

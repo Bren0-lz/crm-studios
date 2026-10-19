@@ -39,16 +39,20 @@ export function RenegotiateModal({
       title="Renegociar parcelas"
       subtitle={`${names} · ${receivables.length} parcela${receivables.length === 1 ? "" : "s"} · ${currency.format(total / 100)}`}
       effect="As parcelas selecionadas são canceladas e substituídas pelas novas, com o valor total dividido igualmente e vencimentos mensais a partir da primeira data."
-      validate={() => {
-        if (reaisToCents(value) === null)
-          return "Informe o novo valor total em reais (zero ou mais).";
-        if (!Number.isInteger(count) || count < 1 || count > 36)
-          return "Informe de 1 a 36 parcelas.";
-        if (!firstDueDate) return "Escolha a data do primeiro vencimento.";
-        if (reason.trim().length < 5)
-          return "Escreva o motivo da renegociação (pelo menos 5 caracteres).";
-        return "";
-      }}
+      missing={[
+        ...(reaisToCents(value) === null ? ["Novo valor total"] : []),
+        ...(installments.trim() ? [] : ["Número de parcelas"]),
+        ...(firstDueDate ? [] : ["Primeiro vencimento"]),
+        ...(reason.trim().length < 5
+          ? ["Motivo da renegociação (pelo menos 5 caracteres)"]
+          : []),
+      ]}
+      // Regra, não falta: o número de parcelas preenchido precisa estar entre 1 e 36.
+      validate={() =>
+        !Number.isInteger(count) || count < 1 || count > 36
+          ? "Informe de 1 a 36 parcelas."
+          : ""
+      }
       onConfirm={() =>
         onConfirm({
           totalAmountInCents: reaisToCents(value) ?? 0,

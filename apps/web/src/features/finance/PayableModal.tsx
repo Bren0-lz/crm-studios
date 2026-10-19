@@ -7,6 +7,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { localIsoDate } from "../../shared/lib/formatting";
@@ -57,12 +58,15 @@ export function PayableModal({
   }, []);
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
-  const missing = [
-    form.description.trim().length < 3 && "descrição",
-    !form.categoryId && "categoria",
-    !form.dueDate && "vencimento",
-    form.amountInCents <= 0 && "valor",
-  ].filter((item): item is string => Boolean(item));
+  const missing = useMissingFields(
+    [
+      form.description.trim().length < 3 &&
+        "Descrição (pelo menos 3 caracteres)",
+      !form.categoryId && "Categoria",
+      !form.dueDate && "Vencimento",
+      form.amountInCents <= 0 && "Valor",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -309,16 +313,13 @@ export function PayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
-          {missing.length > 0 && (
-            <p className="muted-copy payable-missing span-2">
-              Para cadastrar, preencha: {missing.join(", ")}.
-            </p>
-          )}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Salvando…" : "Cadastrar despesa"}
             </button>

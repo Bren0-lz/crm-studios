@@ -175,12 +175,19 @@ describe("configured plan catalog", () => {
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeDisabled();
+    // O que falta fica listado e ligado ao botão (QM14).
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toHaveAccessibleDescription("Falta: Cliente, Plano cadastrado.");
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: "Cliente teste" },
     });
     fireEvent.click(
       await screen.findByRole("option", { name: "Cliente teste" }),
     );
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toHaveAccessibleDescription("Falta: Plano cadastrado.");
     expect(
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();
@@ -211,6 +218,10 @@ describe("configured plan catalog", () => {
     fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
       target: { value: "99.99" },
     });
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     );
@@ -311,12 +322,17 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
+    // O que falta no serviço novo fica listado e ligado ao botão (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
     fill("Valor do serviço 2", "25.50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -5217,9 +5233,13 @@ describe("application shell", () => {
     fireEvent.submit(
       within(panel).getByLabelText("Texto do comunicado").closest("form")!,
     );
+    // Sem texto, "Ver prévia" fica desativado dizendo o que falta (QM14).
     expect(
-      within(panel).getByText("Escreva o texto do comunicado."),
-    ).toBeInTheDocument();
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeDisabled();
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toHaveAccessibleDescription("Falta: Texto do comunicado.");
     expect(
       vi
         .mocked(fetch)
@@ -5229,6 +5249,10 @@ describe("application shell", () => {
     fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
       target: { value: "Aviso geral" },
     });
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeEnabled();
+    expect(within(panel).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
     expect(
       await within(panel).findByText(
@@ -6372,6 +6396,14 @@ describe("application shell", () => {
     expect(
       within(dialog).queryByRole("option", { name: "Mensalidades" }),
     ).not.toBeInTheDocument();
+    // Antes de preencher, o botão diz o que falta (QM14).
+    const createRecurring = within(dialog).getByRole("button", {
+      name: "Cadastrar despesa fixa",
+    });
+    expect(createRecurring).toBeDisabled();
+    expect(createRecurring).toHaveAccessibleDescription(
+      "Falta: Descrição (pelo menos 3 caracteres), Valor mensal.",
+    );
     fireEvent.change(within(dialog).getByLabelText("Descrição"), {
       target: { value: "Contador" },
     });
@@ -6390,6 +6422,8 @@ describe("application shell", () => {
     fireEvent.change(within(dialog).getByLabelText("Mês final (opcional)"), {
       target: { value: "2027-09" },
     });
+    expect(createRecurring).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     const loadsBeforeCreate = workspaceLoads();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }),
@@ -7246,29 +7280,30 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // O que falta fica listado e Confirmar desativado, sem erro após o clique (QM14).
+      const adjustConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Informe o novo valor em reais (zero ou mais).",
-        ),
-      ).toHaveClass("form-error");
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "199.9" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
+        target: { value: "Desc" },
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Escreva a justificativa do ajuste (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "  Desconto combinado " },
       });
+      expect(adjustConfirm).toBeEnabled();
+      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
       );
@@ -7388,26 +7423,38 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // Campos que faltam: Confirmar desativado com a lista (QM14).
+      const renegotiateConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Motivo da renegociação (pelo menos 5 caracteres).",
       );
+      fireEvent.change(
+        within(dialog).getByLabelText("Motivo da renegociação"),
+        { target: { value: "Cliente pediu para parcelar" } },
+      );
+      expect(renegotiateConfirm).toBeEnabled();
+      // Fora do intervalo é regra, não falta: erro uma única vez após o clique.
+      fireEvent.click(renegotiateConfirm);
       expect(
         within(dialog).getByText("Informe de 1 a 36 parcelas."),
       ).toHaveClass("form-error");
+      expect(within(dialog).getAllByText(/1 a 36 parcelas/)).toHaveLength(1);
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "3" },
       });
       fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+        target: { value: "" },
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Primeiro vencimento.",
+      );
+      fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
         target: { value: "2026-11-10" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
-      expect(
-        within(dialog).getByText(
-          "Escreva o motivo da renegociação (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(
         within(dialog).getByLabelText("Motivo da renegociação"),
@@ -7453,12 +7500,13 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " a " },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      // Nome curto: Salvar desativado com o que falta (QM14).
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " Material de limpeza " },
@@ -7478,12 +7526,9 @@ describe("application shell", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Novo centro de custo",
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: "Estúdio" },
       });
@@ -7879,8 +7924,21 @@ describe("application shell", () => {
         target: { value: professionals[1]!.id },
       });
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "" },
+      });
+      // Campo vazio é falta: Salvar desativado com a lista (QM14).
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Percentual (%).");
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "120" },
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeEnabled();
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
         within(dialog).getByText("Informe um percentual entre 0 e 100."),
@@ -11863,12 +11921,13 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), {
         target: { value: "   " },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
+      // Sem motivo, Confirmar fica desativado e diz o que falta (QM14).
       expect(
-        within(dialog).getByText("Informe o motivo da perda."),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toHaveAccessibleDescription("Falta: Motivo da perda.");
       expect(writes()).toHaveLength(0);
       expect(
         within(dialog).getByRole("button", { name: "Confirmar" }),

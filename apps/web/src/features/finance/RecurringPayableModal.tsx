@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -42,12 +43,15 @@ export function RecurringPayableModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
-  const missing = [
-    form.description.trim().length < 3 && "descrição",
-    !form.categoryId && "categoria",
-    !form.costCenterId && "centro de custo",
-    form.amountInCents <= 0 && "valor mensal",
-  ].filter((item): item is string => Boolean(item));
+  const missing = useMissingFields(
+    [
+      form.description.trim().length < 3 &&
+        "Descrição (pelo menos 3 caracteres)",
+      !form.categoryId && "Categoria",
+      !form.costCenterId && "Centro de custo",
+      form.amountInCents <= 0 && "Valor mensal",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -222,16 +226,13 @@ export function RecurringPayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
-          {missing.length > 0 && (
-            <p className="muted-copy payable-missing span-2">
-              Para cadastrar, preencha: {missing.join(", ")}.
-            </p>
-          )}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId || !form.costCenterId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Salvando…" : "Cadastrar despesa fixa"}
             </button>

@@ -22,6 +22,10 @@ import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import {
   clinicIsoDate,
@@ -69,6 +73,12 @@ export function GroupOperationsPanel({
   const [busy, setBusy] = useState(false);
   const [creditId, setCreditId] = useState("");
   const [targetId, setTargetId] = useState("");
+  const replacementMissing = useMissingFields(
+    missingLabels([
+      ["Crédito de reposição", creditId],
+      ["Encontro de reposição", targetId],
+    ]),
+  );
   const [bookingError, setBookingError] = useState("");
   const [booked, setBooked] = useState("");
   // Instante de referência para "encontro futuro"; renovado ao escolher o crédito.
@@ -414,9 +424,11 @@ export function GroupOperationsPanel({
                 ))}
               </select>
             </label>
+            {replacementMissing.hint}
             <button
               className="primary-button"
-              disabled={busy || !creditId || !targetId}
+              disabled={busy || replacementMissing.blocked}
+              aria-describedby={replacementMissing.describedBy}
             >
               Reservar reposição
             </button>

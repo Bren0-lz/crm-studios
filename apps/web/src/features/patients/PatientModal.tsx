@@ -16,6 +16,7 @@ import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
@@ -128,6 +129,27 @@ export function PatientModal({
     singleForm,
     groupId,
   });
+  // O que falta no cadastro e na etapa guiada escolhida: o botão fica desativado listando (QM14).
+  const guidedPlan = step === "plan" ? planForm : singleForm;
+  const missing = useMissingFields([
+    ...(form.fullName.trim() ? [] : ["Nome completo"]),
+    ...(form.phone.trim() ? [] : ["Telefone"]),
+    ...(step === "demonstration"
+      ? [
+          !demonstration.serviceId && "Serviço",
+          !demonstration.professionalId && "Profissional",
+          !demonstration.roomId && "Sala",
+          !demonstration.startsAt && "Data e horário",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+    ...(step === "plan" || step === "single"
+      ? [
+          !guidedPlan.planTemplateId && "Plano cadastrado",
+          !guidedPlan.validFrom && "Início",
+          !guidedPlan.firstDueDate && "Primeiro vencimento",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+  ]);
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
@@ -434,12 +456,17 @@ export function PatientModal({
             salvas.
           </p>
         )}
+        {editable && missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={loading}>
             {editable ? "Cancelar" : "Fechar"}
           </ModalCancelButton>
           {editable && (
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading
                 ? "Salvando…"
                 : patient

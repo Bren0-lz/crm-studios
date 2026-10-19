@@ -375,6 +375,10 @@
   font-weight: 400;
   line-height: 1.4;
 }
+/* Lista "Falta: …" acima do botão principal (QM14). */
+p.field-hint {
+  margin: 0;
+}
 
 .field-error {
   color: #9b433c;

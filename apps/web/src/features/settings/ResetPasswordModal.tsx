@@ -1,6 +1,7 @@
 import type { AdminUser } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
@@ -17,6 +18,9 @@ export function ResetPasswordModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(password);
+  const missing = useMissingFields(
+    password ? [] : ["Nova senha"],
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -54,9 +58,14 @@ export function ResetPasswordModal({
           A senha precisa de letra maiúscula, minúscula e número.
         </p>
         {error && <div className="form-error span-2">{error}</div>}
+        {missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-          <button className="primary-button" disabled={saving}>
+          <button
+            className="primary-button"
+            disabled={saving || missing.blocked}
+            aria-describedby={missing.describedBy}
+          >
             {saving ? "Salvando…" : "Redefinir senha"}
           </button>
         </div>

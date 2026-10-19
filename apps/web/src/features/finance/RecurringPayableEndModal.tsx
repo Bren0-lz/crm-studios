@@ -2,6 +2,7 @@ import { competenceMonthSchema, type RecurringPayable } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { recurringPayableInput } from "./model";
@@ -22,6 +23,9 @@ export function RecurringPayableEndModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(endMonth);
+  const missing = useMissingFields(
+    endMonth ? [] : ["Último mês"],
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -68,9 +72,14 @@ export function RecurringPayableEndModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading ? "Salvando…" : "Encerrar despesa fixa"}
             </button>
           </div>

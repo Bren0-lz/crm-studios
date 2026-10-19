@@ -2,6 +2,7 @@ import type { ClinicalAddendumInput, ClinicalRecord } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
@@ -24,6 +25,16 @@ export function ClinicalAddendumModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      !form.clinicalRecordId && "Evolução finalizada",
+      form.reason.trim().length < 5 &&
+        "Motivo do adendo (pelo menos 5 caracteres)",
+      form.content.trim().length < 10 &&
+        "Conteúdo complementar (pelo menos 10 caracteres)",
+    ].filter((item): item is string => Boolean(item)),
+    "field-hint",
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -90,9 +101,14 @@ export function ClinicalAddendumModal({
             />
           </label>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
             <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading ? "Salvando…" : "Registrar adendo"}
             </button>
           </div>

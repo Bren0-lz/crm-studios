@@ -290,10 +290,30 @@ describe("application shell", () => {
     expect(
       reschedule.querySelector('[data-date][aria-pressed="true"]'),
     ).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
+    // Sem horário, Confirmar fica desativado dizendo o que falta (QM14).
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), {
+      target: { value: "" },
+    });
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toBeDisabled();
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toHaveAccessibleDescription("Falta: Nova data e horário.");
     fireEvent.change(within(reschedule).getByLabelText("Horário"), {
       target: { value: "11:00" },
     });
     expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toBeEnabled();
+    expect(within(reschedule).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(reschedule).getByRole("button", { name: "Fechar calendário" }),
     );

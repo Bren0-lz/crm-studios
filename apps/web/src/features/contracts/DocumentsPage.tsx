@@ -19,6 +19,10 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Logo } from "../../shared/components/Logo";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
@@ -76,6 +80,22 @@ export function DocumentsPage() {
     professionalId: "",
     title: "Contrato de prestação de serviços",
   });
+  // O que falta para criar o modelo e o documento (QM14).
+  const templateMissing = useMissingFields(
+    missingLabels([
+      ["Nome", templateForm.name],
+      ["Conteúdo", templateForm.body],
+    ]),
+    "field-hint",
+  );
+  const documentMissing = useMissingFields(
+    missingLabels([
+      ["Modelo ativo", documentForm.templateId],
+      ["Cliente", documentForm.patientId],
+      ["Título", documentForm.title],
+    ]),
+    "field-hint",
+  );
 
   // Carga única da página: usada na abertura e depois de criar modelos ou documentos.
   // Só usa setters de estado (estáveis), por isso o useCallback não tem dependências.
@@ -253,10 +273,12 @@ export function DocumentsPage() {
                         setTemplateForm((current) => ({ ...current, body }))
                       }
                     />
+                    {templateMissing.hint}
                     <div className="modal-actions">
                       <button
                         className="primary-button"
-                        disabled={creatingTemplate}
+                        disabled={creatingTemplate || templateMissing.blocked}
+                        aria-describedby={templateMissing.describedBy}
                       >
                         {creatingTemplate ? "Criando…" : "Criar modelo"}
                       </button>
@@ -359,12 +381,12 @@ export function DocumentsPage() {
                         }
                       />
                     </label>
+                    {documentMissing.hint}
                     <div className="modal-actions">
                       <button
                         className="primary-button"
-                        disabled={
-                          !documentForm.templateId || !documentForm.patientId
-                        }
+                        disabled={documentMissing.blocked}
+                        aria-describedby={documentMissing.describedBy}
                       >
                         Criar rascunho
                       </button>

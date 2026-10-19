@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { localIsoDate, shortDate } from "../../shared/lib/formatting";
@@ -24,6 +25,15 @@ export function DocumentSignatureActions({
       DocumentSignatureInput,
       "signedOn" | "responsibleName"
     > | null>(null);
+  const missing = useMissingFields(
+    [
+      !date && "Data da assinatura",
+      responsible.trim().length < 2 &&
+        "Responsável pela obtenção (pelo menos 2 caracteres)",
+      !file && "Cópia do documento assinado",
+    ].filter((item): item is string => Boolean(item)),
+    "field-hint",
+  );
   async function select(file: File | undefined) {
     if (!file) return;
     setError("");
@@ -174,9 +184,14 @@ export function DocumentSignatureActions({
                 situação do documento permanecem preservados.
               </p>
             </fieldset>
+            {missing.hint}
             <div className="modal-actions">
               <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={busy || !file}>
+              <button
+                className="primary-button"
+                disabled={busy || missing.blocked}
+                aria-describedby={missing.describedBy}
+              >
                 Registrar assinatura
               </button>
             </div>

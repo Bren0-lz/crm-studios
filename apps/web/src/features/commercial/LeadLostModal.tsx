@@ -22,7 +22,7 @@ export function LeadLostModal({
       subtitle={lead.fullName}
       effect={`${lead.fullName} sai das oportunidades abertas e vai para a coluna Perdidos, com o motivo registrado no cartão.`}
       danger
-      validate={() => (reason.trim() ? "" : "Informe o motivo da perda.")}
+      missing={reason.trim() ? [] : ["Motivo da perda"]}
       onConfirm={() => onConfirm(reason.trim())}
       dirty={dirty}
       onClose={onClose}

@@ -2,6 +2,7 @@ import type { Receivable, Payable, FinancialDatesInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -45,6 +46,14 @@ export function FinancialDatesModal({
     availableAt,
     reason,
   });
+  const missing = useMissingFields(
+    [
+      !postedOn && "Lançamento",
+      !dueDate && "Vencimento",
+      reason.trim().length < 3 && "Motivo do ajuste (pelo menos 3 caracteres)",
+    ].filter((item): item is string => Boolean(item)),
+    "field-hint",
+  );
   return (
     <Modal
       title="Datas financeiras"
@@ -143,9 +152,14 @@ export function FinancialDatesModal({
             os eventos financeiros originais.
           </p>
         </fieldset>
+        {missing.hint}
         <div className="modal-actions">
           <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
-          <button className="primary-button" disabled={busy}>
+          <button
+            className="primary-button"
+            disabled={busy || missing.blocked}
+            aria-describedby={missing.describedBy}
+          >
             Salvar datas
           </button>
         </div>

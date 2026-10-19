@@ -956,15 +956,26 @@ describe("users and permissions", () => {
       );
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
       await within(dialog).findByLabelText(/Profissional da agenda/);
+      // O que falta fica listado e ligado ao botão desativado (QM14).
+      const createUser = within(dialog).getByRole("button", {
+        name: "Criar usuário",
+      });
+      expect(createUser).toBeDisabled();
+      expect(createUser).toHaveAccessibleDescription(
+        "Falta: Nome completo (pelo menos 3 caracteres), E-mail de acesso, Senha inicial.",
+      );
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
         target: { value: "Ana Lima" },
       });
       fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
         target: { value: "ana@movimenta.local" },
       });
+      expect(createUser).toHaveAccessibleDescription("Falta: Senha inicial.");
       fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
         target: { value: "SenhaForte123" },
       });
+      expect(createUser).toBeEnabled();
+      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Criar usuário" }),
       );
@@ -1384,11 +1395,13 @@ describe("users and permissions", () => {
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(await within(dialog).findByText(/informe 0%/)).toHaveClass(
-        "form-error",
+      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
+      const saveUser = within(dialog).getByRole("button", {
+        name: "Salvar alterações",
+      });
+      expect(saveUser).toBeDisabled();
+      expect(saveUser).toHaveAccessibleDescription(
+        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
       );
       // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {

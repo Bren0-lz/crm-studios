@@ -8,7 +8,7 @@ import type {
   Service,
 } from "@crm/contracts";
 import { serviceAvailableFor } from "@crm/contracts";
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { ApiClientError } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -82,6 +82,9 @@ export function AppointmentForm({
   }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
+  const missing = form.patientId ? [] : ["Cliente"];
+  const missingId = useId();
   useModalDirty(useFormDirty(form));
   const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
@@ -327,6 +330,11 @@ export function AppointmentForm({
               {error}
             </div>
           )}
+          {missing.length > 0 && (
+            <p className="field-hint span-2" id={missingId}>
+              Falta: {missing.join(", ")}.
+            </p>
+          )}
           <div className="modal-actions span-2">
             <button
               type="button"
@@ -338,7 +346,8 @@ export function AppointmentForm({
             </button>
             <button
               className="primary-button"
-              disabled={loading || !form.patientId}
+              disabled={loading || missing.length > 0}
+              aria-describedby={missing.length > 0 ? missingId : undefined}
             >
               {loading ? "Agendando…" : "Confirmar atendimento"}
             </button>

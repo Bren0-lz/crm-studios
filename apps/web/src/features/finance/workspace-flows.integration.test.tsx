@@ -171,11 +171,21 @@ describe("finance workflows through real HTTP handlers", () => {
       }),
     );
     await within(dialog).findByText("Pagamento original registrado");
+    // Sem motivo, Confirmar fica desativado dizendo o que falta (QM14).
+    const reconcile = within(dialog).getByRole("button", {
+      name: "Confirmar conciliação",
+    });
+    expect(reconcile).toBeDisabled();
+    expect(reconcile).toHaveAccessibleDescription(
+      "Falta: Motivo da conciliação (pelo menos 5 caracteres).",
+    );
     change(
       "Motivo da conciliação",
       "Correção da presença registrada pela equipe",
       dialog,
     );
+    expect(reconcile).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar conciliação" }),
     );
@@ -324,6 +334,15 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Registrar operação externa",
     });
     change("Tipo de registro", "partner", dialog);
+    // Antes de preencher, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toHaveAccessibleDescription(
+      "Falta: Emissor ou parceiro (pelo menos 2 caracteres), Referência do documento ou operação, Comprovante.",
+    );
     change("Emissor ou parceiro", "Parceiro de atendimento", dialog);
     change("Referência do documento ou operação", "PARCEIRO-123", dialog);
     change(
@@ -340,6 +359,7 @@ describe("finance workflows through real HTTP handlers", () => {
       target: { files: [proof] },
     });
     await within(dialog).findByText("comprovante.pdf");
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     await save("Registrar operação externa", "Salvar registro manual");
     expect(await within(panel).findByText(/PARCEIRO-123/)).toBeInTheDocument();
     expect(

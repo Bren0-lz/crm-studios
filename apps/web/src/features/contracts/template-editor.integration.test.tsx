@@ -58,11 +58,21 @@ describe("document template editor", () => {
     const body = within(form).getByLabelText("Conteúdo") as HTMLTextAreaElement;
     expect(name).toHaveValue("");
     expect(body).toHaveValue("");
+    // Sem nome e conteúdo, "Criar modelo" diz o que falta (QM14).
+    const createTemplate = within(form).getByRole("button", {
+      name: "Criar modelo",
+    });
+    expect(createTemplate).toBeDisabled();
+    expect(createTemplate).toHaveAccessibleDescription(
+      "Falta: Nome, Conteúdo.",
+    );
 
     fireEvent.change(name, { target: { value: "Termo de adesão" } });
     fireEvent.change(body, {
       target: { value: "Eu, , aceito os termos da clínica." },
     });
+    expect(createTemplate).toBeEnabled();
+    expect(within(form).queryByText(/Falta:/)).not.toBeInTheDocument();
     body.setSelectionRange(4, 4);
     fireEvent.click(
       within(fields).getByRole("button", { name: "Nome do cliente" }),

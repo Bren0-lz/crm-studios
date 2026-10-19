@@ -5,6 +5,7 @@ import {
   type SettlementAdjustments,
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -53,6 +54,15 @@ export function SettleModal({
     ...(received === null ? {} : { receivedInCents: received }),
   };
   const breakdown = settlementBreakdown(target.amountInCents, values);
+  // Pagamento parcial: o saldo precisa de vencimento; sem ele, Confirmar diz o que falta.
+  const missing = useMissingFields(
+    isReceivable &&
+      !breakdown.error &&
+      breakdown.balanceInCents > 0 &&
+      !balanceDueDate
+      ? ["Vencimento do saldo"]
+      : [],
+  );
   const adjustments: SettlementAdjustments = {
     ...values,
     ...(breakdown.balanceInCents > 0 && balanceDueDate
@@ -201,9 +211,14 @@ export function SettleModal({
           </div>
         </details>
         {error && <div className="form-error span-2">{error}</div>}
+        {missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
-          <button className="primary-button" disabled={loading}>
+          <button
+            className="primary-button"
+            disabled={loading || missing.blocked}
+            aria-describedby={missing.describedBy}
+          >
             {loading
               ? "Salvando…"
               : isReceivable

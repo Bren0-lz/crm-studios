@@ -25,6 +25,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
@@ -109,6 +110,16 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline] = useState(() => JSON.stringify(form));
+  // O que falta para contratar ou renovar: o botão fica desativado listando (QM14).
+  const missing = useMissingFields(
+    [
+      !renewing && !form.patientId && "Cliente",
+      !renewing && !form.planTemplateId && "Plano cadastrado",
+      Boolean(renewing) && !form.name.trim() && "Nome do plano",
+      !form.validFrom && "Início",
+      !form.firstDueDate && "Primeiro vencimento",
+    ].filter((item): item is string => Boolean(item)),
+  );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
   const [catalogError, setCatalogError] = useState("");
@@ -525,6 +536,7 @@ export function PlanForm({
               {error}
             </div>
           )}
+          {missing.hint}
           <div className="modal-actions span-2">
             <button
               type="button"
@@ -536,11 +548,8 @@ export function PlanForm({
             </button>
             <button
               className="primary-button"
-              disabled={
-                loading ||
-                !form.patientId ||
-                (!renewing && !form.planTemplateId)
-              }
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {renewing
                 ? loading

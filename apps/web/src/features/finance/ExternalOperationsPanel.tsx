@@ -9,6 +9,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -48,6 +49,15 @@ export function ExternalOperationsPanel({
   });
   const [form, setForm] = useState<ExternalOperationInput>(empty),
     [baseline, setBaseline] = useState(() => JSON.stringify(form));
+  const missing = useMissingFields(
+    [
+      form.counterpart.trim().length < 2 &&
+        "Emissor ou parceiro (pelo menos 2 caracteres)",
+      !form.reference.trim() && "Referência do documento ou operação",
+      !form.occurredOn && "Data da operação externa",
+      !form.contentBase64 && "Comprovante",
+    ].filter((item): item is string => Boolean(item)),
+  );
   useEffect(() => {
     if (!opened) return;
     let alive = true;
@@ -355,6 +365,7 @@ export function ExternalOperationsPanel({
                 />
               </label>
             </fieldset>
+            {missing.hint}
             <div className="modal-actions span-2">
               <button
                 type="button"
@@ -366,7 +377,8 @@ export function ExternalOperationsPanel({
               </button>
               <button
                 className="primary-button"
-                disabled={saving || !form.contentBase64}
+                disabled={saving || missing.blocked}
+                aria-describedby={missing.describedBy}
               >
                 Salvar registro manual
               </button>

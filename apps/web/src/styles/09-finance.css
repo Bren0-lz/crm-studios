@@ -762,10 +762,6 @@
 .inline-create input {
   flex: 1 1 140px;
 }
-.payable-missing {
-  margin: 0;
-}
-
 .status-pill.exhausted {
   background: #fdf1dc;
   color: #8a5a12;

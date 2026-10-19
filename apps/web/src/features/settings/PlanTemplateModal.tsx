@@ -10,6 +10,7 @@ import {
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
@@ -60,6 +61,24 @@ export function PlanTemplateModal({
   const sum = form.services.reduce(
     (value, entry) => value + (reaisToCents(entry.value) ?? 0),
     0,
+  );
+  // O que falta: Salvar fica desativado listando os campos (QM14).
+  const missing = useMissingFields(
+    [
+      form.name.trim().length < 3 && "Nome do plano (pelo menos 3 caracteres)",
+      !item && !form.planType && "Tipo de plano",
+      total === null && "Valor total",
+      ...form.services.flatMap((entry, index) => [
+        !entry.serviceId && `Serviço ${index + 1}`,
+        (months ? !entry.sessionsPerWeek : !entry.sessions) &&
+          (months
+            ? `Sessões por semana do serviço ${index + 1}`
+            : `Sessões do serviço ${index + 1}`),
+        form.services.length > 1 &&
+          reaisToCents(entry.value) === null &&
+          `Valor do serviço ${index + 1}`,
+      ]),
+    ].filter((entry): entry is string => Boolean(entry)),
   );
   function updateRow(
     index: number,
@@ -311,11 +330,17 @@ export function PlanTemplateModal({
             {error}
           </div>
         )}
+        {missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button
             className="primary-button"
-            disabled={saving || (form.services.length > 1 && total !== sum)}
+            disabled={
+              saving ||
+              missing.blocked ||
+              (form.services.length > 1 && total !== sum)
+            }
+            aria-describedby={missing.describedBy}
           >
             {saving ? "Salvando…" : "Salvar plano"}
           </button>

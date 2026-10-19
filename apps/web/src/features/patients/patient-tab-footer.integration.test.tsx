@@ -115,4 +115,26 @@ describe("patient tab footer (QM5)", () => {
       )?.status,
     ).toBe("cancelled");
   });
+
+  it("keeps 'Confirmar fechamento' disabled listing what is missing (QM14)", async () => {
+    const { dialog } = await openTabModal();
+    fireEvent.click(
+      within(footerOf(dialog).main).getByRole("button", {
+        name: "Fechar comanda",
+      }),
+    );
+    const confirm = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+    expect(confirm).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+    const due = within(dialog).getByLabelText("Vencimento");
+    const filled = (due as HTMLInputElement).value;
+    fireEvent.change(due, { target: { value: "" } });
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAccessibleDescription("Falta: Vencimento.");
+    fireEvent.change(due, { target: { value: filled } });
+    expect(confirm).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+  });
 });

@@ -255,6 +255,12 @@ describe("appointment client search and creation", () => {
         name: "Confirmar atendimento",
       }),
     ).toBeDisabled();
+    // Sem cliente escolhido, o motivo fica visível e ligado ao botão (QM14).
+    expect(
+      within(appointment).getByRole("button", {
+        name: "Confirmar atendimento",
+      }),
+    ).toHaveAccessibleDescription("Falta: Cliente.");
     await screen.findByRole("option", { name: created.fullName });
     expect(
       vi
@@ -271,6 +277,12 @@ describe("appointment client search and creation", () => {
         name: "Confirmar atendimento",
       }),
     ).toBeEnabled();
+    expect(
+      within(appointment).getByRole("button", {
+        name: "Confirmar atendimento",
+      }),
+    ).not.toHaveAttribute("aria-describedby");
+    expect(within(appointment).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.change(picker, { target: { value: "Outro" } });
     expect(
       within(appointment).getByRole("button", {

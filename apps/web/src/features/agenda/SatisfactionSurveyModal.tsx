@@ -9,6 +9,7 @@ import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
@@ -34,6 +35,7 @@ export function SatisfactionSurveyModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty({ score, comment });
+  const missing = useMissingFields(score === null ? ["Nota de 0 a 10"] : []);
   async function save(event: FormEvent) {
     event.preventDefault();
     if (score === null) return;
@@ -125,12 +127,14 @@ export function SatisfactionSurveyModal({
               <ErrorBanner error={error} />
             </div>
           )}
+          {missing.hint}
           <div className="span-2 appointment-detail-actions">
             <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
             <button
               type="submit"
               className="primary-button"
-              disabled={score === null || saving}
+              disabled={missing.blocked || saving}
+              aria-describedby={missing.describedBy}
             >
               {saving ? "Salvando…" : "Salvar avaliação"}
             </button>

@@ -11,6 +11,7 @@ import { useEffect, useId, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { CurrencyField } from "../../shared/components/CurrencyField";
@@ -37,6 +38,7 @@ export function PatientTabModal({
     [editing, setEditing] = useState<string | null>(null),
     [price, setPrice] = useState(0);
   const closeFormId = useId();
+  const closeMissingId = useId();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [mode, setMode] = useState<
       "items" | "services" | "appointment" | "close"
@@ -57,6 +59,10 @@ export function PatientTabModal({
     dueDate: localIsoDate(),
     paymentMethod: "pix",
   });
+  // O que falta para fechar: "Confirmar fechamento" fica desativado listando os campos.
+  const closeMissing = closeInput.dueDate ? [] : ["Vencimento"];
+  const productMissing = useMissingFields(productId ? [] : ["Produto"]);
+  const serviceMissing = useMissingFields(appointmentId ? [] : ["Atendimento"]);
   const editable = tab.status === "open" && can("patients.tabs_items");
   async function act(action: () => Promise<unknown>, message: string) {
     if (busy) return;
@@ -279,7 +285,14 @@ export function PatientTabModal({
                   onChange={(event) => setQuantity(Number(event.target.value))}
                 />
               </label>
-              <button className="primary-button">Adicionar produto</button>
+              {productMissing.hint}
+              <button
+                className="primary-button"
+                disabled={productMissing.blocked}
+                aria-describedby={productMissing.describedBy}
+              >
+                Adicionar produto
+              </button>
             </form>
           )}
           {editable && mode === "services" && (
@@ -334,7 +347,14 @@ export function PatientTabModal({
                 Serviços cobertos por plano vigente não podem ser cobrados
                 novamente.
               </p>
-              <button className="primary-button">Vincular atendimento</button>
+              {serviceMissing.hint}
+              <button
+                className="primary-button"
+                disabled={serviceMissing.blocked}
+                aria-describedby={serviceMissing.describedBy}
+              >
+                Vincular atendimento
+              </button>
             </form>
           )}
           {mode === "appointment" && references && (
@@ -422,6 +442,11 @@ export function PatientTabModal({
                   </select>
                 </label>
               )}
+              {closeMissing.length > 0 && (
+                <p className="field-hint span-2" id={closeMissingId}>
+                  Falta: {closeMissing.join(", ")}.
+                </p>
+              )}
             </form>
           )}
           {/* Rodapé fixo: destrutivo à esquerda, ação principal sempre por último à direita (QM5). */}
@@ -451,6 +476,10 @@ export function PatientTabModal({
                     type="submit"
                     form={closeFormId}
                     className="primary-button"
+                    disabled={closeMissing.length > 0}
+                    aria-describedby={
+                      closeMissing.length > 0 ? closeMissingId : undefined
+                    }
                   >
                     Confirmar fechamento
                   </button>

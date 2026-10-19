@@ -2,6 +2,7 @@ import type { TherapeuticGoalInput } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
@@ -24,6 +25,10 @@ export function TherapeuticGoalModal({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    form.title.trim() ? [] : ["Objetivo"],
+    "field-hint",
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -112,9 +117,14 @@ export function TherapeuticGoalModal({
             </label>
           </div>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
             <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-            <button className="primary-button" disabled={saving}>
+            <button
+              className="primary-button"
+              disabled={saving || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               Salvar objetivo
             </button>
           </div>
