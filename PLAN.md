@@ -231,6 +231,16 @@ Gate completo em todos, na ordem da tabela.
 | QV7 | Espaço entre seções em Turmas | TODO |
 | QV8 | `PageHeader` igual em Configurações; botões `button-sm` em Serviços e salas, com preço e duração | TODO |
 | QV9 | Legenda da agenda em uma linha/popover; colunas do kanban com `min-width` e indicação de rolagem | TODO |
+| QV10 | Sem borda/faixa lateral colorida em nenhum lugar do sistema, inclusive a agenda (pedido do dono, 19/10) — ver abaixo | TODO |
+
+**QV10 — detalhe.** Remover toda faixa lateral colorida (`border-left` colorido ou `box-shadow: inset Npx 0 0`).
+Triagem de 19/10: `.month-group` (05-agenda.css:300), `.day-event.group` (05-agenda.css:386),
+`.day-grid-event[style*="--pro-color"]` (05-agenda.css:1548), `.patient-row:hover`
+(04-dashboard-clients.css:395) e `.clinical-timeline article` (07-clinical.css:400). Conferir se
+há outras regras (inclusive em `::before`) e remover também. Decisão do dono: vale também para
+a agenda, então a cor do profissional deixa de aparecer como faixa no evento. Não colocar outro
+destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
+08-settings.css:1456) não são faixa colorida e ficam. Teste: nenhuma dessas regras sobra no CSS.
 
 ### Fase 4 — Regressão
 
@@ -240,7 +250,7 @@ Gate completo em todos, na ordem da tabela.
   matrícula fora de sessão passada, QC5 reposição só futura, QC6 financeiro sem recarregar, QC8
   crédito da comanda consumido uma vez.
 - **Gate:** gate completo e `npm run test:e2e -- --workers=1`
-- **Depende de:** QV9
+- **Depende de:** QV10
 - **Status:** TODO
 
 ### QR2 — Fluxo do dia a dia e itens não testados (manual)
