@@ -78,6 +78,64 @@ describe("creating a group (QM14)", () => {
     expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
   });
 
+  it("keeps 'Matricular' disabled listing the group and the client", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const group = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      name: "Pilates Turma A",
+      sequence: 1,
+      serviceId: service.id,
+      serviceName: service.name,
+      professionalName: professional.fullName,
+      roomName: room.name,
+      roomId: room.id,
+      capacity: 4,
+      activeEnrollments: 2,
+      waitlistCount: 0,
+      weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
+      active: true,
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/groups/workspace?")
+        ? {
+            groups: [group],
+            enrollments: [],
+            sessions: [],
+            attendance: [],
+            replacementCredits: [],
+          }
+        : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/turmas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: /Matricular cliente/ }))[0]!,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const enroll = within(dialog).getByRole("button", { name: "Matricular" });
+    expect(enroll).toBeDisabled();
+    expect(enroll).toHaveAccessibleDescription("Falta: Turma, Cliente.");
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
+      target: { value: group.id },
+    });
+    expect(enroll).toBeDisabled();
+    expect(enroll).toHaveAccessibleDescription("Falta: Cliente.");
+  });
+
   it("keeps 'Salvar alterações' of a group disabled without weekly hours", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

@@ -7,15 +7,11 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
 ## Onde parou
 
 - **Rodada 8** (correções do QA de 17/10/2026), na branch `main`.
-- **Concluído:** Fase 1 inteira (QC1–QC10), QF1 e Fase 2 até QM13.
-- **QM14 BLOCKED** (3 reprovações). A 3ª tentativa está commitada em `b837509` e deixou a `main`
-  **vermelha**: typecheck/build quebrados e 3 testes web falhando. O detalhe está no diário do
-  `STATE.md`. Antes de qualquer tarefa nova, o dono decide como destravar (por exemplo, uma 4ª
-  tentativa autorizada ou uma tarefa de correção à parte).
-- **QF2** (commit `fbd690b`, feito pelo dono): verifier PASS no mérito; vira DONE quando o gate
-  estiver verde.
-- **Faltam:** QM14 (destravar), QM15–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2
-  (revisão manual).
+- **Concluído:** Fase 1 inteira (QC1–QC10), QF1, QF2 e Fase 2 até QM14. Gate da `main` verde.
+- **Próxima tarefa:** QM15 (sem "movimenta", UUID ou código de seed na interface).
+- **Faltam:** QM15–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2 (revisão manual).
+- **Gates nesta máquina:** rode com `TEST_DATABASE_URL` vazia (`export TEST_DATABASE_URL=`). O
+  `.env` local aponta para um banco que não responde, e as variáveis reais ficam na Vercel.
 
 ## Preparar a máquina nova
 

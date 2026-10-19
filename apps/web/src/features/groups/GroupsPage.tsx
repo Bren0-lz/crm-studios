@@ -118,6 +118,13 @@ export function GroupsPage() {
     "field-hint",
   );
   const enrollDirty = useFormDirty(enrollmentForm, groupDialog === "enroll");
+  const enrollMissing = useMissingFields(
+    missingLabels([
+      ["Turma", enrollmentForm.groupId],
+      ["Cliente", enrollmentForm.patientId],
+    ]),
+    "field-hint",
+  );
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
   ) {
@@ -497,14 +504,12 @@ export function GroupsPage() {
                         </label>
                       </div>
                     </section>
+                    {enrollMissing.hint}
                     <div className="modal-actions group-modal-actions">
                       <button
                         className="primary-button"
-                        disabled={
-                          saving ||
-                          !enrollmentForm.patientId ||
-                          !enrollmentForm.groupId
-                        }
+                        disabled={saving || enrollMissing.blocked}
+                        aria-describedby={enrollMissing.describedBy}
                       >
                         Matricular
                       </button>

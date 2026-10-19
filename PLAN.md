@@ -191,7 +191,7 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   de espera), o modal "Cliente cadastrado" abre já preenchido com o que foi criado, sem repetir
   as operações. Testes web em patients/PatientNextSteps e guided-client-registration.
 - **Gate:** gate completo
-- **Status:** DOING (verifier PASS no mérito; DONE quando o gate da `main` estiver verde)
+- **Status:** DONE
 
 ### Fase 2 — Usabilidade
 
@@ -213,7 +213,7 @@ Gate completo em todos, na ordem da tabela.
 | QM11 | `useDirtyGuard`: Esc/X em formulário alterado pergunta "Descartar alterações?" | DONE |
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | DONE |
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
-| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | BLOCKED |
+| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | TODO |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |

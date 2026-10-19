@@ -728,11 +728,8 @@ describe("appointment client search and creation", () => {
     expect(client.closest("form")).toBeNull();
     await within(client).findByText(/Nenhuma etiqueta configurada/);
     const save = within(client).getByRole("button", { name: "Salvar cliente" });
-    save.focus();
-    expect(save).toHaveFocus();
-    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
-    expect(client.contains(document.activeElement)).toBe(true);
-    expect(save).not.toHaveFocus();
+    // Sem nome e telefone o botão fica desativado (QM14) e não recebe foco.
+    expect(save).toBeDisabled();
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
@@ -742,6 +739,11 @@ describe("appointment client search and creation", () => {
       ).getByLabelText("Telefone"),
       { target: { value: created.phone } },
     );
+    save.focus();
+    expect(save).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(client.contains(document.activeElement)).toBe(true);
+    expect(save).not.toHaveFocus();
     fireEvent.submit(client.querySelector("form")!);
     await waitFor(() =>
       expect(
@@ -10014,11 +10016,13 @@ describe("users and permissions", () => {
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(await within(dialog).findByText(/informe 0%/)).toHaveClass(
-        "form-error",
+      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
+      const saveUser = within(dialog).getByRole("button", {
+        name: "Salvar alterações",
+      });
+      expect(saveUser).toBeDisabled();
+      expect(saveUser).toHaveAccessibleDescription(
+        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
       );
       // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {

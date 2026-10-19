@@ -1,9 +1,9 @@
 # Estado do loop
 
-- **Tarefa atual:** QM14 (Rodada 8, branch `main`)
-- **Última concluída:** QM13
-- **Tentativas na atual:** 3/3
-- **Bloqueios:** QM14 BLOCKED após 3 reprovações (main com typecheck/build vermelhos) — decisão do dono
+- **Tarefa atual:** QM15 (Rodada 8, branch `main`)
+- **Última concluída:** QM14
+- **Tentativas na atual:** 0/3
+- **Bloqueios:** nenhum
 
 ## Diário
 
@@ -44,3 +44,5 @@
 - 2026-10-19 QM14 FAIL 2/3: 10 fluxos cobertos (SOAP, comanda, novo atendimento, cancelamento, lead perdido, ajuste, renegociação, ausência, categoria/centro, comissão), mas faltam: ScheduleBlockModal "Criar bloqueio" (!targetId, Motivo só required nativo), GroupOperationsPanel "Reservar reposição" (!creditId||!targetId), ClinicalAssessmentModal "Registrar avaliação" (!templateId), PayableModal/RecurringPayableModal (`payable-missing` "Para cadastrar, preencha:" sem aria-describedby). Última tentativa: varredura sistemática.
 - 2026-10-19 QM14 FAIL 3/3 → BLOCKED (3ª tentativa commitada à mão em `b837509` "melhorando o crm", sem verifier antes do commit; verificada depois sobre o HEAD `1f86cdb`). Pontos das reprovações 1 e 2 resolvidos (`shared/components/MissingFields.tsx`: `useMissingFields`/`missingBuilderFields`, ActionModal `missing`). Falhas: (1) typecheck e build EXIT=2, TS2345 em clinical/AssessmentTemplateModal.tsx:56 e clinical/ClinicalResourceEditor.tsx:218 (`options?: string[]` não aceita `| undefined` com exactOptionalPropertyTypes); (2) 3 testes web determinísticos: "keeps appointment values, traps focus, and selects the saved client" (App.integration e patients/appointment-client-search-and-creation; "Salvar cliente" agora desativado e sem foco) e "commission per user > validates the commission before saving anything" (mensagem /informe 0%/ foi para `field-hint span-2`, teste espera `form-error`); (3) ainda sem "Falta:": GroupsPage.tsx:503 "Matricular", CommunicationsPage.tsx:230 "Adicionar à fila" e :289 "Gerar lembretes". Gate: lint 0, audit 0, contracts 147, web 834/837; API 327 passaram, mas 13 suítes PG deram timeout no beforeAll porque o `.env` desta máquina tem `TEST_DATABASE_URL` e o banco não respondeu (ambiente, não código).
 - 2026-10-19 QF2 (commit `fbd690b` "atualização a ser analisada", feito pelo dono fora do loop): cadastro guiado sempre abre "Cliente cadastrado" (PatientNextSteps) com `initialResult` (plano, atendimento, matrícula, turma; tipo `PatientRegistrationResult` em patients/types.ts), sem recriar o que o cadastro guiado já criou. Verifier PASS no mérito, testes do commit passam; DONE só com o gate verde (hoje vermelho pela QM14).
+- 2026-10-19 QM14 DONE (4ª tentativa autorizada pelo dono; verifier PASS; gate do orquestrador exit 0 em todos os comandos: contracts 147, API 327 + 81 skip, web 840; na execução do verifier só falhou o instável screens-without-the-patients-module "opens groups…", que passou ao repetir). `missingBuilderFields` aceita `options?: string[] | undefined`; "Falta:" em GroupsPage "Matricular" (Turma, Cliente) e CommunicationsPage "Adicionar à fila" (Cliente, Mensagem administrativa) e "Gerar lembretes" (Data de referência, "Pelo menos um tipo de lembrete"). Testes: foco preso no "Novo cliente" testado depois de preencher nome e telefone (botão desativado não recebe foco); cópia do teste de comissão em App.integration alinhada à de users-and-permissions. REGRA para botão novo desativado por campo obrigatório: `useMissingFields(missingLabels([...]), "field-hint")` com `{missing.hint}` antes das ações e `aria-describedby={missing.describedBy}`. Gates nesta máquina: `export TEST_DATABASE_URL=` antes (o `.env` aponta para banco que não responde; variáveis reais ficam na Vercel).
+- 2026-10-19 QF2 DONE (verifier PASS no mérito na verificação anterior; gate da `main` verde com a QM14).
