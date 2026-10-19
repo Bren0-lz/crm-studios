@@ -5,12 +5,15 @@ export function GroupModal({
   title,
   subtitle,
   busy = false,
+  dirty = false,
   onClose,
   children,
 }: {
   title: string;
   subtitle: string;
   busy?: boolean;
+  /** Formulário alterado: Esc e X perguntam "Descartar alterações?". */
+  dirty?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -22,6 +25,7 @@ export function GroupModal({
       wide
       initialFocus="input, select, textarea"
       busy={busy}
+      dirty={dirty}
       onClose={onClose}
     >
       {children}

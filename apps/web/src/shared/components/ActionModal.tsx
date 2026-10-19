@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Modal } from "./Modal";
+import { Modal, ModalCancelButton } from "./Modal";
 
 export function ActionModal({
   eyebrow,
@@ -9,6 +9,7 @@ export function ActionModal({
   confirmLabel = "Confirmar",
   danger = false,
   validate,
+  dirty = false,
   onConfirm,
   onClose,
   children,
@@ -20,6 +21,8 @@ export function ActionModal({
   confirmLabel?: string;
   danger?: boolean;
   validate?: () => string;
+  /** Campos alterados: Esc, X e Voltar perguntam "Descartar alterações?". */
+  dirty?: boolean;
   onConfirm: () => Promise<void>;
   onClose: () => void;
   children?: ReactNode;
@@ -49,6 +52,7 @@ export function ActionModal({
       title={title}
       subtitle={subtitle}
       busy={saving}
+      dirty={dirty}
       // Com campos, o foco vai para o primeiro; sem campos, para Confirmar (autoFocus).
       {...(children
         ? { initialFocus: "form input, form select, form textarea" }
@@ -68,14 +72,7 @@ export function ActionModal({
           </div>
         )}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Voltar
-          </button>
+          <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
           <button
             type="submit"
             className={danger ? "danger-button" : "primary-button"}

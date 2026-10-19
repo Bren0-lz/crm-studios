@@ -7,7 +7,8 @@ import {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   addDaysToIsoDate,
   contactOutcomeLabels,
@@ -34,6 +35,7 @@ export function ContactActivityModal({
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty({ outcome, notes, snoozeUntil });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -77,6 +79,7 @@ export function ContactActivityModal({
           : `${suggestion.patientName} · vale para os ${suggestions.length} motivos`
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("relationship.activities_create") && (
@@ -118,14 +121,7 @@ export function ContactActivityModal({
           </label>
           {error && <div className="form-error span-2">{error}</div>}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Salvar contato"}
             </button>

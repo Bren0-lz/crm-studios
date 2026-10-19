@@ -2,7 +2,8 @@ import type { FinancialWorkspace } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { InlineClassificationCreate } from "./InlineClassificationCreate";
 
@@ -38,6 +39,7 @@ export function RecurringPayableModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
   const missing = [
     form.description.trim().length < 3 && "descrição",
     !form.categoryId && "categoria",
@@ -69,6 +71,7 @@ export function RecurringPayableModal({
       title="Nova despesa fixa"
       subtitle="A conta a pagar é gerada todo mês, do mês inicial até o final."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("finance.recurring_create") && (
@@ -221,14 +224,7 @@ export function RecurringPayableModal({
             </p>
           )}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
               disabled={loading || !form.categoryId || !form.costCenterId}

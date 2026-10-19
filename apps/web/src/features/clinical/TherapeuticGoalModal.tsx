@@ -2,7 +2,8 @@ import type { TherapeuticGoalInput } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function TherapeuticGoalModal({
   patientId,
@@ -22,6 +23,7 @@ export function TherapeuticGoalModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(form);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -38,6 +40,7 @@ export function TherapeuticGoalModal({
       title="Novo objetivo terapêutico"
       subtitle="Defina um resultado observável e, quando aplicável, uma meta numérica."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("clinical.goals_create") && (
@@ -110,14 +113,7 @@ export function TherapeuticGoalModal({
           </div>
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={saving}>
               Salvar objetivo
             </button>

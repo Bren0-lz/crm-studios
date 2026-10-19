@@ -1,7 +1,8 @@
 import type { Receivable, Payable, FinancialDatesInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import {
   localIsoDate,
@@ -35,12 +36,20 @@ export function FinancialDatesModal({
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const dirty = useFormDirty({
+    postedOn,
+    dueDate,
+    paidAt,
+    availableAt,
+    reason,
+  });
   return (
     <Modal
       title="Datas financeiras"
       subtitle={entry.description}
       initialFocus="input"
       busy={busy}
+      dirty={dirty}
       onClose={onClose}
     >
       <form
@@ -132,14 +141,7 @@ export function FinancialDatesModal({
           </p>
         </fieldset>
         <div className="modal-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={onClose}
-          >
-            Cancelar
-          </button>
+          <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
           <button className="primary-button" disabled={busy}>
             Salvar datas
           </button>

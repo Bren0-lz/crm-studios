@@ -803,6 +803,13 @@ describe("appointment client search and creation", () => {
       created.fullName,
     );
     fireEvent.click(within(client).getByRole("button", { name: "Cancelar" }));
+    const discard = screen.getByRole("dialog", {
+      name: "Descartar alterações?",
+    });
+    fireEvent.click(within(discard).getByRole("button", { name: "Descartar" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Novo cliente" }),
+    ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
     ).toHaveValue(existing.fullName);

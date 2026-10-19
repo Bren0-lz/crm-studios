@@ -4,7 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 /**
  * Editar atendimento (QM6): serviço, sala e observação. Data, horário e profissional
@@ -33,6 +34,7 @@ export function AppointmentEditModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(form);
 
   useEffect(() => {
     let active = true;
@@ -109,6 +111,7 @@ export function AppointmentEditModal({
       title="Editar atendimento"
       subtitle={`${appointment.patientName} · ${appointment.professionalName}. Para mudar data, horário ou profissional, use Remarcar.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {!resources ? (
@@ -188,14 +191,7 @@ export function AppointmentEditModal({
           </label>
           {error && <div className="form-error span-2">{error}</div>}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
             <button className="primary-button" disabled={saving}>
               {saving ? "Salvando…" : "Salvar alterações"}
             </button>

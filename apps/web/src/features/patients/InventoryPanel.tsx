@@ -8,6 +8,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { Modal } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -35,6 +36,7 @@ export function InventoryPanel({
     [busy, setBusy] = useState(false);
   const [client, setClient] = useState(patientId ?? ""),
     [notes, setNotes] = useState("");
+  const openingDirty = useFormDirty({ client, notes }, opening);
   async function load() {
     setData(await api.inventoryWorkspace());
   }
@@ -87,8 +89,7 @@ export function InventoryPanel({
     }
   }
   const tabs =
-    data?.tabs.filter((tab) => !patientId || tab.patientId === patientId) ??
-    [];
+    data?.tabs.filter((tab) => !patientId || tab.patientId === patientId) ?? [];
   const body = (
     <div className="inventory-body">
       {error && <ErrorBanner error={error} />}
@@ -141,6 +142,7 @@ export function InventoryPanel({
           title="Abrir comanda"
           subtitle="Selecione o cliente para agrupar produtos e serviços."
           busy={busy}
+          dirty={openingDirty}
           onClose={() => setOpening(false)}
         >
           <form className="clinical-form" onSubmit={openTab}>

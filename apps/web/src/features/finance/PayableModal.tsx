@@ -6,7 +6,8 @@ import type {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { localIsoDate } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { InlineClassificationCreate } from "./InlineClassificationCreate";
@@ -53,6 +54,7 @@ export function PayableModal({
     };
   }, []);
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
   const missing = [
     form.description.trim().length < 3 && "descrição",
     !form.categoryId && "categoria",
@@ -81,6 +83,7 @@ export function PayableModal({
       title="Nova conta a pagar"
       subtitle="Classifique a despesa para compor o fluxo de caixa."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("finance.payables_create") && (
@@ -308,14 +311,7 @@ export function PayableModal({
             </p>
           )}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
               disabled={loading || !form.categoryId}

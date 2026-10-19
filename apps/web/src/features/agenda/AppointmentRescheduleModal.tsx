@@ -4,7 +4,8 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function AppointmentRescheduleModal({
@@ -46,6 +47,7 @@ export function AppointmentRescheduleModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -83,6 +85,7 @@ export function AppointmentRescheduleModal({
           : `${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("agenda.reschedule") && (
@@ -132,14 +135,7 @@ export function AppointmentRescheduleModal({
           </div>
           {error && <div className="form-error span-2">{error}</div>}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Confirmar reagendamento"}
             </button>

@@ -6,7 +6,8 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
 
 export function ClinicalAssessmentModal({
@@ -34,6 +35,7 @@ export function ClinicalAssessmentModal({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({ templateId, values, notes });
   const template = templates.find((item) => item.id === templateId);
 
   async function submit(event: FormEvent) {
@@ -60,6 +62,7 @@ export function ClinicalAssessmentModal({
       title="Nova avaliação configurável"
       subtitle="Os dados são preservados com o modelo e a autoria usados no registro."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("clinical.assessments_create") && (
@@ -122,14 +125,7 @@ export function ClinicalAssessmentModal({
           </label>
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={!templateId || saving}>
               Registrar avaliação
             </button>

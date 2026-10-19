@@ -2,7 +2,8 @@ import type { ClinicalAddendumInput, ClinicalRecord } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
 
 export function ClinicalAddendumModal({
@@ -22,6 +23,7 @@ export function ClinicalAddendumModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -42,6 +44,7 @@ export function ClinicalAddendumModal({
       title="Adendo ao prontuário"
       subtitle="O texto original não será alterado. O adendo ficará permanentemente vinculado à evolução."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("clinical.addenda_create") && (
@@ -88,14 +91,7 @@ export function ClinicalAddendumModal({
           </label>
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Registrar adendo"}
             </button>

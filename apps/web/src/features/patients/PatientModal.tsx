@@ -15,7 +15,8 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { tagColorLookup } from "../../shared/lib/formatting";
@@ -117,6 +118,14 @@ export function PatientModal({
   const [groupId, setGroupId] = useState("");
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  const dirty = useFormDirty({
+    form,
+    step,
+    demonstration,
+    planForm,
+    singleForm,
+    groupId,
+  });
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
@@ -204,6 +213,7 @@ export function PatientModal({
           : "Cadastre as informações essenciais. O restante pode ser completado depois."
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -418,14 +428,9 @@ export function PatientModal({
           </p>
         )}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <ModalCancelButton disabled={loading}>
             {editable ? "Cancelar" : "Fechar"}
-          </button>
+          </ModalCancelButton>
           {editable && (
             <button className="primary-button" disabled={loading}>
               {loading

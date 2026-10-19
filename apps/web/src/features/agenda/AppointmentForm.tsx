@@ -22,6 +22,11 @@ import {
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function AppointmentForm({
   patients,
@@ -77,6 +82,8 @@ export function AppointmentForm({
   }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  useModalDirty(useFormDirty(form));
+  const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(
@@ -324,7 +331,7 @@ export function AppointmentForm({
             <button
               type="button"
               className="secondary-button"
-              onClick={onCancel}
+              onClick={() => confirmDiscard(onCancel)}
               disabled={loading}
             >
               {fixedPatient ? "Voltar" : "Cancelar"}

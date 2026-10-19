@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 export type CommissionRuleDraft =
@@ -38,6 +39,17 @@ export function CommissionRuleModal({
     [serviceId, setServiceId] = useState(""),
     [effectiveFrom, setEffectiveFrom] = useState(saoPauloToday()),
     [effectiveUntil, setEffectiveUntil] = useState("");
+  const dirty = useFormDirty({
+    professionalId,
+    userId,
+    origin,
+    percentage,
+    fixed,
+    kind,
+    serviceId,
+    effectiveFrom,
+    effectiveUntil,
+  });
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -83,6 +95,7 @@ export function CommissionRuleModal({
           return "Revise a vigência da regra.";
         return "";
       }}
+      dirty={dirty}
       onClose={onClose}
       onConfirm={() => {
         const terms = {

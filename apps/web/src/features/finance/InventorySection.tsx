@@ -14,7 +14,8 @@ import { CurrencyField } from "../../shared/components/CurrencyField";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency } from "../../shared/lib/formatting";
@@ -49,9 +50,10 @@ export function InventorySection() {
     [formError, setFormError] = useState(""),
     [form, setForm] = useState<ProductInput>(emptyProduct),
     [active, setActive] = useState(true),
-    [adjustment, setAdjustment] =
-      useState<StockMovementInput>(emptyAdjustment);
+    [adjustment, setAdjustment] = useState<StockMovementInput>(emptyAdjustment);
   const version = useDataVersion("inventory");
+  const productDirty = useFormDirty({ form, active }, Boolean(editor));
+  const adjustmentDirty = useFormDirty(adjustment, adjusting);
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -90,9 +92,7 @@ export function InventorySection() {
     };
   }, [version]);
   function edit(product: Product | "new") {
-    setForm(
-      product === "new" ? emptyProduct : { ...product, initialStock: 0 },
-    );
+    setForm(product === "new" ? emptyProduct : { ...product, initialStock: 0 });
     setActive(product === "new" ? true : product.active);
     setFormError("");
     setEditor(product);
@@ -153,10 +153,7 @@ export function InventorySection() {
                 </button>
               )}
               {can("patients.products_create") && (
-                <button
-                  className="primary-button"
-                  onClick={() => edit("new")}
-                >
+                <button className="primary-button" onClick={() => edit("new")}>
                   <Plus size={18} /> Novo produto
                 </button>
               )}
@@ -224,6 +221,7 @@ export function InventorySection() {
           title={editor === "new" ? "Novo produto" : "Editar produto"}
           subtitle="Preços e classificação. O saldo muda pelos ajustes de estoque."
           busy={busy}
+          dirty={productDirty}
           onClose={() => setEditor(null)}
         >
           <form className="clinical-form" onSubmit={save}>
@@ -348,14 +346,7 @@ export function InventorySection() {
               )}
             </div>
             <div className="modal-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setEditor(null)}
-              >
-                Cancelar
-              </button>
+              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={busy}>
                 Salvar produto
               </button>
@@ -368,6 +359,7 @@ export function InventorySection() {
           title="Ajustar estoque"
           subtitle="Toda entrada, saída e ajuste fica no histórico de estoque."
           busy={busy}
+          dirty={adjustmentDirty}
           onClose={() => setAdjusting(false)}
         >
           <form className="clinical-form" onSubmit={adjust}>
@@ -436,14 +428,7 @@ export function InventorySection() {
               />
             </label>
             <div className="modal-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setAdjusting(false)}
-              >
-                Cancelar
-              </button>
+              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={busy}>
                 Salvar ajuste
               </button>

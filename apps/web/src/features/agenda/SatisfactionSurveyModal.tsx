@@ -7,7 +7,8 @@ import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function SatisfactionSurveyModal({
   appointment,
@@ -29,6 +30,7 @@ export function SatisfactionSurveyModal({
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty({ score, comment });
   async function save(event: FormEvent) {
     event.preventDefault();
     if (score === null) return;
@@ -76,6 +78,7 @@ export function SatisfactionSurveyModal({
       }
       eyebrow="Pesquisa NPS"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("agenda.satisfaction_create") && (
@@ -114,14 +117,7 @@ export function SatisfactionSurveyModal({
             </div>
           )}
           <div className="span-2 appointment-detail-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
             <button
               type="submit"
               className="primary-button"

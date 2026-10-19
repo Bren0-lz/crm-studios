@@ -5,7 +5,8 @@ import {
   type SettlementAdjustments,
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { currency } from "../../shared/lib/formatting";
 import { paymentMethodOptions, financeTermHelp } from "./model";
@@ -35,6 +36,15 @@ export function SettleModal({
     [balanceDueDate, setBalanceDueDate] = useState(target.dueDate ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty({
+    paidAt,
+    availableAt,
+    method,
+    discount,
+    interest,
+    received,
+    balanceDueDate,
+  });
   const isReceivable = target.kind === "receivable";
   // Só os ajustes informados: a baixa simples continua com o mesmo pedido de antes.
   const values: SettlementAdjustments = {
@@ -82,6 +92,7 @@ export function SettleModal({
       title={isReceivable ? "Dar baixa na parcela" : "Pagar despesa"}
       subtitle={`${target.title} · ${target.description} · ${money(target.amountInCents)}`}
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -191,14 +202,7 @@ export function SettleModal({
         </details>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Voltar
-          </button>
+          <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
           <button className="primary-button" disabled={loading}>
             {loading
               ? "Salvando…"

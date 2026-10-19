@@ -29,6 +29,10 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
 import { planKindLabels } from "./model";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 
@@ -159,13 +163,14 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  const formDirty =
+    additionalDirty || Boolean(groupId) || JSON.stringify(form) !== baseline;
+  // Sem guarda própria (PlanForm dentro de outro modal): o Modal pergunta antes de descartar.
+  useModalDirty(!registerCloseGuard && formDirty);
+  const confirmDiscard = useConfirmDiscard();
   const prompt = useUnsavedChangesPrompt({
     section: renewing ? "Renovação do plano" : "Contratação do plano",
-    dirty:
-      Boolean(registerCloseGuard) &&
-      (additionalDirty ||
-        Boolean(groupId) ||
-        JSON.stringify(form) !== baseline),
+    dirty: Boolean(registerCloseGuard) && formDirty,
     busy: loading,
     save,
     discard: () => {},
@@ -174,7 +179,10 @@ export function PlanForm({
     () => registerCloseGuard?.(prompt.confirmLeave),
     [registerCloseGuard, prompt.confirmLeave],
   );
-  const cancel = () => prompt.confirmLeave(onCancel);
+  const cancel = () =>
+    registerCloseGuard
+      ? prompt.confirmLeave(onCancel)
+      : confirmDiscard(onCancel);
   async function submit(event: FormEvent) {
     event.preventDefault();
     try {

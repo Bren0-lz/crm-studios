@@ -6,7 +6,8 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
 import { professionalWithCrefito } from "../contracts/index";
 import { ClinicalAppointmentPicker } from "./ClinicalAppointmentPicker";
@@ -33,6 +34,7 @@ export function ClinicalRecordModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -52,6 +54,7 @@ export function ClinicalRecordModal({
       title={record ? "Editar evolução" : "Nova evolução clínica"}
       subtitle="Registre informações objetivas e necessárias para a continuidade do cuidado."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can(record ? "clinical.records_update" : "clinical.records_create") && (
@@ -142,14 +145,7 @@ export function ClinicalRecordModal({
           </label>
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Salvar rascunho"}
             </button>

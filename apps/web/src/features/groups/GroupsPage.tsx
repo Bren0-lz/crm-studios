@@ -28,6 +28,7 @@ import {
   groupSeatsLabel,
   groupSlotLabel,
 } from "../../shared/lib/formatting";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
 
@@ -92,6 +93,8 @@ export function GroupsPage() {
     patientId: enrollPatientId || contextPatientId,
     startsOn: saoPauloToday(),
   });
+  const createDirty = useFormDirty(groupForm, groupDialog === "create");
+  const enrollDirty = useFormDirty(enrollmentForm, groupDialog === "enroll");
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
   ) {
@@ -155,6 +158,10 @@ export function GroupsPage() {
     ) + 1;
   const groupOptionLabel = (group: GroupClass) =>
     `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
+  const editDirty = useFormDirty(
+    { editingCapacity, editingSlots },
+    Boolean(selectedGroup),
+  );
   function openGroup(group: GroupClass) {
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
@@ -226,6 +233,7 @@ export function GroupsPage() {
               title="Nova turma"
               subtitle="Configure os dados e horários fixos."
               busy={saving}
+              dirty={createDirty}
               onClose={closeGroupDialogs}
             >
               <section className="group-modal-sections group-form-panel">
@@ -383,6 +391,7 @@ export function GroupsPage() {
               title="Nova matrícula"
               subtitle="Escolha a turma e o cliente."
               busy={saving}
+              dirty={enrollDirty}
               onClose={closeGroupDialogs}
             >
               <section className="group-modal-sections group-form-panel">
@@ -538,6 +547,7 @@ export function GroupsPage() {
               title={selectedGroup.name}
               subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`}
               busy={saving}
+              dirty={editDirty}
               onClose={closeGroupDialogs}
             >
               <div className="group-modal-sections">

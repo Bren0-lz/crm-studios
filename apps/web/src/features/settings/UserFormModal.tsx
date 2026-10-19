@@ -11,7 +11,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { roleLabels } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
@@ -72,6 +73,17 @@ export function UserFormModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty({
+    fullName,
+    email,
+    password,
+    role,
+    jobTitle,
+    selectedPermissions,
+    percentage,
+    effectiveFrom,
+    selectedProfessional,
+  });
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
   const copySources = users.filter(
@@ -236,6 +248,7 @@ export function UserFormModal({
       }
       eyebrow="Usuários"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -421,14 +434,7 @@ export function UserFormModal({
         </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Cancelar
-          </button>
+          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button className="primary-button" disabled={saving}>
             {saving
               ? "Salvando…"

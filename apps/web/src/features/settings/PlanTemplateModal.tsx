@@ -10,7 +10,8 @@ import {
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   centsToMoneyText,
   currency,
@@ -46,6 +47,7 @@ export function PlanTemplateModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty(form);
   const months = planPeriodMonths(form.planType as PlanType);
   const periodSessions = (entry: (typeof form.services)[number]) =>
     months
@@ -113,6 +115,7 @@ export function PlanTemplateModal({
       title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
       subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -309,14 +312,7 @@ export function PlanTemplateModal({
           </div>
         )}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={saving}
-            onClick={onClose}
-          >
-            Cancelar
-          </button>
+          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button
             className="primary-button"
             disabled={saving || (form.services.length > 1 && total !== sum)}

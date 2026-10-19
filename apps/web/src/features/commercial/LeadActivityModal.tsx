@@ -11,6 +11,7 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function LeadActivityModal({
@@ -73,6 +74,10 @@ export function LeadActivityModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({
+    contact: contact.notes,
+    task: [task.title, task.notes],
+  });
   useEffect(() => {
     let active = true;
     api
@@ -149,6 +154,7 @@ export function LeadActivityModal({
       title={lead.fullName}
       subtitle="Contatos e tarefas comerciais em uma única linha do tempo."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <div className="activity-tabs">

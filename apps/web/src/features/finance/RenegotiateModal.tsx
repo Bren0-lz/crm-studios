@@ -1,6 +1,7 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   centsToMoneyText,
   currency,
@@ -27,6 +28,7 @@ export function RenegotiateModal({
   const [installments, setInstallments] = useState(String(receivables.length));
   const [firstDueDate, setFirstDueDate] = useState(saoPauloToday());
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty({ value, installments, firstDueDate, reason });
   const names = [...new Set(receivables.map((item) => item.patientName))].join(
     ", ",
   );
@@ -55,6 +57,7 @@ export function RenegotiateModal({
           reason: reason.trim(),
         })
       }
+      dirty={dirty}
       onClose={onClose}
     >
       <label>

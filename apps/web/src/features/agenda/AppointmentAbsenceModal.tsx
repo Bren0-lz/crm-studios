@@ -1,6 +1,7 @@
 import type { Appointment, AppointmentStatus } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 export function AppointmentAbsenceModal({
   appointment,
   status,
@@ -13,6 +14,7 @@ export function AppointmentAbsenceModal({
   onConfirm: (reason: string) => Promise<void>;
 }) {
   const [reason, setReason] = useState(appointment.absenceReason ?? "");
+  const dirty = useFormDirty(reason);
   // Na falta do cliente o motivo é opcional; nas ausências justificadas, obrigatório.
   const optional = status === "no_show";
   return (
@@ -31,6 +33,7 @@ export function AppointmentAbsenceModal({
           ? ""
           : "Informe o motivo da ausência."
       }
+      dirty={dirty}
       onClose={onClose}
       onConfirm={() => onConfirm(reason.trim())}
     >

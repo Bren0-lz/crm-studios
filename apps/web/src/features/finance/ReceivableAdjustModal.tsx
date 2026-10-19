@@ -1,6 +1,7 @@
 import type { Receivable } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   centsToMoneyText,
   currency,
@@ -21,6 +22,7 @@ export function ReceivableAdjustModal({
     centsToMoneyText(receivable.amountInCents),
   );
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty({ value, reason });
   return (
     <ActionModal
       eyebrow="Financeiro"
@@ -35,6 +37,7 @@ export function ReceivableAdjustModal({
         return "";
       }}
       onConfirm={() => onConfirm(reaisToCents(value) ?? 0, reason.trim())}
+      dirty={dirty}
       onClose={onClose}
     >
       <label>

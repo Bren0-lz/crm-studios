@@ -14,7 +14,8 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   leadVisitTypes,
   toLocalDateTimeInput,
@@ -87,6 +88,7 @@ export function LeadAppointmentModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(form, options !== null);
   useEffect(() => {
     let active = true;
     Promise.all([api.services(), api.professionals(), api.rooms()])
@@ -146,6 +148,7 @@ export function LeadAppointmentModal({
       title="Agendar experimental"
       subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {loadError ? (
@@ -251,14 +254,7 @@ export function LeadAppointmentModal({
             </label>
             {error && <div className="form-error span-2">{error}</div>}
             <div className="modal-actions span-2">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={onClose}
-                disabled={saving}
-              >
-                Cancelar
-              </button>
+              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={saving}>
                 {saving ? "Agendando…" : "Confirmar agendamento"}
               </button>
