@@ -171,6 +171,7 @@ export const settingsTabs: Array<{
 /** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
 const sectionTabs: Record<string, SettingsTabKey> = {
   etiquetas: "tags",
+  planos: "plans",
   cadastros: "catalogs",
   servicos: "registry",
   salas: "registry",
