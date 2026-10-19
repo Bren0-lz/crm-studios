@@ -7,9 +7,10 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { ActionModal } from "../../shared/components/ActionModal";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { CurrencyField } from "../../shared/components/CurrencyField";
@@ -35,8 +36,10 @@ export function PatientTabModal({
     [quantity, setQuantity] = useState(1),
     [editing, setEditing] = useState<string | null>(null),
     [price, setPrice] = useState(0);
+  const closeFormId = useId();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [mode, setMode] = useState<
-      "items" | "services" | "appointment" | "close" | "cancel"
+      "items" | "services" | "appointment" | "close"
     >("items"),
     [options, setOptions] = useState<TabAppointmentOption[]>([]),
     [appointmentId, setAppointmentId] = useState("");
@@ -105,8 +108,11 @@ export function PatientTabModal({
       busy={busy}
       onClose={onClose}
     >
-      {error && <ErrorBanner error={error} />}
-      {notice && <p role="status">{notice}</p>}
+      {/* Área de avisos sempre presente, com altura reservada: avisos não deslocam os botões (QM5). */}
+      <div className="tab-messages" aria-live="polite">
+        {error && <ErrorBanner error={error} />}
+        {notice && <p role="status">{notice}</p>}
+      </div>
       <div className="clinical-form">
         <fieldset disabled={busy} className="form-fields">
           <h3>Produtos</h3>
@@ -352,18 +358,9 @@ export function PatientTabModal({
               }}
             />
           )}
-          {tab.status === "open" &&
-            can("patients.tabs_close") &&
-            mode !== "close" && (
-              <button
-                className="primary-button"
-                onClick={() => setMode("close")}
-              >
-                Fechar comanda
-              </button>
-            )}
           {mode === "close" && (
             <form
+              id={closeFormId}
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -425,53 +422,80 @@ export function PatientTabModal({
                   </select>
                 </label>
               )}
-              <button className="primary-button">Confirmar fechamento</button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setMode("items")}
-              >
-                Voltar
-              </button>
             </form>
           )}
-          {tab.status !== "cancelled" &&
-            can("patients.tabs_cancel") &&
-            mode !== "cancel" && (
-              <button
-                className="secondary-button"
-                onClick={() => setMode("cancel")}
-              >
-                Cancelar comanda
-              </button>
-            )}
-          {mode === "cancel" && (
-            <div>
-              <p>
-                Cancelar esta comanda restitui os produtos reservados. Uma
-                cobrança paga exige estorno prévio no Financeiro.
-              </p>
-              <button
-                className="primary-button"
-                onClick={() =>
-                  void act(
-                    () => api.cancelPatientTab(tab.id),
-                    "Comanda cancelada; estoque restituído.",
-                  )
-                }
-              >
-                Confirmar cancelamento
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => setMode("items")}
-              >
-                Voltar
-              </button>
+          {/* Rodapé fixo: destrutivo à esquerda, ação principal sempre por último à direita (QM5). */}
+          <div className="modal-actions tab-footer">
+            <div className="tab-footer-danger">
+              {tab.status !== "cancelled" && can("patients.tabs_cancel") && (
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => setConfirmingCancel(true)}
+                >
+                  Cancelar comanda
+                </button>
+              )}
             </div>
-          )}
+            <div className="tab-footer-main">
+              {mode === "close" ? (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setMode("items")}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="submit"
+                    form={closeFormId}
+                    className="primary-button"
+                  >
+                    Confirmar fechamento
+                  </button>
+                </>
+              ) : (
+                tab.status === "open" &&
+                can("patients.tabs_close") && (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => setMode("close")}
+                  >
+                    Fechar comanda
+                  </button>
+                )
+              )}
+            </div>
+          </div>
         </fieldset>
       </div>
+      {confirmingCancel && (
+        <ActionModal
+          eyebrow="Comanda"
+          title="Cancelar comanda"
+          subtitle={`${tab.patientName} · Total ${currency.format(tab.totalInCents / 100)}`}
+          effect="Cancelar esta comanda restitui os produtos reservados. Uma cobrança paga exige estorno prévio no Financeiro."
+          confirmLabel="Cancelar comanda"
+          danger
+          onClose={() => setConfirmingCancel(false)}
+          onConfirm={async () => {
+            setError("");
+            setNotice("");
+            await api.cancelPatientTab(tab.id);
+            setConfirmingCancel(false);
+            setEditing(null);
+            setMode("items");
+            try {
+              await onChanged();
+              setNotice("Comanda cancelada; estoque restituído.");
+            } catch (cause) {
+              setError((cause as Error).message);
+            }
+          }}
+        />
+      )}
     </Modal>
   );
 }

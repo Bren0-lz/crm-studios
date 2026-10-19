@@ -297,18 +297,22 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cancelar comanda" }),
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar cancelamento" }),
+    const confirmCancel = await screen.findByRole("dialog", {
+      name: "Cancelar comanda",
+    });
+    const confirmCancelButton = within(confirmCancel).getByRole("button", {
+      name: "Cancelar comanda",
+    });
+    fireEvent.submit(confirmCancelButton.closest("form")!);
+    expect(await within(confirmCancel).findByRole("alert")).toHaveTextContent(
+      /estorne o pagamento/i,
     );
-    await within(dialog).findByText(/estorno/i);
     await repository.reverseReceivablePayment(
       clinicId,
       actorId,
       tab.receivableId!,
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar cancelamento" }),
-    );
+    fireEvent.submit(confirmCancelButton.closest("form")!);
     await within(dialog).findByText("Comanda cancelada; estoque restituído.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
     const productRowAfterCancellation = within(panel)

@@ -763,6 +763,36 @@
   grid-column: 1 / -1;
 }
 
+/* Comanda (QM5): avisos com altura reservada e rodapé com o destrutivo separado à esquerda. */
+.tab-messages {
+  display: grid;
+  gap: var(--space-2);
+  min-height: var(--space-7);
+  margin-bottom: var(--space-3);
+}
+
+.tab-messages > p {
+  margin: 0;
+}
+
+.tab-footer {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.tab-footer-danger,
+.tab-footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tab-footer-main {
+  margin-left: auto;
+}
+
 /* Cadastro rápido: "Mais informações" recolhe os campos opcionais. */
 .more-info {
   border: 1px solid var(--line);
