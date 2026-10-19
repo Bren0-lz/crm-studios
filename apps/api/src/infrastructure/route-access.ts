@@ -215,6 +215,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // CRM comercial.
   "GET /leads/insights": operation("crm.view"),
+  // Duplicidade no cadastro/edição do lead: só id e nome de quem tem o mesmo contato.
+  "GET /leads/duplicates": { anyOf: operation("crm.create", "crm.update") },
   "GET /leads": view("crm"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),

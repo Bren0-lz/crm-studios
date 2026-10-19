@@ -5,6 +5,8 @@ import type {
   LeadContactInput,
   LeadConversion,
   LeadConversionInput,
+  LeadDuplicateMatch,
+  LeadDuplicateQuery,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -15,6 +17,15 @@ import { request } from "../transport";
 
 export const commercialApi = {
   leads: () => request<Lead[]>("/leads"),
+  /** Clientes e leads com o mesmo telefone, e-mail ou CPF (só id e nome). */
+  leadDuplicates: (query: LeadDuplicateQuery) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (typeof value === "string" && value.trim()) params.set(key, value);
+    return request<{ matches: LeadDuplicateMatch[] }>(
+      `/leads/duplicates?${params.toString()}`,
+    );
+  },
   createLead: (input: LeadInput) =>
     request<Lead>("/leads", { method: "POST", body: JSON.stringify(input) }),
   updateLead: (id: string, input: LeadInput) =>

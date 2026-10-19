@@ -2,6 +2,7 @@ import {
   leadConversionData,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
+import { findLeadDuplicates, type LeadDuplicateQuery } from "@crm/contracts";
 import type {
   Lead,
   LeadActivity,
@@ -53,6 +54,19 @@ export function createCommercialRepository(
           };
         })
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    },
+
+    async findLeadDuplicates(clinicId: string, query: LeadDuplicateQuery) {
+      return findLeadDuplicates(
+        query,
+        repositoryContext.patients.filter(
+          (patient) =>
+            patient.clinicId === clinicId && !patient.mergedIntoPatientId,
+        ),
+        repositoryContext.leads.filter(
+          (lead) => lead.clinicId === clinicId && !lead.convertedPatientId,
+        ),
+      );
     },
 
     async createLead(clinicId: string, input: LeadInput) {

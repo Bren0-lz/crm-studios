@@ -4,6 +4,7 @@ import {
   matchesLead,
   buildLeadInsights,
   leadContactInputSchema,
+  leadDuplicateQuerySchema,
   leadInputSchema,
   leadConversionInputSchema,
   leadMoveSchema,
@@ -31,6 +32,17 @@ export function registerCommercialRoutes(context: RouteContext) {
       ),
     );
   });
+
+  app.get(
+    "/leads/duplicates",
+    { preHandler: authenticate },
+    async (request) => ({
+      matches: await repository.findLeadDuplicates(
+        request.user.clinicId,
+        leadDuplicateQuerySchema.parse(request.query),
+      ),
+    }),
+  );
 
   app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
     reply

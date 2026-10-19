@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cpfMatchKey,
+  describeLeadDuplicate,
+  emailMatchKey,
+  findLeadDuplicates,
+  phoneMatchKey,
   salesChangePercent,
   DEFAULT_PATIENT_TAG_COLOR,
   patientTagDisplayColor,
@@ -1141,5 +1146,69 @@ describe("sales change percent", () => {
     expect(salesChangePercent(5000, 10000)).toBe(-50);
     expect(salesChangePercent(49000, 0)).toBeNull();
     expect(salesChangePercent(49000, -700000)).toBeNull();
+  });
+});
+
+describe("lead duplicates", () => {
+  it("normaliza telefone, e-mail e CPF para comparar", () => {
+    expect(phoneMatchKey("+55 (11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("(11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("551134567890")).toBe("1134567890");
+    expect(phoneMatchKey("5511987654")).toBe("5511987654");
+    expect(emailMatchKey(" Maria.Souza @Email.com ")).toBe(
+      "maria.souza@email.com",
+    );
+    expect(cpfMatchKey("529.982.247-25")).toBe("52998224725");
+    expect(phoneMatchKey(undefined)).toBe("");
+  });
+
+  it("encontra clientes e leads com o mesmo contato, sem contar o próprio lead", () => {
+    const matches = findLeadDuplicates(
+      {
+        phone: "11987654321",
+        email: "MARIA@email.com",
+        cpf: "52998224725",
+        excludeLeadId: "lead-self",
+      },
+      [
+        {
+          id: "p1",
+          fullName: "Maria Souza",
+          phone: "5511987654321",
+          email: " maria@email.com",
+          cpf: "529.982.247-25",
+        },
+        { id: "p2", fullName: "Outra Pessoa", phone: "11900000000" },
+      ],
+      [
+        { id: "lead-self", fullName: "Eu", phone: "11987654321" },
+        { id: "l2", fullName: "Lead Antigo", email: "maria@EMAIL.com" },
+      ],
+    );
+    expect(matches).toEqual([
+      {
+        kind: "patient",
+        id: "p1",
+        fullName: "Maria Souza",
+        fields: ["phone", "email", "cpf"],
+      },
+      { kind: "lead", id: "l2", fullName: "Lead Antigo", fields: ["email"] },
+    ]);
+    expect(describeLeadDuplicate(matches[0]!)).toBe(
+      "Telefone, e-mail e CPF já cadastrados para Maria Souza (cliente).",
+    );
+    expect(describeLeadDuplicate(matches[1]!)).toBe(
+      "E-mail já cadastrado para Lead Antigo (lead).",
+    );
+  });
+
+  it("ignora campos vazios", () => {
+    expect(
+      findLeadDuplicates(
+        { phone: "", email: "", cpf: "" },
+        [{ id: "p1", fullName: "Sem Dados" }],
+        [],
+      ),
+    ).toEqual([]);
   });
 });

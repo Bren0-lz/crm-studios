@@ -116,6 +116,8 @@ import type {
   LeadContactInput,
   LeadConversion,
   LeadConversionInput,
+  LeadDuplicateMatch,
+  LeadDuplicateQuery,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -996,6 +998,14 @@ export interface ClinicRepository {
     actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
+  /**
+   * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
+   * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
+   */
+  findLeadDuplicates(
+    clinicId: string,
+    query: LeadDuplicateQuery,
+  ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
   updateLead(
     clinicId: string,

@@ -309,6 +309,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createClinicalAddendum = this.clinical.createClinicalAddendum;
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
+    this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
     this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
@@ -847,6 +848,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createCommercialRepository
   >["listLeads"];
 
+  readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
   readonly createLead: ReturnType<
     typeof createCommercialRepository
