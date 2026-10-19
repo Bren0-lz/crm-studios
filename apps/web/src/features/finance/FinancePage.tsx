@@ -36,6 +36,7 @@ import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
+import { InventorySection } from "./InventorySection";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
@@ -72,7 +73,12 @@ export function FinancePage() {
   }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
-    "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
+    | "receivables"
+    | "payables"
+    | "commissions"
+    | "dailyCash"
+    | "forecast"
+    | "inventory"
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -394,12 +400,22 @@ export function FinancePage() {
               >
                 Previsão
               </button>
+              {can("patients.inventory_view") && (
+                <button
+                  className={`tab-button ${tab === "inventory" ? "active" : ""}`}
+                  onClick={() => setTab("inventory")}
+                >
+                  Estoque
+                </button>
+              )}
             </div>
           </section>
           {tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
+          ) : tab === "inventory" ? (
+            <InventorySection />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">

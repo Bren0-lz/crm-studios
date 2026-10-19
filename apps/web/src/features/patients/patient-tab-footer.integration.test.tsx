@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, expand } from "../../test-support/workflow-ui";
+import { open } from "../../test-support/workflow-ui";
 
 async function openTabModal() {
   const { repository } = await setupApi();
@@ -16,8 +16,8 @@ async function openTabModal() {
   open(`/clientes/${patient.id}`);
   await screen.findByRole("heading", { name: patient.fullName });
   fireEvent.click(await screen.findByRole("tab", { name: "Comandas" }));
-  const panel = expand("Estoque e comandas");
-  await within(panel).findByText("Comandas", { exact: true });
+  const panel = screen.getByRole("region", { name: "Comandas do cliente" });
+  await within(panel).findByText("Aberta");
   fireEvent.click(
     within(panel).getAllByRole("button", { name: "Abrir comanda" }).at(-1)!,
   );

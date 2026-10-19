@@ -199,7 +199,7 @@ Gate completo em todos, na ordem da tabela.
 | QM6 | Detalhes do atendimento: rodapé fixo com ações e "Editar" (serviço, sala, observação) | DONE |
 | QM7 | "⋯" vira menu (Editar, Remarcar, Histórico, Cancelar) | DONE |
 | QM8 | Turmas: turma no topo, sessões próximas/anteriores (4+4) colapsáveis, "Marcar todos presentes", "8 matriculados · 4 vagas livres" | DONE |
-| QM9 | Estoque/produtos em aba "Estoque" do Financeiro; ficha mantém só "Comandas" | TODO |
+| QM9 | Estoque/produtos em aba "Estoque" do Financeiro; ficha mantém só "Comandas" | DONE |
 | QM10 | Lead com telefone/e-mail/CPF de cliente existente avisa antes de salvar | TODO |
 | QM11 | `useDirtyGuard`: Esc/X em formulário alterado pergunta "Descartar alterações?" | TODO |
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | TODO |

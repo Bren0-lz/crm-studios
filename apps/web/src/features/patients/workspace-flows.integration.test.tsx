@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { findMoreAction } from "../../test-support/patient-actions";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("client management through real HTTP handlers", () => {
   it("resolves conflicting fields before merging two client histories", async () => {
@@ -118,8 +118,8 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     open(`/clientes/${patient!.id}`);
     await screen.findByRole("heading", { name: patient!.fullName });
     fireEvent.click(await screen.findByRole("tab", { name: "Comandas" }));
-    const panel = expand("Estoque e comandas");
-    await within(panel).findByText("Comandas", { exact: true });
+    const panel = screen.getByRole("region", { name: "Comandas do cliente" });
+    await within(panel).findByText("Aberta");
     fireEvent.click(
       within(panel).getAllByRole("button", { name: "Abrir comanda" }).at(-1)!,
     );
@@ -175,59 +175,37 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
       within(dialog).queryByRole("button", { name: "Confirmar fechamento" }),
     ).not.toBeInTheDocument();
   });
-  it("creates a product, reserves stock, settles a tab and requires reversal before cancellation", async () => {
+  it("sells a registered product in the client's tab and requires reversal before cancellation", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
       fullName: "Cliente de produtos",
       phone: "11988887777",
       tags: [],
     });
-    const category = await repository.saveClinicCatalog(
-      clinicId,
-      actorId,
-      "product_category",
-      { name: "Terapia", active: true },
-    );
-    const brand = await repository.saveClinicCatalog(
-      clinicId,
-      actorId,
-      "product_brand",
-      { name: "Marca clínica", active: true },
-    );
+    const product = await repository.createProduct(clinicId, actorId, {
+      name: "Faixa terapêutica",
+      sku: "FAIXA",
+      unit: "un",
+      costInCents: 1000,
+      salePriceInCents: 2000,
+      initialStock: 12,
+      minimumStock: 2,
+    });
     open(`/clientes/${patient.id}`);
     await screen.findByRole("heading", { name: patient.fullName });
     fireEvent.click(await screen.findByRole("tab", { name: "Comandas" }));
-    const panel = expand("Estoque e comandas");
-    fireEvent.click(
-      await within(panel).findByRole("button", { name: "Novo produto" }),
-    );
-    let dialog = screen.getByRole("dialog", { name: "Novo produto" });
-    change("Nome", "Faixa terapêutica", dialog);
-    change("Código do produto", "FAIXA", dialog);
-    change("Custo (R$)", "10", dialog);
-    change("Preço de venda (R$)", "20", dialog);
-    change("Estoque inicial", "10", dialog);
-    change("Estoque mínimo", "2", dialog);
-    change("Categoria", category!.id, dialog);
-    change("Marca", brand!.id, dialog);
-    await save("Novo produto", "Salvar produto");
-    const product = (
-      await repository.getInventoryWorkspace(clinicId)
-    ).products.find((item) => item.sku === "FAIXA")!;
-    expect(product.salePriceInCents).toBe(2000);
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Movimentar estoque" }),
-    );
-    dialog = screen.getByRole("dialog", { name: "Movimentar estoque" });
-    change("Produto", product.id, dialog);
-    change("Quantidade", "2", dialog);
-    change("Motivo", "Compra de reposição", dialog);
-    await save("Movimentar estoque", "Registrar movimento");
+    const panel = screen.getByRole("region", { name: "Comandas do cliente" });
+    // Produtos e estoque ficam no Financeiro; a ficha só abre comandas (QM9).
+    await within(panel).findByText("Nenhuma comanda");
+    expect(
+      within(panel).queryByRole("button", { name: "Novo produto" }),
+    ).not.toBeInTheDocument();
+    expect(within(panel).queryByText("Histórico de estoque")).toBeNull();
     fireEvent.click(
       within(panel).getByRole("button", { name: "Abrir comanda" }),
     );
     await save("Abrir comanda", "Abrir comanda");
-    dialog = await screen.findByRole("dialog", {
+    const dialog = await screen.findByRole("dialog", {
       name: `Comanda · ${patient.fullName}`,
     });
     change("Produto", product.id, dialog);
@@ -314,27 +292,6 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     );
     fireEvent.submit(confirmCancelButton.closest("form")!);
     await within(dialog).findByText("Comanda cancelada; estoque restituído.");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
-    const productRowAfterCancellation = within(panel)
-      .getByText("Faixa terapêutica", { exact: true })
-      .closest<HTMLElement>(".table-row")!;
-    fireEvent.click(
-      within(productRowAfterCancellation).getByRole("button", {
-        name: "Editar",
-      }),
-    );
-    dialog = screen.getByRole("dialog", { name: "Editar produto" });
-    change("Unidade", "kit", dialog);
-    change("Categoria", "", dialog);
-    change("Marca", "", dialog);
-    fireEvent.click(within(dialog).getByLabelText("Ativo"));
-    await save("Editar produto", "Salvar produto");
-    expect(
-      (await repository.getInventoryWorkspace(clinicId)).products.find(
-        (item) => item.id === product.id,
-      ),
-    ).toMatchObject({ unit: "kit", active: false, currentStock: 12 });
-    expect(within(panel).getByText(/inativo/)).toBeInTheDocument();
     expect(
       (await repository.getInventoryWorkspace(clinicId)).products.find(
         (item) => item.id === product.id,
