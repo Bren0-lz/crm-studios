@@ -19,6 +19,7 @@ export function registerFinanceOperationRoutes({
   authenticate,
   repository,
   assertNoHoliday,
+  assertServiceAvailable,
   assertPermissions,
 }: RouteContext) {
   app.get(
@@ -262,6 +263,7 @@ export function registerFinanceOperationRoutes({
         .omit({ patientId: true })
         .parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       return repository.createPatientTabAppointment(
         request.user.clinicId,
         request.user.sub,

@@ -25,9 +25,9 @@ export async function seedDemoScenarios(client: PoolClient) {
     [JSON.stringify(demoRooms)],
   );
   await client.query(
-    `INSERT INTO services (id, clinic_id, name, duration_minutes, price_in_cents, color, active)
-    SELECT id, "clinicId", name, "durationMinutes", "priceInCents", color, active
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, name text, "durationMinutes" integer, "priceInCents" integer, color text, active boolean)
+    `INSERT INTO services (id, clinic_id, name, duration_minutes, price_in_cents, color, professional_ids, room_ids, active)
+    SELECT id, "clinicId", name, "durationMinutes", "priceInCents", color, coalesce("professionalIds", '{}'), coalesce("roomIds", '{}'), active
+    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, name text, "durationMinutes" integer, "priceInCents" integer, color text, "professionalIds" uuid[], "roomIds" uuid[], active boolean)
     ON CONFLICT DO NOTHING`,
     [JSON.stringify(demoServices)],
   );

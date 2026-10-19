@@ -17,6 +17,7 @@ import {
   resolvePatientTags,
   withoutAutomaticPatientTags,
   saoPauloToday,
+  serviceAvailableFor,
   type UserSummary,
 } from "@crm/contracts";
 import cors from "@fastify/cors";
@@ -370,6 +371,33 @@ export async function createRouteContext({
   }
 
   /**
+   * Recusa (409 `SERVICE_NOT_AVAILABLE`) atendimento com serviço que não é feito por aquele
+   * profissional ou naquela sala (vínculos do serviço; vazio = todos). Serviço inexistente
+   * segue para o repositório, que já responde com o erro próprio.
+   */
+  async function assertServiceAvailable(
+    clinicId: string,
+    items: { serviceId: string; professionalId: string; roomId: string }[],
+  ) {
+    if (!items.length) return;
+    const services = await repository.listServices(clinicId);
+    for (const item of items) {
+      const service = services.find(
+        (candidate) => candidate.id === item.serviceId,
+      );
+      if (
+        service &&
+        !serviceAvailableFor(service, item.professionalId, item.roomId)
+      )
+        throw new DomainError(
+          "SERVICE_NOT_AVAILABLE",
+          `O serviço ${service.name} não é atendido por este profissional ou nesta sala.`,
+          409,
+        );
+    }
+  }
+
+  /**
    * O cliente só recebe etiquetas configuradas: troca cada uma pela grafia oficial (sem
    * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
    * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
@@ -486,6 +514,7 @@ export async function createRouteContext({
     withConfiguredTags,
     assertPermissions,
     assertNoHoliday,
+    assertServiceAvailable,
     patientTagNotFound,
     analyzePatientImport,
     planBroadcast,

@@ -18,8 +18,14 @@ import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js
 import { DomainError } from "../../repository.js";
 
 export function registerPlansRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions, assertNoHoliday } =
-    context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertPermissions,
+    assertNoHoliday,
+    assertServiceAvailable,
+  } = context;
   app.post(
     "/plans/purchases",
     { preHandler: authenticate },
@@ -35,6 +41,7 @@ export function registerPlansRoutes(context: RouteContext) {
           request.user.clinicId,
           input.appointments.map((item) => item.startsAt),
         );
+      await assertServiceAvailable(request.user.clinicId, input.appointments);
       return reply
         .status(201)
         .send(

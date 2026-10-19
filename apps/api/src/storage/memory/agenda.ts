@@ -304,6 +304,14 @@ export function createAgendaRepository(
       return appointment;
     },
 
+    async findAppointmentServiceId(clinicId: string, appointmentId: string) {
+      return (
+        repositoryContext.appointments.find(
+          (item) => item.clinicId === clinicId && item.id === appointmentId,
+        )?.serviceId ?? null
+      );
+    },
+
     async listAppointmentReschedules(clinicId: string, appointmentId: string) {
       if (
         !repositoryContext.appointments.some(

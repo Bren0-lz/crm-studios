@@ -628,6 +628,11 @@ export interface ClinicRepository {
     clinicId: string,
     appointmentId: string,
   ): Promise<AppointmentRescheduleEvent[] | null>;
+  /** Serviço do atendimento (para checar os vínculos ao remarcar); `null` = não encontrado. */
+  findAppointmentServiceId(
+    clinicId: string,
+    appointmentId: string,
+  ): Promise<string | null>;
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,

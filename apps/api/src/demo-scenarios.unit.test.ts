@@ -1,7 +1,12 @@
-import { isAppointmentStarted } from "@crm/contracts";
+import { isAppointmentStarted, serviceAvailableFor } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { demoPatients } from "./demo-patients.js";
-import { buildDemoScenarios, demoProfessionals } from "./demo-scenarios.js";
+import {
+  buildDemoScenarios,
+  demoProfessionals,
+  demoRooms,
+  demoServices,
+} from "./demo-scenarios.js";
 
 describe("demonstration scenarios", () => {
   it("keeps balances, invoices, visits and group attendance coherent", () => {
@@ -98,6 +103,43 @@ describe("demonstration scenarios", () => {
         }
     }
     expect(future).toEqual([]);
+  });
+
+  it("links each demo service to the professionals and rooms that attend it (QM3)", () => {
+    const service = (name: string) =>
+      demoServices.find((item) => item.name.startsWith(name))!;
+    const room = (name: string) =>
+      demoRooms.find((item) => item.name === name)!.id;
+    for (const item of demoServices) {
+      expect(item.professionalIds?.length, item.name).toBeGreaterThan(0);
+      expect(item.roomIds?.length, item.name).toBeGreaterThan(0);
+    }
+    expect(
+      serviceAvailableFor(service("Depilação"), "", room("Sala Pilates")),
+    ).toBe(false);
+    expect(
+      serviceAvailableFor(service("Depilação"), "", room("Sala Estética")),
+    ).toBe(true);
+    expect(
+      serviceAvailableFor(service("Pilates"), "", room("Sala Pilates")),
+    ).toBe(true);
+    expect(
+      serviceAvailableFor(service("Dançaterapia"), "", room("Sala de Dança")),
+    ).toBe(true);
+    expect(
+      serviceAvailableFor(service("Dançaterapia"), "", room("Sala Pilates")),
+    ).toBe(false);
+    // Os atendimentos e turmas demo respeitam os vínculos.
+    const data = buildDemoScenarios();
+    const incoherent = [...data.appointments, ...data.groups].filter((item) => {
+      const linked = demoServices.find(
+        (candidate) => candidate.id === item.serviceId,
+      );
+      return (
+        linked && !serviceAvailableFor(linked, item.professionalId, item.roomId)
+      );
+    });
+    expect(incoherent).toEqual([]);
   });
 
   it("only records completed or no-show outcomes for appointments already started (QC3)", () => {

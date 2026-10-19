@@ -779,6 +779,12 @@
 .document-form .template-body-input > label {
   font-size: var(--text-xs);
 }
+/* QM3: cliente obrigatório leva o mesmo "*" dos outros campos (U2), fora do nome acessível. */
+.patient-picker:has(> input:required) > .patient-picker-header > label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
+}
 
 /* Checkbox nos filtros e formulários: mesmo tamanho dos rótulos vizinhos. */
 .patient-filters .checkbox-field {

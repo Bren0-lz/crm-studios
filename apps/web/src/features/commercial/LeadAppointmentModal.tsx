@@ -6,6 +6,7 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
+import { serviceAvailableFor } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -20,6 +21,47 @@ import {
   visitTypeLabels,
 } from "../../shared/lib/formatting";
 
+type ScheduleOptions = {
+  services: Service[];
+  professionals: Professional[];
+  rooms: Room[];
+};
+
+/** Profissionais e salas que atendem o serviço escolhido (vínculos do serviço; vazio = todos). */
+function resourcesFor(options: ScheduleOptions, serviceId: string) {
+  const service = options.services.find((item) => item.id === serviceId);
+  return {
+    professionals: service
+      ? options.professionals.filter((item) =>
+          serviceAvailableFor(service, item.id, ""),
+        )
+      : options.professionals,
+    rooms: service
+      ? options.rooms.filter((item) =>
+          serviceAvailableFor(service, "", item.id),
+        )
+      : options.rooms,
+  };
+}
+
+/** Troca profissional/sala que não atendem o serviço pelo primeiro que atende. */
+function keepResources<
+  T extends { serviceId: string; professionalId: string; roomId: string },
+>(options: ScheduleOptions, form: T): T {
+  const { professionals, rooms } = resourcesFor(options, form.serviceId);
+  return {
+    ...form,
+    professionalId: professionals.some(
+      (item) => item.id === form.professionalId,
+    )
+      ? form.professionalId
+      : (professionals[0]?.id ?? ""),
+    roomId: rooms.some((item) => item.id === form.roomId)
+      ? form.roomId
+      : (rooms[0]?.id ?? ""),
+  };
+}
+
 export function LeadAppointmentModal({
   lead,
   onClose,
@@ -33,11 +75,7 @@ export function LeadAppointmentModal({
   const initialTime = new Date();
   initialTime.setDate(initialTime.getDate() + 1);
   initialTime.setHours(9, 0, 0, 0);
-  const [options, setOptions] = useState<{
-    services: Service[];
-    professionals: Professional[];
-    rooms: Room[];
-  } | null>(null);
+  const [options, setOptions] = useState<ScheduleOptions | null>(null);
   const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({
     visitType: "trial" as LeadAppointmentInput["visitType"],
@@ -55,13 +93,15 @@ export function LeadAppointmentModal({
       .then(([services, professionals, rooms]) => {
         if (!active) return;
         setOptions({ services, professionals, rooms });
-        setForm((current) => ({
-          ...current,
-          serviceId: current.serviceId || (services[0]?.id ?? ""),
-          professionalId:
-            current.professionalId || (professionals[0]?.id ?? ""),
-          roomId: current.roomId || (rooms[0]?.id ?? ""),
-        }));
+        setForm((current) =>
+          keepResources(
+            { services, professionals, rooms },
+            {
+              ...current,
+              serviceId: current.serviceId || (services[0]?.id ?? ""),
+            },
+          ),
+        );
       })
       .catch((cause: Error) => {
         if (active) setLoadError(cause.message);
@@ -92,6 +132,9 @@ export function LeadAppointmentModal({
       setSaving(false);
     }
   }
+  const resources = options
+    ? resourcesFor(options, form.serviceId)
+    : { professionals: [], rooms: [] };
   const missingOptions =
     options !== null &&
     (options.services.length === 0 ||
@@ -142,7 +185,12 @@ export function LeadAppointmentModal({
                 required
                 value={form.serviceId}
                 onChange={(e) =>
-                  setForm({ ...form, serviceId: e.target.value })
+                  setForm(
+                    keepResources(options, {
+                      ...form,
+                      serviceId: e.target.value,
+                    }),
+                  )
                 }
               >
                 {options.services.map((item) => (
@@ -161,7 +209,7 @@ export function LeadAppointmentModal({
                   setForm({ ...form, professionalId: e.target.value })
                 }
               >
-                {options.professionals.map((item) => (
+                {resources.professionals.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.fullName}
                   </option>
@@ -175,7 +223,7 @@ export function LeadAppointmentModal({
                 value={form.roomId}
                 onChange={(e) => setForm({ ...form, roomId: e.target.value })}
               >
-                {options.rooms.map((item) => (
+                {resources.rooms.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name}
                   </option>

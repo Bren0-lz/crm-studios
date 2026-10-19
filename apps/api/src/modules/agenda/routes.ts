@@ -18,8 +18,29 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 
 export function registerAgendaRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertNoHoliday, assertPermissions } =
-    context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertNoHoliday,
+    assertServiceAvailable,
+    assertPermissions,
+  } = context;
+
+  /** Remarcar/sucessor mantém o serviço: o profissional e a sala novos precisam atendê-lo. */
+  async function assertMovedServiceAvailable(
+    clinicId: string,
+    appointmentId: string,
+    input: { professionalId: string; roomId: string },
+  ) {
+    if (!z.uuid().safeParse(appointmentId).success) return;
+    const serviceId = await repository.findAppointmentServiceId(
+      clinicId,
+      appointmentId,
+    );
+    if (serviceId)
+      await assertServiceAvailable(clinicId, [{ ...input, serviceId }]);
+  }
 
   app.get("/holidays", { preHandler: authenticate }, async (request) => {
     const query = z
@@ -166,6 +187,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     async (request, reply) => {
       const input = appointmentInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       return reply
         .status(201)
         .send(await repository.createAppointment(request.user.clinicId, input));
@@ -189,6 +211,7 @@ export function registerAgendaRoutes(context: RouteContext) {
         },
       );
       await assertNoHoliday(request.user.clinicId, occurrences);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       return reply
         .status(201)
         .send(
@@ -206,6 +229,11 @@ export function registerAgendaRoutes(context: RouteContext) {
     async (request, reply) => {
       const input = appointmentRescheduleInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertMovedServiceAvailable(
+        request.user.clinicId,
+        (request.params as { id: string }).id,
+        input,
+      );
       return reply
         .status(201)
         .send(
@@ -225,6 +253,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       const { id } = request.params as { id: string };
       const input = appointmentRescheduleInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertMovedServiceAvailable(request.user.clinicId, id, input);
       const appointment = await repository.rescheduleAppointment(
         request.user.clinicId,
         request.user.sub,
@@ -338,6 +367,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       const { id } = request.params as { id: string };
       const input = leadAppointmentInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       const appointment = await repository.createLeadAppointment(
         request.user.clinicId,
         id,

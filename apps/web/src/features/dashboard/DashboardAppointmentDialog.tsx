@@ -48,7 +48,7 @@ export function DashboardAppointmentDialog({
       kind !== "reschedule" && !appointment.leadId && canSeePatients
         ? api.patients()
         : Promise.resolve([]),
-      kind !== "reschedule" ? api.services() : Promise.resolve([]),
+      api.services(),
       kind === "reschedule" ? api.professionals() : Promise.resolve([]),
       kind === "reschedule" ? api.rooms() : Promise.resolve([]),
     ])
@@ -121,6 +121,7 @@ export function DashboardAppointmentDialog({
     return (
       <AppointmentRescheduleModal
         appointment={appointment}
+        service={resources.service}
         professionals={resources.professionals}
         rooms={resources.rooms}
         onClose={onClose}

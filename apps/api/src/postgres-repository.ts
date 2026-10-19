@@ -245,6 +245,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createLeadAppointment = this.agenda.createLeadAppointment;
     this.rescheduleAppointment = this.agenda.rescheduleAppointment;
     this.listAppointmentReschedules = this.agenda.listAppointmentReschedules;
+    this.findAppointmentServiceId = this.agenda.findAppointmentServiceId;
     this.createRecurringAppointments = this.agenda.createRecurringAppointments;
     this.listScheduleBlocks = this.agenda.listScheduleBlocks;
     this.createScheduleBlock = this.agenda.createScheduleBlock;
@@ -597,6 +598,9 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["rescheduleAppointment"];
 
+  readonly findAppointmentServiceId: ReturnType<
+    typeof createAgendaRepository
+  >["findAppointmentServiceId"];
   readonly listAppointmentReschedules: ReturnType<
     typeof createAgendaRepository
   >["listAppointmentReschedules"];

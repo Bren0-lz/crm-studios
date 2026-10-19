@@ -370,6 +370,15 @@ export function createAgendaRepository(
       }
     },
 
+    async findAppointmentServiceId(clinicId: string, appointmentId: string) {
+      const result = await repositoryContext.pool.query<{ serviceId: string }>(
+        `SELECT service_id AS "serviceId" FROM appointments
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, appointmentId],
+      );
+      return result.rows[0]?.serviceId ?? null;
+    },
+
     async listAppointmentReschedules(clinicId: string, appointmentId: string) {
       const appointment = await repositoryContext.pool.query(
         "SELECT 1 FROM appointments WHERE clinic_id = $1 AND id = $2",

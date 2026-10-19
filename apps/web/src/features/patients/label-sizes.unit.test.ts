@@ -18,4 +18,10 @@ describe("labels with the same size (V7)", () => {
       /\.activity-form > \.span-2 \{\s*grid-column: 1 \/ -1;/,
     );
   });
+
+  it("marks the required client picker with the same visual-only asterisk (QM3)", () => {
+    expect(css).toMatch(
+      /\.patient-picker:has\(> input:required\)\s*>\s*\.patient-picker-header\s*>\s*label::after\s*\{[^}]*content: "\*" \/ "";/,
+    );
+  });
 });

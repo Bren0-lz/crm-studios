@@ -77,4 +77,87 @@ describe("new appointment services", () => {
       within(service).getByRole("option", { name: /Avaliação/ }),
     ).toBeInTheDocument();
   });
+
+  it("does not offer depilation in the Pilates room and marks the client as required (QM3)", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const carolina = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const beatriz = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const pilatesRoom = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const aestheticsRoom = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/professionals")
+        ? [
+            { id: carolina, fullName: "Carolina Rocha", color: "#db8290" },
+            { id: beatriz, fullName: "Beatriz Lima", color: "#6699a1" },
+          ]
+        : url.includes("/rooms")
+          ? [
+              { id: pilatesRoom, name: "Sala Pilates", capacity: 1 },
+              { id: aestheticsRoom, name: "Sala Estética", capacity: 1 },
+            ]
+          : url.includes("/services")
+            ? [
+                {
+                  id: "s1",
+                  name: "Depilação pernas",
+                  durationMinutes: 45,
+                  priceInCents: 12000,
+                  professionalIds: [carolina],
+                  roomIds: [aestheticsRoom],
+                },
+                {
+                  id: "s2",
+                  name: "Pilates individual",
+                  durationMinutes: 50,
+                  priceInCents: 15000,
+                  professionalIds: [beatriz],
+                  roomIds: [pilatesRoom],
+                },
+              ]
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/agenda"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo atendimento" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    // Cliente obrigatório: o "*" é só visual (CSS), o nome acessível continua "Cliente".
+    expect(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+    ).toBeRequired();
+    const service = within(dialog).getByLabelText("Serviço");
+    // Escolher o serviço antes e depois a sala incompatível limpa o serviço.
+    fireEvent.change(service, { target: { value: "s1" } });
+    fireEvent.change(within(dialog).getByLabelText("Sala"), {
+      target: { value: pilatesRoom },
+    });
+    expect(service).toHaveValue("");
+    expect(
+      within(service).queryByRole("option", { name: /Depilação/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(service).getByRole("option", { name: /Pilates individual/ }),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Sala"), {
+      target: { value: aestheticsRoom },
+    });
+    expect(
+      within(service).getByRole("option", { name: /Depilação/ }),
+    ).toBeInTheDocument();
+  });
 });

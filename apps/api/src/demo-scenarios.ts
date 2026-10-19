@@ -33,6 +33,8 @@ const date = (offset: number) => {
 const stamp = (offset: number, hour = 12) =>
   `${date(offset)}T${String(hour).padStart(2, "0")}:00:00-03:00`;
 
+// Vínculos realistas (QM3): Dançaterapia com Clara na Sala de Dança, Pilates com Beatriz na
+// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética.
 export const demoServices: Service[] = [
   {
     id: id(1, 1),
@@ -41,6 +43,8 @@ export const demoServices: Service[] = [
     durationMinutes: 60,
     priceInCents: 7500,
     color: "#9a6bc4",
+    professionalIds: [id(2, 1)],
+    roomIds: [id(3, 1)],
     active: true,
   },
   {
@@ -50,6 +54,8 @@ export const demoServices: Service[] = [
     durationMinutes: 50,
     priceInCents: 15000,
     color: "#6699a1",
+    professionalIds: [id(2, 2)],
+    roomIds: [id(3, 2)],
     active: true,
   },
   {
@@ -59,6 +65,8 @@ export const demoServices: Service[] = [
     durationMinutes: 45,
     priceInCents: 12000,
     color: "#db8290",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
   {
@@ -68,6 +76,8 @@ export const demoServices: Service[] = [
     durationMinutes: 30,
     priceInCents: 5500,
     color: "#e7a16f",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
   {
@@ -77,6 +87,8 @@ export const demoServices: Service[] = [
     durationMinutes: 60,
     priceInCents: 17000,
     color: "#89a96b",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
 ];

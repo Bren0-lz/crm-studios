@@ -918,6 +918,9 @@ export function AgendaPage() {
       {rescheduling && (
         <AppointmentRescheduleModal
           appointment={rescheduling}
+          service={services.find(
+            (item) => item.id === rescheduling.serviceId,
+          )}
           professionals={professionals}
           rooms={rooms}
           onClose={() => setRescheduling(null)}

@@ -238,6 +238,23 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("finds the service of an appointment, null when missing (QM3)", async () => {
+    const [appointment] = await repository.listAppointments(
+      clinicId,
+      "2000-01-01T00:00:00.000Z",
+      "2100-01-01T00:00:00.000Z",
+    );
+    expect(
+      await repository.findAppointmentServiceId(clinicId, appointment!.id),
+    ).toBe(appointment!.serviceId);
+    expect(
+      await repository.findAppointmentServiceId(
+        clinicId,
+        "00000000-0000-4000-8000-000000000000",
+      ),
+    ).toBeNull();
+  });
+
   it("loads the group workspace with each class's professional", async () => {
     const workspace = await repository.getGroupWorkspace(
       clinicId,
