@@ -7,6 +7,7 @@ import {
   type Service,
   isTabCreditPlan,
   nextPlanPeriod,
+  patientFirstName,
   planDisplayStatus,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
@@ -404,6 +405,9 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
           services={services}
           onClose={() => setModalOpen(false)}
           onSaved={(plan) => {
+            toast.success(
+              `Plano ${plan.name} vinculado a ${patientFirstName(plan.patientName)}.`,
+            );
             replacePlan(plan);
             setModalOpen(false);
           }}
@@ -426,6 +430,9 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
               ),
             ]);
             setRenewingPlan(null);
+            toast.success(
+              `Plano de ${patientFirstName(plan.patientName)} renovado.`,
+            );
           }}
         />
       )}

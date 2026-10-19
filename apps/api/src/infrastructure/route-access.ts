@@ -86,6 +86,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",
+  // Sino do cabeçalho: cada contagem é filtrada pelos módulos dentro da rota.
+  "GET /notifications": "login",
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny(
     "agenda",

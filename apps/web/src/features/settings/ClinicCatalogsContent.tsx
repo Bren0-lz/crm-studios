@@ -8,6 +8,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -16,6 +17,7 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function ClinicCatalogsContent() {
   const { user, can } = useAuthorization();
+  const toast = useToast();
   const [kind, setKind] = useState<ClinicCatalogKind>("interest");
   const [items, setItems] = useState<ClinicCatalogEntry[] | null>(null);
   const [error, setError] = useState("");
@@ -60,6 +62,9 @@ export function ClinicCatalogsContent() {
             : {}),
         },
         editor && editor !== "new" ? editor.id : undefined,
+      );
+      toast.success(
+        editor && editor !== "new" ? "Item atualizado." : "Item cadastrado.",
       );
       setItems(await api.clinicCatalog(kind));
       setEditor(null);

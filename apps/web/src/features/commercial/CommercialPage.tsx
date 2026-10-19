@@ -95,6 +95,9 @@ export function CommercialPage() {
     setError("");
     try {
       replaceLead(await api.moveLead(lead.id, stage));
+      toast.success(
+        `Lead ${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
+      );
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -117,7 +120,7 @@ export function CommercialPage() {
     try {
       replaceLead(await api.moveLead(lead.id, stage));
       toast.success(
-        `${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
+        `Lead ${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
       );
     } catch (cause) {
       toast.error((cause as Error).message);
@@ -126,11 +129,13 @@ export function CommercialPage() {
   async function markLost(lead: Lead, reason: string) {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
+    toast.success(`Lead ${lead.fullName} marcado como perdido.`);
   }
   async function convert(lead: Lead, input: LeadConversionInput) {
     const result = await api.convertLead(lead.id, input);
     replaceLead(result.lead);
     setConvertingLead(null);
+    toast.success(`Lead ${lead.fullName} convertido em cliente.`);
   }
   const visibleLeads = leads.filter((lead) =>
     matchesLead(lead, filter, timezone),
@@ -384,6 +389,7 @@ export function CommercialPage() {
           lead={editingLead}
           onClose={() => setEditingLead(null)}
           onCreated={(lead) => {
+            toast.success(`Lead ${lead.fullName} atualizado.`);
             replaceLead(lead);
             setEditingLead(null);
           }}
@@ -393,6 +399,7 @@ export function CommercialPage() {
         <LeadModal
           onClose={() => setModalOpen(false)}
           onCreated={(lead) => {
+            toast.success(`Lead ${lead.fullName} cadastrado.`);
             replaceLead(lead);
             setModalOpen(false);
           }}

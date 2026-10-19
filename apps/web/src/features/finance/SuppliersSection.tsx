@@ -1,6 +1,7 @@
 import type { Supplier, SupplierInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -9,6 +10,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 export function SuppliersSection() {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(false),
     [editor, setEditor] = useState<Supplier | "new" | null>(null),
@@ -116,6 +118,11 @@ export function SuppliersSection() {
                 await api.saveSupplier(
                   form,
                   editor !== "new" ? editor.id : undefined,
+                );
+                toast.success(
+                  editor === "new"
+                    ? "Fornecedor cadastrado."
+                    : "Fornecedor atualizado.",
                 );
                 await load();
                 setEditor(null);

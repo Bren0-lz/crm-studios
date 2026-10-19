@@ -86,7 +86,7 @@ describe("commercial board drag and drop", () => {
     dragTo(card(), column("Em contato"));
     await waitFor(() => expect(moves).toEqual([{ stage: "contacted" }]));
     expect(
-      await screen.findByText("Bruna Lead movido para Em contato."),
+      await screen.findByText("Lead Bruna Lead movido para Em contato."),
     ).toBeInTheDocument();
     expect(
       within(column("Em contato")).getByText("Bruna Lead"),

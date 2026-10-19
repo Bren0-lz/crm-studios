@@ -12,6 +12,7 @@ import { LockKeyhole } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PatientPicker } from "../../PatientPicker";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -22,6 +23,7 @@ import { BroadcastPanel } from "./BroadcastPanel";
 
 export function CommunicationsPage() {
   const { can, canEdit } = useAuthorization();
+  const toast = useToast();
   const contextPatientId = usePatientContext();
   const [center, setCenter] = useState<CommunicationCenter | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -105,6 +107,11 @@ export function CommunicationsPage() {
               ],
             }
           : current,
+      );
+      toast.success(
+        preference.allowed
+          ? "Envios por este canal liberados."
+          : "Envios por este canal bloqueados.",
       );
     } catch (cause) {
       setError((cause as Error).message);

@@ -6,6 +6,7 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
@@ -22,6 +23,7 @@ export function ClinicalAssessmentModal({
   onSaved: () => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [created, setCreated] = useState<AssessmentTemplate[]>([]);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [templateNotice, setTemplateNotice] = useState("");
@@ -144,6 +146,7 @@ export function ClinicalAssessmentModal({
               );
             } else {
               setTemplateNotice("");
+              toast.success(`Modelo “${saved.name}” publicado.`);
               setTemplateId(saved.id);
               setValues({});
             }

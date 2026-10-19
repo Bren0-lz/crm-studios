@@ -1,11 +1,13 @@
-import type {
-  Appointment,
-  SatisfactionSurvey,
-  PatientOption,
+import {
+  patientFirstName,
+  type Appointment,
+  type SatisfactionSurvey,
+  type PatientOption,
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -26,6 +28,7 @@ export function SatisfactionSurveyModal({
   onDuplicate: () => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -43,15 +46,21 @@ export function SatisfactionSurveyModal({
     setError("");
     try {
       const trimmed = comment.trim();
-      onSaved(
-        await api.createSatisfactionSurvey({
-          patientId,
-          ...(appointment ? { appointmentId: appointment.id } : {}),
-          ...(sourceMessageId ? { sourceMessageId } : {}),
-          score,
-          ...(trimmed ? { comment: trimmed } : {}),
-        }),
+      const saved = await api.createSatisfactionSurvey({
+        patientId,
+        ...(appointment ? { appointmentId: appointment.id } : {}),
+        ...(sourceMessageId ? { sourceMessageId } : {}),
+        score,
+        ...(trimmed ? { comment: trimmed } : {}),
+      });
+      const name =
+        saved.patientName || appointment?.patientName || patient?.fullName;
+      toast.success(
+        name
+          ? `Avaliação de ${patientFirstName(name)} registrada: nota ${saved.score}.`
+          : `Avaliação registrada: nota ${saved.score}.`,
       );
+      onSaved(saved);
     } catch (cause) {
       if (
         cause instanceof ApiClientError &&

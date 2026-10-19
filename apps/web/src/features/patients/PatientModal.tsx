@@ -1,4 +1,4 @@
-import { patientTagDisplayColor } from "@crm/contracts";
+import { patientFirstName, patientTagDisplayColor } from "@crm/contracts";
 import {
   isValidCpf,
   patientTagKey,
@@ -13,6 +13,7 @@ import {
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -52,6 +53,7 @@ export function PatientModal({
   onSaved: (patient: Patient, notice?: string) => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [form, setForm] = useState<PatientInput>(() => ({
     ...patient,
     fullName: patient?.fullName ?? "",
@@ -171,7 +173,9 @@ export function PatientModal({
     if (patient) {
       setLoading(true);
       try {
-        onSaved(await api.updatePatient(patient.id, form));
+        const saved = await api.updatePatient(patient.id, form);
+        toast.success(`Cadastro de ${patientFirstName(saved.fullName)} atualizado.`);
+        onSaved(saved);
       } catch (cause) {
         setError((cause as Error).message);
       } finally {
@@ -190,9 +194,12 @@ export function PatientModal({
     setLoading(true);
     try {
       if (input.next === "none") {
-        onSaved(await api.createPatient(form));
+        const created = await api.createPatient(form);
+        toast.success(`Cadastro de ${patientFirstName(created.fullName)} criado.`);
+        onSaved(created);
         return;
       }
+      // O cadastro guiado já confirma num aviso detalhado na lista (savedNotice).
       const result = await api.createGuidedPatient(input);
       onSaved(result.patient, guidedNotice(result, groups ?? []));
     } catch (cause) {

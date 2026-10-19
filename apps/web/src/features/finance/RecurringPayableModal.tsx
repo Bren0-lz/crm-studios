@@ -1,6 +1,7 @@
 import type { FinancialWorkspace } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -18,6 +19,7 @@ export function RecurringPayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const toast = useToast();
   const { can } = useAuthorization();
   const [expenseCategories, setExpenseCategories] = useState(() =>
     workspace.categories.filter(
@@ -137,6 +139,7 @@ export function RecurringPayableModal({
                     kind: "expense",
                   });
                   setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
                   setForm((current) => ({
                     ...current,
                     categoryId: created.id,
@@ -173,6 +176,7 @@ export function RecurringPayableModal({
                 onCreate={async (name) => {
                   const created = await api.createCostCenter({ name });
                   setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
                   setForm((current) => ({
                     ...current,
                     costCenterId: created.id,

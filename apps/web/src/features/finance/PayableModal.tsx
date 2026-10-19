@@ -5,6 +5,7 @@ import type {
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -23,6 +24,7 @@ export function PayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const toast = useToast();
   const { can } = useAuthorization();
   const [expenseCategories, setExpenseCategories] = useState(() =>
     workspace.categories.filter((item) => item.kind === "expense"),
@@ -238,6 +240,7 @@ export function PayableModal({
                     kind: "expense",
                   });
                   setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
                   setForm((current) => ({
                     ...current,
                     categoryId: created.id,
@@ -277,6 +280,7 @@ export function PayableModal({
                 onCreate={async (name) => {
                   const created = await api.createCostCenter({ name });
                   setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
                   setForm((current) => ({
                     ...current,
                     costCenterId: created.id,

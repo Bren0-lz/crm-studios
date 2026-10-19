@@ -584,6 +584,7 @@ export function FinancePage() {
           workspace={data}
           onClose={() => setPayableModal(false)}
           onCreated={() => {
+            toast.success("Despesa registrada.");
             setPayableModal(false);
             void reload();
           }}

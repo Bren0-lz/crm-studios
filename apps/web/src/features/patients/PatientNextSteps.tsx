@@ -15,12 +15,14 @@ import {
 } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { FixedPatient } from "../../shared/components/FixedPatient";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import {
   currency,
+  groupEnrollmentToast,
   groupOperationRange,
   shortDate,
   timeLabel,
@@ -38,6 +40,7 @@ export function PatientNextSteps({
   onClose: () => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const canPlan = can("plans.create");
   const canAppointment = can("agenda.create") || can("agenda.recurring");
   const canEnroll = can("groups.enroll");
@@ -161,6 +164,7 @@ export function PatientNextSteps({
     });
     setEnrollment(saved);
     setEnrollmentGroup(group);
+    toast.success(groupEnrollmentToast(saved, group.name));
     setPendingGroup("");
     setEnrollmentError("");
     setStep("choice");
@@ -414,6 +418,7 @@ export function PatientNextSteps({
           onSubmit={async (input, groupId) => {
             const saved = await api.createPlan(input);
             setPlan(saved);
+            toast.success(`Plano ${saved.name} vinculado.`);
             if (groupId) {
               setPendingGroup(groupId);
               try {
@@ -464,6 +469,11 @@ export function PatientNextSteps({
                 })
               : [await api.createAppointment(input)];
             setAppointments(saved);
+            toast.success(
+              saved.length > 1
+                ? `${saved.length} atendimentos agendados.`
+                : "Atendimento agendado.",
+            );
             setStep("choice");
           }}
         />

@@ -2,6 +2,7 @@ import type { IssuedDocument, DocumentSignatureInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { localIsoDate, shortDate } from "../../shared/lib/formatting";
@@ -13,6 +14,7 @@ export function DocumentSignatureActions({
   onChanged: (document: IssuedDocument) => void;
 }) {
   const { can, user } = useAuthorization();
+  const toast = useToast();
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -129,6 +131,7 @@ export function DocumentSignatureActions({
                 );
                 setOpen(false);
                 setFile(null);
+                toast.success("Assinatura registrada.");
               } catch (cause) {
                 setError((cause as Error).message);
               } finally {

@@ -3,9 +3,11 @@ import type {
   PatientTab,
   PatientOption,
 } from "@crm/contracts";
+import { patientFirstName } from "@crm/contracts";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PatientPicker } from "../../PatientPicker";
 import { Modal } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -27,6 +29,7 @@ export function InventoryPanel({
   patientId?: string | undefined;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [opened, setOpened] = useState(Boolean(patientId)),
     [data, setData] = useState<InventoryWorkspace | null>(null),
     [error, setError] = useState(""),
@@ -79,6 +82,7 @@ export function InventoryPanel({
     setError("");
     try {
       const tab = await api.openPatientTab({ patientId: client, notes });
+      toast.success(`Comanda de ${patientFirstName(tab.patientName)} aberta.`);
       await load();
       setOpening(false);
       setSelected(tab);

@@ -203,7 +203,7 @@ Gate completo em todos, na ordem da tabela.
 | QM10 | Lead com telefone/e-mail/CPF de cliente existente avisa antes de salvar | DONE |
 | QM11 | `useDirtyGuard`: Esc/X em formulário alterado pergunta "Descartar alterações?" | DONE |
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | DONE |
-| QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | TODO |
+| QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | TODO |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | TODO |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |

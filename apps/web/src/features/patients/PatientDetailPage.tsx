@@ -1,5 +1,6 @@
 import {
   type Patient,
+  patientFirstName,
   patientProfileLabels,
   patientProfileValueLabels,
 } from "@crm/contracts";
@@ -7,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -18,6 +20,7 @@ export function PatientDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { can, canView, canEdit } = useAuthorization();
+  const toast = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -46,11 +49,13 @@ export function PatientDetailPage() {
     setBusy(true);
     setError("");
     try {
-      setPatient(
-        await api.setPatientStatus(
-          id,
-          patient.status === "active" ? "inactive" : "active",
-        ),
+      const updated = await api.setPatientStatus(
+        id,
+        patient.status === "active" ? "inactive" : "active",
+      );
+      setPatient(updated);
+      toast.success(
+        `Cadastro de ${patientFirstName(updated.fullName)} ${updated.status === "active" ? "reativado" : "inativado"}.`,
       );
     } catch (cause) {
       setError((cause as Error).message);

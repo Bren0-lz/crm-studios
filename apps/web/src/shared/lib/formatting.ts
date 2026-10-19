@@ -3,12 +3,14 @@ import type {
   AppointmentStatus,
   AppointmentVisitType,
   GroupClass,
+  GroupEnrollment,
   LeadAppointmentInput,
 } from "@crm/contracts";
 import {
   automaticPatientTagCategory,
   formatPhone,
   isAutomaticPatientTag,
+  patientFirstName,
   patientTagCategoryColors,
   type PatientTag,
   patientTagDisplayColor,
@@ -59,6 +61,21 @@ export function groupSeatsLabel(enrolled: number, capacity: number) {
       ? "Sem vagas livres"
       : `${free} ${free === 1 ? "vaga livre" : "vagas livres"}`;
   return `${enrolledLabel} · ${freeLabel}`;
+}
+
+/** Aviso da matrícula em turma (QM13): vaga confirmada ou lista de espera, sem gênero. */
+export function groupEnrollmentToast(
+  enrollment: Pick<
+    GroupEnrollment,
+    "patientName" | "status" | "queuePosition"
+  >,
+  groupName?: string,
+) {
+  const name = patientFirstName(enrollment.patientName);
+  const target = groupName ? ` em ${groupName}` : "";
+  return enrollment.status === "waitlisted"
+    ? `${name} entrou na lista de espera${target}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
+    : `Matrícula de ${name} confirmada${target}.`;
 }
 
 export function groupSlotLabel(

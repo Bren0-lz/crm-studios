@@ -10,8 +10,10 @@ import {
   type Service,
   describeGroupSchedule,
   groupClassName,
+  patientFirstName,
   saoPauloToday,
 } from "@crm/contracts";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { useEffect, useState } from "react";
@@ -24,6 +26,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
+  groupEnrollmentToast,
   groupOperationRange,
   groupSeatsLabel,
   groupSlotLabel,
@@ -49,6 +52,7 @@ function fetchGroupsData() {
 
 export function GroupsPage() {
   const { can, canEdit } = useAuthorization();
+  const toast = useToast();
   const contextPatientId = usePatientContext();
   const weekDayNames = [
     "Domingo",
@@ -129,11 +133,12 @@ export function GroupsPage() {
       active = false;
     };
   }, []);
-  async function run(action: () => Promise<unknown>) {
+  /** Executa a gravação; o texto devolvido pela ação vira o aviso de sucesso. */
+  async function run(action: () => Promise<string>) {
     setError("");
     setSaving(true);
     try {
-      await action();
+      toast.success(await action());
       await load();
     } catch (cause) {
       setError((cause as Error).message);
@@ -244,7 +249,7 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       void run(async () => {
-                        await api.createGroupClass(groupForm);
+                        const created = await api.createGroupClass(groupForm);
                         setGroupForm({
                           serviceId: "",
                           professionalId: "",
@@ -253,6 +258,7 @@ export function GroupsPage() {
                           weeklySlots: [],
                         });
                         closeGroupDialogs();
+                        return `Turma ${created.name} criada.`;
                       });
                     }}
                   >
@@ -403,8 +409,15 @@ export function GroupsPage() {
                       event.preventDefault();
                       if (!enrollmentForm.patientId) return;
                       void run(async () => {
-                        await api.createGroupEnrollment(enrollmentForm);
+                        const enrollment =
+                          await api.createGroupEnrollment(enrollmentForm);
                         closeGroupDialogs();
+                        return groupEnrollmentToast(
+                          enrollment,
+                          workspace?.groups.find(
+                            (item) => item.id === enrollment.groupId,
+                          )?.name,
+                        );
                       });
                     }}
                   >
@@ -625,6 +638,7 @@ export function GroupsPage() {
                                 weeklySlots: editingSlots,
                               });
                               closeGroupDialogs();
+                              return `Turma ${selectedGroup.name} atualizada.`;
                             });
                           }}
                         >
@@ -699,9 +713,10 @@ export function GroupsPage() {
                               className="danger-button button-sm"
                               aria-label={`Cancelar matrícula de ${item.patientName}`}
                               onClick={() =>
-                                void run(() =>
-                                  api.cancelGroupEnrollment(item.id),
-                                )
+                                void run(async () => {
+                                  await api.cancelGroupEnrollment(item.id);
+                                  return `Matrícula de ${patientFirstName(item.patientName)} cancelada.`;
+                                })
                               }
                             >
                               <UserMinus size={14} aria-hidden="true" />

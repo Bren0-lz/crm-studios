@@ -3,6 +3,7 @@ import {
   appointmentNotStartedMessage,
   groupEnrollmentCoversSession,
   isAppointmentStarted,
+  patientFirstName,
   type GroupWorkspace,
   type GroupSession,
   type Professional,
@@ -93,11 +94,12 @@ export function GroupOperationsPanel({
   const meeting =
     selected &&
     (workspace.sessions.find((item) => item.id === selected.id) ?? selected);
-  async function run(action: () => Promise<unknown>) {
+  async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);
     setError("");
     try {
       await action();
+      toast.success(success);
       await onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -442,6 +444,7 @@ export function GroupOperationsPanel({
                           meeting.id,
                           event.target.value,
                         ),
+                        "Profissional do encontro atualizado.",
                       )
                     }
                   >
@@ -486,6 +489,7 @@ export function GroupOperationsPanel({
                                   "present" | "absent" | "excused_absence",
                               },
                             ),
+                            `Frequência de ${patientFirstName(item.patientName)} registrada.`,
                           )
                         }
                       >
@@ -539,6 +543,9 @@ export function GroupOperationsPanel({
                                   | "excused_absence"
                                   | "cancelled",
                               ),
+                              event.target.value === "cancelled"
+                                ? `Reposição de ${patientFirstName(item.patientName)} cancelada.`
+                                : `Reposição de ${patientFirstName(item.patientName)} registrada.`,
                             )
                           }
                         >
@@ -576,7 +583,10 @@ export function GroupOperationsPanel({
                     className="primary-button"
                     disabled={busy}
                     onClick={() =>
-                      void run(() => api.completeGroupSession(meeting.id))
+                      void run(
+                        () => api.completeGroupSession(meeting.id),
+                        "Encontro concluído.",
+                      )
                     }
                   >
                     Concluir encontro

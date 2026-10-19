@@ -17,6 +17,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
 import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import { localIsoDate } from "../../shared/lib/formatting";
+import { useToast } from "../../shared/feedback/toast-context";
 import { fileToBase64 } from "./model";
 
 function initial(
@@ -118,6 +119,7 @@ export function ClinicalResourceEditor({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState<ClinicalResourceInput>(() =>
     resource
       ? structuredClone(resource.data)
@@ -194,6 +196,7 @@ export function ClinicalResourceEditor({
     setError("");
     try {
       await api.saveClinicalResource(form, copy ? undefined : resource?.id);
+      toast.success("Registro clínico salvo.");
       await onSaved();
       onClose();
     } finally {

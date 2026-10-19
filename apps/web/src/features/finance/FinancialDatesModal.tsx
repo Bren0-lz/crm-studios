@@ -1,6 +1,7 @@
 import type { Receivable, Payable, FinancialDatesInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -21,6 +22,7 @@ export function FinancialDatesModal({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [postedOn, setPostedOn] = useState(
       entry.postedOn ?? localIsoDate(new Date(entry.createdAt)),
     ),
@@ -69,6 +71,7 @@ export function FinancialDatesModal({
                 : {}),
             };
             await api.setFinancialDates(kind, entry.id, input);
+            toast.success("Datas do lançamento atualizadas.");
             await onSaved();
             onClose();
           } catch (cause) {

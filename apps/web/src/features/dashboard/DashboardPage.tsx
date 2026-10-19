@@ -499,9 +499,17 @@ export function DashboardPage() {
           onReschedule={() =>
             setAppointmentAction({ ...appointmentAction, kind: "reschedule" })
           }
-          onUpdated={(updated) =>
-            void appointmentUpdated(updated, appointmentAction.appointment)
-          }
+          onUpdated={(updated) => {
+            const previous = appointmentAction.appointment;
+            toast.success(
+              updated.status !== previous.status
+                ? appointmentStatusToast(updated.status)
+                : updated.startsAt !== previous.startsAt
+                  ? "Atendimento remarcado."
+                  : "Atendimento atualizado.",
+            );
+            void appointmentUpdated(updated, previous);
+          }}
         />
       )}
     </>

@@ -540,6 +540,7 @@ export function DocumentsPage() {
               await api.updateDocumentStatus(issuing.id, "issued"),
             );
             setIssuing(null);
+            toast.success(`Contrato “${issuing.title}” emitido.`);
           }}
         />
       )}
@@ -550,6 +551,7 @@ export function DocumentsPage() {
           onCancelled={(updated) => {
             replaceDocument(updated);
             setCancelling(null);
+            toast.success(`Documento “${updated.title}” cancelado.`);
           }}
         />
       )}

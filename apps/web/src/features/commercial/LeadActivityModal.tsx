@@ -9,6 +9,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -27,6 +28,7 @@ export function LeadActivityModal({
   editable: boolean;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const currentUser = getStoredUser();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -101,6 +103,7 @@ export function LeadActivityModal({
           : current,
       );
       setContact({ ...contact, notes: "" });
+      toast.success("Contato registrado.");
       onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -122,6 +125,7 @@ export function LeadActivityModal({
         current ? { ...current, tasks: [...current.tasks, created] } : current,
       );
       setTask({ ...task, title: "", notes: "" });
+      toast.success("Tarefa criada.");
       onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -142,6 +146,9 @@ export function LeadActivityModal({
               ),
             }
           : current,
+      );
+      toast.success(
+        status === "completed" ? "Tarefa concluída." : "Tarefa cancelada.",
       );
       onChanged();
     } catch (cause) {
