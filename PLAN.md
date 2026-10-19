@@ -184,6 +184,15 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   São Paulo) e tarde (ex.: 23:00).
 - **Status:** DONE
 
+### QF2 — Cadastro guiado continua nos próximos passos (feito pelo dono, 19/10/2026)
+
+- **Origem:** commit `fbd690b`, fora do loop.
+- **Escopo:** depois do cadastro guiado (demonstração, plano, serviço avulso, matrícula ou lista
+  de espera), o modal "Cliente cadastrado" abre já preenchido com o que foi criado, sem repetir
+  as operações. Testes web em patients/PatientNextSteps e guided-client-registration.
+- **Gate:** gate completo
+- **Status:** DOING (verifier PASS no mérito; DONE quando o gate da `main` estiver verde)
+
 ### Fase 2 — Usabilidade
 
 Cada item: confirmar no código antes; se já resolvido na rodada 7, marcar DONE com evidência.
@@ -204,7 +213,7 @@ Gate completo em todos, na ordem da tabela.
 | QM11 | `useDirtyGuard`: Esc/X em formulário alterado pergunta "Descartar alterações?" | DONE |
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | DONE |
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
-| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DOING |
+| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | BLOCKED |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | TODO |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
