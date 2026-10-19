@@ -1,7 +1,13 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
-import { currency, reaisToCents } from "../../shared/lib/formatting";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import {
+  centsToMoneyText,
+  currency,
+  reaisToCents,
+} from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function RenegotiateModal({
   receivables,
@@ -18,10 +24,11 @@ export function RenegotiateModal({
   }) => Promise<void>;
 }) {
   const total = receivables.reduce((sum, item) => sum + item.amountInCents, 0);
-  const [value, setValue] = useState(String(total / 100));
+  const [value, setValue] = useState(centsToMoneyText(total));
   const [installments, setInstallments] = useState(String(receivables.length));
   const [firstDueDate, setFirstDueDate] = useState(saoPauloToday());
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty({ value, installments, firstDueDate, reason });
   const names = [...new Set(receivables.map((item) => item.patientName))].join(
     ", ",
   );
@@ -32,16 +39,20 @@ export function RenegotiateModal({
       title="Renegociar parcelas"
       subtitle={`${names} · ${receivables.length} parcela${receivables.length === 1 ? "" : "s"} · ${currency.format(total / 100)}`}
       effect="As parcelas selecionadas são canceladas e substituídas pelas novas, com o valor total dividido igualmente e vencimentos mensais a partir da primeira data."
-      validate={() => {
-        if (reaisToCents(value) === null)
-          return "Informe o novo valor total em reais (zero ou mais).";
-        if (!Number.isInteger(count) || count < 1 || count > 36)
-          return "Informe de 1 a 36 parcelas.";
-        if (!firstDueDate) return "Escolha a data do primeiro vencimento.";
-        if (reason.trim().length < 5)
-          return "Escreva o motivo da renegociação (pelo menos 5 caracteres).";
-        return "";
-      }}
+      missing={[
+        ...(reaisToCents(value) === null ? ["Novo valor total"] : []),
+        ...(installments.trim() ? [] : ["Número de parcelas"]),
+        ...(firstDueDate ? [] : ["Primeiro vencimento"]),
+        ...(reason.trim().length < 5
+          ? ["Motivo da renegociação (pelo menos 5 caracteres)"]
+          : []),
+      ]}
+      // Regra, não falta: o número de parcelas preenchido precisa estar entre 1 e 36.
+      validate={() =>
+        !Number.isInteger(count) || count < 1 || count > 36
+          ? "Informe de 1 a 36 parcelas."
+          : ""
+      }
       onConfirm={() =>
         onConfirm({
           totalAmountInCents: reaisToCents(value) ?? 0,
@@ -50,18 +61,15 @@ export function RenegotiateModal({
           reason: reason.trim(),
         })
       }
+      dirty={dirty}
       onClose={onClose}
     >
       <label>
         Novo valor total (R$)
-        <input
+        <MoneyInput
           autoFocus
-          type="number"
-          min="0"
-          step="0.01"
-          inputMode="decimal"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          valueInCents={reaisToCents(value)}
+          onChange={(cents) => setValue(centsToMoneyText(cents))}
         />
       </label>
       <label>

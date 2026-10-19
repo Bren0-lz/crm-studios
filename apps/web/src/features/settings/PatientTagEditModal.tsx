@@ -1,8 +1,10 @@
-import type { PatientTag } from "@crm/contracts";
+import type { PatientTag, PatientTagCategory } from "@crm/contracts";
+import { TagCategorySelect } from "./TagCategorySelect";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { normalizeTagColor } from "../../tag-colors";
 import { countLabel } from "../patients/index";
 import { TagColorPicker } from "./TagColorPicker";
@@ -19,8 +21,12 @@ export function PatientTagEditModal({
   const { can } = useAuthorization();
   const [name, setName] = useState(tag.name);
   const [color, setColor] = useState(normalizeTagColor(tag.color));
+  const [category, setCategory] = useState<PatientTagCategory | "">(
+    tag.category ?? "",
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({ name, color, category });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -33,8 +39,11 @@ export function PatientTagEditModal({
     const update = {
       ...(trimmed !== tag.name ? { name: trimmed } : {}),
       ...(color !== normalizeTagColor(tag.color) ? { color } : {}),
+      ...(category !== (tag.category ?? "")
+        ? { category: category || null }
+        : {}),
     };
-    if (!update.name && !update.color) {
+    if (!update.name && !update.color && update.category === undefined) {
       onClose();
       return;
     }
@@ -58,6 +67,7 @@ export function PatientTagEditModal({
       title="Editar etiqueta"
       subtitle={`${tag.name} · ${countLabel(tag.patientCount, "cliente", "clientes")}. Renomear atualiza esses clientes.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("settings.tags_update") && (
@@ -75,6 +85,7 @@ export function PatientTagEditModal({
               onChange={(e) => setName(e.target.value)}
             />
           </label>
+          <TagCategorySelect value={category} onChange={setCategory} />
           <TagColorPicker
             value={color}
             previewName={name.trim() || tag.name}
@@ -86,14 +97,7 @@ export function PatientTagEditModal({
             </div>
           )}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={saving}>
               {saving ? "Salvando…" : "Salvar etiqueta"}
             </button>

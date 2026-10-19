@@ -1,3 +1,4 @@
+import { patientFirstName, patientTagDisplayColor } from "@crm/contracts";
 import {
   isValidCpf,
   patientTagKey,
@@ -7,13 +8,17 @@ import {
   type Patient,
   type PatientInput,
   type PatientTag,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { tagColorLookup } from "../../shared/lib/formatting";
@@ -57,6 +62,7 @@ export function PatientModal({
   ) => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [form, setForm] = useState<PatientInput>(() => ({
     ...patient,
     fullName: patient?.fullName ?? "",
@@ -68,7 +74,8 @@ export function PatientModal({
     emergencyContactName: patient?.emergencyContactName ?? "",
     emergencyContactPhone: patient?.emergencyContactPhone ?? "",
     notes: patient?.notes ?? "",
-    tags: patient?.tags ?? [],
+    // "Pagamento atrasado" é automática: não aparece para marcar nem desmarcar.
+    tags: withoutAutomaticPatientTags(patient?.tags ?? []),
   }));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && can("patients.timeline");
@@ -87,7 +94,7 @@ export function PatientModal({
   const tagChoices = [
     ...(configuredTags.tags ?? []).map((tag) => ({
       name: tag.name,
-      color: tag.color,
+      color: patientTagDisplayColor(tag),
     })),
     ...form.tags
       .filter((tag) => !configuredKeys.has(patientTagKey(tag)))
@@ -122,6 +129,35 @@ export function PatientModal({
   const [groupId, setGroupId] = useState("");
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  const dirty = useFormDirty({
+    form,
+    step,
+    demonstration,
+    planForm,
+    singleForm,
+    groupId,
+  });
+  // O que falta no cadastro e na etapa guiada escolhida: o botão fica desativado listando (QM14).
+  const guidedPlan = step === "plan" ? planForm : singleForm;
+  const missing = useMissingFields([
+    ...(form.fullName.trim() ? [] : ["Nome completo"]),
+    ...(form.phone.trim() ? [] : ["Telefone"]),
+    ...(step === "demonstration"
+      ? [
+          !demonstration.serviceId && "Serviço",
+          !demonstration.professionalId && "Profissional",
+          !demonstration.roomId && "Sala",
+          !demonstration.startsAt && "Data e horário",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+    ...(step === "plan" || step === "single"
+      ? [
+          !guidedPlan.planTemplateId && "Plano cadastrado",
+          !guidedPlan.validFrom && "Início",
+          !guidedPlan.firstDueDate && "Primeiro vencimento",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+  ]);
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
@@ -167,7 +203,9 @@ export function PatientModal({
     if (patient) {
       setLoading(true);
       try {
-        onSaved(await api.updatePatient(patient.id, form));
+        const saved = await api.updatePatient(patient.id, form);
+        toast.success(`Cadastro de ${patientFirstName(saved.fullName)} atualizado.`);
+        onSaved(saved);
       } catch (cause) {
         setError((cause as Error).message);
       } finally {
@@ -186,9 +224,12 @@ export function PatientModal({
     setLoading(true);
     try {
       if (input.next === "none") {
-        onSaved(await api.createPatient(form));
+        const created = await api.createPatient(form);
+        toast.success(`Cadastro de ${patientFirstName(created.fullName)} criado.`);
+        onSaved(created);
         return;
       }
+      // O cadastro guiado já confirma num aviso detalhado na lista (savedNotice).
       const result = await api.createGuidedPatient(input);
       onSaved(result.patient, guidedNotice(result, groups ?? []), {
         ...result,
@@ -204,6 +245,7 @@ export function PatientModal({
   }
   return (
     <Modal
+      eyebrow={patient ? "Clientes" : "Cadastro rápido"}
       title={patient ? "Editar cliente" : "Novo cliente"}
       subtitle={
         patient
@@ -211,6 +253,7 @@ export function PatientModal({
           : "Cadastre as informações essenciais. O restante pode ser completado depois."
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -259,13 +302,6 @@ export function PatientModal({
           />
         </label>
         <label>
-          CPF
-          <CpfInput
-            value={form.cpf ?? ""}
-            onChange={(digits) => field("cpf", digits)}
-          />
-        </label>
-        <label>
           Data de nascimento
           <input
             type="date"
@@ -273,62 +309,79 @@ export function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
-        <PatientProfileFields form={form} onChange={field} />
-        <fieldset className="form-fieldset emergency-fieldset span-2">
-          <legend>Contato de emergência</legend>
-          <div className="form-fieldset-grid">
+        {/* Cadastro rápido (U15): o essencial à vista; o restante fica recolhido. */}
+        <details className="more-info span-2" open={Boolean(patient)}>
+          <summary>Mais informações</summary>
+          <div className="form-grid">
             <label>
-              Nome
-              <input
-                autoComplete="off"
-                placeholder="Ex.: Maria Souza (mãe)"
-                value={form.emergencyContactName}
-                onChange={(e) => field("emergencyContactName", e.target.value)}
+              CPF
+              <CpfInput
+                value={form.cpf ?? ""}
+                onChange={(digits) => field("cpf", digits)}
               />
             </label>
-            <label>
-              Telefone
-              <PhoneInput
-                value={form.emergencyContactPhone ?? ""}
-                onChange={(digits) => field("emergencyContactPhone", digits)}
+            <PatientProfileFields form={form} onChange={field} />
+            <fieldset className="form-fieldset emergency-fieldset span-2">
+              <legend>Contato de emergência</legend>
+              <div className="form-fieldset-grid">
+                <label>
+                  Nome
+                  <input
+                    autoComplete="off"
+                    placeholder="Ex.: Maria Souza (mãe)"
+                    value={form.emergencyContactName}
+                    onChange={(e) =>
+                      field("emergencyContactName", e.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Telefone
+                  <PhoneInput
+                    value={form.emergencyContactPhone ?? ""}
+                    onChange={(digits) =>
+                      field("emergencyContactPhone", digits)
+                    }
+                  />
+                </label>
+              </div>
+            </fieldset>
+            <fieldset className="form-fieldset span-2">
+              <legend>Etiquetas</legend>
+              {configuredTags.error ? (
+                <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+              ) : configuredTags.tags === null ? (
+                <LoadingBlock />
+              ) : tagChoices.length === 0 ? (
+                <p className="muted-copy">
+                  Nenhuma etiqueta configurada. Cadastre as etiquetas em
+                  Configurações › Etiquetas.
+                </p>
+              ) : (
+                <div className="tag-filter-list">
+                  {tagChoices.map((tag) => (
+                    <TagChoice
+                      key={tag.name}
+                      name={tag.name}
+                      color={patientTagDisplayColor(tag)}
+                      pressed={form.tags.includes(tag.name)}
+                      disabled={!editable}
+                      onToggle={() => toggleTag(tag.name)}
+                    />
+                  ))}
+                </div>
+              )}
+            </fieldset>
+            <label className="span-2">
+              Observações
+              <textarea
+                value={form.notes}
+                onChange={(e) => field("notes", e.target.value)}
+                rows={3}
               />
             </label>
           </div>
-        </fieldset>
-        <fieldset className="form-fieldset span-2">
-          <legend>Etiquetas</legend>
-          {configuredTags.error ? (
-            <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
-          ) : configuredTags.tags === null ? (
-            <LoadingBlock />
-          ) : tagChoices.length === 0 ? (
-            <p className="muted-copy">
-              Nenhuma etiqueta configurada. Cadastre as etiquetas em
-              Configurações › Etiquetas.
-            </p>
-          ) : (
-            <div className="tag-filter-list">
-              {tagChoices.map((tag) => (
-                <TagChoice
-                  key={tag.name}
-                  name={tag.name}
-                  color={tag.color}
-                  pressed={form.tags.includes(tag.name)}
-                  disabled={!editable}
-                  onToggle={() => toggleTag(tag.name)}
-                />
-              ))}
-            </div>
-          )}
-        </fieldset>
-        <label className="span-2">
-          Observações
-          <textarea
-            value={form.notes}
-            onChange={(e) => field("notes", e.target.value)}
-            rows={3}
-          />
-        </label>
+        </details>
         {guidedSteps.length > 0 && (
           <fieldset className="form-fieldset span-2">
             <legend>O que o cliente vai fazer?</legend>
@@ -374,6 +427,9 @@ export function PatientModal({
                       setPlanForm({
                         ...planForm,
                         kind,
+                        // Recorrente: uma cobrança por ciclo.
+                        installments:
+                          kind === "recurring" ? 1 : planForm.installments,
                         autoRenew:
                           kind === "recurring" && Boolean(planForm.validUntil),
                       });
@@ -411,17 +467,17 @@ export function PatientModal({
             salvas.
           </p>
         )}
+        {editable && missing.hint}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <ModalCancelButton disabled={loading}>
             {editable ? "Cancelar" : "Fechar"}
-          </button>
+          </ModalCancelButton>
           {editable && (
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading
                 ? "Salvando…"
                 : patient

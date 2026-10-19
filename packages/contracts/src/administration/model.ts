@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { optionalPhoneSchema } from "../common/model.js";
+import {
+  formatTaxId,
+  isValidTaxId,
+  optionalPhoneSchema,
+} from "../common/model.js";
 import { adminUserCommissionInputSchema } from "../finance/model.js";
 import {
   userPermissionsSchema,
@@ -150,7 +154,16 @@ export const clinicSettingsInputSchema = z.object({
     .or(z.literal("")),
   name: z.string().trim().min(2).max(160),
   legalName: z.string().trim().max(200).optional().or(z.literal("")),
-  taxId: z.string().trim().max(20).optional().or(z.literal("")),
+  taxId: z
+    .string()
+    .trim()
+    .max(20)
+    .refine(
+      (value) => value === "" || isValidTaxId(value),
+      "Informe um CPF ou CNPJ válido.",
+    )
+    .transform((value) => (value === "" ? "" : formatTaxId(value)))
+    .optional(),
   phone: optionalPhoneSchema,
   email: z.email().optional().or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),
@@ -186,7 +199,29 @@ export const serviceInputSchema = z.object({
   durationMinutes: z.number().int().min(15).max(480),
   priceInCents: z.number().int().min(0),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
+  professionalIds: z.array(z.uuid()).max(200).optional(),
+  roomIds: z.array(z.uuid()).max(200).optional(),
 });
+
+/** O serviço pode ser agendado com este profissional e esta sala? (vazio = todos). */
+export function serviceAvailableFor(
+  service: {
+    professionalIds?: string[] | undefined;
+    roomIds?: string[] | undefined;
+  },
+  professionalId: string,
+  roomId: string,
+) {
+  const professionals = service.professionalIds ?? [];
+  const rooms = service.roomIds ?? [];
+  return (
+    (!professionalId ||
+      professionals.length === 0 ||
+      professionals.includes(professionalId)) &&
+    (!roomId || rooms.length === 0 || rooms.includes(roomId))
+  );
+}
 
 /** Liga o usuário a um profissional da agenda; `null` desliga. Ligar outro troca a ligação. */
 export const adminUserProfessionalInputSchema = z.object({

@@ -1412,3 +1412,46 @@
     transition: none;
   }
 }
+
+/* Profissionais e salas de um serviço (nenhum marcado = todos). */
+.resource-checklist {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.resource-checklist legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.resource-checklist small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.resource-checklist > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.registry-settings {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.plans-toolbar {
+  flex-wrap: wrap;
+}
+/* "Vencendo" é recorte de "Ativo": separado dos filtros que somam "Todos". */
+.plans-filter-subset {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid #dcd9d0;
+}

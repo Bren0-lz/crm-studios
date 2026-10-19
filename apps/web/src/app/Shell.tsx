@@ -1,13 +1,22 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { UserSummary } from "@crm/contracts";
-import { Bell, LogOut, Menu, X } from "lucide-react";
-import { type ReactNode, useCallback, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { LogOut, Menu, X } from "lucide-react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { ModuleLabelContext } from "../shared/lib/ModuleLabelContext";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
 import type { NavigationGuard } from "../shared/lib/types";
+import { installInlineValidation } from "../shared/feedback/inline-validation";
+import { NotificationsMenu, UserMenu } from "./HeaderMenus";
 import { navGroups } from "./navItems";
 
 export function Shell({
@@ -20,6 +29,21 @@ export function Shell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // Rótulo dos modais: o módulo da página aberta (o item de menu mais específico).
+  const moduleLabel =
+    navGroups
+      .flatMap((group) => group.items)
+      .filter(
+        (item) =>
+          item.to !== "/" &&
+          (pathname === item.to || pathname.startsWith(`${item.to}/`)),
+      )
+      .sort((a, b) => b.to.length - a.to.length)[0]?.label ??
+    (pathname === "/" ? "Visão geral" : "Studios Aryana");
+  // Validação dos formulários abaixo de cada campo, no lugar dos balões do navegador.
+  useEffect(() => installInlineValidation(document), []);
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
@@ -36,6 +60,12 @@ export function Shell({
       set.delete(guard);
     };
   }, []);
+
+  /** Navegação dos menus do cabeçalho: respeita os avisos de alterações não salvas. */
+  function guardedNavigate(to: string) {
+    for (const guard of guards.current) if (guard(to)) return;
+    void navigate(to);
+  }
 
   return (
     <div className="app-shell">
@@ -134,15 +164,19 @@ export function Shell({
           </div>
           <div className="top-actions">
             <EmergencyButton />
-            <button className="icon-button" title="Notificações">
-              <Bell size={19} />
-            </button>
-            <span className="top-avatar">{initials(user.fullName)}</span>
+            <NotificationsMenu onNavigate={guardedNavigate} />
+            <UserMenu
+              user={user}
+              onNavigate={guardedNavigate}
+              onLogout={onLogout}
+            />
           </div>
         </header>
         <div className="page-content">
           <NavigationGuardContext.Provider value={registerGuard}>
-            {children}
+            <ModuleLabelContext.Provider value={moduleLabel}>
+              {children}
+            </ModuleLabelContext.Provider>
           </NavigationGuardContext.Provider>
         </div>
       </section>

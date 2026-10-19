@@ -10,6 +10,7 @@ import {
   patientTabItemInputSchema,
   payableInputSchema,
   paymentInputSchema,
+  receivableSettlementSchema,
   productInputSchema,
   receivableAdjustmentInputSchema,
   receivableRenegotiationInputSchema,
@@ -145,7 +146,13 @@ export function registerFinanceRoutes(context: RouteContext) {
     "/finance/receivables/:id/pay",
     { preHandler: authenticate },
     async (request, reply) => {
-      const timing = paymentInputSchema.parse(request.body ?? {});
+      const {
+        discountInCents,
+        interestInCents,
+        receivedInCents,
+        balanceDueDate,
+        ...timing
+      } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
@@ -153,6 +160,12 @@ export function registerFinanceRoutes(context: RouteContext) {
         id,
         timing.paymentMethod,
         timing,
+        {
+          discountInCents,
+          interestInCents,
+          ...(receivedInCents === undefined ? {} : { receivedInCents }),
+          ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+        },
       );
       if (!receivable)
         return reply.status(404).send({

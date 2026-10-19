@@ -24,7 +24,9 @@ export function GroupSessionCard({
         <time>
           {startsAt}–{endsAt}
         </time>
-        <strong>{session.groupName}</strong>
+        <strong className="group-name" title={session.groupName}>
+          {session.groupName}
+        </strong>
         <span>
           {session.professionalName} · {session.roomName}
         </span>
@@ -42,7 +44,9 @@ export function GroupSessionCard({
             <Users size={13} aria-hidden="true" />
             Aula em grupo
           </span>
-          <h3>{session.groupName}</h3>
+          <h3 className="group-name" title={session.groupName}>
+            {session.groupName}
+          </h3>
           <p>
             {session.professionalName} · {session.roomName}
           </p>

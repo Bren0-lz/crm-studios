@@ -14,6 +14,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { api } from "../../api";
+import { computeFloatingPosition } from "./calendar-position";
 
 type Props = {
   value: string;
@@ -168,54 +169,10 @@ export function AppointmentDateTimePicker({
     };
   }, [expanded, from, to, holidayFrom, holidayTo, requestKey]);
 
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    const trigger = triggerRef.current;
-    if (!expanded || !panel || !trigger) return;
-
-    // The native top layer escapes the modal's scrolling area without moving the
-    // panel out of its DOM subtree (and therefore out of the modal's focus trap).
-    panel.showPopover?.();
-
-    function positionPanel() {
-      if (!panel || !trigger) return;
-      const viewport = window.visualViewport;
-      const viewportLeft = viewport?.offsetLeft ?? 0;
-      const viewportTop = viewport?.offsetTop ?? 0;
-      const viewportWidth =
-        viewport?.width ??
-        (document.documentElement.clientWidth || window.innerWidth);
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const margin = 12;
-      const gap = 8;
-      const width = Math.max(0, Math.min(340, viewportWidth - margin * 2));
-      const maxHeight = Math.max(0, viewportHeight - margin * 2);
-      panel.style.width = `${width}px`;
-      panel.style.maxHeight = `${maxHeight}px`;
-
-      const anchor = trigger.getBoundingClientRect();
-      const height = panel.getBoundingClientRect().height;
-      const below = viewportTop + viewportHeight - margin - anchor.bottom - gap;
-      const above = anchor.top - gap - viewportTop - margin;
-      const placeAbove = height > below && above > below;
-      const available = Math.max(
-        0,
-        Math.min(maxHeight, placeAbove ? above : below),
-      );
-      panel.style.maxHeight = `${available}px`;
-      const panelHeight = Math.min(height, available);
-      const top = placeAbove
-        ? anchor.top - gap - panelHeight
-        : anchor.bottom + gap;
-      panel.style.left = `${Math.max(viewportLeft + margin, Math.min(anchor.left, viewportLeft + viewportWidth - margin - width))}px`;
-      panel.style.top = `${Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - margin - panelHeight))}px`;
-    }
-
-    function onScroll(event: Event) {
-      if (event.target instanceof Node && panel?.contains(event.target)) return;
-      positionPanel();
-    }
-
+  // Clique fora do seletor fecha. Esc fecha só o calendário (captura na janela, antes do
+  // Esc do modal, mesmo quando o foco não está dentro do seletor).
+  useEffect(() => {
+    if (!expanded) return;
     function onPointerDown(event: PointerEvent) {
       if (
         event.target instanceof Node &&
@@ -223,27 +180,69 @@ export function AppointmentDateTimePicker({
       )
         setOpen(false);
     }
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [expanded]);
 
+  // O painel flutua em position: fixed (escapa do overflow do modal) e é recalculado
+  // a cada rolagem/redimensionamento para nunca ficar cortado na viewport.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const trigger = triggerRef.current;
+    if (!expanded || !panel || !trigger) return;
+    function positionPanel() {
+      if (!panel || !trigger) return;
+      const viewport = window.visualViewport;
+      panel.style.removeProperty("--calendar-max-height");
+      panel.style.removeProperty("--calendar-width");
+      const natural = panel.getBoundingClientRect();
+      const position = computeFloatingPosition({
+        trigger: trigger.getBoundingClientRect(),
+        panel: { width: natural.width, height: natural.height },
+        viewport: {
+          top: viewport?.offsetTop ?? 0,
+          left: viewport?.offsetLeft ?? 0,
+          width: viewport?.width ?? window.innerWidth,
+          height: viewport?.height ?? window.innerHeight,
+        },
+      });
+      panel.style.setProperty("--calendar-top", `${position.top}px`);
+      panel.style.setProperty("--calendar-left", `${position.left}px`);
+      panel.style.setProperty("--calendar-width", `${position.width}px`);
+      panel.style.setProperty(
+        "--calendar-max-height",
+        `${position.maxHeight}px`,
+      );
+      panel.dataset.placement = position.placement;
+      panel.dataset.align = position.align;
+    }
     positionPanel();
     const observer =
       typeof ResizeObserver === "undefined"
         ? null
-        : new ResizeObserver(positionPanel);
+        : new ResizeObserver(() => positionPanel());
     observer?.observe(panel);
-    observer?.observe(trigger);
     window.addEventListener("resize", positionPanel);
-    document.addEventListener("scroll", onScroll, true);
-    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("scroll", positionPanel, true);
     window.visualViewport?.addEventListener("resize", positionPanel);
     window.visualViewport?.addEventListener("scroll", positionPanel);
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", positionPanel);
-      document.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("scroll", positionPanel, true);
       window.visualViewport?.removeEventListener("resize", positionPanel);
       window.visualViewport?.removeEventListener("scroll", positionPanel);
-      if (panel.isConnected) panel.hidePopover?.();
     };
   }, [expanded]);
 
@@ -389,13 +388,6 @@ export function AppointmentDateTimePicker({
     <div
       ref={pickerRef}
       className="appointment-date-picker"
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && expanded) {
-          event.preventDefault();
-          event.stopPropagation();
-          closeCalendar();
-        }
-      }}
       onBlur={(event) => {
         if (
           event.relatedTarget &&
@@ -437,9 +429,6 @@ export function AppointmentDateTimePicker({
             required
             disabled={disabled}
             value={time}
-            onFocus={() => {
-              if (!expanded && !disabled) showCalendar(false);
-            }}
             onChange={(event) => onChange(`${date}T${event.target.value}`)}
           />
         </label>
@@ -448,7 +437,6 @@ export function AppointmentDateTimePicker({
         <div
           ref={panelRef}
           id={`${id}-panel`}
-          popover="manual"
           className="appointment-calendar"
           role="region"
           aria-label="Calendário de agendamento"
@@ -506,25 +494,24 @@ export function AppointmentDateTimePicker({
                     const key = dateKey(day);
                     const count = eventsOnDay(day).length;
                     const holiday = holidayNames.get(key);
+                    // Dias passados continuam clicáveis (remarcar/lançar no passado é
+                    // permitido); só mudam de aparência e de descrição.
+                    const past = key < today;
                     return (
                       <td key={key}>
                         <button
                           type="button"
                           data-date={key}
-                          className={`appointment-calendar-day${day.getMonth() !== month.getMonth() ? " outside" : ""}${key === today ? " today" : ""}${key === date ? " selected" : ""}`}
-                          aria-label={`${fullDateLabel.format(day)}${count ? `, ${count} compromisso${count > 1 ? "s" : ""}` : ""}${holiday ? `, feriado: ${holiday}` : ""}`}
+                          className={`appointment-calendar-day${day.getMonth() !== month.getMonth() ? " outside" : ""}${past ? " past" : ""}${key === today ? " today" : ""}${key === date ? " selected" : ""}`}
+                          aria-label={`${fullDateLabel.format(day)}${past ? ", dia passado" : ""}${count ? `, ${count} compromisso${count > 1 ? "s" : ""}` : ""}${holiday ? `, feriado: ${holiday}` : ""}`}
                           aria-current={key === today ? "date" : undefined}
                           aria-pressed={key === date}
                           tabIndex={key === focusedDate ? 0 : -1}
                           onFocus={() => setFocusedDate(key)}
                           onKeyDown={(event) => onDayKeyDown(event, day)}
                           onClick={() => {
-                            setFocusedDate(key);
                             onChange(`${key}T${time}`);
-                            if (day.getMonth() !== month.getMonth()) {
-                              focusDay.current = true;
-                              setMonth(firstOfMonth(day));
-                            }
+                            closeCalendar();
                           }}
                         >
                           <span className="appointment-calendar-day-number">
@@ -570,16 +557,6 @@ export function AppointmentDateTimePicker({
                 ? "Do profissional ou da sala selecionados"
                 : "Resumo geral da agenda"}
             </small>
-            <label className="appointment-calendar-time-field">
-              <span>Horário do atendimento</span>
-              <input
-                type="time"
-                required
-                disabled={disabled}
-                value={time}
-                onChange={(event) => onChange(`${date}T${event.target.value}`)}
-              />
-            </label>
             {error ? (
               <div role="alert">
                 <p>{error}</p>

@@ -11,7 +11,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { roleLabels } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
@@ -72,6 +74,17 @@ export function UserFormModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty({
+    fullName,
+    email,
+    password,
+    role,
+    jobTitle,
+    selectedPermissions,
+    percentage,
+    effectiveFrom,
+    selectedProfessional,
+  });
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
   const copySources = users.filter(
@@ -129,13 +142,24 @@ export function UserFormModal({
     setCopiedFrom(source.fullName);
   }
 
+  // O que falta: o botão principal fica desativado listando os campos (QM14).
+  const missing = useMissingFields([
+    ...(fullName.trim().length < 3
+      ? ["Nome completo (pelo menos 3 caracteres)"]
+      : []),
+    ...(!current && !email.trim() ? ["E-mail de acesso"] : []),
+    ...(!current && !password ? ["Senha inicial"] : []),
+    // Já havia comissão: em branco não vale (para não pagar, 0%).
+    ...(typedPercentage === undefined &&
+    savedCommission.percentage !== undefined
+      ? ["Comissão (%) — para não pagar comissão, informe 0%"]
+      : []),
+    ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
+  ]);
+
+  /** Regra do percentual informado (não é falta de campo). */
   function commissionError() {
-    if (typedPercentage === undefined) {
-      return savedCommission.percentage === undefined
-        ? ""
-        : "A comissão não pode ficar em branco: para não pagar comissão, informe 0%.";
-    }
-    if (!commissionChanged) return "";
+    if (typedPercentage === undefined || !commissionChanged) return "";
     if (
       Number.isNaN(typedPercentage) ||
       typedPercentage < 0 ||
@@ -143,8 +167,6 @@ export function UserFormModal({
     ) {
       return "Informe um percentual de comissão entre 0 e 100.";
     }
-    if (!effectiveFrom)
-      return "Informe a data em que a comissão passa a valer.";
     return "";
   }
 
@@ -236,6 +258,7 @@ export function UserFormModal({
       }
       eyebrow="Usuários"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -420,16 +443,14 @@ export function UserFormModal({
           </div>
         </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
+        {missing.hint}
         <div className="modal-actions span-2">
+          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={saving}
+            className="primary-button"
+            disabled={saving || missing.blocked}
+            aria-describedby={missing.describedBy}
           >
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={saving}>
             {saving
               ? "Salvando…"
               : current

@@ -159,8 +159,12 @@ describe("configured plan catalog", () => {
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: "Cliente teste" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: "Cliente teste" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Cliente teste" }),
+    );
     expect(
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();
@@ -168,8 +172,8 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(400);
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(50);
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
@@ -182,7 +186,7 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(120.5);
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
@@ -291,12 +295,17 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
+    // O que falta no serviço novo fica listado e ligado ao botão (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
     fill("Valor do serviço 2", "25.50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );

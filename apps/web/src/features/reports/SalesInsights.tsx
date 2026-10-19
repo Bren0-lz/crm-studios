@@ -1,9 +1,11 @@
 import type { SalesReport } from "@crm/contracts";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   formatIsoDate,
@@ -13,6 +15,9 @@ import {
 
 export function SalesInsights() {
   const { can } = useAuthorization();
+  const [searchParams] = useSearchParams();
+  // "Ver todos" do painel abre direto a lista de clientes sem retorno.
+  const focusNoReturn = searchParams.get("secao") === "sem-retorno";
   const [month, setMonth] = useState(localIsoDate().slice(0, 7));
   const [report, setReport] = useState<SalesReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +42,12 @@ export function SalesInsights() {
       active = false;
     };
   }, [month]);
+  useEffect(() => {
+    if (focusNoReturn && report)
+      document
+        .getElementById("sales-no-return")
+        ?.scrollIntoView?.({ block: "start" });
+  }, [focusNoReturn, report]);
 
   async function exportXlsx() {
     setExporting(true);
@@ -104,21 +115,24 @@ export function SalesInsights() {
           </p>
           <div className="sales-metrics">
             <article>
-              <span>Vendido no mês</span>
+              <span>Vendido líquido</span>
               <strong>
                 {currency.format(report.current.netSalesInCents / 100)}
               </strong>
-              <small>
-                {report.changePercent === null
-                  ? "Sem vendas no período anterior"
-                  : `${report.changePercent > 0 ? "+" : ""}${report.changePercent}% frente ao mês anterior`}
-              </small>
-              <small>
-                Antes dos cancelamentos:{" "}
-                {currency.format(report.current.grossSalesInCents / 100)}
-                {" · "}Cancelado:{" "}
-                {currency.format(report.current.cancelledSalesInCents / 100)}
-              </small>
+              <TrendBadge
+                changePercent={report.changePercent}
+                changeInCents={report.changeInCents}
+                hasCurrentValue={report.current.netSalesInCents !== 0}
+                comparison="frente ao mês anterior"
+              />
+              {report.current.cancelledSalesInCents > 0 && (
+                <small>
+                  Antes dos estornos:{" "}
+                  {currency.format(report.current.grossSalesInCents / 100)}
+                  {" · "}Estornos:{" "}
+                  {currency.format(report.current.cancelledSalesInCents / 100)}
+                </small>
+              )}
             </article>
             <article>
               <span>Dinheiro recebido</span>
@@ -135,7 +149,10 @@ export function SalesInsights() {
               </small>
             </article>
           </div>
-          <details className="report-disclosure sales-details">
+          <details
+            className="report-disclosure sales-details"
+            open={focusNoReturn || undefined}
+          >
             <summary>Ver vendas e clientes do mês</summary>
             <div className="sales-detail-grid">
               <div>
@@ -159,13 +176,13 @@ export function SalesInsights() {
                   </div>
                 )}
               </div>
-              <div>
+              <div id="sales-no-return">
                 <h3>Clientes sem retorno</h3>
                 {report.patientsWithoutReturn.length === 0 ? (
                   <p>Nenhum cliente nessa situação.</p>
                 ) : (
                   <div className="sales-detail-list">
-                    {report.patientsWithoutReturn.slice(0, 12).map((item) => (
+                    {report.patientsWithoutReturn.map((item) => (
                       <div key={item.patientId}>
                         <span>
                           <strong>{item.patientName}</strong>

@@ -133,7 +133,7 @@ export async function openSettingsSection(...names: string[]) {
       name === "Dados da clínica"
         ? "Clínica"
         : name === "Prazos e mensagens"
-          ? "Relacionamento"
+          ? "Contatos sugeridos"
           : name;
     const tab = await screen.findByRole("tab", { name: label });
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
@@ -155,10 +155,20 @@ export function patientTag(name: string, color = "#64748b", patientCount = 0) {
   };
 }
 
-export function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
+export async function fillAppointmentForm(
+  dialog: HTMLElement,
+  patientName?: string,
+) {
   if (patientName) {
-    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(within(dialog).getByRole("option", { name: patientName }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      {
+        target: { value: patientName },
+      },
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: patientName }),
+    );
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
@@ -171,9 +181,13 @@ export function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Fechar calendário" }),
-    );
+    // Escolher o dia fecha o calendário.
+    if (
+      within(dialog).queryByRole("region", {
+        name: "Calendário de agendamento",
+      })
+    )
+      throw new Error("O calendário deveria fechar ao escolher o dia.");
   }
   const time = within(dialog).getByLabelText("Horário");
   if (!(time as HTMLInputElement).value)

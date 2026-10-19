@@ -1,4 +1,9 @@
-import { type Appointment, type Lead, groupClassName } from "@crm/contracts";
+import {
+  type Appointment,
+  type Lead,
+  documentTemplateVariables,
+  groupClassName,
+} from "@crm/contracts";
 import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
@@ -15,6 +20,11 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import {
+  atInstant,
+  patchStatusAt,
+  reissuedHeaders,
+} from "../../test-support/clock.js";
 import { localParts, zonedTimeToUtc } from "../groups/group-schedule.js";
 
 describe("CRM API", () => {
@@ -772,11 +782,10 @@ describe("CRM API", () => {
       }),
     });
     expect(plan.statusCode).toBe(201);
-    const completed = await app.inject({
-      method: "PATCH",
-      url: `/appointments/${ids[0]}/status`,
-      headers,
-      payload: { status: "completed" },
+    // Desfecho e evolução só depois do início (atendimentos em 15 e 16/05/2031).
+    const afterStart = "2031-05-20T12:00:00.000Z";
+    const completed = await patchStatusAt(app, headers, afterStart, ids[0]!, {
+      status: "completed",
     });
     expect(completed.statusCode).toBe(200);
     const plans = await app.inject({ method: "GET", url: "/plans", headers });
@@ -787,18 +796,20 @@ describe("CRM API", () => {
     ).toBe(3);
 
     // Prontuário e NPS passam a ser aceitos.
-    const record = await app.inject({
-      method: "POST",
-      url: "/clinical-records",
-      headers,
-      payload: {
-        appointmentId: ids[0],
-        subjective: "Relato",
-        objective: "Exame",
-        assessment: "Avaliação",
-        plan: "Plano",
-      },
-    });
+    const record = await atInstant(afterStart, () =>
+      app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers: reissuedHeaders(app, headers),
+        payload: {
+          appointmentId: ids[0],
+          subjective: "Relato",
+          objective: "Exame",
+          assessment: "Avaliação",
+          plan: "Plano",
+        },
+      }),
+    );
     expect(record.statusCode).toBe(201);
     expect(record.json()).toMatchObject({ patientId });
     const survey = await app.inject({
@@ -946,12 +957,15 @@ describe("CRM API", () => {
         ),
     ).toBe(10001);
 
-    await app.inject({
-      method: "PATCH",
-      url: `/appointments/${appointment.id}/status`,
+    // Realizado só vale a partir do início do atendimento: conclui com o relógio nele.
+    const completed = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "completed" },
-    });
+      appointment.startsAt,
+      appointment.id,
+      { status: "completed" },
+    );
+    expect(completed.statusCode).toBe(200);
     let plans = await app.inject({ method: "GET", url: "/plans", headers });
     expect(plans.json()[0].remainingSessions).toBe(4);
 
@@ -1182,6 +1196,42 @@ describe("CRM API", () => {
       payload: { status: "issued" },
     });
     expect(invalidTransition.statusCode).toBe(409);
+    await app.close();
+  });
+
+  it("replaces every field offered by the template editor when issuing", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const patient = (
+      await app.inject({ method: "GET", url: "/patients", headers })
+    ).json()[0];
+    const template = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Todos os campos",
+        kind: "other",
+        body: documentTemplateVariables
+          .map((variable) => `${variable.label}: {{${variable.key}}}`)
+          .join("\n"),
+      },
+    });
+    const document = await app.inject({
+      method: "POST",
+      url: "/documents",
+      headers,
+      payload: {
+        templateId: template.json().id,
+        patientId: patient.id,
+        title: "Todos os campos",
+      },
+    });
+    expect(document.statusCode).toBe(201);
+    expect(document.json().snapshotBody).not.toContain("{{");
+    expect(document.json().snapshotBody).toContain(
+      `Nome do cliente: ${patient.fullName}`,
+    );
     await app.close();
   });
 
@@ -1758,7 +1808,7 @@ describe("CRM API", () => {
         professionalId: professionals.json()[0].id,
         roomId: rooms.json()[0].id,
         serviceId: services.json()[0].id,
-        startsAt: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000).toISOString(),
+        startsAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
       },
     });
     expect(appointment.statusCode).toBe(201);
@@ -1887,7 +1937,10 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/rooms", headers }),
     ]);
     const references = {
-      patients: patients.json(),
+      // Só clientes ativos podem ser matriculados.
+      patients: patients
+        .json()
+        .filter((item: { status: string }) => item.status === "active"),
       service: services.json()[0],
       professional: professionals.json()[0],
       room: rooms
@@ -4468,7 +4521,7 @@ describe("CRM API", () => {
       const withGroup = await guided({
         next: "plan",
         patient: { fullName: "Assinante Com Turma", phone: "11966660001" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId,
       });
       expect(withGroup.statusCode).toBe(201);
@@ -4519,13 +4572,14 @@ describe("CRM API", () => {
       ).json().receivables as { planId?: string }[];
       expect(
         receivables.filter((item) => item.planId === withGroupBody.plan.id),
-      ).toHaveLength(2);
+        // Recorrente: uma cobrança por ciclo.
+      ).toHaveLength(1);
 
       // Turma de outro serviço: nada fica gravado.
       const mismatch = await guided({
         next: "plan",
         patient: { fullName: "Turma Errada", phone: "11966660004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: otherGroupId,
       });
       expect(mismatch.statusCode).toBe(400);
@@ -4533,7 +4587,7 @@ describe("CRM API", () => {
       const missingGroup = await guided({
         next: "plan",
         patient: { fullName: "Turma Errada", phone: "11966660004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: "99999999-9999-4999-8999-999999999999",
       });
       expect(missingGroup.statusCode).toBe(404);
@@ -4604,13 +4658,13 @@ describe("CRM API", () => {
       const enrolled = await create({
         next: "plan",
         patient: { fullName: "Filtro Matriculada", phone: "11977771001" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId,
       });
       const noGroup = await create({
         next: "plan",
         patient: { fullName: "Filtro Sem Turma", phone: "11977771002" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
       });
       const otherService = await create({
         next: "plan",
@@ -4627,13 +4681,13 @@ describe("CRM API", () => {
       await create({
         next: "plan",
         patient: { fullName: "Filtro Ocupa Vaga", phone: "11977771004" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
       const waitlisted = await create({
         next: "plan",
         patient: { fullName: "Filtro Espera", phone: "11977771005" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
       await create({
@@ -4644,7 +4698,7 @@ describe("CRM API", () => {
       const paused = await create({
         next: "plan",
         patient: { fullName: "Filtro Pausado", phone: "11977771007" },
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
       });
       const pause = await app.inject({
         method: "PATCH",
@@ -4720,7 +4774,7 @@ describe("CRM API", () => {
       const plan = (name: string, withGroup = false) => ({
         next: "plan",
         patient: patient(name),
-        plan: { ...planTerms, kind: "recurring" },
+        plan: { ...planTerms, kind: "recurring", installments: 1 },
         ...(withGroup ? { groupId } : {}),
       });
 

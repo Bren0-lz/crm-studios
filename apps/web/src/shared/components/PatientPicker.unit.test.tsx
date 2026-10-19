@@ -10,6 +10,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { PatientPicker } from "../../PatientPicker";
+import { installInlineValidation } from "../feedback/inline-validation";
 
 const ana: PatientOption = {
   id: "ana",
@@ -66,7 +67,8 @@ afterEach(() => {
 });
 
 describe("PatientPicker", () => {
-  it("opens an opt-in native popover inside the picker and closes before the outer Escape handler", () => {
+  it("opens an opt-in native popover inside the picker and closes before the outer Escape handler", async () => {
+    vi.mocked(api.patientOptions).mockResolvedValue([ana]);
     const show = vi.spyOn(HTMLElement.prototype, "showPopover");
     const onChange = vi.fn();
     const outerEscape = vi.fn();
@@ -75,7 +77,7 @@ describe("PatientPicker", () => {
         <PatientPicker patients={[ana]} value="" onChange={onChange} popover />
       </div>,
     );
-    fireEvent.focus(picker());
+    await search("Ana");
     const panel = screen.getByRole("listbox").parentElement!;
     expect(panel).toHaveAttribute("popover", "manual");
     expect(view.container).toContainElement(panel);
@@ -84,7 +86,8 @@ describe("PatientPicker", () => {
     fireEvent.click(screen.getByRole("option", { name: ana.fullName }));
     expect(onChange).toHaveBeenCalledWith(ana.id, ana);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    fireEvent.focus(picker());
+    fireEvent.change(picker(), { target: { value: "An" } });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     fireEvent.keyDown(picker(), { key: "Escape" });
     expect(outerEscape).not.toHaveBeenCalled();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
@@ -111,7 +114,7 @@ describe("PatientPicker", () => {
     render(
       <PatientPicker patients={[ana]} value="" onChange={vi.fn()} popover />,
     );
-    fireEvent.focus(picker());
+    fireEvent.change(picker(), { target: { value: "Ana" } });
     const panel = screen.getByRole("listbox").parentElement!;
     expect(panel.style.width).toBe("220px");
     expect(panel.style.top).toBe("152px");
@@ -124,6 +127,7 @@ describe("PatientPicker", () => {
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     fireEvent.focus(picker());
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     fireEvent.blur(picker());
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
@@ -152,7 +156,7 @@ describe("PatientPicker", () => {
     const view = render(
       <PatientPicker patients={[ana]} value="" onChange={vi.fn()} popover />,
     );
-    fireEvent.focus(picker());
+    fireEvent.change(picker(), { target: { value: "Ana" } });
     const panel = screen.getByRole("listbox").parentElement!;
     expect(panel.style.top).toBe("152px");
     viewport.height = 200;
@@ -169,17 +173,78 @@ describe("PatientPicker", () => {
     expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function));
   });
 
-  it("distinguishes initial loading from an empty list", () => {
-    const props = { patients: [], value: "", onChange: vi.fn() };
-    const view = render(<PatientPicker {...props} loading />);
+  it("only opens the list with typed text, filtered by it, never with the preloaded clients", async () => {
+    const onChange = vi.fn();
+    const view = render(
+      <PatientPicker patients={[ana, breno]} value="" onChange={onChange} />,
+    );
     fireEvent.focus(picker());
+    fireEvent.keyDown(picker(), { key: "ArrowDown" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(picker()).toHaveAttribute("aria-expanded", "false");
+    fireEvent.change(picker(), { target: { value: "Bre" } });
     expect(screen.getByRole("status")).toHaveTextContent("Buscando clientes");
     expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "true");
-    view.rerender(<PatientPicker {...props} />);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Nenhum cliente encontrado",
-    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(api.patientOptions).toHaveBeenCalledWith("Bre");
     expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "false");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      breno.fullName,
+    ]);
+    // Volta do cadastro rápido: a seleção externa fecha a busca e não reabre a lista.
+    view.rerender(
+      <PatientPicker
+        patients={[ana, breno]}
+        value={ana.id}
+        onChange={onChange}
+      />,
+    );
+    expect(picker()).toHaveValue(ana.fullName);
+    fireEvent.blur(picker());
+    fireEvent.focus(picker());
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
+  it("clears the inline error on selection, never validates while typing, and enables submit", async () => {
+    const uninstall = installInlineValidation(document);
+    try {
+      render(<Form />);
+      const form = picker().closest("form")!;
+      expect(form.reportValidity()).toBe(false);
+      expect(picker()).toHaveAttribute("aria-invalid", "true");
+      expect(picker()).toHaveAttribute(
+        "aria-description",
+        "Preencha este campo.",
+      );
+      expect(document.querySelector(".inline-field-error")).not.toBeNull();
+
+      await search("Breno");
+      fireEvent.click(screen.getByRole("option", { name: breno.fullName }));
+      expect(picker()).not.toHaveAttribute("aria-invalid");
+      expect(picker()).not.toHaveAttribute("aria-description");
+      expect(document.querySelector(".inline-field-error")).toBeNull();
+      expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled();
+
+      // Editar desfaz a seleção, mas o erro só volta num novo envio.
+      fireEvent.input(picker(), { target: { value: "Bren" } });
+      fireEvent.change(picker(), { target: { value: "Bre" } });
+      fireEvent.input(picker(), { target: { value: "Br" } });
+      expect(screen.getByTestId("selected-id")).toBeEmptyDOMElement();
+      expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
+      expect(picker()).not.toHaveAttribute("aria-invalid");
+      expect(document.querySelector(".inline-field-error")).toBeNull();
+      expect(form.reportValidity()).toBe(false);
+      expect(picker()).toHaveAttribute("aria-invalid", "true");
+      expect(picker()).toHaveAttribute(
+        "aria-description",
+        "Selecione um cliente encontrado na busca.",
+      );
+    } finally {
+      uninstall();
+    }
   });
 
   it.each(["Breno", "12345678909", "123.456.789-09"])(
@@ -256,9 +321,7 @@ describe("PatientPicker", () => {
     expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
     expect(picker().checkValidity()).toBe(false);
     fireEvent.change(picker(), { target: { value: "" } });
-    expect(
-      screen.getByRole("option", { name: ana.fullName }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.queryByText("Buscando clientes…")).not.toBeInTheDocument();
   });
 
@@ -282,18 +345,20 @@ describe("PatientPicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("closes on Escape without closing the containing modal, and supports ArrowUp", () => {
+  it("closes on Escape without closing the containing modal, and supports ArrowUp", async () => {
+    vi.mocked(api.patientOptions).mockResolvedValue([ana, breno]);
     const onKeyDown = vi.fn();
     render(
       <div onKeyDown={onKeyDown}>
         <Form patients={[ana, breno]} />
       </div>,
     );
-    fireEvent.focus(picker());
+    await search("a");
     fireEvent.keyDown(picker(), { key: "ArrowUp" });
     fireEvent.keyDown(picker(), { key: "Enter" });
     expect(picker()).toHaveValue(breno.fullName);
-    fireEvent.focus(picker());
+    fireEvent.change(picker(), { target: { value: "Bre" } });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     onKeyDown.mockClear();
     fireEvent.keyDown(picker(), { key: "Escape" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
@@ -356,7 +421,10 @@ describe("PatientPicker", () => {
       </>,
     );
     const inputs = screen.getAllByRole("combobox", { name: "Cliente" });
-    inputs.forEach((input) => fireEvent.focus(input));
+    inputs.forEach((input) =>
+      fireEvent.change(input, { target: { value: "Ana" } }),
+    );
+    expect(inputs[0]!.getAttribute("aria-controls")).toBeTruthy();
     expect(inputs[0]!.getAttribute("aria-controls")).not.toBe(
       inputs[1]!.getAttribute("aria-controls"),
     );

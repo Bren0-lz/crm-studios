@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   patientPlanInputSchema,
   planCatalogInputSchema,
+  planPauseDetailsSchema,
   planRenewalInputSchema,
   planServiceInputSchema,
   planStatusSchema,
@@ -72,7 +73,13 @@ export interface PatientPlan extends Omit<
   updatedAt: string;
   cancelledAt?: string;
   cancelledValueInCents?: number;
+  /** Pausa em andamento: início, motivo e previsão de retorno. */
+  pausedAt?: string;
+  pauseReason?: string;
+  pauseExpectedReturn?: string;
 }
+
+export type PlanPauseDetails = z.infer<typeof planPauseDetailsSchema>;
 
 export interface SessionMovement {
   groupAttendanceId?: string;

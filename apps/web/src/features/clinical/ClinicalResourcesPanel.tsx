@@ -1,5 +1,5 @@
 import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
-import { clinicIsoDate } from "../../shared/lib/formatting";
+import { clinicIsoDate, formatIsoDate } from "../../shared/lib/formatting";
 import {
   clinicalResourceLabels,
   type ClinicalResource,
@@ -19,6 +19,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { ClinicalResourceEditor } from "./ClinicalResourceEditor";
+import { useToast } from "../../shared/feedback/toast-context";
 
 function ResourceContent({
   data,
@@ -119,8 +120,8 @@ function ResourceContent({
       {data.kind === "training" && (
         <>
           <p>
-            Vigência: {data.validFrom}{" "}
-            {data.validUntil ? `até ${data.validUntil}` : ""}
+            Vigência: {formatIsoDate(data.validFrom)}{" "}
+            {data.validUntil ? `até ${formatIsoDate(data.validUntil)}` : ""}
             {data.sessionLimit ? ` · ${data.sessionLimit} execuções` : ""}
           </p>
           <ol>
@@ -160,6 +161,7 @@ export function ClinicalResourcesPanel({
   catalogOnly?: boolean;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const timezone = useClinicTimezone();
   const [opened, setOpened] = useState(false),
     [kind, setKind] = useState<ClinicalResourceKind>(
@@ -263,6 +265,7 @@ export function ClinicalResourcesPanel({
     setError("");
     try {
       await api.finalizeClinicalResource(finalizing.id);
+      toast.success("Registro clínico finalizado.");
       await load();
       setFinalizing(null);
     } catch (cause) {

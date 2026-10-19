@@ -1,5 +1,5 @@
 import {
-  fillMessageTemplate,
+  fillPatientMessage,
   phoneDigits,
   type BroadcastInput,
   type BroadcastMessageDraft,
@@ -66,9 +66,7 @@ export function buildBroadcast(
       skip("no_destination");
       continue;
     }
-    const firstName =
-      patient.fullName.trim().split(/\s+/)[0] ?? patient.fullName;
-    const body = fillMessageTemplate(input.body, { nome: firstName });
+    const body = fillPatientMessage(input.body, patient.fullName);
     if (body.length > maxBodyLength) {
       skip("message_too_long");
       continue;

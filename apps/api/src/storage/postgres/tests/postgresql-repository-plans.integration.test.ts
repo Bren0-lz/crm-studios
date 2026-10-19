@@ -68,6 +68,53 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     return { ...input, services, planTemplateId: template.id };
   }
 
+  it("records the pause and extends the validity by the paused days on reactivation", async () => {
+    const found = await pool.query<{
+      id: string;
+      validUntil: string;
+      status: string;
+    }>(
+      `SELECT id, valid_until::text AS "validUntil", status FROM patient_plans
+       WHERE clinic_id = $1 AND status = 'active' AND valid_until IS NOT NULL AND source_tab_id IS NULL
+       LIMIT 1`,
+      [clinicId],
+    );
+    const plan = found.rows[0]!;
+    try {
+      const paused = await repository.updatePatientPlanStatus(
+        clinicId,
+        ownerId,
+        plan.id,
+        "paused",
+        { reason: "Viagem", expectedReturn: "2099-01-10" },
+      );
+      expect(paused).toMatchObject({
+        status: "paused",
+        pauseReason: "Viagem",
+        pauseExpectedReturn: "2099-01-10",
+      });
+      await pool.query(
+        "UPDATE patient_plans SET paused_at = now() - interval '3 days' WHERE id = $1",
+        [plan.id],
+      );
+      const resumed = await repository.updatePatientPlanStatus(
+        clinicId,
+        ownerId,
+        plan.id,
+        "active",
+      );
+      const expected = new Date(`${plan.validUntil}T12:00:00Z`);
+      expected.setUTCDate(expected.getUTCDate() + 3);
+      expect(resumed?.validUntil).toBe(expected.toISOString().slice(0, 10));
+      expect(resumed).not.toHaveProperty("pausedAt");
+    } finally {
+      await pool.query(
+        "UPDATE patient_plans SET status = $2::plan_status, valid_until = $3::date, paused_at = NULL, pause_reason = NULL, pause_expected_return = NULL WHERE id = $1",
+        [plan.id, plan.status, plan.validUntil],
+      );
+    }
+  });
+
   it("persists the plan period and weekly frequency across repository instances", async () => {
     const template = await repository.createPlanTemplate(clinicId, ownerId, {
       name: "Integration periodic plan",

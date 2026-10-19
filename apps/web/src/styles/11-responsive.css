@@ -294,6 +294,37 @@
     padding: var(--space-3) var(--space-4);
   }
 
+  /* audit: mobile-ok situação e "Editar" dividem a última linha; o resto ocupa as duas colunas */
+  .patient-table .table-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .patient-table .table-row > :not(.active-label):not(.table-actions) {
+    grid-column: 1 / -1;
+  }
+
+  .patient-table .table-actions {
+    justify-self: end;
+  }
+
+  .patient-table .tags-cell {
+    flex-wrap: wrap;
+  }
+
+  .patient-tab-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-tab-list li > .status-pill {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+
+  .table-actions {
+    justify-self: start;
+  }
+
   .admin-user-row {
     grid-template-columns: 1fr;
     justify-items: start;
@@ -416,7 +447,7 @@
 
   /* audit: mobile-ok hora (48px) + barra (3px) + texto flexível cabem em 390px */
   .appointment-row {
-    grid-template-columns: 48px 3px minmax(0, 1fr) 32px;
+    grid-template-columns: 48px 3px minmax(0, 1fr) auto;
     gap: 11px;
     padding: 14px 15px;
   }
@@ -531,16 +562,9 @@
     width: 100%;
   }
 
-  /* audit: mobile-ok nome + situação curta; a mensagem ocupa a linha inteira */
-  .message-list article {
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    padding: 14px 16px;
-  }
-
-  .message-list article p {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .message-list article,
+  .message-bulk-bar {
+    padding: var(--space-3) var(--space-4);
   }
 
   /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */

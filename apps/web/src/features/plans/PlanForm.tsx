@@ -20,15 +20,22 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
+import { PlanInstallmentsField } from "./PlanInstallmentsField";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
 import { planKindLabels } from "./model";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanForm({
   patients,
@@ -93,7 +100,7 @@ export function PlanForm({
         }),
       ),
       totalValueInCents: renewing.totalValueInCents,
-      installments: renewing.installments,
+      installments: renewing.kind === "recurring" ? 1 : renewing.installments,
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -103,6 +110,16 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline] = useState(() => JSON.stringify(form));
+  // O que falta para contratar ou renovar: o botão fica desativado listando (QM14).
+  const missing = useMissingFields(
+    [
+      !renewing && !form.patientId && "Cliente",
+      !renewing && !form.planTemplateId && "Plano cadastrado",
+      Boolean(renewing) && !form.name.trim() && "Nome do plano",
+      !form.validFrom && "Início",
+      !form.firstDueDate && "Primeiro vencimento",
+    ].filter((item): item is string => Boolean(item)),
+  );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
   const [catalogError, setCatalogError] = useState("");
@@ -157,13 +174,14 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  const formDirty =
+    additionalDirty || Boolean(groupId) || JSON.stringify(form) !== baseline;
+  // Sem guarda própria (PlanForm dentro de outro modal): o Modal pergunta antes de descartar.
+  useModalDirty(!registerCloseGuard && formDirty);
+  const confirmDiscard = useConfirmDiscard();
   const prompt = useUnsavedChangesPrompt({
     section: renewing ? "Renovação do plano" : "Contratação do plano",
-    dirty:
-      Boolean(registerCloseGuard) &&
-      (additionalDirty ||
-        Boolean(groupId) ||
-        JSON.stringify(form) !== baseline),
+    dirty: Boolean(registerCloseGuard) && formDirty,
     busy: loading,
     save,
     discard: () => {},
@@ -172,7 +190,10 @@ export function PlanForm({
     () => registerCloseGuard?.(prompt.confirmLeave),
     [registerCloseGuard, prompt.confirmLeave],
   );
-  const cancel = () => prompt.confirmLeave(onCancel);
+  const cancel = () =>
+    registerCloseGuard
+      ? prompt.confirmLeave(onCancel)
+      : confirmDiscard(onCancel);
   async function submit(event: FormEvent) {
     event.preventDefault();
     try {
@@ -211,6 +232,9 @@ export function PlanForm({
                       setForm({
                         ...form,
                         kind,
+                        // Recorrente: uma cobrança por ciclo.
+                        installments:
+                          kind === "recurring" ? 1 : form.installments,
                         autoRenew: kind === "recurring",
                       });
                       if (kind === "single") setGroupId("");
@@ -261,6 +285,9 @@ export function PlanForm({
                       ) {
                         setGroupId("");
                       }
+                      const templateKind = template?.planType
+                        ? planTypeKind(template.planType)
+                        : (template?.kind ?? "fixed_package");
                       setForm({
                         ...form,
                         planTemplateId: template?.id ?? "",
@@ -269,9 +296,9 @@ export function PlanForm({
                         services:
                           template?.services.map((entry) => ({ ...entry })) ??
                           [],
-                        kind: template?.planType
-                          ? planTypeKind(template.planType)
-                          : (template?.kind ?? "fixed_package"),
+                        kind: templateKind,
+                        installments:
+                          templateKind === "recurring" ? 1 : form.installments,
                         ...(template?.planType
                           ? {
                               validUntil: planPeriodEnd(
@@ -389,21 +416,15 @@ export function PlanForm({
                 </label>
                 <label>
                   Valor do serviço {index + 1}
-                  <input
+                  <MoneyInput
                     required
-                    type="number"
-                    min="0"
-                    max="21474836.47"
-                    step="0.01"
-                    value={entry.totalValueInCents / 100}
-                    onChange={(event) => {
+                    valueInCents={entry.totalValueInCents}
+                    onChange={(cents) => {
                       const entries = form.services.map((item, position) =>
                         position === index
                           ? {
                               ...item,
-                              totalValueInCents: Math.round(
-                                Number(event.target.value) * 100,
-                              ),
+                              totalValueInCents: cents ?? 0,
                             }
                           : item,
                       );
@@ -468,19 +489,13 @@ export function PlanForm({
                 }
               />
             </label>
-            <label>
-              Parcelas
-              <input
-                required
-                type="number"
-                min="1"
-                max="36"
-                value={form.installments}
-                onChange={(e) =>
-                  setForm({ ...form, installments: Number(e.target.value) })
-                }
-              />
-            </label>
+            <PlanInstallmentsField
+              kind={form.kind}
+              installments={form.installments}
+              firstDueDate={form.firstDueDate}
+              validUntil={form.validUntil}
+              onChange={(installments) => setForm({ ...form, installments })}
+            />
             <label>
               Primeiro vencimento
               <input
@@ -521,6 +536,7 @@ export function PlanForm({
               {error}
             </div>
           )}
+          {missing.hint}
           <div className="modal-actions span-2">
             <button
               type="button"
@@ -532,11 +548,8 @@ export function PlanForm({
             </button>
             <button
               className="primary-button"
-              disabled={
-                loading ||
-                !form.patientId ||
-                (!renewing && !form.planTemplateId)
-              }
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {renewing
                 ? loading

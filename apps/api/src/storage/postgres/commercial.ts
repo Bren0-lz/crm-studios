@@ -1,10 +1,22 @@
-import { leadConversionData } from "../../modules/commercial/conversion.js";
+import {
+  leadConversionData,
+  withConversionInput,
+} from "../../modules/commercial/conversion.js";
 import { leadPatientProfile } from "@crm/contracts/commercial";
+import {
+  cpfMatchKey,
+  emailMatchKey,
+  findLeadDuplicates,
+  phoneMatchKey,
+  type ContactDuplicateCandidate,
+  type LeadDuplicateQuery,
+} from "@crm/contracts";
 import { patientProfile } from "@crm/contracts/patients";
 import type {
   LeadActivity,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
   LeadInput,
   LeadStage,
   LeadTaskInput,
@@ -36,6 +48,42 @@ export function createCommercialRepository(
         [clinicId],
       );
       return result.rows.map(mapLead);
+    },
+
+    async findLeadDuplicates(clinicId: string, query: LeadDuplicateQuery) {
+      const phone = phoneMatchKey(query.phone),
+        email = emailMatchKey(query.email),
+        cpf = cpfMatchKey(query.cpf);
+      if (!phone && !email && !cpf) return [];
+      // O filtro em SQL só pré-seleciona; o helper puro decide os campos coincidentes.
+      const params = [
+        clinicId,
+        phone ? [phone, `55${phone}`] : [],
+        email || null,
+        cpf || null,
+      ];
+      const [patients, leads] = await Promise.all([
+        repositoryContext.pool.query<ContactDuplicateCandidate>(
+          `SELECT id, full_name AS "fullName", phone, email, cpf FROM patients
+           WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
+             AND (regexp_replace(phone, '\\D', '', 'g') = ANY($2::text[])
+               OR ($3::text IS NOT NULL AND lower(regexp_replace(coalesce(email, ''), '\\s', '', 'g')) = $3)
+               OR ($4::text IS NOT NULL AND regexp_replace(coalesce(cpf, ''), '\\D', '', 'g') = $4))
+           ORDER BY full_name, id LIMIT 20`,
+          params,
+        ),
+        repositoryContext.pool.query<ContactDuplicateCandidate>(
+          `SELECT id, full_name AS "fullName", phone, email, profile->>'cpf' AS cpf FROM leads
+           WHERE clinic_id = $1 AND converted_patient_id IS NULL
+             AND ($5::uuid IS NULL OR id <> $5::uuid)
+             AND (regexp_replace(phone, '\\D', '', 'g') = ANY($2::text[])
+               OR ($3::text IS NOT NULL AND lower(regexp_replace(coalesce(email, ''), '\\s', '', 'g')) = $3)
+               OR ($4::text IS NOT NULL AND regexp_replace(coalesce(profile->>'cpf', ''), '\\D', '', 'g') = $4))
+           ORDER BY full_name, id LIMIT 20`,
+          [...params, query.excludeLeadId || null],
+        ),
+      ]);
+      return findLeadDuplicates(query, patients.rows, leads.rows);
     },
 
     async createLead(clinicId: string, input: LeadInput) {
@@ -212,6 +260,7 @@ export function createCommercialRepository(
       clinicId: string,
       actorUserId: string,
       leadId: string,
+      input?: LeadConversionInput,
     ): Promise<LeadConversion | null> {
       const client = await repositoryContext.pool.connect();
       try {
@@ -229,7 +278,10 @@ export function createCommercialRepository(
           await client.query("COMMIT");
           return null;
         }
-        const original = mapLead(leadResult.rows[0]);
+        const original = withConversionInput(
+          mapLead(leadResult.rows[0]),
+          input,
+        );
         let patientResult = original.convertedPatientId
           ? await client.query<PatientRow>(
               `SELECT ${patientColumns} FROM patients

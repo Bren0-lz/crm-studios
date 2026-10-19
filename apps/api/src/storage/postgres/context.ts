@@ -1,4 +1,8 @@
-import type { PaymentTiming } from "@crm/contracts";
+import {
+  settlementBreakdown,
+  type PaymentTiming,
+  type SettlementAdjustments,
+} from "@crm/contracts";
 import type { PatientTabServiceItem } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -57,6 +61,7 @@ import {
   mapClinicalRecord,
   mapCommissionEntry,
   mapCommissionRule,
+  groupEnrollmentColumns,
   mapGroupEnrollment,
   mapIssuedDocument,
   mapLead,
@@ -290,6 +295,8 @@ export class PostgresRepositoryContext {
               ae.metadata, ae.created_at AS "createdAt"
        FROM audit_events ae LEFT JOIN users u ON u.id = ae.actor_user_id
        WHERE ae.clinic_id = $1
+         -- Evento com data futura (dado inconsistente) não entra no histórico.
+         AND ae.created_at <= now() + interval '1 minute'
          ${predicates.map((predicate) => `AND ${predicate}`).join("\n")}
          AND ($2::uuid IS NULL OR (ae.created_at, ae.id) < (
            SELECT created_at, id FROM audit_events WHERE clinic_id = $1 AND id = $2::uuid
@@ -512,7 +519,8 @@ export class PostgresRepositoryContext {
           ? "active"
           : "waitlisted";
       const result = await client.query<GroupEnrollmentRow>(
-        `INSERT INTO group_enrollments(clinic_id,group_id,patient_id,status,queue_position) VALUES($1,$2,$3,$4,$5) RETURNING id,clinic_id AS "clinicId",group_id AS "groupId",patient_id AS "patientId",$6::text AS "patientName",status,queue_position AS "queuePosition",enrolled_at AS "enrolledAt",updated_at AS "updatedAt"`,
+        // Início em outra data que não hoje (fuso da clínica): meia-noite desse dia.
+        `WITH clinic AS (SELECT timezone FROM clinics WHERE id=$1) INSERT INTO group_enrollments AS e(clinic_id,group_id,patient_id,status,queue_position,enrolled_at) SELECT $1,$2::uuid,$3::uuid,$4::text,$5::int,CASE WHEN $7::date IS NULL OR $7::date=(now() AT TIME ZONE clinic.timezone)::date THEN now() ELSE ($7::date+time '00:00') AT TIME ZONE clinic.timezone END FROM clinic RETURNING ${groupEnrollmentColumns.replace('p.full_name AS "patientName"', '$6::text AS "patientName"')}`,
         [
           clinicId,
           input.groupId,
@@ -520,6 +528,7 @@ export class PostgresRepositoryContext {
           status,
           status === "waitlisted" ? (counts.rows[0]!.maxQueue ?? 0) + 1 : null,
           patient.rows[0].fullName,
+          input.startsOn ?? null,
         ],
       );
       return mapGroupEnrollment(result.rows[0]!);
@@ -1165,7 +1174,7 @@ export class PostgresRepositoryContext {
     const result = await client.query<PayableRow>(
       `SELECT ${payableColumns} FROM payables py
        JOIN financial_categories fc ON fc.id = py.category_id
-       JOIN cost_centers cc ON cc.id = py.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
        WHERE py.clinic_id = $1 AND py.id = $2`,
       [clinicId, payableId],
     );
@@ -1179,6 +1188,7 @@ export class PostgresRepositoryContext {
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
+    adjustments: SettlementAdjustments = {},
   ) {
     const client = await this.pool.connect();
     try {
@@ -1209,6 +1219,104 @@ export class PostgresRepositoryContext {
           409,
         );
       }
+      // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
+      let receivedInCents = current.rows[0].amountInCents;
+      let balanceReceivableId: string | null = null;
+      let discountInCents = 0;
+      let interestInCents = 0;
+      if (operation === "payment") {
+        const breakdown = settlementBreakdown(
+          current.rows[0].amountInCents,
+          adjustments,
+        );
+        if (breakdown.error)
+          throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
+        receivedInCents = breakdown.receivedInCents;
+        discountInCents = adjustments.discountInCents ?? 0;
+        interestInCents = adjustments.interestInCents ?? 0;
+        if (breakdown.balanceInCents > 0) {
+          const balance = await client.query<{ id: string }>(
+            `INSERT INTO receivables
+               (clinic_id, patient_id, plan_id, description, installment_number,
+                installment_count, due_date, amount_in_cents, competence,
+                category_id, cost_center_id, posted_on)
+             SELECT r.clinic_id, r.patient_id, r.plan_id, r.description || ' · saldo',
+                    CASE WHEN r.plan_id IS NULL THEN r.installment_number
+                         ELSE (SELECT max(x.installment_number) + 1 FROM receivables x
+                               WHERE x.plan_id = r.plan_id) END,
+                    r.installment_count, coalesce($3::date, r.due_date), $4,
+                    r.competence, r.category_id, r.cost_center_id, r.posted_on
+             FROM receivables r WHERE r.clinic_id = $1 AND r.id = $2
+             RETURNING id`,
+            [
+              clinicId,
+              receivableId,
+              adjustments.balanceDueDate ?? null,
+              breakdown.balanceInCents,
+            ],
+          );
+          balanceReceivableId = balance.rows[0]!.id;
+        }
+      } else {
+        // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa.
+        const payment = await client.query<{
+          discountInCents: number;
+          interestInCents: number;
+        }>(
+          `SELECT discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
+           FROM financial_events WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
+           ORDER BY created_at DESC LIMIT 1`,
+          [clinicId, receivableId],
+        );
+        const restore =
+          (payment.rows[0]?.discountInCents ?? 0) -
+          (payment.rows[0]?.interestInCents ?? 0);
+        if (restore !== 0) {
+          await client.query(
+            `UPDATE receivables SET amount_in_cents = amount_in_cents + $3
+             WHERE clinic_id = $1 AND id = $2`,
+            [clinicId, receivableId, restore],
+          );
+          await client.query(
+            `INSERT INTO financial_events
+               (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
+             VALUES ($1,$2,$3,'adjustment',$4,$5)`,
+            [
+              clinicId,
+              receivableId,
+              actorUserId,
+              restore,
+              { reason: "Estorno de baixa com desconto/juros" },
+            ],
+          );
+        }
+      }
+      if (
+        operation === "payment" &&
+        receivedInCents !== current.rows[0].amountInCents
+      ) {
+        await client.query(
+          `UPDATE receivables SET amount_in_cents = $3 WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, receivableId, receivedInCents],
+        );
+        await client.query(
+          `INSERT INTO financial_events
+             (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
+           VALUES ($1,$2,$3,'adjustment',$4,$5)`,
+          [
+            clinicId,
+            receivableId,
+            actorUserId,
+            receivedInCents - current.rows[0].amountInCents,
+            {
+              reason: "Baixa com desconto, juros ou pagamento parcial",
+              discountInCents,
+              interestInCents,
+              balanceReceivableId,
+            },
+          ],
+        );
+      }
       await client.query(
         operation === "payment"
           ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4::timestamptz,now()),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, updated_at = now()
@@ -1227,22 +1335,25 @@ export class PostgresRepositoryContext {
       );
       await client.query(
         `INSERT INTO financial_events
-           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at)
-         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7::timestamptz,now()),coalesce($8::timestamptz,$7::timestamptz,now()))`,
+           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
+            discount_in_cents, interest_in_cents, balance_receivable_id)
+         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7::timestamptz,now()),coalesce($8::timestamptz,$7::timestamptz,now()),
+                 $9, $10, $11)`,
         [
           clinicId,
           receivableId,
           actorUserId,
           operation,
-          operation === "payment"
-            ? current.rows[0].amountInCents
-            : -current.rows[0].amountInCents,
+          operation === "payment" ? receivedInCents : -receivedInCents,
           operation === "payment"
             ? { paymentMethod }
             : { paymentMethod: current.rows[0].paymentMethod },
           timing?.paidAt ?? null,
           timing?.availableAt ??
             (operation === "payment" ? current.rows[0].cashAvailableAt : null),
+          discountInCents,
+          interestInCents,
+          balanceReceivableId,
         ],
       );
       const receivable = await this.findReceivable(
@@ -1394,7 +1505,8 @@ export class PostgresRepositoryContext {
          AND (pp.source_appointment_id IS NULL OR pp.source_appointment_id = $5)
          AND pp.valid_from <= ($4::timestamptz AT TIME ZONE c.timezone)::date
          AND (pp.valid_until IS NULL OR pp.valid_until >= ($4::timestamptz AT TIME ZONE c.timezone)::date)
-       ORDER BY pp.valid_until NULLS LAST, pp.created_at
+       ORDER BY coalesce(pp.source_appointment_id = $5, false) DESC,
+         pp.valid_until NULLS LAST, pp.created_at
        LIMIT 1 FOR UPDATE OF pp, pps`,
       [clinicId, patientId, serviceId, startsAt, appointmentId],
     );

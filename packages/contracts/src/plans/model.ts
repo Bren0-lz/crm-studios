@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { addDaysToIsoDate, addMonthsToIsoDate } from "../common/model.js";
-import type { PlanServiceInput, PlanTerms, PlanType } from "./types.js";
+import type {
+  PatientPlan,
+  PlanServiceInput,
+  PlanTerms,
+  PlanType,
+} from "./types.js";
 
 /** Reusable name and price; sold plans keep their own independent terms. */
 export const planCatalogInputSchema = z.object({
@@ -204,6 +209,94 @@ export const planStatusSchema = z.enum([
 
 export const planTransitionSchema = z.enum(["active", "paused", "cancelled"]);
 
+/** Dados opcionais ao pausar: motivo e previsão de retorno. */
+export const planPauseDetailsSchema = z.object({
+  reason: z.string().trim().max(500).optional().or(z.literal("")),
+  expectedReturn: z.iso.date().optional().or(z.literal("")),
+});
+
+/** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
+export function daysBetweenIsoDates(from: string, to: string) {
+  return Math.round(
+    (Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) /
+      86_400_000,
+  );
+}
+
+/** Validade depois da reativação: avança os dias em que o plano ficou pausado. */
+export function validityAfterPause(
+  validUntil: string | undefined,
+  pausedOn: string,
+  resumedOn: string,
+) {
+  if (!validUntil) return validUntil;
+  const days = Math.max(0, daysBetweenIsoDates(pausedOn, resumedOn));
+  return addDaysToIsoDate(validUntil, days);
+}
+
+/** Situação exibida: um plano ativo sem saldo aparece como "Esgotado" (não é gravado). */
+export type PlanDisplayStatus = PatientPlan["status"] | "exhausted";
+
+export function planDisplayStatus(
+  plan: Pick<PatientPlan, "status" | "remainingSessions">,
+): PlanDisplayStatus {
+  return plan.status === "active" && plan.remainingSessions <= 0
+    ? "exhausted"
+    : plan.status;
+}
+
+export const planDisplayStatusLabels: Record<PlanDisplayStatus, string> = {
+  active: "Ativo",
+  paused: "Pausado",
+  expired: "Expirado",
+  cancelled: "Cancelado",
+  exhausted: "Esgotado",
+};
+
+/** Crédito de serviço avulso vendido na comanda (não é plano contratado). */
+export function isTabCreditPlan(plan: { sourceTabId?: string | null }) {
+  return Boolean(plan.sourceTabId);
+}
+
+/** Nome exibido do crédito da comanda, sem o código interno da comanda. */
+export function tabCreditPlanName(serviceName: string) {
+  return `${serviceName} · pago na comanda`;
+}
+
+export const tabCreditHistoryLabel = "Serviço avulso na comanda";
+
+/** Selo do crédito da comanda: aguarda o atendimento até ser consumido. */
+export const tabCreditAwaitingLabel = "Aguarda atendimento";
+
+/** Plano recorrente gera uma cobrança por ciclo; a próxima nasce na renovação. */
+export const recurringSingleChargeIssue =
+  "No plano recorrente a cobrança é uma por ciclo: use 1 parcela.";
+
+export function isRecurringChargeValid(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  installments: number;
+}) {
+  return plan.kind !== "recurring" || plan.installments === 1;
+}
+
+/**
+ * Último vencimento do parcelamento quando ele passa do fim da validade (aviso, não
+ * bloqueio); null quando não há validade ou as parcelas cabem nela.
+ */
+export function installmentsBeyondValidity(plan: {
+  installments: number;
+  firstDueDate: string;
+  validUntil?: string | undefined;
+}): string | null {
+  if (!plan.validUntil || !z.iso.date().safeParse(plan.firstDueDate).success)
+    return null;
+  const lastDueDate = addMonthsToIsoDate(
+    plan.firstDueDate,
+    Math.max(0, plan.installments - 1),
+  );
+  return lastDueDate > plan.validUntil ? lastDueDate : null;
+}
+
 export const planTermsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   services: planServicesSchema,
@@ -238,6 +331,10 @@ export const patientPlanInputSchema = planTermsSchema
     kind: planKindSchema,
   })
   .refine(validPlanPeriod, planPeriodIssue)
+  .refine(isRecurringChargeValid, {
+    message: recurringSingleChargeIssue,
+    path: ["installments"],
+  })
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(
     (value) =>

@@ -9,6 +9,7 @@ import { Download, Paperclip, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PatientPicker } from "../../PatientPicker";
 import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -21,17 +22,24 @@ import { ClinicalAttachmentModal } from "./ClinicalAttachmentModal";
 import { ClinicalMeasurementModal } from "./ClinicalMeasurementModal";
 import { TherapeuticGoalModal } from "./TherapeuticGoalModal";
 import { TreatmentClosureModal } from "./TreatmentClosureModal";
+import { goalStatusLabels } from "./model";
 
 export function ClinicalWorkspacePanel({
   patients,
   editable,
+  initialPatientId,
 }: {
   patients: PatientOption[];
+  /** Cliente aberto ao montar (ex.: o da evolução recém-salva). */
+  initialPatientId?: string | undefined;
   /** Sem edição de Prontuários: só consulta, impressão e exportação. */
   editable: boolean;
 }) {
   const { can } = useAuthorization();
-  const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
+  const toast = useToast();
+  const [patientId, setPatientId] = useState(
+    initialPatientId ?? patients[0]?.id ?? "",
+  );
   const [workspace, setWorkspace] = useState<ClinicalWorkspace | null>(null);
   const [templateEditing, setTemplateEditing] = useState<
     AssessmentTemplate | undefined
@@ -111,14 +119,22 @@ export function ClinicalWorkspacePanel({
     }
   }
 
-  const timeline = workspace
+  const timeline: Array<{
+    id: string;
+    date: string;
+    kind: string;
+    title: string;
+    author: string;
+    draft?: boolean;
+  }> = workspace
     ? [
         ...workspace.records.map((item) => ({
           id: `record-${item.id}`,
           date: item.appointmentStartsAt,
           kind: "Evolução SOAP",
-          title: item.assessment || "Evolução clínica",
+          title: item.assessment || item.subjective || "Evolução clínica",
           author: item.authorName,
+          draft: item.status === "draft",
         })),
         ...workspace.assessments.map((item) => ({
           id: `assessment-${item.id}`,
@@ -291,11 +307,7 @@ export function ClinicalWorkspacePanel({
                     <article className="clinical-goal-card" key={goal.id}>
                       <div>
                         <span className={`status-pill ${goal.status}`}>
-                          {goal.status === "active"
-                            ? "Ativo"
-                            : goal.status === "achieved"
-                              ? "Alcançado"
-                              : "Cancelado"}
+                          {goalStatusLabels[goal.status]}
                         </span>
                         <h4>{goal.title}</h4>
                         <p>{goal.description || "Sem descrição adicional."}</p>
@@ -320,6 +332,7 @@ export function ClinicalWorkspacePanel({
                                   goal.id,
                                   "achieved",
                                 );
+                                toast.success("Objetivo marcado como alcançado.");
                                 await load();
                               } catch (cause) {
                                 setError((cause as Error).message);
@@ -346,7 +359,12 @@ export function ClinicalWorkspacePanel({
               ) : (
                 timeline.map((event) => (
                   <article key={event.id}>
-                    <span>{event.kind}</span>
+                    <span>
+                      {event.kind}
+                      {event.draft && (
+                        <span className="status-pill draft">Rascunho</span>
+                      )}
+                    </span>
                     <strong>{event.title}</strong>
                     <small>
                       {new Date(event.date).toLocaleString("pt-BR")} ·{" "}
@@ -448,7 +466,7 @@ export function ClinicalWorkspacePanel({
             {workspace.goals.map((goal) => (
               <article key={goal.id}>
                 <h3>
-                  {goal.title} · {goal.status}
+                  {goal.title} · {goalStatusLabels[goal.status]}
                 </h3>
                 <p>{goal.description}</p>
                 {workspace.measurements
@@ -513,6 +531,7 @@ export function ClinicalWorkspacePanel({
           template={templateEditing}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Modelo de avaliação salvo.");
             setEditor(null);
             void load();
           }}
@@ -524,6 +543,7 @@ export function ClinicalWorkspacePanel({
           templates={workspace.templates}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Avaliação registrada.");
             setEditor(null);
             void load();
           }}
@@ -534,6 +554,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Objetivo terapêutico criado.");
             setEditor(null);
             void load();
           }}
@@ -545,6 +566,7 @@ export function ClinicalWorkspacePanel({
           goals={workspace.goals.filter((item) => item.status === "active")}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Medição registrada.");
             setEditor(null);
             void load();
           }}
@@ -555,6 +577,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Encerramento do tratamento registrado.");
             setEditor(null);
             void load();
           }}
@@ -565,6 +588,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Anexo enviado.");
             setEditor(null);
             void load();
           }}
@@ -577,6 +601,7 @@ export function ClinicalWorkspacePanel({
           )}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Adendo registrado.");
             setEditor(null);
             void load();
           }}

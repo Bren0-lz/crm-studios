@@ -1,6 +1,8 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
+  settlementBreakdown,
+  type SettlementAdjustments,
   type FinancialEntryFilter,
 } from "@crm/contracts";
 import { FinanceEntryFilters } from "./FinanceEntryFilters";
@@ -25,7 +27,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
-import { currency } from "../../shared/lib/formatting";
+import { currency, localIsoDate } from "../../shared/lib/formatting";
 import {
   type CommissionRuleDraft,
   CommissionRuleModal,
@@ -34,6 +36,7 @@ import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
+import { InventorySection } from "./InventorySection";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
@@ -42,6 +45,8 @@ import { ReceivablesList } from "./ReceivablesList";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
+import { useToast } from "../../shared/feedback/toast-context";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { ReceivableFilter, SettleTarget } from "./types";
 
 export function FinancePage() {
@@ -68,7 +73,12 @@ export function FinancePage() {
   }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
-    "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
+    | "receivables"
+    | "payables"
+    | "commissions"
+    | "dailyCash"
+    | "forecast"
+    | "inventory"
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -94,22 +104,33 @@ export function FinancePage() {
   }
   useEffect(() => {
     let active = true;
-    Promise.all([api.financialWorkspace(), api.professionals()])
-      .then(([workspace, professionalData]) => {
-        if (active) {
-          setData(workspace);
-          setProfessionals(professionalData);
-        }
-      })
+    api
+      .professionals()
+      .then((professionalData) => active && setProfessionals(professionalData))
       .catch((cause: Error) => active && setError(cause.message));
     return () => {
       active = false;
     };
   }, []);
+  // Lista e contadores das abas vêm da mesma consulta, refeita em silêncio quando uma
+  // mutação muda o financeiro (QC6).
+  const financeVersion = useDataVersion("finance");
+  useEffect(() => {
+    let active = true;
+    api
+      .financialWorkspace()
+      .then((workspace) => active && setData(workspace))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [financeVersion]);
+  const toast = useToast();
   async function reverseReceivable(id: string) {
     setError("");
     try {
       await api.reverseReceivable(id);
+      toast.success("Pagamento estornado.");
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
       await reload();
@@ -121,6 +142,7 @@ export function FinancePage() {
     setError("");
     try {
       await api.reversePayable(id);
+      toast.success("Pagamento da conta estornado.");
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -130,10 +152,22 @@ export function FinancePage() {
     target: SettleTarget,
     method: PaymentMethod,
     timing?: PaymentTiming,
+    adjustments?: SettlementAdjustments,
   ) {
     if (target.kind === "receivable")
-      await api.settleReceivable(target.id, method, timing);
+      await api.settleReceivable(target.id, method, timing, adjustments);
     else await api.settlePayable(target.id, method, timing);
+    const balance =
+      target.kind === "receivable" && adjustments
+        ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
+        : 0;
+    toast.success(
+      target.kind !== "receivable"
+        ? "Conta paga."
+        : balance > 0
+          ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+          : "Pagamento recebido.",
+    );
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
     if (target.kind === "receivable") setSelectedReceivables([]);
@@ -168,6 +202,7 @@ export function FinancePage() {
     reason: string,
   ) {
     await api.adjustReceivable(id, amountInCents, reason);
+    toast.success("Valor da parcela ajustado.");
     setAdjusting(null);
     setSelectedReceivables([]);
     await reloadAfterAction();
@@ -176,6 +211,11 @@ export function FinancePage() {
     if (kind === "category")
       await api.createFinancialCategory({ name, kind: "expense" });
     else await api.createCostCenter({ name });
+    toast.success(
+      kind === "category"
+        ? "Categoria cadastrada."
+        : "Centro de custo cadastrado.",
+    );
     setRegistry(null);
     await reloadAfterAction();
   }
@@ -189,6 +229,7 @@ export function FinancePage() {
       receivableIds: selectedReceivables,
       ...input,
     });
+    toast.success("Parcelas renegociadas.");
     setRenegotiating(false);
     setSelectedReceivables([]);
     await reloadAfterAction();
@@ -198,6 +239,11 @@ export function FinancePage() {
     try {
       if (item.status === "paid") await api.reverseCommission(item.id);
       else await api.settleCommission(item.id);
+      toast.success(
+        item.status === "paid"
+          ? "Pagamento da comissão estornado."
+          : "Comissão paga.",
+      );
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -206,7 +252,8 @@ export function FinancePage() {
   async function generateCommissions() {
     setError("");
     try {
-      await api.generateCommissions(new Date().toISOString().slice(0, 7));
+      await api.generateCommissions(localIsoDate().slice(0, 7));
+      toast.success("Comissões do mês geradas.");
       await reload();
     } catch (cause) {
       setError((cause as Error).message);
@@ -215,6 +262,7 @@ export function FinancePage() {
   async function createCommissionRule(input: CommissionRuleDraft) {
     if ("userId" in input) await api.setUserCommission(input.userId, input);
     else await api.createCommissionRule(input);
+    toast.success("Regra de comissão salva.");
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }
@@ -352,12 +400,22 @@ export function FinancePage() {
               >
                 Previsão
               </button>
+              {can("patients.inventory_view") && (
+                <button
+                  className={`tab-button ${tab === "inventory" ? "active" : ""}`}
+                  onClick={() => setTab("inventory")}
+                >
+                  Estoque
+                </button>
+              )}
             </div>
           </section>
           {tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
+          ) : tab === "inventory" ? (
+            <InventorySection />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">
@@ -396,6 +454,7 @@ export function FinancePage() {
                     title: item.patientName,
                     description: item.description,
                     amountInCents: item.amountInCents,
+                    dueDate: item.dueDate,
                   })
                 }
                 onReverse={(id) => void reverseReceivable(id)}
@@ -487,6 +546,11 @@ export function FinancePage() {
                 payables={data.payables}
                 adjustments={data.commissionAdjustments ?? []}
                 onReconcile={setReconcilingCommission}
+                onCreateRule={
+                  canManage && can("finance.commission_rules")
+                    ? () => setCommissionRuleOpen(true)
+                    : undefined
+                }
                 commissions={data.commissions}
                 canManage={canManage}
                 onToggle={(item) => void toggleCommission(item)}
@@ -520,6 +584,7 @@ export function FinancePage() {
           workspace={data}
           onClose={() => setPayableModal(false)}
           onCreated={() => {
+            toast.success("Despesa registrada.");
             setPayableModal(false);
             void reload();
           }}
@@ -564,7 +629,9 @@ export function FinancePage() {
         <SettleModal
           target={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(method, timing) => settle(settling, method, timing)}
+          onConfirm={(method, timing, adjustments) =>
+            settle(settling, method, timing, adjustments)
+          }
         />
       )}
     </>

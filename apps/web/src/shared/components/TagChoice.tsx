@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { tagColorStyle } from "../../tag-colors";
 
 export function TagChoice({
@@ -6,6 +7,7 @@ export function TagChoice({
   pressed,
   count,
   disabled,
+  hint,
   onToggle,
 }: {
   name: string;
@@ -13,6 +15,8 @@ export function TagChoice({
   pressed: boolean;
   count?: number;
   disabled?: boolean;
+  /** Dica nativa (ex.: etiqueta automática). */
+  hint?: string;
   onToggle: () => void;
 }) {
   return (
@@ -22,9 +26,14 @@ export function TagChoice({
       style={tagColorStyle(color)}
       aria-pressed={pressed}
       disabled={disabled}
+      title={hint}
       onClick={onToggle}
     >
-      <i className="tag-dot" aria-hidden="true" />
+      {pressed ? (
+        <Check className="tag-check" size={14} aria-hidden="true" />
+      ) : (
+        <i className="tag-dot" aria-hidden="true" />
+      )}
       {name}
       {count !== undefined && <small>{count}</small>}
     </button>

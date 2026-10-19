@@ -1,10 +1,11 @@
-import type {
-  PatientPlan,
-  PatientPlanService,
-  PlanCatalogEntry,
-  PlanStatus,
-  PlanTemplate,
-  SessionMovement,
+import {
+  tabCreditPlanName,
+  type PatientPlan,
+  type PatientPlanService,
+  type PlanCatalogEntry,
+  type PlanStatus,
+  type PlanTemplate,
+  type SessionMovement,
 } from "@crm/contracts";
 
 export type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & {
@@ -51,6 +52,9 @@ export interface PatientPlanRow {
   renewedByPlanId: string | null;
   cancelledAt: Date | null;
   cancelledValueInCents: number;
+  pausedAt: Date | null;
+  pauseReason: string | null;
+  pauseExpectedReturn: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +87,7 @@ export const patientPlanColumns = `
   (SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'serviceName',x.service_name,'totalSessions',x.total_sessions,'remainingSessions',x.remaining_sessions,'totalValueInCents',x.total_value_in_cents) ORDER BY x.position)
     FROM patient_plan_services x WHERE x.plan_id=pp.id) AS services,
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
+  pp.paused_at AS "pausedAt", pp.pause_reason AS "pauseReason", pp.pause_expected_return::text AS "pauseExpectedReturn",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
 
@@ -100,7 +105,8 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     clinicId: row.clinicId,
     patientId: row.patientId,
     serviceId: row.serviceId,
-    name: row.name,
+    // Créditos antigos da comanda foram gravados com o código no nome.
+    name: row.sourceTabId ? tabCreditPlanName(row.serviceName) : row.name,
     kind: row.kind,
     totalSessions: row.totalSessions,
     remainingSessions: row.remainingSessions,
@@ -123,6 +129,11 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
           cancelledAt: row.cancelledAt.toISOString(),
           cancelledValueInCents: row.cancelledValueInCents,
         }
+      : {}),
+    ...(row.pausedAt ? { pausedAt: row.pausedAt.toISOString() } : {}),
+    ...(row.pauseReason ? { pauseReason: row.pauseReason } : {}),
+    ...(row.pauseExpectedReturn
+      ? { pauseExpectedReturn: row.pauseExpectedReturn }
       : {}),
     updatedAt: row.updatedAt.toISOString(),
   };

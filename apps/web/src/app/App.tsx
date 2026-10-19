@@ -1,10 +1,13 @@
 import { AuthorizationProvider } from "../authorization";
+import { ToastProvider } from "../shared/feedback/ToastProvider";
 import { AppRoutes } from "./AppRoutes";
 
 export function App() {
   return (
     <AuthorizationProvider>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </AuthorizationProvider>
   );
 }

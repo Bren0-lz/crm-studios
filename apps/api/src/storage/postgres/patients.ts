@@ -124,6 +124,9 @@ export function createPatientsRepository(
         WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
           AND (
             $2 = '' OR full_name ILIKE '%' || $2 || '%' OR coalesce(cpf, '') ILIKE '%' || $2 || '%'
+            -- Sem diferenciar acentos: "andre" acha "André" (mesma tabela da migração 0044).
+            OR translate(full_name, 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ',
+              'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY') ILIKE '%' || $5 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
             OR ($3 <> '' AND (phone LIKE '%' || $3 || '%' OR coalesce(whatsapp, '') LIKE '%' || $3 || '%'))
             OR ($4 <> '' AND regexp_replace(coalesce(cpf, ''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%')
@@ -136,6 +139,8 @@ export function createPatientsRepository(
           term,
           phoneSearchDigits(term),
           /^[\d\s.-]+$/.test(term) ? term.replace(/\D/g, "") : "",
+          // Termo sem acentos (NFD sem marcas) para comparar com o nome traduzido.
+          term.normalize("NFD").replace(/[̀-ͯ]/g, ""),
         ],
       );
       return result.rows.map(mapPatient);
@@ -341,6 +346,17 @@ export function createPatientsRepository(
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     },
 
+    async listOverduePatientIds(clinicId: string, today: string) {
+      // Mesma regra de `isOverdueReceivable` (contracts): em aberto e vencida antes de hoje.
+      const result = await repositoryContext.pool.query<{ patientId: string }>(
+        `SELECT DISTINCT patient_id AS "patientId" FROM receivables
+         WHERE clinic_id = $1 AND status = 'open' AND due_date < $2::date
+           AND patient_id IS NOT NULL`,
+        [clinicId, today],
+      );
+      return result.rows.map((row) => row.patientId);
+    },
+
     async createPatientTag(
       clinicId: string,
       actorUserId: string,
@@ -349,9 +365,15 @@ export function createPatientsRepository(
       try {
         return await repositoryContext.inTransaction(async (client) => {
           const inserted = await client.query<{ id: string }>(
-            `INSERT INTO patient_tags (clinic_id, name, name_key, color)
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-            [clinicId, input.name, patientTagKey(input.name), input.color],
+            `INSERT INTO patient_tags (clinic_id, name, name_key, color, category)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [
+              clinicId,
+              input.name,
+              patientTagKey(input.name),
+              input.color,
+              input.category ?? null,
+            ],
           );
           const tag = (await repositoryContext.getPatientTag(
             client,
@@ -396,9 +418,19 @@ export function createPatientsRepository(
           const name = input.name ?? previousName;
           await client.query(
             `UPDATE patient_tags
-           SET name = $3, name_key = $4, color = coalesce($5, color), updated_at = now()
+           SET name = $3, name_key = $4, color = coalesce($5, color),
+               category = CASE WHEN $6::boolean THEN $7 ELSE category END,
+               updated_at = now()
            WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, tagId, name, patientTagKey(name), input.color ?? null],
+            [
+              clinicId,
+              tagId,
+              name,
+              patientTagKey(name),
+              input.color ?? null,
+              input.category !== undefined,
+              input.category ?? null,
+            ],
           );
           let patientsUpdated = 0;
           if (name !== previousName) {

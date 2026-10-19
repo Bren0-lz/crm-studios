@@ -23,10 +23,19 @@ export function change(
   scope: HTMLElement = document.body,
 ) {
   fireEvent.change(
-    within(scope).getByLabelText(label, {
-      exact: true,
-      selector: 'input:not([type="checkbox"]), select, textarea',
-    }),
+    within(scope).getByLabelText(
+      (content, element) => {
+        const heading = element
+          ?.closest("label")
+          ?.querySelector(".label-with-help");
+        return heading
+          ? heading.firstChild?.textContent?.trim() === label
+          : content === label;
+      },
+      {
+        selector: 'input:not([type="checkbox"]), select, textarea',
+      },
+    ),
     {
       target: { value },
     },

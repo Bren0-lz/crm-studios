@@ -1,6 +1,7 @@
 import { appointmentStatusSchema } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { atInstant } from "../../test-support/clock.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -17,10 +18,8 @@ describe("dashboard pending appointments", () => {
       visitType: "regular",
     });
     for (const status of appointmentStatusSchema.options) {
-      await repository.updateAppointmentStatus(
-        clinicId,
-        appointment.id,
-        status,
+      await atInstant("2099-11-12T23:00:00Z", () =>
+        repository.updateAppointmentStatus(clinicId, appointment.id, status),
       );
       const summary = await repository.getDashboard(clinicId, date);
       expect(summary.nonCancelledAppointmentsToday).toBe(
@@ -83,10 +82,8 @@ describe("dashboard pending appointments", () => {
           visitType: "regular",
         });
         appointments.push(appointment);
-        await repository.updateAppointmentStatus(
-          clinicId,
-          appointment.id,
-          status,
+        await atInstant(`${date}T23:30:00Z`, () =>
+          repository.updateAppointmentStatus(clinicId, appointment.id, status),
         );
       }
 

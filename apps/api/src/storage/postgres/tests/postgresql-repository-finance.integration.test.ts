@@ -543,6 +543,130 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
   });
 
+  it("settles with discount, interest and partial payment and restores on reversal", async () => {
+    await cleanupDailyCash();
+    try {
+      const [patients, services] = await Promise.all([
+        repository.listPatients(clinicId),
+        repository.listServices(clinicId),
+      ]);
+      const plan = await repository.createPatientPlan(
+        clinicId,
+        ownerId,
+        await configuredPlan({
+          services: [
+            {
+              serviceId: services[0]!.id,
+              totalSessions: 1,
+              totalValueInCents: 10_000,
+            },
+          ],
+          patientId: patients[0]!.id,
+          serviceId: services[0]!.id,
+          name: dailyCashMarker,
+          kind: "fixed_package",
+          totalSessions: 1,
+          validFrom: dailyCashDay,
+          totalValueInCents: 10_000,
+          installments: 1,
+          firstDueDate: dailyCashDay,
+        }),
+      );
+      const receivableId = (
+        await pool.query<{ id: string }>(
+          "SELECT id FROM receivables WHERE plan_id = $1",
+          [plan.id],
+        )
+      ).rows[0]!.id;
+      await expect(
+        repository.settleReceivable(
+          clinicId,
+          ownerId,
+          receivableId,
+          "pix",
+          undefined,
+          { receivedInCents: 20_000 },
+        ),
+      ).rejects.toMatchObject({ code: "INVALID_SETTLEMENT" });
+
+      const paid = await repository.settleReceivable(
+        clinicId,
+        ownerId,
+        receivableId,
+        "pix",
+        undefined,
+        {
+          discountInCents: 1_000,
+          interestInCents: 500,
+          receivedInCents: 4_000,
+        },
+      );
+      expect(paid).toMatchObject({ status: "paid", amountInCents: 4_000 });
+      const rows = await pool.query<{
+        amountInCents: number;
+        status: string;
+        description: string;
+        installmentNumber: number;
+      }>(
+        `SELECT amount_in_cents AS "amountInCents", status, description,
+                installment_number AS "installmentNumber"
+         FROM receivables WHERE plan_id = $1 ORDER BY installment_number`,
+        [plan.id],
+      );
+      expect(rows.rows).toEqual([
+        expect.objectContaining({ amountInCents: 4_000, status: "paid" }),
+        expect.objectContaining({
+          amountInCents: 5_500,
+          status: "open",
+          installmentNumber: 2,
+          description: expect.stringMatching(/ · saldo$/),
+        }),
+      ]);
+      const payment = await pool.query<{
+        amountInCents: number;
+        discountInCents: number;
+        interestInCents: number;
+        balanceReceivableId: string | null;
+      }>(
+        `SELECT amount_in_cents AS "amountInCents", discount_in_cents AS "discountInCents",
+                interest_in_cents AS "interestInCents", balance_receivable_id AS "balanceReceivableId"
+         FROM financial_events WHERE receivable_id = $1 AND kind = 'payment'`,
+        [receivableId],
+      );
+      expect(payment.rows[0]).toMatchObject({
+        amountInCents: 4_000,
+        discountInCents: 1_000,
+        interestInCents: 500,
+      });
+      expect(payment.rows[0]!.balanceReceivableId).toBeTruthy();
+      const receipt = await repository.getPaymentReceipt(
+        clinicId,
+        receivableId,
+      );
+      expect(receipt).toMatchObject({
+        amountInCents: 4_000,
+        discountInCents: 1_000,
+        interestInCents: 500,
+        clinicName: expect.any(String),
+      });
+
+      const reversed = await repository.reverseReceivablePayment(
+        clinicId,
+        ownerId,
+        receivableId,
+      );
+      // Sem o desconto e sem os juros: 4.000 + 1.000 − 500; com o saldo, volta a 10.000.
+      expect(reversed).toMatchObject({ status: "open", amountInCents: 4_500 });
+      const open = await pool.query<{ total: number }>(
+        "SELECT sum(amount_in_cents)::int AS total FROM receivables WHERE plan_id = $1 AND status = 'open'",
+        [plan.id],
+      );
+      expect(open.rows[0]!.total).toBe(10_000);
+    } finally {
+      await cleanupDailyCash();
+    }
+  });
+
   it("builds the PostgreSQL daily cash by event date in the clinic time zone", async () => {
     await cleanupDailyCash();
     const [patients, services] = await Promise.all([
@@ -638,6 +762,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       [],
     );
     await cleanupDailyCash();
+  });
+
+  it("creates and lists a PostgreSQL payable without cost center", async () => {
+    const category = await pool.query<{ id: string }>(
+      "SELECT id FROM financial_categories WHERE clinic_id = $1 AND kind = 'expense' AND active LIMIT 1",
+      [clinicId],
+    );
+    const description = "PG despesa sem centro de custo";
+    try {
+      const payable = await repository.createPayable(clinicId, ownerId, {
+        description,
+        categoryId: category.rows[0]!.id,
+        dueDate: "2026-10-16",
+        amountInCents: 4_590,
+      });
+      expect(payable).not.toHaveProperty("costCenterId");
+      const workspace = await repository.getFinancialWorkspace(clinicId);
+      expect(
+        workspace.payables.find((item) => item.id === payable.id),
+      ).toMatchObject({ description, amountInCents: 4_590 });
+    } finally {
+      await pool.query(
+        "DELETE FROM payable_events WHERE payable_id IN (SELECT id FROM payables WHERE clinic_id = $1 AND description = $2)",
+        [clinicId, description],
+      );
+      await pool.query(
+        "DELETE FROM payables WHERE clinic_id = $1 AND description = $2",
+        [clinicId, description],
+      );
+    }
   });
 
   it("lists PostgreSQL payments and reversals by event date in the clinic time zone", async () => {

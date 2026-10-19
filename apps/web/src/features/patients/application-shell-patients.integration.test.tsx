@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { patientTag, storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  clickMoreAction,
+  findMoreAction,
+  moreActionNames,
+} from "../../test-support/patient-actions";
 
 describe("application shell", () => {
   it("shows patient and booking details before cancelling an appointment", async () => {
@@ -85,6 +90,9 @@ describe("application shell", () => {
         .mocked(fetch)
         .mock.calls.some(([, options]) => options?.method === "PATCH"),
     ).toBe(false);
+    fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
+      target: { value: "Cliente desmarcou" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar cancelamento" }),
     );
@@ -95,12 +103,20 @@ describe("application shell", () => {
       expect(call?.[0]).toContain(`/appointments/${appointment.id}/status`);
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({
         status: "cancelled",
+        absenceReason: "Cliente desmarcou",
       });
     });
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Detalhes do atendimento" }),
-      ).not.toBeInTheDocument(),
+    // Depois de cancelar, o modal fica aberto para avisar o cliente por WhatsApp.
+    const notify = await screen.findByRole("link", {
+      name: "Avisar cliente por WhatsApp",
+    });
+    expect(notify).toHaveAttribute(
+      "href",
+      expect.stringContaining("foi%20cancelado"),
+    );
+    // Mensagem com o primeiro nome, não o nome completo.
+    expect(decodeURIComponent(notify.getAttribute("href")!)).toContain(
+      "Olá, Helena! Seu atendimento",
     );
   });
 
@@ -186,7 +202,7 @@ describe("application shell", () => {
     ]);
     expect(
       within(
-        screen.getByRole("button", { name: "Editar Bruno Souza" }),
+        screen.getByRole("button", { name: "Abrir ficha de Bruno Souza" }),
       ).getByText("Inativo"),
     ).toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: /Filtros/ });
@@ -232,10 +248,7 @@ describe("application shell", () => {
       "Editar Ana Lima",
     ]);
 
-    fireEvent.keyDown(
-      screen.getByRole("button", { name: "Editar Carla Dias" }),
-      { key: "Enter" },
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Editar Carla Dias" }));
     expect(
       screen.getByRole("heading", { name: "Editar cliente" }),
     ).toBeInTheDocument();
@@ -532,6 +545,8 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Salvar avaliação" });
     expect(save).toBeDisabled();
+    // Sem nota, o botão diz o que falta (QM14).
+    expect(save).toHaveAccessibleDescription("Falta: Nota de 0 a 10.");
     for (let score = 0; score <= 10; score += 1) {
       expect(
         screen.getByRole("button", { name: `Nota ${score}` }),
@@ -542,6 +557,8 @@ describe("application shell", () => {
       "aria-pressed",
       "true",
     );
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-describedby");
     fireEvent.change(screen.getByLabelText("Comentário (opcional)"), {
       target: { value: "Ótimo atendimento" },
     });
@@ -731,7 +748,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     await screen.findByRole("button", { name: "Editar Helena Almeida" });
-    fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+    clickMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     const template = within(dialog).getByRole("link", {
       name: /Baixar modelo/,
@@ -748,6 +765,9 @@ describe("application shell", () => {
     expect(
       within(dialog).getByRole("button", { name: /Importar \d+ cliente/ }),
     ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: /Importar \d+ cliente/ }),
+    ).toHaveAccessibleDescription("Falta: Planilha de clientes.");
 
     const content =
       "nome;telefone\nAna Lima;11999990000\n;123\nHelena A.;11987654321\nAna Lima;11999990000\n";
@@ -757,6 +777,7 @@ describe("application shell", () => {
       },
     });
     expect(await within(dialog).findByText("1 válido")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("1 com erro")).toBeInTheDocument();
     expect(within(dialog).getByText("2 duplicados")).toBeInTheDocument();
     expect(
@@ -832,7 +853,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Importar" }));
+    await findMoreAction("Importar");
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
       target: {
@@ -891,9 +912,7 @@ describe("application shell", () => {
     expect(
       screen.queryByRole("button", { name: /Novo cliente/ }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Importar" }),
-    ).not.toBeInTheDocument();
+    expect(moreActionNames()).not.toContain("Importar");
     expect(
       vi
         .mocked(fetch)
@@ -979,7 +998,7 @@ describe("application shell", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: /^pilates/ }));
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(
         within(dialog).getByText(
@@ -1072,7 +1091,7 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("Ordenar por"), {
       target: { value: "newest" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    clickMoreAction("Exportar");
     const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
     expect(
       within(dialog).getByText("Cadastro: Com e-mail"),
@@ -1215,7 +1234,7 @@ describe("application shell", () => {
       ).toBeInTheDocument();
 
       // A exportação ignora a página: segue só com os filtros da tela.
-      fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+      clickMoreAction("Exportar");
       const dialog = screen.getByRole("dialog", { name: "Exportar clientes" });
       expect(
         within(dialog).getByText(

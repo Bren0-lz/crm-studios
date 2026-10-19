@@ -4,7 +4,11 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
-import type { PaymentTiming, FinancialDatesInput } from "@crm/contracts";
+import type {
+  PaymentTiming,
+  FinancialDatesInput,
+  SettlementAdjustments,
+} from "@crm/contracts";
 import type {
   AdministrativeRegistryInput,
   AdministrativeRegistryWorkspace,
@@ -46,6 +50,7 @@ import type {
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
+  AppointmentUpdateInput,
   AssessmentTemplate,
   AssessmentTemplateInput,
   AuditHistoryFilters,
@@ -110,6 +115,9 @@ import type {
   LeadContact,
   LeadContactInput,
   LeadConversion,
+  LeadConversionInput,
+  LeadDuplicateMatch,
+  LeadDuplicateQuery,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -137,6 +145,7 @@ import type {
   PlanCatalogEntry,
   PlanCatalogInput,
   PlanRenewalInput,
+  PlanPauseDetails,
   PlanStatus,
   PlanTemplate,
   PlanTemplateInput,
@@ -556,6 +565,11 @@ export interface ClinicRepository {
 
   listPatientTags(clinicId: string): Promise<PatientTag[]>;
   /**
+   * Clientes com parcela vencida e em aberto (`status = open` e vencimento antes de `today`),
+   * base da etiqueta automática "Pagamento atrasado" (QC7).
+   */
+  listOverduePatientIds(clinicId: string, today: string): Promise<string[]>;
+  /**
    * Cria a etiqueta (auditoria `patient_tag.created`). Nome igual a outro da clínica sem
    * diferenciar maiúsculas/acentos: 409 `PATIENT_TAG_DUPLICATE`.
    */
@@ -598,6 +612,11 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<Appointment[]>;
+  /** Agendados/confirmados com término antes de `now` (pendentes de finalização). */
+  listPendingFinalizationAppointments(
+    clinicId: string,
+    now: string,
+  ): Promise<Appointment[]>;
   createAppointment(
     clinicId: string,
     input: AppointmentInput,
@@ -612,6 +631,27 @@ export interface ClinicRepository {
     clinicId: string,
     appointmentId: string,
   ): Promise<AppointmentRescheduleEvent[] | null>;
+  /** Serviço do atendimento (para checar os vínculos ao remarcar); `null` = não encontrado. */
+  findAppointmentServiceId(
+    clinicId: string,
+    appointmentId: string,
+  ): Promise<string | null>;
+  /** Atendimento da clínica pelo id; `null` = não encontrado. */
+  findAppointment(
+    clinicId: string,
+    appointmentId: string,
+  ): Promise<Appointment | null>;
+  /**
+   * Altera serviço, sala e observação de um atendimento agendado/confirmado (QM6), com a
+   * mesma checagem de conflito da criação e auditoria `appointment.updated`; `null` = não
+   * encontrado.
+   */
+  updateAppointment(
+    clinicId: string,
+    actorUserId: string,
+    appointmentId: string,
+    input: AppointmentUpdateInput,
+  ): Promise<Appointment | null>;
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,
@@ -840,6 +880,7 @@ export interface ClinicRepository {
     actorUserId: string,
     planId: string,
     status: PlanStatus,
+    pause?: PlanPauseDetails,
   ): Promise<PatientPlan | null>;
   renewPatientPlan(
     clinicId: string,
@@ -866,6 +907,7 @@ export interface ClinicRepository {
     receivableId: string,
     paymentMethod: PaymentMethod,
     timing?: PaymentTiming,
+    adjustments?: SettlementAdjustments,
   ): Promise<FinancialSummary["receivables"][number] | null>;
   reverseReceivablePayment(
     clinicId: string,
@@ -956,6 +998,14 @@ export interface ClinicRepository {
     actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
+  /**
+   * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
+   * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
+   */
+  findLeadDuplicates(
+    clinicId: string,
+    query: LeadDuplicateQuery,
+  ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
   updateLead(
     clinicId: string,
@@ -974,6 +1024,7 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
     leadId: string,
+    input?: LeadConversionInput,
   ): Promise<LeadConversion | null>;
   getLeadActivity(
     clinicId: string,

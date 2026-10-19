@@ -7,7 +7,8 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
-import { useRef, useState, type FormEvent } from "react";
+import { serviceAvailableFor } from "@crm/contracts";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { ApiClientError } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -19,7 +20,13 @@ import {
   currency,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
+import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function AppointmentForm({
   patients,
@@ -32,6 +39,7 @@ export function AppointmentForm({
   onSubmit,
   onPatientCreated,
   onNestedModalChange,
+  initialSlot,
 }: {
   patients: PatientOption[];
   professionals: Professional[];
@@ -46,22 +54,39 @@ export function AppointmentForm({
   ) => Promise<void>;
   onPatientCreated?: (patient: Patient) => void;
   onNestedModalChange?: (open: boolean) => void;
+  initialSlot?: { professionalId: string; startsAt: string } | undefined;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState({
     patientId: fixedPatient?.id ?? "",
     visitType: "" as AppointmentVisitType | "",
-    professionalId: "",
+    professionalId: initialSlot?.professionalId ?? "",
     roomId: "",
     serviceId: "",
-    startsAt: "",
+    startsAt: initialSlot?.startsAt ?? "",
     notes: "",
     recurring: can("agenda.recurring") && !can("agenda.create"),
     occurrences: 4,
     intervalWeeks: 1,
   });
+  // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
+  const availableServices = services.filter((item) =>
+    serviceAvailableFor(item, form.professionalId, form.roomId),
+  );
+  function keepAvailableService(next: typeof form) {
+    const service = services.find((item) => item.id === next.serviceId);
+    return service &&
+      !serviceAvailableFor(service, next.professionalId, next.roomId)
+      ? { ...next, serviceId: "" }
+      : next;
+  }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
+  const missing = form.patientId ? [] : ["Cliente"];
+  const missingId = useId();
+  useModalDirty(useFormDirty(form));
+  const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(
@@ -150,6 +175,13 @@ export function AppointmentForm({
                 />
               </div>
             )}
+            <AppointmentPatientWarnings
+              patient={
+                fixedPatient ??
+                patientChoices.find((item) => item.id === form.patientId)
+              }
+              checkPlan={form.visitType === "regular"}
+            />
             <label>
               Tipo
               <select
@@ -221,7 +253,12 @@ export function AppointmentForm({
                 required
                 value={form.professionalId}
                 onChange={(e) =>
-                  setForm({ ...form, professionalId: e.target.value })
+                  setForm(
+                    keepAvailableService({
+                      ...form,
+                      professionalId: e.target.value,
+                    }),
+                  )
                 }
               >
                 <option value="">Selecione</option>
@@ -237,7 +274,11 @@ export function AppointmentForm({
               <select
                 required
                 value={form.roomId}
-                onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+                onChange={(e) =>
+                  setForm(
+                    keepAvailableService({ ...form, roomId: e.target.value }),
+                  )
+                }
               >
                 <option value="">Selecione</option>
                 {rooms.map((item) => (
@@ -257,7 +298,7 @@ export function AppointmentForm({
                 }
               >
                 <option value="">Selecione</option>
-                {services.map((item) => (
+                {availableServices.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name} · {currency.format(item.priceInCents / 100)}
                   </option>
@@ -289,18 +330,24 @@ export function AppointmentForm({
               {error}
             </div>
           )}
+          {missing.length > 0 && (
+            <p className="field-hint span-2" id={missingId}>
+              Falta: {missing.join(", ")}.
+            </p>
+          )}
           <div className="modal-actions span-2">
             <button
               type="button"
               className="secondary-button"
-              onClick={onCancel}
+              onClick={() => confirmDiscard(onCancel)}
               disabled={loading}
             >
               {fixedPatient ? "Voltar" : "Cancelar"}
             </button>
             <button
               className="primary-button"
-              disabled={loading || !form.patientId}
+              disabled={loading || missing.length > 0}
+              aria-describedby={missing.length > 0 ? missingId : undefined}
             >
               {loading ? "Agendando…" : "Confirmar atendimento"}
             </button>

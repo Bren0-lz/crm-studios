@@ -10,8 +10,12 @@ import {
   type Service,
   describeGroupSchedule,
   groupClassName,
+  patientFirstName,
+  saoPauloToday,
 } from "@crm/contracts";
-import { Plus, UserMinus, UserPlus } from "lucide-react";
+import { useToast } from "../../shared/feedback/toast-context";
+import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
+import { EmptyState } from "../../shared/components/EmptyState";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
@@ -22,14 +26,37 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
+  groupEnrollmentToast,
   groupOperationRange,
+  groupSeatsLabel,
   groupSlotLabel,
 } from "../../shared/lib/formatting";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
+
+/**
+ * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
+ * continuam disponíveis para "Nova turma" e "Matricular cliente".
+ */
+function fetchGroupsData() {
+  const dates = groupOperationRange();
+  return Promise.allSettled([
+    api.groupWorkspace(dates.from, dates.to),
+    api.patientOptions(),
+    api.professionals(),
+    api.rooms(),
+    api.services(),
+  ]);
+}
 
 export function GroupsPage() {
   const { can, canEdit } = useAuthorization();
+  const toast = useToast();
   const contextPatientId = usePatientContext();
   const weekDayNames = [
     "Domingo",
@@ -72,60 +99,65 @@ export function GroupsPage() {
   const [enrollmentForm, setEnrollmentForm] = useState({
     groupId: "",
     patientId: enrollPatientId || contextPatientId,
+    startsOn: saoPauloToday(),
   });
+  const createDirty = useFormDirty(groupForm, groupDialog === "create");
+  const createMissing = useMissingFields(
+    [
+      ...missingLabels([
+        ["Serviço", groupForm.serviceId],
+        ["Profissional", groupForm.professionalId],
+        ["Sala", groupForm.roomId],
+      ]),
+      ...(groupForm.weeklySlots.length ? [] : ["Horários semanais"]),
+    ],
+    "field-hint",
+  );
+  const editMissing = useMissingFields(
+    editingSlots.length ? [] : ["Horários semanais"],
+    "field-hint",
+  );
+  const enrollDirty = useFormDirty(enrollmentForm, groupDialog === "enroll");
+  function applyGroupsData(
+    results: Awaited<ReturnType<typeof fetchGroupsData>>,
+  ) {
+    const [data, patientData, professionalData, roomData, serviceData] =
+      results;
+    if (data.status === "fulfilled") setWorkspace(data.value);
+    if (patientData.status === "fulfilled") setPatients(patientData.value);
+    if (professionalData.status === "fulfilled")
+      setProfessionals(professionalData.value);
+    if (roomData.status === "fulfilled") setRooms(roomData.value);
+    if (serviceData.status === "fulfilled") setServices(serviceData.value);
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure) setError((failure.reason as Error).message);
+  }
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const dates = groupOperationRange();
-      const [data, patientData, professionalData, roomData, serviceData] =
-        await Promise.all([
-          api.groupWorkspace(dates.from, dates.to),
-          api.patientOptions(),
-          api.professionals(),
-          api.rooms(),
-          api.services(),
-        ]);
-      setWorkspace(data);
-      setPatients(patientData);
-      setProfessionals(professionalData);
-      setRooms(roomData);
-      setServices(serviceData);
-    } catch (cause) {
-      setError((cause as Error).message);
+      applyGroupsData(await fetchGroupsData());
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => {
     let active = true;
-    const dates = groupOperationRange();
-    Promise.all([
-      api.groupWorkspace(dates.from, dates.to),
-      api.patientOptions(),
-      api.professionals(),
-      api.rooms(),
-      api.services(),
-    ])
-      .then(([data, patientData, professionalData, roomData, serviceData]) => {
-        if (!active) return;
-        setWorkspace(data);
-        setPatients(patientData);
-        setProfessionals(professionalData);
-        setRooms(roomData);
-        setServices(serviceData);
-      })
-      .catch((cause: Error) => active && setError(cause.message))
-      .finally(() => active && setLoading(false));
+    void fetchGroupsData().then((results) => {
+      if (!active) return;
+      applyGroupsData(results);
+      setLoading(false);
+    });
     return () => {
       active = false;
     };
   }, []);
-  async function run(action: () => Promise<unknown>) {
+  /** Executa a gravação; o texto devolvido pela ação vira o aviso de sucesso. */
+  async function run(action: () => Promise<string>) {
     setError("");
     setSaving(true);
     try {
-      await action();
+      toast.success(await action());
       await load();
     } catch (cause) {
       setError((cause as Error).message);
@@ -150,6 +182,10 @@ export function GroupsPage() {
     ) + 1;
   const groupOptionLabel = (group: GroupClass) =>
     `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
+  const editDirty = useFormDirty(
+    { editingCapacity, editingSlots },
+    Boolean(selectedGroup),
+  );
   function openGroup(group: GroupClass) {
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
@@ -189,14 +225,6 @@ export function GroupsPage() {
           )
         }
       />
-      {workspace && (
-        <GroupOperationsPanel
-          workspace={workspace}
-          professionals={professionals}
-          onChanged={load}
-          initialSessionId={searchParams.get("sessionId") ?? undefined}
-        />
-      )}
       {!canManage && <ReadOnlyNotice module="groups" />}
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (
@@ -229,6 +257,7 @@ export function GroupsPage() {
               title="Nova turma"
               subtitle="Configure os dados e horários fixos."
               busy={saving}
+              dirty={createDirty}
               onClose={closeGroupDialogs}
             >
               <section className="group-modal-sections group-form-panel">
@@ -239,7 +268,7 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       void run(async () => {
-                        await api.createGroupClass(groupForm);
+                        const created = await api.createGroupClass(groupForm);
                         setGroupForm({
                           serviceId: "",
                           professionalId: "",
@@ -248,6 +277,7 @@ export function GroupsPage() {
                           weeklySlots: [],
                         });
                         closeGroupDialogs();
+                        return `Turma ${created.name} criada.`;
                       });
                     }}
                   >
@@ -368,10 +398,12 @@ export function GroupsPage() {
                         {describeGroupSchedule(groupForm.weeklySlots)}
                       </div>
                     </section>
+                    {createMissing.hint}
                     <div className="modal-actions group-modal-actions">
                       <button
                         className="primary-button"
-                        disabled={groupForm.weeklySlots.length === 0}
+                        disabled={createMissing.blocked}
+                        aria-describedby={createMissing.describedBy}
                       >
                         Criar turma
                       </button>
@@ -386,6 +418,7 @@ export function GroupsPage() {
               title="Nova matrícula"
               subtitle="Escolha a turma e o cliente."
               busy={saving}
+              dirty={enrollDirty}
               onClose={closeGroupDialogs}
             >
               <section className="group-modal-sections group-form-panel">
@@ -397,8 +430,15 @@ export function GroupsPage() {
                       event.preventDefault();
                       if (!enrollmentForm.patientId) return;
                       void run(async () => {
-                        await api.createGroupEnrollment(enrollmentForm);
+                        const enrollment =
+                          await api.createGroupEnrollment(enrollmentForm);
                         closeGroupDialogs();
+                        return groupEnrollmentToast(
+                          enrollment,
+                          workspace?.groups.find(
+                            (item) => item.id === enrollment.groupId,
+                          )?.name,
+                        );
                       });
                     }}
                   >
@@ -440,6 +480,21 @@ export function GroupsPage() {
                             setEnrollmentForm({ ...enrollmentForm, patientId })
                           }
                         />
+                        <label>
+                          Início da matrícula
+                          <input
+                            type="date"
+                            required
+                            disabled={saving}
+                            value={enrollmentForm.startsOn}
+                            onChange={(event) =>
+                              setEnrollmentForm({
+                                ...enrollmentForm,
+                                startsOn: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
                       </div>
                     </section>
                     <div className="modal-actions group-modal-actions">
@@ -466,10 +521,22 @@ export function GroupsPage() {
               Acompanhe ocupação, participantes e lista de espera.
             </p>
             {workspace?.groups.length === 0 && (
-              <p className="group-empty">
-                Nenhuma turma cadastrada. Use “Nova turma” para criar a
-                primeira.
-              </p>
+              <EmptyState
+                icon={UsersRound}
+                title="Nenhuma turma cadastrada"
+                copy="Crie a primeira turma para matricular clientes e controlar a ocupação."
+                action={
+                  can("groups.create") ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => setGroupDialog("create")}
+                    >
+                      <Plus size={18} /> Criar primeira turma
+                    </button>
+                  ) : undefined
+                }
+              />
             )}
             <div className="group-card-grid">
               {workspace?.groups.map((group) => (
@@ -484,7 +551,7 @@ export function GroupsPage() {
                     </small>
                   </div>
                   <span>
-                    {group.activeEnrollments}/{group.capacity} vagas
+                    {groupSeatsLabel(group.activeEnrollments, group.capacity)}
                   </span>
                   <small>{group.waitlistCount} em espera</small>
                   <div className="group-slot-summary">
@@ -514,10 +581,47 @@ export function GroupsPage() {
               title={selectedGroup.name}
               subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`}
               busy={saving}
+              dirty={editDirty}
               onClose={closeGroupDialogs}
             >
               <div className="group-modal-sections">
                 {error && <ErrorBanner error={error} />}
+                <section className="group-modal-section">
+                  <h3>Dados da turma</h3>
+                  <dl className="patient-detail-fields">
+                    <div>
+                      <dt>Serviço</dt>
+                      <dd>{selectedGroup.serviceName}</dd>
+                    </div>
+                    <div>
+                      <dt>Profissional</dt>
+                      <dd>{selectedGroup.professionalName}</dd>
+                    </div>
+                    <div>
+                      <dt>Sala</dt>
+                      <dd>{selectedGroup.roomName}</dd>
+                    </div>
+                    <div>
+                      <dt>Horário</dt>
+                      <dd>
+                        {(selectedGroup.weeklySlots ?? []).length
+                          ? selectedGroup.weeklySlots
+                              .map((slot) => groupSlotLabel(slot, weekDayNames))
+                              .join(", ")
+                          : "Horários ainda não definidos"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Matriculados</dt>
+                      <dd>
+                        {groupSeatsLabel(
+                          selectedGroup.activeEnrollments,
+                          selectedGroup.capacity,
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
                 {canManage && (
                   <>
                     <div className="group-modal-quick-actions">
@@ -555,6 +659,7 @@ export function GroupsPage() {
                                 weeklySlots: editingSlots,
                               });
                               closeGroupDialogs();
+                              return `Turma ${selectedGroup.name} atualizada.`;
                             });
                           }}
                         >
@@ -577,8 +682,11 @@ export function GroupsPage() {
                               />
                             </label>
                             <div className="group-modal-note">
-                              {selectedGroup.activeEnrollments} matriculados ·
-                              Sala {selectedGroup.roomName} comporta até{" "}
+                              {selectedGroup.activeEnrollments}{" "}
+                              {selectedGroup.activeEnrollments === 1
+                                ? "matriculado"
+                                : "matriculados"}{" "}
+                              · Sala {selectedGroup.roomName} comporta até{" "}
                               {rooms.find(
                                 (item) => item.id === selectedGroup.roomId,
                               )?.capacity ?? "—"}{" "}
@@ -590,10 +698,12 @@ export function GroupsPage() {
                             onChange={setEditingSlots}
                             weekDayNames={weekDayNames}
                           />
+                          {editMissing.hint}
                           <div className="modal-actions group-modal-actions">
                             <button
                               className="primary-button"
-                              disabled={editingSlots.length === 0}
+                              disabled={editMissing.blocked}
+                              aria-describedby={editMissing.describedBy}
                             >
                               Salvar alterações
                             </button>
@@ -626,9 +736,10 @@ export function GroupsPage() {
                               className="danger-button button-sm"
                               aria-label={`Cancelar matrícula de ${item.patientName}`}
                               onClick={() =>
-                                void run(() =>
-                                  api.cancelGroupEnrollment(item.id),
-                                )
+                                void run(async () => {
+                                  await api.cancelGroupEnrollment(item.id);
+                                  return `Matrícula de ${patientFirstName(item.patientName)} cancelada.`;
+                                })
                               }
                             >
                               <UserMinus size={14} aria-hidden="true" />
@@ -648,6 +759,15 @@ export function GroupsPage() {
             </GroupModal>
           )}
         </div>
+      )}
+      {/* Encontros depois das turmas: a tela abre mostrando as turmas. */}
+      {workspace && (
+        <GroupOperationsPanel
+          workspace={workspace}
+          professionals={professionals}
+          onChanged={load}
+          initialSessionId={searchParams.get("sessionId") ?? undefined}
+        />
       )}
     </>
   );

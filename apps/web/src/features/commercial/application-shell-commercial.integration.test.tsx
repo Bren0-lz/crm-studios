@@ -147,13 +147,29 @@ describe("application shell", () => {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), {
+    // Sem horário, Confirmar fica desativado dizendo o que falta (QM14).
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
+      target: { value: "" },
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toHaveAccessibleDescription("Falta: Data e horário.");
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
       target: { value: "09:00" },
     });
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Fechar calendário" }),
-    );
+    expect(
+      within(dialog).queryByRole("region", {
+        name: "Calendário de agendamento",
+      }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
     );

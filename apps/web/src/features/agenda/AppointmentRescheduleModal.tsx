@@ -1,32 +1,64 @@
-import type { Appointment, Professional, Room } from "@crm/contracts";
+import type { Appointment, Professional, Room, Service } from "@crm/contracts";
+import { serviceAvailableFor } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import {
+  isCompleteDateTime,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function AppointmentRescheduleModal({
   appointment,
-  professionals,
-  rooms,
+  service,
+  professionals: allProfessionals,
+  rooms: allRooms,
   onClose,
   onSaved,
 }: {
   appointment: Appointment;
+  /** Serviço do atendimento: só profissionais e salas que o atendem (QM3). */
+  service: Service | undefined;
   professionals: Professional[];
   rooms: Room[];
   onClose: () => void;
   onSaved: (appointment: Appointment) => void;
 }) {
   const { can } = useAuthorization();
+  const professionals = service
+    ? allProfessionals.filter((item) =>
+        serviceAvailableFor(service, item.id, ""),
+      )
+    : allProfessionals;
+  const rooms = service
+    ? allRooms.filter((item) => serviceAvailableFor(service, "", item.id))
+    : allRooms;
   const [form, setForm] = useState({
-    professionalId: appointment.professionalId,
-    roomId: appointment.roomId,
+    professionalId:
+      professionals.some((item) => item.id === appointment.professionalId) ||
+      !professionals[0]
+        ? appointment.professionalId
+        : professionals[0].id,
+    roomId:
+      rooms.some((item) => item.id === appointment.roomId) || !rooms[0]
+        ? appointment.roomId
+        : rooms[0].id,
     startsAt: toLocalDateTimeInput(new Date(appointment.startsAt)),
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      !form.professionalId && "Profissional",
+      !form.roomId && "Sala",
+      !isCompleteDateTime(form.startsAt) && "Nova data e horário",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -64,6 +96,7 @@ export function AppointmentRescheduleModal({
           : `${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("agenda.reschedule") && (
@@ -112,16 +145,14 @@ export function AppointmentRescheduleModal({
             />
           </div>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
-              Cancelar
-            </button>
-            <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Confirmar reagendamento"}
             </button>
           </div>

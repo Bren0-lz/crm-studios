@@ -35,6 +35,22 @@ const firstNames = [
   "Rafael",
   "Thiago",
   "Vinícius",
+  "Alice",
+  "Débora",
+  "Elaine",
+  "Flávia",
+  "Lúcia",
+  "Marina",
+  "Paula",
+  "Sandra",
+  "Vanessa",
+  "Yasmin",
+  "Antônio",
+  "Carlos",
+  "Fábio",
+  "Marcos",
+  "Otávio",
+  "Ricardo",
 ];
 const surnames = [
   "Azevedo",
@@ -53,7 +69,39 @@ const surnames = [
   "Santos",
   "Silva",
   "Teixeira",
+  "Araújo",
+  "Batista",
+  "Campos",
+  "Castro",
+  "Correia",
+  "Freitas",
+  "Monteiro",
+  "Nogueira",
+  "Pinto",
+  "Ramos",
+  "Ribeiro",
+  "Souza",
 ];
+// Na lista de nomes, os femininos são os 16 primeiros e "Alice"–"Yasmin" (32–41).
+const isFemaleName = (index: number) =>
+  index < 16 || (index >= 32 && index < 42);
+const femaleRelations = ["mãe", "irmã", "filha", "esposa"];
+const maleRelations = ["pai", "irmão", "filho", "marido"];
+
+/** Contato de emergência com parentesco coerente com o nome (V12). */
+function emergencyContactFor(index: number, surname: string) {
+  const relative = (index * 3 + 11) % firstNames.length;
+  const relations = isFemaleName(relative) ? femaleRelations : maleRelations;
+  return `${firstNames[relative]} ${surname} (${relations[index % relations.length]})`;
+}
+
+/** Dois sobrenomes diferentes, com passos distintos para variar as combinações (V12). */
+function surnamesFor(index: number): [string, string] {
+  const first = (index * 5 + 3) % surnames.length;
+  let second = (index * 11 + 7) % surnames.length;
+  if (second === first) second = (second + 1) % surnames.length;
+  return [surnames[first]!, surnames[second]!];
+}
 const specialties = [
   "Fisioterapia",
   "Depilação",
@@ -77,7 +125,8 @@ const scenarioTags = [
   ["Depilação", "Serviço avulso"],
   ["Dançaterapia", "Assinatura cancelada"],
   ["Fisioterapia", "Sem retorno"],
-  ["Pilates", "Pagamento atrasado"],
+  // "Pagamento atrasado" é automática (QC7): vem das parcelas vencidas do cenário.
+  ["Pilates", "Assinatura ativa"],
 ];
 const scenarioNotes = [
   "Participa de dançaterapia duas vezes por semana e mantém o plano ativo.",
@@ -95,14 +144,13 @@ export const demoPatients: Patient[] = Array.from(
   (_, index) => {
     const number = index + 4;
     const firstName = firstNames[index % firstNames.length]!;
-    const surname =
-      surnames[Math.floor(index / firstNames.length) % surnames.length]!;
-    const secondSurname = surnames[(index * 7 + 5) % surnames.length]!;
+    const [surname, secondSurname] = surnamesFor(index);
     const fullName = `${firstName} ${surname} ${secondSurname}`;
     const specialty = specialties[index % specialties.length]!;
     const scenario = Math.floor(index / 8);
     const timestamp = new Date(
-      Date.UTC(2024 + (index % 3), index % 12, 2 + (index % 25)),
+      // Sempre no passado (2023–2025): data de cadastro futura bagunça o histórico.
+      Date.UTC(2023 + (index % 3), index % 12, 2 + (index % 25)),
     ).toISOString();
 
     return {
@@ -115,7 +163,7 @@ export const demoPatients: Patient[] = Array.from(
       birthDate: `${1950 + ((index * 7) % 55)}-${String((index % 12) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}`,
       ...(index % 3 === 0
         ? {
-            emergencyContactName: `Contato fictício ${number}`,
+            emergencyContactName: emergencyContactFor(index, secondSurname),
             emergencyContactPhone: `119${String(80000000 + number).padStart(8, "0")}`,
           }
         : {}),

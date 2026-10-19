@@ -70,10 +70,6 @@ export function AppointmentRescheduleHistoryModal({
                   })}
                 </span>
               </div>
-              <p className="report-definition">
-                Receitas e despesas pela baixa. A classificação gerencial
-                detalhada ainda precisa de conciliação.
-              </p>
               <p>
                 {event.previousProfessionalName} · {event.previousRoomName}
                 {" → "}

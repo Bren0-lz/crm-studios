@@ -1,4 +1,5 @@
-export type ReceivableFilter = "all" | "open" | "overdue" | "paid";
+export type ReceivableFilter =
+  "all" | "open" | "overdue" | "paid" | "cancelled";
 
 export interface SettleTarget {
   kind: "receivable" | "payable";
@@ -6,4 +7,6 @@ export interface SettleTarget {
   title: string;
   description: string;
   amountInCents: number;
+  /** Vencimento original (parcela): padrão do vencimento do saldo no pagamento parcial. */
+  dueDate?: string;
 }

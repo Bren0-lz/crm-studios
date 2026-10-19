@@ -418,3 +418,179 @@
 .metric-note.good {
   color: #3d866e;
 }
+
+/* Notificações e menu do usuário no cabeçalho. */
+.header-popover {
+  position: relative;
+}
+button.top-avatar {
+  border: 0;
+  cursor: pointer;
+}
+.header-popover-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  display: grid;
+  gap: var(--space-2);
+  width: min(320px, calc(100vw - var(--space-6)));
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(24 79 67 / 14%);
+}
+.header-popover-panel p {
+  margin: 0;
+}
+.header-popover-title {
+  font-size: var(--text-md);
+}
+.header-notifications {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.header-notifications .header-notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.header-notifications .header-notification-item:hover,
+.header-notifications .header-notification-item:focus-visible {
+  background: var(--mint);
+}
+.header-notifications span {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+}
+.header-notifications small,
+.header-user small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.header-user {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.header-user-actions {
+  display: grid;
+}
+
+/* Sino (QM13): contador no ícone, grupos com contagem e skeleton ao carregar. */
+.header-bell {
+  position: relative;
+}
+.header-bell-count {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  min-width: calc(var(--space-4) + var(--space-1));
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--red) 80%, #000);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: calc(var(--space-4) + var(--space-1));
+  text-align: center;
+}
+.header-notifications .header-notification-item > span:first-of-type {
+  flex: 1;
+}
+.header-notifications .header-notification-count {
+  display: inline-block;
+  min-width: var(--space-5);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--space-5);
+  text-align: center;
+}
+.header-notifications-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+.header-notifications-skeleton {
+  display: grid;
+  gap: var(--space-2);
+}
+.header-notifications-skeleton span {
+  display: block;
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--line) 25%,
+    var(--mint) 50%,
+    var(--line) 75%
+  );
+  background-size: 200% 100%;
+  animation: header-skeleton 1.2s ease-in-out infinite;
+}
+@keyframes header-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-notifications-skeleton span {
+    animation: none;
+  }
+}
+
+/* Avisos (toast) de sucesso e erro, no canto inferior direito. */
+.toast-stack {
+  position: fixed;
+  z-index: 80;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - var(--space-6)));
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid #b8d8ca;
+  border-radius: var(--radius-md);
+  background: #edf7f2;
+  color: #286450;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgb(24 79 67 / 14%);
+}
+.toast span {
+  flex: 1;
+}
+.toast-error {
+  border-color: #e8c8be;
+  background: #fbf2ef;
+  color: #8d3d2a;
+}
+.toast-close {
+  color: inherit;
+}

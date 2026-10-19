@@ -8,7 +8,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
   await login(page);
   await page.goto(`/clientes/${patient.id}`);
   await page
-    .getByRole("button", { name: "Prontuário e avaliações", exact: true })
+    .getByRole("tab", { name: "Prontuário", exact: true })
     .click();
   await page.getByRole("button", { name: "Mais ações", exact: true }).click();
   await page
@@ -142,7 +142,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   const other = await otherResponse.json();
   await page.goto(`/clientes/${patient.id}`);
   await page
-    .getByRole("button", { name: "Prontuário e avaliações", exact: true })
+    .getByRole("tab", { name: "Prontuário", exact: true })
     .click();
   const resources = page.getByText("Modelos, evoluções e treinos", {
     exact: true,
@@ -285,7 +285,7 @@ test("reconciles a paid commission without rewriting the original payout", async
           kind: "fixed",
           percentage: 0,
           fixedAmountInCents: 1500,
-          effectiveFrom: "2039-01-01",
+          effectiveFrom: "2025-01-01",
         },
       })
     ).status(),
@@ -296,7 +296,7 @@ test("reconciles a paid commission without rewriting the original payout", async
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
       serviceId: services[0].id,
-      startsAt: "2039-02-10T12:00:00Z",
+      startsAt: "2025-02-10T12:00:00Z",
       visitType: "trial",
       notes: "",
     },
@@ -312,7 +312,7 @@ test("reconciles a paid commission without rewriting the original payout", async
   ).toBe(200);
   const generated = await (
       await api.post("/finance/commissions/generate", {
-        data: { competence: "2039-02" },
+        data: { competence: "2025-02" },
       })
     ).json(),
     commission = generated.find(
@@ -511,7 +511,7 @@ test("records an NPS response from manual work without treating opening a link a
       serviceId: services[0].id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
-      startsAt: "2039-02-10T12:00:00Z",
+      startsAt: "2025-02-10T12:00:00Z",
       visitType: "trial",
       notes: "",
     },
@@ -529,7 +529,7 @@ test("records an NPS response from manual work without treating opening a link a
     (
       await api.post("/communications/reminders/generate", {
         data: {
-          referenceDate: "2039-02-10",
+          referenceDate: "2025-02-10",
           appointments: false,
           payments: false,
           satisfaction: true,
@@ -625,6 +625,7 @@ test("purchases a contextual plan with group enrollment and an issued document",
   await expect(
     page.getByRole("heading", { name: patient.fullName, exact: true }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Planos", exact: true }).click();
   await page.locator(`a[href="/planos?patientId=${patient.id}"]`).click();
   await expect(page).toHaveURL(new RegExp(`patientId=${patient.id}`));
   await page.getByRole("button", { name: "Novo plano", exact: true }).click();
@@ -731,6 +732,7 @@ test("closes a mixed tab from the customer context and shows its independent ses
   expect(appointment.status()).toBe(200);
   await login(page);
   await page.goto(`/clientes/${patient.id}`);
+  await page.getByRole("tab", { name: "Comandas", exact: true }).click();
   const inventory = page.getByText("Estoque e comandas", { exact: true });
   await inventory.focus();
   await inventory.press("Enter");

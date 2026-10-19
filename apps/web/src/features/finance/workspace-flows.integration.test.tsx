@@ -35,7 +35,7 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Competência", "2040-06"],
       ["Vencimento", "2040-06-10"],
       ["Categoria", category.id],
-      ["Centro de custo", center.id],
+      ["Centro de custo (opcional)", center.id],
       ["Valor", "75.50"],
       ["Observações", "Material terapêutico"],
     ])
@@ -123,11 +123,18 @@ describe("finance workflows through real HTTP handlers", () => {
       startsAt: "2039-02-10T12:00:00Z",
       visitType: "trial",
     });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
-    );
+    // Realizado só depois do início do atendimento (QC3): relógio no dia seguinte.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
+    try {
+      await repository.updateAppointmentStatus(
+        clinicId,
+        appointment.id,
+        "completed",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
     const commission = (
       await repository.generateCommissions(clinicId, "2039-02")
     ).find((item) => item.appointmentId === appointment.id)!;
@@ -164,11 +171,21 @@ describe("finance workflows through real HTTP handlers", () => {
       }),
     );
     await within(dialog).findByText("Pagamento original registrado");
+    // Sem motivo, Confirmar fica desativado dizendo o que falta (QM14).
+    const reconcile = within(dialog).getByRole("button", {
+      name: "Confirmar conciliação",
+    });
+    expect(reconcile).toBeDisabled();
+    expect(reconcile).toHaveAccessibleDescription(
+      "Falta: Motivo da conciliação (pelo menos 5 caracteres).",
+    );
     change(
       "Motivo da conciliação",
       "Correção da presença registrada pela equipe",
       dialog,
     );
+    expect(reconcile).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar conciliação" }),
     );
@@ -197,11 +214,17 @@ describe("finance workflows through real HTTP handlers", () => {
       "Estorno conciliado registrado sem remover o pagamento original.",
     );
     expect(within(dialog).getByText(/Estornado/)).toBeInTheDocument();
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
-    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
+    try {
+      await repository.updateAppointmentStatus(
+        clinicId,
+        appointment.id,
+        "completed",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Atualizar conta conciliada",
@@ -311,6 +334,15 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Registrar operação externa",
     });
     change("Tipo de registro", "partner", dialog);
+    // Antes de preencher, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toHaveAccessibleDescription(
+      "Falta: Emissor ou parceiro (pelo menos 2 caracteres), Referência do documento ou operação, Comprovante.",
+    );
     change("Emissor ou parceiro", "Parceiro de atendimento", dialog);
     change("Referência do documento ou operação", "PARCEIRO-123", dialog);
     change(
@@ -327,6 +359,7 @@ describe("finance workflows through real HTTP handlers", () => {
       target: { files: [proof] },
     });
     await within(dialog).findByText("comprovante.pdf");
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     await save("Registrar operação externa", "Salvar registro manual");
     expect(await within(panel).findByText(/PARCEIRO-123/)).toBeInTheDocument();
     expect(

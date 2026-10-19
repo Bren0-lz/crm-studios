@@ -2,7 +2,9 @@ import type { DocumentTemplate } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { TemplateBodyEditor } from "./TemplateBodyEditor";
 
 export function TemplateVersionModal({
   template,
@@ -17,6 +19,7 @@ export function TemplateVersionModal({
   const [body, setBody] = useState(template.body);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(body);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (body.trim() === template.body.trim()) {
@@ -43,29 +46,22 @@ export function TemplateVersionModal({
       subtitle={`${template.name} · versão ${template.version + 1}`}
       eyebrow="Modelos"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("contracts.templates_version") && (
         <form className="form-grid" onSubmit={(event) => void submit(event)}>
-          <label className="span-2">
-            Conteúdo
-            <textarea
-              required
-              rows={12}
+          <div className="span-2">
+            <TemplateBodyEditor
               value={body}
-              onChange={(event) => setBody(event.target.value)}
+              rows={12}
+              disabled={saving}
+              onChange={setBody}
             />
-          </label>
+          </div>
           {error && <div className="span-2 form-error">{error}</div>}
           <div className="span-2 modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
             <button type="submit" className="primary-button" disabled={saving}>
               {saving ? "Criando…" : "Criar versão"}
             </button>

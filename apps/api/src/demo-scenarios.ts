@@ -33,6 +33,8 @@ const date = (offset: number) => {
 const stamp = (offset: number, hour = 12) =>
   `${date(offset)}T${String(hour).padStart(2, "0")}:00:00-03:00`;
 
+// Vínculos realistas (QM3): Dançaterapia com Clara na Sala de Dança, Pilates com Beatriz na
+// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética.
 export const demoServices: Service[] = [
   {
     id: id(1, 1),
@@ -41,6 +43,8 @@ export const demoServices: Service[] = [
     durationMinutes: 60,
     priceInCents: 7500,
     color: "#9a6bc4",
+    professionalIds: [id(2, 1)],
+    roomIds: [id(3, 1)],
     active: true,
   },
   {
@@ -50,6 +54,8 @@ export const demoServices: Service[] = [
     durationMinutes: 50,
     priceInCents: 15000,
     color: "#6699a1",
+    professionalIds: [id(2, 2)],
+    roomIds: [id(3, 2)],
     active: true,
   },
   {
@@ -59,6 +65,8 @@ export const demoServices: Service[] = [
     durationMinutes: 45,
     priceInCents: 12000,
     color: "#db8290",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
   {
@@ -68,6 +76,8 @@ export const demoServices: Service[] = [
     durationMinutes: 30,
     priceInCents: 5500,
     color: "#e7a16f",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
   {
@@ -77,6 +87,8 @@ export const demoServices: Service[] = [
     durationMinutes: 60,
     priceInCents: 17000,
     color: "#89a96b",
+    professionalIds: [id(2, 3)],
+    roomIds: [id(3, 3)],
     active: true,
   },
 ];
@@ -85,7 +97,7 @@ export const demoProfessionals: Professional[] = [
     id: id(2, 1),
     clinicId: demoClinicId,
     fullName: "Clara Mendes",
-    crefito: "DEMO-DANCA-01",
+    crefito: "CREFITO-3 112233-F",
     specialty: "Dançaterapia",
     color: "#9a6bc4",
     active: true,
@@ -94,7 +106,7 @@ export const demoProfessionals: Professional[] = [
     id: id(2, 2),
     clinicId: demoClinicId,
     fullName: "Beatriz Lima",
-    crefito: "DEMO-PILATES-02",
+    crefito: "CREFITO-3 223344-F",
     specialty: "Pilates",
     color: "#6699a1",
     active: true,
@@ -103,7 +115,7 @@ export const demoProfessionals: Professional[] = [
     id: id(2, 3),
     clinicId: demoClinicId,
     fullName: "Carolina Rocha",
-    crefito: "DEMO-ESTETICA-03",
+    crefito: "CREFITO-3 334455-F",
     specialty: "Estética",
     color: "#db8290",
     active: true,
@@ -250,7 +262,13 @@ export function buildDemoScenarios(): DemoData {
             ? 3
             : 5;
     const start = cancelled || lapsed ? -100 : single ? -15 : -50;
-    const installments = dance ? 3 : single ? 1 : 2;
+    const kind: PatientPlan["kind"] = single
+      ? "single"
+      : dance || cohort === 1 || overdue
+        ? "recurring"
+        : "fixed_package";
+    // Recorrente: uma cobrança por ciclo; pacotes fixos em 2 parcelas.
+    const installments = kind === "fixed_package" ? 2 : 1;
     const totalValue = dance
       ? 149700
       : single
@@ -286,11 +304,7 @@ export function buildDemoScenarios(): DemoData {
         },
       ],
       name,
-      kind: single
-        ? "single"
-        : dance || cohort === 1 || overdue
-          ? "recurring"
-          : "fixed_package",
+      kind,
       totalSessions,
       remainingSessions: totalSessions - consumed,
       validFrom: date(start),
@@ -324,7 +338,8 @@ export function buildDemoScenarios(): DemoData {
       const dueOffset = start + 10 + installment * 30;
       const paid =
         (single && index % 4 !== 0) ||
-        (!single && installment === 0) ||
+        // A cobrança do ciclo dos atrasados fica em aberto (vencida).
+        (!single && installment === 0 && !overdue) ||
         (!cancelled && !overdue && !lapsed && installment === 1);
       const status =
         cancelled && installment > 0 ? "cancelled" : paid ? "paid" : "open";
@@ -382,6 +397,8 @@ export function buildDemoScenarios(): DemoData {
         patientName: patient.fullName,
         status: cancelled ? "cancelled" : "active",
         enrolledAt: stamp(start),
+        startsOn: date(start),
+        ...(cancelled ? { endedOn: date(-25) } : {}),
         updatedAt: cancelledAt ?? stamp(start),
       });
       const pastSessions = sessions.filter(

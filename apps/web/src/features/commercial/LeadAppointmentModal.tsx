@@ -6,6 +6,7 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
+import { serviceAvailableFor } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -13,12 +14,58 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import {
+  isCompleteDateTime,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   leadVisitTypes,
   toLocalDateTimeInput,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
+
+type ScheduleOptions = {
+  services: Service[];
+  professionals: Professional[];
+  rooms: Room[];
+};
+
+/** Profissionais e salas que atendem o serviço escolhido (vínculos do serviço; vazio = todos). */
+function resourcesFor(options: ScheduleOptions, serviceId: string) {
+  const service = options.services.find((item) => item.id === serviceId);
+  return {
+    professionals: service
+      ? options.professionals.filter((item) =>
+          serviceAvailableFor(service, item.id, ""),
+        )
+      : options.professionals,
+    rooms: service
+      ? options.rooms.filter((item) =>
+          serviceAvailableFor(service, "", item.id),
+        )
+      : options.rooms,
+  };
+}
+
+/** Troca profissional/sala que não atendem o serviço pelo primeiro que atende. */
+function keepResources<
+  T extends { serviceId: string; professionalId: string; roomId: string },
+>(options: ScheduleOptions, form: T): T {
+  const { professionals, rooms } = resourcesFor(options, form.serviceId);
+  return {
+    ...form,
+    professionalId: professionals.some(
+      (item) => item.id === form.professionalId,
+    )
+      ? form.professionalId
+      : (professionals[0]?.id ?? ""),
+    roomId: rooms.some((item) => item.id === form.roomId)
+      ? form.roomId
+      : (rooms[0]?.id ?? ""),
+  };
+}
 
 export function LeadAppointmentModal({
   lead,
@@ -33,11 +80,7 @@ export function LeadAppointmentModal({
   const initialTime = new Date();
   initialTime.setDate(initialTime.getDate() + 1);
   initialTime.setHours(9, 0, 0, 0);
-  const [options, setOptions] = useState<{
-    services: Service[];
-    professionals: Professional[];
-    rooms: Room[];
-  } | null>(null);
+  const [options, setOptions] = useState<ScheduleOptions | null>(null);
   const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({
     visitType: "trial" as LeadAppointmentInput["visitType"],
@@ -49,19 +92,30 @@ export function LeadAppointmentModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(form, options !== null);
+  const missing = useMissingFields(
+    [
+      !form.serviceId && "Serviço",
+      !form.professionalId && "Profissional",
+      !form.roomId && "Sala",
+      !isCompleteDateTime(form.startsAt) && "Data e horário",
+    ].filter((item): item is string => Boolean(item)),
+  );
   useEffect(() => {
     let active = true;
     Promise.all([api.services(), api.professionals(), api.rooms()])
       .then(([services, professionals, rooms]) => {
         if (!active) return;
         setOptions({ services, professionals, rooms });
-        setForm((current) => ({
-          ...current,
-          serviceId: current.serviceId || (services[0]?.id ?? ""),
-          professionalId:
-            current.professionalId || (professionals[0]?.id ?? ""),
-          roomId: current.roomId || (rooms[0]?.id ?? ""),
-        }));
+        setForm((current) =>
+          keepResources(
+            { services, professionals, rooms },
+            {
+              ...current,
+              serviceId: current.serviceId || (services[0]?.id ?? ""),
+            },
+          ),
+        );
       })
       .catch((cause: Error) => {
         if (active) setLoadError(cause.message);
@@ -92,6 +146,9 @@ export function LeadAppointmentModal({
       setSaving(false);
     }
   }
+  const resources = options
+    ? resourcesFor(options, form.serviceId)
+    : { professionals: [], rooms: [] };
   const missingOptions =
     options !== null &&
     (options.services.length === 0 ||
@@ -103,6 +160,7 @@ export function LeadAppointmentModal({
       title="Agendar experimental"
       subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {loadError ? (
@@ -142,7 +200,12 @@ export function LeadAppointmentModal({
                 required
                 value={form.serviceId}
                 onChange={(e) =>
-                  setForm({ ...form, serviceId: e.target.value })
+                  setForm(
+                    keepResources(options, {
+                      ...form,
+                      serviceId: e.target.value,
+                    }),
+                  )
                 }
               >
                 {options.services.map((item) => (
@@ -161,7 +224,7 @@ export function LeadAppointmentModal({
                   setForm({ ...form, professionalId: e.target.value })
                 }
               >
-                {options.professionals.map((item) => (
+                {resources.professionals.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.fullName}
                   </option>
@@ -175,7 +238,7 @@ export function LeadAppointmentModal({
                 value={form.roomId}
                 onChange={(e) => setForm({ ...form, roomId: e.target.value })}
               >
-                {options.rooms.map((item) => (
+                {resources.rooms.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name}
                   </option>
@@ -202,16 +265,14 @@ export function LeadAppointmentModal({
               />
             </label>
             {error && <div className="form-error span-2">{error}</div>}
+            {missing.hint}
             <div className="modal-actions span-2">
+              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
               <button
-                type="button"
-                className="secondary-button"
-                onClick={onClose}
-                disabled={saving}
+                className="primary-button"
+                disabled={saving || missing.blocked}
+                aria-describedby={missing.describedBy}
               >
-                Cancelar
-              </button>
-              <button className="primary-button" disabled={saving}>
                 {saving ? "Agendando…" : "Confirmar agendamento"}
               </button>
             </div>

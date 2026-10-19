@@ -9,6 +9,7 @@ import type {
   RecurringPayable,
   RecurringPayableInput,
 } from "@crm/contracts";
+import { patientFirstName, type PaymentReceipt } from "@crm/contracts";
 import { currency } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
@@ -109,6 +110,7 @@ export const receivableFilterLabels: Record<ReceivableFilter, string> = {
   open: "Em aberto",
   overdue: "Vencidas",
   paid: "Pagas",
+  cancelled: "Canceladas",
 };
 
 export function receivableSituation(
@@ -173,3 +175,20 @@ export const saoPauloTime = new Intl.DateTimeFormat("pt-BR", {
 export function signedCurrency(effectInCents: number) {
   return `${effectInCents < 0 ? "-" : "+"} ${currency.format(Math.abs(effectInCents) / 100)}`;
 }
+
+/** Mensagem pronta para enviar o recibo pelo WhatsApp (U40). */
+export function receiptMessage(receipt: PaymentReceipt) {
+  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)} referente a ${receipt.description}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}. Obrigado! ${receipt.clinicName}`;
+}
+
+/** Explicações curtas dos termos financeiros (U41), usadas no HelpTip. */
+export const financeTermHelp = {
+  competence:
+    "Mês a que a receita ou a despesa pertence no resultado (DRE), não importa quando foi paga.",
+  posted:
+    "Data em que o valor foi registrado no financeiro. Não muda o vencimento nem a competência.",
+  costCenter:
+    "Área que gerou a despesa (ex.: Pilates, administrativo). Serve para ver o resultado por área.",
+  cashAvailable:
+    "Quando o dinheiro fica de fato disponível (ex.: cartão que cai em 30 dias). É a data usada no caixa.",
+} as const;

@@ -2,7 +2,9 @@ import {
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
+  appointmentUpdateInputSchema,
   holidayInputSchema,
+  isAppointmentStarted,
   leadAppointmentInputSchema,
   professionalInputSchema,
   recurringAppointmentInputSchema,
@@ -17,8 +19,29 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 
 export function registerAgendaRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertNoHoliday, assertPermissions } =
-    context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertNoHoliday,
+    assertServiceAvailable,
+    assertPermissions,
+  } = context;
+
+  /** Remarcar/sucessor mantém o serviço: o profissional e a sala novos precisam atendê-lo. */
+  async function assertMovedServiceAvailable(
+    clinicId: string,
+    appointmentId: string,
+    input: { professionalId: string; roomId: string },
+  ) {
+    if (!z.uuid().safeParse(appointmentId).success) return;
+    const serviceId = await repository.findAppointmentServiceId(
+      clinicId,
+      appointmentId,
+    );
+    if (serviceId)
+      await assertServiceAvailable(clinicId, [{ ...input, serviceId }]);
+  }
 
   app.get("/holidays", { preHandler: authenticate }, async (request) => {
     const query = z
@@ -118,15 +141,18 @@ export function registerAgendaRoutes(context: RouteContext) {
         from,
         to,
       );
-      return appointments
-        .filter((item) => item.patientId)
-        .map(({ id, startsAt, patientName, professionalName, status }) => ({
-          id,
-          startsAt,
-          patientName,
-          professionalName,
-          status,
-        }));
+      return (
+        appointments
+          // Evolução só para atendimento já iniciado (início − 15 min).
+          .filter((item) => item.patientId && isAppointmentStarted(item))
+          .map(({ id, startsAt, patientName, professionalName, status }) => ({
+            id,
+            startsAt,
+            patientName,
+            professionalName,
+            status,
+          }))
+      );
     },
   );
 
@@ -144,12 +170,25 @@ export function registerAgendaRoutes(context: RouteContext) {
     );
   });
 
+  // Atendimentos passados ainda agendados/confirmados (QC2): o instante é absoluto, então
+  // "agora" no servidor vale para o fuso da clínica.
+  app.get(
+    "/appointments/pending-finalization",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.listPendingFinalizationAppointments(
+        request.user.clinicId,
+        new Date().toISOString(),
+      ),
+  );
+
   app.post(
     "/appointments",
     { preHandler: authenticate },
     async (request, reply) => {
       const input = appointmentInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       return reply
         .status(201)
         .send(await repository.createAppointment(request.user.clinicId, input));
@@ -173,6 +212,7 @@ export function registerAgendaRoutes(context: RouteContext) {
         },
       );
       await assertNoHoliday(request.user.clinicId, occurrences);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       return reply
         .status(201)
         .send(
@@ -190,6 +230,11 @@ export function registerAgendaRoutes(context: RouteContext) {
     async (request, reply) => {
       const input = appointmentRescheduleInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertMovedServiceAvailable(
+        request.user.clinicId,
+        (request.params as { id: string }).id,
+        input,
+      );
       return reply
         .status(201)
         .send(
@@ -209,6 +254,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       const { id } = request.params as { id: string };
       const input = appointmentRescheduleInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertMovedServiceAvailable(request.user.clinicId, id, input);
       const appointment = await repository.rescheduleAppointment(
         request.user.clinicId,
         request.user.sub,
@@ -220,6 +266,43 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "APPOINTMENT_NOT_FOUND",
           message: "Atendimento não encontrado.",
         });
+      return appointment;
+    },
+  );
+
+  // Editar (QM6): serviço, sala e observação; data, horário e profissional são da remarcação.
+  app.patch(
+    "/appointments/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = appointmentUpdateInputSchema.parse(request.body);
+      const current = z.uuid().safeParse(id).success
+        ? await repository.findAppointment(request.user.clinicId, id)
+        : null;
+      if (!current)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        } satisfies ApiError);
+      await assertServiceAvailable(request.user.clinicId, [
+        {
+          serviceId: input.serviceId,
+          professionalId: current.professionalId,
+          roomId: input.roomId,
+        },
+      ]);
+      const appointment = await repository.updateAppointment(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        input,
+      );
+      if (!appointment)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        } satisfies ApiError);
       return appointment;
     },
   );
@@ -322,6 +405,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       const { id } = request.params as { id: string };
       const input = leadAppointmentInputSchema.parse(request.body);
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
+      await assertServiceAvailable(request.user.clinicId, [input]);
       const appointment = await repository.createLeadAppointment(
         request.user.clinicId,
         id,

@@ -1,10 +1,19 @@
-import { CatalogInput } from "../../shared/components/CatalogInput";
-import type { Lead, LeadActivity, LeadContactInput } from "@crm/contracts";
+import {
+  inferLeadContactChannel,
+  leadContactChannelLabels,
+  type ClinicCatalogEntry,
+  type Lead,
+  type LeadActivity,
+  type LeadContactInput,
+} from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function LeadActivityModal({
@@ -20,6 +29,7 @@ export function LeadActivityModal({
   editable: boolean;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const currentUser = getStoredUser();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -28,9 +38,37 @@ export function LeadActivityModal({
   const [tab, setTab] = useState<"contacts" | "tasks">("tasks");
   const [contact, setContact] = useState<LeadContactInput>({
     channel: "phone",
+    contactMethod: leadContactChannelLabels.phone,
     direction: "outbound",
     notes: "",
   });
+  // Campo único "Canal" (U21): canais padrão + formas de contato do catálogo.
+  const [channelCatalog, setChannelCatalog] = useState<ClinicCatalogEntry[]>(
+    [],
+  );
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicCatalog("lead_channel")
+      .then((data) => active && setChannelCatalog(data))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+  const standardChannels = Object.values(leadContactChannelLabels);
+  const channelOptions = [
+    ...standardChannels,
+    ...channelCatalog
+      .filter((item) => item.active)
+      .map((item) => item.name)
+      .filter(
+        (name) =>
+          !standardChannels.some(
+            (label) => label.toLowerCase() === name.toLowerCase(),
+          ),
+      ),
+  ];
   const [task, setTask] = useState({
     title: "Retornar contato",
     notes: "",
@@ -39,6 +77,19 @@ export function LeadActivityModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({
+    contact: contact.notes,
+    task: [task.title, task.notes],
+  });
+  const taskMissing = useMissingFields(
+    [
+      !task.title.trim() && "Tarefa",
+      !task.dueAt && "Vencimento",
+    ].filter((item): item is string => Boolean(item)),
+  );
+  const contactMissing = useMissingFields(
+    contact.notes.trim() ? [] : ["Registro do contato"],
+  );
   useEffect(() => {
     let active = true;
     api
@@ -62,6 +113,7 @@ export function LeadActivityModal({
           : current,
       );
       setContact({ ...contact, notes: "" });
+      toast.success("Contato registrado.");
       onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -83,6 +135,7 @@ export function LeadActivityModal({
         current ? { ...current, tasks: [...current.tasks, created] } : current,
       );
       setTask({ ...task, title: "", notes: "" });
+      toast.success("Tarefa criada.");
       onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -104,6 +157,9 @@ export function LeadActivityModal({
             }
           : current,
       );
+      toast.success(
+        status === "completed" ? "Tarefa concluída." : "Tarefa cancelada.",
+      );
       onChanged();
     } catch (cause) {
       setError((cause as Error).message);
@@ -115,6 +171,7 @@ export function LeadActivityModal({
       title={lead.fullName}
       subtitle="Contatos e tarefas comerciais em uma única linha do tempo."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <div className="activity-tabs">
@@ -170,8 +227,13 @@ export function LeadActivityModal({
                   }
                 />
               </label>
+              {taskMissing.hint}
               <div className="modal-actions">
-                <button className="primary-button" disabled={saving}>
+                <button
+                  className="primary-button"
+                  disabled={saving || taskMissing.blocked}
+                  aria-describedby={taskMissing.describedBy}
+                >
                   Adicionar tarefa
                 </button>
               </div>
@@ -226,30 +288,28 @@ export function LeadActivityModal({
               <label>
                 Canal
                 <select
-                  value={contact.channel}
-                  onChange={(event) =>
+                  value={contact.contactMethod ?? ""}
+                  onChange={(event) => {
+                    const method = event.target.value;
+                    const standard = (
+                      Object.entries(leadContactChannelLabels) as Array<
+                        [LeadContactInput["channel"], string]
+                      >
+                    ).find(([, label]) => label === method)?.[0];
                     setContact({
                       ...contact,
-                      channel: event.target
-                        .value as LeadContactInput["channel"],
-                    })
-                  }
+                      contactMethod: method,
+                      channel: standard ?? inferLeadContactChannel(method),
+                    });
+                  }}
                 >
-                  <option value="phone">Telefone</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="email">E-mail</option>
-                  <option value="in_person">Presencial</option>
-                  <option value="note">Nota interna</option>
+                  {channelOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <CatalogInput
-                kind="lead_channel"
-                label="Forma de contato"
-                value={contact.contactMethod ?? ""}
-                onChange={(value) =>
-                  setContact({ ...contact, contactMethod: value })
-                }
-              />
               <label>
                 Direção
                 <select
@@ -278,8 +338,13 @@ export function LeadActivityModal({
                   }
                 />
               </label>
+              {contactMissing.hint}
               <div className="modal-actions">
-                <button className="primary-button" disabled={saving}>
+                <button
+                  className="primary-button"
+                  disabled={saving || contactMissing.blocked}
+                  aria-describedby={contactMissing.describedBy}
+                >
                   Registrar contato
                 </button>
               </div>
@@ -296,16 +361,7 @@ export function LeadActivityModal({
                   </span>
                 </div>
                 <span>
-                  {item.contactMethod ||
-                    (
-                      {
-                        phone: "Telefone",
-                        whatsapp: "WhatsApp",
-                        email: "E-mail",
-                        in_person: "Presencial",
-                        note: "Nota interna",
-                      } as const
-                    )[item.channel]}
+                  {item.contactMethod || leadContactChannelLabels[item.channel]}
                 </span>
               </article>
             ))}

@@ -290,11 +290,30 @@ describe("application shell", () => {
     expect(
       reschedule.querySelector('[data-date][aria-pressed="true"]'),
     ).toHaveAttribute("data-date", start.toLocaleDateString("sv-SE"));
-    fireEvent.change(
-      within(reschedule).getByLabelText("Horário do atendimento"),
-      { target: { value: "11:00" } },
-    );
+    // Sem horário, Confirmar fica desativado dizendo o que falta (QM14).
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), {
+      target: { value: "" },
+    });
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toBeDisabled();
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toHaveAccessibleDescription("Falta: Nova data e horário.");
+    fireEvent.change(within(reschedule).getByLabelText("Horário"), {
+      target: { value: "11:00" },
+    });
     expect(within(reschedule).getByLabelText("Horário")).toHaveValue("11:00");
+    expect(
+      within(reschedule).getByRole("button", {
+        name: "Confirmar reagendamento",
+      }),
+    ).toBeEnabled();
+    expect(within(reschedule).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(reschedule).getByRole("button", { name: "Fechar calendário" }),
     );
@@ -793,7 +812,7 @@ describe("application shell", () => {
     ).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
-    fillAppointmentForm(
+    await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
     );
@@ -872,6 +891,8 @@ describe("application shell", () => {
     expect(contact.closest(".emergency-contact")).toHaveTextContent(
       "Contato de emergência",
     );
+    // V5: informado fica neutro; vermelho só quando falta.
+    expect(contact.closest(".emergency-contact")).not.toHaveClass("is-missing");
   });
 
   it("sends the chosen visit type when booking a new appointment", async () => {
@@ -948,12 +969,12 @@ describe("application shell", () => {
     ).toEqual(["Selecione", "Atendimento", "Experimental", "Avaliação"]);
     fireEvent.change(type, { target: { value: "evaluation" } });
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
-    fillAppointmentForm(dialog, "Helena Almeida");
+    await fillAppointmentForm(dialog, "Helena Almeida");
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][aria-pressed="true"]',
     )!.dataset.date!;
-    fireEvent.change(within(dialog).getByLabelText("Horário do atendimento"), {
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
       target: { value: "14:30" },
     });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");

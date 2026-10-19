@@ -111,8 +111,12 @@ describe("settings workflows through real HTTP handlers", () => {
     async (kind) => {
       const { repository } = await setupApi();
       open("/configuracoes");
-      fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-      const section = expand("Serviços, salas e profissionais");
+      fireEvent.click(
+        await screen.findByRole("tab", { name: "Serviços e salas" }),
+      );
+      const section = screen.getByRole("tabpanel", {
+        name: "Serviços e salas",
+      });
       await within(section).findByLabelText("Cadastro");
       change("Cadastro", kind, section);
       const edit = await within(section).findAllByRole("button", {

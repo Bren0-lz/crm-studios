@@ -1,7 +1,13 @@
 import type { Receivable } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
-import { currency, reaisToCents } from "../../shared/lib/formatting";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import {
+  centsToMoneyText,
+  currency,
+  reaisToCents,
+} from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function ReceivableAdjustModal({
   receivable,
@@ -12,34 +18,33 @@ export function ReceivableAdjustModal({
   onClose: () => void;
   onConfirm: (amountInCents: number, reason: string) => Promise<void>;
 }) {
-  const [value, setValue] = useState(String(receivable.amountInCents / 100));
+  const [value, setValue] = useState(
+    centsToMoneyText(receivable.amountInCents),
+  );
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty({ value, reason });
   return (
     <ActionModal
       eyebrow="Financeiro"
       title="Ajustar valor da parcela"
       subtitle={`${receivable.patientName} · ${receivable.description}`}
       effect={`Hoje a parcela vale ${currency.format(receivable.amountInCents / 100)}. O novo valor substitui o atual e a justificativa fica registrada no histórico.`}
-      validate={() => {
-        if (reaisToCents(value) === null)
-          return "Informe o novo valor em reais (zero ou mais).";
-        if (reason.trim().length < 5)
-          return "Escreva a justificativa do ajuste (pelo menos 5 caracteres).";
-        return "";
-      }}
+      missing={[
+        ...(reaisToCents(value) === null ? ["Novo valor"] : []),
+        ...(reason.trim().length < 5
+          ? ["Justificativa (pelo menos 5 caracteres)"]
+          : []),
+      ]}
       onConfirm={() => onConfirm(reaisToCents(value) ?? 0, reason.trim())}
+      dirty={dirty}
       onClose={onClose}
     >
       <label>
         Novo valor (R$)
-        <input
+        <MoneyInput
           autoFocus
-          type="number"
-          min="0"
-          step="0.01"
-          inputMode="decimal"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          valueInCents={reaisToCents(value)}
+          onChange={(cents) => setValue(centsToMoneyText(cents))}
         />
       </label>
       <label className="span-2">

@@ -239,10 +239,15 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.listSubscriberIdsWithoutGroup =
       this.agenda.listSubscriberIdsWithoutGroup;
     this.listAppointments = this.agenda.listAppointments;
+    this.listPendingFinalizationAppointments =
+      this.agenda.listPendingFinalizationAppointments;
     this.createAppointment = this.agenda.createAppointment;
     this.createLeadAppointment = this.agenda.createLeadAppointment;
     this.rescheduleAppointment = this.agenda.rescheduleAppointment;
     this.listAppointmentReschedules = this.agenda.listAppointmentReschedules;
+    this.findAppointmentServiceId = this.agenda.findAppointmentServiceId;
+    this.findAppointment = this.agenda.findAppointment;
+    this.updateAppointment = this.agenda.updateAppointment;
     this.createRecurringAppointments = this.agenda.createRecurringAppointments;
     this.listScheduleBlocks = this.agenda.listScheduleBlocks;
     this.createScheduleBlock = this.agenda.createScheduleBlock;
@@ -264,6 +269,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.importPatients = this.patients.importPatients;
     this.updatePatient = this.patients.updatePatient;
     this.listPatientTags = this.patients.listPatientTags;
+    this.listOverduePatientIds = this.patients.listOverduePatientIds;
     this.createPatientTag = this.patients.createPatientTag;
     this.updatePatientTag = this.patients.updatePatientTag;
     this.deletePatientTag = this.patients.deletePatientTag;
@@ -303,6 +309,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createClinicalAddendum = this.clinical.createClinicalAddendum;
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
+    this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
     this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
@@ -578,6 +585,10 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["listAppointments"];
 
+  readonly listPendingFinalizationAppointments: ReturnType<
+    typeof createAgendaRepository
+  >["listPendingFinalizationAppointments"];
+
   readonly createAppointment: ReturnType<
     typeof createAgendaRepository
   >["createAppointment"];
@@ -590,6 +601,17 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["rescheduleAppointment"];
 
+  readonly findAppointmentServiceId: ReturnType<
+    typeof createAgendaRepository
+  >["findAppointmentServiceId"];
+
+  readonly findAppointment: ReturnType<
+    typeof createAgendaRepository
+  >["findAppointment"];
+
+  readonly updateAppointment: ReturnType<
+    typeof createAgendaRepository
+  >["updateAppointment"];
   readonly listAppointmentReschedules: ReturnType<
     typeof createAgendaRepository
   >["listAppointmentReschedules"];
@@ -677,6 +699,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listPatientTags: ReturnType<
     typeof createPatientsRepository
   >["listPatientTags"];
+
+  readonly listOverduePatientIds: ReturnType<
+    typeof createPatientsRepository
+  >["listOverduePatientIds"];
 
   readonly createPatientTag: ReturnType<
     typeof createPatientsRepository
@@ -822,6 +848,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createCommercialRepository
   >["listLeads"];
 
+  readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
   readonly createLead: ReturnType<
     typeof createCommercialRepository

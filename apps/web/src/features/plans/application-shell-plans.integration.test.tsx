@@ -63,6 +63,10 @@ describe("application shell", () => {
       screen.getByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver todos (1)" })).toHaveAttribute(
+      "href",
+      "/relatorios?secao=sem-retorno",
+    );
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
       screen.getByText("Studios Aryana", { selector: ".clinic-label" }),
@@ -107,14 +111,20 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     const action = await screen.findByRole("button", { name: "Novo plano" });
+    // Os clientes do seletor chegam junto com a lista de planos.
+    await screen.findByText("Nenhum plano cadastrado");
     fireEvent.click(action);
     expect(
       screen.getByRole("heading", { name: "Novo plano" }),
     ).toBeInTheDocument();
     const picker = screen.getByRole("combobox", { name: "Cliente" });
     expect(picker).toHaveValue("");
-    fireEvent.focus(picker);
-    fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
+    fireEvent.change(picker, {
+      target: { value: "Helena Almeida" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Helena Almeida" }),
+    );
     expect(picker).toHaveValue("Helena Almeida");
   });
 

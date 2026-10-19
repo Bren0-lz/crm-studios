@@ -73,6 +73,23 @@ export const messageTemplateSchema = z
   .min(1, "Informe a mensagem.")
   .max(1000);
 
+/** Primeiro nome para `{{nome}}` e saudações ("Viviane Araújo" → "Viviane"). */
+export function patientFirstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? "";
+}
+
+/** Preenche a mensagem do cliente: `{{nome}}` sempre vira o primeiro nome. */
+export function fillPatientMessage(
+  template: string,
+  fullName: string,
+  vars: Readonly<Record<string, string>> = {},
+): string {
+  return fillMessageTemplate(template, {
+    ...vars,
+    nome: patientFirstName(fullName),
+  });
+}
+
 /** Substitui `{{variavel}}` pelos valores informados; variáveis desconhecidas ficam como estão. */
 export function fillMessageTemplate(
   template: string,

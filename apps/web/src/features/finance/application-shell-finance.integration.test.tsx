@@ -909,6 +909,63 @@ describe("application shell", () => {
       expect(screen.getByText("Carla Mendes")).toBeInTheDocument();
     });
 
+    it("counts the tabs over the searched list, with Cancelled closing the sum", async () => {
+      renderFinance([
+        {
+          clinicId: "11111111-1111-4111-8111-111111111111",
+          planId: "plan-elisa",
+          installmentCount: 3,
+          createdAt: "2026-01-01T12:00:00.000Z",
+          updatedAt: "2026-01-01T12:00:00.000Z",
+          id: "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
+          patientId: "p5",
+          patientName: "Elisa Prado",
+          description: "Pilates 1x · parcela 3/3",
+          installmentNumber: 3,
+          dueDate: saoPauloToday(),
+          amountInCents: 12000,
+          status: "cancelled",
+          overdue: false,
+        },
+      ]);
+      await screen.findByText("Ana Souza");
+      const filters = screen.getByRole("group", {
+        name: "Filtrar parcelas por situação",
+      });
+      const counts = () =>
+        Object.fromEntries(
+          within(filters)
+            .getAllByRole("button")
+            .map((button) => [
+              button.firstChild?.textContent?.trim(),
+              Number(button.querySelector("small")?.textContent),
+            ]),
+        );
+      expect(counts()).toEqual({
+        Todas: 4,
+        "Em aberto": 1,
+        Vencidas: 1,
+        Pagas: 1,
+        Canceladas: 1,
+      });
+      fireEvent.click(
+        within(filters).getByRole("button", { name: /^Canceladas/ }),
+      );
+      expect(screen.getByText("Elisa Prado")).toBeInTheDocument();
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+      fireEvent.click(within(filters).getByRole("button", { name: /^Todas/ }));
+      fireEvent.change(screen.getByLabelText("Buscar cliente"), {
+        target: { value: "bruno" },
+      });
+      expect(counts()).toEqual({
+        Todas: 1,
+        "Em aberto": 0,
+        Vencidas: 1,
+        Pagas: 0,
+        Canceladas: 0,
+      });
+    });
+
     it("asks for the payment method in a modal when settling an installment", async () => {
       renderFinance();
       await screen.findByText("Ana Souza");
@@ -941,6 +998,156 @@ describe("application shell", () => {
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({
         paymentMethod: "card",
       });
+    });
+
+    it("settles with discount and partial payment, turning the balance into a new installment", async () => {
+      const today = saoPauloToday();
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      fireEvent.click(
+        within(rowOf("Ana Souza")).getByRole("button", { name: "Dar baixa" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Dar baixa na parcela",
+      });
+      const posts = () =>
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, options]) =>
+              options?.method === "POST" &&
+              String(url).includes("/finance/receivables/"),
+          );
+      fireEvent.change(within(dialog).getByLabelText("Desconto"), {
+        target: { value: "10,00" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Juros"), {
+        target: { value: "2,50" },
+      });
+      expect(dialog).toHaveTextContent("Valor final");
+      expect(dialog).toHaveTextContent("R$ 242,50");
+      // Recebido acima do valor final: avisa e não envia.
+      fireEvent.change(within(dialog).getByLabelText("Valor recebido"), {
+        target: { value: "300,00" },
+      });
+      fireEvent.submit(dialog.querySelector("form")!);
+      expect(
+        await within(dialog).findByText(
+          "O valor recebido não pode passar do valor final.",
+        ),
+      ).toBeInTheDocument();
+      expect(posts()).toHaveLength(0);
+
+      fireEvent.change(within(dialog).getByLabelText("Valor recebido"), {
+        target: { value: "100,00" },
+      });
+      expect(dialog).toHaveTextContent(
+        "o saldo de R$ 142,50 vira uma nova parcela",
+      );
+      expect(
+        within(dialog).getByRole("button", {
+          name: "Ajuda: Disponibilidade no caixa",
+        }),
+      ).toBeInTheDocument();
+      const dueDate = within(dialog).getByLabelText("Vencimento do saldo");
+      expect(dueDate).toHaveValue(shiftDate(today, 10));
+      // Sem vencimento do saldo, Confirmar fica desativado dizendo o que falta (QM14).
+      fireEvent.change(dueDate, { target: { value: "" } });
+      const confirmSettle = within(dialog).getByRole("button", {
+        name: "Confirmar baixa",
+      });
+      expect(confirmSettle).toBeDisabled();
+      expect(confirmSettle).toHaveAccessibleDescription(
+        "Falta: Vencimento do saldo.",
+      );
+      fireEvent.change(dueDate, { target: { value: shiftDate(today, 40) } });
+      expect(confirmSettle).toBeEnabled();
+      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+      fireEvent.submit(dialog.querySelector("form")!);
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
+        paymentMethod: "pix",
+        discountInCents: 1000,
+        interestInCents: 250,
+        receivedInCents: 10000,
+        balanceDueDate: shiftDate(today, 40),
+      });
+      expect(
+        await screen.findByText(
+          "Pagamento parcial recebido. O saldo de R$ 142,50 virou uma nova parcela.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows a complete receipt with clinic data and a WhatsApp button", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem(
+        "crm.auth.user",
+        storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+      );
+      const workspace = receivablesWorkspace();
+      const paid = workspace.summary.receivables.find(
+        (item) => item.status === "paid",
+      )!;
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        const body = url.endsWith("/receipt")
+          ? {
+              receiptNumber: "REC-C1C1C1C1",
+              patientName: paid.patientName,
+              patientPhone: "11987654321",
+              description: paid.description,
+              amountInCents: 29000,
+              paymentMethod: "pix",
+              paidAt: "2026-10-10T15:00:00.000Z",
+              clinicName: "Studios Aryana",
+              clinicLegalName: "Studios Aryana Ltda.",
+              clinicTaxId: "11222333000181",
+              clinicAddress: "Rua das Flores, 10 · São Paulo/SP",
+              discountInCents: 1000,
+            }
+          : url.includes("/finance/workspace")
+            ? workspace
+            : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(
+        <MemoryRouter initialEntries={["/financeiro"]}>
+          <App />
+        </MemoryRouter>,
+      );
+      await screen.findByText(paid.patientName);
+      fireEvent.click(
+        within(rowOf(paid.patientName)).getByRole("button", { name: "Recibo" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Recibo de pagamento",
+      });
+      expect(dialog).toHaveTextContent("Studios Aryana Ltda.");
+      expect(dialog).toHaveTextContent("CNPJ/CPF 11.222.333/0001-81");
+      expect(dialog).toHaveTextContent("Rua das Flores, 10 · São Paulo/SP");
+      expect(within(dialog).getByText("Pix")).toBeInTheDocument();
+      expect(within(dialog).queryByText("pix")).not.toBeInTheDocument();
+      expect(dialog).toHaveTextContent("Desconto");
+      const firstName = paid.patientName.split(" ")[0];
+      const whatsapp = within(dialog).getByRole("link", {
+        name: /Enviar por WhatsApp/,
+      });
+      expect(whatsapp.getAttribute("href")).toMatch(
+        /^https:\/\/wa\.me\/5511987654321\?text=/,
+      );
+      expect(
+        decodeURIComponent(whatsapp.getAttribute("href")!.split("text=")[1]!),
+      ).toContain(
+        `Olá, ${firstName}! Segue o recibo REC-C1C1C1C1: recebemos R$`,
+      );
     });
 
     it("shows the reload error on the page after a successful settlement", async () => {
@@ -1131,7 +1338,7 @@ describe("application shell", () => {
       });
       const value = within(dialog).getByLabelText("Novo valor (R$)");
       // Abre com o valor atual e o foco no primeiro campo.
-      expect(value).toHaveValue(250);
+      expect(value).toHaveValue("250,00");
       expect(value).toHaveFocus();
       expect(
         within(dialog).getByText(/Hoje a parcela vale R\$\s250,00/),
@@ -1149,29 +1356,30 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // O que falta fica listado e Confirmar desativado, sem erro após o clique (QM14).
+      const adjustConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Informe o novo valor em reais (zero ou mais).",
-        ),
-      ).toHaveClass("form-error");
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "199.9" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
+        target: { value: "Desc" },
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Escreva a justificativa do ajuste (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "  Desconto combinado " },
       });
+      expect(adjustConfirm).toBeEnabled();
+      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
       );
@@ -1264,7 +1472,7 @@ describe("application shell", () => {
       ).toBeInTheDocument();
       expect(
         within(dialog).getByLabelText("Novo valor total (R$)"),
-      ).toHaveValue(250);
+      ).toHaveValue("250,00");
       expect(
         within(dialog).getByLabelText("Novo valor total (R$)"),
       ).toHaveFocus();
@@ -1291,26 +1499,38 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // Campos que faltam: Confirmar desativado com a lista (QM14).
+      const renegotiateConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Motivo da renegociação (pelo menos 5 caracteres).",
       );
+      fireEvent.change(
+        within(dialog).getByLabelText("Motivo da renegociação"),
+        { target: { value: "Cliente pediu para parcelar" } },
+      );
+      expect(renegotiateConfirm).toBeEnabled();
+      // Fora do intervalo é regra, não falta: erro uma única vez após o clique.
+      fireEvent.click(renegotiateConfirm);
       expect(
         within(dialog).getByText("Informe de 1 a 36 parcelas."),
       ).toHaveClass("form-error");
+      expect(within(dialog).getAllByText(/1 a 36 parcelas/)).toHaveLength(1);
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "3" },
       });
       fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+        target: { value: "" },
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Primeiro vencimento.",
+      );
+      fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
         target: { value: "2026-11-10" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
-      expect(
-        within(dialog).getByText(
-          "Escreva o motivo da renegociação (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(
         within(dialog).getByLabelText("Motivo da renegociação"),
@@ -1356,12 +1576,13 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " a " },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      // Nome curto: Salvar desativado com o que falta (QM14).
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " Material de limpeza " },
@@ -1381,12 +1602,9 @@ describe("application shell", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Novo centro de custo",
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: "Estúdio" },
       });
@@ -1611,9 +1829,22 @@ describe("application shell", () => {
       fireEvent.click(
         within(section).getByRole("button", { name: "Nova despesa" }),
       );
-      expect(
-        await screen.findByRole("dialog", { name: "Nova conta a pagar" }),
-      ).toBeInTheDocument();
+      const dialog = await screen.findByRole("dialog", {
+        name: "Nova conta a pagar",
+      });
+      // Ajuda acessível nos termos técnicos (U41), sem tirar o rótulo do campo.
+      for (const term of ["Lançamento", "Competência", "Centro de custo"])
+        expect(
+          within(dialog).getByRole("button", { name: `Ajuda: ${term}` }),
+        ).toHaveAttribute("tabindex", "0");
+      expect(within(dialog).getByLabelText(/^Lançamento/)).toHaveAttribute(
+        "type",
+        "date",
+      );
+      expect(within(dialog).getByLabelText(/^Competência/)).toHaveAttribute(
+        "type",
+        "month",
+      );
     });
 
     it("shows commissions with full labels, signed values aligned right and clear actions", async () => {
@@ -1701,6 +1932,17 @@ describe("application shell", () => {
           /Cadastre uma regra de comissão e use “Gerar comissões do mês”/,
         ),
       ).toBeInTheDocument();
+      // V11: ilustração e ação principal no estado vazio.
+      const empty = screen
+        .getByText("Nenhuma comissão gerada")
+        .closest(".empty-state") as HTMLElement;
+      expect(empty.querySelector(".empty-state-icon svg")).not.toBeNull();
+      fireEvent.click(
+        within(empty).getByRole("button", {
+          name: "Cadastrar regra de comissão",
+        }),
+      );
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
     });
 
     it("creates a commission rule in a modal with professional, percentage and start date", async () => {
@@ -1782,8 +2024,21 @@ describe("application shell", () => {
         target: { value: professionals[1]!.id },
       });
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "" },
+      });
+      // Campo vazio é falta: Salvar desativado com a lista (QM14).
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Percentual (%).");
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "120" },
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeEnabled();
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
         within(dialog).getByText("Informe um percentual entre 0 e 100."),

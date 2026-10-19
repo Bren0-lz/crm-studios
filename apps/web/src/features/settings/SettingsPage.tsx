@@ -1,3 +1,4 @@
+import { AdministrativeRegistrySection } from "./AdministrativeRegistrySection";
 import { ClinicCatalogsContent } from "./ClinicCatalogsContent";
 import {
   useCallback,
@@ -14,7 +15,7 @@ import type { CloseGuard } from "../../shared/workflows/types";
 import { AdminUsersContent } from "./AdminUsersContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
-import { settingsTabs } from "./model";
+import { settingsTabFromSection, settingsTabs } from "./model";
 import { PatientTagsContent } from "./PatientTagsContent";
 import { PlanTemplatesContent } from "./PlanTemplatesContent";
 import { RelationshipSettingsContent } from "./RelationshipSettingsContent";
@@ -27,11 +28,8 @@ export function SettingsPage() {
   const tabs = settingsTabs.filter((tab) => admin || !tab.adminOnly);
   const [searchParams] = useSearchParams();
   const [active, setActive] = useState<SettingsTabKey>(
-    searchParams.get("secao") === "etiquetas"
-      ? "tags"
-      : admin
-        ? "clinic"
-        : "plans",
+    settingsTabFromSection(searchParams.get("secao")) ??
+      (admin ? "clinic" : "plans"),
   );
   const [visited, setVisited] = useState<SettingsTabKey[]>([active]);
   const [busyCount, setBusyCount] = useState(0);
@@ -140,6 +138,8 @@ export function SettingsPage() {
               <HolidaysContent />
             ) : tab.key === "catalogs" ? (
               <ClinicCatalogsContent />
+            ) : tab.key === "registry" ? (
+              <AdministrativeRegistrySection />
             ) : tab.key === "tags" ? (
               <PatientTagsContent canEdit={canEdit("settings")} />
             ) : (

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function FinanceRegistryModal({
   kind,
@@ -11,6 +12,7 @@ export function FinanceRegistryModal({
   onConfirm: (name: string) => Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const dirty = useFormDirty(name);
   const isCategory = kind === "category";
   return (
     <ActionModal
@@ -23,12 +25,11 @@ export function FinanceRegistryModal({
           : "O centro de custo passa a aparecer na lista ao lançar uma despesa, para separar os gastos por área."
       }
       confirmLabel="Salvar"
-      validate={() =>
-        name.trim().length >= 2
-          ? ""
-          : "Informe um nome com pelo menos 2 caracteres."
+      missing={
+        name.trim().length >= 2 ? [] : ["Nome (pelo menos 2 caracteres)"]
       }
       onConfirm={() => onConfirm(name.trim())}
+      dirty={dirty}
       onClose={onClose}
     >
       <label className="span-2">

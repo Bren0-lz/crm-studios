@@ -13,6 +13,7 @@ import type {
   ReceivedPayment,
   SatisfactionSurvey,
 } from "@crm/contracts";
+import { isTabCreditPlan, tabCreditHistoryLabel } from "@crm/contracts";
 
 /** Dados brutos do cliente; o repositório já filtra por clínica. */
 export interface PatientTimelineSources {
@@ -108,7 +109,13 @@ export function buildPatientTimeline(
       id: `${renewed ? "plan_renewed" : "plan_created"}:${plan.id}`,
       kind: renewed ? "plan_renewed" : "plan_created",
       occurredAt: plan.createdAt,
-      title: `${renewed ? "Plano renovado" : "Plano contratado"}: ${plan.name}`,
+      title: `${
+        isTabCreditPlan(plan)
+          ? tabCreditHistoryLabel
+          : renewed
+            ? "Plano renovado"
+            : "Plano contratado"
+      }: ${plan.name}`,
       detail: plan.serviceName,
       amountInCents: plan.totalValueInCents,
     });

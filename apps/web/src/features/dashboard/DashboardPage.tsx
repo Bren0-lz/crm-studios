@@ -10,9 +10,12 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { AppointmentRow } from "../../shared/components/AppointmentRow";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { HelpTip } from "../../shared/components/HelpTip";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
+import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   dateLabel,
@@ -22,6 +25,8 @@ import {
 } from "../../shared/lib/formatting";
 import type { DashboardAppointmentAction } from "../../shared/lib/types";
 import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
+import { useToast } from "../../shared/feedback/toast-context";
+import { appointmentStatusToast } from "../agenda/index";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
 
 function appointmentCounts(appointment: Appointment, date: string) {
@@ -62,6 +67,8 @@ export function DashboardPage() {
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
+  // Mutações na agenda, no financeiro e nos planos refazem o painel em silêncio (QC6).
+  const dataVersion = useDataVersion("agenda", "finance", "plans");
 
   useEffect(() => {
     let active = true;
@@ -177,9 +184,20 @@ export function DashboardPage() {
       return next;
     });
     closeAppointmentAction();
-    await refreshDashboard();
+    // A mutação já mudou a versão da agenda: o efeito abaixo recarrega o painel.
   }
+  // Qualquer mutação na agenda, no financeiro ou nos planos (aqui ou em outra tela)
+  // recarrega o painel uma única vez, com o mesmo aviso de falha da atualização (QC6).
+  const seenVersion = useRef(dataVersion);
+  useEffect(() => {
+    if (seenVersion.current === dataVersion) return;
+    seenVersion.current = dataVersion;
+    void refreshDashboard();
+    // `refreshDashboard` muda a cada render; só a versão dispara o recarregamento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
 
+  const toast = useToast();
   async function changeDashboardStatus(
     appointment: Appointment,
     status: "confirmed" | "completed",
@@ -192,6 +210,7 @@ export function DashboardPage() {
     try {
       const updated = await api.updateAppointmentStatus(appointment.id, status);
       await appointmentUpdated(updated, appointment);
+      toast.success(appointmentStatusToast(updated.status));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -213,7 +232,7 @@ export function DashboardPage() {
         description={dateLabel.format(new Date())}
         action={
           can("agenda.create") && (
-            <NavLink to="/agenda" className="primary-button">
+            <NavLink to="/agenda?novo=1" className="primary-button">
               <Plus size={18} />
               Novo atendimento
             </NavLink>
@@ -288,6 +307,28 @@ export function DashboardPage() {
               )}
             </section>
           )}
+          {data.pendingFinalization !== undefined &&
+            data.pendingFinalization > 0 && (
+              <section className="panel dashboard-pending-finalization">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">Pendências da agenda</span>
+                    <h2>
+                      Atendimentos a finalizar ({data.pendingFinalization})
+                    </h2>
+                  </div>
+                  {canView("agenda") && (
+                    <NavLink to="/agenda/a-finalizar" className="text-link">
+                      Finalizar atendimentos <ChevronRight size={16} />
+                    </NavLink>
+                  )}
+                </div>
+                <p>
+                  Já terminaram e continuam como agendados ou confirmados.
+                  Enquanto não forem finalizados, não contam como atendidos.
+                </p>
+              </section>
+            )}
           {canSeeSales && sales && (
             <section className="dashboard-sales panel">
               <div className="panel-head">
@@ -303,6 +344,10 @@ export function DashboardPage() {
               </div>
               <p className="dashboard-sales-context">
                 {sales.current.attendedPatients} clientes atendidos neste mês.
+                <HelpTip
+                  term="Clientes atendidos"
+                  text="Conta só atendimentos marcados como realizados. Atendimentos a finalizar ainda não entram."
+                />
               </p>
               <div className="sales-metrics">
                 <article>
@@ -310,11 +355,22 @@ export function DashboardPage() {
                   <strong>
                     {currency.format(sales.current.netSalesInCents / 100)}
                   </strong>
-                  <small>
-                    {sales.changePercent === null
-                      ? "Sem base anterior"
-                      : `${sales.changePercent > 0 ? "+" : ""}${sales.changePercent}% vs. mês anterior comparável`}
-                  </small>
+                  <TrendBadge
+                    changePercent={sales.changePercent}
+                    changeInCents={sales.changeInCents}
+                    hasCurrentValue={sales.current.netSalesInCents !== 0}
+                    comparison="vs. mês anterior comparável"
+                  />
+                  {sales.current.cancelledSalesInCents > 0 && (
+                    <small>
+                      Antes dos estornos:{" "}
+                      {currency.format(sales.current.grossSalesInCents / 100)}
+                      {" · "}Estornos:{" "}
+                      {currency.format(
+                        sales.current.cancelledSalesInCents / 100,
+                      )}
+                    </small>
+                  )}
                 </article>
                 <article>
                   <span>Recebido</span>
@@ -324,7 +380,13 @@ export function DashboardPage() {
                   <small>Pela data da baixa</small>
                 </article>
                 <article>
-                  <span>Sem retorno neste mês</span>
+                  <span>
+                    Sem retorno neste mês
+                    <HelpTip
+                      term="Sem retorno"
+                      text="Clientes com atendimento realizado no mês anterior e nenhum realizado neste mês. Atendimentos a finalizar não contam como retorno."
+                    />
+                  </span>
                   <strong>{sales.patientsWithoutReturn.length}</strong>
                   <small>Atendidos no mês anterior</small>
                 </article>
@@ -390,6 +452,15 @@ export function DashboardPage() {
                     <span className="eyebrow">Acompanhamento</span>
                     <h2>Clientes sem retorno</h2>
                   </div>
+                  {sales.patientsWithoutReturn.length > 0 && (
+                    <NavLink
+                      to="/relatorios?secao=sem-retorno"
+                      className="text-link"
+                    >
+                      Ver todos ({sales.patientsWithoutReturn.length}){" "}
+                      <ChevronRight size={16} />
+                    </NavLink>
+                  )}
                 </div>
                 <div className="attention-list">
                   {sales.patientsWithoutReturn.length === 0 ? (
@@ -428,9 +499,17 @@ export function DashboardPage() {
           onReschedule={() =>
             setAppointmentAction({ ...appointmentAction, kind: "reschedule" })
           }
-          onUpdated={(updated) =>
-            void appointmentUpdated(updated, appointmentAction.appointment)
-          }
+          onUpdated={(updated) => {
+            const previous = appointmentAction.appointment;
+            toast.success(
+              updated.status !== previous.status
+                ? appointmentStatusToast(updated.status)
+                : updated.startsAt !== previous.startsAt
+                  ? "Atendimento remarcado."
+                  : "Atendimento atualizado.",
+            );
+            void appointmentUpdated(updated, previous);
+          }}
         />
       )}
     </>

@@ -3,12 +3,14 @@ import type {
   Payable,
   CommissionAdjustment,
 } from "@crm/contracts";
+import { HandCoins, Plus } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import { formatCompetence, signedCurrency } from "./model";
 
 export function CommissionsList({
+  onCreateRule,
   commissions,
   canManage,
   onToggle,
@@ -20,6 +22,8 @@ export function CommissionsList({
   payables?: Payable[];
   adjustments?: CommissionAdjustment[];
   onReconcile?: ((id: string) => void) | undefined;
+  /** Ação principal do estado vazio (V11). */
+  onCreateRule?: (() => void) | undefined;
   canManage: boolean;
   onToggle: (item: CommissionEntry) => void;
 }) {
@@ -27,8 +31,20 @@ export function CommissionsList({
   if (commissions.length === 0) {
     return (
       <EmptyState
+        icon={HandCoins}
         title="Nenhuma comissão gerada"
         copy="Cadastre uma regra de comissão e use “Gerar comissões do mês” depois de concluir atendimentos."
+        action={
+          onCreateRule ? (
+            <button
+              type="button"
+              className="primary-button"
+              onClick={onCreateRule}
+            >
+              <Plus size={18} /> Cadastrar regra de comissão
+            </button>
+          ) : undefined
+        }
       />
     );
   }

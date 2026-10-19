@@ -4,7 +4,12 @@ import {
   clockTimeSchema,
   joinWithAnd,
 } from "../common/model.js";
-import type { GroupWeeklySlot } from "./types.js";
+import type {
+  Appointment,
+  GroupEnrollment,
+  GroupSession,
+  GroupWeeklySlot,
+} from "./types.js";
 
 export const appointmentStatusSchema = z.enum([
   "scheduled",
@@ -37,6 +42,16 @@ export const appointmentRescheduleInputSchema = z.object({
   professionalId: z.uuid(),
   roomId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
+});
+
+/**
+ * Edição de um atendimento ainda não finalizado (QM6): serviço, sala e observação.
+ * Data, horário e profissional mudam só pela remarcação. `notes` vazio limpa a observação.
+ */
+export const appointmentUpdateInputSchema = z.object({
+  serviceId: z.uuid(),
+  roomId: z.uuid(),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
 export const recurringAppointmentInputSchema = appointmentInputSchema.extend({
@@ -172,7 +187,33 @@ export const groupClassUpdateSchema = z.object({
 export const groupEnrollmentInputSchema = z.object({
   groupId: z.uuid(),
   patientId: z.uuid(),
+  /** Data de início (aaaa-mm-dd, fuso da clínica); sem ela a matrícula começa hoje. */
+  startsOn: z.iso.date("Informe uma data de início válida.").optional(),
 });
+
+/**
+ * A matrícula participa do encontro quando começou até a data do encontro (fuso da clínica)
+ * e ainda vale nessa data: ativa, ou cancelada com fim (`endedOn`) igual ou posterior.
+ * Lista de espera não participa.
+ */
+export function groupEnrollmentCoversSession(
+  enrollment: Pick<GroupEnrollment, "status" | "startsOn"> & {
+    endedOn?: string | undefined;
+  },
+  session: Pick<GroupSession, "startsAt">,
+  timeZone = "America/Sao_Paulo",
+): boolean {
+  if (enrollment.status === "waitlisted") return false;
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(session.startsAt));
+  if (enrollment.startsOn > date) return false;
+  if (enrollment.status === "active") return true;
+  return enrollment.endedOn !== undefined && enrollment.endedOn >= date;
+}
 
 export const groupAttendanceInputSchema = z.object({
   status: z.enum(["present", "absent", "excused_absence"]),
@@ -183,6 +224,67 @@ export const replacementBookingInputSchema = z.object({
   creditId: z.uuid(),
   sessionId: z.uuid(),
 });
+
+/** Rótulo do estado derivado de atendimento passado sem desfecho registrado. */
+export const pendingFinalizationLabel = "Pendente de finalização";
+
+/**
+ * Atendimento "Pendente de finalização": ainda agendado ou confirmado e com o término já
+ * passado. O término é um instante com fuso (ISO), então a comparação vale para o fuso da
+ * clínica (America/Sao_Paulo) sem conversão. Não é um status gravado: é derivado na leitura.
+ */
+export function isAppointmentPendingFinalization(
+  appointment: Pick<Appointment, "status" | "endsAt">,
+  now: Date = new Date(),
+): boolean {
+  return (
+    (appointment.status === "scheduled" ||
+      appointment.status === "confirmed") &&
+    Date.parse(appointment.endsAt) < now.getTime()
+  );
+}
+
+/**
+ * Tolerância (minutos antes do início) para registrar realizado/falta ou vincular evolução
+ * clínica a um atendimento. Decisão do dono: constante, sem configuração.
+ */
+export const appointmentActionLeadMinutes = 15;
+
+/** Instante a partir do qual realizado/falta/evolução ficam liberados. */
+export function appointmentActionsAvailableAt(startsAt: string): Date {
+  return new Date(Date.parse(startsAt) - appointmentActionLeadMinutes * 60_000);
+}
+
+/** Atendimento já "iniciado" para ações clínicas (início − 15 min ≤ agora). */
+export function isAppointmentStarted(
+  appointment: Pick<Appointment, "startsAt">,
+  now: Date = new Date(),
+): boolean {
+  return (
+    appointmentActionsAvailableAt(appointment.startsAt).getTime() <=
+    now.getTime()
+  );
+}
+
+/** "Disponível a partir de 19/10 às 09:45" no fuso da clínica (sem ponto final). */
+export function appointmentNotStartedMessage(
+  startsAt: string,
+  timeZone = "America/Sao_Paulo",
+): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone,
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(appointmentActionsAvailableAt(startsAt))
+      .map((part) => [part.type, part.value]),
+  );
+  return `Disponível a partir de ${parts.day}/${parts.month} às ${parts.hour}:${parts.minute}`;
+}
 
 export const appointmentStatusInputSchema = z.object({
   absenceReason: z.string().trim().min(2).max(500).optional(),

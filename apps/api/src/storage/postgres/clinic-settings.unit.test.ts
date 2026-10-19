@@ -8,7 +8,7 @@ const actorId = "22222222-2222-4222-8222-222222222222";
 const input: ClinicSettingsInput = {
   name: "Clínica atualizada",
   legalName: "Clínica atualizada Ltda.",
-  taxId: "12.345.678/0001-90",
+  taxId: "11.222.333/0001-81",
   phone: "11999991234",
   email: "clinica@example.com",
   address: "Rua de teste, 123",

@@ -145,6 +145,48 @@ describe("monthly sales report", () => {
     );
   });
 
+  it("has no change percent when the previous base is negative", async () => {
+    const movement = (
+      kind: SaleMovement["kind"],
+      occurredAt: string,
+      amountInCents: number,
+    ): SaleMovement => ({
+      id: `${kind}:${occurredAt}`,
+      sourceId: "plan",
+      sourceType: "plan",
+      kind,
+      occurredAt,
+      patientId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      patientName: "Ana",
+      itemName: "Pacote",
+      quantity: 1,
+      amountInCents,
+    });
+    const report = buildSalesReport(
+      "2026-09",
+      [
+        movement("cancellation", "2026-08-05T15:00:00Z", -700000),
+        movement("sale", "2026-09-05T15:00:00Z", 49000),
+      ],
+      [],
+      [],
+      new Date("2026-09-15T15:00:00Z"),
+    );
+    expect(report.previousComparable.netSalesInCents).toBe(-700000);
+    expect(report.current.netSalesInCents).toBe(49000);
+    expect(report.changeInCents).toBe(749000);
+    expect(report.changePercent).toBeNull();
+
+    const buffer = await salesReportToXlsx(report);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(
+      buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
+    );
+    const summary = workbook.getWorksheet("Resumo")!;
+    expect(summary.getCell("B8").value).toBe(7490);
+    expect(summary.getCell("B9").value).toBe("Sem base de comparação");
+  });
+
   it("ignores lead appointments in attended clients and in clients without return", () => {
     const leadAppointment = (startsAt: string) =>
       ({

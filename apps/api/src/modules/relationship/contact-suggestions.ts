@@ -1,3 +1,4 @@
+import { isOverdueReceivable } from "@crm/contracts";
 import type {
   AppModule,
   Appointment,
@@ -397,14 +398,13 @@ export function buildContactSuggestions(
       );
     }
 
-    // overdue_payment
+    // overdue_payment — mesma regra da etiqueta automática "Pagamento atrasado".
     if (modules.includes("finance")) {
       const overdue = data.receivables
         .filter(
           (receivable) =>
             receivable.patientId === patient.id &&
-            receivable.status === "open" &&
-            receivable.dueDate < today,
+            isOverdueReceivable(receivable, today),
         )
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
       const oldest = overdue[0];

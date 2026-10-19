@@ -12,11 +12,16 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PatientPicker } from "../../PatientPicker";
+import {
+  missingBuilderFields,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
 import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import { localIsoDate } from "../../shared/lib/formatting";
+import { useToast } from "../../shared/feedback/toast-context";
 import { fileToBase64 } from "./model";
 
 function initial(
@@ -118,6 +123,7 @@ export function ClinicalResourceEditor({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState<ClinicalResourceInput>(() =>
     resource
       ? structuredClone(resource.data)
@@ -188,12 +194,70 @@ export function ClinicalResourceEditor({
     form.kind === "evolution"
       ? templates.find((item) => item.id === form.templateId)
       : undefined;
+  // O que falta para salvar: Salvar fica desativado listando os campos (QM14).
+  const questionnaireFields =
+    form.kind === "evolution" && form.format === "questionnaire"
+      ? (selectedTemplate?.templateSnapshot?.fields ??
+        (selectedTemplate?.data.kind === "evolution_template"
+          ? selectedTemplate.data.fields
+          : []))
+      : [];
+  const missing = useMissingFields(
+    [
+      ...(form.name.trim().length < 2
+        ? ["Nome (pelo menos 2 caracteres)"]
+        : []),
+      ...("patientId" in form && !form.patientId ? ["Cliente"] : []),
+      ...("professionalId" in form &&
+      form.kind !== "evolution" &&
+      !form.professionalId
+        ? ["Profissional"]
+        : []),
+      ...(form.kind === "evolution_template" &&
+      form.format === "questionnaire"
+        ? missingBuilderFields(form.fields)
+        : []),
+      ...(form.kind === "evolution" && !form.sourceId ? ["Atendimento"] : []),
+      ...questionnaireFields
+        .filter((field) => field.type !== "section" && field.required)
+        .filter((field) => {
+          const value =
+            form.kind === "evolution" ? form.values[field.key] : undefined;
+          return (
+            value === undefined ||
+            (typeof value === "string" && !value.trim()) ||
+            (Array.isArray(value) && value.length === 0)
+          );
+        })
+        .map((field) => field.label),
+      ...(form.kind === "training" && !form.validFrom ? ["Início"] : []),
+      ...(form.kind === "training"
+        ? form.exercises
+            .filter((entry) => !entry.repetitions.trim())
+            .map(
+              (entry) =>
+                `Repetições de ${
+                  resources.find((item) => item.id === entry.exerciseId)
+                    ?.name ?? "exercício"
+                }`,
+            )
+        : []),
+      ...(form.kind === "training_execution" && !form.trainingId
+        ? ["Treino"]
+        : []),
+      ...(form.kind === "clinical_document" && form.body.trim().length < 10
+        ? ["Conteúdo (pelo menos 10 caracteres)"]
+        : []),
+    ],
+    "field-hint",
+  );
   const [savedForm] = useState(() => JSON.stringify(form));
   async function save() {
     setSaving(true);
     setError("");
     try {
       await api.saveClinicalResource(form, copy ? undefined : resource?.id);
+      toast.success("Registro clínico salvo.");
       await onSaved();
       onClose();
     } finally {
@@ -937,6 +1001,7 @@ export function ClinicalResourceEditor({
               </label>
             </>
           )}
+          {missing.hint}
           <div className="modal-actions">
             <button
               type="button"
@@ -946,7 +1011,11 @@ export function ClinicalResourceEditor({
             >
               Cancelar
             </button>
-            <button className="primary-button" disabled={saving}>
+            <button
+              className="primary-button"
+              disabled={saving || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               Salvar
             </button>
           </div>

@@ -104,11 +104,12 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    const fields = await screen.findByRole("group", { name: "Inserir campo" });
     expect(
-      await screen.findByText(/\{\{profissional_nome\}\}/),
+      within(fields).getByRole("button", { name: "Profissional" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/\{\{profissional_crefito\}\}/),
+      within(fields).getByRole("button", { name: "CREFITO do profissional" }),
     ).toBeInTheDocument();
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(
@@ -118,8 +119,16 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const issue = screen.getByRole("button", { name: "Criar rascunho" });
     expect(issue).toBeDisabled();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Cliente" }));
-    fireEvent.click(screen.getByRole("option", { name: patient.fullName }));
+    // Sem cliente, o botão diz o que falta (QM14).
+    expect(issue).toHaveAccessibleDescription("Falta: Cliente.");
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: patient.fullName },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: patient.fullName }),
+    );
+    expect(issue).toBeEnabled();
+    expect(issue).not.toHaveAttribute("aria-describedby");
     fireEvent.click(issue);
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");
@@ -194,6 +203,9 @@ describe("application shell", () => {
       screen.queryByRole("button", { name: "Imprimir" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Emitir contrato" }),
+    );
     await vi.waitFor(() => expect(patched).toEqual([{ status: "issued" }]));
     fireEvent.click(await screen.findByRole("button", { name: "Imprimir" }));
     const dialog = await screen.findByRole("dialog");

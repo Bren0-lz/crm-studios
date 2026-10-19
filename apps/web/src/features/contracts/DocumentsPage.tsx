@@ -10,7 +10,7 @@ import type {
   PatientPlan,
   Professional,
 } from "@crm/contracts";
-import { Printer } from "lucide-react";
+import { FileDown, MessageCircle, Printer } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -19,21 +19,36 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Logo } from "../../shared/components/Logo";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
+import { ActionModal } from "../../shared/components/ActionModal";
 import { CancelDocumentModal } from "./CancelDocumentModal";
 import {
   documentKindLabels,
   fetchContractsPageData,
+  issuedDocumentWhatsappLink,
   professionalWithCrefito,
 } from "./model";
+import { TemplateBodyEditor } from "./TemplateBodyEditor";
 import { TemplateVersionModal } from "./TemplateVersionModal";
+import { useToast } from "../../shared/feedback/toast-context";
+
+const emptyTemplateForm: DocumentTemplateInput = {
+  name: "",
+  kind: "contract",
+  body: "",
+};
 
 export function DocumentsPage() {
   const { can, canView, canEdit } = useAuthorization();
   const contextPatientId = usePatientContext();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [issuing, setIssuing] = useState<IssuedDocument | null>(null);
   const [documents, setDocuments] = useState<IssuedDocument[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [plans, setPlans] = useState<PatientPlan[]>([]);
@@ -41,15 +56,23 @@ export function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [printing, setPrinting] = useState<IssuedDocument | null>(null);
+  const [printing, setPrinting] = useState<{
+    document: IssuedDocument;
+    pdf: boolean;
+  } | null>(null);
+  // "Salvar PDF" abre a impressão do navegador assim que o documento está na tela.
+  useEffect(() => {
+    if (!printing?.pdf) return;
+    const frame = requestAnimationFrame(() => window.print());
+    return () => cancelAnimationFrame(frame);
+  }, [printing]);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
   const canManage = canEdit("contracts");
-  const [templateForm, setTemplateForm] = useState<DocumentTemplateInput>({
-    name: "Contrato de prestação de serviços",
-    kind: "contract",
-    body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam o presente instrumento em {{data_emissao}}, referente ao plano {{plano_nome}}.\n\nServiços contratados: {{plano_servicos}}.",
-  });
+  const [templateForm, setTemplateForm] =
+    useState<DocumentTemplateInput>(emptyTemplateForm);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const toast = useToast();
   const [documentForm, setDocumentForm] = useState({
     templateId: "",
     patientId: contextPatientId,
@@ -57,6 +80,22 @@ export function DocumentsPage() {
     professionalId: "",
     title: "Contrato de prestação de serviços",
   });
+  // O que falta para criar o modelo e o documento (QM14).
+  const templateMissing = useMissingFields(
+    missingLabels([
+      ["Nome", templateForm.name],
+      ["Conteúdo", templateForm.body],
+    ]),
+    "field-hint",
+  );
+  const documentMissing = useMissingFields(
+    missingLabels([
+      ["Modelo ativo", documentForm.templateId],
+      ["Cliente", documentForm.patientId],
+      ["Título", documentForm.title],
+    ]),
+    "field-hint",
+  );
 
   // Carga única da página: usada na abertura e depois de criar modelos ou documentos.
   // Só usa setters de estado (estáveis), por isso o useCallback não tem dependências.
@@ -106,14 +145,20 @@ export function DocumentsPage() {
 
   async function createTemplate(event: FormEvent) {
     event.preventDefault();
+    if (creatingTemplate) return;
+    setCreatingTemplate(true);
     setError("");
     setNotice("");
     try {
-      await api.createDocumentTemplate(templateForm);
-      setNotice("Modelo criado com a versão 1.");
+      const created = await api.createDocumentTemplate(templateForm);
+      // Limpa o formulário: um segundo clique não cria o mesmo modelo de novo.
+      setTemplateForm(emptyTemplateForm);
+      toast.success(`Modelo “${created.name}” criado com a versão 1.`);
       await load();
     } catch (cause) {
       setError((cause as Error).message);
+    } finally {
+      setCreatingTemplate(false);
     }
   }
 
@@ -156,15 +201,6 @@ export function DocumentsPage() {
         document.id === updated.id ? updated : document,
       ),
     );
-  }
-
-  async function issueDocument(item: IssuedDocument) {
-    setError("");
-    try {
-      replaceDocument(await api.updateDocumentStatus(item.id, "issued"));
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
   }
 
   const patientPlans = plans.filter(
@@ -230,28 +266,22 @@ export function DocumentsPage() {
                         )}
                       </select>
                     </label>
-                    <label>
-                      Conteúdo
-                      <textarea
-                        required
-                        rows={8}
-                        value={templateForm.body}
-                        onChange={(event) =>
-                          setTemplateForm({
-                            ...templateForm,
-                            body: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <small>
-                      Variáveis: {"{{paciente_nome}}"}, {"{{plano_nome}}"},{" "}
-                      {"{{plano_servicos}}"}, {"{{profissional_nome}}"},{" "}
-                      {"{{profissional_crefito}}"}, {"{{data_emissao}}"} e{" "}
-                      {"{{clinica_nome}}"}.
-                    </small>
+                    <TemplateBodyEditor
+                      value={templateForm.body}
+                      disabled={creatingTemplate}
+                      onChange={(body) =>
+                        setTemplateForm((current) => ({ ...current, body }))
+                      }
+                    />
+                    {templateMissing.hint}
                     <div className="modal-actions">
-                      <button className="primary-button">Criar modelo</button>
+                      <button
+                        className="primary-button"
+                        disabled={creatingTemplate || templateMissing.blocked}
+                        aria-describedby={templateMissing.describedBy}
+                      >
+                        {creatingTemplate ? "Criando…" : "Criar modelo"}
+                      </button>
                     </div>
                   </form>
                 )}
@@ -351,12 +381,12 @@ export function DocumentsPage() {
                         }
                       />
                     </label>
+                    {documentMissing.hint}
                     <div className="modal-actions">
                       <button
                         className="primary-button"
-                        disabled={
-                          !documentForm.templateId || !documentForm.patientId
-                        }
+                        disabled={documentMissing.blocked}
+                        aria-describedby={documentMissing.describedBy}
                       >
                         Criar rascunho
                       </button>
@@ -456,19 +486,40 @@ export function DocumentsPage() {
                       />
                       <div className="document-actions">
                         {item.status === "issued" && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() => setPrinting(item)}
-                          >
-                            <Printer size={15} /> Imprimir
-                          </button>
+                          <>
+                            <a
+                              className="whatsapp-button button-sm"
+                              href={issuedDocumentWhatsappLink(item)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <MessageCircle size={15} aria-hidden="true" />
+                              WhatsApp
+                            </a>
+                            <button
+                              className="secondary-button button-sm"
+                              onClick={() =>
+                                setPrinting({ document: item, pdf: true })
+                              }
+                            >
+                              <FileDown size={15} /> Salvar PDF
+                            </button>
+                            <button
+                              className="secondary-button button-sm"
+                              onClick={() =>
+                                setPrinting({ document: item, pdf: false })
+                              }
+                            >
+                              <Printer size={15} /> Imprimir
+                            </button>
+                          </>
                         )}
                         {canManage &&
                           item.status === "draft" &&
                           can("contracts.status") && (
                             <button
                               className="primary-button button-sm"
-                              onClick={() => void issueDocument(item)}
+                              onClick={() => setIssuing(item)}
                             >
                               Emitir
                             </button>
@@ -498,6 +549,23 @@ export function DocumentsPage() {
           onCreated={() => void templateVersioned(versioning)}
         />
       )}
+      {issuing && (
+        <ActionModal
+          eyebrow="Contratos"
+          title="Emitir contrato"
+          subtitle={`${issuing.title} · ${issuing.patientName}`}
+          effect="Depois de emitido, o texto do contrato não pode mais ser editado; ele fica disponível para impressão e assinatura."
+          confirmLabel="Emitir contrato"
+          onClose={() => setIssuing(null)}
+          onConfirm={async () => {
+            replaceDocument(
+              await api.updateDocumentStatus(issuing.id, "issued"),
+            );
+            setIssuing(null);
+            toast.success(`Contrato “${issuing.title}” emitido.`);
+          }}
+        />
+      )}
       {cancelling && (
         <CancelDocumentModal
           document={cancelling}
@@ -505,19 +573,27 @@ export function DocumentsPage() {
           onCancelled={(updated) => {
             replaceDocument(updated);
             setCancelling(null);
+            toast.success(`Documento “${updated.title}” cancelado.`);
           }}
         />
       )}
       {printing && (
         <Modal
-          title={printing.title}
-          subtitle={printing.patientName}
+          title={printing.document.title}
+          subtitle={printing.document.patientName}
           eyebrow="Documento emitido"
           onClose={() => setPrinting(null)}
         >
           <div className="receipt-content">
+            {printing.pdf && (
+              <p className="muted-copy print-hidden">
+                Na janela de impressão, escolha “Salvar como PDF” como destino.
+              </p>
+            )}
             <Logo />
-            <p className="document-print-body">{printing.snapshotBody}</p>
+            <p className="document-print-body">
+              {printing.document.snapshotBody}
+            </p>
             <div className="modal-actions">
               <button
                 type="button"

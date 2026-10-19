@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clinicIsoDate,
   formatIsoDate,
+  groupSeatsLabel,
   initials,
   localIsoDate,
   statusLabel,
@@ -43,5 +44,17 @@ describe("display helpers", () => {
     ["cancelled", "Cancelado"],
   ] as const)("labels %s", (status, expected) => {
     expect(statusLabel(status)).toBe(expected);
+  });
+});
+
+describe("groupSeatsLabel", () => {
+  it.each([
+    [8, 12, "8 matriculados · 4 vagas livres"],
+    [1, 2, "1 matriculado · 1 vaga livre"],
+    [0, 3, "0 matriculados · 3 vagas livres"],
+    [4, 4, "4 matriculados · Sem vagas livres"],
+    [5, 4, "5 matriculados · Sem vagas livres"],
+  ] as const)("%i de %i vagas", (enrolled, capacity, expected) => {
+    expect(groupSeatsLabel(enrolled, capacity)).toBe(expected);
   });
 });

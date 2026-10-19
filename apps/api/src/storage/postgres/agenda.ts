@@ -4,6 +4,7 @@ import {
   type AppointmentRescheduleEvent,
   type AppointmentRescheduleInput,
   type AppointmentStatus,
+  type AppointmentUpdateInput,
   type GroupAttendanceInput,
   type GroupClassInput,
   groupClassName,
@@ -22,6 +23,7 @@ import {
   clampGroupSessionUntil,
   groupSessionHorizon,
 } from "../../modules/groups/group-schedule.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -31,6 +33,7 @@ import {
   type GroupAttendanceRow,
   type GroupClassRow,
   type GroupEnrollmentRow,
+  groupEnrollmentColumns,
   groupSessionColumns,
   type GroupSessionRow,
   hasDatabaseCode,
@@ -128,6 +131,22 @@ export function createAgendaRepository(
         ORDER BY a.starts_at
       `,
         [clinicId, from, to],
+      );
+      return result.rows.map(mapAppointment);
+    },
+
+    async listPendingFinalizationAppointments(clinicId: string, now: string) {
+      const result = await repositoryContext.pool.query<AppointmentRow>(
+        `
+        SELECT ${appointmentColumns}
+        FROM appointments a
+        ${appointmentJoins}
+        WHERE a.clinic_id = $1
+          AND a.status IN ('scheduled', 'confirmed')
+          AND a.ends_at < $2
+        ORDER BY a.starts_at
+      `,
+        [clinicId, now],
       );
       return result.rows.map(mapAppointment);
     },
@@ -349,6 +368,190 @@ export function createAgendaRepository(
         throw error;
       } finally {
         client.release();
+      }
+    },
+
+    async findAppointmentServiceId(clinicId: string, appointmentId: string) {
+      const result = await repositoryContext.pool.query<{ serviceId: string }>(
+        `SELECT service_id AS "serviceId" FROM appointments
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, appointmentId],
+      );
+      return result.rows[0]?.serviceId ?? null;
+    },
+
+    async findAppointment(clinicId: string, appointmentId: string) {
+      return repositoryContext.findAppointment(clinicId, appointmentId);
+    },
+
+    async updateAppointment(
+      clinicId: string,
+      actorUserId: string,
+      appointmentId: string,
+      input: AppointmentUpdateInput,
+    ) {
+      try {
+        return await repositoryContext.inTransaction(async (client) => {
+          await client.query(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+            [clinicId],
+          );
+          const current = await client.query<{
+            status: AppointmentStatus;
+            startsAt: Date;
+            professionalId: string;
+            roomId: string;
+            serviceId: string;
+            notes: string | null;
+          }>(
+            `SELECT status, starts_at AS "startsAt",
+                    professional_id AS "professionalId", room_id AS "roomId",
+                    service_id AS "serviceId", notes
+             FROM appointments WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+            [clinicId, appointmentId],
+          );
+          const previous = current.rows[0];
+          if (!previous) return null;
+          if (!["scheduled", "confirmed"].includes(previous.status))
+            throw new DomainError(
+              "APPOINTMENT_UPDATE_FORBIDDEN",
+              "Somente atendimentos agendados ou confirmados podem ser editados.",
+              409,
+            );
+          const related = await client.query<{ durationMinutes: number }>(
+            `SELECT s.duration_minutes AS "durationMinutes"
+             FROM services s, rooms r
+             WHERE s.clinic_id = $1 AND s.id = $2 AND (s.active OR s.id = $4)
+               AND r.clinic_id = $1 AND r.id = $3 AND r.active`,
+            [clinicId, input.serviceId, input.roomId, previous.serviceId],
+          );
+          if (!related.rows[0])
+            throw new DomainError(
+              "RELATED_RECORD_NOT_FOUND",
+              "Sala ou serviço não encontrado.",
+              404,
+            );
+          const serviceChanged = input.serviceId !== previous.serviceId;
+          if (serviceChanged) {
+            // Crédito da comanda/plano de origem é do serviço original.
+            const linked = await client.query(
+              `SELECT 1 FROM patient_tab_services
+               WHERE clinic_id = $1 AND appointment_id = $2
+               UNION ALL
+               SELECT 1 FROM patient_plans
+               WHERE clinic_id = $1 AND source_appointment_id = $2
+               LIMIT 1`,
+              [clinicId, appointmentId],
+            );
+            if (linked.rowCount)
+              throw new DomainError(
+                "APPOINTMENT_SERVICE_LOCKED",
+                "Este atendimento está vinculado a uma comanda ou plano: o serviço não pode ser alterado.",
+                409,
+              );
+          }
+          const notes = input.notes ?? "";
+          if (
+            !serviceChanged &&
+            input.roomId === previous.roomId &&
+            (previous.notes ?? "") === notes
+          )
+            return repositoryContext.findAppointment(
+              clinicId,
+              appointmentId,
+              client,
+            );
+          const startsAt = new Date(previous.startsAt);
+          const endsAt = new Date(
+            startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
+          );
+          if (
+            await hasGroupSessionConflict(
+              client,
+              clinicId,
+              previous.professionalId,
+              input.roomId,
+              startsAt,
+              endsAt,
+            )
+          )
+            throw new DomainError(
+              "APPOINTMENT_CONFLICT",
+              "O profissional ou a sala está ocupado por uma turma nesse horário.",
+              409,
+            );
+          const names = await client.query<{
+            previousServiceName: string;
+            previousRoomName: string;
+            serviceName: string;
+            roomName: string;
+          }>(
+            `SELECT ps.name AS "previousServiceName", pr.name AS "previousRoomName",
+                    s.name AS "serviceName", r.name AS "roomName"
+             FROM services ps, rooms pr, services s, rooms r
+             WHERE ps.clinic_id = $1 AND ps.id = $2 AND pr.clinic_id = $1 AND pr.id = $3
+               AND s.clinic_id = $1 AND s.id = $4 AND r.clinic_id = $1 AND r.id = $5`,
+            [
+              clinicId,
+              previous.serviceId,
+              previous.roomId,
+              input.serviceId,
+              input.roomId,
+            ],
+          );
+          await client.query(
+            `UPDATE appointments
+             SET service_id = $3, room_id = $4, notes = $5, ends_at = $6,
+                 updated_at = now()
+             WHERE clinic_id = $1 AND id = $2`,
+            [
+              clinicId,
+              appointmentId,
+              input.serviceId,
+              input.roomId,
+              notes || null,
+              endsAt,
+            ],
+          );
+          const name = names.rows[0];
+          await repositoryContext.addAdminAudit(
+            client,
+            clinicId,
+            actorUserId,
+            "appointment.updated",
+            "appointment",
+            appointmentId,
+            {
+              previous: {
+                serviceId: previous.serviceId,
+                serviceName: name?.previousServiceName,
+                roomId: previous.roomId,
+                roomName: name?.previousRoomName,
+                notes: previous.notes ?? "",
+              },
+              current: {
+                serviceId: input.serviceId,
+                serviceName: name?.serviceName,
+                roomId: input.roomId,
+                roomName: name?.roomName,
+                notes,
+              },
+            },
+          );
+          return repositoryContext.findAppointment(
+            clinicId,
+            appointmentId,
+            client,
+          );
+        });
+      } catch (error) {
+        if (hasDatabaseCode(error, "23P01") || hasDatabaseCode(error, "40P01"))
+          throw new DomainError(
+            "APPOINTMENT_CONFLICT",
+            "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+            409,
+          );
+        throw error;
       }
     },
 
@@ -612,11 +815,11 @@ export function createAgendaRepository(
       const [groups, enrollments, sessions, attendance, credits] =
         await Promise.all([
           repositoryContext.pool.query<GroupClassRow>(
-            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
+            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
             [clinicId],
           ),
           repositoryContext.pool.query<GroupEnrollmentRow>(
-            `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 ORDER BY e.enrolled_at`,
+            `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 ORDER BY e.enrolled_at`,
             [clinicId],
           ),
           repositoryContext.pool.query<GroupSessionRow>(
@@ -787,7 +990,7 @@ export function createAgendaRepository(
         );
         if (input.capacity > activeCount) {
           await client.query(
-            `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now() FROM waiting WHERE e.id=waiting.id`,
+            `WITH waiting AS (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) UPDATE group_enrollments e SET status='active',queue_position=NULL,updated_at=now(),enrolled_at=GREATEST(e.enrolled_at,now()) FROM waiting WHERE e.id=waiting.id`,
             [clinicId, groupId, input.capacity - activeCount],
           );
         }
@@ -803,7 +1006,7 @@ export function createAgendaRepository(
         client.release();
       }
       const updated = await repositoryContext.pool.query<GroupClassRow>(
-        `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND g.id=$2 GROUP BY g.id,s.name,p.full_name,r.name`,
+        `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND g.id=$2 GROUP BY g.id,s.name,p.full_name,r.name`,
         [clinicId, groupId],
       );
       return updated.rows[0] ? mapGroupClass(updated.rows[0]) : null;
@@ -820,7 +1023,7 @@ export function createAgendaRepository(
       try {
         await client.query("BEGIN");
         const current = await client.query<GroupEnrollmentRow>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$2 AND e.clinic_id=$1 FOR UPDATE OF e`,
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$2 AND e.clinic_id=$1 FOR UPDATE OF e`,
           [clinicId, enrollmentId],
         );
         const row = current.rows[0];
@@ -829,12 +1032,12 @@ export function createAgendaRepository(
           return null;
         }
         await client.query(
-          `UPDATE group_enrollments SET status='cancelled',queue_position=NULL,updated_at=now() WHERE id=$1`,
+          `UPDATE group_enrollments SET status='cancelled',queue_position=NULL,updated_at=now(),ended_at=CASE WHEN status='active' THEN now() ELSE ended_at END WHERE id=$1`,
           [enrollmentId],
         );
         if (row.status === "active")
           await client.query(
-            `UPDATE group_enrollments SET status='active',queue_position=NULL,updated_at=now() WHERE id=(SELECT id FROM group_enrollments WHERE group_id=$1 AND status='waitlisted' ORDER BY queue_position,enrolled_at FOR UPDATE SKIP LOCKED LIMIT 1)`,
+            `UPDATE group_enrollments SET status='active',queue_position=NULL,updated_at=now(),enrolled_at=GREATEST(enrolled_at,now()) WHERE id=(SELECT id FROM group_enrollments WHERE group_id=$1 AND status='waitlisted' ORDER BY queue_position,enrolled_at FOR UPDATE SKIP LOCKED LIMIT 1)`,
             [row.groupId],
           );
         await client.query(
@@ -842,7 +1045,7 @@ export function createAgendaRepository(
           [row.groupId],
         );
         const updated = await client.query<GroupEnrollmentRow>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.group_id AS "groupId",e.patient_id AS "patientId",p.full_name AS "patientName",e.status,e.queue_position AS "queuePosition",e.enrolled_at AS "enrolledAt",e.updated_at AS "updatedAt" FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$1`,
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$1`,
           [enrollmentId],
         );
         await client.query("COMMIT");
@@ -1080,6 +1283,11 @@ export function createAgendaRepository(
             "Este atendimento conflita com uma turma no mesmo horário.",
             409,
           );
+        if (
+          (status === "completed" || status === "no_show") &&
+          current.rows[0].status !== status
+        )
+          assertAppointmentStarted(current.rows[0].startsAt);
         const patientId = current.rows[0].patientId;
         // Atendimento de lead (sem cliente) não consome sessão de plano.
         if (

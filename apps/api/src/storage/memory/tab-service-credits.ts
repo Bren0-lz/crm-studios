@@ -1,4 +1,8 @@
-import type { PatientPlan, PatientTab } from "@crm/contracts";
+import {
+  tabCreditPlanName,
+  type PatientPlan,
+  type PatientTab,
+} from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -53,7 +57,7 @@ export function prepareTabServiceCredits(
       patientName: tab.patientName,
       serviceId: item.serviceId,
       serviceName: item.serviceName,
-      name: `${item.serviceName} · Comanda ${tab.id.slice(0, 8).toUpperCase()}`,
+      name: tabCreditPlanName(item.serviceName),
       kind: "single",
       services: [
         {

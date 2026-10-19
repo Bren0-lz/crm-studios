@@ -5,9 +5,16 @@ import type {
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { localIsoDate } from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
+import { InlineClassificationCreate } from "./InlineClassificationCreate";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 
 export function PayableModal({
   workspace,
@@ -18,10 +25,12 @@ export function PayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const toast = useToast();
   const { can } = useAuthorization();
-  const expenseCategories = workspace.categories.filter(
-    (item) => item.kind === "expense",
+  const [expenseCategories, setExpenseCategories] = useState(() =>
+    workspace.categories.filter((item) => item.kind === "expense"),
   );
+  const [costCenters, setCostCenters] = useState(workspace.costCenters);
   const [form, setForm] = useState<PayableInput>({
     description: "",
     supplier: "",
@@ -48,11 +57,26 @@ export function PayableModal({
     };
   }, []);
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      form.description.trim().length < 3 &&
+        "Descrição (pelo menos 3 caracteres)",
+      !form.categoryId && "Categoria",
+      !form.dueDate && "Vencimento",
+      form.amountInCents <= 0 && "Valor",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     try {
-      await api.createPayable(form);
+      // Centro de custo é opcional: vazio não vai para a API.
+      const { costCenterId, ...rest } = form;
+      await api.createPayable({
+        ...rest,
+        ...(costCenterId ? { costCenterId } : {}),
+      });
       onCreated();
     } catch (cause) {
       setError((cause as Error).message);
@@ -65,6 +89,7 @@ export function PayableModal({
       title="Nova conta a pagar"
       subtitle="Classifique a despesa para compor o fluxo de caixa."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("finance.payables_create") && (
@@ -152,7 +177,10 @@ export function PayableModal({
             />
           </label>
           <label>
-            Lançamento
+            <span className="label-with-help">
+              Lançamento
+              <HelpTip term="Lançamento" text={financeTermHelp.posted} />
+            </span>
             <input
               type="date"
               value={form.postedOn ?? localIsoDate()}
@@ -162,7 +190,10 @@ export function PayableModal({
             />
           </label>
           <label>
-            Competência
+            <span className="label-with-help">
+              Competência
+              <HelpTip term="Competência" text={financeTermHelp.competence} />
+            </span>
             <input
               type="month"
               value={form.dreCompetence ?? localIsoDate().slice(0, 7)}
@@ -182,51 +213,93 @@ export function PayableModal({
               }
             />
           </label>
-          <label>
-            Categoria
-            <select
-              required
-              value={form.categoryId}
-              onChange={(event) =>
-                setForm({ ...form, categoryId: event.target.value })
-              }
-            >
-              {expenseCategories.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Centro de custo
-            <select
-              required
-              value={form.costCenterId}
-              onChange={(event) =>
-                setForm({ ...form, costCenterId: event.target.value })
-              }
-            >
-              {workspace.costCenters.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="field-with-hint">
+            <label>
+              Categoria
+              <select
+                required
+                value={form.categoryId}
+                onChange={(event) =>
+                  setForm({ ...form, categoryId: event.target.value })
+                }
+              >
+                {expenseCategories.length === 0 && (
+                  <option value="">Nenhuma categoria cadastrada</option>
+                )}
+                {expenseCategories.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {expenseCategories.length === 0 && (
+              <InlineClassificationCreate
+                emptyLabel="Nenhuma categoria de despesa"
+                createLabel="Criar categoria"
+                canCreate={can("finance.categories_create")}
+                onCreate={async (name) => {
+                  const created = await api.createFinancialCategory({
+                    name,
+                    kind: "expense",
+                  });
+                  setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
+                  setForm((current) => ({
+                    ...current,
+                    categoryId: created.id,
+                  }));
+                }}
+              />
+            )}
+          </div>
+          <div className="field-with-hint">
+            <label>
+              <span className="label-with-help">
+                Centro de custo (opcional)
+                <HelpTip
+                  term="Centro de custo"
+                  text={financeTermHelp.costCenter}
+                />
+              </span>
+              <select
+                value={form.costCenterId ?? ""}
+                onChange={(event) =>
+                  setForm({ ...form, costCenterId: event.target.value })
+                }
+              >
+                <option value="">Sem centro de custo</option>
+                {costCenters.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {costCenters.length === 0 && (
+              <InlineClassificationCreate
+                emptyLabel="Nenhum centro de custo"
+                createLabel="Criar centro de custo"
+                canCreate={can("finance.cost_centers_create")}
+                onCreate={async (name) => {
+                  const created = await api.createCostCenter({ name });
+                  setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
+                  setForm((current) => ({
+                    ...current,
+                    costCenterId: created.id,
+                  }));
+                }}
+              />
+            )}
+          </div>
           <label>
             Valor
-            <input
+            <MoneyInput
               required
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amountInCents / 100}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  amountInCents: Math.round(Number(event.target.value) * 100),
-                })
+              valueInCents={form.amountInCents}
+              onChange={(cents) =>
+                setForm({ ...form, amountInCents: cents ?? 0 })
               }
             />
           </label>
@@ -240,18 +313,13 @@ export function PayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId || !form.costCenterId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Salvando…" : "Cadastrar despesa"}
             </button>

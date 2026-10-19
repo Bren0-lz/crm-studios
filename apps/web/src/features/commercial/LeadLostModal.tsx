@@ -2,6 +2,7 @@ import { CatalogInput } from "../../shared/components/CatalogInput";
 import type { Lead } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function LeadLostModal({
   lead,
@@ -13,6 +14,7 @@ export function LeadLostModal({
   onConfirm: (reason: string) => Promise<void>;
 }) {
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty(reason);
   return (
     <ActionModal
       eyebrow="CRM comercial"
@@ -20,8 +22,9 @@ export function LeadLostModal({
       subtitle={lead.fullName}
       effect={`${lead.fullName} sai das oportunidades abertas e vai para a coluna Perdidos, com o motivo registrado no cartão.`}
       danger
-      validate={() => (reason.trim() ? "" : "Informe o motivo da perda.")}
+      missing={reason.trim() ? [] : ["Motivo da perda"]}
       onConfirm={() => onConfirm(reason.trim())}
+      dirty={dirty}
       onClose={onClose}
     >
       <CatalogInput

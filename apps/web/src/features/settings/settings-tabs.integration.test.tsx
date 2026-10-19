@@ -85,7 +85,8 @@ describe("settings tabs", () => {
       "Feriados",
       "Etiquetas",
       "Cadastros",
-      "Relacionamento",
+      "Serviços e salas",
+      "Contatos sugeridos",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
       "aria-selected",
@@ -130,8 +131,10 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(screen.getByRole("tab", { name: "Relacionamento" })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Relacionamento" }), {
+    expect(
+      screen.getByRole("tab", { name: "Contatos sugeridos" }),
+    ).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), {
       key: "Home",
     });
     expect(clinicTab).toHaveFocus();
@@ -209,6 +212,97 @@ describe("settings tabs", () => {
     );
   });
 
+  it("opens services, rooms and professionals in their own tab, also from the old ?secao= link", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.includes("/admin/registry")
+        ? {
+            services: [
+              {
+                id: "s1",
+                name: "Pilates em grupo",
+                durationMinutes: 60,
+                priceInCents: 0,
+                color: "#547A6B",
+                active: true,
+              },
+            ],
+            rooms: [],
+            professionals: [],
+          }
+        : url.includes("/admin/clinic-settings")
+          ? clinic
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes?secao=servicos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole("tab", { name: "Serviços e salas" }),
+    ).toHaveAttribute("aria-selected", "true");
+    const panel = screen.getByRole("tabpanel");
+    expect(
+      within(panel).getByRole("heading", {
+        name: "Serviços, salas e profissionais",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await within(panel).findByText("Pilates em grupo"),
+    ).toBeInTheDocument();
+    const catalogs = await openSettingsSection("Cadastros");
+    expect(
+      within(catalogs).queryByText("Serviços, salas e profissionais"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("masks the clinic CPF/CNPJ and refuses invalid check digits before saving", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const taxId = await screen.findByLabelText(/^CNPJ.CPF/);
+    fireEvent.change(taxId, { target: { value: "12345678000190" } });
+    expect(taxId).toHaveValue("12.345.678/0001-90");
+    fireEvent.blur(taxId);
+    expect(
+      await screen.findByText("Informe um CPF ou CNPJ válido."),
+    ).toBeInTheDocument();
+    expect(taxId).toHaveAttribute("aria-invalid", "true");
+    fireEvent.submit(taxId.closest("form")!);
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Informe um CPF ou CNPJ válido.",
+      ),
+    );
+    const putCalls = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([input, init]) =>
+            String(input).includes("/admin/clinic-settings") &&
+            init?.method === "PUT",
+        );
+    expect(putCalls()).toHaveLength(0);
+    fireEvent.change(taxId, { target: { value: "11222333000181" } });
+    fireEvent.blur(taxId);
+    expect(taxId).toHaveValue("11.222.333/0001-81");
+    expect(taxId).not.toHaveAttribute("aria-invalid");
+    fireEvent.submit(taxId.closest("form")!);
+    await waitFor(() => expect(putCalls()).toHaveLength(1));
+    expect(JSON.parse(String(putCalls()[0]![1]!.body))).toMatchObject({
+      taxId: "11.222.333/0001-81",
+    });
+  });
+
   it("opens the first available tab for reception and keeps relationship read-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -234,7 +328,8 @@ describe("settings tabs", () => {
       "Planos",
       "Etiquetas",
       "Cadastros",
-      "Relacionamento",
+      "Serviços e salas",
+      "Contatos sugeridos",
     ]);
     expect(fetched("/relationship/settings")).toBe(false);
     await openSettingsSection("Prazos e mensagens");
@@ -612,7 +707,9 @@ describe("settings tabs", () => {
           <App />
         </MemoryRouter>,
       );
-      const toggle = await screen.findByRole("tab", { name: "Relacionamento" });
+      const toggle = await screen.findByRole("tab", {
+        name: "Contatos sugeridos",
+      });
       fireEvent.click(toggle);
       const field = await screen.findByLabelText(
         "Saldo baixo: sessões restantes",

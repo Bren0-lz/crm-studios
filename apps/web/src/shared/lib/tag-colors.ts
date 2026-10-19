@@ -65,3 +65,15 @@ export function tagColorStyle(color: string | undefined | null): CSSProperties {
     "--tag-text": tagTextColor(background),
   } as CSSProperties;
 }
+
+/**
+ * Cor do profissional (V10) como variável CSS `--pro-color`: borda esquerda dos cartões da
+ * agenda e avatar. É a cor escolhida no cadastro, por isso não cabe em classe fixa.
+ */
+export function professionalColorStyle(
+  color: string | undefined | null,
+): CSSProperties | undefined {
+  return typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)
+    ? ({ "--pro-color": color } as CSSProperties)
+    : undefined;
+}

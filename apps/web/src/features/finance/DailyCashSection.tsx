@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
 import {
   dailyCashGroups,
@@ -17,6 +18,7 @@ export function DailyCashSection() {
   const [date, setDate] = useState(today);
   const [cash, setCash] = useState<DailyCash | null>(null);
   const [error, setError] = useState("");
+  const version = useDataVersion("finance");
   useEffect(() => {
     let active = true;
     api
@@ -26,7 +28,7 @@ export function DailyCashSection() {
     return () => {
       active = false;
     };
-  }, [date]);
+  }, [date, version]);
   function changeDate(value: string) {
     // Campo limpo mantém o dia anterior: a rota sem data usaria hoje.
     if (!value || value === date) return;

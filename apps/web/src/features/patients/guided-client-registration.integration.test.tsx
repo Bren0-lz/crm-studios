@@ -388,6 +388,9 @@ describe("guided client registration", () => {
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual(["Pacote fixo", "Recorrente"]);
+    // V7: o bloco de cada serviço do plano usa a borda e o raio do padrão.
+    for (const group of dialog.querySelectorAll("fieldset fieldset"))
+      expect(group).toHaveClass("form-fieldset");
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",
@@ -515,6 +518,121 @@ describe("guided client registration", () => {
     expect(posts[0]).not.toHaveProperty("groupId");
   });
 
+  describe("single service catalog", () => {
+    const massageId = "79797979-7979-4979-8979-797979797979";
+    const massageTemplate = {
+      id: "b4444444-4444-4444-8444-444444444444",
+      name: "Massagem relaxante",
+      planType: "single",
+      kind: null,
+      active: true,
+      totalValueInCents: 15000,
+      services: [
+        { serviceId: massageId, totalSessions: 1, totalValueInCents: 15000 },
+      ],
+    };
+    /** Troca o catálogo de planos e os serviços (com duração) do `mockApi`. */
+    function mockCatalog(
+      templates: unknown[] | (() => Response),
+      user = storedUser(admin),
+    ) {
+      mockApi(() => jsonResponse({ patient: created }, 201));
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/plan-templates"))
+          return typeof templates === "function"
+            ? templates()
+            : jsonResponse(templates);
+        if (url.includes("/services"))
+          return jsonResponse([
+            {
+              id: pilatesId,
+              name: "Pilates",
+              priceInCents: 9000,
+              durationMinutes: 50,
+            },
+            {
+              id: massageId,
+              name: "Massagem",
+              priceInCents: 15000,
+              durationMinutes: 60,
+            },
+          ]);
+        return base(input, init);
+      });
+      renderAs(user);
+    }
+    async function chooseSingle() {
+      const dialog = await openNewClient();
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+      );
+      return dialog;
+    }
+
+    it("lists only the active single services with price and duration", async () => {
+      mockCatalog([
+        pilatesTemplate,
+        singleTemplate,
+        massageTemplate,
+        {
+          ...massageTemplate,
+          id: "b5555555-5555-4555-8555-555555555555",
+          name: "Massagem antiga",
+          active: false,
+        },
+      ]);
+      const dialog = await chooseSingle();
+      const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+      const options = within(catalog)
+        .getAllByRole("option")
+        .map((option) => option.textContent?.replace(/\s/g, " "));
+      expect(options).toEqual([
+        "Selecione um serviço avulso",
+        "Serviço avulso · Pilates · R$ 90,00 · 1 sessão de 50 min",
+        "Massagem relaxante · Massagem · R$ 150,00 · 1 sessão de 60 min",
+      ]);
+    });
+
+    it("explains where to register single services and links to the plans settings", async () => {
+      mockCatalog([pilatesTemplate]);
+      const dialog = await chooseSingle();
+      expect(
+        await within(dialog).findByText("Nenhum serviço avulso cadastrado."),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(/Configurações › Planos/),
+      ).toBeInTheDocument();
+      const link = within(dialog).getByRole("link", {
+        name: /Cadastrar serviço avulso/,
+      });
+      expect(link).toHaveAttribute("href", "/configuracoes?secao=planos");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(
+        within(dialog).queryByLabelText("Plano cadastrado"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("asks for an administrator when the user cannot register plans", async () => {
+      mockCatalog([pilatesTemplate], customUser(["patients", "plans"]));
+      const dialog = await chooseSingle();
+      expect(
+        await within(dialog).findByText("Nenhum serviço avulso cadastrado."),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByText(/administrador/)).toBeInTheDocument();
+      expect(within(dialog).queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("shows the loading error of the catalog", async () => {
+      mockCatalog(() => jsonResponse({ message: "Falha no catálogo" }, 500));
+      const dialog = await chooseSingle();
+      expect(
+        await within(dialog).findByText(/Não foi possível carregar/),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("hides the options the user cannot edit", async () => {
     mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(customUser(["patients"]));
@@ -630,7 +748,9 @@ describe("guided client registration", () => {
     expect(screen.getByRole("button", { name: /Filtros/ })).toHaveTextContent(
       "1",
     );
-    const row = screen.getByRole("button", { name: "Editar Helena Almeida" });
+    const row = screen.getByRole("button", {
+      name: "Abrir ficha de Helena Almeida",
+    });
     expect(within(row).getByText("Sem turma")).toHaveClass("status-pill");
     const link = within(row).getByRole("link", {
       name: "Matricular Helena Almeida em uma turma",
@@ -673,7 +793,9 @@ describe("guided client registration", () => {
       ).not.toBeInTheDocument(),
     );
     // Sem editar Turmas: o selo aparece, mas sem o atalho para matricular.
-    const row = screen.getByRole("button", { name: "Editar Helena Almeida" });
+    const row = screen.getByRole("button", {
+      name: "Abrir ficha de Helena Almeida",
+    });
     expect(within(row).getByText("Sem turma")).toBeInTheDocument();
     expect(
       within(row).queryByRole("link", { name: "Matricular" }),

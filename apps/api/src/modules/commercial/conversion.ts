@@ -2,10 +2,25 @@ import {
   leadPatientProfile,
   patientInputSchema,
   type Lead,
+  type LeadConversionInput,
   type Patient,
   type PatientInput,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
+/** Junta ao lead os dados informados na conversão (campos vazios não apagam nada). */
+export function withConversionInput(
+  lead: Lead,
+  input: LeadConversionInput = {},
+): Lead {
+  const filled = Object.fromEntries(
+    Object.entries(input).filter(
+      ([, value]) => typeof value === "string" && value.trim() !== "",
+    ),
+  );
+  return { ...lead, ...filled };
+}
+
 export function leadConversionData(
   lead: Lead,
   existing?: Patient,
@@ -21,8 +36,8 @@ export function leadConversionData(
         fields[key] = value;
   const tags = [
     ...new Set([
-      ...(existing?.tags ?? []),
-      ...lead.tags,
+      ...withoutAutomaticPatientTags(existing?.tags ?? []),
+      ...withoutAutomaticPatientTags(lead.tags),
       ...(lead.tags.length < 20 ? ["Convertido do CRM"] : []),
     ]),
   ];

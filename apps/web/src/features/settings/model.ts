@@ -5,6 +5,7 @@ import {
   CalendarDays,
   HeartHandshake,
   PackageOpen,
+  Stethoscope,
   Tags,
   Users,
 } from "lucide-react";
@@ -150,14 +151,38 @@ export const settingsTabs: Array<{
     icon: Tags,
   },
   {
+    key: "registry",
+    label: "Serviços e salas",
+    title: "Serviços, salas e profissionais",
+    description:
+      "Cadastre os serviços, as salas e os profissionais usados na agenda.",
+    icon: Stethoscope,
+  },
+  {
     key: "relationship",
-    label: "Relacionamento",
+    label: "Contatos sugeridos",
     title: "Prazos e mensagens",
     description:
       "Configure quando entrar em contato e as mensagens sugeridas para cada situação.",
     icon: HeartHandshake,
   },
 ];
+
+/** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
+const sectionTabs: Record<string, SettingsTabKey> = {
+  etiquetas: "tags",
+  planos: "plans",
+  cadastros: "catalogs",
+  servicos: "registry",
+  salas: "registry",
+  profissionais: "registry",
+};
+
+export function settingsTabFromSection(
+  section: string | null,
+): SettingsTabKey | undefined {
+  return section ? sectionTabs[section] : undefined;
+}
 
 export function sortPatientTags(tags: PatientTag[]) {
   return [...tags].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

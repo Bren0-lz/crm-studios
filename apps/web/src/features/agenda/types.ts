@@ -23,4 +23,6 @@ export type AppointmentModalProps = {
   onClose: () => void;
   onCreated: (appointments: Appointment[]) => void;
   onPatientCreated: (patient: Patient) => void;
+  /** Horário livre clicado na grade do Dia: profissional e início já preenchidos. */
+  initialSlot?: { professionalId: string; startsAt: string } | undefined;
 };

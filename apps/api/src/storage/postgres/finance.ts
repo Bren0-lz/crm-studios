@@ -1,3 +1,4 @@
+import { receiptWithClinic } from "../../modules/finance/receipt.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -8,7 +9,7 @@ import {
   createTabServiceCredits,
   cancelTabServiceCredits,
 } from "./tab-service-credits.js";
-import type { PaymentTiming } from "@crm/contracts";
+import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
   type AdminUserCommissionInput,
   type CommissionRuleInput,
@@ -649,6 +650,7 @@ export function createFinanceRepository(
       receivableId: string,
       paymentMethod: PaymentMethod,
       timing?: PaymentTiming,
+      adjustments?: SettlementAdjustments,
     ) {
       return repositoryContext.changeReceivablePayment(
         clinicId,
@@ -657,6 +659,7 @@ export function createFinanceRepository(
         "payment",
         paymentMethod,
         timing,
+        adjustments,
       );
     },
 
@@ -748,14 +751,47 @@ export function createFinanceRepository(
           "O recibo fica disponível após a baixa.",
           409,
         );
-      return {
+      const extra = await repositoryContext.pool.query<{
+        clinicName: string;
+        clinicLegalName: string | null;
+        clinicTaxId: string | null;
+        clinicAddress: string | null;
+        patientPhone: string | null;
+        discountInCents: number | null;
+        interestInCents: number | null;
+      }>(
+        `SELECT c.name AS "clinicName", c.legal_name AS "clinicLegalName",
+                c.tax_id AS "clinicTaxId", c.address AS "clinicAddress",
+                coalesce(nullif(p.whatsapp, ''), p.phone) AS "patientPhone",
+                fe.discount_in_cents AS "discountInCents",
+                fe.interest_in_cents AS "interestInCents"
+         FROM receivables r
+         JOIN clinics c ON c.id = r.clinic_id
+         JOIN patients p ON p.id = r.patient_id AND p.clinic_id = r.clinic_id
+         LEFT JOIN LATERAL (
+           SELECT discount_in_cents, interest_in_cents FROM financial_events
+           WHERE clinic_id = r.clinic_id AND receivable_id = r.id AND kind = 'payment'
+           ORDER BY created_at DESC LIMIT 1
+         ) fe ON true
+         WHERE r.clinic_id = $1 AND r.id = $2`,
+        [clinicId, receivableId],
+      );
+      const row = extra.rows[0];
+      return receiptWithClinic({
         receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
         patientName: receivable.patientName,
+        patientPhone: row?.patientPhone ?? "",
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
         paidAt: receivable.paidAt,
-      };
+        clinicName: row?.clinicName ?? "",
+        clinicLegalName: row?.clinicLegalName ?? "",
+        clinicTaxId: row?.clinicTaxId ?? "",
+        clinicAddress: row?.clinicAddress ?? "",
+        discountInCents: row?.discountInCents ?? 0,
+        interestInCents: row?.interestInCents ?? 0,
+      });
     },
 
     async getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace> {
@@ -785,7 +821,7 @@ export function createFinanceRepository(
             client.query<PayableRow>(
               `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
-         JOIN cost_centers cc ON cc.id = py.cost_center_id
+         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
          WHERE py.clinic_id = $1 ORDER BY py.due_date, py.created_at`,
               [clinicId],
             ),
@@ -1001,16 +1037,18 @@ export function createFinanceRepository(
            (clinic_id, description, supplier, category_id, cost_center_id,
             due_date, amount_in_cents, notes, created_by_user_id,supplier_id,posted_on,dre_competence,commission_id)
          SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11::date,$12,$13
-         FROM financial_categories fc, cost_centers cc
+         FROM financial_categories fc
+         LEFT JOIN cost_centers cc
+           ON cc.clinic_id = $1 AND cc.id = $5::uuid AND cc.active
          WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
-           AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
+           AND ($5::uuid IS NULL OR cc.id IS NOT NULL)
          RETURNING id`,
           [
             clinicId,
             input.description,
             input.supplier || null,
             input.categoryId,
-            input.costCenterId,
+            input.costCenterId ?? null,
             input.dueDate,
             input.amountInCents,
             input.notes || null,
@@ -1643,7 +1681,7 @@ export function createFinanceRepository(
         const payableResult = await client.query<PayableRow>(
           `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
-         JOIN cost_centers cc ON cc.id = py.cost_center_id
+         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
          JOIN clinics c ON c.id = py.clinic_id
          WHERE py.clinic_id=$1`,
           [clinicId],

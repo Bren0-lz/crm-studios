@@ -1,3 +1,9 @@
+import {
+  automaticPatientTagCategory,
+  OVERDUE_PAYMENT_TAG,
+  patientTagCategoryColors,
+  patientTagDisplayColor,
+} from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientManagementModal } from "./PatientManagementModal";
@@ -11,13 +17,16 @@ import {
   ChevronRight,
   FileDown,
   FileUp,
+  Pencil,
   Plus,
   Search,
   SlidersHorizontal,
   UserPlus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { ActionMenu } from "../../shared/components/ActionMenu";
+import type { ActionMenuItem } from "../../shared/lib/types";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -49,7 +58,8 @@ import type {
 } from "./types";
 
 export function PatientsPage() {
-  const { can, canEdit, user } = useAuthorization();
+  const { can, canEdit, canView, user } = useAuthorization();
+  const navigate = useNavigate();
   const [management, setManagement] = useState<"merge" | "inactive" | null>(
     null,
   );
@@ -77,19 +87,35 @@ export function PatientsPage() {
   const configuredTags = usePatientTags();
   const tagColor = tagColorLookup(configuredTags.tags);
 
+  // Só a busca mais recente vale: uma resposta atrasada não sobrescreve a lista.
+  const latestRequest = useRef(0);
+  const searchTimer = useRef<number | undefined>(undefined);
   async function load(query = search, withoutGroup = filters.withoutGroup) {
+    window.clearTimeout(searchTimer.current);
+    const request = ++latestRequest.current;
     setLoading(true);
     setError("");
     try {
-      setPatients(await api.patients(query, { withoutGroup }));
+      const data = await api.patients(query, { withoutGroup });
+      if (request !== latestRequest.current) return;
+      setPatients(data);
       setAppliedSearch(query);
       setPage(1);
     } catch (cause) {
-      setError((cause as Error).message);
+      if (request === latestRequest.current) setError((cause as Error).message);
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }
+  // Busca enquanto digita (U12): 350 ms depois da última tecla; Enter/Buscar continua.
+  const searchTyped = useEffectEvent((value: string) => {
+    if (value.trim() === appliedSearch.trim()) return;
+    searchTimer.current = window.setTimeout(() => void load(value), 350);
+  });
+  useEffect(() => {
+    searchTyped(search);
+    return () => window.clearTimeout(searchTimer.current);
+  }, [search]);
   useEffect(() => {
     let active = true;
     api
@@ -122,6 +148,8 @@ export function PatientsPage() {
   // Filtro mostra as etiquetas configuradas (com a cor), com quantos clientes da lista têm cada uma.
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
+  // Etiqueta automática (parcela vencida e em aberto): a API só calcula para quem vê o Financeiro.
+  const automaticTagOptions = canView("finance") ? [OVERDUE_PAYMENT_TAG] : [];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) +
     (filters.record !== "all" ? 1 : 0) +
@@ -154,6 +182,39 @@ export function PatientsPage() {
     void load(appliedSearch, withoutGroup);
   }
 
+  const moreActions: ActionMenuItem[] = [
+    ...(user?.role === "admin"
+      ? [
+          {
+            label: "Mesclar clientes",
+            onSelect: () => setManagement("merge"),
+          },
+          {
+            label: "Inativar antigos",
+            onSelect: () => setManagement("inactive"),
+          },
+        ]
+      : []),
+    ...(canManage && can("patients.import")
+      ? [
+          {
+            label: "Importar",
+            icon: <FileDown size={16} aria-hidden="true" />,
+            onSelect: () => setImportOpen(true),
+          },
+        ]
+      : []),
+    ...(canExport && can("patients.export")
+      ? [
+          {
+            label: "Exportar",
+            icon: <FileUp size={16} aria-hidden="true" />,
+            onSelect: () => setExportOpen(true),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
       {management && (
@@ -173,40 +234,10 @@ export function PatientsPage() {
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
-          <div className="page-actions">
-            {user?.role === "admin" && (
-              <>
-                <button
-                  className="secondary-button"
-                  onClick={() => setManagement("merge")}
-                >
-                  Mesclar clientes
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => setManagement("inactive")}
-                >
-                  Inativar antigos
-                </button>
-              </>
-            )}
-            {canManage && can("patients.import") && (
-              <button
-                className="secondary-button"
-                onClick={() => setImportOpen(true)}
-              >
-                <FileDown size={18} aria-hidden="true" />
-                Importar
-              </button>
-            )}
-            {canExport && can("patients.export") && (
-              <button
-                className="secondary-button"
-                onClick={() => setExportOpen(true)}
-              >
-                <FileUp size={18} aria-hidden="true" />
-                Exportar
-              </button>
+          <div className="page-actions patients-actions">
+            {/* V2: ações secundárias no menu "Mais"; só "Novo cliente" fica à vista. */}
+            {moreActions.length > 0 && (
+              <ActionMenu label="Mais" align="end" items={moreActions} />
             )}
             {canManage && can("patients.create") && (
               <button
@@ -373,7 +404,7 @@ export function PatientsPage() {
                 <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
               </div>
             ) : (
-              tagOptions.length > 0 && (
+              tagOptions.length + automaticTagOptions.length > 0 && (
                 <div className="filter-group filter-tags">
                   <span className="filter-label" id="patient-tag-filter">
                     Etiquetas
@@ -387,10 +418,23 @@ export function PatientsPage() {
                       <TagChoice
                         key={tag.id}
                         name={tag.name}
-                        color={tag.color}
+                        color={patientTagDisplayColor(tag)}
                         count={countTag(tag.name)}
                         pressed={filters.tags.includes(tag.name)}
                         onToggle={() => toggleTag(tag.name)}
+                      />
+                    ))}
+                    {automaticTagOptions.map((name) => (
+                      <TagChoice
+                        key={`automatic-${name}`}
+                        name={name}
+                        color={
+                          patientTagCategoryColors[automaticPatientTagCategory]
+                        }
+                        count={countTag(name)}
+                        hint="Etiqueta automática: cliente com parcela vencida e em aberto."
+                        pressed={filters.tags.includes(name)}
+                        onToggle={() => toggleTag(name)}
                       />
                     ))}
                   </div>
@@ -427,7 +471,7 @@ export function PatientsPage() {
                 <span>Contato</span>
                 <span>Etiquetas</span>
                 <span>Situação</span>
-                <span />
+                <span className="table-actions-head">Ações</span>
               </div>
               {pagePatients.map((patient) => (
                 <div
@@ -435,15 +479,19 @@ export function PatientsPage() {
                   key={patient.id}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Editar ${patient.fullName}`}
-                  onClick={() => setEditingPatient(patient)}
+                  aria-label={`Abrir ficha de ${patient.fullName}`}
+                  // A linha abre a ficha (U13); editar fica no botão da coluna Ações.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest("a, button"))
+                      void navigate(`/clientes/${patient.id}`);
+                  }}
                   onKeyDown={(event) => {
                     if (
                       event.target === event.currentTarget &&
                       (event.key === "Enter" || event.key === " ")
                     ) {
                       event.preventDefault();
-                      setEditingPatient(patient);
+                      void navigate(`/clientes/${patient.id}`);
                     }
                   }}
                 >
@@ -480,23 +528,25 @@ export function PatientsPage() {
                         )}
                       </>
                     )}
-                    <Link
-                      className="secondary-button"
-                      to={`/clientes/${patient.id}`}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      Detalhes
-                    </Link>
                     {patient.tags.length ? (
-                      patient.tags
-                        .slice(0, 2)
-                        .map((tag) => (
+                      <>
+                        {patient.tags.slice(0, 2).map((tag) => (
                           <PatientTagBadge
                             key={tag}
                             name={tag}
                             color={tagColor(tag)}
                           />
-                        ))
+                        ))}
+                        {patient.tags.length > 2 && (
+                          <span
+                            className="tag-more"
+                            title={patient.tags.slice(2).join(", ")}
+                            aria-label={`Mais ${patient.tags.length - 2} ${patient.tags.length - 2 === 1 ? "etiqueta" : "etiquetas"}: ${patient.tags.slice(2).join(", ")}`}
+                          >
+                            +{patient.tags.length - 2}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <small>Sem etiquetas</small>
                     )}
@@ -507,11 +557,17 @@ export function PatientsPage() {
                     <i />
                     {patient.status === "inactive" ? "Inativo" : "Ativo"}
                   </span>
-                  <ChevronRight
-                    className="row-chevron"
-                    size={18}
-                    aria-hidden="true"
-                  />
+                  <div className="table-actions">
+                    <button
+                      type="button"
+                      className="secondary-button button-sm"
+                      aria-label={`Editar ${patient.fullName}`}
+                      onClick={() => setEditingPatient(patient)}
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                      Editar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

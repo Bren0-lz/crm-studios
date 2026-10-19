@@ -86,6 +86,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",
+  // Sino do cabeçalho: cada contagem é filtrada pelos módulos dentro da rota.
+  "GET /notifications": "login",
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny(
     "agenda",
@@ -100,6 +102,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/options": view("clinical"),
   "GET /appointments": viewAny("agenda"),
   "GET /appointments/:id/reschedules": viewAny("agenda"),
+  "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /schedule-blocks": viewAny("agenda"),
   "GET /group-sessions": viewAny("groups", "agenda"),
 
@@ -111,6 +114,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /appointments/recurring": operation("agenda.recurring"),
   "POST /appointments/:id/successor": operation("agenda.reschedule"),
   "PUT /appointments/:id/schedule": operation("agenda.reschedule"),
+  "PATCH /appointments/:id": operation("agenda.reschedule"),
   "PATCH /appointments/:id/status": {
     anyOf: operation("agenda.attendance", "agenda.cancel"),
   },
@@ -213,6 +217,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // CRM comercial.
   "GET /leads/insights": operation("crm.view"),
+  // Duplicidade no cadastro/edição do lead: só id e nome de quem tem o mesmo contato.
+  "GET /leads/duplicates": { anyOf: operation("crm.create", "crm.update") },
   "GET /leads": view("crm"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),

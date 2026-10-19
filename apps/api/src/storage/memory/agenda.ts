@@ -1,9 +1,11 @@
 import {
+  isAppointmentPendingFinalization,
   type Appointment,
   type AppointmentInput,
   type AppointmentRescheduleEvent,
   type AppointmentRescheduleInput,
   type AppointmentStatus,
+  type AppointmentUpdateInput,
   type GroupAttendance,
   type GroupAttendanceInput,
   type GroupClass,
@@ -21,10 +23,13 @@ import {
   type ScheduleBlock,
   type ScheduleBlockInput,
 } from "@crm/contracts";
+import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   clampGroupSessionUntil,
   groupSessionHorizon,
+  zonedTimeToUtc,
 } from "../../modules/groups/group-schedule.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
@@ -32,6 +37,19 @@ import { now, today, uuid } from "./helpers.js";
 export function createAgendaRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  const clinicDate = (value: string) =>
+    clinicDateOf(value, repositoryContext.clinicSettings.timezone);
+  /** Sai da lista de espera: começa hoje, salvo se o início escolhido for posterior. */
+  const promote = (enrollment: GroupEnrollment) => {
+    const timestamp = now();
+    enrollment.status = "active";
+    delete enrollment.queuePosition;
+    enrollment.updatedAt = timestamp;
+    if (Date.parse(enrollment.enrolledAt) < Date.parse(timestamp)) {
+      enrollment.enrolledAt = timestamp;
+      enrollment.startsOn = clinicDate(timestamp);
+    }
+  };
   return {
     async listHolidays(clinicId: string, from?: string, to?: string) {
       return (repositoryContext.holidays.get(clinicId) ?? [])
@@ -107,6 +125,17 @@ export function createAgendaRepository(
             item.clinicId === clinicId &&
             item.startsAt < to &&
             item.endsAt > from,
+        )
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    },
+
+    async listPendingFinalizationAppointments(clinicId: string, now: string) {
+      const instant = new Date(now);
+      return repositoryContext.appointments
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            isAppointmentPendingFinalization(item, instant),
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
@@ -274,6 +303,168 @@ export function createAgendaRepository(
       });
       repositoryContext.appointmentReschedules.push(event);
       return appointment;
+    },
+
+    async findAppointmentServiceId(clinicId: string, appointmentId: string) {
+      return (
+        repositoryContext.appointments.find(
+          (item) => item.clinicId === clinicId && item.id === appointmentId,
+        )?.serviceId ?? null
+      );
+    },
+
+    async findAppointment(clinicId: string, appointmentId: string) {
+      const appointment = repositoryContext.appointments.find(
+        (item) => item.clinicId === clinicId && item.id === appointmentId,
+      );
+      return appointment ? { ...appointment } : null;
+    },
+
+    async updateAppointment(
+      clinicId: string,
+      actorUserId: string,
+      appointmentId: string,
+      input: AppointmentUpdateInput,
+    ) {
+      const appointment = repositoryContext.appointments.find(
+        (item) => item.clinicId === clinicId && item.id === appointmentId,
+      );
+      if (!appointment) return null;
+      if (!["scheduled", "confirmed"].includes(appointment.status))
+        throw new DomainError(
+          "APPOINTMENT_UPDATE_FORBIDDEN",
+          "Somente atendimentos agendados ou confirmados podem ser editados.",
+          409,
+        );
+      const room = repositoryContext.rooms.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === input.roomId && item.active,
+      );
+      const service = repositoryContext.services.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.serviceId &&
+          (item.active || item.id === appointment.serviceId),
+      );
+      if (!room || !service)
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Sala ou serviço não encontrado.",
+          404,
+        );
+      const serviceChanged = service.id !== appointment.serviceId;
+      // Crédito da comanda/plano de origem é do serviço original: trocar quebraria o vínculo.
+      if (
+        serviceChanged &&
+        (repositoryContext.patientTabs.some(
+          (tab) =>
+            tab.clinicId === clinicId &&
+            tab.services?.some((item) => item.appointmentId === appointmentId),
+        ) ||
+          repositoryContext.patientPlans.some(
+            (plan) =>
+              plan.clinicId === clinicId &&
+              plan.sourceAppointmentId === appointmentId,
+          ))
+      )
+        throw new DomainError(
+          "APPOINTMENT_SERVICE_LOCKED",
+          "Este atendimento está vinculado a uma comanda ou plano: o serviço não pode ser alterado.",
+          409,
+        );
+      const notes = input.notes ?? "";
+      const startsAt = new Date(appointment.startsAt);
+      const endsAt = new Date(
+        startsAt.getTime() + service.durationMinutes * 60_000,
+      );
+      if (
+        !serviceChanged &&
+        appointment.roomId === room.id &&
+        (appointment.notes ?? "") === notes
+      )
+        return { ...appointment };
+      const overlaps = (from: string, to: string) =>
+        new Date(from) < endsAt && new Date(to) > startsAt;
+      const professionalId = appointment.professionalId;
+      const appointmentConflict = repositoryContext.appointments.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id !== appointmentId &&
+          item.status !== "cancelled" &&
+          (item.professionalId === professionalId ||
+            item.roomId === room.id) &&
+          overlaps(item.startsAt, item.endsAt),
+      );
+      const blockConflict = repositoryContext.scheduleBlocks.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.status === "active" &&
+          (item.professionalId === professionalId ||
+            item.roomId === room.id) &&
+          overlaps(item.startsAt, item.endsAt),
+      );
+      const groupConflict =
+        repositoryContext.groupSessions.some((session) => {
+          const group = repositoryContext.groupClasses.find(
+            (item) => item.id === session.groupId,
+          );
+          return (
+            session.clinicId === clinicId &&
+            session.status !== "cancelled" &&
+            Boolean(group) &&
+            (group!.professionalId === professionalId ||
+              group!.roomId === room.id) &&
+            overlaps(session.startsAt, session.endsAt)
+          );
+        }) ||
+        repositoryContext.hasWeeklyGroupSlotConflict(
+          clinicId,
+          professionalId,
+          room.id,
+          startsAt,
+          endsAt,
+        );
+      if (appointmentConflict || blockConflict || groupConflict)
+        throw new DomainError(
+          "APPOINTMENT_CONFLICT",
+          "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+          409,
+        );
+      const previous = {
+        serviceId: appointment.serviceId,
+        serviceName: appointment.serviceName,
+        roomId: appointment.roomId,
+        roomName: appointment.roomName,
+        notes: appointment.notes ?? "",
+      };
+      Object.assign(appointment, {
+        serviceId: service.id,
+        serviceName: service.name,
+        roomId: room.id,
+        roomName: room.name,
+        endsAt: endsAt.toISOString(),
+        updatedAt: now(),
+      });
+      if (notes) appointment.notes = notes;
+      else delete appointment.notes;
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "appointment.updated",
+        "appointment",
+        {
+          previous,
+          current: {
+            serviceId: service.id,
+            serviceName: service.name,
+            roomId: room.id,
+            roomName: room.name,
+            notes,
+          },
+        },
+        appointmentId,
+      );
+      return { ...appointment };
     },
 
     async listAppointmentReschedules(clinicId: string, appointmentId: string) {
@@ -594,9 +785,7 @@ export function createAgendaRepository(
         index < Math.min(input.capacity - activeCount, waitlist.length);
         index += 1
       ) {
-        waitlist[index]!.status = "active";
-        delete waitlist[index]!.queuePosition;
-        waitlist[index]!.updatedAt = now();
+        promote(waitlist[index]!);
       }
       waitlist
         .filter((item) => item.status === "waitlisted")
@@ -647,6 +836,16 @@ export function createAgendaRepository(
         (item) => item.groupId === group.id && item.status === "waitlisted",
       );
       const timestamp = now();
+      const startsOn = input.startsOn ?? clinicDate(timestamp);
+      // Início em outra data: meia-noite desse dia no fuso da clínica.
+      const enrolledAt =
+        startsOn === clinicDate(timestamp)
+          ? timestamp
+          : zonedTimeToUtc(
+              startsOn,
+              "00:00",
+              repositoryContext.clinicSettings.timezone,
+            ).toISOString();
       const status = activeCount < group.capacity ? "active" : "waitlisted";
       const enrollment: GroupEnrollment = {
         ...input,
@@ -663,7 +862,8 @@ export function createAgendaRepository(
                 ) + 1,
             }
           : {}),
-        enrolledAt: timestamp,
+        enrolledAt,
+        startsOn,
         updatedAt: timestamp,
       };
       repositoryContext.groupEnrollments.push(enrollment);
@@ -680,6 +880,8 @@ export function createAgendaRepository(
       enrollment.status = "cancelled";
       delete enrollment.queuePosition;
       enrollment.updatedAt = now();
+      // Só a matrícula ativa ganha fim; quem estava na espera nunca participou.
+      if (wasActive) enrollment.endedOn = clinicDate(enrollment.updatedAt);
       if (wasActive) {
         const next = repositoryContext.groupEnrollments
           .filter(
@@ -692,11 +894,7 @@ export function createAgendaRepository(
               (a.queuePosition ?? 0) - (b.queuePosition ?? 0) ||
               a.enrolledAt.localeCompare(b.enrolledAt),
           )[0];
-        if (next) {
-          next.status = "active";
-          delete next.queuePosition;
-          next.updatedAt = now();
-        }
+        if (next) promote(next);
       }
       const remaining = repositoryContext.groupEnrollments
         .filter(
@@ -906,6 +1104,11 @@ export function createAgendaRepository(
       );
       if (!appointment) return null;
       const previousStatus = appointment.status;
+      if (
+        (status === "completed" || status === "no_show") &&
+        previousStatus !== status
+      )
+        assertAppointmentStarted(appointment.startsAt);
       if (previousStatus !== "completed" && status === "completed") {
         repositoryContext.consumeSession(appointment);
       } else if (previousStatus === "completed" && status !== "completed") {

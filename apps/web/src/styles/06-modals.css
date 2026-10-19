@@ -375,6 +375,10 @@
   font-weight: 400;
   line-height: 1.4;
 }
+/* Lista "Falta: …" acima do botão principal (QM14). */
+p.field-hint {
+  margin: 0;
+}
 
 .field-error {
   color: #9b433c;
@@ -453,19 +457,20 @@
   width: 100%;
   min-height: 43px;
 }
-/* Preserve usable width when occupied days introduce vertical scrolling. */
+/* Flutua em position: fixed (escapa do overflow do modal); topo, esquerda, largura e
+   altura máxima vêm do cálculo em calendar-position.ts para nunca ficar cortado. */
 .appointment-calendar {
   position: fixed;
-  inset: auto;
-  z-index: 110;
-  width: min(340px, calc(100vw - 24px));
+  z-index: 10;
+  top: var(--calendar-top, 0);
+  left: var(--calendar-left, 0);
+  width: var(--calendar-width, min(360px, calc(100vw - var(--space-4))));
+  max-height: var(--calendar-max-height, none);
   min-width: 0;
-  max-height: calc(100dvh - 24px);
-  margin: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   overscroll-behavior: contain;
-  padding: 18px;
+  margin: 0;
+  padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
   border-radius: 16px;
   background: #fffefa;
@@ -473,10 +478,6 @@
   box-shadow:
     0 16px 48px rgba(26, 45, 36, 0.14),
     0 2px 8px rgba(26, 45, 36, 0.05);
-}
-.appointment-calendar::backdrop {
-  background: transparent;
-  pointer-events: none;
 }
 .appointment-calendar-head {
   display: flex;
@@ -557,6 +558,11 @@
 }
 .appointment-calendar-day.outside .appointment-calendar-markers {
   opacity: 0.45;
+}
+/* Dias passados: esmaecidos, mas clicáveis (remarcar/lançar no passado é permitido). */
+.appointment-calendar-day.past:not(.selected) {
+  color: var(--muted);
+  font-weight: 400;
 }
 .appointment-calendar-day.today {
   color: var(--green);
@@ -758,5 +764,81 @@
 }
 
 .activity-form > .modal-actions {
+  grid-column: 1 / -1;
+}
+
+/* Comanda (QM5): avisos com altura reservada e rodapé com o destrutivo separado à esquerda. */
+.tab-messages {
+  display: grid;
+  gap: var(--space-2);
+  min-height: var(--space-7);
+  margin-bottom: var(--space-3);
+}
+
+.tab-messages > p {
+  margin: 0;
+}
+
+.tab-footer {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.tab-footer-danger,
+.tab-footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tab-footer-main {
+  margin-left: auto;
+}
+
+/* Cadastro rápido: "Mais informações" recolhe os campos opcionais. */
+.more-info {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.more-info > summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.more-info > .form-grid {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* V7: rótulos com o mesmo tamanho. O rótulo do seletor de cliente e o "Conteúdo" do modelo
+   ficam fora das regras de contêiner ("form-grid label"); seguem o padrão dos campos. */
+.patient-picker-header label,
+.template-body-input > label {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.document-form .patient-picker-header label,
+.document-form .template-body-input > label {
+  font-size: var(--text-xs);
+}
+/* QM3: cliente obrigatório leva o mesmo "*" dos outros campos (U2), fora do nome acessível. */
+.patient-picker:has(> input:required) > .patient-picker-header > label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
+}
+
+/* Checkbox nos filtros e formulários: mesmo tamanho dos rótulos vizinhos. */
+.patient-filters .checkbox-field {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* Contatos do lead: o registro ocupa a linha inteira. */
+.activity-form > .span-2 {
   grid-column: 1 / -1;
 }

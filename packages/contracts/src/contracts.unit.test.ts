@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cpfMatchKey,
+  describeLeadDuplicate,
+  emailMatchKey,
+  findLeadDuplicates,
+  phoneMatchKey,
+  salesChangePercent,
+  DEFAULT_PATIENT_TAG_COLOR,
+  patientTagDisplayColor,
   adminUserInputSchema,
   adminUserUpdateSchema,
   appModuleLabels,
@@ -8,6 +16,10 @@ import {
   broadcastInputSchema,
   broadcastSkipReasonLabels,
   broadcastSkipReasons,
+  clinicSettingsInputSchema,
+  formatTaxId,
+  isValidCnpj,
+  isValidTaxId,
   clinicalRecordInputSchema,
   contactActivityInputSchema,
   contactOutcomeSchema,
@@ -18,6 +30,8 @@ import {
   effectiveEditModules,
   effectiveModules,
   fillMessageTemplate,
+  fillPatientMessage,
+  patientFirstName,
   formatCpf,
   formatPhone,
   groupClassInputSchema,
@@ -26,6 +40,14 @@ import {
   groupLetter,
   guidedPatientInputSchema,
   isValidCpf,
+  isAppointmentPendingFinalization,
+  pendingFinalizationLabel,
+  appointmentActionLeadMinutes,
+  appointmentActionsAvailableAt,
+  isAppointmentStarted,
+  groupEnrollmentCoversSession,
+  groupEnrollmentInputSchema,
+  appointmentNotStartedMessage,
   leadMoveSchema,
   nextPlanPeriod,
   patientDefaultExportColumns,
@@ -265,6 +287,32 @@ describe("shared contracts", () => {
     expect(formatPhone("11999998888")).toBe("(11) 99999-8888");
     expect(formatPhone("(11) 99999-88887")).toBe("(11) 99999-8888");
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
+  });
+
+  it("validates and formats the clinic CPF/CNPJ", () => {
+    expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
+    expect(isValidCnpj("12.345.678/0001-90")).toBe(false);
+    expect(isValidCnpj("00.000.000/0000-00")).toBe(false);
+    expect(isValidTaxId("529.982.247-25")).toBe(true);
+    expect(isValidTaxId("1122233300018")).toBe(false);
+    expect(formatTaxId("11222333000181")).toBe("11.222.333/0001-81");
+    expect(formatTaxId("1122233300")).toBe("112.223.330-0");
+    const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
+    expect(
+      clinicSettingsInputSchema.parse({ ...base, taxId: "11222333000181" })
+        .taxId,
+    ).toBe("11.222.333/0001-81");
+    expect(clinicSettingsInputSchema.parse({ ...base, taxId: "" }).taxId).toBe(
+      "",
+    );
+    const invalid = clinicSettingsInputSchema.safeParse({
+      ...base,
+      taxId: "12.345.678/0001-90",
+    });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error?.issues[0]?.message).toBe(
+      "Informe um CPF ou CNPJ válido.",
+    );
   });
 
   it("formats, normalizes and validates Brazilian CPF numbers", () => {
@@ -591,6 +639,40 @@ describe("relationship center contracts", () => {
       "Oi, Ana {{outro}}",
     );
   });
+
+  it("always fills {{nome}} with the client first name", () => {
+    expect(patientFirstName("  Viviane   Araújo ")).toBe("Viviane");
+    expect(patientFirstName("")).toBe("");
+    expect(
+      fillPatientMessage("Olá, {{nome}}! Até {{data}}.", "Viviane Araújo", {
+        data: "01/10",
+        nome: "Viviane Araújo",
+      }),
+    ).toBe("Olá, Viviane! Até 01/10.");
+  });
+});
+
+describe("patient tag categories", () => {
+  it("uses the manual color first and the category color only without one", () => {
+    expect(
+      patientTagDisplayColor({ color: "#aa3366", category: "financial" }),
+    ).toBe("#aa3366");
+    expect(
+      patientTagDisplayColor({
+        color: DEFAULT_PATIENT_TAG_COLOR,
+        category: "financial",
+      }),
+    ).toBe("#c2410c");
+    expect(patientTagDisplayColor({ color: DEFAULT_PATIENT_TAG_COLOR })).toBe(
+      DEFAULT_PATIENT_TAG_COLOR,
+    );
+    expect(patientTagUpdateSchema.safeParse({ category: null }).success).toBe(
+      true,
+    );
+    expect(
+      patientTagUpdateSchema.safeParse({ category: "outro" }).success,
+    ).toBe(false);
+  });
 });
 
 describe("patient export filter", () => {
@@ -891,5 +973,242 @@ describe("user edit modules", () => {
         editModules: ["admin"],
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("appointment clinical actions availability", () => {
+  it("opens actions 15 minutes before the start", () => {
+    expect(appointmentActionLeadMinutes).toBe(15);
+    const startsAt = "2026-10-19T10:00:00-03:00";
+    expect(appointmentActionsAvailableAt(startsAt).toISOString()).toBe(
+      "2026-10-19T12:45:00.000Z",
+    );
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-19T12:44:59.000Z")),
+    ).toBe(false);
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-19T12:45:00.000Z")),
+    ).toBe(true);
+    expect(
+      isAppointmentStarted({ startsAt }, new Date("2026-10-20T12:00:00.000Z")),
+    ).toBe(true);
+  });
+
+  it("describes the availability in the clinic time zone", () => {
+    expect(appointmentNotStartedMessage("2026-10-19T10:15:00-03:00")).toBe(
+      "Disponível a partir de 19/10 às 10:00",
+    );
+    // 00:10 em São Paulo: a liberação cai no dia anterior (23:55).
+    expect(appointmentNotStartedMessage("2026-10-20T03:10:00.000Z")).toBe(
+      "Disponível a partir de 19/10 às 23:55",
+    );
+  });
+});
+
+describe("appointment pending finalization", () => {
+  const now = new Date("2026-10-18T15:00:00.000Z");
+
+  it("flags scheduled and confirmed appointments whose end already passed", () => {
+    for (const status of ["scheduled", "confirmed"] as const) {
+      expect(
+        isAppointmentPendingFinalization(
+          { status, endsAt: "2026-10-18T14:59:00.000Z" },
+          now,
+        ),
+      ).toBe(true);
+    }
+    expect(pendingFinalizationLabel).toBe("Pendente de finalização");
+  });
+
+  it("compares instants regardless of the offset used (clinic time zone)", () => {
+    // 11:59 em São Paulo (-03:00) = 14:59Z: já terminou ao meio-dia de Brasília.
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "confirmed", endsAt: "2026-10-18T11:59:00-03:00" },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "confirmed", endsAt: "2026-10-18T12:30:00-03:00" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores appointments still running, in the future or already resolved", () => {
+    expect(
+      isAppointmentPendingFinalization(
+        { status: "scheduled", endsAt: "2026-10-18T15:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    for (const status of [
+      "completed",
+      "no_show",
+      "excused_absence",
+      "professional_absence",
+      "cancelled",
+    ] as const) {
+      expect(
+        isAppointmentPendingFinalization(
+          { status, endsAt: "2026-10-01T10:00:00.000Z" },
+          now,
+        ),
+      ).toBe(false);
+    }
+  });
+});
+
+describe("group enrollment period", () => {
+  const session = (startsAt: string) => ({ startsAt });
+  it("covers sessions from the start date on, in the clinic time zone", () => {
+    const enrollment = { status: "active" as const, startsOn: "2026-10-17" };
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-16T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    // 23:30 de 16/10 em São Paulo já é 17/10 em UTC: continua fora.
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-17T02:30:00.000Z"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-10-17T08:00:00-03:00"),
+      ),
+    ).toBe(true);
+    expect(
+      groupEnrollmentCoversSession(
+        enrollment,
+        session("2026-11-03T18:00:00-03:00"),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a cancelled enrollment until the end date and ignores the waitlist", () => {
+    const cancelled = {
+      status: "cancelled" as const,
+      startsOn: "2026-10-01",
+      endedOn: "2026-10-20",
+    };
+    expect(
+      groupEnrollmentCoversSession(
+        cancelled,
+        session("2026-10-20T18:00:00-03:00"),
+      ),
+    ).toBe(true);
+    expect(
+      groupEnrollmentCoversSession(
+        cancelled,
+        session("2026-10-21T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        { status: "cancelled", startsOn: "2026-10-01" },
+        session("2026-10-05T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+    expect(
+      groupEnrollmentCoversSession(
+        { status: "waitlisted", startsOn: "2026-10-01" },
+        session("2026-10-05T18:00:00-03:00"),
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts an optional start date in the enrollment input", () => {
+    const base = {
+      groupId: "11111111-1111-4111-8111-111111111111",
+      patientId: "22222222-2222-4222-8222-222222222222",
+    };
+    expect(groupEnrollmentInputSchema.safeParse(base).success).toBe(true);
+    expect(
+      groupEnrollmentInputSchema.safeParse({ ...base, startsOn: "2026-10-17" })
+        .success,
+    ).toBe(true);
+    expect(
+      groupEnrollmentInputSchema.safeParse({ ...base, startsOn: "17/10/2026" })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("sales change percent", () => {
+  it("calcula a variação só com base anterior positiva", () => {
+    expect(salesChangePercent(12000, 10000)).toBe(20);
+    expect(salesChangePercent(5000, 10000)).toBe(-50);
+    expect(salesChangePercent(49000, 0)).toBeNull();
+    expect(salesChangePercent(49000, -700000)).toBeNull();
+  });
+});
+
+describe("lead duplicates", () => {
+  it("normaliza telefone, e-mail e CPF para comparar", () => {
+    expect(phoneMatchKey("+55 (11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("(11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("551134567890")).toBe("1134567890");
+    expect(phoneMatchKey("5511987654")).toBe("5511987654");
+    expect(emailMatchKey(" Maria.Souza @Email.com ")).toBe(
+      "maria.souza@email.com",
+    );
+    expect(cpfMatchKey("529.982.247-25")).toBe("52998224725");
+    expect(phoneMatchKey(undefined)).toBe("");
+  });
+
+  it("encontra clientes e leads com o mesmo contato, sem contar o próprio lead", () => {
+    const matches = findLeadDuplicates(
+      {
+        phone: "11987654321",
+        email: "MARIA@email.com",
+        cpf: "52998224725",
+        excludeLeadId: "lead-self",
+      },
+      [
+        {
+          id: "p1",
+          fullName: "Maria Souza",
+          phone: "5511987654321",
+          email: " maria@email.com",
+          cpf: "529.982.247-25",
+        },
+        { id: "p2", fullName: "Outra Pessoa", phone: "11900000000" },
+      ],
+      [
+        { id: "lead-self", fullName: "Eu", phone: "11987654321" },
+        { id: "l2", fullName: "Lead Antigo", email: "maria@EMAIL.com" },
+      ],
+    );
+    expect(matches).toEqual([
+      {
+        kind: "patient",
+        id: "p1",
+        fullName: "Maria Souza",
+        fields: ["phone", "email", "cpf"],
+      },
+      { kind: "lead", id: "l2", fullName: "Lead Antigo", fields: ["email"] },
+    ]);
+    expect(describeLeadDuplicate(matches[0]!)).toBe(
+      "Telefone, e-mail e CPF já cadastrados para Maria Souza (cliente).",
+    );
+    expect(describeLeadDuplicate(matches[1]!)).toBe(
+      "E-mail já cadastrado para Lead Antigo (lead).",
+    );
+  });
+
+  it("ignora campos vazios", () => {
+    expect(
+      findLeadDuplicates(
+        { phone: "", email: "", cpf: "" },
+        [{ id: "p1", fullName: "Sem Dados" }],
+        [],
+      ),
+    ).toEqual([]);
   });
 });

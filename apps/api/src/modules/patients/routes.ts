@@ -1,8 +1,11 @@
+import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
 import {
   matchesPatientProfile,
   matchesPatientSegment,
   guidedPatientInputSchema,
+  isAutomaticPatientTag,
+  OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
   patientInputSchema,
   patientListQuerySchema,
@@ -31,10 +34,28 @@ export function registerPatientsRoutes(context: RouteContext) {
     withConfiguredTags,
     assertPermissions,
     assertNoHoliday,
+    assertServiceAvailable,
     patientTagNotFound,
     analyzePatientImport,
     requestAccess,
   } = context;
+
+  const taggerFor = (request: Parameters<typeof requestAccess.get>[0]) =>
+    automaticPatientTagger(
+      repository,
+      request.user.clinicId,
+      requestAccess.get(request)?.modules ?? [],
+    );
+
+  /** "Pagamento atrasado" é automática (QC7): não pode ser criada nem renomeada à mão. */
+  function assertManualTagName(name: string | undefined) {
+    if (name !== undefined && isAutomaticPatientTag(name))
+      throw new DomainError(
+        "PATIENT_TAG_AUTOMATIC",
+        `“${OVERDUE_PAYMENT_TAG}” é uma etiqueta automática: aparece sozinha para clientes com parcela vencida.`,
+        400,
+      );
+  }
 
   app.get("/patients/segments", { preHandler: authenticate }, async (request) =>
     clientSegments(
@@ -55,9 +76,10 @@ export function registerPatientsRoutes(context: RouteContext) {
           requestAccess.get(request)?.permissions.includes("finance.view"),
         )
       : [];
-    const patients = (
-      await repository.listPatients(clinicId, query.search)
-    ).filter(
+    const tag = await taggerFor(request);
+    const patients = (await repository.listPatients(clinicId, query.search))
+      .map(tag)
+      .filter(
       (patient) =>
         matchesPatientProfile(patient, query) &&
         matchesPatientSegment(
@@ -80,11 +102,11 @@ export function registerPatientsRoutes(context: RouteContext) {
       const { search } = patientListQuerySchema
         .pick({ search: true })
         .parse(request.query);
-      const patients = await repository.listPatients(
-        request.user.clinicId,
-        search,
-      );
-      return patients.map(({ id, fullName, tags }): PatientOption => ({
+      const [patients, tag] = await Promise.all([
+        repository.listPatients(request.user.clinicId, search),
+        taggerFor(request),
+      ]);
+      return patients.map(tag).map(({ id, fullName, tags }): PatientOption => ({
         id,
         fullName,
         tags,
@@ -110,7 +132,7 @@ export function registerPatientsRoutes(context: RouteContext) {
             requestAccess.get(request)?.permissions.includes("finance.view"),
           )
         : [];
-      const [patients, plans, withoutGroupIds] = await Promise.all([
+      const [patients, plans, withoutGroupIds, tag] = await Promise.all([
         repository.listPatients(clinicId, filters.search),
         filters.activePlan === undefined
           ? Promise.resolve([])
@@ -118,9 +140,10 @@ export function registerPatientsRoutes(context: RouteContext) {
         filters.withoutGroup
           ? repository.listSubscriberIdsWithoutGroup(clinicId)
           : Promise.resolve(null),
+        taggerFor(request),
       ]);
       const filtered = filterPatientsForExport(
-        patients.filter((patient) =>
+        patients.map(tag).filter((patient) =>
           matchesPatientSegment(
             segments.find((item) => item.patientId === patient.id),
             filters.segment,
@@ -194,8 +217,10 @@ export function registerPatientsRoutes(context: RouteContext) {
       );
       const clinicId = request.user.clinicId;
       const patient = await withConfiguredTags(clinicId, input.patient);
-      if (input.next === "demonstration")
+      if (input.next === "demonstration") {
         await assertNoHoliday(clinicId, [input.appointment.startsAt]);
+        await assertServiceAvailable(clinicId, [input.appointment]);
+      }
       const result: GuidedPatientResult =
         await repository.createPatientWithNextStep(clinicId, request.user.sub, {
           ...input,
@@ -212,16 +237,19 @@ export function registerPatientsRoutes(context: RouteContext) {
   app.post(
     "/patient-tags",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = patientTagInputSchema.parse(request.body);
+      assertManualTagName(input.name);
+      return reply
         .status(201)
         .send(
           await repository.createPatientTag(
             request.user.clinicId,
             request.user.sub,
-            patientTagInputSchema.parse(request.body),
+            input,
           ),
-        ),
+        );
+    },
   );
 
   app.patch(
@@ -230,6 +258,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = patientTagUpdateSchema.parse(request.body);
+      assertManualTagName(input.name);
       const tag = z.uuid().safeParse(id).success
         ? await repository.updatePatientTag(
             request.user.clinicId,
@@ -311,7 +340,7 @@ export function registerPatientsRoutes(context: RouteContext) {
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",
         });
-      return patient;
+      return (await taggerFor(request))(patient);
     },
   );
 

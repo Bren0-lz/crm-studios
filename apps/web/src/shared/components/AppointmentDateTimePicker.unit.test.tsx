@@ -17,6 +17,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { api } from "../../api";
+import { computeFloatingPosition } from "./calendar-position";
 
 vi.mock("../../api", () => ({
   api: {
@@ -148,7 +149,7 @@ describe("appointment calendar", () => {
     render(<Harness />);
     open();
     const list = await screen.findByRole("list", { name: "Horários ocupados" });
-    const inside = screen.getByLabelText("Horário do atendimento");
+    const inside = screen.getByLabelText("Horário");
     const outside = screen.getByLabelText("Horário");
     expect(inside).toHaveValue("15:30");
     fireEvent.pointerDown(inside);
@@ -174,39 +175,8 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T17:15",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Fechar calendário" }));
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(outside).toHaveValue("17:15");
-  });
-
-  it("opens the calendar on external time focus without stealing focus or reopening it while editing", async () => {
-    render(
-      <>
-        <Harness />
-        <button type="button">Outro campo</button>
-      </>,
-    );
-    const outside = screen.getByLabelText("Horário");
-    fireEvent.pointerDown(outside);
-    act(() => outside.focus());
-    await screen.findByText("Nenhum compromisso registrado.");
-    expect(outside).toHaveFocus();
-    const inside = screen.getByLabelText("Horário do atendimento");
-    act(() => inside.focus());
-    expect(screen.getByRole("region")).toBeInTheDocument();
-    act(() => outside.focus());
-    expect(outside).toHaveFocus();
-    expect(api.appointments).toHaveBeenCalledTimes(1);
-    fireEvent.keyDown(outside, { key: "Escape" });
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
-    act(() => outside.focus());
-    await screen.findByText("Nenhum compromisso registrado.");
-    expect(outside).toHaveFocus();
-    const other = screen.getByRole("button", { name: "Outro campo" });
-    fireEvent.pointerDown(other);
-    act(() => other.focus());
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
-    expect(other).toHaveFocus();
   });
 
   it("validates synchronized time while open and after closing the panel", async () => {
@@ -216,7 +186,7 @@ describe("appointment calendar", () => {
     open();
     await screen.findByText("Nenhum compromisso registrado.");
     expect(form.checkValidity()).toBe(false);
-    const inside = screen.getByLabelText("Horário do atendimento");
+    const inside = screen.getByLabelText("Horário");
     fireEvent.change(inside, { target: { value: "09:30" } });
     expect(form.checkValidity()).toBe(true);
     fireEvent.change(inside, { target: { value: "" } });
@@ -247,7 +217,9 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T16:45",
     );
+    open();
     expect(day("2026-10-08")).toHaveAttribute("aria-pressed", "true");
+    await screen.findByText("Nenhum compromisso registrado.");
   });
 
   it("requires both date and time without assigning a default time", async () => {
@@ -362,7 +334,8 @@ describe("appointment calendar", () => {
     expect(day("2026-10-06")).toHaveAccessibleName(/1 compromisso/);
     expect(day("2026-10-08")).toHaveAccessibleName(/1 compromisso/);
     fireEvent.click(day("2026-10-08"));
-    expect(screen.getByText("00:00–01:00")).toBeInTheDocument();
+    open();
+    expect(await screen.findByText("00:00–01:00")).toBeInTheDocument();
     vi.mocked(api.scheduleBlocks).mockResolvedValue([
       block({
         startsAt: at("2026-10-06", "23:00"),
@@ -395,10 +368,12 @@ describe("appointment calendar", () => {
       screen.queryByText("Nenhum compromisso registrado."),
     ).not.toBeInTheDocument();
     fireEvent.click(day("2026-11-15"));
-    await screen.findByText("Nenhum compromisso registrado.");
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-11-15T15:30",
     );
+    open();
+    expect(screen.getByRole("table")).toHaveAccessibleName("novembro de 2026");
+    await screen.findByText("Nenhum compromisso registrado.");
   });
 
   it("shows loading and retryable errors without suggesting an empty agenda", async () => {
@@ -435,16 +410,16 @@ describe("appointment calendar", () => {
           resolve = done;
         }),
     );
-    render(<Harness />);
+    // 28/10 aparece tanto na grade de outubro quanto na de novembro.
+    render(<Harness initial="2026-10-28T15:30" />);
     open();
     fireEvent.click(screen.getByRole("button", { name: "Próximo mês" }));
-    fireEvent.click(day("2026-11-07"));
     await screen.findByText("Nenhum compromisso registrado.");
     await act(async () =>
       resolve([
         appointment("old", "10:00", {
-          startsAt: at("2026-11-07", "10:00"),
-          endsAt: at("2026-11-07", "11:00"),
+          startsAt: at("2026-10-28", "10:00"),
+          endsAt: at("2026-10-28", "11:00"),
         }),
       ]),
     );
@@ -488,26 +463,7 @@ describe("appointment calendar", () => {
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 
-  it("opens in the native top layer within the form and toggles from the date field", async () => {
-    const showPopover = vi.spyOn(HTMLElement.prototype, "showPopover");
-    render(<Harness />);
-    open();
-    const panel = screen.getByRole("region", {
-      name: "Calendário de agendamento",
-    });
-    expect(panel).toHaveAttribute("popover", "manual");
-    expect(screen.getByRole("form")).toContainElement(panel);
-    expect(showPopover).toHaveBeenCalledTimes(1);
-    await screen.findByText("Nenhum compromisso registrado.");
-    open();
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
-    open();
-    await screen.findByText("Nenhum compromisso registrado.");
-    expect(showPopover).toHaveBeenCalledTimes(2);
-  });
-
-  it("stays open when selecting a day and dismisses on outside pointer interaction", async () => {
+  it("closes when selecting a day and dismisses on outside pointer interaction", async () => {
     render(
       <>
         <Harness />
@@ -518,7 +474,14 @@ describe("appointment calendar", () => {
     await screen.findByText("Nenhum compromisso registrado.");
     fireEvent.pointerDown(day("2026-10-08"));
     fireEvent.click(day("2026-10-08"));
-    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
+      "2026-10-08T15:30",
+    );
+    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+    expect(screen.getByLabelText("Horário")).toHaveValue("15:30");
+    open();
+    await screen.findByText("Nenhum compromisso registrado.");
     const outside = screen.getByRole("button", { name: "Outro campo" });
     fireEvent.pointerDown(outside);
     outside.focus();
@@ -526,87 +489,173 @@ describe("appointment calendar", () => {
     expect(outside).toHaveFocus();
   });
 
-  it("keeps the panel inside horizontal bounds and switches above a low field", async () => {
-    vi.stubGlobal("innerWidth", 650);
-    vi.stubGlobal("innerHeight", 600);
-    let anchor = new DOMRect(600, 70, 170, 43);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        return this.classList.contains("appointment-calendar")
-          ? new DOMRect(
-              0,
-              0,
-              parseFloat(this.style.width),
-              Math.min(460, parseFloat(this.style.maxHeight)),
-            )
-          : anchor;
-      },
-    );
+  it("opens inside the form, without the browser top layer, and closes with the X", async () => {
     render(<Harness />);
     open();
-    const panel = screen.getByRole("region");
-    expect(panel).toHaveStyle({
-      width: "340px",
-      left: "298px",
-      top: "121px",
-      maxHeight: "467px",
+    const panel = screen.getByRole("region", {
+      name: "Calendário de agendamento",
     });
-    anchor = new DOMRect(600, 480, 170, 43);
-    fireEvent.scroll(document);
-    expect(panel).toHaveStyle({
-      left: "298px",
-      top: "12px",
-      maxHeight: "460px",
-    });
-    await screen.findByText("Nenhum compromisso registrado.");
-  });
-
-  it("constrains a long panel on mobile and repositions after viewport and content changes", async () => {
-    vi.stubGlobal("innerWidth", 320);
-    vi.stubGlobal("innerHeight", 360);
-    let contentHeight = 460;
-    let resizePanel!: () => void;
-    const disconnect = vi.fn();
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        constructor(callback: () => void) {
-          resizePanel = callback;
-        }
-        observe = vi.fn();
-        disconnect = disconnect;
-      },
-    );
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        return this.classList.contains("appointment-calendar")
-          ? new DOMRect(
-              0,
-              0,
-              parseFloat(this.style.width),
-              Math.min(contentHeight, parseFloat(this.style.maxHeight)),
-            )
-          : new DOMRect(5, 150, 170, 43);
-      },
-    );
-    render(<Harness />);
-    open();
-    const panel = screen.getByRole("region");
-    expect(panel).toHaveStyle({
-      width: "296px",
-      left: "12px",
-      top: "201px",
-      maxHeight: "147px",
-    });
-    vi.stubGlobal("innerHeight", 300);
-    fireEvent(window, new Event("resize"));
-    expect(panel).toHaveStyle({ top: "12px", maxHeight: "130px" });
-    contentHeight = 70;
-    act(() => resizePanel());
-    expect(panel).toHaveStyle({ top: "201px", maxHeight: "87px" });
+    expect(panel).not.toHaveAttribute("popover");
+    expect(screen.getByRole("form")).toContainElement(panel);
     await screen.findByText("Nenhum compromisso registrado.");
     fireEvent.click(screen.getByRole("button", { name: "Fechar calendário" }));
-    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+  });
+
+  it("has a single time field that does not open the calendar on focus", async () => {
+    render(<Harness />);
+    const time = screen.getByLabelText("Horário");
+    act(() => time.focus());
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    open();
+    await screen.findByText("Nenhum compromisso registrado.");
+    expect(screen.getAllByLabelText(/Horário/)).toHaveLength(1);
+  });
+
+  it("marks past days with their own style and description, keeping them selectable", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T12:00:00"));
+    try {
+      render(<Harness />);
+      open();
+      await screen.findByText("Nenhum compromisso registrado.");
+      expect(day("2026-10-09")).toHaveClass("past");
+      expect(day("2026-10-09")).toHaveAccessibleName(/dia passado/);
+      expect(day("2026-10-10")).not.toHaveClass("past");
+      expect(day("2026-10-10")).toHaveAttribute("aria-current", "date");
+      expect(day("2026-10-11")).not.toHaveClass("past");
+      expect(day("2026-10-11")).not.toHaveAccessibleName(/dia passado/);
+      expect(day("2026-10-09")).toBeEnabled();
+      fireEvent.click(day("2026-10-09"));
+      expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
+        "2026-10-09T15:30",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes only the calendar on Escape even when focus is outside the picker", async () => {
+    const modalEscape = vi.fn();
+    window.addEventListener("keydown", modalEscape);
+    try {
+      render(<Harness />);
+      open();
+      await screen.findByText("Nenhum compromisso registrado.");
+      act(() => (document.activeElement as HTMLElement | null)?.blur());
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(screen.queryByRole("region")).not.toBeInTheDocument();
+      expect(modalEscape).not.toHaveBeenCalled();
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(modalEscape).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("keydown", modalEscape);
+    }
+  });
+
+  it("floats the panel with coordinates computed against the viewport", async () => {
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Data" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      top: 700,
+      bottom: 740,
+      left: 900,
+      right: 1000,
+      width: 100,
+      height: 40,
+      x: 900,
+      y: 700,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const rect = { top: 0, left: 0, width: 360, height: 480 };
+        return {
+          ...rect,
+          bottom: rect.height,
+          right: rect.width,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        };
+      },
+    );
+    vi.stubGlobal("innerWidth", 1024);
+    vi.stubGlobal("innerHeight", 768);
+    open();
+    const panel = screen.getByRole("region");
+    expect(panel.dataset.placement).toBe("above");
+    expect(panel.dataset.align).toBe("end");
+    expect(panel.style.getPropertyValue("--calendar-top")).toBe("216px");
+    expect(panel.style.getPropertyValue("--calendar-left")).toBe("640px");
+    await screen.findByText("Nenhum compromisso registrado.");
+  });
+});
+
+describe("computeFloatingPosition", () => {
+  const viewport = { top: 0, left: 0, width: 1000, height: 800 };
+  const panel = { width: 360, height: 400 };
+  function trigger(top: number, left: number, width = 200, height = 40) {
+    return { top, bottom: top + height, left, right: left + width };
+  }
+
+  it("opens below and aligned to the trigger start when there is room", () => {
+    expect(
+      computeFloatingPosition({ trigger: trigger(100, 50), panel, viewport }),
+    ).toEqual({
+      top: 144,
+      left: 50,
+      width: 360,
+      maxHeight: 648,
+      placement: "below",
+      align: "start",
+    });
+  });
+
+  it("opens above when there is no room below", () => {
+    const position = computeFloatingPosition({
+      trigger: trigger(600, 50),
+      panel,
+      viewport,
+    });
+    expect(position.placement).toBe("above");
+    expect(position.top).toBe(600 - 4 - 400);
+    expect(position.top + 400).toBeLessThanOrEqual(600);
+  });
+
+  it("aligns to the trigger end when it does not fit from the left", () => {
+    const position = computeFloatingPosition({
+      trigger: trigger(100, 760),
+      panel,
+      viewport,
+    });
+    expect(position.align).toBe("end");
+    expect(position.left).toBe(960 - 360);
+  });
+
+  it("stays inside the viewport and limits height when neither side fits", () => {
+    const small = { top: 0, left: 0, width: 320, height: 500 };
+    const position = computeFloatingPosition({
+      trigger: trigger(200, 100, 200, 40),
+      panel: { width: 360, height: 700 },
+      viewport: small,
+    });
+    expect(position.width).toBe(320 - 16);
+    expect(position.left).toBe(8);
+    expect(position.placement).toBe("below");
+    expect(position.maxHeight).toBe(500 - 8 - 240 - 4);
+    expect(position.top + position.maxHeight).toBeLessThanOrEqual(500 - 8);
+  });
+
+  it("respects the visual viewport offset", () => {
+    const position = computeFloatingPosition({
+      trigger: trigger(150, 120),
+      panel,
+      viewport: { top: 100, left: 100, width: 400, height: 600 },
+    });
+    expect(position.left).toBeGreaterThanOrEqual(108);
+    expect(position.left + position.width).toBeLessThanOrEqual(492);
+    expect(position.top).toBeGreaterThanOrEqual(108);
   });
 });

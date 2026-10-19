@@ -50,7 +50,25 @@ export interface SalesReport {
 }
 
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
-  Partial<Omit<DashboardSummary, "date">>;
+  Partial<Omit<DashboardSummary, "date">> & {
+    /** Atendimentos passados ainda agendados/confirmados (qualquer data). */
+    pendingFinalization?: number | undefined;
+  };
+
+/**
+ * Sino do cabeçalho (`GET /notifications`, QM13): só contagens. Cada grupo aparece apenas
+ * para quem vê o módulo correspondente; sem o módulo, o campo fica ausente.
+ */
+export interface NotificationsSummary {
+  /** Data de referência (aaaa-mm-dd, fuso da clínica). */
+  date: string;
+  /** Aniversariantes de hoje ainda sem parabéns registrados (módulo relationship). */
+  birthdaysToday?: number | undefined;
+  /** Parcelas em aberto com vencimento antes de hoje (módulo finance). */
+  overdueReceivables?: number | undefined;
+  /** Atendimentos passados ainda agendados/confirmados (módulo agenda). */
+  pendingFinalization?: number | undefined;
+}
 
 export interface DashboardSummary {
   date: string;

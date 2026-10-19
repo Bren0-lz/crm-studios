@@ -9,6 +9,7 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import { patchStatusAt } from "../../test-support/clock.js";
 
 describe("CRM API", () => {
   it("links users to agenda professionals and sets their commission rule, owner only", async () => {
@@ -379,12 +380,13 @@ describe("CRM API", () => {
         },
       });
       expect(created.statusCode).toBe(201);
-      const done = await app.inject({
-        method: "PATCH",
-        url: `/appointments/${created.json().id}/status`,
+      const done = await patchStatusAt(
+        app,
         headers,
-        payload: { status: "completed" },
-      });
+        new Date(Date.parse(startsAt) + 3_600_000).toISOString(),
+        created.json().id,
+        { status: "completed" },
+      );
       expect(done.statusCode).toBe(200);
       return created.json().id as string;
     };
@@ -1549,12 +1551,14 @@ describe("CRM API", () => {
         startsAt,
       },
     });
-    await app.inject({
-      method: "PATCH",
-      url: `/appointments/${appointment.json().id}/status`,
+    const completed = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "completed" },
-    });
+      new Date(Date.parse(startsAt) + 3_600_000).toISOString(),
+      appointment.json().id,
+      { status: "completed" },
+    );
+    expect(completed.statusCode).toBe(200);
     await app.inject({
       method: "POST",
       url: "/finance/commission-rules",

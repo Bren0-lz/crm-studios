@@ -42,3 +42,19 @@ export const retentionReportFilterSchema = z
  * antes do mês de `to`. Parâmetros vazios contam como ausentes.
  */
 export const clientReportFilterSchema = retentionReportFilterSchema;
+
+/**
+ * Variação percentual de vendas entre dois períodos, com uma casa decimal. Só existe quando a
+ * base anterior é positiva: com base zero ou negativa (estornos maiores que as vendas) o
+ * percentual não tem significado e o resultado é `null` — mostre a diferença em reais.
+ */
+export function salesChangePercent(
+  currentInCents: number,
+  previousInCents: number,
+): number | null {
+  if (previousInCents <= 0) return null;
+  return (
+    Math.round(((currentInCents - previousInCents) / previousInCents) * 1000) /
+    10
+  );
+}

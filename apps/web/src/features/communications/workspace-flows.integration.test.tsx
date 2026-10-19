@@ -24,7 +24,8 @@ describe("manual communication workflows", () => {
         await screen.findByText(message.body, { exact: true })
       ).closest("article")!;
       const link = within(article).getByRole("link", {
-        name: channel === "whatsapp" ? "Abrir WhatsApp" : "Abrir e-mail",
+        name:
+          channel === "whatsapp" ? "Enviar pelo WhatsApp" : "Enviar por e-mail",
       });
       expect(link.getAttribute("href")).toMatch(
         channel === "whatsapp" ? /^https:\/\/wa.me\// : /^mailto:/,
@@ -36,6 +37,11 @@ describe("manual communication workflows", () => {
       ).toBe("queued");
       fireEvent.click(
         within(article).getByRole("button", {
+          name: `Mais ações da mensagem para ${patient.fullName}`,
+        }),
+      );
+      fireEvent.click(
+        within(article).getByRole("menuitem", {
           name:
             channel === "whatsapp"
               ? "Registrar envio manual"

@@ -1,3 +1,4 @@
+import { patientTagDisplayColor } from "@crm/contracts";
 import {
   broadcastSkipReasonLabels,
   type BroadcastInput,
@@ -10,6 +11,7 @@ import { LockKeyhole } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
@@ -35,6 +37,9 @@ export function BroadcastPanel({
   const [birthdayMonth, setBirthdayMonth] = useState(false);
   const [channel, setChannel] = useState<CommunicationChannel>("whatsapp");
   const [body, setBody] = useState("");
+  const bodyMissing = useMissingFields(
+    body.trim() ? [] : ["Texto do comunicado"],
+  );
   const [preview, setPreview] = useState<BroadcastResult | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -68,10 +73,8 @@ export function BroadcastPanel({
   async function requestPreview(event: FormEvent) {
     event.preventDefault();
     setPreview(null);
-    if (!input.body) {
-      setError("Escreva o texto do comunicado.");
-      return;
-    }
+    // Sem texto, "Ver prévia" já vem desativado com "Falta: Texto do comunicado." (QM14).
+    if (!input.body) return;
     setError("");
     setPreviewing(true);
     try {
@@ -136,7 +139,7 @@ export function BroadcastPanel({
                       <TagChoice
                         key={tag.id}
                         name={tag.name}
-                        color={tag.color}
+                        color={patientTagDisplayColor(tag)}
                         count={countTag(tag.name)}
                         pressed={tags.includes(tag.name)}
                         onToggle={() =>
@@ -297,11 +300,13 @@ export function BroadcastPanel({
                 {error}
               </div>
             )}
+            {bodyMissing.hint}
             <div className="span-2 broadcast-actions">
               <button
                 type="submit"
                 className="secondary-button"
-                disabled={previewing}
+                disabled={previewing || bodyMissing.blocked}
+                aria-describedby={bodyMissing.describedBy}
               >
                 {previewing ? "Calculando…" : "Ver prévia"}
               </button>

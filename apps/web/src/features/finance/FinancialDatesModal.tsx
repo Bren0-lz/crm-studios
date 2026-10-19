@@ -1,12 +1,17 @@
 import type { Receivable, Payable, FinancialDatesInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
-import { Modal } from "../../shared/components/Modal";
+import { useToast } from "../../shared/feedback/toast-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import {
   localIsoDate,
   toLocalDateTimeInput,
 } from "../../shared/lib/formatting";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 export function FinancialDatesModal({
   kind,
   entry,
@@ -18,6 +23,7 @@ export function FinancialDatesModal({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [postedOn, setPostedOn] = useState(
       entry.postedOn ?? localIsoDate(new Date(entry.createdAt)),
     ),
@@ -33,12 +39,28 @@ export function FinancialDatesModal({
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const dirty = useFormDirty({
+    postedOn,
+    dueDate,
+    paidAt,
+    availableAt,
+    reason,
+  });
+  const missing = useMissingFields(
+    [
+      !postedOn && "Lançamento",
+      !dueDate && "Vencimento",
+      reason.trim().length < 3 && "Motivo do ajuste (pelo menos 3 caracteres)",
+    ].filter((item): item is string => Boolean(item)),
+    "field-hint",
+  );
   return (
     <Modal
       title="Datas financeiras"
       subtitle={entry.description}
       initialFocus="input"
       busy={busy}
+      dirty={dirty}
       onClose={onClose}
     >
       <form
@@ -58,6 +80,7 @@ export function FinancialDatesModal({
                 : {}),
             };
             await api.setFinancialDates(kind, entry.id, input);
+            toast.success("Datas do lançamento atualizadas.");
             await onSaved();
             onClose();
           } catch (cause) {
@@ -70,7 +93,10 @@ export function FinancialDatesModal({
         {error && <ErrorBanner error={error} />}
         <fieldset disabled={busy} className="form-fields form-grid">
           <label>
-            Lançamento
+            <span className="label-with-help">
+              Lançamento
+              <HelpTip term="Lançamento" text={financeTermHelp.posted} />
+            </span>
             <input
               required
               type="date"
@@ -98,7 +124,13 @@ export function FinancialDatesModal({
             </label>
           )}
           <label>
-            Disponibilidade no caixa
+            <span className="label-with-help">
+              Disponibilidade no caixa
+              <HelpTip
+                term="Disponibilidade no caixa"
+                text={financeTermHelp.cashAvailable}
+              />
+            </span>
             <input
               type="datetime-local"
               value={availableAt}
@@ -120,16 +152,14 @@ export function FinancialDatesModal({
             os eventos financeiros originais.
           </p>
         </fieldset>
+        {missing.hint}
         <div className="modal-actions">
+          <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
           <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={onClose}
+            className="primary-button"
+            disabled={busy || missing.blocked}
+            aria-describedby={missing.describedBy}
           >
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={busy}>
             Salvar datas
           </button>
         </div>

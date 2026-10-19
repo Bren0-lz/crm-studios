@@ -6,6 +6,7 @@ import type {
   SalesReport,
   SalesReportPeriod,
 } from "@crm/contracts";
+import { salesChangePercent } from "@crm/contracts";
 
 function clinicDate(value: string | Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -149,11 +150,10 @@ export function buildSalesReport(
     current,
     previousComparable,
     changeInCents,
-    changePercent: previousComparable.netSalesInCents
-      ? Math.round(
-          (changeInCents / previousComparable.netSalesInCents) * 1000,
-        ) / 10
-      : null,
+    changePercent: salesChangePercent(
+      current.netSalesInCents,
+      previousComparable.netSalesInCents,
+    ),
     sales: sales
       .filter((item) =>
         inRange(item.occurredAt, bounds.previousFrom, bounds.currentTo),

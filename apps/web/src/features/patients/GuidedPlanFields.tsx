@@ -1,4 +1,5 @@
 import {
+  type PatientPlan,
   planPeriodEnd,
   planPeriodMonths,
   type PlanTemplate,
@@ -12,10 +13,16 @@ import {
   useEffect,
   useState,
 } from "react";
+import { PackageOpen } from "lucide-react";
+import { Link } from "react-router-dom";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
+import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
+import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PlanInstallmentsField } from "../plans/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
@@ -30,6 +37,9 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   kindField?: ReactNode;
   children?: ReactNode;
 }) {
+  const { can } = useAuthorization();
+  // Sem `kindField` o campo vende serviço avulso: planos do tipo "Plano avulso" (`single`).
+  const single = !kindField;
   const [services, setServices] = useState<Service[] | null>(null);
   const [templates, setTemplates] = useState<PlanTemplate[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -57,8 +67,32 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   if (services === null) return <LoadingBlock />;
   const compatible = templates.filter((item) => {
     const kind = item.planType ? planTypeKind(item.planType) : item.kind;
-    return kindField ? kind !== "single" : kind === "single";
+    return single ? kind === "single" : kind !== "single";
   });
+  if (compatible.length === 0 && single)
+    return (
+      <EmptyState
+        icon={PackageOpen}
+        title="Nenhum serviço avulso cadastrado."
+        copy={
+          can("settings.plans_create")
+            ? "Serviços avulsos são planos do tipo “Plano avulso”. Cadastre em Configurações › Planos e depois escolha a opção de novo."
+            : "Serviços avulsos são planos do tipo “Plano avulso”, cadastrados em Configurações › Planos. Peça a um administrador para cadastrar."
+        }
+        action={
+          can("settings.plans_create") ? (
+            <Link
+              className="secondary-button"
+              to="/configuracoes?secao=planos"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Cadastrar serviço avulso (nova aba)
+            </Link>
+          ) : undefined
+        }
+      />
+    );
   if (compatible.length === 0)
     return (
       <p className="muted-copy">
@@ -68,7 +102,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
     );
   return (
     <div className="form-grid">
-      <label className={kindField ? undefined : "span-2"}>
+      <label className={single ? "span-2" : undefined}>
         Plano cadastrado
         <select
           required
@@ -84,11 +118,17 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               services: template?.services.map((entry) => ({ ...entry })) ?? [],
               totalValueInCents: template?.totalValueInCents ?? 0,
               ...("kind" in form
-                ? {
-                    kind: template?.planType
+                ? (() => {
+                    const kind = template?.planType
                       ? planTypeKind(template.planType)
-                      : (template?.kind ?? "fixed_package"),
-                  }
+                      : (template?.kind ?? "fixed_package");
+                    // Recorrente: uma cobrança por ciclo.
+                    return {
+                      kind,
+                      installments:
+                        kind === "recurring" ? 1 : form.installments,
+                    };
+                  })()
                 : {}),
               validUntil: template?.planType
                 ? planPeriodEnd(template.planType, form.validFrom)
@@ -98,17 +138,22 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
             onServiceChange?.();
           }}
         >
-          <option value="">Selecione um plano</option>
+          <option value="">
+            {single ? "Selecione um serviço avulso" : "Selecione um plano"}
+          </option>
           {compatible.map((item) => (
             <option value={item.id} key={item.id}>
-              {item.name}
+              {single ? singleServiceLabel(item, services) : item.name}
             </option>
           ))}
         </select>
       </label>
       {kindField}
       {form.services.map((entry, index) => (
-        <fieldset className="span-2 form-grid" key={entry.serviceId}>
+        <fieldset
+          className="form-fieldset span-2 form-grid"
+          key={entry.serviceId}
+        >
           <legend>
             {services.find((item) => item.id === entry.serviceId)?.name ??
               "Serviço"}
@@ -135,20 +180,15 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           </label>
           <label>
             Valor do serviço {index + 1}
-            <input
+            <MoneyInput
               required
-              type="number"
-              min="0"
-              step="0.01"
-              value={entry.totalValueInCents / 100}
-              onChange={(event) => {
+              valueInCents={entry.totalValueInCents}
+              onChange={(cents) => {
                 const entries = form.services.map((item, position) =>
                   position === index
                     ? {
                         ...item,
-                        totalValueInCents: Math.round(
-                          Number(event.target.value) * 100,
-                        ),
+                        totalValueInCents: cents ?? 0,
                       }
                     : item,
                 );
@@ -208,19 +248,13 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           }
         />
       </label>
-      <label>
-        Parcelas
-        <input
-          required
-          type="number"
-          min="1"
-          max="36"
-          value={form.installments}
-          onChange={(event) =>
-            setForm({ ...form, installments: Number(event.target.value) })
-          }
-        />
-      </label>
+      <PlanInstallmentsField
+        kind={"kind" in form ? (form.kind as PatientPlan["kind"]) : undefined}
+        installments={form.installments}
+        firstDueDate={form.firstDueDate}
+        validUntil={form.validUntil}
+        onChange={(installments) => setForm({ ...form, installments })}
+      />
       <label>
         Primeiro vencimento
         <input
@@ -246,4 +280,24 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
       {children}
     </div>
   );
+}
+
+/** "Nome · Serviço · R$ 90,00 · 1 sessão de 50 min": o que o cliente leva no avulso. */
+function singleServiceLabel(template: PlanTemplate, services: Service[]) {
+  const parts = template.services.map((entry) => {
+    const service = services.find((item) => item.id === entry.serviceId);
+    const sessions = `${entry.totalSessions} ${entry.totalSessions === 1 ? "sessão" : "sessões"}`;
+    return {
+      name: service?.name ?? "Serviço",
+      sessions: service?.durationMinutes
+        ? `${sessions} de ${service.durationMinutes} min`
+        : sessions,
+    };
+  });
+  return [
+    template.name,
+    parts.map((part) => part.name).join(" + "),
+    currency.format(template.totalValueInCents / 100),
+    parts.map((part) => part.sessions).join(" + "),
+  ].join(" · ");
 }

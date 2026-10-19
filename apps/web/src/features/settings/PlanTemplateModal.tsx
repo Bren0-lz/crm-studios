@@ -10,8 +10,15 @@ import {
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
-import { Modal } from "../../shared/components/Modal";
-import { currency, reaisToCents } from "../../shared/lib/formatting";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import {
+  centsToMoneyText,
+  currency,
+  reaisToCents,
+} from "../../shared/lib/formatting";
+import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanTemplateModal({
   item,
@@ -26,7 +33,7 @@ export function PlanTemplateModal({
 }) {
   const [form, setForm] = useState({
     name: item?.name ?? "",
-    value: item ? String(item.totalValueInCents / 100) : "",
+    value: item ? centsToMoneyText(item.totalValueInCents) : "",
     planType: item?.planType ?? (item ? "" : "monthly"),
     services: item?.services.length
       ? item.services.map((entry) => ({
@@ -35,12 +42,13 @@ export function PlanTemplateModal({
           sessionsPerWeek: entry.sessionsPerWeek
             ? String(entry.sessionsPerWeek)
             : "",
-          value: String(entry.totalValueInCents / 100),
+          value: centsToMoneyText(entry.totalValueInCents),
         }))
       : [{ serviceId: "", sessions: "1", sessionsPerWeek: "", value: "" }],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty(form);
   const months = planPeriodMonths(form.planType as PlanType);
   const periodSessions = (entry: (typeof form.services)[number]) =>
     months
@@ -53,6 +61,24 @@ export function PlanTemplateModal({
   const sum = form.services.reduce(
     (value, entry) => value + (reaisToCents(entry.value) ?? 0),
     0,
+  );
+  // O que falta: Salvar fica desativado listando os campos (QM14).
+  const missing = useMissingFields(
+    [
+      form.name.trim().length < 3 && "Nome do plano (pelo menos 3 caracteres)",
+      !item && !form.planType && "Tipo de plano",
+      total === null && "Valor total",
+      ...form.services.flatMap((entry, index) => [
+        !entry.serviceId && `Serviço ${index + 1}`,
+        (months ? !entry.sessionsPerWeek : !entry.sessions) &&
+          (months
+            ? `Sessões por semana do serviço ${index + 1}`
+            : `Sessões do serviço ${index + 1}`),
+        form.services.length > 1 &&
+          reaisToCents(entry.value) === null &&
+          `Valor do serviço ${index + 1}`,
+      ]),
+    ].filter((entry): entry is string => Boolean(entry)),
   );
   function updateRow(
     index: number,
@@ -108,6 +134,7 @@ export function PlanTemplateModal({
       title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
       subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -142,15 +169,11 @@ export function PlanTemplateModal({
         </label>
         <label>
           Valor total
-          <input
+          <MoneyInput
             required
-            type="number"
-            min="0"
-            max="21474836.47"
-            step="0.01"
-            value={form.value}
-            onChange={(event) => {
-              const value = event.target.value;
+            valueInCents={reaisToCents(form.value)}
+            onChange={(cents) => {
+              const value = centsToMoneyText(cents);
               setForm({
                 ...form,
                 value,
@@ -249,15 +272,11 @@ export function PlanTemplateModal({
             {form.services.length > 1 && (
               <label>
                 Valor do serviço {index + 1}
-                <input
+                <MoneyInput
                   required
-                  type="number"
-                  min="0"
-                  max="21474836.47"
-                  step="0.01"
-                  value={entry.value}
-                  onChange={(event) =>
-                    updateRow(index, { value: event.target.value })
+                  valueInCents={reaisToCents(entry.value)}
+                  onChange={(cents) =>
+                    updateRow(index, { value: centsToMoneyText(cents) })
                   }
                 />
               </label>
@@ -311,18 +330,17 @@ export function PlanTemplateModal({
             {error}
           </div>
         )}
+        {missing.hint}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={saving}
-            onClick={onClose}
-          >
-            Cancelar
-          </button>
+          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button
             className="primary-button"
-            disabled={saving || (form.services.length > 1 && total !== sum)}
+            disabled={
+              saving ||
+              missing.blocked ||
+              (form.services.length > 1 && total !== sum)
+            }
+            aria-describedby={missing.describedBy}
           >
             {saving ? "Salvando…" : "Salvar plano"}
           </button>

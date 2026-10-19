@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
+import "../../test-support/legacy-setup.js";
 import {
   leadInputSchema,
   leadContactInputSchema,
@@ -105,6 +107,56 @@ describe("commercial filters and conversion", () => {
       ).statusCode,
     ).toBe(400);
   });
+  it("creates a lead with name and phone only and asks the rest on conversion", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Lead Enxuto",
+        phone: "11977776666",
+        source: "Instagram",
+        interest: "Pilates",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const invalid = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: { cpf: "111.111.111-11" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    const converted = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: {
+        cpf: "52998224725",
+        emergencyContactName: "Joana Mãe",
+        emergencyContactPhone: "11988887777",
+        address: "Rua das Flores, 10",
+        city: "São Paulo",
+        state: "SP",
+        neighborhood: "",
+      },
+    });
+    expect(converted.statusCode).toBe(200);
+    expect(converted.json().patient).toMatchObject({
+      fullName: "Lead Enxuto",
+      cpf: "52998224725",
+      emergencyContactName: "Joana Mãe",
+      emergencyContactPhone: "11988887777",
+      address: "Rua das Flores, 10",
+      city: "São Paulo",
+      state: "SP",
+    });
+    expect(converted.json().lead).toMatchObject({ stage: "won" });
+    await app.close();
+  });
+
   it("edits unconverted leads with explicit permission and preserves their activity", async () => {
     const repository = new MemoryClinicRepository(),
       app = await buildApp({ repository, logger: false });

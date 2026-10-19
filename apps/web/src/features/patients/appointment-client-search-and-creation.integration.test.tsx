@@ -48,7 +48,9 @@ describe("appointment client search and creation", () => {
           : response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
       return response(
         url.includes("/patients/options?")
-          ? [created]
+          ? url.includes("search=Helena")
+            ? [existing]
+            : [created]
           : url.includes("/patients")
             ? [existing]
             : url.includes("/professionals")
@@ -111,7 +113,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps appointment values, traps focus, and selects the saved client", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment);
+    await fillAppointmentForm(appointment);
     fireEvent.change(within(appointment).getByLabelText("Observação"), {
       target: { value: "Manter observação" },
     });
@@ -194,7 +196,7 @@ describe("appointment client search and creation", () => {
 
   it("closes only the client modal on Escape and keeps the previous selection", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -211,7 +213,7 @@ describe("appointment client search and creation", () => {
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
-    fillAppointmentForm(appointment, existing.fullName);
+    await fillAppointmentForm(appointment, existing.fullName);
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -229,6 +231,13 @@ describe("appointment client search and creation", () => {
       created.fullName,
     );
     fireEvent.click(within(client).getByRole("button", { name: "Cancelar" }));
+    const discard = screen.getByRole("dialog", {
+      name: "Descartar alterações?",
+    });
+    fireEvent.click(within(discard).getByRole("button", { name: "Descartar" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Novo cliente" }),
+    ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
     ).toHaveValue(existing.fullName);
@@ -246,6 +255,12 @@ describe("appointment client search and creation", () => {
         name: "Confirmar atendimento",
       }),
     ).toBeDisabled();
+    // Sem cliente escolhido, o motivo fica visível e ligado ao botão (QM14).
+    expect(
+      within(appointment).getByRole("button", {
+        name: "Confirmar atendimento",
+      }),
+    ).toHaveAccessibleDescription("Falta: Cliente.");
     await screen.findByRole("option", { name: created.fullName });
     expect(
       vi
@@ -262,6 +277,12 @@ describe("appointment client search and creation", () => {
         name: "Confirmar atendimento",
       }),
     ).toBeEnabled();
+    expect(
+      within(appointment).getByRole("button", {
+        name: "Confirmar atendimento",
+      }),
+    ).not.toHaveAttribute("aria-describedby");
+    expect(within(appointment).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.change(picker, { target: { value: "Outro" } });
     expect(
       within(appointment).getByRole("button", {

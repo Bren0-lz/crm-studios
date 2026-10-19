@@ -3,10 +3,17 @@ import type {
   AppointmentStatus,
   AppointmentVisitType,
   GroupClass,
+  GroupEnrollment,
   LeadAppointmentInput,
 } from "@crm/contracts";
 import {
+  automaticPatientTagCategory,
+  formatPhone,
+  isAutomaticPatientTag,
+  patientFirstName,
+  patientTagCategoryColors,
   type PatientTag,
+  patientTagDisplayColor,
   patientTagKey,
   type UserRole,
   userRoleLabels,
@@ -45,6 +52,32 @@ export function groupOperationRange() {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+/** Ocupação da turma: "8 matriculados · 4 vagas livres" (ou "Sem vagas livres"). */
+export function groupSeatsLabel(enrolled: number, capacity: number) {
+  const free = Math.max(0, capacity - enrolled);
+  const enrolledLabel = `${enrolled} ${enrolled === 1 ? "matriculado" : "matriculados"}`;
+  const freeLabel =
+    free === 0
+      ? "Sem vagas livres"
+      : `${free} ${free === 1 ? "vaga livre" : "vagas livres"}`;
+  return `${enrolledLabel} · ${freeLabel}`;
+}
+
+/** Aviso da matrícula em turma (QM13): vaga confirmada ou lista de espera, sem gênero. */
+export function groupEnrollmentToast(
+  enrollment: Pick<
+    GroupEnrollment,
+    "patientName" | "status" | "queuePosition"
+  >,
+  groupName?: string,
+) {
+  const name = patientFirstName(enrollment.patientName);
+  const target = groupName ? ` em ${groupName}` : "";
+  return enrollment.status === "waitlisted"
+    ? `${name} entrou na lista de espera${target}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
+    : `Matrícula de ${name} confirmada${target}.`;
+}
+
 export function groupSlotLabel(
   slot: GroupClass["weeklySlots"][number],
   weekDayNames: string[],
@@ -74,10 +107,38 @@ export function localIsoDate(date = new Date()) {
 }
 
 export function reaisToCents(value: string) {
-  const amount = Number(value.replace(",", "."));
-  if (value.trim() === "" || !Number.isFinite(amount) || amount < 0)
-    return null;
-  return Math.round(amount * 100);
+  return parseMoneyToCents(value);
+}
+
+/**
+ * Converte o valor digitado em centavos: aceita "45,90", "45.90", "1.234,56", "1234" e
+ * "R$ 10"; vazio, negativo ou inválido devolve null.
+ */
+export function parseMoneyToCents(value: string): number | null {
+  const text = value.replace(/R\$|\s/g, "");
+  if (!text) return null;
+  const commas = text.split(",").length - 1;
+  const dots = text.split(".").length - 1;
+  let normalized = text;
+  if (commas > 0 && dots > 0) {
+    const decimal = text.lastIndexOf(",") > text.lastIndexOf(".") ? "," : ".";
+    const thousands = decimal === "," ? "." : ",";
+    normalized = text.split(thousands).join("").replace(decimal, ".");
+  } else if (commas === 1) normalized = text.replace(",", ".");
+  else if (commas > 1) return null;
+  else if (dots > 1 || (dots === 1 && text.length - text.indexOf(".") === 4))
+    normalized = text.split(".").join("");
+  if (!/^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(normalized)) return null;
+  return Math.round(Number(normalized) * 100);
+}
+
+/** Texto de um valor em centavos para campo de edição ("1.234,56"); null vira vazio. */
+export function centsToMoneyText(cents: number | null) {
+  if (cents === null) return "";
+  return (cents / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export const roleLabels: Record<UserRole, string> = userRoleLabels;
@@ -101,9 +162,18 @@ export function statusLabel(status: AppointmentStatus) {
 
 export function tagColorLookup(tags: readonly PatientTag[] | null) {
   const colors = new Map(
-    (tags ?? []).map((tag) => [patientTagKey(tag.name), tag.color]),
+    (tags ?? []).map((tag) => [
+      patientTagKey(tag.name),
+      patientTagDisplayColor(tag),
+    ]),
   );
-  return (name: string) => normalizeTagColor(colors.get(patientTagKey(name)));
+  return (name: string) =>
+    normalizeTagColor(
+      colors.get(patientTagKey(name)) ??
+        (isAutomaticPatientTag(name)
+          ? patientTagCategoryColors[automaticPatientTagCategory]
+          : undefined),
+    );
 }
 
 export function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {
@@ -152,4 +222,17 @@ export function clinicIsoDate(
         month: "2-digit",
         day: "2-digit",
       }).format(new Date(value));
+}
+
+/** "Nome · (11) 99999-9999"; vazio quando o contato de emergência não foi informado (V5). */
+export function emergencyContactLabel(patient: {
+  emergencyContactName?: string | undefined;
+  emergencyContactPhone?: string | undefined;
+}) {
+  return [
+    patient.emergencyContactName,
+    patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }

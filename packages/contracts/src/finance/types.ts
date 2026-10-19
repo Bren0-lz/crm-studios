@@ -63,6 +63,7 @@ import {
   paymentMethodSchema,
   productInputSchema,
   receivableRenegotiationInputSchema,
+  receivableSettlementSchema,
   receivableStatusSchema,
   recurringPayableInputSchema,
   stockMovementInputSchema,
@@ -212,6 +213,11 @@ export interface InventoryWorkspace {
 }
 
 export type PaymentTiming = z.infer<typeof paymentTimingSchema>;
+/** Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio. */
+export type SettlementAdjustments = Pick<
+  z.input<typeof receivableSettlementSchema>,
+  "discountInCents" | "interestInCents" | "receivedInCents" | "balanceDueDate"
+>;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
   postedOn?: string | undefined;
@@ -265,7 +271,8 @@ export interface Payable extends PayableInput {
   id: string;
   clinicId: string;
   categoryName: string;
-  costCenterName: string;
+  /** Ausente quando a despesa foi lançada sem centro de custo. */
+  costCenterName?: string;
   status: "open" | "paid" | "cancelled";
   paymentMethod?: PaymentMethod;
   paidAt?: string;
@@ -450,10 +457,20 @@ export interface FinanceForecast {
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;
+  /** WhatsApp do cliente (ou telefone) para enviar o recibo (U40). */
+  patientPhone?: string;
   description: string;
   amountInCents: number;
   paymentMethod: PaymentMethod;
   paidAt: string;
+  /** Dados da clínica (Configurações › Dados da clínica). */
+  clinicName: string;
+  clinicLegalName?: string;
+  clinicTaxId?: string;
+  clinicAddress?: string;
+  /** Desconto e juros aplicados na baixa (U39). */
+  discountInCents?: number;
+  interestInCents?: number;
 }
 
 export interface TabAppointmentOption {

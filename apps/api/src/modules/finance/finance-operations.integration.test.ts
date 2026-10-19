@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { atInstant } from "../../test-support/clock.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -125,7 +126,13 @@ describe("mixed tabs and financial classification", () => {
     expect(updated.totalInCents).toBe(service!.priceInCents);
     const appointmentId = updated.services![0]!.appointmentId;
     await expect(
-      repository.updateAppointmentStatus(clinicId, appointmentId, "completed"),
+      atInstant("2039-02-12T12:00:00Z", () =>
+        repository.updateAppointmentStatus(
+          clinicId,
+          appointmentId,
+          "completed",
+        ),
+      ),
     ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
     await expect(
       repository.createPatientTabAppointment(clinicId, actorId, tab.id, input),
@@ -173,15 +180,11 @@ describe("mixed tabs and financial classification", () => {
         "cancelled",
       ),
     ).rejects.toMatchObject({ code: "TAB_PLAN_MANAGED" });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointmentId,
-      "completed",
+    await atInstant("2039-02-12T12:00:00Z", () =>
+      repository.updateAppointmentStatus(clinicId, appointmentId, "completed"),
     );
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointmentId,
-      "completed",
+    await atInstant("2039-02-12T12:00:00Z", () =>
+      repository.updateAppointmentStatus(clinicId, appointmentId, "completed"),
     );
     expect(
       (await repository.listPatientPlans(clinicId, patient.id))[0]!
@@ -190,10 +193,12 @@ describe("mixed tabs and financial classification", () => {
     await expect(
       repository.cancelPatientTab(clinicId, actorId, tab.id),
     ).rejects.toMatchObject({ code: "TAB_SERVICE_CORRECTION_REQUIRED" });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointmentId,
-      "excused_absence",
+    await atInstant("2039-02-12T12:00:00Z", () =>
+      repository.updateAppointmentStatus(
+        clinicId,
+        appointmentId,
+        "excused_absence",
+      ),
     );
     expect(
       (await repository.listPatientPlans(clinicId, patient.id))[0]!
@@ -210,14 +215,20 @@ describe("mixed tabs and financial classification", () => {
       },
     );
     await expect(
-      repository.updateAppointmentStatus(clinicId, appointmentId, "completed"),
+      atInstant("2039-02-12T12:00:00Z", () =>
+        repository.updateAppointmentStatus(
+          clinicId,
+          appointmentId,
+          "completed",
+        ),
+      ),
     ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      successor.id,
-      "completed",
+    await atInstant("2039-02-12T12:00:00Z", () =>
+      repository.updateAppointmentStatus(clinicId, successor.id, "completed"),
     );
-    await repository.updateAppointmentStatus(clinicId, successor.id, "no_show");
+    await atInstant("2039-02-12T12:00:00Z", () =>
+      repository.updateAppointmentStatus(clinicId, successor.id, "no_show"),
+    );
     const ledger = await repository.listSessionMovements(clinicId, credit!.id);
     expect(ledger.filter((m) => m.quantity < 0)).toHaveLength(2);
     expect(ledger.reduce((total, m) => total + m.quantity, 0)).toBe(1);

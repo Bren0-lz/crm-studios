@@ -46,7 +46,9 @@ export function PayablesList({
       </div>
       {payables.map((item) => {
         const situation = receivableSituation(item, today);
-        const detail = `${item.supplier || item.categoryName} · ${item.costCenterName}`;
+        const detail = [item.supplier || item.categoryName, item.costCenterName]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <div className="finance-row" key={item.id}>
             <div className="finance-item">

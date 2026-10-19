@@ -1,31 +1,93 @@
-import type { Appointment, AppointmentStatus } from "@crm/contracts";
-import { MoreHorizontal } from "lucide-react";
-import type { CSSProperties } from "react";
+import {
+  appointmentNotStartedMessage,
+  isAppointmentStarted,
+  type Appointment,
+  type AppointmentStatus,
+} from "@crm/contracts";
 import { useAuthorization } from "../../authorization-context";
+import { ActionMenu } from "../../shared/components/ActionMenu";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { timeLabel } from "../../shared/lib/formatting";
+import { appointmentStatusClass } from "./model";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
+import { professionalColorStyle } from "../../tag-colors";
 
 export function AgendaCard({
   appointment,
   onOpen,
   onStatus,
   onHistory,
+  onEdit,
+  onReschedule,
+  onCancel,
+  highlighted = false,
 }: {
   appointment: Appointment;
+  /** Recém-salvo: realce temporário (a agenda tira depois de 2 s). */
+  highlighted?: boolean;
   onOpen: () => void;
   /** Sem `onStatus` (agenda só de consulta) o status fica desabilitado. */
   onStatus?: ((status: AppointmentStatus) => void) | undefined;
   onHistory: () => void;
+  /** Menu "⋯" (QM7): sem o callback (agenda só de consulta) a opção some. */
+  onEdit?: (() => void) | undefined;
+  onReschedule?: (() => void) | undefined;
+  onCancel?: (() => void) | undefined;
 }) {
   const { can } = useAuthorization();
+  // Editar/Remarcar/Cancelar só enquanto agendado ou confirmado; Histórico sempre.
+  const pending =
+    appointment.status === "scheduled" || appointment.status === "confirmed";
+  const menuItems: ActionMenuItem[] = [
+    ...(pending && onEdit
+      ? [
+          {
+            label: "Editar",
+            permission: "agenda.reschedule" as const,
+            onSelect: onEdit,
+          },
+        ]
+      : []),
+    ...(pending && onReschedule
+      ? [
+          {
+            label: "Remarcar",
+            permission: "agenda.reschedule" as const,
+            onSelect: onReschedule,
+          },
+        ]
+      : []),
+    { label: "Histórico", onSelect: onHistory },
+    ...(pending && onCancel
+      ? [
+          {
+            label: "Cancelar",
+            permission: "agenda.cancel" as const,
+            danger: true,
+            onSelect: onCancel,
+          },
+        ]
+      : []),
+  ];
+  // Finalizado/falta só a partir de 15 min antes do início (a API também recusa).
+  const availability = isAppointmentStarted(appointment)
+    ? undefined
+    : appointmentNotStartedMessage(appointment.startsAt);
   return (
     <article
-      className="agenda-card"
+      className={`agenda-card ${appointmentStatusClass(appointment.status)}${highlighted ? " agenda-just-saved" : ""}`}
+      style={professionalColorStyle(appointment.professionalColor)}
       role="button"
       tabIndex={0}
       aria-label={`Detalhes de ${appointment.patientName}`}
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("button, select")) onOpen();
+        if (
+          !(event.target as HTMLElement).closest(
+            "button, select, [role='menu']",
+          )
+        )
+          onOpen();
       }}
       onKeyDown={(event) => {
         if (
@@ -44,14 +106,7 @@ export function AgendaCard({
       <div className="agenda-main">
         <div>
           <span className="service-name">
-            <i
-              style={
-                {
-                  "--professional-color": appointment.professionalColor,
-                } as CSSProperties
-              }
-              aria-hidden="true"
-            />
+            <i className="pro-dot" aria-hidden="true" />
             {appointment.serviceName}
           </span>
           <h3>{appointment.patientName}</h3>
@@ -59,6 +114,7 @@ export function AgendaCard({
             {appointment.professionalName} · {appointment.roomName}
           </p>
           <VisitTypeBadge appointment={appointment} />
+          <PendingFinalizationBadge appointment={appointment} />
         </div>
         <div className="agenda-actions">
           <select
@@ -83,10 +139,22 @@ export function AgendaCard({
             )}
             {(appointment.status === "completed" ||
               can("agenda.attendance")) && (
-              <option value="completed">Finalizado</option>
+              <option
+                value="completed"
+                disabled={Boolean(availability)}
+                title={availability}
+              >
+                Finalizado
+              </option>
             )}
             {(appointment.status === "no_show" || can("agenda.attendance")) && (
-              <option value="no_show">Não compareceu</option>
+              <option
+                value="no_show"
+                disabled={Boolean(availability)}
+                title={availability}
+              >
+                Não compareceu
+              </option>
             )}
             {(appointment.status === "excused_absence" ||
               can("agenda.attendance")) && (
@@ -102,14 +170,12 @@ export function AgendaCard({
               <option value="cancelled">Cancelado</option>
             )}
           </select>
-          <button
-            className="icon-button button-sm"
-            aria-label={`Histórico de ${appointment.patientName}`}
-            title="Histórico de reagendamentos"
-            onClick={onHistory}
-          >
-            <MoreHorizontal size={19} />
-          </button>
+          <ActionMenu
+            label={`Mais ações do atendimento de ${appointment.patientName}`}
+            items={menuItems}
+            iconOnly
+            align="end"
+          />
         </div>
       </div>
     </article>

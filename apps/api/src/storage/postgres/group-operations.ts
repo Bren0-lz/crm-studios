@@ -5,8 +5,10 @@ import {
 } from "@crm/contracts";
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
+import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
+  groupEnrollmentCoversSessionSql,
   groupSessionColumns,
   mapGroupSession,
   mapGroupAttendance,
@@ -126,7 +128,7 @@ export function createGroupOperationsRepository(
           [clinicId],
         );
         const allowed = await client.query(
-          `SELECT gs.id FROM group_sessions gs JOIN group_enrollments e ON e.group_id=gs.group_id AND e.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=$2 AND gs.status<>'cancelled' AND e.patient_id=$3 AND e.status='active' FOR UPDATE OF gs`,
+          `SELECT gs.id FROM group_sessions gs JOIN group_enrollments e ON e.group_id=gs.group_id AND e.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=$2 AND gs.status<>'cancelled' AND e.patient_id=$3 AND ${groupEnrollmentCoversSessionSql("e", "gs")} FOR UPDATE OF gs`,
           [clinicId, sessionId, patientId],
         );
         if (!allowed.rowCount)
@@ -220,8 +222,9 @@ export function createGroupOperationsRepository(
           serviceId: string;
           capacity: number;
           status: string;
+          startsAt: Date;
         }>(
-          `SELECT gs.id,gs.group_id AS "groupId",g.service_id AS "serviceId",g.capacity,gs.status FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=ANY($2::uuid[]) ORDER BY gs.id FOR UPDATE OF gs,g`,
+          `SELECT gs.id,gs.group_id AS "groupId",g.service_id AS "serviceId",g.capacity,gs.status,gs.starts_at AS "startsAt" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id=ANY($2::uuid[]) ORDER BY gs.id FOR UPDATE OF gs,g`,
           [clinicId, [input.sessionId, credit.sourceSessionId]],
         );
         const meeting = sessions.rows.find(
@@ -229,6 +232,12 @@ export function createGroupOperationsRepository(
           ),
           original = sessions.rows.find(
             (item) => item.id === credit.sourceSessionId,
+          );
+        if (meeting)
+          assertReplacementTarget(
+            meeting.id,
+            credit.sourceSessionId,
+            meeting.startsAt,
           );
         if (
           !meeting ||
@@ -267,7 +276,7 @@ export function createGroupOperationsRepository(
           replacements: number;
           enrolled: boolean;
         }>(
-          `SELECT (SELECT count(*)::int FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='active') AS regular,(SELECT count(*)::int FROM group_attendance WHERE clinic_id=$1 AND session_id=$3 AND status='replacement' AND coalesce(outcome,'scheduled') NOT IN ('cancelled','excused_absence')) AS replacements,EXISTS(SELECT 1 FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND patient_id=$4 AND status='active') AS enrolled`,
+          `SELECT (SELECT count(DISTINCT e.patient_id)::int FROM group_enrollments e JOIN group_sessions gs ON gs.id=$3 AND gs.clinic_id=e.clinic_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND ${groupEnrollmentCoversSessionSql("e", "gs")}) AS regular,(SELECT count(*)::int FROM group_attendance WHERE clinic_id=$1 AND session_id=$3 AND status='replacement' AND coalesce(outcome,'scheduled') NOT IN ('cancelled','excused_absence')) AS replacements,EXISTS(SELECT 1 FROM group_enrollments e JOIN group_sessions gs ON gs.id=$3 AND gs.clinic_id=e.clinic_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND e.patient_id=$4 AND ${groupEnrollmentCoversSessionSql("e", "gs")}) AS enrolled`,
           [clinicId, meeting.groupId, meeting.id, credit.patientId],
         );
         const occupancy = seats.rows[0]!;

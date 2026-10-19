@@ -6,9 +6,12 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
 import { professionalWithCrefito } from "../contracts/index";
+import { ClinicalAppointmentPicker } from "./ClinicalAppointmentPicker";
 
 export function ClinicalRecordModal({
   record,
@@ -23,7 +26,7 @@ export function ClinicalRecordModal({
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalRecordInput>({
-    appointmentId: record?.appointmentId ?? appointments[0]?.id ?? "",
+    appointmentId: record?.appointmentId ?? "",
     subjective: record?.subjective ?? "",
     objective: record?.objective ?? "",
     assessment: record?.assessment ?? "",
@@ -32,6 +35,12 @@ export function ClinicalRecordModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
+  // O rascunho aceita etapas em branco, mas precisa do atendimento.
+  const missing = useMissingFields(
+    form.appointmentId ? [] : ["Atendimento"],
+    "field-hint",
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -51,34 +60,26 @@ export function ClinicalRecordModal({
       title={record ? "Editar evolução" : "Nova evolução clínica"}
       subtitle="Registre informações objetivas e necessárias para a continuidade do cuidado."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can(record ? "clinical.records_update" : "clinical.records_create") && (
         <form className="clinical-form" onSubmit={submit}>
-          <label>
-            Atendimento
-            <select
-              required
-              disabled={Boolean(record)}
+          {record ? (
+            <label>
+              Atendimento
+              <input
+                readOnly
+                value={`${shortDate.format(new Date(record.appointmentStartsAt))} · ${record.patientName}`}
+              />
+            </label>
+          ) : (
+            <ClinicalAppointmentPicker
+              appointments={appointments}
               value={form.appointmentId}
-              onChange={(event) =>
-                setForm({ ...form, appointmentId: event.target.value })
-              }
-            >
-              {appointments.map((appointment) => (
-                <option value={appointment.id} key={appointment.id}>
-                  {shortDate.format(new Date(appointment.startsAt))} ·{" "}
-                  {appointment.patientName} · {appointment.professionalName}
-                </option>
-              ))}
-              {record && (
-                <option value={record.appointmentId}>
-                  {shortDate.format(new Date(record.appointmentStartsAt))} ·{" "}
-                  {record.patientName}
-                </option>
-              )}
-            </select>
-          </label>
+              onChange={(appointmentId) => setForm({ ...form, appointmentId })}
+            />
+          )}
           {record && (
             <p className="muted-copy">
               Profissional:{" "}
@@ -88,11 +89,14 @@ export function ClinicalRecordModal({
               )}
             </p>
           )}
+          <p className="muted-copy">
+            O rascunho pode ser salvo com qualquer etapa em branco; para
+            finalizar, as quatro etapas precisam estar preenchidas.
+          </p>
           <label>
             S — Subjetivo
             <small>Relato, sintomas e percepção do cliente.</small>
             <textarea
-              required
               rows={4}
               value={form.subjective}
               onChange={(event) =>
@@ -104,7 +108,6 @@ export function ClinicalRecordModal({
             O — Objetivo
             <small>Achados, testes, medidas e intervenções realizadas.</small>
             <textarea
-              required
               rows={4}
               value={form.objective}
               onChange={(event) =>
@@ -116,7 +119,6 @@ export function ClinicalRecordModal({
             <label>
               A — Avaliação
               <textarea
-                required
                 rows={4}
                 value={form.assessment}
                 onChange={(event) =>
@@ -127,7 +129,6 @@ export function ClinicalRecordModal({
             <label>
               P — Plano
               <textarea
-                required
                 rows={4}
                 value={form.plan}
                 onChange={(event) =>
@@ -149,16 +150,14 @@ export function ClinicalRecordModal({
             />
           </label>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
-              Cancelar
-            </button>
-            <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Salvar rascunho"}
             </button>
           </div>

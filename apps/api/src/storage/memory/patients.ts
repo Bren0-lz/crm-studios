@@ -1,5 +1,6 @@
 import {
   type GuidedPatientInput,
+  overduePatientIds,
   type GuidedPatientResult,
   type Patient,
   type PatientInput,
@@ -21,7 +22,10 @@ export function createPatientsRepository(
 ) {
   return {
     async listPatients(clinicId: string, search = "") {
-      const normalized = search.trim().toLocaleLowerCase("pt-BR");
+      // Sem diferenciar maiúsculas nem acentos: "andre" acha "André".
+      const fold = (value: string) =>
+        value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR");
+      const normalized = fold(search.trim());
       const phoneDigits = /^[\d\s()+-]+$/.test(normalized)
         ? normalized.replace(/\D/g, "")
         : "";
@@ -42,9 +46,7 @@ export function createPatientsRepository(
                 item.recordNumber,
               ]
                 .filter(Boolean)
-                .some((value) =>
-                  value!.toLocaleLowerCase("pt-BR").includes(normalized),
-                ) ||
+                .some((value) => fold(value!).includes(normalized)) ||
               Boolean(
                 cpfDigits && item.cpf?.replace(/\D/g, "").includes(cpfDigits),
               ) ||
@@ -250,6 +252,15 @@ export function createPatientsRepository(
         .map((tag) => repositoryContext.withPatientCount(tag));
     },
 
+    async listOverduePatientIds(clinicId: string, today: string) {
+      return overduePatientIds(
+        repositoryContext.receivables.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+        today,
+      );
+    },
+
     async createPatientTag(
       clinicId: string,
       actorUserId: string,
@@ -268,6 +279,7 @@ export function createPatientsRepository(
         clinicId,
         name: input.name,
         color: input.color,
+        ...(input.category ? { category: input.category } : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -328,6 +340,8 @@ export function createPatientsRepository(
         color: input.color ?? tag.color,
         updatedAt: now(),
       });
+      if (input.category === null) delete tag.category;
+      else if (input.category) tag.category = input.category;
       if (clinicId === CLINIC_ID)
         repositoryContext.addAdminAudit(
           actorUserId,

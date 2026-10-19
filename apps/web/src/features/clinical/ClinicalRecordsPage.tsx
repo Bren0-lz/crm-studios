@@ -1,12 +1,15 @@
-import type {
-  ClinicalAppointmentOption,
-  ClinicalRecord,
-  PatientOption,
+import {
+  isAppointmentStarted,
+  patientFirstName,
+  type ClinicalAppointmentOption,
+  type ClinicalRecord,
+  type PatientOption,
 } from "@crm/contracts";
 import { FileClock, FileText, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -20,6 +23,7 @@ import { FinalizeRecordModal } from "./FinalizeRecordModal";
 
 export function ClinicalRecordsPage() {
   const { can, canEdit } = useAuthorization();
+  const toast = useToast();
   const [records, setRecords] = useState<ClinicalRecord[]>([]);
   const [appointments, setAppointments] = useState<ClinicalAppointmentOption[]>(
     [],
@@ -33,6 +37,11 @@ export function ClinicalRecordsPage() {
   );
   const [finalizing, setFinalizing] = useState<ClinicalRecord | null>(null);
   const canManage = canEdit("clinical");
+  // Depois de salvar ou finalizar, o acompanhamento recarrega no cliente da evolução.
+  const [workspaceFocus, setWorkspaceFocus] = useState<{
+    patientId: string;
+    version: number;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -50,8 +59,11 @@ export function ClinicalRecordsPage() {
         setRecords(recordData);
         setPatients(patientData);
         setAppointments(
+          // Evolução só para atendimento já iniciado (início − 15 min); a API também recusa.
           appointmentData.filter(
-            (appointment) => appointment.status !== "cancelled",
+            (appointment) =>
+              appointment.status !== "cancelled" &&
+              isAppointmentStarted(appointment),
           ),
         );
       })
@@ -67,6 +79,10 @@ export function ClinicalRecordsPage() {
   }, []);
 
   function replaceRecord(record: ClinicalRecord) {
+    setWorkspaceFocus((current) => ({
+      patientId: record.patientId,
+      version: (current?.version ?? 0) + 1,
+    }));
     setRecords((current) =>
       [record, ...current.filter((item) => item.id !== record.id)].sort(
         (a, b) => b.appointmentStartsAt.localeCompare(a.appointmentStartsAt),
@@ -77,6 +93,9 @@ export function ClinicalRecordsPage() {
   async function finalize(record: ClinicalRecord) {
     replaceRecord(await api.finalizeClinicalRecord(record.id));
     setFinalizing(null);
+    toast.success(
+      `Evolução de ${patientFirstName(record.patientName)} finalizada.`,
+    );
   }
 
   const availableAppointments = appointments.filter(
@@ -138,8 +157,22 @@ export function ClinicalRecordsPage() {
           <LoadingBlock />
         ) : records.length === 0 ? (
           <EmptyState
+            icon={FileText}
             title="Nenhuma evolução registrada"
             copy="Crie o primeiro prontuário a partir de um atendimento realizado."
+            action={
+              canManage &&
+              can("clinical.records_create") &&
+              availableAppointments.length > 0 ? (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => setEditor("new")}
+                >
+                  <FileText size={18} /> Registrar primeira evolução
+                </button>
+              ) : undefined
+            }
           />
         ) : (
           <div className="clinical-list">
@@ -213,7 +246,12 @@ export function ClinicalRecordsPage() {
         )}
       </section>
       {!loading && patients.length > 0 && (
-        <ClinicalWorkspacePanel patients={patients} editable={canManage} />
+        <ClinicalWorkspacePanel
+          key={workspaceFocus?.version ?? 0}
+          patients={patients}
+          editable={canManage}
+          initialPatientId={workspaceFocus?.patientId}
+        />
       )}
       {editor && (
         <ClinicalRecordModal
@@ -221,6 +259,9 @@ export function ClinicalRecordsPage() {
           appointments={availableAppointments}
           onClose={() => setEditor(null)}
           onSaved={(record) => {
+            toast.success(
+              `Evolução de ${patientFirstName(record.patientName)} salva.`,
+            );
             replaceRecord(record);
             setEditor(null);
           }}

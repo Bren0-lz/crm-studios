@@ -8,11 +8,15 @@ import type { ClinicCatalogEntry } from "@crm/contracts";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { formatCep, lookupCep } from "../../shared/lib/cep";
 
 export function PatientProfileFields({
   form,
   onChange,
+  withAddress = true,
 }: {
+  /** O lead não guarda endereço (U19): só é pedido na conversão. */
+  withAddress?: boolean;
   form: PatientInput;
   onChange: <K extends keyof PatientInput>(
     key: K,
@@ -39,12 +43,35 @@ export function PatientProfileFields({
       alive = false;
     };
   }, [opened]);
+  const [cepStatus, setCepStatus] = useState("");
+  async function changeCep(value: string) {
+    const formatted = formatCep(value);
+    onChange("postalCode", formatted);
+    if (formatted.replace(/\D/g, "").length !== 8) {
+      setCepStatus("");
+      return;
+    }
+    setCepStatus("Buscando endereço…");
+    try {
+      const found = await lookupCep(formatted);
+      if (!found) {
+        setCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
+        return;
+      }
+      if (found.address) onChange("address", found.address);
+      if (found.neighborhood) onChange("neighborhood", found.neighborhood);
+      if (found.city) onChange("city", found.city);
+      if (found.state) onChange("state", found.state);
+      setCepStatus("Endereço preenchido pelo CEP. Confira o número.");
+    } catch {
+      setCepStatus("Não foi possível consultar o CEP. Preencha manualmente.");
+    }
+  }
+  // CEP primeiro: o endereço vem preenchido pelo ViaCEP (U16).
   const textFields = [
-    "address",
-    "neighborhood",
-    "city",
-    "state",
-    "postalCode",
+    ...(withAddress
+      ? (["address", "neighborhood", "city", "state"] as const)
+      : []),
     "guardianName",
     "occupation",
     "source",
@@ -53,6 +80,26 @@ export function PatientProfileFields({
     <fieldset className="form-fieldset span-2">
       <legend>Informações complementares</legend>
       <div className="form-fieldset-grid">
+        {withAddress && (
+          <div className="field-with-hint">
+            <label>
+              {patientProfileLabels.postalCode}
+              <input
+                inputMode="numeric"
+                autoComplete="postal-code"
+                placeholder="00000-000"
+                maxLength={9}
+                value={form.postalCode ?? ""}
+                onChange={(event) => void changeCep(event.target.value)}
+              />
+            </label>
+            {cepStatus && (
+              <small className="field-hint" role="status">
+                {cepStatus}
+              </small>
+            )}
+          </div>
+        )}
         {textFields.map((key) => (
           <label key={key}>
             {patientProfileLabels[key]}

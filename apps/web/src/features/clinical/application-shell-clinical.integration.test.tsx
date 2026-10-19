@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -61,9 +61,11 @@ describe("application shell", () => {
     const newRecord = await screen.findByRole("button", {
       name: "Nova evolução",
     });
+    // O botão só habilita depois de carregar os atendimentos.
+    await waitFor(() => expect(newRecord).toBeEnabled());
     fireEvent.click(newRecord);
     expect(
-      screen.getByRole("heading", { name: "Nova evolução clínica" }),
+      await screen.findByRole("heading", { name: "Nova evolução clínica" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/S — Subjetivo/)).toBeInTheDocument();
   });
@@ -111,7 +113,17 @@ describe("application shell", () => {
             records: [record],
             templates: [],
             assessments: [],
-            goals: [],
+            goals: [
+              {
+                id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                patientId: patient.id,
+                title: "Subir escadas sem dor",
+                description: "Sem apoio do corrimão",
+                status: "active",
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
             measurements: [],
             closures: [],
             attachments: [],
@@ -138,5 +150,7 @@ describe("application shell", () => {
       await screen.findByText("Prontuário longitudinal")
     ).closest(".clinical-print-summary")!;
     expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
+    expect(summary).toHaveTextContent("Subir escadas sem dor · Ativo");
+    expect(summary).not.toHaveTextContent("active");
   });
 });

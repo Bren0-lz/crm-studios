@@ -652,7 +652,7 @@ export function createFinanceOperationsRepository(
           [clinicId],
         );
         const payables = await client.query<PayableRow>(
-          `SELECT ${payableColumns} FROM payables py JOIN financial_categories fc ON fc.id=py.category_id JOIN cost_centers cc ON cc.id=py.cost_center_id WHERE py.clinic_id=$1`,
+          `SELECT ${payableColumns} FROM payables py JOIN financial_categories fc ON fc.id=py.category_id LEFT JOIN cost_centers cc ON cc.id=py.cost_center_id WHERE py.clinic_id=$1`,
           [clinicId],
         );
         const categories = await client.query<{

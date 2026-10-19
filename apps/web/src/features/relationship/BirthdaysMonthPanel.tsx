@@ -1,4 +1,5 @@
 import {
+  patientFirstName,
   type BirthdayEntry,
   formatPhone,
   type RelationshipSettings,
@@ -9,6 +10,7 @@ import { MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { shortDate } from "../../shared/lib/formatting";
@@ -20,6 +22,7 @@ export function BirthdaysMonthPanel({
   settings: RelationshipSettings | null;
 }) {
   const { canEdit } = useAuthorization();
+  const toast = useToast();
   const [month, setMonth] = useState(() => saoPauloToday().slice(0, 7));
   const [entries, setEntries] = useState<BirthdayEntry[]>([]);
   const [error, setError] = useState("");
@@ -44,6 +47,9 @@ export function BirthdaysMonthPanel({
     setSaving(entry.referenceKey);
     try {
       await markBirthdaySent(entry.patientId, entry.referenceKey);
+      toast.success(
+        `Parabéns para ${patientFirstName(entry.patientName)} marcados como enviados.`,
+      );
       setEntries((current) =>
         current.map((item) =>
           item.referenceKey === entry.referenceKey

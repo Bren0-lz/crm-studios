@@ -1,14 +1,23 @@
-/* audit: mobile-ok colunas de no mínimo 230px com rolagem horizontal (overflow-x) */
+/* Uma coluna por etapa, todas na mesma linha com largura mínima fixa: o quadro rola na
+   horizontal em vez de cortar as últimas etapas. A altura fica limitada à da tela para a
+   barra horizontal (embaixo do quadro) estar sempre à vista; o excesso rola dentro dele. */
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(6, minmax(230px, 1fr));
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 16px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(calc(var(--space-8) * 4 - var(--space-4)), 1fr);
+  gap: var(--space-3);
+  max-width: 100%;
+  /* Cabe abaixo do título, filtros e métricas já na abertura da página. */
+  max-height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 7));
+  overflow: scroll;
+  scrollbar-gutter: stable;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-4);
 }
 
 .kanban-column {
-  min-height: 470px;
+  scroll-snap-align: start;
+  min-height: calc(var(--space-8) * 5);
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 15px;
@@ -47,6 +56,32 @@
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: 1.45;
+}
+
+/* Aviso de duplicidade no cadastro do lead (QM10): não bloqueia o salvamento. */
+.lead-duplicate-warning {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #fdf1dc;
+  color: #8a5a12;
+  font-size: var(--text-sm);
+}
+.lead-duplicate-warning ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lead-duplicate-warning li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
 }
 
 .lead-card {
@@ -136,6 +171,8 @@
 }
 
 .lead-actions select {
+  /* V8: a etapa ocupa a linha inteira do cartão e não corta o nome. */
+  grid-column: 1 / -1;
   min-height: 32px;
   font-size: var(--text-sm);
 }
@@ -439,27 +476,54 @@
 
 .message-list article {
   display: grid;
-  grid-template-columns: minmax(180px, 0.55fr) minmax(260px, 1.5fr) auto;
-  gap: 18px;
-  align-items: center;
-  padding: 14px 22px;
+  gap: var(--space-2);
+  padding: var(--space-3) calc(var(--space-5) - 2px);
   border-bottom: 1px solid var(--line);
+}
+
+/* Linha compacta da fila: nome, tipo e situação na mesma linha. */
+.message-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.message-row-head .status-pill {
+  margin-left: auto;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.message-queue-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.message-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) calc(var(--space-5) - 2px);
+  border-bottom: 1px solid var(--line);
+  background: var(--mint);
 }
 
 .message-list article:last-child {
   border-bottom: 0;
 }
 
-.message-list article > div strong,
-.message-list article > div span {
-  display: block;
+.message-row-head strong {
+  font-size: var(--text-sm);
 }
 
-.message-list article > div strong {
-  font-size: var(--text-xs);
-}
-
-.message-list article > div span,
+.message-row-head > span:not(.status-pill),
 .message-list article p {
   color: var(--muted);
   font-size: var(--text-xs);
@@ -691,4 +755,74 @@
 }
 .profit-rows b {
   text-align: right;
+}
+
+/* Editor de modelo: campo com botões "Inserir campo" e prévia ao lado. */
+.template-body-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.template-body-input {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.template-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.template-fields > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.template-preview {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.template-preview h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.template-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--text-md);
+}
+
+@media (max-width: 700px) {
+  .template-body-editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+}
+
+/* Arrastar e soltar no quadro comercial (desktop). */
+.lead-card[draggable="true"] {
+  cursor: grab;
+}
+
+.lead-card.dragging {
+  opacity: 0.55;
+}
+
+.kanban-column.drag-over {
+  border-color: var(--green-2);
+  background: var(--mint);
+  box-shadow: inset 0 0 0 2px var(--green-2);
 }

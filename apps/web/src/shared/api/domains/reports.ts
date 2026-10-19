@@ -7,6 +7,7 @@ import type {
   ClientReport,
   DashboardViewSummary,
   ManagementReport,
+  NotificationsSummary,
   RetentionReport,
   SalesReport,
 } from "@crm/contracts";
@@ -35,6 +36,8 @@ export const reportsApi = {
     request<DashboardViewSummary>(
       `/dashboard?date=${encodeURIComponent(date)}`,
     ),
+  /** Contagens do sino do cabeçalho (QM13). */
+  notifications: () => request<NotificationsSummary>("/notifications"),
   managementReport: (from: string, to: string) =>
     request<ManagementReport>(
       `/reports/management?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

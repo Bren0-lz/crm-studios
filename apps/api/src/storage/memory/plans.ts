@@ -1,12 +1,14 @@
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   nextPlanPeriod,
+  validityAfterPause,
   planTemplateInputSchema,
   type PatientPlan,
   type PatientPlanInput,
   type PlanCatalogEntry,
   type PlanCatalogInput,
   type PlanRenewalInput,
+  type PlanPauseDetails,
   type PlanStatus,
   type PlanTemplate,
   type PlanTemplateInput,
@@ -403,6 +405,7 @@ export function createPlansRepository(
       _actorUserId: string,
       planId: string,
       status: PlanStatus,
+      pause: PlanPauseDetails = {},
     ) {
       const plan = repositoryContext.patientPlans.find(
         (item) => item.clinicId === clinicId && item.id === planId,
@@ -422,8 +425,31 @@ export function createPlansRepository(
         );
       }
       if (plan.status === status) return plan;
+      const previous = plan.status;
       plan.status = status;
       plan.updatedAt = now();
+      const timezone = repositoryContext.clinicSettings.timezone;
+      if (status === "paused") {
+        plan.pausedAt = plan.updatedAt;
+        if (pause.reason) plan.pauseReason = pause.reason;
+        else delete plan.pauseReason;
+        if (pause.expectedReturn)
+          plan.pauseExpectedReturn = pause.expectedReturn;
+        else delete plan.pauseExpectedReturn;
+      } else if (previous === "paused") {
+        // Reativado: a validade avança os dias em pausa (U29).
+        if (status === "active" && plan.pausedAt) {
+          const validUntil = validityAfterPause(
+            plan.validUntil,
+            clinicDateOf(new Date(plan.pausedAt), timezone),
+            clinicDateOf(new Date(plan.updatedAt), timezone),
+          );
+          if (validUntil) plan.validUntil = validUntil;
+        }
+        delete plan.pausedAt;
+        delete plan.pauseReason;
+        delete plan.pauseExpectedReturn;
+      }
       if (status === "cancelled") {
         plan.cancelledAt = plan.updatedAt;
         plan.cancelledValueInCents = repositoryContext.receivables

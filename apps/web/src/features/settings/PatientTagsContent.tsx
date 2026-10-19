@@ -1,3 +1,9 @@
+import {
+  patientTagCategoryLabels,
+  patientTagDisplayColor,
+  type PatientTagCategory,
+} from "@crm/contracts";
+import { TagCategorySelect } from "./TagCategorySelect";
 import { DEFAULT_PATIENT_TAG_COLOR, type PatientTag } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -26,6 +32,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [baselineColor, setBaselineColor] = useState(DEFAULT_PATIENT_TAG_COLOR);
+  const [category, setCategory] = useState<PatientTagCategory | "">("");
   const [notice, setNotice] = useState("");
   const [attempt, setAttempt] = useState(0);
   const savingRef = useRef(false);
@@ -53,9 +60,14 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
     setNotice("");
     setFormError("");
     try {
-      const created = await api.createPatientTag({ name, color: form.color });
+      const created = await api.createPatientTag({
+        name,
+        color: form.color,
+        ...(category ? { category } : {}),
+      });
       setTags((items) => sortPatientTags([...(items ?? []), created]));
       setForm({ name: "", color: form.color });
+      setCategory("");
       setBaselineColor(form.color);
       setNotice("Etiqueta criada.");
     } finally {
@@ -66,7 +78,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
   const dirty =
     canEdit &&
     can("settings.tags_create") &&
-    Boolean(form.name || form.color !== baselineColor);
+    Boolean(form.name || form.color !== baselineColor || category);
   const prompt = useUnsavedChangesPrompt({
     section: "Etiquetas",
     dirty,
@@ -166,6 +178,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                   />
                 </label>
+                <TagCategorySelect value={category} onChange={setCategory} />
                 <TagColorPicker
                   value={form.color}
                   previewName={form.name.trim() || "Nova etiqueta"}
@@ -188,6 +201,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                     disabled={!dirty}
                     onClick={() => {
                       setForm({ name: "", color: baselineColor });
+                      setCategory("");
                       setFormError("");
                     }}
                   >
@@ -215,7 +229,15 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
               {tags.map((tag) => (
                 <li key={tag.id}>
                   <div className="tag-list-info">
-                    <PatientTagBadge name={tag.name} color={tag.color} />
+                    <PatientTagBadge
+                      name={tag.name}
+                      color={patientTagDisplayColor(tag)}
+                    />
+                    {tag.category && (
+                      <small className="tag-category">
+                        {patientTagCategoryLabels[tag.category]}
+                      </small>
+                    )}
                     <small>
                       {countLabel(tag.patientCount, "cliente", "clientes")}
                     </small>

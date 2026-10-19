@@ -117,6 +117,7 @@ const enrollment: GroupEnrollment = {
   groupId: group.id,
   status: "active",
   enrolledAt: timestamp,
+  startsOn: timestamp.slice(0, 10),
   updatedAt: timestamp,
 };
 const appointment: Appointment = {
@@ -266,6 +267,10 @@ async function savePlan(dialog: HTMLElement) {
   );
   return screen.findByRole("dialog", { name: "Cliente cadastrado" });
 }
+function discardChanges() {
+  const prompt = screen.getByRole("dialog", { name: "Descartar alterações?" });
+  fireEvent.click(within(prompt).getByRole("button", { name: "Descartar" }));
+}
 async function openAppointment() {
   fireEvent.click(screen.getByRole("button", { name: "Agendar atendimento" }));
   const dialog = await screen.findByRole("dialog", {
@@ -285,9 +290,11 @@ async function openAppointment() {
   fireEvent.click(
     dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
   );
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Fechar calendário" }),
-  );
+  expect(
+    within(dialog).queryByRole("region", {
+      name: "Calendário de agendamento",
+    }),
+  ).not.toBeInTheDocument();
   fireEvent.change(within(dialog).getByLabelText("Horário"), {
     target: { value: "09:00" },
   });
@@ -548,6 +555,7 @@ describe("client next steps", () => {
     });
     expect(within(dialog).queryByLabelText("Turma")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const appointmentDialog = await openAppointment();
     expect(
       within(appointmentDialog).queryByRole("combobox", { name: "Cliente" }),
@@ -724,9 +732,10 @@ describe("client next steps", () => {
     );
     await within(planDialog).findByText("Falha ao vincular plano");
     expect(within(planDialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      150,
+      "150",
     );
     fireEvent.click(within(planDialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const appointmentDialog = await openAppointment();
     fireEvent.change(within(appointmentDialog).getByLabelText("Observação"), {
       target: { value: "Primeira avaliação" },
@@ -920,6 +929,7 @@ describe("client next steps", () => {
     const dialog = await openPlan();
     expect(within(dialog).getByLabelText("Modelo")).toHaveFocus();
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const hub = screen.getByRole("dialog", { name: "Cliente cadastrado" });
     const conclude = within(hub).getByRole("button", { name: "Concluir" });
     conclude.focus();

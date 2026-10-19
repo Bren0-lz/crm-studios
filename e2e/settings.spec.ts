@@ -10,7 +10,7 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
 
   await panel.getByLabel("Nome", { exact: true }).fill("Clínica atualizada");
   await panel.getByLabel("Razão social").fill("Clínica Ltda.");
-  await panel.getByLabel("CNPJ/CPF").fill("12.345.678/0001-90");
+  await panel.getByLabel("CNPJ/CPF").fill("11.222.333/0001-81");
   await panel.getByLabel("Telefone", { exact: true }).fill("11999991234");
   await panel.getByLabel("E-mail", { exact: true }).fill("clinica@example.com");
   await panel.getByLabel("Endereço").fill("Rua de teste, 123");
@@ -19,7 +19,7 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   expect(await (await api.get("/admin/clinic-settings")).json()).toMatchObject({
     name: "Clínica atualizada",
     legalName: "Clínica Ltda.",
-    taxId: "12.345.678/0001-90",
+    taxId: "11.222.333/0001-81",
     phone: "11999991234",
     email: "clinica@example.com",
     address: "Rua de teste, 123",
@@ -66,7 +66,7 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   await panel.getByRole("button", { name: "Adicionar etiqueta" }).click();
   await expect(panel.getByText("Etiqueta criada.")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Relacionamento", exact: true }).click();
+  await page.getByRole("tab", { name: "Contatos sugeridos", exact: true }).click();
   await panel.getByLabel("Saldo baixo: sessões restantes").fill("7");
   await panel
     .getByRole("button", { name: "Salvar prazos e mensagens" })
@@ -150,7 +150,7 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
     panel.getByText("Etiqueta atualizada", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("tab", { name: "Relacionamento", exact: true }).click();
+  await page.getByRole("tab", { name: "Contatos sugeridos", exact: true }).click();
   await expect(panel.getByLabel("Saldo baixo: sessões restantes")).toHaveValue(
     "7",
   );

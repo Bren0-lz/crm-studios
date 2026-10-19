@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { hasSession } from "../api";
 import { useAuthorization } from "../authorization-context";
 import { AgendaPage } from "../features/agenda/AgendaPage";
+import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
@@ -67,6 +68,10 @@ export function AppRoutes() {
                 <Route
                   path="/agenda"
                   element={allow("agenda", <AgendaPage />)}
+                />
+                <Route
+                  path="/agenda/a-finalizar"
+                  element={allow("agenda", <PendingFinalizationPage />)}
                 />
                 <Route
                   path="/turmas"

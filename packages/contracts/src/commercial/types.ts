@@ -3,12 +3,14 @@ import type { LeadStage, Patient } from "../patients/types.js";
 import {
   leadContactChannelSchema,
   leadContactInputSchema,
+  leadConversionInputSchema,
   leadInputSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
 } from "./model.js";
 
 export type LeadInput = z.infer<typeof leadInputSchema>;
+export type LeadConversionInput = z.infer<typeof leadConversionInputSchema>;
 
 export type LeadContactChannel = z.infer<typeof leadContactChannelSchema>;
 

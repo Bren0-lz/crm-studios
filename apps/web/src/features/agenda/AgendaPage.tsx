@@ -14,6 +14,10 @@ import type {
   Service,
 } from "@crm/contracts";
 import {
+  isAppointmentPendingFinalization,
+  pendingFinalizationLabel,
+} from "@crm/contracts";
+import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +25,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -47,13 +52,44 @@ import { DayEventsModal } from "./DayEventsModal";
 import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
+import { useToast } from "../../shared/feedback/toast-context";
+import {
+  type AgendaView,
+  appointmentStatusToast,
+  type DayLayout,
+  storeAgendaView,
+  storeDayLayout,
+  storedAgendaView,
+  storedDayLayout,
+  weekRangeLabel,
+} from "./model";
+import { DayScheduleGrid } from "./DayScheduleGrid";
 import { sortAgendaEntries } from "./model";
+import { appointmentStatusClass } from "./model";
+import { professionalColorStyle } from "../../tag-colors";
+import { AgendaStatusLegend } from "./AgendaStatusLegend";
+import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 export function AgendaPage() {
   const { can, canView, canEdit } = useAuthorization();
+  const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [view, setView] = useState<"day" | "week" | "month">("day");
+  const [view, setViewState] = useState<AgendaView>(storedAgendaView);
+  const [dayLayout, setDayLayoutState] = useState<DayLayout>(storedDayLayout);
+  function setDayLayout(next: DayLayout) {
+    setDayLayoutState(next);
+    storeDayLayout(next);
+  }
+  // Horário livre clicado na grade: abre o Novo atendimento já preenchido.
+  const [newSlot, setNewSlot] = useState<{
+    professionalId: string;
+    startsAt: string;
+  } | null>(null);
+  function setView(next: AgendaView) {
+    setViewState(next);
+    storeAgendaView(next);
+  }
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
@@ -69,11 +105,47 @@ export function AgendaPage() {
   const [patientRecords, setPatientRecords] = useState<Patient[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [blockModalOpen, setBlockModalOpen] = useState(false);
   const canSchedule = canEdit("agenda");
   // Bloqueios exigem editar Agenda E Clientes (mesma regra da API).
   const canBlock = can("agenda.blocks_create");
+  const canCreateAppointment = canSchedule && can("agenda.create");
+  // "Novo atendimento" do Dashboard chega como /agenda?novo=1. A página é remontada quando a
+  // busca muda (as rotas são chaveadas por pathname + search), então o pedido passa em duas
+  // etapas, sempre com replace: o parâmetro vira um estado de navegação, e esse estado abre o
+  // modal e é limpo em seguida. Assim recarregar ou voltar não reabre o modal.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const wantsNewAppointment =
+    new URLSearchParams(location.search).get("novo") === "1";
+  const newAppointmentRequested =
+    (location.state as { newAppointment?: boolean } | null)?.newAppointment ===
+    true;
+  const [modalOpen, setModalOpen] = useState(
+    () => newAppointmentRequested && canCreateAppointment,
+  );
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  useEffect(() => {
+    if (wantsNewAppointment) {
+      const params = new URLSearchParams(location.search);
+      params.delete("novo");
+      const search = params.toString();
+      navigate(
+        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        { replace: true, state: { newAppointment: true } },
+      );
+    } else if (newAppointmentRequested) {
+      navigate(
+        { pathname: location.pathname, search: location.search },
+        { replace: true, state: null },
+      );
+    }
+  }, [
+    wantsNewAppointment,
+    newAppointmentRequested,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
   const [absence, setAbsence] = useState<{
     appointment: Appointment;
     status: AppointmentStatus;
@@ -84,7 +156,37 @@ export function AgendaPage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<
     string | null
   >(null);
+  // Menu "⋯" do cartão (QM7): abre os detalhes já em Editar ou no Cancelar com motivo.
+  const [detailsMode, setDetailsMode] = useState<"view" | "edit" | "cancel">(
+    "view",
+  );
+  function openAppointment(id: string, mode: "view" | "edit" | "cancel") {
+    setDetailsMode(mode);
+    setSelectedAppointmentId(id);
+  }
+  function closeAppointment() {
+    setSelectedAppointmentId(null);
+    setDetailsMode("view");
+  }
   const [eventsDay, setEventsDay] = useState<Date | null>(null);
+  // Atendimentos recém-salvos ficam destacados por 2 s depois que aparecem na tela.
+  const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (highlightedIds.length === 0 || loading) return;
+    const timer = setTimeout(() => setHighlightedIds([]), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightedIds, loading]);
+  const highlightClass = (id: string) =>
+    highlightedIds.includes(id) ? " agenda-just-saved" : "";
+  // Cancelados não ocupam horário: ficam fora das contagens e, por padrão, da agenda.
+  const [showCancelled, setShowCancelled] = useState(false);
+  const visibleAppointments = showCancelled
+    ? appointments
+    : appointments.filter((item) => item.status !== "cancelled");
+  const dayEventCount =
+    appointments.filter((item) => item.status !== "cancelled").length +
+    groupSessions.length +
+    blocks.length;
   const selectedAppointment = appointments.find(
     (item) => item.id === selectedAppointmentId,
   );
@@ -215,6 +317,29 @@ export function AgendaPage() {
       return next;
     });
   }
+  // Período exibido (dia, semana ou mês) que contém a data, para saber se a busca muda.
+  function periodKey(day: Date) {
+    if (view === "month") return `${day.getFullYear()}-${day.getMonth()}`;
+    const start = new Date(day);
+    start.setHours(12, 0, 0, 0);
+    if (view === "week")
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    return localIsoDate(start);
+  }
+  /** Leva a agenda à data do (primeiro) atendimento salvo e o destaca. */
+  function showSaved(saved: Appointment[]) {
+    const first = [...saved].sort((a, b) =>
+      a.startsAt.localeCompare(b.startsAt),
+    )[0];
+    if (!first) return;
+    const target = new Date(first.startsAt);
+    if (periodKey(target) !== periodKey(selectedDate)) {
+      setLoading(true);
+      setError("");
+    }
+    setSelectedDate(target);
+    setHighlightedIds(saved.map((item) => item.id));
+  }
 
   return (
     <>
@@ -238,7 +363,10 @@ export function AgendaPage() {
               {canSchedule && can("agenda.create") && (
                 <button
                   className="primary-button"
-                  onClick={() => setModalOpen(true)}
+                  onClick={() => {
+                    setNewSlot(null);
+                    setModalOpen(true);
+                  }}
                 >
                   <Plus size={18} />
                   Novo atendimento
@@ -279,7 +407,9 @@ export function AgendaPage() {
                       month: "long",
                       year: "numeric",
                     })
-                  : dateLabel.format(selectedDate)}
+                  : view === "week"
+                    ? weekRangeLabel(weekStart, weekDays[6]!)
+                    : dateLabel.format(selectedDate)}
               </strong>
               <small>
                 {view === "month"
@@ -333,6 +463,31 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            {view === "day" && (
+              <div className="view-toggle" aria-label="Formato do dia">
+                <button
+                  className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
+                  onClick={() => setDayLayout("grid")}
+                >
+                  Grade
+                </button>
+                <button
+                  className={`tab-button ${dayLayout === "list" ? "active" : ""}`}
+                  onClick={() => setDayLayout("list")}
+                >
+                  Lista
+                </button>
+              </div>
+            )}
+            <label className="checkbox-field agenda-cancelled-toggle">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(event) => setShowCancelled(event.target.checked)}
+              />
+              Mostrar cancelados
+            </label>
+            <AgendaStatusLegend />
           </div>
         </div>
         {professionals.length > 0 && (
@@ -342,7 +497,8 @@ export function AgendaPage() {
               {professionals.map((professional) => (
                 <span key={professional.id}>
                   <i
-                    style={{ background: professional.color }}
+                    className="pro-dot"
+                    style={professionalColorStyle(professional.color)}
                     aria-hidden="true"
                   />
                   {professional.fullName.replace(/Dra?\. /, "")}
@@ -363,9 +519,12 @@ export function AgendaPage() {
             <div className="month-grid">
               {monthDays.map((day) => {
                 const dayKey = localIsoDate(day);
-                const dayAppointments = appointments.filter(
+                const dayAppointments = visibleAppointments.filter(
                   (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
                 );
+                const activeCount = dayAppointments.filter(
+                  (item) => item.status !== "cancelled",
+                ).length;
                 const dayBlocks = blocks.filter(
                   (item) =>
                     localIsoDate(new Date(item.startsAt)) === dayKey &&
@@ -393,15 +552,13 @@ export function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => setEventsDay(day)}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${dayAppointments.length} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
                     >
                       <strong>{day.getDate()}</strong>
-                      {dayAppointments.length > 0 && (
+                      {activeCount > 0 && (
                         <small>
-                          {dayAppointments.length}{" "}
-                          {dayAppointments.length === 1
-                            ? "atendimento"
-                            : "atendimentos"}
+                          {activeCount}{" "}
+                          {activeCount === 1 ? "atendimento" : "atendimentos"}
                         </small>
                       )}
                     </button>
@@ -418,21 +575,18 @@ export function AgendaPage() {
                         entry.kind === "appointment" ? (
                           <button
                             type="button"
-                            className="month-event"
+                            className={`month-event ${appointmentStatusClass(entry.appointment.status)}${highlightClass(entry.appointment.id)}`}
+                            style={professionalColorStyle(
+                              entry.appointment.professionalColor,
+                            )}
                             key={entry.appointment.id}
                             onClick={() =>
                               setSelectedAppointmentId(entry.appointment.id)
                             }
-                            aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}`}
+                            aria-label={`Detalhes de ${entry.appointment.patientName}, ${timeLabel.format(new Date(entry.appointment.startsAt))} a ${timeLabel.format(new Date(entry.appointment.endsAt))}${visitTypeBadgeText(entry.appointment) ? `, ${visitTypeBadgeText(entry.appointment)}` : ""}${isAppointmentPendingFinalization(entry.appointment) ? `, ${pendingFinalizationLabel.toLowerCase()}` : ""}`}
                           >
                             <span className="month-event-time">
-                              <i
-                                style={{
-                                  background:
-                                    entry.appointment.professionalColor,
-                                }}
-                                aria-hidden="true"
-                              />
+                              <i className="pro-dot" aria-hidden="true" />
                               <time>
                                 {timeLabel.format(
                                   new Date(entry.appointment.startsAt),
@@ -446,6 +600,10 @@ export function AgendaPage() {
                             <span className="month-event-name">
                               {entry.appointment.patientName}
                             </span>
+                            <PendingFinalizationBadge
+                              compact
+                              appointment={entry.appointment}
+                            />
                           </button>
                         ) : entry.kind === "group" ? (
                           <span
@@ -464,7 +622,7 @@ export function AgendaPage() {
                                 )}
                               </time>
                             </span>
-                            <span className="month-event-name">
+                            <span className="month-event-name group-name">
                               {entry.session.groupName}
                             </span>
                           </span>
@@ -473,7 +631,15 @@ export function AgendaPage() {
                       {dayEvents.length > 2 && (
                         <button
                           type="button"
-                          className="month-more"
+                          className={`month-more${dayEvents
+                            .slice(2)
+                            .some(
+                              (entry) =>
+                                entry.kind === "appointment" &&
+                                highlightedIds.includes(entry.appointment.id),
+                            )
+                            ? " agenda-just-saved"
+                            : ""}`}
                           onClick={() => setEventsDay(day)}
                         >
                           +{dayEvents.length - 2}{" "}
@@ -496,7 +662,7 @@ export function AgendaPage() {
           <div className="week-agenda">
             {weekDays.map((day) => {
               const dayKey = localIsoDate(day);
-              const dayAppointments = appointments.filter(
+              const dayAppointments = visibleAppointments.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               const dayBlocks = blocks.filter(
@@ -544,7 +710,10 @@ export function AgendaPage() {
                         />
                       ) : (
                         <article
-                          className="week-appointment"
+                          className={`week-appointment ${appointmentStatusClass(entry.appointment.status)}${highlightClass(entry.appointment.id)}`}
+                          style={professionalColorStyle(
+                            entry.appointment.professionalColor,
+                          )}
                           key={entry.appointment.id}
                           role="button"
                           tabIndex={0}
@@ -562,12 +731,7 @@ export function AgendaPage() {
                             }
                           }}
                         >
-                          <i
-                            style={{
-                              background: entry.appointment.professionalColor,
-                            }}
-                            aria-hidden="true"
-                          />
+                          <i className="pro-dot" aria-hidden="true" />
                           <time>
                             {timeLabel.format(
                               new Date(entry.appointment.startsAt),
@@ -580,6 +744,10 @@ export function AgendaPage() {
                           <strong>{entry.appointment.patientName}</strong>
                           <span>{entry.appointment.serviceName}</span>
                           <VisitTypeBadge appointment={entry.appointment} />
+                          <PendingFinalizationBadge
+                            compact
+                            appointment={entry.appointment}
+                          />
                         </article>
                       ),
                     )}
@@ -594,7 +762,30 @@ export function AgendaPage() {
               );
             })}
           </div>
-        ) : appointments.length === 0 &&
+        ) : dayLayout === "grid" && professionals.length > 0 ? (
+          <div className="day-agenda">
+            {selectedHoliday && (
+              <p className="holiday-notice">Feriado: {selectedHoliday}</p>
+            )}
+            <DayScheduleGrid
+              day={selectedDate}
+              professionals={professionals}
+              appointments={visibleAppointments}
+              groupSessions={groupSessions}
+              blocks={blocks}
+              onOpenAppointment={setSelectedAppointmentId}
+              highlightedIds={highlightedIds}
+              onCreate={
+                canSchedule && can("agenda.create") && !selectedHoliday
+                  ? (professionalId, startsAt) => {
+                      setNewSlot({ professionalId, startsAt });
+                      setModalOpen(true);
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        ) : visibleAppointments.length === 0 &&
           blocks.length === 0 &&
           groupSessions.length === 0 ? (
           selectedHoliday ? (
@@ -616,49 +807,62 @@ export function AgendaPage() {
             <header className="agenda-day-heading">
               <h2>Programação do dia</h2>
               <span>
-                {appointments.length + groupSessions.length + blocks.length}{" "}
-                {appointments.length + groupSessions.length + blocks.length ===
-                1
-                  ? "evento"
-                  : "eventos"}
+                {dayEventCount} {dayEventCount === 1 ? "evento" : "eventos"}
               </span>
             </header>
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
-            {sortAgendaEntries({ appointments, groupSessions, blocks }).map(
-              (entry) =>
-                entry.kind === "block" ? (
-                  <ScheduleBlockCard
-                    block={entry.block}
-                    key={entry.block.id}
-                    onCancel={
-                      can("agenda.blocks_cancel")
-                        ? () => setCancellingBlock(entry.block)
-                        : undefined
-                    }
-                  />
-                ) : entry.kind === "group" ? (
-                  <GroupSessionCard
-                    session={entry.session}
-                    key={entry.session.id}
-                  />
-                ) : (
-                  <AgendaCard
-                    appointment={entry.appointment}
-                    key={entry.appointment.id}
-                    onOpen={() =>
-                      setSelectedAppointmentId(entry.appointment.id)
-                    }
-                    onHistory={() => setHistoryAppointment(entry.appointment)}
-                    onStatus={
-                      can("agenda.attendance") || can("agenda.cancel")
-                        ? (status) =>
-                            changeAppointmentStatus(entry.appointment, status)
-                        : undefined
-                    }
-                  />
-                ),
+            {sortAgendaEntries({
+              appointments: visibleAppointments,
+              groupSessions,
+              blocks,
+            }).map((entry) =>
+              entry.kind === "block" ? (
+                <ScheduleBlockCard
+                  block={entry.block}
+                  key={entry.block.id}
+                  onCancel={
+                    can("agenda.blocks_cancel")
+                      ? () => setCancellingBlock(entry.block)
+                      : undefined
+                  }
+                />
+              ) : entry.kind === "group" ? (
+                <GroupSessionCard
+                  session={entry.session}
+                  key={entry.session.id}
+                />
+              ) : (
+                <AgendaCard
+                  appointment={entry.appointment}
+                  key={entry.appointment.id}
+                  highlighted={highlightedIds.includes(entry.appointment.id)}
+                  onOpen={() => openAppointment(entry.appointment.id, "view")}
+                  onHistory={() => setHistoryAppointment(entry.appointment)}
+                  onEdit={
+                    canSchedule
+                      ? () => openAppointment(entry.appointment.id, "edit")
+                      : undefined
+                  }
+                  onReschedule={
+                    canSchedule
+                      ? () => setRescheduling(entry.appointment)
+                      : undefined
+                  }
+                  onCancel={
+                    canSchedule
+                      ? () => openAppointment(entry.appointment.id, "cancel")
+                      : undefined
+                  }
+                  onStatus={
+                    can("agenda.attendance") || can("agenda.cancel")
+                      ? (status) =>
+                          changeAppointmentStatus(entry.appointment, status)
+                      : undefined
+                  }
+                />
+              ),
             )}
           </div>
         )}
@@ -680,8 +884,14 @@ export function AgendaPage() {
               patient,
             ]);
           }}
+          initialSlot={newSlot ?? undefined}
           onClose={() => setModalOpen(false)}
           onCreated={(appointment) => {
+            toast.success(
+              appointment.length > 1
+                ? `${appointment.length} atendimentos agendados.`
+                : "Atendimento agendado.",
+            );
             setAppointments((items) =>
               [
                 ...items,
@@ -690,6 +900,7 @@ export function AgendaPage() {
                 ),
               ].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
             );
+            showSaved(appointment);
             setModalOpen(false);
           }}
         />
@@ -701,6 +912,7 @@ export function AgendaPage() {
           rooms={rooms}
           onClose={() => setBlockModalOpen(false)}
           onCreated={(block) => {
+            toast.success("Bloqueio criado.");
             if (block.startsAt < rangeTo && block.endsAt > rangeFrom)
               setBlocks((items) =>
                 [...items, block].sort((a, b) =>
@@ -720,11 +932,12 @@ export function AgendaPage() {
             const updated = await api.updateAppointmentStatus(
               absence.appointment.id,
               absence.status,
-              reason,
+              reason || undefined,
             );
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
+            toast.success(appointmentStatusToast(updated.status));
             setAbsence(null);
           }}
         />
@@ -732,10 +945,14 @@ export function AgendaPage() {
       {rescheduling && (
         <AppointmentRescheduleModal
           appointment={rescheduling}
+          service={services.find(
+            (item) => item.id === rescheduling.serviceId,
+          )}
           professionals={professionals}
           rooms={rooms}
           onClose={() => setRescheduling(null)}
           onSaved={(updated) => {
+            toast.success("Atendimento remarcado.");
             setAppointments((items) =>
               items
                 .map((item) => (item.id === updated.id ? updated : item))
@@ -744,13 +961,16 @@ export function AgendaPage() {
                 )
                 .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
             );
-            setSelectedDate(new Date(updated.startsAt));
+            showSaved([updated]);
             setRescheduling(null);
           }}
         />
       )}
       {selectedAppointment && (
         <AppointmentDetailsModal
+          key={`${selectedAppointment.id}-${detailsMode}`}
+          initialEditing={detailsMode === "edit"}
+          initialCancelConfirmation={detailsMode === "cancel"}
           appointment={selectedAppointment}
           patient={patientRecords.find(
             (item) => item.id === selectedAppointment.patientId,
@@ -758,17 +978,31 @@ export function AgendaPage() {
           service={services.find(
             (item) => item.id === selectedAppointment.serviceId,
           )}
-          onClose={() => setSelectedAppointmentId(null)}
+          onClose={closeAppointment}
           editable={canSchedule}
           onReschedule={() => {
-            setSelectedAppointmentId(null);
+            closeAppointment();
             setRescheduling(selectedAppointment);
           }}
-          onCancelled={(updated) => {
+          onEdited={(updated) => {
+            toast.success("Atendimento atualizado.");
             setAppointments((items) =>
               items.map((item) => (item.id === updated.id ? updated : item)),
             );
-            setSelectedAppointmentId(null);
+            showSaved([updated]);
+          }}
+          onUpdated={(updated) => {
+            toast.success(appointmentStatusToast(updated.status));
+            setAppointments((items) =>
+              items.map((item) => (item.id === updated.id ? updated : item)),
+            );
+            // Realizado continua aberto (satisfação) e cancelado também (avisar o
+            // cliente por WhatsApp); os demais fecham.
+            if (
+              updated.status !== "completed" &&
+              updated.status !== "cancelled"
+            )
+              closeAppointment();
           }}
         />
       )}
@@ -776,7 +1010,7 @@ export function AgendaPage() {
         <DayEventsModal
           day={eventsDay}
           holidayName={holidayNames.get(localIsoDate(eventsDay))}
-          appointments={appointments.filter(
+          appointments={visibleAppointments.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
@@ -832,8 +1066,10 @@ export function AgendaPage() {
       setAppointments((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );
+      toast.success(appointmentStatusToast(updated.status));
     } catch (cause) {
       setError((cause as Error).message);
+      toast.error((cause as Error).message);
     }
   }
 
@@ -841,5 +1077,6 @@ export function AgendaPage() {
     const updated = await api.cancelScheduleBlock(block.id);
     setBlocks((items) => items.filter((item) => item.id !== updated.id));
     setCancellingBlock(null);
+    toast.success("Bloqueio cancelado.");
   }
 }

@@ -4,7 +4,9 @@ import {
   matchesLead,
   buildLeadInsights,
   leadContactInputSchema,
+  leadDuplicateQuerySchema,
   leadInputSchema,
+  leadConversionInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
@@ -30,6 +32,17 @@ export function registerCommercialRoutes(context: RouteContext) {
       ),
     );
   });
+
+  app.get(
+    "/leads/duplicates",
+    { preHandler: authenticate },
+    async (request) => ({
+      matches: await repository.findLeadDuplicates(
+        request.user.clinicId,
+        leadDuplicateQuerySchema.parse(request.query),
+      ),
+    }),
+  );
 
   app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
     reply
@@ -92,6 +105,7 @@ export function registerCommercialRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
+        leadConversionInputSchema.parse(request.body ?? {}),
       );
       if (!conversion)
         return reply.status(404).send({

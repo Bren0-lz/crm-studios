@@ -24,6 +24,7 @@ import {
   assertClinicalWritePermission,
   inspectClinicalAttachment,
 } from "../../modules/clinical/clinical-integrity.js";
+import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
@@ -86,6 +87,8 @@ export function createClinicalRepository(
           "Não é possível registrar evolução em um atendimento cancelado.",
         );
       }
+
+      assertAppointmentStarted(appointment.startsAt);
 
       const existing = repositoryContext.clinicalRecords.find(
         (record) => record.appointmentId === appointment.id,

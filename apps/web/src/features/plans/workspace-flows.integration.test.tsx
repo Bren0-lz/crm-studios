@@ -36,6 +36,7 @@ describe("integrated plan purchase", () => {
       body: "Contrato de {{paciente_nome}} com {{plano_servicos}}.",
     });
     const view = open(`/planos?patientId=${patient.id}`);
+    await screen.findByText("Nenhum plano cadastrado", { exact: true });
     fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
     const dialog = screen.getByRole("dialog", { name: "Novo plano" });
     await within(dialog).findByRole("option", {

@@ -47,7 +47,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const marker = `history-${randomUUID()}`;
     const ids = Array.from({ length: 235 }, () => randomUUID());
     const newerId = randomUUID();
-    const createdAt = "2099-10-07T12:00:00.123456Z";
+    const futureId = randomUUID();
+    // Recente (o histórico não lista datas futuras), com microssegundos para o empate.
+    const createdAt = new Date(Date.now() - 5_000)
+      .toISOString()
+      .replace("Z", "456Z");
     try {
       await pool.query(
         `INSERT INTO audit_events (id, clinic_id, actor_user_id, ip_address, action, entity_type, created_at)
@@ -62,8 +66,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ipAddress: "192.0.2.1",
       });
       await pool.query(
-        "INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at) VALUES ($1, $2, $3, 'clinic', '2100-01-01')",
-        [newerId, clinicId, marker],
+        "INSERT INTO audit_events (id, clinic_id, action, entity_type, created_at) VALUES ($1, $2, $3, 'clinic', now()), ($4, $2, $3, 'clinic', '2100-01-01')",
+        [newerId, clinicId, marker, futureId],
       );
       const found = first.items
         .filter((event) => event.action === marker)
@@ -79,9 +83,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       }
       expect(found).toEqual([...ids].sort().reverse());
       expect(new Set(found).size).toBe(235);
-      expect((await repository.listAdminAuditPage(clinicId)).items[0]!.id).toBe(
-        newerId,
-      );
+      const latest = await repository.listAdminAuditPage(clinicId);
+      expect(latest.items[0]!.id).toBe(newerId);
+      expect(latest.items.some((event) => event.id === futureId)).toBe(false);
       const otherClinic = randomUUID();
       expect(await repository.listAdminAuditPage(otherClinic)).toEqual({
         items: [],

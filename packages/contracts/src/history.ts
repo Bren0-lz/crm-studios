@@ -243,6 +243,11 @@ export const historyActions: {
     label: "Atendimento reagendado",
   },
   {
+    action: "appointment.updated",
+    module: "agenda",
+    label: "Atendimento alterado",
+  },
+  {
     action: "lead.stage_changed",
     module: "crm",
     label: "Lead movimentado no funil",
@@ -306,6 +311,11 @@ export const historyActions: {
     label: "Atendimento agendado",
   },
   { action: "plan.created", module: "plans", label: "Plano contratado" },
+  {
+    action: "plan.tab_credit",
+    module: "plans",
+    label: "Serviço avulso na comanda",
+  },
   {
     action: "lead.updated",
     module: "crm",

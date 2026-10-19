@@ -12,13 +12,16 @@ import type {
 import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { PatientPicker } from "../../PatientPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 
 import { dreGroupLabels } from "./dre-labels";
+import { HelpTip } from "../../shared/components/HelpTip";
+import { financeTermHelp } from "./model";
 export function FinanceClassificationPanel({
   workspace,
   onChanged,
@@ -52,6 +55,10 @@ export function FinanceClassificationPanel({
     [classification, setClassification] = useState<FinancialClassification>({
       competence: localIsoDate().slice(0, 7),
     });
+  const dirty = useFormDirty(
+    creating ? input : classification,
+    creating || Boolean(selected),
+  );
   async function act(action: () => Promise<unknown>, message: string) {
     setBusy(true);
     setError("");
@@ -219,6 +226,7 @@ export function FinanceClassificationPanel({
                   "Registre uma receita manual e sua competência."
                 }
                 busy={busy}
+                dirty={dirty}
                 onClose={() => {
                   setCreating(false);
                   setSelected(null);
@@ -297,7 +305,13 @@ export function FinanceClassificationPanel({
                       </>
                     )}
                     <label>
-                      Competência
+                      <span className="label-with-help">
+                        Competência
+                        <HelpTip
+                          term="Competência"
+                          text={financeTermHelp.competence}
+                        />
+                      </span>
                       <input
                         type="month"
                         required
@@ -355,7 +369,13 @@ export function FinanceClassificationPanel({
                       </select>
                     </label>
                     <label>
-                      Centro de custo
+                      <span className="label-with-help">
+                        Centro de custo
+                        <HelpTip
+                          term="Centro de custo"
+                          text={financeTermHelp.costCenter}
+                        />
+                      </span>
                       <select
                         required={kind === "payable"}
                         value={
@@ -385,17 +405,9 @@ export function FinanceClassificationPanel({
                     </label>
                   </fieldset>
                   <div className="modal-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => {
-                        setCreating(false);
-                        setSelected(null);
-                      }}
-                    >
+                    <ModalCancelButton disabled={busy}>
                       Cancelar
-                    </button>
+                    </ModalCancelButton>
                     <button className="primary-button" disabled={busy}>
                       Salvar lançamento
                     </button>

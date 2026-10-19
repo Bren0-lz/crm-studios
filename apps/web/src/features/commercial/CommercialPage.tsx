@@ -4,7 +4,12 @@ import {
   buildLeadInsights,
   type LeadFilter,
 } from "@crm/contracts";
-import { type Lead, type LeadStage, formatPhone } from "@crm/contracts";
+import {
+  type Lead,
+  type LeadConversionInput,
+  type LeadStage,
+  formatPhone,
+} from "@crm/contracts";
 import { CalendarDays, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -25,6 +30,7 @@ import { LeadAppointmentModal } from "./LeadAppointmentModal";
 import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
+import { useToast } from "../../shared/feedback/toast-context";
 
 export function CommercialPage() {
   const { can, canEdit } = useAuthorization();
@@ -53,6 +59,12 @@ export function CommercialPage() {
   const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   const [filter, setFilter] = useState<LeadFilter>({});
   const canManage = canEdit("crm");
+  const toast = useToast();
+  // Arrastar e soltar (desktop): o select de etapa continua no cartão para o celular.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overStage, setOverStage] = useState<LeadStage | null>(null);
+  const canDrag = canManage && can("crm.stage");
+  const draggingLead = leads.find((lead) => lead.id === draggingId);
   useEffect(() => {
     let active = true;
     api
@@ -83,18 +95,47 @@ export function CommercialPage() {
     setError("");
     try {
       replaceLead(await api.moveLead(lead.id, stage));
+      toast.success(
+        `Lead ${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
+      );
     } catch (cause) {
       setError((cause as Error).message);
+    }
+  }
+  async function drop(stage: LeadStage) {
+    const lead = draggingLead;
+    setDraggingId(null);
+    setOverStage(null);
+    if (!lead || lead.stage === stage) return;
+    // Etapas que pedem dados abrem o modal em vez de mover direto.
+    if (stage === "lost") {
+      setLosingLead(lead);
+      return;
+    }
+    if (stage === "won") {
+      if (can("crm.convert", "patients.create")) setConvertingLead(lead);
+      else toast.error("Você não tem permissão para converter leads.");
+      return;
+    }
+    try {
+      replaceLead(await api.moveLead(lead.id, stage));
+      toast.success(
+        `Lead ${lead.fullName} movido para ${leadStages.find((item) => item.value === stage)?.label ?? stage}.`,
+      );
+    } catch (cause) {
+      toast.error((cause as Error).message);
     }
   }
   async function markLost(lead: Lead, reason: string) {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
+    toast.success(`Lead ${lead.fullName} marcado como perdido.`);
   }
-  async function convert(lead: Lead) {
-    const result = await api.convertLead(lead.id);
+  async function convert(lead: Lead, input: LeadConversionInput) {
+    const result = await api.convertLead(lead.id, input);
     replaceLead(result.lead);
     setConvertingLead(null);
+    toast.success(`Lead ${lead.fullName} convertido em cliente.`);
   }
   const visibleLeads = leads.filter((lead) =>
     matchesLead(lead, filter, timezone),
@@ -103,7 +144,7 @@ export function CommercialPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Relacionamento"
+        eyebrow="Vendas"
         title="CRM comercial"
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={
@@ -180,7 +221,33 @@ export function CommercialPage() {
           ) : (
             <div className="kanban-board">
               {leadStages.map((stage) => (
-                <section className="kanban-column" key={stage.value}>
+                <section
+                  className={`kanban-column${overStage === stage.value ? " drag-over" : ""}`}
+                  key={stage.value}
+                  aria-label={stage.label}
+                  onDragOver={(event) => {
+                    if (!draggingLead || draggingLead.stage === stage.value)
+                      return;
+                    event.preventDefault();
+                    if (event.dataTransfer)
+                      event.dataTransfer.dropEffect = "move";
+                    if (overStage !== stage.value) setOverStage(stage.value);
+                  }}
+                  onDragLeave={(event) => {
+                    if (
+                      !event.currentTarget.contains(
+                        event.relatedTarget as Node | null,
+                      )
+                    )
+                      setOverStage((current) =>
+                        current === stage.value ? null : current,
+                      );
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void drop(stage.value);
+                  }}
+                >
                   <header>
                     <strong>{stage.label}</strong>
                     <span>
@@ -198,7 +265,23 @@ export function CommercialPage() {
                     {visibleLeads
                       .filter((lead) => lead.stage === stage.value)
                       .map((lead) => (
-                        <article className="lead-card" key={lead.id}>
+                        <article
+                          className={`lead-card${draggingId === lead.id ? " dragging" : ""}`}
+                          key={lead.id}
+                          draggable={
+                            canDrag && !["won", "lost"].includes(lead.stage)
+                          }
+                          onDragStart={(event) => {
+                            event.dataTransfer?.setData("text/plain", lead.id);
+                            if (event.dataTransfer)
+                              event.dataTransfer.effectAllowed = "move";
+                            setDraggingId(lead.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingId(null);
+                            setOverStage(null);
+                          }}
+                        >
                           <span className="lead-source">{lead.source}</span>
                           <h3>{lead.fullName}</h3>
                           <p>{lead.interest}</p>
@@ -306,6 +389,7 @@ export function CommercialPage() {
           lead={editingLead}
           onClose={() => setEditingLead(null)}
           onCreated={(lead) => {
+            toast.success(`Lead ${lead.fullName} atualizado.`);
             replaceLead(lead);
             setEditingLead(null);
           }}
@@ -315,6 +399,7 @@ export function CommercialPage() {
         <LeadModal
           onClose={() => setModalOpen(false)}
           onCreated={(lead) => {
+            toast.success(`Lead ${lead.fullName} cadastrado.`);
             replaceLead(lead);
             setModalOpen(false);
           }}
@@ -331,7 +416,7 @@ export function CommercialPage() {
         <LeadConvertModal
           lead={convertingLead}
           onClose={() => setConvertingLead(null)}
-          onConfirm={() => convert(convertingLead)}
+          onConfirm={(input) => convert(convertingLead, input)}
         />
       )}
       {trialLead && (

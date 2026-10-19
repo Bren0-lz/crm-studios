@@ -2,9 +2,10 @@ import type {
   AdministrativeRegistryInput,
   AdministrativeRegistryWorkspace,
 } from "@crm/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Modal } from "../../shared/components/Modal";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -14,8 +15,8 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 type Editor = { id?: string; input: AdministrativeRegistryInput };
 export function AdministrativeRegistrySection() {
   const { can } = useAuthorization();
-  const [opened, setOpened] = useState(false),
-    [kind, setKind] = useState<AdministrativeRegistryInput["kind"]>("service"),
+  const [kind, setKind] =
+      useState<AdministrativeRegistryInput["kind"]>("service"),
     [data, setData] = useState<AdministrativeRegistryWorkspace | null>(null),
     [error, setError] = useState(""),
     [editor, setEditor] = useState<Editor | null>(null);
@@ -27,6 +28,16 @@ export function AdministrativeRegistrySection() {
       setError((cause as Error).message);
     }
   }
+  useEffect(() => {
+    let active = true;
+    api
+      .administrativeRegistry()
+      .then((workspace) => active && setData(workspace))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, []);
   const entries =
     kind === "service"
       ? data?.services
@@ -68,97 +79,84 @@ export function AdministrativeRegistrySection() {
     });
   }
   return (
-    <section className="panel">
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open && !opened) {
-            setOpened(true);
-            void load();
-          }
-        }}
-      >
-        <summary className="panel-head">
-          Serviços, salas e profissionais
-        </summary>
-        {opened && (
-          <div className="inventory-body">
-            {error && <ErrorBanner error={error} />}
-            <div className="form-grid">
-              <label>
-                Cadastro
-                <select
-                  value={kind}
-                  onChange={(event) =>
-                    setKind(event.target.value as typeof kind)
-                  }
-                >
-                  <option value="service">Serviços</option>
-                  <option value="room">Salas</option>
-                  <option value="professional">Profissionais</option>
-                </select>
-              </label>
-              {can(createPermission) && (
-                <button className="primary-button" onClick={create}>
-                  Novo cadastro
-                </button>
-              )}
-            </div>
-            {!data ? (
-              !error && <LoadingBlock />
-            ) : !entries?.length ? (
-              <EmptyState
-                title="Nenhum cadastro"
-                copy="Cadastre os recursos utilizados na agenda."
-              />
-            ) : (
-              entries.map((item) => (
-                <div className="table-row" key={item.id}>
-                  <strong>
-                    {"fullName" in item ? item.fullName : item.name}
-                  </strong>
-                  <span>{item.active ? "Ativo" : "Inativo"}</span>
-                  {can("settings.registry_manage") && (
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        setEditor({
-                          id: item.id,
-                          input: {
-                            kind,
-                            data: item,
-                          } as AdministrativeRegistryInput,
-                        })
-                      }
-                    >
-                      Editar cadastro
-                    </button>
-                  )}
-                </div>
-              ))
+    <div className="settings-panel-body registry-settings">
+      {error && <ErrorBanner error={error} />}
+      <div className="form-grid">
+        <label>
+          Cadastro
+          <select
+            value={kind}
+            onChange={(event) => setKind(event.target.value as typeof kind)}
+          >
+            <option value="service">Serviços</option>
+            <option value="room">Salas</option>
+            <option value="professional">Profissionais</option>
+          </select>
+        </label>
+        {can(createPermission) && (
+          <button className="primary-button" onClick={create}>
+            Novo cadastro
+          </button>
+        )}
+      </div>
+      {!data ? (
+        !error && <LoadingBlock />
+      ) : !entries?.length ? (
+        <EmptyState
+          title="Nenhum cadastro"
+          copy="Cadastre os recursos utilizados na agenda."
+        />
+      ) : (
+        entries.map((item) => (
+          <div className="table-row" key={item.id}>
+            <strong>{"fullName" in item ? item.fullName : item.name}</strong>
+            <span>{item.active ? "Ativo" : "Inativo"}</span>
+            {can("settings.registry_manage") && (
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  setEditor({
+                    id: item.id,
+                    input: {
+                      kind,
+                      data: item,
+                    } as AdministrativeRegistryInput,
+                  })
+                }
+              >
+                Editar cadastro
+              </button>
             )}
           </div>
-        )}
-      </details>
+        ))
+      )}
       {editor && (
         <RegistryEditor
           key={editor.id ?? editor.input.kind}
           editor={editor}
+          professionals={data?.professionals ?? []}
+          rooms={data?.rooms ?? []}
           onClose={() => setEditor(null)}
           onSaved={load}
         />
       )}
-    </section>
+    </div>
   );
 }
 function RegistryEditor({
   editor,
+  professionals,
+  rooms,
   onClose,
   onSaved,
 }: {
   editor: Editor;
+  professionals: AdministrativeRegistryWorkspace["professionals"];
+  rooms: AdministrativeRegistryWorkspace["rooms"];
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState(editor.input),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -179,6 +177,7 @@ function RegistryEditor({
         await api.createProfessional(form.data);
       else if (form.kind === "room") await api.createRoom(form.data);
       else await api.createService(form.data);
+      toast.success(editor.id ? "Cadastro atualizado." : "Cadastro criado.");
       await onSaved();
       onClose();
     } finally {
@@ -299,6 +298,37 @@ function RegistryEditor({
                   value={form.data.priceInCents}
                   onChange={(value) => patch({ priceInCents: value })}
                 />
+                <ResourceChecklist
+                  legend="Profissionais que atendem"
+                  items={professionals
+                    .filter((item) => item.active)
+                    .map((item) => ({ id: item.id, name: item.fullName }))}
+                  value={form.data.professionalIds ?? []}
+                  onChange={(professionalIds) =>
+                    setForm((current) =>
+                      current.kind === "service"
+                        ? {
+                            ...current,
+                            data: { ...current.data, professionalIds },
+                          }
+                        : current,
+                    )
+                  }
+                />
+                <ResourceChecklist
+                  legend="Salas onde é atendido"
+                  items={rooms
+                    .filter((item) => item.active)
+                    .map((item) => ({ id: item.id, name: item.name }))}
+                  value={form.data.roomIds ?? []}
+                  onChange={(roomIds) =>
+                    setForm((current) =>
+                      current.kind === "service"
+                        ? { ...current, data: { ...current.data, roomIds } }
+                        : current,
+                    )
+                  }
+                />
               </>
             )}
             {form.kind !== "room" && (
@@ -339,5 +369,43 @@ function RegistryEditor({
       </Modal>
       {prompt.modal}
     </>
+  );
+}
+
+/** Lista de marcação de profissionais ou salas; nenhum marcado = todos. */
+function ResourceChecklist({
+  legend,
+  items,
+  value,
+  onChange,
+}: {
+  legend: string;
+  items: { id: string; name: string }[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  return (
+    <fieldset className="resource-checklist span-2">
+      <legend>{legend}</legend>
+      <small>Nenhum marcado: todos podem ser usados no agendamento.</small>
+      <div>
+        {items.map((item) => (
+          <label className="checkbox-field" key={item.id}>
+            <input
+              type="checkbox"
+              checked={value.includes(item.id)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...value, item.id]
+                    : value.filter((id) => id !== item.id),
+                )
+              }
+            />
+            {item.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

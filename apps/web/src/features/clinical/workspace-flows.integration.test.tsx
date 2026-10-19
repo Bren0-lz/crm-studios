@@ -97,9 +97,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       }),
     );
     open(`/clientes/${patient.id}`);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Prontuário e avaliações" }),
-    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
     await screen.findByText("Modelos, evoluções e treinos", { exact: true });
     const panel = expand("Modelos, evoluções e treinos");
     fireEvent.click(
@@ -109,11 +107,21 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     change("Nome", "Evolução por questionário", dialog);
     change("Atendimento", appointment.id, dialog);
     change("Modelo", template.id, dialog);
+    // Resposta obrigatória do modelo em branco: Salvar desativado com o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar" }),
+    ).toHaveAccessibleDescription("Falta: Resposta curta.");
+    // A API continua recusando o envio direto do formulário.
     fireEvent.submit(
       within(dialog).getByRole("button", { name: "Salvar" }).closest("form")!,
     );
     await within(dialog).findByText(/Preencha Resposta curta/);
     change("Resposta curta", "Mobilidade funcional", dialog);
+    expect(within(dialog).getByRole("button", { name: "Salvar" })).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     change(
       "Resposta longa",
       "Cliente apresentou evolução clínica positiva",
@@ -206,9 +214,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     });
     const downloads = captureDownloads();
     open(`/clientes/${patient.id}`);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Prontuário e avaliações" }),
-    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Marcar alcançado" }),
     );
@@ -218,11 +224,22 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       await screen.findByRole("menuitem", { name: "Anexar arquivo" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo anexo clínico" });
+    // Sem arquivo, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toHaveAccessibleDescription("Falta: Arquivo ou gravação de áudio.");
     fireEvent.change(within(dialog).getByLabelText("Arquivo"), {
       target: {
         files: [new File(["texto"], "arquivo.txt", { type: "text/plain" })],
       },
     });
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.submit(
       within(dialog)
         .getByRole("button", { name: "Anexar arquivo" })
@@ -319,9 +336,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
         }),
       );
       open(`/clientes/${patient.id}`);
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Prontuário e avaliações" }),
-      );
+      fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
       await screen.findByText("Modelos, evoluções e treinos", { exact: true });
       const panel = expand("Modelos, evoluções e treinos");
       await within(panel).findByRole("button", { name: "Novo registro" });

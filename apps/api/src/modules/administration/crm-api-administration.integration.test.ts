@@ -740,4 +740,45 @@ describe("CRM API", () => {
       await app.close();
     });
   });
+
+  it("validates the clinic CPF/CNPJ check digits and stores it formatted", async () => {
+    const { app, token } = await authenticatedApp();
+    const owner = { authorization: `Bearer ${token}` };
+    const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
+    const invalid = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: { ...base, taxId: "12.345.678/0001-90" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({
+      code: "INVALID_TAX_ID",
+      message:
+        "Informe um CPF ou CNPJ válido, com os dígitos verificadores corretos.",
+    });
+    const cnpj = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: { ...base, taxId: "11222333000181" },
+    });
+    expect(cnpj.statusCode).toBe(200);
+    expect(cnpj.json()).toMatchObject({ taxId: "11.222.333/0001-81" });
+    const cpf = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: { ...base, taxId: "529.982.247-25" },
+    });
+    expect(cpf.json()).toMatchObject({ taxId: "529.982.247-25" });
+    const empty = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: { ...base, taxId: "" },
+    });
+    expect(empty.statusCode).toBe(200);
+    await app.close();
+  });
 });
