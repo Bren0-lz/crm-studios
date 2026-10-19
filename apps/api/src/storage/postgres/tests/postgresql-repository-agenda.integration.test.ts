@@ -255,6 +255,83 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).toBeNull();
   });
 
+  it("edits service, room and note of a scheduled appointment with audit (QM6)", async () => {
+    const [patients, professionals, rooms, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const marker = `PG edição QM6 ${Date.now()}`;
+    const [first, second] = services.filter(
+      (item) => !item.professionalIds?.length && !item.roomIds?.length,
+    );
+    const free = rooms.find((item) => item.id !== rooms[0]!.id)!;
+    const created: string[] = [];
+    try {
+      const appointment = await repository.createAppointment(clinicId, {
+        patientId: patients[0]!.id,
+        professionalId: professionals[0]!.id,
+        roomId: rooms[0]!.id,
+        serviceId: first!.id,
+        startsAt: "2097-03-04T13:07:00.000Z",
+        notes: marker,
+        visitType: "regular",
+      });
+      created.push(appointment.id);
+      const updated = await repository.updateAppointment(
+        clinicId,
+        ownerId,
+        appointment.id,
+        { serviceId: second!.id, roomId: free.id, notes: "" },
+      );
+      expect(updated).toMatchObject({
+        serviceId: second!.id,
+        roomId: free.id,
+        professionalId: professionals[0]!.id,
+        startsAt: appointment.startsAt,
+        endsAt: new Date(
+          Date.parse(appointment.startsAt) + second!.durationMinutes * 60_000,
+        ).toISOString(),
+      });
+      expect(updated?.notes).toBeUndefined();
+      const audit = await pool.query(
+        "SELECT module FROM audit_events WHERE clinic_id = $1 AND action = 'appointment.updated' AND entity_id = $2",
+        [clinicId, appointment.id],
+      );
+      expect(audit.rows).toEqual([{ module: "agenda" }]);
+      expect(
+        await repository.updateAppointment(
+          clinicId,
+          ownerId,
+          "00000000-0000-4000-8000-000000000000",
+          { serviceId: second!.id, roomId: free.id },
+        ),
+      ).toBeNull();
+      await repository.updateAppointmentStatus(
+        clinicId,
+        appointment.id,
+        "cancelled",
+        "Cliente desmarcou",
+      );
+      await expect(
+        repository.updateAppointment(clinicId, ownerId, appointment.id, {
+          serviceId: first!.id,
+          roomId: free.id,
+        }),
+      ).rejects.toMatchObject({ code: "APPOINTMENT_UPDATE_FORBIDDEN" });
+    } finally {
+      await pool.query(
+        "DELETE FROM audit_events WHERE clinic_id = $1 AND entity_id = ANY($2::uuid[])",
+        [clinicId, created],
+      );
+      await pool.query(
+        "DELETE FROM appointments WHERE clinic_id = $1 AND id = ANY($2::uuid[])",
+        [clinicId, created],
+      );
+    }
+  });
+
   it("loads the group workspace with each class's professional", async () => {
     const workspace = await repository.getGroupWorkspace(
       clinicId,

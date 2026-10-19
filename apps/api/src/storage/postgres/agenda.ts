@@ -4,6 +4,7 @@ import {
   type AppointmentRescheduleEvent,
   type AppointmentRescheduleInput,
   type AppointmentStatus,
+  type AppointmentUpdateInput,
   type GroupAttendanceInput,
   type GroupClassInput,
   groupClassName,
@@ -377,6 +378,181 @@ export function createAgendaRepository(
         [clinicId, appointmentId],
       );
       return result.rows[0]?.serviceId ?? null;
+    },
+
+    async findAppointment(clinicId: string, appointmentId: string) {
+      return repositoryContext.findAppointment(clinicId, appointmentId);
+    },
+
+    async updateAppointment(
+      clinicId: string,
+      actorUserId: string,
+      appointmentId: string,
+      input: AppointmentUpdateInput,
+    ) {
+      try {
+        return await repositoryContext.inTransaction(async (client) => {
+          await client.query(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+            [clinicId],
+          );
+          const current = await client.query<{
+            status: AppointmentStatus;
+            startsAt: Date;
+            professionalId: string;
+            roomId: string;
+            serviceId: string;
+            notes: string | null;
+          }>(
+            `SELECT status, starts_at AS "startsAt",
+                    professional_id AS "professionalId", room_id AS "roomId",
+                    service_id AS "serviceId", notes
+             FROM appointments WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+            [clinicId, appointmentId],
+          );
+          const previous = current.rows[0];
+          if (!previous) return null;
+          if (!["scheduled", "confirmed"].includes(previous.status))
+            throw new DomainError(
+              "APPOINTMENT_UPDATE_FORBIDDEN",
+              "Somente atendimentos agendados ou confirmados podem ser editados.",
+              409,
+            );
+          const related = await client.query<{ durationMinutes: number }>(
+            `SELECT s.duration_minutes AS "durationMinutes"
+             FROM services s, rooms r
+             WHERE s.clinic_id = $1 AND s.id = $2 AND (s.active OR s.id = $4)
+               AND r.clinic_id = $1 AND r.id = $3 AND r.active`,
+            [clinicId, input.serviceId, input.roomId, previous.serviceId],
+          );
+          if (!related.rows[0])
+            throw new DomainError(
+              "RELATED_RECORD_NOT_FOUND",
+              "Sala ou serviço não encontrado.",
+              404,
+            );
+          const serviceChanged = input.serviceId !== previous.serviceId;
+          if (serviceChanged) {
+            // Crédito da comanda/plano de origem é do serviço original.
+            const linked = await client.query(
+              `SELECT 1 FROM patient_tab_services
+               WHERE clinic_id = $1 AND appointment_id = $2
+               UNION ALL
+               SELECT 1 FROM patient_plans
+               WHERE clinic_id = $1 AND source_appointment_id = $2
+               LIMIT 1`,
+              [clinicId, appointmentId],
+            );
+            if (linked.rowCount)
+              throw new DomainError(
+                "APPOINTMENT_SERVICE_LOCKED",
+                "Este atendimento está vinculado a uma comanda ou plano: o serviço não pode ser alterado.",
+                409,
+              );
+          }
+          const notes = input.notes ?? "";
+          if (
+            !serviceChanged &&
+            input.roomId === previous.roomId &&
+            (previous.notes ?? "") === notes
+          )
+            return repositoryContext.findAppointment(
+              clinicId,
+              appointmentId,
+              client,
+            );
+          const startsAt = new Date(previous.startsAt);
+          const endsAt = new Date(
+            startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
+          );
+          if (
+            await hasGroupSessionConflict(
+              client,
+              clinicId,
+              previous.professionalId,
+              input.roomId,
+              startsAt,
+              endsAt,
+            )
+          )
+            throw new DomainError(
+              "APPOINTMENT_CONFLICT",
+              "O profissional ou a sala está ocupado por uma turma nesse horário.",
+              409,
+            );
+          const names = await client.query<{
+            previousServiceName: string;
+            previousRoomName: string;
+            serviceName: string;
+            roomName: string;
+          }>(
+            `SELECT ps.name AS "previousServiceName", pr.name AS "previousRoomName",
+                    s.name AS "serviceName", r.name AS "roomName"
+             FROM services ps, rooms pr, services s, rooms r
+             WHERE ps.clinic_id = $1 AND ps.id = $2 AND pr.clinic_id = $1 AND pr.id = $3
+               AND s.clinic_id = $1 AND s.id = $4 AND r.clinic_id = $1 AND r.id = $5`,
+            [
+              clinicId,
+              previous.serviceId,
+              previous.roomId,
+              input.serviceId,
+              input.roomId,
+            ],
+          );
+          await client.query(
+            `UPDATE appointments
+             SET service_id = $3, room_id = $4, notes = $5, ends_at = $6,
+                 updated_at = now()
+             WHERE clinic_id = $1 AND id = $2`,
+            [
+              clinicId,
+              appointmentId,
+              input.serviceId,
+              input.roomId,
+              notes || null,
+              endsAt,
+            ],
+          );
+          const name = names.rows[0];
+          await repositoryContext.addAdminAudit(
+            client,
+            clinicId,
+            actorUserId,
+            "appointment.updated",
+            "appointment",
+            appointmentId,
+            {
+              previous: {
+                serviceId: previous.serviceId,
+                serviceName: name?.previousServiceName,
+                roomId: previous.roomId,
+                roomName: name?.previousRoomName,
+                notes: previous.notes ?? "",
+              },
+              current: {
+                serviceId: input.serviceId,
+                serviceName: name?.serviceName,
+                roomId: input.roomId,
+                roomName: name?.roomName,
+                notes,
+              },
+            },
+          );
+          return repositoryContext.findAppointment(
+            clinicId,
+            appointmentId,
+            client,
+          );
+        });
+      } catch (error) {
+        if (hasDatabaseCode(error, "23P01") || hasDatabaseCode(error, "40P01"))
+          throw new DomainError(
+            "APPOINTMENT_CONFLICT",
+            "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+            409,
+          );
+        throw error;
+      }
     },
 
     async listAppointmentReschedules(clinicId: string, appointmentId: string) {

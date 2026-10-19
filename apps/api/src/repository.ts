@@ -50,6 +50,7 @@ import type {
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
+  AppointmentUpdateInput,
   AssessmentTemplate,
   AssessmentTemplateInput,
   AuditHistoryFilters,
@@ -633,6 +634,22 @@ export interface ClinicRepository {
     clinicId: string,
     appointmentId: string,
   ): Promise<string | null>;
+  /** Atendimento da clínica pelo id; `null` = não encontrado. */
+  findAppointment(
+    clinicId: string,
+    appointmentId: string,
+  ): Promise<Appointment | null>;
+  /**
+   * Altera serviço, sala e observação de um atendimento agendado/confirmado (QM6), com a
+   * mesma checagem de conflito da criação e auditoria `appointment.updated`; `null` = não
+   * encontrado.
+   */
+  updateAppointment(
+    clinicId: string,
+    actorUserId: string,
+    appointmentId: string,
+    input: AppointmentUpdateInput,
+  ): Promise<Appointment | null>;
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,

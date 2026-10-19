@@ -112,6 +112,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /appointments/recurring": operation("agenda.recurring"),
   "POST /appointments/:id/successor": operation("agenda.reschedule"),
   "PUT /appointments/:id/schedule": operation("agenda.reschedule"),
+  "PATCH /appointments/:id": operation("agenda.reschedule"),
   "PATCH /appointments/:id/status": {
     anyOf: operation("agenda.attendance", "agenda.cancel"),
   },

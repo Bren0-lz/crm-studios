@@ -2,6 +2,7 @@ import {
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
+  appointmentUpdateInputSchema,
   holidayInputSchema,
   isAppointmentStarted,
   leadAppointmentInputSchema,
@@ -265,6 +266,43 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "APPOINTMENT_NOT_FOUND",
           message: "Atendimento não encontrado.",
         });
+      return appointment;
+    },
+  );
+
+  // Editar (QM6): serviço, sala e observação; data, horário e profissional são da remarcação.
+  app.patch(
+    "/appointments/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const input = appointmentUpdateInputSchema.parse(request.body);
+      const current = z.uuid().safeParse(id).success
+        ? await repository.findAppointment(request.user.clinicId, id)
+        : null;
+      if (!current)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        } satisfies ApiError);
+      await assertServiceAvailable(request.user.clinicId, [
+        {
+          serviceId: input.serviceId,
+          professionalId: current.professionalId,
+          roomId: input.roomId,
+        },
+      ]);
+      const appointment = await repository.updateAppointment(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        input,
+      );
+      if (!appointment)
+        return reply.status(404).send({
+          code: "APPOINTMENT_NOT_FOUND",
+          message: "Atendimento não encontrado.",
+        } satisfies ApiError);
       return appointment;
     },
   );

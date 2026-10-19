@@ -3,6 +3,7 @@ import {
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusSchema,
+  appointmentUpdateInputSchema,
   appointmentVisitTypeSchema,
   groupAttendanceInputSchema,
   groupClassInputSchema,
@@ -24,6 +25,10 @@ export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
 
 export type AppointmentRescheduleInput = z.infer<
   typeof appointmentRescheduleInputSchema
+>;
+
+export type AppointmentUpdateInput = z.infer<
+  typeof appointmentUpdateInputSchema
 >;
 
 export type RecurringAppointmentInput = z.infer<

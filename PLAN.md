@@ -1477,7 +1477,7 @@ Gate completo em todos, na ordem da tabela.
 | QM3 | Serviço↔profissional↔sala (U10): vínculos no demo e conferir filtro; `*` em Cliente quando obrigatório | DONE |
 | QM4 | Seletor de data fecha ao escolher, nunca cortado, dias passados com estilo próprio | DONE |
 | QM5 | Comanda sem layout pulando; destrutivo à esquerda e separado; confirmar "Cancelar comanda" | DONE |
-| QM6 | Detalhes do atendimento: rodapé fixo com ações e "Editar" (serviço, sala, observação) | TODO |
+| QM6 | Detalhes do atendimento: rodapé fixo com ações e "Editar" (serviço, sala, observação) | DONE |
 | QM7 | "⋯" vira menu (Editar, Remarcar, Histórico, Cancelar) | TODO |
 | QM8 | Turmas: turma no topo, sessões próximas/anteriores (4+4) colapsáveis, "Marcar todos presentes", "8 matriculados · 4 vagas livres" | TODO |
 | QM9 | Estoque/produtos em aba "Estoque" do Financeiro; ficha mantém só "Comandas" | TODO |

@@ -31,6 +31,7 @@ import {
   emergencyContactLabel,
 } from "../../shared/lib/formatting";
 import { addDaysToIsoDate } from "../relationship/index";
+import { AppointmentEditModal } from "./AppointmentEditModal";
 import { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
 
 const cancellationReasons = [
@@ -55,6 +56,7 @@ export function AppointmentDetailsModal({
   onClose,
   onReschedule,
   onUpdated,
+  onEdited,
   editable,
   initialCancelConfirmation = false,
 }: {
@@ -65,6 +67,8 @@ export function AppointmentDetailsModal({
   onReschedule: () => void;
   /** Recebe o atendimento com o novo status (cancelado, confirmado, realizado ou falta). */
   onUpdated: (appointment: Appointment) => void;
+  /** Serviço, sala ou observação alterados em "Editar" (QM6). */
+  onEdited: (appointment: Appointment) => void;
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
   initialCancelConfirmation?: boolean;
@@ -98,6 +102,38 @@ export function AppointmentDetailsModal({
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
   const [rating, setRating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  // Ações do rodapé: com uma confirmação aberta (cancelar/falta), só ela aparece.
+  const idle = editable && !confirmCancel && !confirmNoShow;
+  const canCancel = idle && canChange && can("agenda.cancel");
+  const canEditDetails = idle && canChange && can("agenda.reschedule");
+  const canRescheduleScheduled = canEditDetails;
+  const canRescheduleAbsence =
+    editable &&
+    can("agenda.reschedule") &&
+    ["no_show", "excused_absence", "professional_absence"].includes(
+      appointment.status,
+    );
+  const canAttend = idle && canChange && can("agenda.attendance");
+  const canRate =
+    editable &&
+    isCompleted &&
+    surveyChecked &&
+    !survey &&
+    !alreadyRated &&
+    can("agenda.satisfaction_create");
+  const hasActions =
+    canCancel ||
+    canEditDetails ||
+    canRescheduleAbsence ||
+    canAttend ||
+    canRate;
+  const hasFooter =
+    hasActions ||
+    Boolean(error) ||
+    confirmCancel ||
+    confirmNoShow ||
+    (appointment.status === "cancelled" && Boolean(contactPhone));
   useEffect(() => {
     if (!isCompleted) return;
     let active = true;
@@ -170,6 +206,18 @@ export function AppointmentDetailsModal({
     } finally {
       setCancelling(false);
     }
+  }
+  if (editing) {
+    return (
+      <AppointmentEditModal
+        appointment={appointment}
+        onClose={() => setEditing(false)}
+        onSaved={(updated) => {
+          setEditing(false);
+          onEdited(updated);
+        }}
+      />
+    );
   }
   if (rating) {
     return (
@@ -385,173 +433,6 @@ export function AppointmentDetailsModal({
             )}
           </section>
         )}
-        {error && <div className="form-error">{error}</div>}
-        {appointment.status === "cancelled" && contactPhone && (
-          <div className="appointment-cancel-notify">
-            <span>Atendimento cancelado. Quer avisar o cliente?</span>
-            <a
-              className="whatsapp-button button-sm"
-              href={whatsappLink(
-                contactPhone,
-                cancellationMessage(appointment),
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <MessageCircle size={15} aria-hidden="true" />
-              Avisar cliente por WhatsApp
-            </a>
-          </div>
-        )}
-        {confirmCancel && (
-          <div className="appointment-cancel-confirm">
-            <strong>Cancelar este atendimento?</strong>
-            <span>O horário será liberado na agenda.</span>
-            <label className="appointment-no-show-reason">
-              Motivo do cancelamento
-              <select
-                required
-                value={cancelReason}
-                disabled={cancelling}
-                onChange={(event) => setCancelReason(event.target.value)}
-              >
-                <option value="">Selecione</option>
-                {cancellationReasons.map((reason) => (
-                  <option key={reason}>{reason}</option>
-                ))}
-              </select>
-            </label>
-            <label className="appointment-no-show-reason">
-              Detalhes (opcional)
-              <textarea
-                rows={2}
-                maxLength={400}
-                value={cancelDetails}
-                disabled={cancelling}
-                onChange={(event) => setCancelDetails(event.target.value)}
-              />
-            </label>
-            <div>
-              <button
-                className="secondary-button"
-                onClick={() => setConfirmCancel(false)}
-                disabled={cancelling}
-              >
-                Voltar
-              </button>
-              {can("agenda.cancel") && (
-                <button
-                  className="danger-button"
-                  onClick={() => void cancelAppointment()}
-                  disabled={cancelling || !cancelReason}
-                >
-                  {cancelling ? "Cancelando…" : "Confirmar cancelamento"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        {editable &&
-          can("agenda.reschedule") &&
-          ["no_show", "excused_absence", "professional_absence"].includes(
-            appointment.status,
-          ) && (
-            <button className="primary-button" onClick={onReschedule}>
-              Remarcar ausência
-            </button>
-          )}
-        {confirmNoShow && (
-          <div className="appointment-cancel-confirm">
-            <strong>Registrar falta?</strong>
-            <span>A falta não consome sessão do plano.</span>
-            <label className="appointment-no-show-reason">
-              Motivo (opcional)
-              <textarea
-                rows={2}
-                maxLength={500}
-                value={noShowReason}
-                disabled={savingStatus}
-                onChange={(event) => setNoShowReason(event.target.value)}
-              />
-            </label>
-            <div>
-              <button
-                className="secondary-button"
-                onClick={() => setConfirmNoShow(false)}
-                disabled={savingStatus}
-              >
-                Voltar
-              </button>
-              <button
-                className="primary-button"
-                onClick={() => void changeStatus("no_show")}
-                disabled={savingStatus || noShowReason.trim().length === 1}
-              >
-                {savingStatus ? "Registrando…" : "Registrar falta"}
-              </button>
-            </div>
-          </div>
-        )}
-        {editable &&
-          !confirmCancel &&
-          !confirmNoShow &&
-          canChange &&
-          can("agenda.attendance") && (
-            <div className="appointment-detail-actions">
-              {appointment.status === "scheduled" && (
-                <button
-                  className="secondary-button"
-                  onClick={() => void changeStatus("confirmed")}
-                  disabled={savingStatus}
-                >
-                  Confirmar presença
-                </button>
-              )}
-              <button
-                className="secondary-button"
-                onClick={() => setConfirmNoShow(true)}
-                disabled={savingStatus || !started}
-                title={availability}
-                aria-describedby={started ? undefined : availabilityHintId}
-              >
-                Marcar falta
-              </button>
-              <button
-                className="primary-button"
-                onClick={() => void changeStatus("completed")}
-                disabled={savingStatus || !started}
-                title={availability}
-                aria-describedby={started ? undefined : availabilityHintId}
-              >
-                Marcar como realizado
-              </button>
-              {availability && (
-                <p
-                  className="field-hint appointment-detail-hint"
-                  id={availabilityHintId}
-                >
-                  {availability}
-                </p>
-              )}
-            </div>
-          )}
-        {editable && !confirmCancel && !confirmNoShow && canChange && (
-          <div className="appointment-detail-actions">
-            {can("agenda.cancel") && (
-              <button
-                className="danger-button"
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancelar atendimento
-              </button>
-            )}
-            {can("agenda.reschedule") && (
-              <button className="primary-button" onClick={onReschedule}>
-                Remarcar atendimento
-              </button>
-            )}
-          </div>
-        )}
         {isCompleted && survey && (
           <p className="appointment-satisfaction">
             Satisfação registrada: nota {survey.score}
@@ -562,22 +443,200 @@ export function AppointmentDetailsModal({
             Este atendimento já tem pesquisa de satisfação registrada.
           </p>
         )}
-        {editable &&
-          isCompleted &&
-          surveyChecked &&
-          !survey &&
-          !alreadyRated && (
-            <div className="appointment-detail-actions">
-              {can("agenda.satisfaction_create") && (
-                <button
-                  className="primary-button"
-                  onClick={() => setRating(true)}
+        {hasFooter && (
+          // Rodapé fixo (QM6): ações sempre visíveis sem rolar; o destrutivo fica à esquerda.
+          <div className="appointment-detail-footer">
+            {error && <div className="form-error">{error}</div>}
+            {appointment.status === "cancelled" && contactPhone && (
+              <div className="appointment-cancel-notify">
+                <span>Atendimento cancelado. Quer avisar o cliente?</span>
+                <a
+                  className="whatsapp-button button-sm"
+                  href={whatsappLink(
+                    contactPhone,
+                    cancellationMessage(appointment),
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  Registrar satisfação
-                </button>
-              )}
-            </div>
-          )}
+                  <MessageCircle size={15} aria-hidden="true" />
+                  Avisar cliente por WhatsApp
+                </a>
+              </div>
+            )}
+            {confirmCancel && (
+              <div className="appointment-cancel-confirm">
+                <strong>Cancelar este atendimento?</strong>
+                <span>O horário será liberado na agenda.</span>
+                <label className="appointment-no-show-reason">
+                  Motivo do cancelamento
+                  <select
+                    required
+                    value={cancelReason}
+                    disabled={cancelling}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {cancellationReasons.map((reason) => (
+                      <option key={reason}>{reason}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="appointment-no-show-reason">
+                  Detalhes (opcional)
+                  <textarea
+                    rows={2}
+                    maxLength={400}
+                    value={cancelDetails}
+                    disabled={cancelling}
+                    onChange={(event) => setCancelDetails(event.target.value)}
+                  />
+                </label>
+                <div>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setConfirmCancel(false)}
+                    disabled={cancelling}
+                  >
+                    Voltar
+                  </button>
+                  {can("agenda.cancel") && (
+                    <button
+                      className="danger-button"
+                      onClick={() => void cancelAppointment()}
+                      disabled={cancelling || !cancelReason}
+                    >
+                      {cancelling ? "Cancelando…" : "Confirmar cancelamento"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {confirmNoShow && (
+              <div className="appointment-cancel-confirm">
+                <strong>Registrar falta?</strong>
+                <span>A falta não consome sessão do plano.</span>
+                <label className="appointment-no-show-reason">
+                  Motivo (opcional)
+                  <textarea
+                    rows={2}
+                    maxLength={500}
+                    value={noShowReason}
+                    disabled={savingStatus}
+                    onChange={(event) => setNoShowReason(event.target.value)}
+                  />
+                </label>
+                <div>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setConfirmNoShow(false)}
+                    disabled={savingStatus}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    className="primary-button"
+                    onClick={() => void changeStatus("no_show")}
+                    disabled={savingStatus || noShowReason.trim().length === 1}
+                  >
+                    {savingStatus ? "Registrando…" : "Registrar falta"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {hasActions && (
+              <div className="modal-actions tab-footer">
+                {canCancel && (
+                  <div className="tab-footer-danger">
+                    <button
+                      className="danger-button"
+                      onClick={() => setConfirmCancel(true)}
+                      disabled={savingStatus}
+                    >
+                      Cancelar atendimento
+                    </button>
+                  </div>
+                )}
+                <div className="tab-footer-main">
+                  {canEditDetails && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => setEditing(true)}
+                      disabled={savingStatus}
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {canRescheduleScheduled && (
+                    <button
+                      className="secondary-button"
+                      onClick={onReschedule}
+                      disabled={savingStatus}
+                    >
+                      Remarcar atendimento
+                    </button>
+                  )}
+                  {canRescheduleAbsence && (
+                    <button className="primary-button" onClick={onReschedule}>
+                      Remarcar ausência
+                    </button>
+                  )}
+                  {canAttend && appointment.status === "scheduled" && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void changeStatus("confirmed")}
+                      disabled={savingStatus}
+                    >
+                      Confirmar presença
+                    </button>
+                  )}
+                  {canAttend && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => setConfirmNoShow(true)}
+                      disabled={savingStatus || !started}
+                      title={availability}
+                      aria-describedby={
+                        started ? undefined : availabilityHintId
+                      }
+                    >
+                      Marcar falta
+                    </button>
+                  )}
+                  {canAttend && (
+                    <button
+                      className="primary-button"
+                      onClick={() => void changeStatus("completed")}
+                      disabled={savingStatus || !started}
+                      title={availability}
+                      aria-describedby={
+                        started ? undefined : availabilityHintId
+                      }
+                    >
+                      Marcar como realizado
+                    </button>
+                  )}
+                  {canRate && (
+                    <button
+                      className="primary-button"
+                      onClick={() => setRating(true)}
+                    >
+                      Registrar satisfação
+                    </button>
+                  )}
+                </div>
+                {canAttend && availability && (
+                  <p
+                    className="field-hint appointment-detail-hint"
+                    id={availabilityHintId}
+                  >
+                    {availability}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

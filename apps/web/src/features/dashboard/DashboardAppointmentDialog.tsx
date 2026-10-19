@@ -138,6 +138,7 @@ export function DashboardAppointmentDialog({
       onClose={onClose}
       onReschedule={onReschedule}
       onUpdated={onUpdated}
+      onEdited={onUpdated}
     />
   );
 }

@@ -32,6 +32,10 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("PATCH", "/appointments/a1/status")).toEqual(
       expect.arrayContaining(["agenda", "plans", "finance", "history"]),
     );
+    // Editar serviço/sala/observação (QM6) muda a agenda e o histórico.
+    expect(domainsForMutation("PATCH", "/appointments/a1")).toEqual(
+      expect.arrayContaining(["agenda", "history"]),
+    );
     expect(domainsForMutation("DELETE", "/holidays/h1")).toContain("agenda");
     expect(domainsForMutation("PATCH", "/patients/p1")).toContain("patients");
   });

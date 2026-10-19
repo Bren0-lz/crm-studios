@@ -56,6 +56,7 @@ function mount(
           onClose={() => undefined}
           onReschedule={() => undefined}
           onUpdated={onUpdated}
+          onEdited={() => undefined}
         />
       </AuthorizationContext.Provider>
     </MemoryRouter>,
@@ -140,6 +141,7 @@ describe("AppointmentDetailsModal cancellation", () => {
             onClose={() => undefined}
             onReschedule={() => undefined}
             onUpdated={() => undefined}
+            onEdited={() => undefined}
           />
         </AuthorizationContext.Provider>
       </MemoryRouter>,

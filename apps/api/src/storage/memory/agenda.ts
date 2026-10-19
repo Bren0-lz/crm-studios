@@ -5,6 +5,7 @@ import {
   type AppointmentRescheduleEvent,
   type AppointmentRescheduleInput,
   type AppointmentStatus,
+  type AppointmentUpdateInput,
   type GroupAttendance,
   type GroupAttendanceInput,
   type GroupClass,
@@ -310,6 +311,160 @@ export function createAgendaRepository(
           (item) => item.clinicId === clinicId && item.id === appointmentId,
         )?.serviceId ?? null
       );
+    },
+
+    async findAppointment(clinicId: string, appointmentId: string) {
+      const appointment = repositoryContext.appointments.find(
+        (item) => item.clinicId === clinicId && item.id === appointmentId,
+      );
+      return appointment ? { ...appointment } : null;
+    },
+
+    async updateAppointment(
+      clinicId: string,
+      actorUserId: string,
+      appointmentId: string,
+      input: AppointmentUpdateInput,
+    ) {
+      const appointment = repositoryContext.appointments.find(
+        (item) => item.clinicId === clinicId && item.id === appointmentId,
+      );
+      if (!appointment) return null;
+      if (!["scheduled", "confirmed"].includes(appointment.status))
+        throw new DomainError(
+          "APPOINTMENT_UPDATE_FORBIDDEN",
+          "Somente atendimentos agendados ou confirmados podem ser editados.",
+          409,
+        );
+      const room = repositoryContext.rooms.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === input.roomId && item.active,
+      );
+      const service = repositoryContext.services.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === input.serviceId &&
+          (item.active || item.id === appointment.serviceId),
+      );
+      if (!room || !service)
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Sala ou serviço não encontrado.",
+          404,
+        );
+      const serviceChanged = service.id !== appointment.serviceId;
+      // Crédito da comanda/plano de origem é do serviço original: trocar quebraria o vínculo.
+      if (
+        serviceChanged &&
+        (repositoryContext.patientTabs.some(
+          (tab) =>
+            tab.clinicId === clinicId &&
+            tab.services?.some((item) => item.appointmentId === appointmentId),
+        ) ||
+          repositoryContext.patientPlans.some(
+            (plan) =>
+              plan.clinicId === clinicId &&
+              plan.sourceAppointmentId === appointmentId,
+          ))
+      )
+        throw new DomainError(
+          "APPOINTMENT_SERVICE_LOCKED",
+          "Este atendimento está vinculado a uma comanda ou plano: o serviço não pode ser alterado.",
+          409,
+        );
+      const notes = input.notes ?? "";
+      const startsAt = new Date(appointment.startsAt);
+      const endsAt = new Date(
+        startsAt.getTime() + service.durationMinutes * 60_000,
+      );
+      if (
+        !serviceChanged &&
+        appointment.roomId === room.id &&
+        (appointment.notes ?? "") === notes
+      )
+        return { ...appointment };
+      const overlaps = (from: string, to: string) =>
+        new Date(from) < endsAt && new Date(to) > startsAt;
+      const professionalId = appointment.professionalId;
+      const appointmentConflict = repositoryContext.appointments.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id !== appointmentId &&
+          item.status !== "cancelled" &&
+          (item.professionalId === professionalId ||
+            item.roomId === room.id) &&
+          overlaps(item.startsAt, item.endsAt),
+      );
+      const blockConflict = repositoryContext.scheduleBlocks.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.status === "active" &&
+          (item.professionalId === professionalId ||
+            item.roomId === room.id) &&
+          overlaps(item.startsAt, item.endsAt),
+      );
+      const groupConflict =
+        repositoryContext.groupSessions.some((session) => {
+          const group = repositoryContext.groupClasses.find(
+            (item) => item.id === session.groupId,
+          );
+          return (
+            session.clinicId === clinicId &&
+            session.status !== "cancelled" &&
+            Boolean(group) &&
+            (group!.professionalId === professionalId ||
+              group!.roomId === room.id) &&
+            overlaps(session.startsAt, session.endsAt)
+          );
+        }) ||
+        repositoryContext.hasWeeklyGroupSlotConflict(
+          clinicId,
+          professionalId,
+          room.id,
+          startsAt,
+          endsAt,
+        );
+      if (appointmentConflict || blockConflict || groupConflict)
+        throw new DomainError(
+          "APPOINTMENT_CONFLICT",
+          "O profissional ou a sala está ocupado ou bloqueado nesse horário.",
+          409,
+        );
+      const previous = {
+        serviceId: appointment.serviceId,
+        serviceName: appointment.serviceName,
+        roomId: appointment.roomId,
+        roomName: appointment.roomName,
+        notes: appointment.notes ?? "",
+      };
+      Object.assign(appointment, {
+        serviceId: service.id,
+        serviceName: service.name,
+        roomId: room.id,
+        roomName: room.name,
+        endsAt: endsAt.toISOString(),
+        updatedAt: now(),
+      });
+      if (notes) appointment.notes = notes;
+      else delete appointment.notes;
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "appointment.updated",
+        "appointment",
+        {
+          previous,
+          current: {
+            serviceId: service.id,
+            serviceName: service.name,
+            roomId: room.id,
+            roomName: room.name,
+            notes,
+          },
+        },
+        appointmentId,
+      );
+      return { ...appointment };
     },
 
     async listAppointmentReschedules(clinicId: string, appointmentId: string) {

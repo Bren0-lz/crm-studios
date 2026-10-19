@@ -44,6 +44,16 @@ export const appointmentRescheduleInputSchema = z.object({
   startsAt: z.iso.datetime({ offset: true }),
 });
 
+/**
+ * Edição de um atendimento ainda não finalizado (QM6): serviço, sala e observação.
+ * Data, horário e profissional mudam só pela remarcação. `notes` vazio limpa a observação.
+ */
+export const appointmentUpdateInputSchema = z.object({
+  serviceId: z.uuid(),
+  roomId: z.uuid(),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
 export const recurringAppointmentInputSchema = appointmentInputSchema.extend({
   occurrences: z.number().int().min(2).max(52),
   intervalWeeks: z.number().int().min(1).max(4).default(1),

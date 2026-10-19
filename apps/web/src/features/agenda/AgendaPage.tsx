@@ -954,6 +954,13 @@ export function AgendaPage() {
             setSelectedAppointmentId(null);
             setRescheduling(selectedAppointment);
           }}
+          onEdited={(updated) => {
+            toast.success("Atendimento atualizado.");
+            setAppointments((items) =>
+              items.map((item) => (item.id === updated.id ? updated : item)),
+            );
+            showSaved([updated]);
+          }}
           onUpdated={(updated) => {
             toast.success(appointmentStatusToast(updated.status));
             setAppointments((items) =>

@@ -243,6 +243,11 @@ export const historyActions: {
     label: "Atendimento reagendado",
   },
   {
+    action: "appointment.updated",
+    module: "agenda",
+    label: "Atendimento alterado",
+  },
+  {
     action: "lead.stage_changed",
     module: "crm",
     label: "Lead movimentado no funil",

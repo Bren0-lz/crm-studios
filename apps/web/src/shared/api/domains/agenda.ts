@@ -10,6 +10,7 @@ import type {
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
+  AppointmentUpdateInput,
   ClinicalAppointmentOption,
   GroupClass,
   GroupClassInput,
@@ -81,6 +82,12 @@ export const agendaApi = {
   rescheduleAppointment: (id: string, input: AppointmentRescheduleInput) =>
     request<Appointment>(`/appointments/${id}/schedule`, {
       method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  /** Edita serviço, sala e observação (QM6); data/horário/profissional são da remarcação. */
+  updateAppointment: (id: string, input: AppointmentUpdateInput) =>
+    request<Appointment>(`/appointments/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
   appointmentReschedules: (id: string) =>
