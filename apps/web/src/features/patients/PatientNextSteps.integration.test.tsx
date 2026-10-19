@@ -286,9 +286,11 @@ async function openAppointment() {
   fireEvent.click(
     dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
   );
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Fechar calendário" }),
-  );
+  expect(
+    within(dialog).queryByRole("region", {
+      name: "Calendário de agendamento",
+    }),
+  ).not.toBeInTheDocument();
   fireEvent.change(within(dialog).getByLabelText("Horário"), {
     target: { value: "09:00" },
   });

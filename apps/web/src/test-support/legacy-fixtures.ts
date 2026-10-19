@@ -181,9 +181,13 @@ export async function fillAppointmentForm(
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Fechar calendário" }),
-    );
+    // Escolher o dia fecha o calendário.
+    if (
+      within(dialog).queryByRole("region", {
+        name: "Calendário de agendamento",
+      })
+    )
+      throw new Error("O calendário deveria fechar ao escolher o dia.");
   }
   const time = within(dialog).getByLabelText("Horário");
   if (!(time as HTMLInputElement).value)

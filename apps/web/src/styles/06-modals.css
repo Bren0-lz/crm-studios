@@ -453,13 +453,19 @@
   width: 100%;
   min-height: 43px;
 }
-/* Preserve usable width when occupied days introduce vertical scrolling. */
-/* Dentro do modal, logo abaixo dos campos: não sai do modal nem cobre o cabeçalho. */
+/* Flutua em position: fixed (escapa do overflow do modal); topo, esquerda, largura e
+   altura máxima vêm do cálculo em calendar-position.ts para nunca ficar cortado. */
 .appointment-calendar {
-  position: static;
-  width: min(100%, 360px);
+  position: fixed;
+  z-index: 10;
+  top: var(--calendar-top, 0);
+  left: var(--calendar-left, 0);
+  width: var(--calendar-width, min(360px, calc(100vw - var(--space-4))));
+  max-height: var(--calendar-max-height, none);
   min-width: 0;
-  margin: var(--space-2) 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
   padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
   border-radius: 16px;
@@ -548,6 +554,11 @@
 }
 .appointment-calendar-day.outside .appointment-calendar-markers {
   opacity: 0.45;
+}
+/* Dias passados: esmaecidos, mas clicáveis (remarcar/lançar no passado é permitido). */
+.appointment-calendar-day.past:not(.selected) {
+  color: var(--muted);
+  font-weight: 400;
 }
 .appointment-calendar-day.today {
   color: var(--green);
