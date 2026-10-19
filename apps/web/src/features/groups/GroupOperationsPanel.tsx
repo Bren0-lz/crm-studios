@@ -1,20 +1,35 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import {
+  appointmentNotStartedMessage,
   groupEnrollmentCoversSession,
+  isAppointmentStarted,
   type GroupWorkspace,
   type GroupSession,
   type Professional,
 } from "@crm/contracts";
-import { CalendarClock } from "lucide-react";
-import { useState } from "react";
+import {
+  CalendarClock,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+import { useId, useState } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useAuthorization } from "../../authorization-context";
+import { ActionModal } from "../../shared/components/ActionModal";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { Modal } from "../../shared/components/Modal";
-import { shortDate, timeLabel } from "../../shared/lib/formatting";
+import {
+  clinicIsoDate,
+  shortDate,
+  timeLabel,
+} from "../../shared/lib/formatting";
+
+/** Encontros exibidos por vez em "Próximas" e "Anteriores". */
+const SESSIONS_PAGE = 4;
 
 export function GroupOperationsPanel({
   workspace,
@@ -57,8 +72,24 @@ export function GroupOperationsPanel({
   const [booked, setBooked] = useState("");
   // Instante de referência para "encontro futuro"; renovado ao escolher o crédito.
   const [now, setNow] = useState(() => Date.now());
+  const [upcomingLimit, setUpcomingLimit] = useState(SESSIONS_PAGE);
+  const [pastLimit, setPastLimit] = useState(SESSIONS_PAGE);
+  const [showPast, setShowPast] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const upcomingHeadingId = useId();
+  const pastListId = useId();
   const toast = useToast();
   const timezone = useClinicTimezone();
+  // "Próximas": a partir de hoje (fuso da clínica), da mais próxima à mais distante.
+  const today = clinicIsoDate(new Date(now), timezone);
+  const byStart = (a: GroupSession, b: GroupSession) =>
+    new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+  const upcoming = sessions
+    .filter((item) => clinicIsoDate(item.startsAt, timezone) >= today)
+    .sort(byStart);
+  const past = sessions
+    .filter((item) => clinicIsoDate(item.startsAt, timezone) < today)
+    .sort((a, b) => byStart(b, a));
   const meeting =
     selected &&
     (workspace.sessions.find((item) => item.id === selected.id) ?? selected);
@@ -98,6 +129,67 @@ export function GroupOperationsPanel({
           ) === index,
       )
     : [];
+  // "Marcar todos presentes": participantes vigentes ainda sem nenhum registro no encontro.
+  const unrecorded = regular.filter(
+    (item) => !attendance.some((entry) => entry.patientId === item.patientId),
+  );
+  // Mesma regra da QC3 para atendimentos: só a partir de 15 min antes do início do encontro.
+  const meetingStarted = meeting ? isAppointmentStarted(meeting) : false;
+  const meetingAvailability =
+    meeting && !meetingStarted
+      ? appointmentNotStartedMessage(meeting.startsAt, timezone)
+      : undefined;
+  const markAllHintId = useId();
+  const showMarkAll =
+    meeting !== null &&
+    can("groups.attendance") &&
+    meeting.status !== "cancelled" &&
+    unrecorded.length > 0;
+  async function markAllPresent(sessionId: string, targets: typeof regular) {
+    const failures: string[] = [];
+    let done = 0;
+    setBusy(true);
+    setError("");
+    try {
+      // Uma chamada por cliente na rota de presença: mesmas permissões e regras do registro manual.
+      for (const item of targets) {
+        try {
+          await api.recordGroupAttendance(sessionId, item.patientId, {
+            status: "present",
+          });
+          done += 1;
+        } catch (cause) {
+          failures.push(
+            cause instanceof Error
+              ? cause.message
+              : "Não foi possível registrar a presença.",
+          );
+        }
+      }
+      if (done === 0 && failures.length > 0) throw new Error(failures[0]);
+      toast.success(
+        done === 1 ? "1 presença registrada" : `${done} presenças registradas`,
+      );
+      if (failures.length > 0)
+        toast.error(
+          `${failures.length === 1 ? "1 presença não pôde ser registrada" : `${failures.length} presenças não puderam ser registradas`}: ${[...new Set(failures)].join(" ")}`,
+        );
+      setConfirmAll(false);
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+  const sessionButton = (item: GroupSession) => (
+    <button
+      className="secondary-button"
+      key={item.id}
+      onClick={() => setSelected(item)}
+    >
+      {sessionLabel(item)} ·{" "}
+      {item.status === "completed" ? "Concluído" : "Agendado"}
+    </button>
+  );
   const available = workspace.replacementCredits.filter(
     (item) =>
       item.status === "available" &&
@@ -196,18 +288,74 @@ export function GroupOperationsPanel({
             copy="Os encontros aparecerão após configurar a turma."
           />
         ) : (
-          <div className="group-session-list">
-            {sessions.map((item) => (
-              <button
-                className="secondary-button"
-                key={item.id}
-                onClick={() => setSelected(item)}
-              >
-                {sessionLabel(item)} ·{" "}
-                {item.status === "completed" ? "Concluído" : "Agendado"}
-              </button>
-            ))}
-          </div>
+          <>
+            <section
+              className="group-session-group"
+              aria-labelledby={upcomingHeadingId}
+            >
+              <h3 id={upcomingHeadingId}>Próximas</h3>
+              {upcoming.length ? (
+                <div className="group-session-list">
+                  {upcoming.slice(0, upcomingLimit).map(sessionButton)}
+                </div>
+              ) : (
+                <p className="group-session-empty">
+                  Nenhum encontro a partir de hoje.
+                </p>
+              )}
+              {upcoming.length > upcomingLimit && (
+                <button
+                  type="button"
+                  className="secondary-button button-sm"
+                  onClick={() =>
+                    setUpcomingLimit((value) => value + SESSIONS_PAGE)
+                  }
+                >
+                  Mostrar mais
+                </button>
+              )}
+            </section>
+            {past.length > 0 && (
+              <div className="group-session-group">
+                <button
+                  type="button"
+                  className="secondary-button button-sm"
+                  aria-expanded={showPast}
+                  aria-controls={pastListId}
+                  onClick={() => setShowPast((value) => !value)}
+                >
+                  {showPast ? (
+                    <ChevronDown size={16} aria-hidden="true" />
+                  ) : (
+                    <ChevronRight size={16} aria-hidden="true" />
+                  )}
+                  Anteriores ({past.length})
+                </button>
+                {showPast && (
+                  <section
+                    id={pastListId}
+                    className="group-session-group"
+                    aria-label="Anteriores"
+                  >
+                    <div className="group-session-list">
+                      {past.slice(0, pastLimit).map(sessionButton)}
+                    </div>
+                    {past.length > pastLimit && (
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        onClick={() =>
+                          setPastLimit((value) => value + SESSIONS_PAGE)
+                        }
+                      >
+                        Mostrar mais
+                      </button>
+                    )}
+                  </section>
+                )}
+              </div>
+            )}
+          </>
         )}
         {can("groups.replacement") && booked && (
           <div className="success-banner" role="status">
@@ -408,6 +556,21 @@ export function GroupOperationsPanel({
                   </div>
                 ))}
               <div className="modal-actions">
+                {showMarkAll && (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={busy || !meetingStarted}
+                    title={meetingAvailability}
+                    aria-describedby={
+                      meetingStarted ? undefined : markAllHintId
+                    }
+                    onClick={() => setConfirmAll(true)}
+                  >
+                    <CheckCheck size={18} aria-hidden="true" />
+                    Marcar todos presentes
+                  </button>
+                )}
                 {can("groups.complete") && meeting.status === "scheduled" && (
                   <button
                     className="primary-button"
@@ -427,8 +590,24 @@ export function GroupOperationsPanel({
                   Fechar
                 </button>
               </div>
+              {showMarkAll && meetingAvailability && (
+                <p className="field-hint" id={markAllHintId}>
+                  {meetingAvailability}
+                </p>
+              )}
             </div>
           </Modal>
+        )}
+        {meeting && confirmAll && meetingStarted && (
+          <ActionModal
+            eyebrow="Frequência"
+            title="Marcar todos presentes"
+            subtitle={sessionLabel(meeting)}
+            effect={`Registra presença para ${unrecorded.length === 1 ? "1 cliente" : `${unrecorded.length} clientes`} sem registro neste encontro: ${unrecorded.map((item) => item.patientName).join(", ")}. Quem já tem registro não é alterado.`}
+            confirmLabel="Marcar presentes"
+            onConfirm={() => markAllPresent(meeting.id, unrecorded)}
+            onClose={() => setConfirmAll(false)}
+          />
         )}
       </div>
     </section>

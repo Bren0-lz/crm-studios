@@ -1,7 +1,7 @@
 import { saoPauloToday } from "@crm/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
@@ -116,8 +116,15 @@ function renderGroups() {
 
 describe("group enrollment period", () => {
   it("lists in each session only the clients enrolled on that date", async () => {
+    // 18/10/2026: 14/10 fica em "Anteriores" (recolhida) e 21/10 em "Próximas".
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-18T15:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     renderGroups();
-    fireEvent.click(await screen.findByRole("button", { name: /14 de out/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Anteriores/ }));
+    fireEvent.click(screen.getByRole("button", { name: /14 de out/ }));
     let dialog = screen.getByRole("dialog", { name: group.name });
     expect(
       within(dialog).getByLabelText("Frequência de Bia Antiga"),

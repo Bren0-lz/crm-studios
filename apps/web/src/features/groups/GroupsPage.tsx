@@ -25,6 +25,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
   groupOperationRange,
+  groupSeatsLabel,
   groupSlotLabel,
 } from "../../shared/lib/formatting";
 import { GroupModal } from "./GroupModal";
@@ -193,14 +194,6 @@ export function GroupsPage() {
           )
         }
       />
-      {workspace && (
-        <GroupOperationsPanel
-          workspace={workspace}
-          professionals={professionals}
-          onChanged={load}
-          initialSessionId={searchParams.get("sessionId") ?? undefined}
-        />
-      )}
       {!canManage && <ReadOnlyNotice module="groups" />}
       {error && <ErrorBanner error={error} />}
       {loading && !workspace ? (
@@ -515,7 +508,7 @@ export function GroupsPage() {
                     </small>
                   </div>
                   <span>
-                    {group.activeEnrollments}/{group.capacity} vagas
+                    {groupSeatsLabel(group.activeEnrollments, group.capacity)}
                   </span>
                   <small>{group.waitlistCount} em espera</small>
                   <div className="group-slot-summary">
@@ -549,6 +542,42 @@ export function GroupsPage() {
             >
               <div className="group-modal-sections">
                 {error && <ErrorBanner error={error} />}
+                <section className="group-modal-section">
+                  <h3>Dados da turma</h3>
+                  <dl className="patient-detail-fields">
+                    <div>
+                      <dt>Serviço</dt>
+                      <dd>{selectedGroup.serviceName}</dd>
+                    </div>
+                    <div>
+                      <dt>Profissional</dt>
+                      <dd>{selectedGroup.professionalName}</dd>
+                    </div>
+                    <div>
+                      <dt>Sala</dt>
+                      <dd>{selectedGroup.roomName}</dd>
+                    </div>
+                    <div>
+                      <dt>Horário</dt>
+                      <dd>
+                        {(selectedGroup.weeklySlots ?? []).length
+                          ? selectedGroup.weeklySlots
+                              .map((slot) => groupSlotLabel(slot, weekDayNames))
+                              .join(", ")
+                          : "Horários ainda não definidos"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Matriculados</dt>
+                      <dd>
+                        {groupSeatsLabel(
+                          selectedGroup.activeEnrollments,
+                          selectedGroup.capacity,
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
                 {canManage && (
                   <>
                     <div className="group-modal-quick-actions">
@@ -608,8 +637,11 @@ export function GroupsPage() {
                               />
                             </label>
                             <div className="group-modal-note">
-                              {selectedGroup.activeEnrollments} matriculados ·
-                              Sala {selectedGroup.roomName} comporta até{" "}
+                              {selectedGroup.activeEnrollments}{" "}
+                              {selectedGroup.activeEnrollments === 1
+                                ? "matriculado"
+                                : "matriculados"}{" "}
+                              · Sala {selectedGroup.roomName} comporta até{" "}
                               {rooms.find(
                                 (item) => item.id === selectedGroup.roomId,
                               )?.capacity ?? "—"}{" "}
@@ -679,6 +711,15 @@ export function GroupsPage() {
             </GroupModal>
           )}
         </div>
+      )}
+      {/* Encontros depois das turmas: a tela abre mostrando as turmas. */}
+      {workspace && (
+        <GroupOperationsPanel
+          workspace={workspace}
+          professionals={professionals}
+          onChanged={load}
+          initialSessionId={searchParams.get("sessionId") ?? undefined}
+        />
       )}
     </>
   );

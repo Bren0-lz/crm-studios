@@ -50,6 +50,17 @@ export function groupOperationRange() {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+/** Ocupação da turma: "8 matriculados · 4 vagas livres" (ou "Sem vagas livres"). */
+export function groupSeatsLabel(enrolled: number, capacity: number) {
+  const free = Math.max(0, capacity - enrolled);
+  const enrolledLabel = `${enrolled} ${enrolled === 1 ? "matriculado" : "matriculados"}`;
+  const freeLabel =
+    free === 0
+      ? "Sem vagas livres"
+      : `${free} ${free === 1 ? "vaga livre" : "vagas livres"}`;
+  return `${enrolledLabel} · ${freeLabel}`;
+}
+
 export function groupSlotLabel(
   slot: GroupClass["weeklySlots"][number],
   weekDayNames: string[],
