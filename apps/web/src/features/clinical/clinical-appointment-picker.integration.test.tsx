@@ -66,7 +66,12 @@ describe("clinical appointment picker", () => {
               ? [
                   appointment("a-old", "Joana Prado", old),
                   appointment("a-month", "Helena Almeida", month),
-                  appointment("a-today", "Viviane Araújo", daysAgo(0)),
+                  // Já iniciado em qualquer hora do dia (só iniciados entram no seletor).
+                  appointment(
+                    "a-today",
+                    "Viviane Araújo",
+                    new Date(Date.now() - 60 * 60_000),
+                  ),
                 ]
               : {};
       return { ok: true, status: 200, json: async () => body } as Response;

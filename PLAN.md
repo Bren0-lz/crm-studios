@@ -170,6 +170,20 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
 - **Depende de:** QC9
 - **Status:** DONE
 
+### QF1 — Testes da API independentes da hora do dia (pedido do dono, 19/10/2026)
+
+- **Origem:** bloqueio da QM9. Desde a QC3 (realizado/evolução só a partir de 15 min antes do
+  início), 4 testes falham quando a suíte roda antes do 1º atendimento demo do dia:
+  crm-api-agenda "saves a SOAP draft…", "versions and finalizes…", "records satisfaction
+  surveys…" e crm-api-patients "creates installments and consumes a session exactly once".
+- **Escopo:** só testes (API e web, sem mudar regra de produção): concluir o atendimento com o
+  relógio depois do início (`test-support/clock.ts`) ou usar atendimento já iniciado; varrer as
+  suítes com o relógio cedo e tarde e corrigir juntos os que dependem da hora (ex.: web
+  clinical-appointment-picker "lists the latest appointments first…", que falha antes das 09:45).
+- **Gate:** gate completo; os arquivos corrigidos passam com o relógio fixo cedo (ex.: 05:00 de
+  São Paulo) e tarde (ex.: 23:00).
+- **Status:** DONE
+
 ### Fase 2 — Usabilidade
 
 Cada item: confirmar no código antes; se já resolvido na rodada 7, marcar DONE com evidência.
