@@ -5,7 +5,7 @@ import type {
 } from "@crm/contracts";
 import { patientFirstName } from "@crm/contracts";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api } from "../../api";
+import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -41,7 +41,7 @@ export function InventoryPanel({
     [notes, setNotes] = useState("");
   const openingDirty = useFormDirty({ client, notes }, opening);
   async function load() {
-    setData(await api.inventoryWorkspace());
+    setData(await api.inventoryWorkspace(allBranches));
   }
   const version = useDataVersion("inventory");
   useEffect(() => {

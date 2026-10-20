@@ -10,7 +10,7 @@ import {
 } from "@crm/contracts";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../api";
+import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -119,7 +119,7 @@ export function PatientRecordTabs({
     "agenda",
     async () => {
       const range = appointmentWindow();
-      return (await api.appointments(range.from, range.to)).filter(
+      return (await api.appointments(range.from, range.to, allBranches)).filter(
         (item) => item.patientId === id,
       );
     },
@@ -129,7 +129,7 @@ export function PatientRecordTabs({
     id,
     "finance",
     async () =>
-      (await api.financialSummary()).receivables.filter(
+      (await api.financialSummary(allBranches)).receivables.filter(
         (item) => item.patientId === id,
       ),
   );

@@ -1,4 +1,5 @@
 import type { UserSummary } from "@crm/contracts";
+import { BRANCH_KEY } from "./branch";
 
 export const TOKEN_KEY = "crm.auth.token";
 
@@ -28,6 +29,7 @@ export function storeUser(user: UserSummary) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(BRANCH_KEY);
 }
 
 export function hasSession() {

@@ -1,4 +1,5 @@
 import { ApiClientError } from "./ApiClientError";
+import { branchHeaders } from "./branch";
 import { bumpDataVersion, domainsForMutation } from "./data-version";
 import { TOKEN_KEY, clearSession } from "./session";
 
@@ -16,6 +17,7 @@ export async function request<T>(
         ? { "Content-Type": "application/json" }
         : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...branchHeaders(),
       ...options.headers,
     },
   });
@@ -48,7 +50,10 @@ export async function request<T>(
 export async function requestBlob(path: string) {
   const token = localStorage.getItem(TOKEN_KEY);
   const response = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...branchHeaders(),
+    },
   });
   if (!response.ok) {
     if (response.status === 401) {

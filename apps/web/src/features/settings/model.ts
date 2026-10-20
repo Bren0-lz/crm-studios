@@ -3,6 +3,7 @@ import {
   type LucideIcon,
   Building2,
   CalendarDays,
+  MapPin,
   HeartHandshake,
   PackageOpen,
   Stethoscope,
@@ -121,6 +122,15 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "branches",
+    label: "Filiais",
+    title: "Filiais",
+    description:
+      "Cadastre as unidades da rede; cada uma tem agenda, equipe e financeiro próprios.",
+    icon: MapPin,
+    adminOnly: true,
+  },
+  {
     key: "plans",
     label: "Planos",
     title: "Planos",
@@ -170,6 +180,7 @@ export const settingsTabs: Array<{
 
 /** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
 const sectionTabs: Record<string, SettingsTabKey> = {
+  filiais: "branches",
   etiquetas: "tags",
   planos: "plans",
   cadastros: "catalogs",

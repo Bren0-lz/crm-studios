@@ -108,7 +108,9 @@ export const financeApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  inventoryWorkspace: () => request<InventoryWorkspace>("/inventory/workspace"),
+  /** `options`: `allBranches` na ficha do cliente (comandas de todas as filiais). */
+  inventoryWorkspace: (options?: RequestInit) =>
+    request<InventoryWorkspace>("/inventory/workspace", options),
   createProduct: (input: ProductInput) =>
     request<Product>("/inventory/products", {
       method: "POST",
@@ -214,7 +216,9 @@ export const financeApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  financialSummary: () => request<FinancialSummary>("/finance/summary"),
+  /** `options`: `allBranches` na ficha do cliente (cobranças de todas as filiais). */
+  financialSummary: (options?: RequestInit) =>
+    request<FinancialSummary>("/finance/summary", options),
   settleReceivable: (
     id: string,
     paymentMethod: PaymentMethod = "pix",

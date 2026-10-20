@@ -25,9 +25,23 @@ import type {
   Service,
   UserSummary,
 } from "@crm/contracts";
+import type { Branch, BranchInput } from "@crm/contracts";
 import { request } from "../transport";
 
 export const administrationApi = {
+  /** Filiais ativas que o usuário logado acessa (seletor do cabeçalho). */
+  branches: () => request<Branch[]>("/branches"),
+  adminBranches: () => request<Branch[]>("/admin/branches"),
+  createBranch: (input: BranchInput) =>
+    request<Branch>("/admin/branches", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateBranch: (id: string, input: BranchInput) =>
+    request<Branch>(`/admin/branches/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   createProfessional: (input: ProfessionalInput) =>
     request<Professional>("/professionals", {
       method: "POST",
