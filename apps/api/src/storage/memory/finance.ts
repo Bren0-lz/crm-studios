@@ -6,10 +6,12 @@ import {
 } from "./tab-service-credits.js";
 import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
+  formatSequenceNumber,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
   settlementBreakdown,
+  tabReceivableDescription,
   type AdminUserCommissionInput,
   type CommissionRule,
   type CommissionRuleInput,
@@ -340,7 +342,13 @@ export function createFinanceRepository(
         clinicId,
         patientId: tab.patientId,
         patientName: tab.patientName,
-        description: `Comanda ${tab.id.slice(0, 8).toUpperCase()}`,
+        description: tabReceivableDescription(
+          tab.patientName,
+          clinicDateOf(
+            new Date(tab.openedAt),
+            repositoryContext.clinicSettings.timezone,
+          ),
+        ),
         installmentNumber: 1,
         installmentCount: 1,
         dueDate: input.dueDate,
@@ -674,8 +682,26 @@ export function createFinanceRepository(
             item.receivableId === receivableId && item.kind === "payment",
         )
         .at(-1);
+      // Número do recibo: atribuído na primeira emissão e repetido nas reemissões (QM15).
+      let issued = repositoryContext.receiptNumbers.find(
+        (item) => item.clinicId === clinicId && item.receivableId === receivableId,
+      );
+      if (!issued) {
+        issued = {
+          clinicId,
+          receivableId,
+          number:
+            Math.max(
+              0,
+              ...repositoryContext.receiptNumbers
+                .filter((item) => item.clinicId === clinicId)
+                .map((item) => item.number),
+            ) + 1,
+        };
+        repositoryContext.receiptNumbers.push(issued);
+      }
       return receiptWithClinic({
-        receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
+        receiptNumber: formatSequenceNumber("REC", issued.number),
         patientName: receivable.patientName,
         patientPhone: patient?.whatsapp || patient?.phone || "",
         description: receivable.description,

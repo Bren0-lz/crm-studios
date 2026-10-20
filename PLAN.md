@@ -21,7 +21,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 
 Origem: QA em produção (modo Demonstração, admin) de 17/10/2026. IDs com prefixo `Q` para não
 colidir com a rodada 7 (QC1 = C1 do relatório do QA, QM = M, QV = V). Branch `main`
-(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0084**.
+(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0086**.
 
 Ordem da Fase 1 (métricas depois dos dados): QC6 → QC2 → QC3 → QC4 → QC5 → QC8 → QC1 → QC7 →
 QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
@@ -184,6 +184,15 @@ QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
   São Paulo) e tarde (ex.: 23:00).
 - **Status:** DONE
 
+### QF2 — Cadastro guiado continua nos próximos passos (feito pelo dono, 19/10/2026)
+
+- **Origem:** commit `fbd690b`, fora do loop.
+- **Escopo:** depois do cadastro guiado (demonstração, plano, serviço avulso, matrícula ou lista
+  de espera), o modal "Cliente cadastrado" abre já preenchido com o que foi criado, sem repetir
+  as operações. Testes web em patients/PatientNextSteps e guided-client-registration.
+- **Gate:** gate completo
+- **Status:** DONE
+
 ### Fase 2 — Usabilidade
 
 Cada item: confirmar no código antes; se já resolvido na rodada 7, marcar DONE com evidência.
@@ -204,8 +213,8 @@ Gate completo em todos, na ordem da tabela.
 | QM11 | `useDirtyGuard`: Esc/X em formulário alterado pergunta "Descartar alterações?" | DONE |
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | DONE |
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
-| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DOING |
-| QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | TODO |
+| QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
+| QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
 
@@ -222,6 +231,16 @@ Gate completo em todos, na ordem da tabela.
 | QV7 | Espaço entre seções em Turmas | TODO |
 | QV8 | `PageHeader` igual em Configurações; botões `button-sm` em Serviços e salas, com preço e duração | TODO |
 | QV9 | Legenda da agenda em uma linha/popover; colunas do kanban com `min-width` e indicação de rolagem | TODO |
+| QV10 | Sem borda/faixa lateral colorida em nenhum lugar do sistema, inclusive a agenda (pedido do dono, 19/10) — ver abaixo | TODO |
+
+**QV10 — detalhe.** Remover toda faixa lateral colorida (`border-left` colorido ou `box-shadow: inset Npx 0 0`).
+Triagem de 19/10: `.month-group` (05-agenda.css:300), `.day-event.group` (05-agenda.css:386),
+`.day-grid-event[style*="--pro-color"]` (05-agenda.css:1548), `.patient-row:hover`
+(04-dashboard-clients.css:395) e `.clinical-timeline article` (07-clinical.css:400). Conferir se
+há outras regras (inclusive em `::before`) e remover também. Decisão do dono: vale também para
+a agenda, então a cor do profissional deixa de aparecer como faixa no evento. Não colocar outro
+destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
+08-settings.css:1456) não são faixa colorida e ficam. Teste: nenhuma dessas regras sobra no CSS.
 
 ### Fase 4 — Regressão
 
@@ -231,7 +250,7 @@ Gate completo em todos, na ordem da tabela.
   matrícula fora de sessão passada, QC5 reposição só futura, QC6 financeiro sem recarregar, QC8
   crédito da comanda consumido uma vez.
 - **Gate:** gate completo e `npm run test:e2e -- --workers=1`
-- **Depende de:** QV9
+- **Depende de:** QV10
 - **Status:** TODO
 
 ### QR2 — Fluxo do dia a dia e itens não testados (manual)

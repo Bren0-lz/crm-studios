@@ -171,6 +171,20 @@ export const competenceMonthSchema = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês no formato AAAA-MM.");
 
+/** Número sequencial por clínica exibido ao usuário: prontuário "PAC-00012", recibo "REC-00003". */
+export function formatSequenceNumber(prefix: "PAC" | "REC", value: number) {
+  return `${prefix}-${String(value).padStart(5, "0")}`;
+}
+
+/** Lê o número de `formatSequenceNumber`; formatos antigos (trecho de UUID) dão `null`. */
+export function parseSequenceNumber(
+  prefix: "PAC" | "REC",
+  value: string,
+): number | null {
+  const match = new RegExp(`^${prefix}-(\\d{5,})$`).exec(value);
+  return match ? Number(match[1]) : null;
+}
+
 /** Data de hoje (aaaa-mm-dd) no fuso da clínica (America/Sao_Paulo). */
 export function saoPauloToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {

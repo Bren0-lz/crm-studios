@@ -68,6 +68,11 @@ import {
   userRoleLabels,
   userRoleSchema,
   whatsappLink,
+  historyActions,
+  permissionCatalog,
+  tabReceivableDescription,
+  formatSequenceNumber,
+  parseSequenceNumber,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1210,5 +1215,34 @@ describe("lead duplicates", () => {
         [],
       ),
     ).toEqual([]);
+  });
+});
+
+describe("textos de interface sem nome antigo nem código interno (QM15)", () => {
+  it("rotula permissões e histórico sem 'movimenta'", () => {
+    const labels = [
+      ...permissionCatalog.map((item) => item.name),
+      ...historyActions.map((item) => item.label),
+    ];
+    expect(labels.filter((label) => /movimenta/i.test(label))).toEqual([]);
+    expect(
+      permissionCatalog.find((item) => item.key === "patients.stock_move")
+        ?.name,
+    ).toBe("Ajustar estoque");
+  });
+
+  it("formata e lê números sequenciais de prontuário e recibo", () => {
+    expect(formatSequenceNumber("PAC", 7)).toBe("PAC-00007");
+    expect(formatSequenceNumber("REC", 123456)).toBe("REC-123456");
+    expect(parseSequenceNumber("PAC", "PAC-00124")).toBe(124);
+    expect(parseSequenceNumber("PAC", "PAC-E2CD5FDF")).toBeNull();
+    expect(parseSequenceNumber("PAC", "PAC-9999")).toBeNull();
+    expect(parseSequenceNumber("REC", "PAC-00001")).toBeNull();
+  });
+
+  it("descreve a cobrança da comanda por data e cliente, sem o id", () => {
+    expect(tabReceivableDescription("Marina Souza", "2026-10-19")).toBe(
+      "Comanda de 19/10 · Marina",
+    );
   });
 });

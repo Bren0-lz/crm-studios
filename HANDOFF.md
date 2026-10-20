@@ -1,18 +1,17 @@
 # HANDOFF — retomar o desenvolvimento em outra máquina
 
-Atualizado em 18/10/2026. Este arquivo passa o bastão entre máquinas e sessões. O estado vivo
+Atualizado em 19/10/2026. Este arquivo passa o bastão entre máquinas e sessões. O estado vivo
 está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras permanentes ficam em
 `CLAUDE.md` e nos `AGENTS.md`.
 
 ## Onde parou
 
-- **Rodada 8** (correções do QA de 17/10/2026), na branch `main`, que está igual a
-  `origin/main` (último commit: `b0e7087`, QM8).
-- **Concluído:** Fase 1 inteira (QC1–QC10) e Fase 2 até QM8.
-- **Próxima tarefa:** QM9 (estoque e produtos numa aba "Estoque" do Financeiro).
-- **Faltam:** QM9–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2 (revisão manual).
-- A branch local antiga `fix/qa-out-2026` só existe na máquina anterior e está contida na `main`.
-  Ignore-a.
+- **Rodada 8** (correções do QA de 17/10/2026), na branch `main`.
+- **Concluído:** Fase 1 inteira (QC1–QC10), QF1, QF2 e Fase 2 até QM14. Gate da `main` verde.
+- **Próxima tarefa:** QM15 (sem "movimenta", UUID ou código de seed na interface).
+- **Faltam:** QM15–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2 (revisão manual).
+- **Gates nesta máquina:** rode com `TEST_DATABASE_URL` vazia (`export TEST_DATABASE_URL=`). O
+  `.env` local aponta para um banco que não responde, e as variáveis reais ficam na Vercel.
 
 ## Preparar a máquina nova
 
@@ -41,6 +40,11 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   - "Pagamento atrasado" só aparece para quem tem acesso ao Financeiro (QC7).
   - Filtro novo "Pago na comanda" em Planos (QC7).
   - O serviço de um atendimento ligado a comanda ou plano não pode ser trocado na edição (QM6).
+  - Na ficha, o estoque saiu e ficaram só as "Comandas"; produtos e ajustes estão na aba
+    "Estoque" do Financeiro (QM9).
+  - "Abrir ficha" no aviso de lead duplicado aparece mesmo sem acesso ao módulo de clientes, e a
+    conversão de lead ainda compara telefone/CPF sem normalizar (QM10).
+  - "Serviço avulso" é cadastrado em Configurações › Planos, não em Serviços e salas (QM12).
 - **Migrações novas ainda não rodadas num PostgreSQL real:** `0081` (fim da matrícula em turma),
   `0082` (rótulo do histórico de créditos de comanda) e `0083` (remove a etiqueta manual
   "Pagamento atrasado"). A próxima livre é a `0084`.
@@ -59,6 +63,14 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   - groups/group-enrollment-period "sends the chosen start date in a new enrollment";
   - screens-without-the-patients-module "opens groups and lists clients in a new enrollment".
 - O timeout dos testes é 20s, porque a máquina é lenta com OneDrive; não reduza.
+- `npm test` leva de 10 a 15 min: rode em segundo plano. Se o `.env` tiver `TEST_DATABASE_URL` e o
+  banco não responder, as suítes PostgreSQL dão timeout no `beforeAll`, a API falha e os testes
+  da web nem rodam.
+- Nunca conclua ou registre atendimento "de hoje às X h" em teste sem fixar o relógio depois do
+  início (`test-support/clock.ts`, QF1).
+- Modal novo com formulário: `<Modal dirty={useFormDirty(form)}>` + `<ModalCancelButton>` (QM11).
+- Toasts novos podem colidir com `getByRole("status")` em testes; o sino se acha por
+  `/^Notificações/` (QM13).
 - Teste de um arquivo só: `npm exec -w @crm/web -- vitest run src/<arquivo>` (idem `@crm/api`,
   `@crm/contracts`). Não use `npm test -w <pacote> -- <filtro>`.
 - `AppRoutes.tsx` chaveia `<Routes>` por `pathname + search`: mudar a busca da URL remonta a

@@ -49,7 +49,7 @@ const operations = {
     inventory_view: "Consultar estoque e comandas",
     products_update: "Editar produto",
     products_create: "Cadastrar produto",
-    stock_move: "Movimentar estoque",
+    stock_move: "Ajustar estoque",
     tabs_create: "Abrir comanda",
     tabs_items: "Adicionar itens à comanda",
     tabs_close: "Fechar comanda",
@@ -66,7 +66,7 @@ const operations = {
   crm: {
     update: "Editar cadastro do lead",
     create: "Cadastrar lead",
-    stage: "Movimentar lead no funil",
+    stage: "Mudar etapa do lead no funil",
     convert: "Converter lead em cliente",
     contacts_create: "Registrar contato do lead",
     tasks_create: "Criar tarefa",

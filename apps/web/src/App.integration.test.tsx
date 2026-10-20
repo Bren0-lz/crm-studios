@@ -731,6 +731,12 @@ describe("appointment client search and creation", () => {
     expect(appointment.parentElement).toHaveAttribute("inert");
     expect(client.closest("form")).toBeNull();
     await within(client).findByText(/Nenhuma etiqueta configurada/);
+<<<<<<< HEAD
+=======
+    const save = within(client).getByRole("button", { name: "Salvar cliente" });
+    // Sem nome e telefone o botão fica desativado (QM14) e não recebe foco.
+    expect(save).toBeDisabled();
+>>>>>>> 964d713dbcdb08df67506540b4c7283477590fd1
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
@@ -740,7 +746,10 @@ describe("appointment client search and creation", () => {
       ).getByLabelText("Telefone"),
       { target: { value: created.phone } },
     );
+<<<<<<< HEAD
     const save = within(client).getByRole("button", { name: "Salvar cliente" });
+=======
+>>>>>>> 964d713dbcdb08df67506540b4c7283477590fd1
     save.focus();
     expect(save).toHaveFocus();
     fireEvent.keyDown(document.activeElement!, { key: "Tab" });
@@ -10026,11 +10035,13 @@ describe("users and permissions", () => {
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(await within(dialog).findByText(/informe 0%/)).toHaveClass(
-        "form-error",
+      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
+      const saveUser = within(dialog).getByRole("button", {
+        name: "Salvar alterações",
+      });
+      expect(saveUser).toBeDisabled();
+      expect(saveUser).toHaveAccessibleDescription(
+        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
       );
       // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
@@ -13302,7 +13313,9 @@ describe("guided client registration", () => {
     expect(
       await screen.findByText(/Aula de demonstração agendada para/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
+    ).toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -13458,14 +13471,19 @@ describe("guided client registration", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );
-    // O aviso aparece fora do modal (a opção "turma cheia (lista de espera)" some com ele).
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "A turma Pilates 2 está cheia: o cliente entrou na lista de espera (posição 2).",
-    );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const nextSteps = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(
+      screen.getByText(
+        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(nextSteps).getByText(
+        "Na lista de espera de Pilates 2 · posição 2",
+      ),
+    ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "plan",
       groupId: groups[1]!.id,

@@ -38,7 +38,11 @@ export function isCompleteDateTime(value: string) {
 
 /** Campos de um modelo clínico em montagem: pergunta vazia e seleção sem opções. */
 export function missingBuilderFields(
-  fields: Array<{ label: string; type: string; options?: string[] }>,
+  fields: Array<{
+    label: string;
+    type: string;
+    options?: string[] | undefined;
+  }>,
 ) {
   return fields.flatMap((field, index) => [
     ...(field.label.trim() ? [] : [`Pergunta do campo ${index + 1}`]),

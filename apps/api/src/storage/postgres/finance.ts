@@ -9,6 +9,7 @@ import {
   createTabServiceCredits,
   cancelTabServiceCredits,
 } from "./tab-service-credits.js";
+import { nextClinicSequence } from "./clinic-sequences.js";
 import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
   type AdminUserCommissionInput,
@@ -16,6 +17,7 @@ import {
   type CostCenterInput,
   type DailyCash,
   type FinancialCategoryInput,
+  formatSequenceNumber,
   type FinancialSummary,
   type FinancialWorkspace,
   type InventoryWorkspace,
@@ -37,6 +39,7 @@ import {
   type RecurringPayableInput,
   saoPauloToday,
   type StockMovementInput,
+  tabReceivableDescription,
 } from "@crm/contracts";
 import {
   buildDailyCash,
@@ -408,8 +411,14 @@ export function createFinanceRepository(
           patientId: string;
           status: string;
           totalInCents: number;
+          patientName: string;
+          openedOn: string;
         }>(
-          `SELECT patient_id AS "patientId",status,total_in_cents AS "totalInCents" FROM patient_tabs WHERE id=$2 AND clinic_id=$1 FOR UPDATE`,
+          `SELECT t.patient_id AS "patientId",t.status,t.total_in_cents AS "totalInCents",p.full_name AS "patientName",to_char(t.opened_at AT TIME ZONE c.timezone,'YYYY-MM-DD') AS "openedOn"
+           FROM patient_tabs t
+           JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id
+           JOIN clinics c ON c.id=t.clinic_id
+           WHERE t.id=$2 AND t.clinic_id=$1 FOR UPDATE OF t`,
           [clinicId, tabId],
         );
         const row = tab.rows[0];
@@ -451,7 +460,7 @@ export function createFinanceRepository(
           [
             clinicId,
             row.patientId,
-            `Comanda ${tabId.slice(0, 8).toUpperCase()}`,
+            tabReceivableDescription(row.patientName, row.openedOn),
             input.dueDate,
             row.totalInCents,
             paid ? "paid" : "open",
@@ -777,8 +786,25 @@ export function createFinanceRepository(
         [clinicId, receivableId],
       );
       const row = extra.rows[0];
+      // Número do recibo: atribuído na primeira emissão e repetido nas reemissões (QM15).
+      const receiptNumber = await repositoryContext.inTransaction(
+        async (client) => {
+          const current = await client.query<{ receiptNumber: number | null }>(
+            `SELECT receipt_number AS "receiptNumber" FROM receivables WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
+            [clinicId, receivableId],
+          );
+          const stored = current.rows[0]?.receiptNumber;
+          if (stored) return stored;
+          const next = await nextClinicSequence(client, clinicId, "receipt");
+          await client.query(
+            "UPDATE receivables SET receipt_number=$3 WHERE clinic_id=$1 AND id=$2",
+            [clinicId, receivableId, next],
+          );
+          return next;
+        },
+      );
       return receiptWithClinic({
-        receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
+        receiptNumber: formatSequenceNumber("REC", receiptNumber),
         patientName: receivable.patientName,
         patientPhone: row?.patientPhone ?? "",
         description: receivable.description,

@@ -533,6 +533,22 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toHaveLength(1);
       });
 
+      // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
+      it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
+        const patients = await repository.listPatients(clinicId);
+        const numbers = patients.map((item) => item.recordNumber);
+        expect(new Set(numbers).size).toBe(numbers.length);
+        const byName = new Map(
+          patients.map((item) => [item.fullName, item.recordNumber]),
+        );
+        expect(byName.get("Helena Almeida")).toBe("PAC-00001");
+        expect(byName.get("Lucas Ribeiro")).toBe("PAC-00002");
+        expect(byName.get("Sônia Barros")).toBe("PAC-00003");
+        const created = await patient("Prontuário Sequencial");
+        expect(created.recordNumber).toMatch(/^PAC-\d{5,}$/);
+        expect(numbers).not.toContain(created.recordNumber);
+      });
+
       it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
         const created = await patient("Comanda integrada");
         const tab = await repository.openPatientTab(clinicId, actorId, {
@@ -593,6 +609,12 @@ for (const storage of ["memory", "postgres"] as const) {
         ).receivables.filter((item) => item.patientId === created.id);
         expect(invoices).toHaveLength(1);
         expect(invoices[0]!.amountInCents).toBe(scheduled.totalInCents);
+        expect(invoices[0]!.description).toMatch(
+          /^Comanda de \d{2}\/\d{2} · Comanda$/,
+        );
+        expect(invoices[0]!.description).not.toContain(
+          tab.id.slice(0, 8).toUpperCase(),
+        );
         const [credit] = await repository.listPatientPlans(
           clinicId,
           created.id,

@@ -245,7 +245,7 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(compensate);
     expect(
       screen.getByRole("dialog", { name: "Confirmar baixa conciliada" }),
-    ).toHaveTextContent("O saldo zero não gera movimentação no caixa.");
+    ).toHaveTextContent("O saldo zero não gera entrada nem saída no caixa.");
     await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
     await waitFor(async () => {
       const current = await repository.getFinancialWorkspace(clinicId);

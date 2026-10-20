@@ -722,7 +722,15 @@ describe("CRM API", () => {
       patientName: patient.fullName,
       amountInCents: 11_500,
       paymentMethod: "card",
+      receiptNumber: "REC-00001",
     });
+    // QM15: reemitir o recibo da mesma cobrança devolve o mesmo número.
+    const reissued = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivableId}/receipt`,
+      headers,
+    });
+    expect(reissued.json().receiptNumber).toBe("REC-00001");
 
     const category = workspace
       .json()
@@ -1672,11 +1680,18 @@ describe("CRM API", () => {
       headers,
     });
     expect(finance.json().summary.receivables[0].status).toBe("paid");
-    const month = new Intl.DateTimeFormat("en-CA", {
+    const clinicToday = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
-    })
-      .format(new Date())
-      .slice(0, 7);
+    }).format(new Date());
+    const tabReceivable = finance
+      .json()
+      .summary.receivables.find(
+        (item: { id: string }) => item.id === closed.json().receivableId,
+      );
+    expect(tabReceivable.description).toBe(
+      `Comanda de ${clinicToday.slice(8, 10)}/${clinicToday.slice(5, 7)} · ${patients.json()[0].fullName.split(" ")[0]}`,
+    );
+    const month = clinicToday.slice(0, 7);
     const soldReport = await app.inject({
       method: "GET",
       url: `/reports/sales?month=${month}`,

@@ -385,7 +385,7 @@ export function CommissionReconciliationModal({
           <p>
             {confirmation.kind === "pay"
               ? confirmation.balance.amountInCents === 0
-                ? "Os lançamentos serão compensados. O saldo zero não gera movimentação no caixa."
+                ? "Os lançamentos serão compensados. O saldo zero não gera entrada nem saída no caixa."
                 : confirmation.balance.amountInCents < 0
                   ? `Registre a devolução de ${currency.format(-confirmation.balance.amountInCents / 100)} já recebida de ${confirmation.balance.professionalName}.`
                   : `Registre o pagamento líquido de ${currency.format(confirmation.balance.amountInCents / 100)} já realizado para ${confirmation.balance.professionalName}.`

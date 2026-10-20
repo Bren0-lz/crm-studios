@@ -1100,7 +1100,7 @@ describe("application shell", () => {
         const url = String(input);
         const body = url.endsWith("/receipt")
           ? {
-              receiptNumber: "REC-C1C1C1C1",
+              receiptNumber: "REC-00007",
               patientName: paid.patientName,
               patientPhone: "11987654321",
               description: paid.description,
@@ -1146,7 +1146,7 @@ describe("application shell", () => {
       expect(
         decodeURIComponent(whatsapp.getAttribute("href")!.split("text=")[1]!),
       ).toContain(
-        `Olá, ${firstName}! Segue o recibo REC-C1C1C1C1: recebemos R$`,
+        `Olá, ${firstName}! Segue o recibo REC-00007: recebemos R$`,
       );
     });
 

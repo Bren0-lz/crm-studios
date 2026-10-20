@@ -1,6 +1,8 @@
 import {
+  formatSequenceNumber,
   type GuidedPatientInput,
   overduePatientIds,
+  parseSequenceNumber,
   type GuidedPatientResult,
   type Patient,
   type PatientInput,
@@ -78,7 +80,16 @@ export function createPatientsRepository(
         ...input,
         id: uuid(),
         clinicId,
-        recordNumber: `PAC-${String(repositoryContext.patients.length + 1).padStart(5, "0")}`,
+        // Próximo da sequência da clínica (QM15).
+        recordNumber: formatSequenceNumber(
+          "PAC",
+          Math.max(
+            0,
+            ...repositoryContext.patients
+              .filter((item) => item.clinicId === clinicId)
+              .map((item) => parseSequenceNumber("PAC", item.recordNumber) ?? 0),
+          ) + 1,
+        ),
         status: "active",
         createdAt: timestamp,
         updatedAt: timestamp,

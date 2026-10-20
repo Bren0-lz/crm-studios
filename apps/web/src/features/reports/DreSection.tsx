@@ -172,7 +172,7 @@ export function DreSection() {
           <div className="inventory-body">
             <p className="muted-copy">
               Composição mensal por competência, incluindo valores ainda não
-              pagos. O caixa apresenta as movimentações de pagamento e estorno.
+              pagos. O caixa apresenta os pagamentos e os estornos.
             </p>
             <form
               className="form-grid"

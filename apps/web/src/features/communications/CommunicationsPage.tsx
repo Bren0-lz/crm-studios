@@ -19,6 +19,10 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { localIsoDate } from "../../shared/lib/formatting";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { BroadcastPanel } from "./BroadcastPanel";
 
 export function CommunicationsPage() {
@@ -45,6 +49,22 @@ export function CommunicationsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const canManage = canEdit("communications");
+  const messageMissing = useMissingFields(
+    missingLabels([
+      ["Cliente", patientId],
+      ["Mensagem administrativa", body],
+    ]),
+    "field-hint",
+  );
+  const reminderMissing = useMissingFields(
+    [
+      ...missingLabels([["Data de referência", referenceDate]]),
+      ...(Object.values(reminderOptions).some(Boolean)
+        ? []
+        : ["Pelo menos um tipo de lembrete"]),
+    ],
+    "field-hint",
+  );
 
   async function load() {
     const [communicationData, patientData] = await Promise.all([
@@ -224,14 +244,15 @@ export function CommunicationsPage() {
                         placeholder="Não inclua diagnósticos ou informações clínicas."
                       />
                     </label>
+                    {messageMissing.hint}
                     <div className="modal-actions">
                       <button
                         className="primary-button"
                         disabled={
                           !can("communications.messages") ||
-                          !patientId ||
-                          !body.trim()
+                          messageMissing.blocked
                         }
+                        aria-describedby={messageMissing.describedBy}
                       >
                         Adicionar à fila
                       </button>
@@ -282,15 +303,13 @@ export function CommunicationsPage() {
                     </label>
                   ))}
                 </div>
+                {can("communications.reminders") && reminderMissing.hint}
                 <div className="modal-actions">
                   {can("communications.reminders") && (
                     <button
                       className="primary-button"
-                      disabled={
-                        working ||
-                        !referenceDate ||
-                        !Object.values(reminderOptions).some(Boolean)
-                      }
+                      disabled={working || reminderMissing.blocked}
+                      aria-describedby={reminderMissing.describedBy}
                       onClick={() => void generate()}
                     >
                       Gerar lembretes
