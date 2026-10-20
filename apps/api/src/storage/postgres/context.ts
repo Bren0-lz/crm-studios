@@ -1,4 +1,5 @@
 import {
+  formatSequenceNumber,
   settlementBreakdown,
   type PaymentTiming,
   type SettlementAdjustments,
@@ -29,6 +30,7 @@ import {
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { nextClinicSequence } from "./clinic-sequences.js";
 import {
   findWeeklyScheduleConflicts,
   groupScheduleConflictMessage,
@@ -326,6 +328,11 @@ export class PostgresRepositoryContext {
     input: PatientInput,
   ) {
     const id = randomUUID();
+    // Prontuário sequencial da clínica (QM15), sem trecho do UUID.
+    const recordNumber = formatSequenceNumber(
+      "PAC",
+      await nextClinicSequence(client, clinicId, "patient_record"),
+    );
     try {
       const result = await client.query<PatientRow>(
         `
@@ -339,7 +346,7 @@ export class PostgresRepositoryContext {
         [
           id,
           clinicId,
-          `PAC-${id.slice(0, 8).toUpperCase()}`,
+          recordNumber,
           input.fullName,
           input.cpf || null,
           input.email || null,

@@ -250,7 +250,7 @@ export const historyActions: {
   {
     action: "lead.stage_changed",
     module: "crm",
-    label: "Lead movimentado no funil",
+    label: "Lead mudou de etapa no funil",
   },
   {
     action: "clinical.revision",
@@ -273,12 +273,12 @@ export const historyActions: {
   {
     action: "session.movement",
     module: "plans",
-    label: "Saldo de sessões movimentado",
+    label: "Saldo de sessões alterado",
   },
   {
     action: "stock.movement",
     module: "patients",
-    label: "Estoque movimentado",
+    label: "Estoque ajustado",
   },
   {
     action: "lead.contact",

@@ -18,6 +18,7 @@ import {
   type AppointmentInput,
   type AppointmentRescheduleEvent,
   type AppointmentStatus,
+  formatSequenceNumber,
   type AssessmentTemplate,
   type ClinicalAccessEvent,
   type ClinicalAddendum,
@@ -216,6 +217,12 @@ export class MemoryRepositoryContext {
   readonly sessionMovements: SessionMovement[] = [];
 
   readonly receivables: Receivable[] = [];
+  /** Número do recibo (sequencial por clínica), atribuído na primeira emissão (QM15). */
+  readonly receiptNumbers: Array<{
+    clinicId: string;
+    receivableId: string;
+    number: number;
+  }> = [];
 
   readonly payablePaymentEvents: PayablePaymentEvent[] = [];
   readonly financialDateCorrections: FinancialDateCorrection[] = [];
@@ -399,18 +406,21 @@ export class MemoryRepositoryContext {
       "Helena Almeida",
       "11987654321",
       ["Pós-operatório"],
+      1,
     ),
     this.seedPatient(
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       "Lucas Ribeiro",
       "11976543210",
       ["Esportivo"],
+      2,
     ),
     this.seedPatient(
       "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       "Sônia Barros",
       "11965432109",
       ["Recorrente"],
+      3,
     ),
   ];
 
@@ -519,11 +529,13 @@ export class MemoryRepositoryContext {
     fullName: string,
     phone: string,
     tags: string[],
+    number: number,
   ): Patient {
     return {
       id,
       clinicId: CLINIC_ID,
-      recordNumber: `PAC-${id.slice(0, 4).toUpperCase()}`,
+      // PAC-00001..00003, como no seed do PostgreSQL; os demo começam em PAC-00004 (QM15).
+      recordNumber: formatSequenceNumber("PAC", number),
       fullName,
       phone,
       tags,

@@ -138,6 +138,15 @@ describe("CRM API", () => {
         },
       })
     ).json();
+    // QM15: prontuário sequencial da clínica, sem trecho de UUID.
+    expect(patient.recordNumber).toBe("PAC-00124");
+    const next = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers,
+      payload: { fullName: "Rita Sequência", phone: "11999990001", tags: [] },
+    });
+    expect(next.json().recordNumber).toBe("PAC-00125");
     const [professional, room, service] = await Promise.all([
       app.inject({ method: "GET", url: "/professionals", headers }),
       app.inject({ method: "GET", url: "/rooms", headers }),

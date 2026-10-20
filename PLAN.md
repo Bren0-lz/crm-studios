@@ -21,7 +21,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 
 Origem: QA em produção (modo Demonstração, admin) de 17/10/2026. IDs com prefixo `Q` para não
 colidir com a rodada 7 (QC1 = C1 do relatório do QA, QM = M, QV = V). Branch `main`
-(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0084**.
+(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0086**.
 
 Ordem da Fase 1 (métricas depois dos dados): QC6 → QC2 → QC3 → QC4 → QC5 → QC8 → QC1 → QC7 →
 QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).
@@ -214,7 +214,7 @@ Gate completo em todos, na ordem da tabela.
 | QM12 | "Serviço avulso" lista os serviços avulsos ou orienta onde cadastrar | DONE |
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
-| QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | TODO |
+| QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
 
