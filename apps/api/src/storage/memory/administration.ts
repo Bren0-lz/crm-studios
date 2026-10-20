@@ -160,6 +160,12 @@ export function createAdministrationRepository(
         user,
         resolvePermissionInput(input.role, input),
       );
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
       repositoryContext.users.push(user);
       repositoryContext.addAdminAudit(
         actorUserId,
@@ -230,6 +236,12 @@ export function createAdministrationRepository(
         throw lastAdminError();
       const previousPermissions = [...user.permissions];
       const previousRole = user.role;
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
       user.fullName = input.fullName;
       user.role = input.role;
       user.active = input.active;
@@ -438,13 +450,17 @@ export function createAdministrationRepository(
 
     async listProfessionals(clinicId: string) {
       return repositoryContext.professionals.filter(
-        (item) => item.clinicId === clinicId && item.active,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
       );
     },
 
     async createProfessional(clinicId: string, input: ProfessionalInput) {
       const professional: Professional = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         active: true,
@@ -455,12 +471,21 @@ export function createAdministrationRepository(
 
     async listRooms(clinicId: string) {
       return repositoryContext.rooms.filter(
-        (item) => item.clinicId === clinicId && item.active,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
       );
     },
 
     async createRoom(clinicId: string, input: RoomInput) {
-      const room: Room = { ...input, id: uuid(), clinicId, active: true };
+      const room: Room = {
+        ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
       repositoryContext.rooms.push(room);
       return room;
     },

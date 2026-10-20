@@ -6,14 +6,19 @@ import type {
 } from "@crm/contracts";
 import type { PostgresRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
-import { type ProfessionalRow, hasDatabaseCode } from "./helpers.js";
+import {
+  type ProfessionalRow,
+  branchClause,
+  hasDatabaseCode,
+} from "./helpers.js";
 const mapProfessional = (row: ProfessionalRow): Professional => ({
   ...row,
   crefito: row.crefito ?? "",
 });
 const professionalColumns =
-  'id,clinic_id AS "clinicId",full_name AS "fullName",crefito,specialty,color,active';
-const roomColumns = 'id,clinic_id AS "clinicId",name,capacity,active';
+  'id,clinic_id AS "clinicId",branch_id AS "branchId",full_name AS "fullName",crefito,specialty,color,active';
+const roomColumns =
+  'id,clinic_id AS "clinicId",branch_id AS "branchId",name,capacity,active';
 const serviceColumns =
   'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",price_in_cents AS "priceInCents",color,active,professional_ids::text[] AS "professionalIds",room_ids::text[] AS "roomIds"';
 export function createRegistryRepository(context: PostgresRepositoryContext) {
@@ -21,12 +26,12 @@ export function createRegistryRepository(context: PostgresRepositoryContext) {
     async getAdministrativeRegistry(clinicId: string) {
       return context.inTransaction(async (client) => {
         const professional = await client.query<ProfessionalRow>(
-            `SELECT ${professionalColumns} FROM professionals WHERE clinic_id=$1 ORDER BY full_name`,
-            [clinicId],
+            `SELECT ${professionalColumns} FROM professionals WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY full_name`,
+            [clinicId, context.branchReadIds()],
           ),
           rooms = await client.query<Room>(
-            `SELECT ${roomColumns} FROM rooms WHERE clinic_id=$1 ORDER BY name`,
-            [clinicId],
+            `SELECT ${roomColumns} FROM rooms WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+            [clinicId, context.branchReadIds()],
           ),
           services = await client.query<Service>(
             `SELECT ${serviceColumns} FROM services WHERE clinic_id=$1 ORDER BY name`,

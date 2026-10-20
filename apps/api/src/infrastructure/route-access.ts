@@ -63,6 +63,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /auth/login": "public",
   "POST /auth/logout-all": "login",
   "GET /me": "login",
+  "GET /branches": "login",
 
   // Administração (só admin).
   "POST /admin/users/:id/revoke-sessions": "admin",
@@ -73,6 +74,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/users/:id/professional": "admin",
   "PUT /admin/users/:id/commission": "admin",
   "GET /clinic/branding": "login",
+  "GET /admin/branches": "admin",
+  "POST /admin/branches": "admin",
+  "PUT /admin/branches/:id": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",

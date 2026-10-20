@@ -389,6 +389,10 @@ export function createGroupOperationsRepository(
           "Profissional não encontrado.",
           404,
         );
+      const group = context.groupClasses.find(
+        (item) => item.id === meeting.groupId,
+      );
+      if (group) context.resourceBranch(group, professional);
       const overlap = (start: string, end: string) =>
         start < meeting.endsAt && end > meeting.startsAt;
       if (

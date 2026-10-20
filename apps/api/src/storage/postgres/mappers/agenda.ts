@@ -15,6 +15,7 @@ import type { Pool, PoolClient } from "pg";
 import { present } from "./administration.js";
 
 export interface AppointmentRow {
+  branchId?: string;
   predecessorId?: string | null;
   absenceReason?: string | null;
   id: string;
@@ -148,6 +149,7 @@ export interface ReplacementCreditRow {
 }
 
 export const appointmentColumns = `
+  a.branch_id AS "branchId",
   a.predecessor_id AS "predecessorId",a.absence_reason AS "absenceReason",a.id,
   a.clinic_id AS "clinicId",
   a.patient_id AS "patientId",
@@ -184,6 +186,7 @@ export function mapAppointment(row: AppointmentRow): Appointment {
   return {
     ...(row.predecessorId ? { predecessorId: row.predecessorId } : {}),
     ...(row.absenceReason ? { absenceReason: row.absenceReason } : {}),
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     ...(row.patientId ? { patientId: row.patientId } : {}),

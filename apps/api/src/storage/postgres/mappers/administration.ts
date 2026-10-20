@@ -24,14 +24,19 @@ export interface UserRow {
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
+  allBranches: boolean;
+  branchIds: string[];
 }
 
 export const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
   job_title AS "jobTitle", modules, edit_modules AS "editModules", permissions,
   password_hash AS "passwordHash", session_version AS "sessionVersion", active,
-  created_at AS "createdAt", updated_at AS "updatedAt"`;
+  created_at AS "createdAt", updated_at AS "updatedAt", all_branches AS "allBranches",
+  ARRAY(SELECT ub.branch_id::text FROM user_branches ub WHERE ub.user_id = users.id
+    ORDER BY ub.branch_id) AS "branchIds"`;
 
 export interface ProfessionalRow {
+  branchId?: string;
   id: string;
   clinicId: string;
   fullName: string;
@@ -42,6 +47,7 @@ export interface ProfessionalRow {
 }
 
 export interface RoomRow {
+  branchId?: string;
   id: string;
   clinicId: string;
   name: string;
@@ -89,6 +95,8 @@ export function mapAdminUser(row: UserRow): AdminUser {
         ? effectiveEditModules("admin")
         : permissionEditModules(rowPermissions(row)),
     customModules: row.role !== "admin" && row.permissions.length > 0,
+    allBranches: row.role === "admin" || row.allBranches,
+    branchIds: row.role === "admin" || row.allBranches ? [] : row.branchIds,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

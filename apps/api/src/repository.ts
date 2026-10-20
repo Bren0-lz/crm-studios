@@ -1,3 +1,5 @@
+import type { Branch, BranchInput } from "@crm/contracts";
+import type { BranchScopeStore } from "./storage/branch-scope.js";
 import type {
   ExternalOperation,
   ExternalOperationInput,
@@ -186,6 +188,10 @@ import type {
 
 export interface AuthenticatedUser extends UserSummary {
   sessionVersion?: number;
+  /** Acessa todas as filiais (admin: sempre). */
+  allBranches?: boolean;
+  /** Filiais do usuário quando `allBranches` é `false`. */
+  branchIds?: string[];
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;
@@ -196,6 +202,20 @@ export interface AuthenticatedUser extends UserSummary {
 }
 
 export interface ClinicRepository {
+  /** Filial da requisição em curso (ver `storage/branch-scope.ts`). */
+  readonly branchScope: BranchScopeStore;
+  /** Todas as filiais da clínica (ativas e inativas), a padrão primeiro. */
+  listBranches(clinicId: string): Promise<Branch[]>;
+  /**
+   * Cria (`id` ausente) ou altera a filial. `null` = filial inexistente; BRANCH_NAME_DUPLICATE
+   * (409) e BRANCH_DEFAULT_INACTIVE (409, a padrão não pode ser desativada).
+   */
+  saveBranch(
+    clinicId: string,
+    actorUserId: string,
+    input: BranchInput,
+    id?: string,
+  ): Promise<Branch | null>;
   getCommissionReconciliationPreview(
     clinicId: string,
     id: string,

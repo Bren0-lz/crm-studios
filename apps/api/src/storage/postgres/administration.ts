@@ -28,6 +28,7 @@ import {
   mapAuthenticatedUser,
   rowPermissions,
   userColumns,
+  branchClause,
 } from "./helpers.js";
 
 type ClinicSettingsRow = {
@@ -268,9 +269,18 @@ export function createAdministrationRepository(
             created.id,
             input.commission,
           );
-        const withCommission = input.commission
-          ? await repositoryContext.findAdminUser(client, clinicId, created.id)
-          : null;
+        if (input.branchAccess)
+          await repositoryContext.setUserBranchAccess(
+            client,
+            clinicId,
+            actorUserId,
+            created.id,
+            input.branchAccess,
+          );
+        const withCommission =
+          input.commission || input.branchAccess
+            ? await repositoryContext.findAdminUser(client, clinicId, created.id)
+            : null;
         await client.query("COMMIT");
         return withCommission ?? created;
       } catch (error) {
@@ -393,6 +403,14 @@ export function createAdministrationRepository(
           userId,
           { role: input.role, active: input.active },
         );
+        if (input.branchAccess)
+          await repositoryContext.setUserBranchAccess(
+            client,
+            clinicId,
+            actorUserId,
+            userId,
+            input.branchAccess,
+          );
         const withCommission = await repositoryContext.findAdminUser(
           client,
           clinicId,
@@ -569,11 +587,13 @@ export function createAdministrationRepository(
     async listProfessionals(clinicId: string) {
       const result = await repositoryContext.pool.query<ProfessionalRow>(
         `
-        SELECT id, clinic_id AS "clinicId", full_name AS "fullName", crefito,
-               specialty, color, active
-        FROM professionals WHERE clinic_id = $1 AND active = true ORDER BY full_name
+        SELECT id, clinic_id AS "clinicId", branch_id AS "branchId", full_name AS "fullName",
+               crefito, specialty, color, active
+        FROM professionals WHERE clinic_id = $1 AND active = true
+          AND ${branchClause("branch_id", 2)}
+        ORDER BY full_name
       `,
-        [clinicId],
+        [clinicId, repositoryContext.branchReadIds()],
       );
       return result.rows;
     },
@@ -582,10 +602,10 @@ export function createAdministrationRepository(
       try {
         const result = await repositoryContext.pool.query<ProfessionalRow>(
           `
-          INSERT INTO professionals (clinic_id, full_name, crefito, specialty, color)
-          VALUES ($1, $2, $3, $4, $5)
-          RETURNING id, clinic_id AS "clinicId", full_name AS "fullName", crefito,
-                    specialty, color, active
+          INSERT INTO professionals (clinic_id, full_name, crefito, specialty, color, branch_id)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id, clinic_id AS "clinicId", branch_id AS "branchId", full_name AS "fullName",
+                    crefito, specialty, color, active
         `,
           [
             clinicId,
@@ -593,6 +613,7 @@ export function createAdministrationRepository(
             input.crefito,
             input.specialty,
             input.color,
+            repositoryContext.branchWriteId(),
           ],
         );
         return result.rows[0]!;
@@ -610,9 +631,10 @@ export function createAdministrationRepository(
 
     async listRooms(clinicId: string) {
       const result = await repositoryContext.pool.query<RoomRow>(
-        `SELECT id, clinic_id AS "clinicId", name, capacity, active
-       FROM rooms WHERE clinic_id = $1 AND active = true ORDER BY name`,
-        [clinicId],
+        `SELECT id, clinic_id AS "clinicId", branch_id AS "branchId", name, capacity, active
+       FROM rooms WHERE clinic_id = $1 AND active = true AND ${branchClause("branch_id", 2)}
+       ORDER BY name`,
+        [clinicId, repositoryContext.branchReadIds()],
       );
       return result.rows;
     },
@@ -620,9 +642,9 @@ export function createAdministrationRepository(
     async createRoom(clinicId: string, input: RoomInput) {
       try {
         const result = await repositoryContext.pool.query<RoomRow>(
-          `INSERT INTO rooms (clinic_id, name, capacity) VALUES ($1, $2, $3)
-         RETURNING id, clinic_id AS "clinicId", name, capacity, active`,
-          [clinicId, input.name, input.capacity],
+          `INSERT INTO rooms (clinic_id, name, capacity, branch_id) VALUES ($1, $2, $3, $4)
+         RETURNING id, clinic_id AS "clinicId", branch_id AS "branchId", name, capacity, active`,
+          [clinicId, input.name, input.capacity, repositoryContext.branchWriteId()],
         );
         return result.rows[0]!;
       } catch (error) {

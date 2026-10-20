@@ -70,6 +70,10 @@ export interface AdminUser extends UserSummary {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Acessa todas as filiais (admin: sempre `true`). */
+  allBranches?: boolean;
+  /** Filiais do usuário quando `allBranches` é `false`. */
+  branchIds?: string[];
   /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
   professionalId?: string;
   professionalName?: string;
@@ -128,12 +132,16 @@ export interface PermissionMatrixItem {
 }
 
 export interface Professional extends ProfessionalInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   active: boolean;
 }
 
 export interface Room extends RoomInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   active: boolean;

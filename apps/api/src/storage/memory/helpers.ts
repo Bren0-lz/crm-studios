@@ -2,6 +2,9 @@ import type { RecurringPayable } from "@crm/contracts";
 
 export const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 
+/** Filial padrão ("Matriz") da clínica de demonstração. */
+export const DEFAULT_BRANCH_ID = "99999999-0000-4000-8000-000000000001";
+
 export type StoredRecurringPayable = Omit<
   RecurringPayable,
   "categoryName" | "costCenterName" | "lastCompetence"

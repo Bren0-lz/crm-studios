@@ -106,8 +106,11 @@ import {
 } from "../../modules/plans/plan-services.js";
 import type { ClinicRepository } from "../../repository.js";
 import { type AuthenticatedUser, DomainError } from "../../repository.js";
+import type { Branch, UserBranchAccess } from "@crm/contracts";
+import { BranchScopeStore } from "../branch-scope.js";
 import {
   CLINIC_ID,
+  DEFAULT_BRANCH_ID,
   dateAt,
   now,
   type StoredRecurringPayable,
@@ -117,6 +120,115 @@ import {
 
 export class MemoryRepositoryContext {
   operations!: ClinicRepository;
+  readonly branchScope = new BranchScopeStore();
+  readonly branches: Branch[] = [
+    {
+      id: DEFAULT_BRANCH_ID,
+      clinicId: CLINIC_ID,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+    },
+  ];
+
+  /** Filial padrão da clínica (criada na primeira consulta, como o gatilho do PostgreSQL). */
+  defaultBranchId(clinicId: string) {
+    const current = this.branches.find(
+      (branch) => branch.clinicId === clinicId && branch.isDefault,
+    );
+    if (current) return current.id;
+    const branch: Branch = {
+      id: uuid(),
+      clinicId,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+    };
+    this.branches.push(branch);
+    return branch.id;
+  }
+
+  /** Filial do registro; os anteriores às filiais ficam na padrão. */
+  branchOf(item: { clinicId: string; branchId?: string }) {
+    return item.branchId ?? this.defaultBranchId(item.clinicId);
+  }
+
+  /** O registro está nas filiais da leitura em curso? */
+  inBranchScope(item: { clinicId: string; branchId?: string }) {
+    const ids = this.branchScope.readIds();
+    return !ids || ids.includes(this.branchOf(item));
+  }
+
+  /** Grava as filiais do usuário (lista validada contra as filiais da clínica). */
+  setUserBranchAccess(
+    user: AuthenticatedUser,
+    access: UserBranchAccess,
+    actorUserId: string,
+  ) {
+    const branchIds = access.allBranches ? [] : [...new Set(access.branchIds)];
+    if (
+      branchIds.some(
+        (id) =>
+          !this.branches.some(
+            (branch) => branch.clinicId === user.clinicId && branch.id === id,
+          ),
+      )
+    )
+      throw new DomainError(
+        "BRANCH_NOT_FOUND",
+        "Filial não encontrada.",
+        404,
+      );
+    user.allBranches = access.allBranches;
+    user.branchIds = branchIds;
+    this.addAdminAudit(
+      actorUserId,
+      "users.branches_updated",
+      "user",
+      user.id,
+      { allBranches: user.allBranches, branchIds },
+      user.clinicId,
+    );
+  }
+
+  /** A turma está nas filiais da leitura em curso? */
+  groupInBranchScope(groupId: string) {
+    const group = this.groupClasses.find((item) => item.id === groupId);
+    return Boolean(group && this.inBranchScope(group));
+  }
+
+  /** Recusa (403) gravar em filial fora das filiais da requisição. */
+  assertBranchInScope(branchId: string) {
+    const ids = this.branchScope.readIds();
+    if (ids && !ids.includes(branchId))
+      throw new DomainError(
+        "BRANCH_ACCESS_DENIED",
+        "Este registro é de uma filial que não está selecionada.",
+        403,
+      );
+  }
+
+  /**
+   * Filial comum aos recursos (profissional, sala, turma…) de uma gravação: recusa mistura de
+   * filiais (409 BRANCH_MISMATCH) e filial fora do escopo da requisição (403).
+   */
+  resourceBranch(...items: { clinicId: string; branchId?: string }[]) {
+    const ids = new Set(items.map((item) => this.branchOf(item)));
+    if (ids.size > 1)
+      throw new DomainError(
+        "BRANCH_MISMATCH",
+        "Profissional e sala precisam ser da mesma filial.",
+        409,
+      );
+    const [branchId] = [...ids];
+    this.assertBranchInScope(branchId!);
+    return branchId!;
+  }
+
+  /** Filial em que a requisição em curso grava. */
+  writeBranchId(clinicId: string) {
+    return this.branchScope.writeId() ?? this.defaultBranchId(clinicId);
+  }
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
@@ -593,8 +705,11 @@ export class MemoryRepositoryContext {
     const professional = this.linkedProfessional(user.clinicId, user.id);
     const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
+    const allBranches = user.role === "admin" || (user.allBranches ?? true);
     return {
       ...summary,
+      allBranches,
+      branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
       ...(professional
         ? {
             professionalId: professional.id,
@@ -1170,8 +1285,10 @@ export class MemoryRepositoryContext {
       );
     }
 
+    const branchId = this.resourceBranch(professional, room);
     const timestamp = now();
     const appointment: Appointment = {
+      branchId,
       professionalId: input.professionalId,
       roomId: input.roomId,
       serviceId: input.serviceId,
