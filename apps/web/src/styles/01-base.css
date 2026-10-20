@@ -107,9 +107,8 @@ body {
   min-height: 100vh;
 }
 
-/* Modal ou gaveta aberta: a página de trás não rola. */
-html.modal-open,
-body.modal-open {
+/* A trava fica só no html: overflow no body muda a referência dos elementos sticky. */
+html.modal-open {
   overflow: hidden;
 }
 /* Sem a calha reservada: o padding-right do body (useBodyScrollLock) ocupa o lugar da

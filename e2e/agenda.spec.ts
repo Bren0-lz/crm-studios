@@ -8,6 +8,130 @@ import {
   clinicToday,
 } from "./fixtures.js";
 
+test("appointment modals preserve the scrolled agenda and sticky shell", async ({
+  page,
+  api,
+}, testInfo) => {
+  const patient = await seedPatient(api, "Cliente Fundo da Agenda");
+  const services = await (await api.get("/services")).json();
+  const professionals = await (await api.get("/professionals")).json();
+  const rooms = await (await api.get("/rooms")).json();
+  const created = await api.post("/appointments", {
+    data: {
+      patientId: patient.id,
+      serviceId: services[0].id,
+      professionalId: professionals[0].id,
+      roomId: rooms[0].id,
+      startsAt: `${clinicToday()}T21:00:00-03:00`,
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  await login(page);
+  await page.goto("/agenda");
+  await page.evaluate(() => document.fonts.ready);
+  const appointment = page.getByRole("button", {
+    name: `Detalhes de ${patient.fullName}`,
+    exact: true,
+  });
+  await appointment.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
+
+  const background = () =>
+    page.evaluate(() => {
+      const bounds = (selector: string) => {
+        const { x, y, width, height } = document
+          .querySelector(selector)!
+          .getBoundingClientRect();
+        return { x, y, width, height };
+      };
+      return {
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        header: bounds(".topbar"),
+        sidebar: bounds(".sidebar"),
+        agenda: bounds(".agenda-panel"),
+      };
+    });
+  const before = await background();
+  expect(before.header.y).toBe(0);
+  if (page.viewportSize()!.width > 820) {
+    expect(before.sidebar.y).toBe(0);
+    expect(before.sidebar.height).toBe(page.viewportSize()!.height);
+  }
+  const expectStable = async () => {
+    const after = await background();
+    expect(after.scrollX).toBe(before.scrollX);
+    expect(after.scrollY).toBe(before.scrollY);
+    for (const element of ["header", "sidebar", "agenda"] as const)
+      for (const key of ["x", "y", "width", "height"] as const)
+        expect(
+          Math.abs(after[element][key] - before[element][key]),
+          `${element}.${key} deve permanecer estável`,
+        ).toBeLessThanOrEqual(1);
+  };
+  const wheelOnBackground = async () => {
+    await page.mouse.move(1, page.viewportSize()!.height / 2);
+    await page.mouse.wheel(0, 400);
+    // Wait for wheel handling and layout before checking the locked background.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expectStable();
+  };
+
+  await appointment.click();
+  const details = page.getByRole("dialog", { name: "Detalhes do atendimento" });
+  await expect(details).toBeVisible();
+  await expectStable();
+  await wheelOnBackground();
+  const body = details.locator(".modal-body");
+  await body.hover();
+  await page.mouse.wheel(0, 300);
+  await expect
+    .poll(() => body.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  await expectStable();
+  await page.screenshot({
+    path: testInfo.outputPath("agenda-details-scroll-lock.png"),
+  });
+
+  await details.getByRole("button", { name: "Editar", exact: true }).click();
+  const edit = page.getByRole("dialog", {
+    name: "Editar atendimento",
+    exact: true,
+  });
+  await edit
+    .getByLabel("Observação", { exact: true })
+    .fill("Edição temporária");
+  await page.keyboard.press("Escape");
+  const discard = page.getByRole("dialog", { name: "Descartar alterações?" });
+  await expect(discard).toBeVisible();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(2);
+  await wheelOnBackground();
+  await page.keyboard.press("Escape");
+  await expect(discard).toHaveCount(0);
+  await expect(edit).toBeVisible();
+  await wheelOnBackground();
+  await page.keyboard.press("Escape");
+  await discard.getByRole("button", { name: "Descartar", exact: true }).click();
+  await expect(details).toBeVisible();
+  await expectStable();
+  await details.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(details).toHaveCount(0);
+  await expectStable();
+  await expect(page.locator("html")).not.toHaveClass(/modal-open/);
+  await page.mouse.move(page.viewportSize()!.width - 20, 100);
+  await page.mouse.wheel(0, -200);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeLessThan(before.scrollY);
+});
+
 test("creates a client from the suggestion footer with pointer and keyboard", async ({
   page,
   api,
