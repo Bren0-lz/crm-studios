@@ -594,3 +594,25 @@ button.top-avatar {
 .toast-close {
   color: inherit;
 }
+
+/* Filial ativa (cabeçalho): lista compacta com ícone, só para quem acessa várias filiais. */
+.branch-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+}
+
+.branch-select > svg {
+  position: absolute;
+  left: var(--space-3);
+  pointer-events: none;
+}
+
+.branch-select select {
+  width: auto;
+  max-width: calc(var(--space-8) * 3);
+  min-height: calc(var(--space-7) - var(--space-1));
+  padding-left: calc(var(--space-6) + var(--space-1));
+  font-size: var(--text-sm);
+}

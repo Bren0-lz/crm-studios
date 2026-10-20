@@ -3,6 +3,7 @@ import {
   saoPauloToday,
   userRoleSchema,
   type AdminUser,
+  type Branch,
   type PermissionKey,
   type Professional,
   type UserRole,
@@ -72,9 +73,15 @@ export function UserFormModal({
   const [selectedProfessional, setSelectedProfessional] = useState(
     user?.professionalId ?? "",
   );
+  // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
+  const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty({
+    allBranches,
+    branchIds,
     fullName,
     email,
     password,
@@ -101,10 +108,20 @@ export function UserFormModal({
         if (active) setProfessionalsError(message);
       },
     );
+    api
+      .adminBranches()
+      .then((items) => {
+        if (active && Array.isArray(items))
+          setBranches(items.filter((item) => item.active));
+      })
+      .catch(() => {
+        // Sem a lista, o acesso às filiais fica como está.
+      });
     return () => {
       active = false;
     };
   }, []);
+  const choosesBranches = branches.length > 1 && !isAdmin;
 
   // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
   const taken = new Set(
@@ -177,7 +194,11 @@ export function UserFormModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const invalid = commissionError();
+    const invalid =
+      commissionError() ||
+      (choosesBranches && !allBranches && branchIds.length === 0
+        ? "Selecione ao menos uma filial."
+        : "");
     if (invalid) {
       setError(invalid);
       return;
@@ -185,7 +206,17 @@ export function UserFormModal({
     setSaving(true);
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
-    const permissions = { permissions: isAdmin ? [] : selectedPermissions };
+    const permissions = {
+      permissions: isAdmin ? [] : selectedPermissions,
+      ...(choosesBranches
+        ? {
+            branchAccess: {
+              allBranches,
+              branchIds: allBranches ? [] : branchIds,
+            },
+          }
+        : {}),
+    };
     const title = jobTitle.trim();
     const commission =
       commissionChanged && typedPercentage !== undefined
@@ -368,6 +399,36 @@ export function UserFormModal({
             </div>
           )}
         </fieldset>
+        {choosesBranches && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Filiais</legend>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={allBranches}
+                onChange={(event) => setAllBranches(event.target.checked)}
+              />
+              Acessa todas as filiais
+            </label>
+            {!allBranches &&
+              branches.map((branch) => (
+                <label className="checkbox-field" key={branch.id}>
+                  <input
+                    type="checkbox"
+                    checked={branchIds.includes(branch.id)}
+                    onChange={(event) =>
+                      setBranchIds((current) =>
+                        event.target.checked
+                          ? [...current, branch.id]
+                          : current.filter((id) => id !== branch.id),
+                      )
+                    }
+                  />
+                  {branch.name}
+                </label>
+              ))}
+          </fieldset>
+        )}
         <fieldset className="form-fieldset span-2">
           <legend>Comissão</legend>
           <div className="commission-editor">
