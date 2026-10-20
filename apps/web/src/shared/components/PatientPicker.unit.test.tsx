@@ -83,7 +83,13 @@ describe("PatientPicker", () => {
     const add = () => screen.getByRole("button", { name: "Adicionar cliente" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     fireEvent.focus(picker());
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(add()).toBeEnabled();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(api.patientOptions).not.toHaveBeenCalled();
     fireEvent.change(picker(), { target: { value: "Novo" } });
     expect(screen.getByRole("status")).toHaveTextContent("Buscando clientes");
     expect(add()).toBeEnabled();
@@ -102,6 +108,10 @@ describe("PatientPicker", () => {
     const list = screen.getByRole("listbox");
     expect(list).not.toContainElement(add());
     expect(list.nextElementSibling).toContainElement(add());
+    fireEvent.change(picker(), { target: { value: "" } });
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(add()).toBeEnabled();
     fireEvent.click(add());
     expect(onAddPatient).toHaveBeenCalledOnce();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

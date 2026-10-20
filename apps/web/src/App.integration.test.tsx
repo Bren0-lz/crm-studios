@@ -731,12 +731,9 @@ describe("appointment client search and creation", () => {
     expect(appointment.parentElement).toHaveAttribute("inert");
     expect(client.closest("form")).toBeNull();
     await within(client).findByText(/Nenhuma etiqueta configurada/);
-<<<<<<< HEAD
-=======
     const save = within(client).getByRole("button", { name: "Salvar cliente" });
     // Sem nome e telefone o botão fica desativado (QM14) e não recebe foco.
     expect(save).toBeDisabled();
->>>>>>> 964d713dbcdb08df67506540b4c7283477590fd1
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
@@ -746,10 +743,6 @@ describe("appointment client search and creation", () => {
       ).getByLabelText("Telefone"),
       { target: { value: created.phone } },
     );
-<<<<<<< HEAD
-    const save = within(client).getByRole("button", { name: "Salvar cliente" });
-=======
->>>>>>> 964d713dbcdb08df67506540b4c7283477590fd1
     save.focus();
     expect(save).toHaveFocus();
     fireEvent.keyDown(document.activeElement!, { key: "Tab" });

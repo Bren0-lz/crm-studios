@@ -421,9 +421,12 @@ export function AppointmentDateTimePicker({
             </span>
           </button>
         </div>
-        <label className="appointment-time-field">
-          <span className="sr-only">Horário</span>
+        <div className="appointment-time-field">
+          <label className="sr-only" htmlFor={`${id}-time`}>
+            Horário
+          </label>
           <input
+            id={`${id}-time`}
             ref={timeRef}
             type="time"
             required
@@ -431,7 +434,7 @@ export function AppointmentDateTimePicker({
             value={time}
             onChange={(event) => onChange(`${date}T${event.target.value}`)}
           />
-        </label>
+        </div>
       </div>
       {expanded && (
         <div

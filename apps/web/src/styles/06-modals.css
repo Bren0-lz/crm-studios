@@ -20,7 +20,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--space-2) - 1px);
+}
+.patient-picker-header > label {
+  display: inline-block;
 }
 .patient-picker > input {
   width: 100%;
@@ -431,6 +434,12 @@ p.field-hint {
   margin-bottom: 8px;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+.appointment-date-picker:has(.appointment-time-field > input:required)
+  > .appointment-date-label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
 }
 .appointment-date-fields {
   display: grid;

@@ -2,7 +2,6 @@ import {
   patientProfileLabels,
   type PatientInput,
 } from "@crm/contracts/patients";
-import { PhoneInput } from "../../shared/components/PhoneInput";
 import { useEffect, useState } from "react";
 import type { ClinicCatalogEntry } from "@crm/contracts";
 import { api } from "../../api";
@@ -72,7 +71,6 @@ export function PatientProfileFields({
     ...(withAddress
       ? (["address", "neighborhood", "city", "state"] as const)
       : []),
-    "guardianName",
     "occupation",
     "source",
   ] as const;
@@ -110,13 +108,6 @@ export function PatientProfileFields({
             />
           </label>
         ))}
-        <label>
-          Telefone do responsável
-          <PhoneInput
-            value={form.guardianPhone ?? ""}
-            onChange={(value) => onChange("guardianPhone", value)}
-          />
-        </label>
         <label>
           Gênero
           <select

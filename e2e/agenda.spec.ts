@@ -35,10 +35,39 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
     name: "Adicionar cliente",
     exact: true,
   });
+  const client = page.getByRole("dialog", {
+    name: "Novo cliente",
+    exact: true,
+  });
   await expect(add).toHaveCount(0);
+  if (page.viewportSize()!.width > 700) {
+    const pickerBox = (await picker.boundingBox())!;
+    const typeBox = (await appointment
+      .getByRole("combobox", { name: "Tipo", exact: true })
+      .boundingBox())!;
+    expect(Math.abs(pickerBox.y - typeBox.y)).toBeLessThanOrEqual(1);
+  }
+  await picker.focus();
+  await expect(add).toBeVisible();
+  await expect(
+    appointment.getByRole("listbox").getByRole("option"),
+  ).toHaveCount(0);
+  await expect(appointment.getByRole("status")).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("client-focus-footer.png"),
+  });
+  await picker.press("Tab");
+  await expect(add).toBeFocused();
+  await add.press("Enter");
+  await expect(client).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(client).toHaveCount(0);
+  await expect(picker).toBeFocused();
+  await expect(picker).toHaveValue("");
   await appointment
     .getByRole("textbox", { name: "Observação", exact: true })
     .fill("Manter observação");
+  await expect(add).toHaveCount(0);
   await picker.fill("Cliente Sugestão");
   await expect(
     appointment.getByRole("listbox").getByRole("option"),
@@ -82,15 +111,19 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
   await picker.press("Enter");
   await expect(picker).toHaveValue("Cliente Sugestão 11");
   await expect(results).toHaveCount(0);
+  await picker.press("Tab");
+  await picker.focus();
+  await expect(add).toBeVisible();
+  await add.click();
+  await expect(client).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(client).toHaveCount(0);
+  await expect(picker).toHaveValue("Cliente Sugestão 11");
 
   await picker.fill("Cliente Inédito");
   await expect(
     appointment.getByText("Nenhum cliente encontrado"),
   ).toBeVisible();
-  const client = page.getByRole("dialog", {
-    name: "Novo cliente",
-    exact: true,
-  });
   for (const activation of ["click", "Enter", "Space"]) {
     if (activation === "click") {
       await add.click();
@@ -123,7 +156,10 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
   await expect(client).toHaveCount(0);
   await expect(picker).toBeFocused();
   await expect(picker).toHaveValue("Cliente Inédito");
-  await expect(results).toHaveCount(0);
+  await expect(add).toBeVisible();
+  await expect(
+    appointment.getByRole("listbox").getByRole("option"),
+  ).toHaveCount(0);
   await expect(
     appointment.getByRole("textbox", { name: "Observação", exact: true }),
   ).toHaveValue("Manter observação");

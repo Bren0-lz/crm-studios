@@ -16,7 +16,7 @@ type PatientPickerProps = {
   onChange: (id: string, patient?: PatientOption) => void;
   required?: boolean;
   disabled?: boolean;
-  /** Sem efeito visual: a lista só abre com texto digitado e busca no servidor. */
+  /** Sem efeito visual: as sugestões dependem do texto digitado e da busca no servidor. */
   loading?: boolean;
   popover?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
@@ -59,11 +59,11 @@ export function PatientPicker({
     patients.find((patient) => patient.id === value) ??
     (selectedResult?.id === value ? selectedResult : undefined);
   const term = query?.trim() ?? "";
-  // A lista só abre com texto digitado e sempre filtrada por ele.
-  const isOpen = open && !disabled && Boolean(term);
-  const loading = response?.term !== term;
-  const error = response?.term === term ? response.error : "";
-  const choices = loading || error ? [] : (response?.items ?? []);
+  // Sem texto, mostra apenas a ação de cadastro, sem consultar nem listar clientes.
+  const isOpen = open && !disabled && (Boolean(term) || Boolean(onAddPatient));
+  const loading = Boolean(term) && response?.term !== term;
+  const error = term && response?.term === term ? response.error : "";
+  const choices = !term || loading || error ? [] : (response?.items ?? []);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -270,7 +270,7 @@ export function PatientPicker({
             <p role="status">Buscando clientes…</p>
           ) : error ? (
             <p role="alert">{error}</p>
-          ) : choices.length === 0 ? (
+          ) : term && choices.length === 0 ? (
             <p role="status">Nenhum cliente encontrado</p>
           ) : null}
           <ul
