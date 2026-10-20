@@ -1,3 +1,4 @@
+import { userBranchAccessSchema } from "../branches/model.js";
 import { z } from "zod";
 import {
   formatTaxId,
@@ -125,6 +126,8 @@ export const adminUserInputSchema = z
     permissions: userPermissionsSchema.optional(),
     /** Comissão do usuário já na criação; ausente = sem comissão. */
     commission: adminUserCommissionInputSchema.optional(),
+    /** Filiais que o usuário acessa; ausente = todas. */
+    branchAccess: userBranchAccessSchema.optional(),
   })
   .superRefine(validatePermissionInput);
 
@@ -140,6 +143,8 @@ export const adminUserUpdateSchema = z
     /** Ausente = mantém os módulos com edição atuais; `null` = nenhum. */
     editModules: userModulesSchema.optional(),
     permissions: userPermissionsSchema.optional(),
+    /** Ausente = mantém as filiais atuais. */
+    branchAccess: userBranchAccessSchema.optional(),
   })
   .superRefine(validatePermissionInput);
 

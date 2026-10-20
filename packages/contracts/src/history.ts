@@ -156,6 +156,13 @@ export const historyActions: {
   },
   { action: "user.created", module: "settings", label: "Usuário cadastrado" },
   { action: "user.updated", module: "settings", label: "Usuário atualizado" },
+  { action: "branch.created", module: "settings", label: "Filial cadastrada" },
+  { action: "branch.updated", module: "settings", label: "Filial atualizada" },
+  {
+    action: "users.branches_updated",
+    module: "settings",
+    label: "Filiais do usuário alteradas",
+  },
   {
     action: "user.password_reset",
     module: "settings",

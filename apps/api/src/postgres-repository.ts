@@ -1,3 +1,4 @@
+import { createBranchesRepository } from "./storage/postgres/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
 import { createPlanPurchasesRepository } from "./storage/postgres/plan-purchases.js";
@@ -28,6 +29,9 @@ import { createRelationshipRepository } from "./storage/postgres/relationship.js
 import { createReportsRepository } from "./storage/postgres/reports.js";
 
 export class PostgresClinicRepository implements ClinicRepository {
+  readonly branchScope: ClinicRepository["branchScope"];
+  readonly listBranches: ClinicRepository["listBranches"];
+  readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
@@ -91,6 +95,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   constructor(private readonly pool: Pool) {
     this.context = new PostgresRepositoryContext(pool);
     this.context.operations = this;
+    this.branchScope = this.context.branchScope;
+    const branches = createBranchesRepository(this.context);
+    this.listBranches = branches.listBranches;
+    this.saveBranch = branches.saveBranch;
     const reconciliation = createCommissionReconciliationRepository(
       this.context,
     );

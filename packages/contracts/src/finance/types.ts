@@ -139,6 +139,8 @@ export interface ReceivedPayment {
 }
 
 export interface Product extends Omit<ProductInput, "initialStock"> {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   currentStock: number;
@@ -189,6 +191,8 @@ export interface PatientTabServiceItem {
 }
 
 export interface PatientTab extends PatientTabInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   services?: PatientTabServiceItem[];
   id: string;
   clinicId: string;
@@ -220,6 +224,8 @@ export type SettlementAdjustments = Pick<
 >;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   postedOn?: string | undefined;
   cashAvailableAt?: string | undefined;
   source?: "plan" | "tab" | "manual";
@@ -265,6 +271,8 @@ export interface CostCenter extends CostCenterInput {
 }
 
 export interface Payable extends PayableInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   cashAvailableAt?: string;
   dreCompetence?: string | undefined;
   commissionId?: string | undefined;
@@ -285,6 +293,8 @@ export interface Payable extends PayableInput {
 }
 
 export interface RecurringPayable {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   description: string;

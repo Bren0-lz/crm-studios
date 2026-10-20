@@ -21,6 +21,8 @@ export type LeadTaskStatus = z.infer<typeof leadTaskStatusSchema>;
 export type LeadTaskInput = z.infer<typeof leadTaskInputSchema>;
 
 export interface Lead extends LeadInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   stage: LeadStage;

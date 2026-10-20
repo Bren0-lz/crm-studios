@@ -19,6 +19,8 @@ export interface ExternalOperation extends Omit<
   ExternalOperationInput,
   "contentBase64"
 > {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   patientName?: string;

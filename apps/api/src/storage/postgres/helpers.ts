@@ -157,3 +157,10 @@ export type {
   ContactActivityRow,
   SatisfactionSurveyRow,
 } from "./mappers/relationship.js";
+
+/**
+ * Filtro de filial `($n::uuid[] IS NULL OR <coluna> = ANY($n))`; o parâmetro `$n` recebe
+ * `context.branchReadIds()` (`null` = todas as filiais).
+ */
+export const branchClause = (column: string, parameter: number) =>
+  `($${parameter}::uuid[] IS NULL OR ${column} = ANY($${parameter}::uuid[]))`;

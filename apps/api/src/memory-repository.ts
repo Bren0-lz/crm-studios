@@ -1,3 +1,4 @@
+import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
 import { createPlanPurchasesRepository } from "./storage/memory/plan-purchases.js";
@@ -28,6 +29,9 @@ import { createRelationshipRepository } from "./storage/memory/relationship.js";
 import { createReportsRepository } from "./storage/memory/reports.js";
 
 export class MemoryClinicRepository implements ClinicRepository {
+  readonly branchScope: ClinicRepository["branchScope"];
+  readonly listBranches: ClinicRepository["listBranches"];
+  readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
@@ -91,6 +95,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   constructor(withRichDemo = false) {
     this.context = new MemoryRepositoryContext(withRichDemo);
     this.context.operations = this;
+    this.branchScope = this.context.branchScope;
+    const branches = createBranchesRepository(this.context);
+    this.listBranches = branches.listBranches;
+    this.saveBranch = branches.saveBranch;
     const reconciliation = createCommissionReconciliationRepository(
       this.context,
     );
