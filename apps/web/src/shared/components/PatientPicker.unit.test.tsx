@@ -67,6 +67,77 @@ afterEach(() => {
 });
 
 describe("PatientPicker", () => {
+  it("offers creation below the list during loading, empty results, errors and matches", async () => {
+    const onAddPatient = vi.fn();
+    vi.mocked(api.patientOptions)
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("Falha na consulta"));
+    render(
+      <PatientPicker
+        patients={[]}
+        value=""
+        onChange={vi.fn()}
+        onAddPatient={onAddPatient}
+      />,
+    );
+    const add = () => screen.getByRole("button", { name: "Adicionar cliente" });
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    fireEvent.focus(picker());
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    fireEvent.change(picker(), { target: { value: "Novo" } });
+    expect(screen.getByRole("status")).toHaveTextContent("Buscando clientes");
+    expect(add()).toBeEnabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Nenhum cliente encontrado",
+    );
+    expect(add()).toBeEnabled();
+    await search("Erro");
+    expect(screen.getByRole("alert")).toHaveTextContent("Falha na consulta");
+    expect(add()).toBeEnabled();
+    await search("Breno");
+    expect(screen.getByRole("option")).toHaveTextContent(breno.fullName);
+    const list = screen.getByRole("listbox");
+    expect(list).not.toContainElement(add());
+    expect(list.nextElementSibling).toContainElement(add());
+    fireEvent.click(add());
+    expect(onAddPatient).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps the footer reachable by focus, closes outside, and handles Escape from the button", async () => {
+    const outerEscape = vi.fn();
+    render(
+      <div onKeyDown={outerEscape}>
+        <PatientPicker
+          patients={[]}
+          value=""
+          onChange={vi.fn()}
+          onAddPatient={vi.fn()}
+        />
+        <button>Fora</button>
+      </div>,
+    );
+    await search("Bre");
+    const add = screen.getByRole("button", { name: "Adicionar cliente" });
+    act(() => picker().focus());
+    act(() => add.focus());
+    expect(add).toHaveFocus();
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.keyDown(add, { key: "Escape" });
+    expect(picker()).toHaveFocus();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(outerEscape).not.toHaveBeenCalled();
+    fireEvent.keyDown(picker(), { key: "ArrowDown" });
+    act(() =>
+      screen.getByRole("button", { name: "Adicionar cliente" }).focus(),
+    );
+    act(() => screen.getByRole("button", { name: "Fora" }).focus());
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("opens an opt-in native popover inside the picker and closes before the outer Escape handler", async () => {
     vi.mocked(api.patientOptions).mockResolvedValue([ana]);
     const show = vi.spyOn(HTMLElement.prototype, "showPopover");

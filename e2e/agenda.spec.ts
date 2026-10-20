@@ -8,6 +8,133 @@ import {
   clinicToday,
 } from "./fixtures.js";
 
+test("creates a client from the suggestion footer with pointer and keyboard", async ({
+  page,
+  api,
+}, testInfo) => {
+  for (let index = 0; index < 12; index++) {
+    await seedPatient(
+      api,
+      `Cliente Sugestão ${String(index).padStart(2, "0")}`,
+    );
+  }
+  await login(page);
+  await page.goto("/agenda");
+  await page
+    .getByRole("button", { name: "Novo atendimento", exact: true })
+    .click();
+  const appointment = page.getByRole("dialog", {
+    name: "Novo atendimento",
+    exact: true,
+  });
+  const picker = appointment.getByRole("combobox", {
+    name: "Cliente",
+    exact: true,
+  });
+  const add = appointment.getByRole("button", {
+    name: "Adicionar cliente",
+    exact: true,
+  });
+  await expect(add).toHaveCount(0);
+  await appointment
+    .getByRole("textbox", { name: "Observação", exact: true })
+    .fill("Manter observação");
+  await picker.fill("Cliente Sugestão");
+  await expect(
+    appointment.getByRole("listbox").getByRole("option"),
+  ).toHaveCount(12);
+  const results = appointment.locator(".patient-picker-results");
+  expect(
+    await results
+      .locator("ul")
+      .evaluate((element) => element.scrollHeight > element.clientHeight),
+  ).toBe(true);
+  await expect(add).toBeInViewport();
+  const panelBox = (await results.boundingBox())!;
+  const footerBox = (await add.boundingBox())!;
+  expect(footerBox.y).toBeGreaterThanOrEqual(panelBox.y);
+  expect(footerBox.y + footerBox.height).toBeLessThanOrEqual(
+    panelBox.y + panelBox.height,
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("client-suggestion-footer.png"),
+  });
+  await picker.press("Tab");
+  await expect(add).toBeFocused();
+  await add.press("Shift+Tab");
+  await expect(picker).toBeFocused();
+  await picker.press("Tab");
+  await add.press("Escape");
+  await expect(picker).toBeFocused();
+  await expect(results).toHaveCount(0);
+  await expect(appointment).toBeVisible();
+
+  await picker.press("ArrowUp");
+  const last = appointment.getByRole("option", {
+    name: "Cliente Sugestão 11",
+    exact: true,
+  });
+  await expect(last).toBeInViewport();
+  const lastBox = (await last.boundingBox())!;
+  expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(
+    (await add.locator("..").boundingBox())!.y,
+  );
+  await picker.press("Enter");
+  await expect(picker).toHaveValue("Cliente Sugestão 11");
+  await expect(results).toHaveCount(0);
+
+  await picker.fill("Cliente Inédito");
+  await expect(
+    appointment.getByText("Nenhum cliente encontrado"),
+  ).toBeVisible();
+  const client = page.getByRole("dialog", {
+    name: "Novo cliente",
+    exact: true,
+  });
+  for (const activation of ["click", "Enter", "Space"]) {
+    if (activation === "click") {
+      await add.click();
+    } else {
+      await picker.press("Tab");
+      await expect(add).toBeFocused();
+      await add.press(activation);
+    }
+    await expect(client).toBeVisible();
+    await expect(page.locator(".modal-backdrop[inert]")).toContainText(
+      "Novo atendimento",
+    );
+    if (activation !== "Space") {
+      await page.keyboard.press("Escape");
+      await expect(client).toHaveCount(0);
+      await expect(picker).toBeFocused();
+      await expect(picker).toHaveValue("Cliente Inédito");
+    }
+  }
+  await client
+    .getByLabel("Nome completo", { exact: true })
+    .fill("Cliente Inédito");
+  await client
+    .getByRole("group", { name: "Contato", exact: true })
+    .getByLabel("Telefone", { exact: true })
+    .fill("11999998888");
+  await client
+    .getByRole("button", { name: "Salvar cliente", exact: true })
+    .click();
+  await expect(client).toHaveCount(0);
+  await expect(picker).toBeFocused();
+  await expect(picker).toHaveValue("Cliente Inédito");
+  await expect(results).toHaveCount(0);
+  await expect(
+    appointment.getByRole("textbox", { name: "Observação", exact: true }),
+  ).toHaveValue("Manter observação");
+  await expect(
+    appointment.getByRole("button", {
+      name: "Confirmar atendimento",
+      exact: true,
+    }),
+  ).toBeEnabled();
+});
+
 test("schedules and reschedules an appointment without creating another occurrence", async ({
   page,
   api,

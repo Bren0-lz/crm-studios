@@ -719,6 +719,10 @@ describe("appointment client search and creation", () => {
       name: "Data",
     }).textContent;
     const originalTime = startsAt.value;
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -727,12 +731,6 @@ describe("appointment client search and creation", () => {
     expect(appointment.parentElement).toHaveAttribute("inert");
     expect(client.closest("form")).toBeNull();
     await within(client).findByText(/Nenhuma etiqueta configurada/);
-    const save = within(client).getByRole("button", { name: "Salvar cliente" });
-    save.focus();
-    expect(save).toHaveFocus();
-    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
-    expect(client.contains(document.activeElement)).toBe(true);
-    expect(save).not.toHaveFocus();
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
@@ -742,6 +740,12 @@ describe("appointment client search and creation", () => {
       ).getByLabelText("Telefone"),
       { target: { value: created.phone } },
     );
+    const save = within(client).getByRole("button", { name: "Salvar cliente" });
+    save.focus();
+    expect(save).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(client.contains(document.activeElement)).toBe(true);
+    expect(save).not.toHaveFocus();
     fireEvent.submit(client.querySelector("form")!);
     await waitFor(() =>
       expect(
@@ -782,9 +786,13 @@ describe("appointment client search and creation", () => {
     });
   });
 
-  it("closes only the client modal on Escape and keeps the previous selection", async () => {
+  it("closes only the client modal on Escape and keeps the search text", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -795,13 +803,17 @@ describe("appointment client search and creation", () => {
     expect(appointment).toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
     expect(document.body).toHaveClass("modal-open");
   });
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -828,7 +840,7 @@ describe("appointment client search and creation", () => {
     ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
   });
 
   it("searches CPF and selects a result by keyboard, clearing selection when edited", async () => {

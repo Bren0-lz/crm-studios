@@ -29,20 +29,24 @@
   z-index: 2;
 }
 .patient-picker-results {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   z-index: 1;
   max-height: min(240px, 40dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(17, 32, 27, 0.18);
 }
 .patient-picker-results ul {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -64,6 +68,18 @@
 .patient-picker-results li[aria-selected="true"] {
   background: var(--mint);
   font-weight: 700;
+}
+.patient-picker-results p {
+  flex-shrink: 0;
+}
+.patient-picker-footer {
+  flex-shrink: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.patient-picker-footer > button {
+  width: 100%;
 }
 
 .patient-picker-results[popover] {

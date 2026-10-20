@@ -196,19 +196,26 @@ export function PatientPicker({
   }
 
   return (
-    <div ref={pickerRef} className={`patient-picker ${className}`}>
+    <div
+      ref={pickerRef}
+      className={`patient-picker ${className}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && isOpen) {
+          event.stopPropagation();
+          ref.current?.focus();
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+    >
       <div className="patient-picker-header">
         <label htmlFor={`${listId}-input`}>Cliente</label>
-        {onAddPatient && (
-          <button
-            type="button"
-            className="secondary-button button-sm"
-            onClick={onAddPatient}
-            disabled={disabled}
-          >
-            Adicionar cliente
-          </button>
-        )}
       </div>
       <input
         id={`${listId}-input`}
@@ -227,10 +234,6 @@ export function PatientPicker({
           isOpen && choices[active] ? `${listId}-${active}` : undefined
         }
         onFocus={() => setOpen(true)}
-        onBlur={() => {
-          setOpen(false);
-          setActive(-1);
-        }}
         onChange={(event) => {
           setQuery(event.target.value.slice(0, 160));
           onChange("");
@@ -254,10 +257,6 @@ export function PatientPicker({
           } else if (event.key === "Enter" && isOpen) {
             event.preventDefault();
             if (choices[active]) choose(choices[active]);
-          } else if (event.key === "Escape" && isOpen) {
-            event.stopPropagation();
-            setOpen(false);
-            setActive(-1);
           }
         }}
       />
@@ -278,6 +277,7 @@ export function PatientPicker({
             ref={listRef}
             id={listId}
             role="listbox"
+            tabIndex={-1}
             aria-label="Clientes encontrados"
             aria-busy={loading}
           >
@@ -296,6 +296,22 @@ export function PatientPicker({
               </li>
             ))}
           </ul>
+          {onAddPatient && (
+            <div className="patient-picker-footer">
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                onClick={() => {
+                  setOpen(false);
+                  setActive(-1);
+                  onAddPatient();
+                }}
+                disabled={disabled}
+              >
+                Adicionar cliente
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
