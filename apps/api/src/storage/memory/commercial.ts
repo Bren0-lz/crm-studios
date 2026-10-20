@@ -26,7 +26,10 @@ export function createCommercialRepository(
   return {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
-        .filter((lead) => lead.clinicId === clinicId)
+        .filter(
+          (lead) =>
+            lead.clinicId === clinicId && repositoryContext.inBranchScope(lead),
+        )
         .map((lead) => {
           const tasks = repositoryContext.leadTasks.filter(
             (task) => task.clinicId === clinicId && task.leadId === lead.id,
@@ -90,6 +93,7 @@ export function createCommercialRepository(
         : undefined;
       const lead: Lead = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         stage: "new_contact",

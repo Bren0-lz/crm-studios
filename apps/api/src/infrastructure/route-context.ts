@@ -182,7 +182,9 @@ export async function createRouteContext({
     const header = request.headers[BRANCH_HEADER];
     // "all" = consolidado explícito (ficha do cliente: histórico de todas as filiais).
     const requested =
-      typeof header === "string" && header.trim() !== "all" ? header.trim() : "";
+      typeof header === "string" && header.trim() !== "all"
+        ? header.trim()
+        : "";
     const branches = await accessibleBranches(user);
     if (requested) {
       if (!branches.some((branch) => branch.id === requested))
@@ -198,8 +200,7 @@ export async function createRouteContext({
         message: "Seu usuário não tem acesso a nenhuma filial ativa.",
       };
     const everything = user.role === "admin" || (user.allBranches ?? true);
-    const write =
-      branches.find((branch) => branch.isDefault) ?? branches[0]!;
+    const write = branches.find((branch) => branch.isDefault) ?? branches[0]!;
     return {
       branchIds: everything ? null : branches.map((branch) => branch.id),
       writeBranchId: write.id,

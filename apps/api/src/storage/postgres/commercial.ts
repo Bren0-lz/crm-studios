@@ -36,6 +36,7 @@ import {
   mapPatient,
   patientColumns,
   type PatientRow,
+  branchClause,
 } from "./helpers.js";
 
 export function createCommercialRepository(
@@ -44,8 +45,9 @@ export function createCommercialRepository(
   return {
     async listLeads(clinicId: string) {
       const result = await repositoryContext.pool.query<LeadRow>(
-        `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 ORDER BY updated_at DESC`,
-        [clinicId],
+        `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 AND ${branchClause("branch_id", 2)}
+         ORDER BY updated_at DESC`,
+        [clinicId, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapLead);
     },
@@ -102,8 +104,8 @@ export function createCommercialRepository(
       const result = await repositoryContext.pool.query<{ id: string }>(
         `INSERT INTO leads
          (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags,profile,contact_method)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
+          responsible_user_id, tags,profile,contact_method,branch_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)
        RETURNING id`,
         [
           clinicId,
@@ -117,6 +119,7 @@ export function createCommercialRepository(
           input.tags,
           JSON.stringify(leadPatientProfile(input)),
           input.contactMethod ?? null,
+          repositoryContext.branchWriteId(),
         ],
       );
       return (await repositoryContext.findLead(

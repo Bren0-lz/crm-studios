@@ -279,7 +279,11 @@ export function createAdministrationRepository(
           );
         const withCommission =
           input.commission || input.branchAccess
-            ? await repositoryContext.findAdminUser(client, clinicId, created.id)
+            ? await repositoryContext.findAdminUser(
+                client,
+                clinicId,
+                created.id,
+              )
             : null;
         await client.query("COMMIT");
         return withCommission ?? created;
@@ -644,7 +648,12 @@ export function createAdministrationRepository(
         const result = await repositoryContext.pool.query<RoomRow>(
           `INSERT INTO rooms (clinic_id, name, capacity, branch_id) VALUES ($1, $2, $3, $4)
          RETURNING id, clinic_id AS "clinicId", branch_id AS "branchId", name, capacity, active`,
-          [clinicId, input.name, input.capacity, repositoryContext.branchWriteId()],
+          [
+            clinicId,
+            input.name,
+            input.capacity,
+            repositoryContext.branchWriteId(),
+          ],
         );
         return result.rows[0]!;
       } catch (error) {

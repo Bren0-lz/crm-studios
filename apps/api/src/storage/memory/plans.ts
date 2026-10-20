@@ -188,7 +188,10 @@ export function createPlansRepository(
         .filter(
           (plan) =>
             plan.clinicId === clinicId &&
-            (!patientId || plan.patientId === patientId),
+            // Planos do cliente valem em todas as filiais (cadastro único).
+            (patientId
+              ? plan.patientId === patientId
+              : repositoryContext.inBranchScope(plan)),
         )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },

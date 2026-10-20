@@ -53,6 +53,7 @@ export function prepareTabServiceCredits(
     return {
       id: uuid(),
       clinicId: tab.clinicId,
+      branchId: context.branchOf(tab),
       patientId: tab.patientId,
       patientName: tab.patientName,
       serviceId: item.serviceId,

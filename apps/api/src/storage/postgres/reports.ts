@@ -17,6 +17,7 @@ import {
   type AppointmentRow,
   appointmentColumns,
   appointmentJoins,
+  branchClause,
   mapAppointment,
 } from "./helpers.js";
 
@@ -28,6 +29,7 @@ export function createReportsRepository(
       clinicId: string,
       date: string,
     ): Promise<DashboardSummary> {
+      const branchIds = repositoryContext.branchReadIds();
       const [totals, patients, nextAppointments] = await Promise.all([
         repositoryContext.pool.query<{
           appointmentsToday: number;
@@ -69,11 +71,11 @@ export function createReportsRepository(
                 AND a.status = 'no_show'
             )::int AS "noShowsThisMonth"
           FROM clinics c
-          LEFT JOIN appointments a ON a.clinic_id = c.id
+          LEFT JOIN appointments a ON a.clinic_id = c.id AND ${branchClause("a.branch_id", 3)}
           WHERE c.id = $1
           GROUP BY c.id
         `,
-          [clinicId, date],
+          [clinicId, date, branchIds],
         ),
         repositoryContext.pool.query<{ count: number }>(
           "SELECT count(*)::int AS count FROM patients WHERE clinic_id = $1 AND status = 'active'",
@@ -86,13 +88,14 @@ export function createReportsRepository(
           ${appointmentJoins}
           JOIN clinics c ON c.id = a.clinic_id
           WHERE a.clinic_id = $1
+            AND ${branchClause("a.branch_id", 3)}
             AND a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
             AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
             AND a.status IN ('scheduled', 'confirmed')
           ORDER BY a.starts_at
           LIMIT 5
         `,
-          [clinicId, date],
+          [clinicId, date, branchIds],
         ),
       ]);
 
@@ -118,6 +121,7 @@ export function createReportsRepository(
     ): Promise<SalesReport> {
       const asOf = new Date();
       const bounds = salesReportBounds(month, asOf);
+      const branchIds = repositoryContext.branchReadIds();
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -140,11 +144,11 @@ export function createReportsRepository(
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
-         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND (
+         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 4)} AND (
            (pp.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            OR (pp.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
          )`,
-          [clinicId, bounds.previousFrom, bounds.currentTo],
+          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
         );
         const productResult = await client.query<{
           id: string;
@@ -168,11 +172,11 @@ export function createReportsRepository(
          JOIN patient_tabs t ON t.id=i.tab_id
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
-         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND (
+         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
-          [clinicId, bounds.previousFrom, bounds.currentTo],
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
+          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
         );
         const paymentResult = await client.query<{
           id: string;
@@ -197,17 +201,23 @@ export function createReportsRepository(
          JOIN receivables r ON r.id=fe.receivable_id
          JOIN patients p ON p.id=r.patient_id
          LEFT JOIN patient_tabs t ON t.receivable_id=r.id
-         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND
+         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND ${branchClause("r.branch_id", 4)} AND
            (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
-          [clinicId, bounds.previousFrom, bounds.currentTo],
+          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
         );
         const appointmentResult = await client.query<AppointmentRow>(
           `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND (
+         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
            (a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)
            OR (a.status IN ('scheduled','confirmed') AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date)
          )`,
-          [clinicId, bounds.previousFrom, bounds.currentTo, bounds.today],
+          [
+            clinicId,
+            bounds.previousFrom,
+            bounds.currentTo,
+            bounds.today,
+            branchIds,
+          ],
         );
         await client.query("COMMIT");
         const sales: SaleMovement[] = [];
@@ -306,7 +316,9 @@ export function createReportsRepository(
         id: string;
         name: string;
       }
-      const dateFilter = `(a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`;
+      const branchIds = repositoryContext.branchReadIds();
+      // $4 = filiais da leitura em todas as consultas abaixo.
+      const dateFilter = `(a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date AND ${branchClause("a.branch_id", 4)}`;
       const [
         appointmentResult,
         professionalResult,
@@ -345,7 +357,7 @@ export function createReportsRepository(
                       AND pp.created_at <= a.starts_at + interval '30 days'
                   ) THEN 1 ELSE 0 END), 0)::int AS "trialsConverted"
          FROM appointments a WHERE a.clinic_id = $1 AND ${dateFilter}`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<BreakdownRow>(
           `SELECT pr.id, pr.full_name AS name, COUNT(*)::int AS total,
@@ -355,7 +367,7 @@ export function createReportsRepository(
          FROM appointments a JOIN professionals pr ON pr.id = a.professional_id
          WHERE a.clinic_id = $1 AND ${dateFilter}
          GROUP BY pr.id, pr.full_name ORDER BY total DESC`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<BreakdownRow>(
           `SELECT s.id, s.name, COUNT(*)::int AS total,
@@ -365,7 +377,7 @@ export function createReportsRepository(
          FROM appointments a JOIN services s ON s.id = a.service_id
          WHERE a.clinic_id = $1 AND ${dateFilter}
          GROUP BY s.id, s.name ORDER BY total DESC`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           active: number;
@@ -373,16 +385,19 @@ export function createReportsRepository(
         }>(
           `SELECT COUNT(*)::int AS active,
                 COALESCE(SUM(remaining_sessions), 0)::int AS "availableSessions"
-         FROM patient_plans WHERE clinic_id = $1 AND status = 'active'`,
-          [clinicId],
+         FROM patient_plans WHERE clinic_id = $1 AND status = 'active'
+           AND ${branchClause("branch_id", 2)}`,
+          [clinicId, branchIds],
         ),
         repositoryContext.pool.query<{ consumed: number }>(
           `SELECT GREATEST(0, -COALESCE(SUM(sm.quantity), 0))::int AS consumed
          FROM session_movements sm
          WHERE sm.clinic_id = $1 AND sm.kind <> 'credit'
+           AND EXISTS (SELECT 1 FROM patient_plans pb WHERE pb.id = sm.plan_id
+             AND ${branchClause("pb.branch_id", 4)})
            AND (sm.created_at AT TIME ZONE 'America/Sao_Paulo')::date
                BETWEEN $2::date AND $3::date`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           openInCents: number;
@@ -397,10 +412,12 @@ export function createReportsRepository(
              FROM financial_events fe
          LEFT JOIN LATERAL (SELECT occurred_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
              WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+               AND EXISTS (SELECT 1 FROM receivables rb WHERE rb.id = fe.receivable_id
+                 AND ${branchClause("rb.branch_id", 4)})
                AND (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date
                    BETWEEN $2::date AND $3::date), 0)::int AS "paidInPeriodInCents"
-         FROM receivables WHERE clinic_id = $1`,
-          [clinicId, from, to],
+         FROM receivables WHERE clinic_id = $1 AND ${branchClause("branch_id", 4)}`,
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           leadsCreated: number;
@@ -420,10 +437,10 @@ export function createReportsRepository(
            FROM lead_contacts lc
            WHERE lc.lead_id = leads.id AND lc.direction <> 'internal'
          ) first_contact ON true
-         WHERE clinic_id = $1
+         WHERE clinic_id = $1 AND ${branchClause("leads.branch_id", 4)}
            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date
                BETWEEN $2::date AND $3::date`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           source: string;
@@ -434,11 +451,11 @@ export function createReportsRepository(
           `SELECT source, COUNT(*)::int AS leads,
                 COUNT(*) FILTER (WHERE stage = 'won')::int AS won,
                 COUNT(*) FILTER (WHERE stage = 'lost')::int AS lost
-         FROM leads WHERE clinic_id = $1
+         FROM leads WHERE clinic_id = $1 AND ${branchClause("branch_id", 4)}
            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date
                BETWEEN $2::date AND $3::date
          GROUP BY source ORDER BY leads DESC`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
       ]);
       const [
@@ -455,7 +472,7 @@ export function createReportsRepository(
           commissionsInCents: number;
         }>(
           `WITH paid AS (
-             SELECT r.* FROM receivables r WHERE r.clinic_id=$1 AND r.status='paid'
+             SELECT r.* FROM receivables r WHERE r.clinic_id=$1 AND r.status='paid' AND ${branchClause("r.branch_id", 4)}
                AND (r.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            ), product_tabs AS (
              SELECT t.id,t.receivable_id FROM patient_tabs t JOIN paid r ON r.id=t.receivable_id
@@ -464,9 +481,9 @@ export function createReportsRepository(
              COALESCE((SELECT sum(amount_in_cents) FROM paid r WHERE NOT EXISTS(SELECT 1 FROM product_tabs t WHERE t.receivable_id=r.id)),0)::int AS "serviceRevenueInCents",
              COALESCE((SELECT sum(r.amount_in_cents) FROM paid r JOIN product_tabs t ON t.receivable_id=r.id),0)::int AS "productRevenueInCents",
              COALESCE((SELECT sum(i.quantity*i.unit_cost_in_cents) FROM patient_tab_items i JOIN product_tabs t ON t.id=i.tab_id),0)::int AS "productCostInCents",
-             COALESCE((SELECT sum(amount_in_cents) FROM payables WHERE clinic_id=$1 AND status='paid' AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "operatingExpensesInCents",
-             COALESCE((SELECT sum(amount_in_cents) FROM commission_entries WHERE clinic_id=$1 AND status='paid' AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "commissionsInCents"`,
-          [clinicId, from, to],
+             COALESCE((SELECT sum(amount_in_cents) FROM payables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "operatingExpensesInCents",
+             COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "commissionsInCents"`,
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           id: string;
@@ -478,10 +495,10 @@ export function createReportsRepository(
           `SELECT p.id,p.name,sum(i.quantity)::int AS "unitsSold",sum(i.quantity*i.unit_price_in_cents)::int AS "revenueInCents",sum(i.quantity*i.unit_cost_in_cents)::int AS "costInCents"
            FROM patient_tab_items i JOIN products p ON p.id=i.product_id
            JOIN patient_tabs t ON t.id=i.tab_id JOIN receivables r ON r.id=t.receivable_id
-           WHERE i.clinic_id=$1 AND t.status='closed' AND r.status='paid'
+           WHERE i.clinic_id=$1 AND t.status='closed' AND r.status='paid' AND ${branchClause("t.branch_id", 4)}
              AND (r.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            GROUP BY p.id,p.name ORDER BY "revenueInCents" DESC`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           id: string;
@@ -491,12 +508,12 @@ export function createReportsRepository(
           commissionsInCents: number;
         }>(
           `SELECT s.id,s.name,
-             (SELECT count(*)::int FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "completedAppointments",
+             (SELECT count(*)::int FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "completedAppointments",
              0::int AS "revenueInCents",
-             (SELECT coalesce(sum(c.amount_in_cents),0)::int FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND c.status='paid' AND (c.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "commissionsInCents"
+             (SELECT coalesce(sum(c.amount_in_cents),0)::int FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND (c.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1
            ORDER BY "revenueInCents" DESC`,
-          [clinicId, from, to],
+          [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
           activeGroupSeats: number;
@@ -506,12 +523,12 @@ export function createReportsRepository(
           averageReceiptInCents: number;
         }>(
           `SELECT
-             (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active) AS "activeGroupSeats",
-             (SELECT coalesce(sum(capacity),0)::int FROM group_classes WHERE clinic_id=$1 AND active) AS "totalGroupCapacity",
-             (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active) AS "waitlistCount",
-             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=minimum_stock) AS "lowStockCount",
-             (SELECT coalesce(avg(amount_in_cents),0)::int FROM receivables WHERE clinic_id=$1 AND status='paid' AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "averageReceiptInCents"`,
-          [clinicId, from, to],
+             (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
+             (SELECT coalesce(sum(capacity),0)::int FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
+             (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
+             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=minimum_stock AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
+             (SELECT coalesce(avg(amount_in_cents),0)::int FROM receivables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "averageReceiptInCents"`,
+          [clinicId, from, to, branchIds],
         ),
       ]);
       const attendanceRate = (completed: number, noShows: number) => {
@@ -556,8 +573,9 @@ export function createReportsRepository(
         (SELECT jsonb_agg(jsonb_build_object('serviceId', x.service_id, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position)
          FROM patient_plan_services x WHERE x.plan_id = r.plan_id) AS services
        FROM receivables r WHERE r.clinic_id=$1 AND r.plan_id IS NOT NULL AND r.status='paid'
+         AND ${branchClause("r.branch_id", 4)}
          AND (r.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date GROUP BY r.plan_id`,
-        [clinicId, from, to],
+        [clinicId, from, to, branchIds],
       );
       const serviceRevenue = new Map<string, number>();
       for (const row of receivedPlans.rows) {

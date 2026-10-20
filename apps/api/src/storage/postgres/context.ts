@@ -179,11 +179,7 @@ export class PostgresRepositoryContext {
       [clinicId, branchIds],
     );
     if (found.rowCount !== branchIds.length)
-      throw new DomainError(
-        "BRANCH_NOT_FOUND",
-        "Filial não encontrada.",
-        404,
-      );
+      throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
     await client.query(
       "UPDATE users SET all_branches=$3 WHERE clinic_id=$1 AND id=$2",
       [clinicId, userId, access.allBranches],
@@ -869,8 +865,12 @@ export class PostgresRepositoryContext {
       `INSERT INTO patient_plans (
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
-         installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+         installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
+         branch_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+         -- Renovação fica na filial do plano anterior; venda nova, na da requisição.
+         coalesce((SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$13), $15)
+       ) RETURNING id`,
       [
         clinicId,
         input.patientId,
@@ -886,6 +886,7 @@ export class PostgresRepositoryContext {
         autoRenew,
         renewedFromPlanId ?? null,
         input.planTemplateId ?? null,
+        this.branchWriteId(),
       ],
     );
     const planId = inserted.rows[0]!.id;
@@ -925,8 +926,10 @@ export class PostgresRepositoryContext {
       const receivable = await client.query<{ id: string }>(
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
-           installment_count, due_date, amount_in_cents
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+           installment_count, due_date, amount_in_cents, branch_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3)
+         ) RETURNING id`,
         [
           clinicId,
           input.patientId,
@@ -1359,13 +1362,13 @@ export class PostgresRepositoryContext {
             `INSERT INTO receivables
                (clinic_id, patient_id, plan_id, description, installment_number,
                 installment_count, due_date, amount_in_cents, competence,
-                category_id, cost_center_id, posted_on)
+                category_id, cost_center_id, posted_on, branch_id)
              SELECT r.clinic_id, r.patient_id, r.plan_id, r.description || ' · saldo',
                     CASE WHEN r.plan_id IS NULL THEN r.installment_number
                          ELSE (SELECT max(x.installment_number) + 1 FROM receivables x
                                WHERE x.plan_id = r.plan_id) END,
                     r.installment_count, coalesce($3::date, r.due_date), $4,
-                    r.competence, r.category_id, r.cost_center_id, r.posted_on
+                    r.competence, r.category_id, r.cost_center_id, r.posted_on, r.branch_id
              FROM receivables r WHERE r.clinic_id = $1 AND r.id = $2
              RETURNING id`,
             [
