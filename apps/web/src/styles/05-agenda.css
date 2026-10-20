@@ -297,7 +297,6 @@
   color: #955a48;
 }
 .month-group {
-  border-left: 3px solid var(--green-2);
   background: #e3f0e9;
   color: var(--green);
 }
@@ -383,7 +382,6 @@ button.day-event:focus-visible {
   outline-offset: 2px;
 }
 .day-event.group {
-  border-left: 4px solid var(--green-2);
   background: #eef6f1;
 }
 .day-event.block {
@@ -1539,14 +1537,8 @@ button.day-event:focus-visible {
   line-clamp: 2;
 }
 
-/* V10: cor do profissional (--pro-color, do cadastro) na borda esquerda dos cartões, nas
-   bolinhas e no avatar do cabeçalho da grade do Dia. O fundo continua com a cor do status. */
-.agenda-card[style*="--pro-color"],
-.week-appointment[style*="--pro-color"],
-.month-event[style*="--pro-color"],
-.day-grid-event[style*="--pro-color"] {
-  border-left: 3px solid var(--pro-color);
-}
+/* Cor do profissional (--pro-color, do cadastro) nas bolinhas e no avatar do cabeçalho
+   da grade do Dia. O fundo continua com a cor do status. */
 .pro-dot,
 .month-event .pro-dot,
 .week-appointment .pro-dot,

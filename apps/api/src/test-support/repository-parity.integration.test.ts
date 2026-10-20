@@ -111,6 +111,77 @@ for (const storage of ["memory", "postgres"] as const) {
         );
       }
 
+      it("keeps each credit's source group outside the workspace period", async () => {
+        await atInstant("2055-01-01T12:00:00Z", async () => {
+          const client = await patient("Parity Créditos por turma");
+          const groups = [];
+          for (const weekday of [0, 1]) {
+            const group = await repository.createGroupClass(clinicId, {
+              serviceId,
+              professionalId,
+              roomId,
+              capacity: 2,
+              weeklySlots: [{ weekday, startTime: "06:00", endTime: "07:00" }],
+            });
+            groups.push(group);
+            await repository.createGroupEnrollment(clinicId, {
+              groupId: group.id,
+              patientId: client.id,
+              startsOn: "2055-01-01",
+            });
+          }
+          const initial = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-01-01T00:00:00Z",
+            "2055-02-01T00:00:00Z",
+          );
+          const sources = [];
+          for (const group of groups) {
+            const source = initial.sessions.find(
+              (item) => item.groupId === group.id,
+            )!;
+            expect(source).toBeDefined();
+            sources.push(source);
+            await repository.recordGroupAttendance(
+              clinicId,
+              actorId,
+              source.id,
+              client.id,
+              {
+                status: "excused_absence",
+              },
+            );
+          }
+          const later = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          const credits = later.replacementCredits.filter(
+            (item) => item.patientId === client.id,
+          );
+          expect(credits).toHaveLength(2);
+          for (const source of sources) {
+            expect(later.sessions.some((item) => item.id === source.id)).toBe(
+              false,
+            );
+            expect(
+              credits.find((item) => item.sourceSessionId === source.id),
+            ).toMatchObject({
+              clinicId,
+              sourceGroupId: source.groupId,
+              status: "available",
+            });
+          }
+          const otherClinic = await repository.getGroupWorkspace(
+            randomUUID(),
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          expect(otherClinic.replacementCredits).toEqual([]);
+        });
+      });
+
       it("counts the whole local day by status, independently of the five pending rows", async () => {
         const date = "2088-10-12";
         const client = await patient("Parity Dashboard");

@@ -159,7 +159,13 @@ describe("toasts de sucesso nas gravações", () => {
       vi.useRealTimers();
     });
     renderGroups({});
-    fireEvent.click(await screen.findByRole("button", { name: /14 de out/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Frequência e reposições" }));
+    fireEvent.click(
+      within(
+        await screen.findByRole("table", { name: "Aulas de Outubro de 2026" }),
+      ).getByRole("button", { name: /14 de out\./ }),
+    );
     const dialog = screen.getByRole("dialog", { name: group.name });
     fireEvent.change(within(dialog).getByLabelText("Frequência de Ana Nova"), {
       target: { value: "present" },

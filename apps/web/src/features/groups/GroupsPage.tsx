@@ -1,6 +1,6 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
-import { GroupOperationsPanel } from "./GroupOperationsPanel";
+import { GroupDetailsModal } from "./GroupDetailsModal";
 import {
   type GroupClass,
   type GroupWorkspace,
@@ -16,7 +16,7 @@ import {
 import { useToast } from "../../shared/feedback/toast-context";
 import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -26,14 +26,17 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
+  clinicIsoDate,
   groupEnrollmentToast,
   groupOperationRange,
   groupSeatsLabel,
   groupSlotLabel,
 } from "../../shared/lib/formatting";
+import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
+import { groupCalendarRange } from "./model";
 import {
   missingLabels,
   useMissingFields,
@@ -43,8 +46,8 @@ import {
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
  * continuam disponíveis para "Nova turma" e "Matricular cliente".
  */
-function fetchGroupsData() {
-  const dates = groupOperationRange();
+function fetchGroupsData(month: string) {
+  const dates = groupCalendarRange(month);
   return Promise.allSettled([
     api.groupWorkspace(dates.from, dates.to),
     api.patientOptions(),
@@ -85,6 +88,26 @@ export function GroupsPage() {
   );
   const [saving, setSaving] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const timezone = useClinicTimezone();
+  // Mês do calendário de aulas e mês cujo período está carregado no workspace.
+  const [calendarMonth, setCalendarMonth] = useState(() =>
+    saoPauloToday().slice(0, 7),
+  );
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [monthError, setMonthError] = useState<{
+    month: string;
+    message: string;
+  } | null>(null);
+  const [monthAttempt, setMonthAttempt] = useState(0);
+  // Só a consulta mais recente do workspace é aplicada (navegação rápida entre meses).
+  const workspaceRequest = useRef(0);
+  const [initialSessionId, setInitialSessionId] = useState<
+    string | undefined
+  >();
+  const [handledSessionId, setHandledSessionId] = useState<
+    string | undefined
+  >();
+  const linkedSessionId = searchParams.get("sessionId") ?? undefined;
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>(
     [],
@@ -127,10 +150,15 @@ export function GroupsPage() {
   );
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
+    month: string,
+    request: number,
   ) {
     const [data, patientData, professionalData, roomData, serviceData] =
       results;
-    if (data.status === "fulfilled") setWorkspace(data.value);
+    if (data.status === "fulfilled" && request === workspaceRequest.current) {
+      setWorkspace(data.value);
+      setLoadedMonth(month);
+    }
     if (patientData.status === "fulfilled") setPatients(patientData.value);
     if (professionalData.status === "fulfilled")
       setProfessionals(professionalData.value);
@@ -139,26 +167,68 @@ export function GroupsPage() {
     const failure = results.find((result) => result.status === "rejected");
     if (failure) setError((failure.reason as Error).message);
   }
+  /** Recarrega tudo no período do mês visível, preservando mês e dia escolhidos. */
   async function load() {
     setLoading(true);
     setError("");
+    const request = ++workspaceRequest.current;
     try {
-      applyGroupsData(await fetchGroupsData());
+      applyGroupsData(await fetchGroupsData(calendarMonth), calendarMonth, request);
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => {
     let active = true;
-    void fetchGroupsData().then((results) => {
+    const month = saoPauloToday().slice(0, 7);
+    const request = ++workspaceRequest.current;
+    void fetchGroupsData(month).then((results) => {
       if (!active) return;
-      applyGroupsData(results);
+      applyGroupsData(results, month, request);
       setLoading(false);
     });
     return () => {
       active = false;
     };
   }, []);
+  // Navegação do calendário: consulta o período do novo mês; respostas antigas são descartadas.
+  useEffect(() => {
+    if (loadedMonth === null || calendarMonth === loadedMonth) return;
+    let active = true;
+    const request = ++workspaceRequest.current;
+    const dates = groupCalendarRange(calendarMonth);
+    api.groupWorkspace(dates.from, dates.to).then(
+      (data) => {
+        if (!active || request !== workspaceRequest.current) return;
+        setWorkspace(data);
+        setLoadedMonth(calendarMonth);
+      },
+      (cause: unknown) => {
+        if (!active || request !== workspaceRequest.current) return;
+        setMonthError({
+          month: calendarMonth,
+          message: (cause as Error).message,
+        });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [calendarMonth, loadedMonth, monthAttempt]);
+  function changeCalendarMonth(month: string) {
+    setMonthError(null);
+    setCalendarMonth(month);
+  }
+  function retryCalendarMonth() {
+    setMonthError(null);
+    setMonthAttempt((value) => value + 1);
+  }
+  const calendarError =
+    monthError?.month === calendarMonth ? monthError.message : "";
+  const calendarLoading =
+    loadedMonth !== null && calendarMonth !== loadedMonth && !calendarError;
+  // Indicadores gerais seguem o recorte operacional, qualquer que seja o mês visível.
+  const operationRange = groupOperationRange();
   /** Executa a gravação; o texto devolvido pela ação vira o aviso de sucesso. */
   async function run(action: () => Promise<string>) {
     setError("");
@@ -193,7 +263,31 @@ export function GroupsPage() {
     { editingCapacity, editingSlots },
     Boolean(selectedGroup),
   );
+  // Sincroniza uma nova URL com os dados carregados, sem reabrir após gravações.
+  if (linkedSessionId !== handledSessionId) {
+    const session = workspace?.sessions.find(
+      (item) => item.id === linkedSessionId,
+    );
+    const group = workspace?.groups.find(
+      (item) => item.id === session?.groupId,
+    );
+    if (!linkedSessionId || group) {
+      setHandledSessionId(linkedSessionId);
+      if (group && session) {
+        changeCalendarMonth(
+          clinicIsoDate(session.startsAt, timezone).slice(0, 7),
+        );
+        setGroupDialog(null);
+        setInitialSessionId(linkedSessionId);
+        setSelectedGroupId(group.id);
+        setEditingCapacity(group.capacity);
+        setEditingSlots(group.weeklySlots ?? []);
+      }
+    }
+  }
   function openGroup(group: GroupClass) {
+    changeCalendarMonth(clinicIsoDate(new Date(), timezone).slice(0, 7));
+    setInitialSessionId(undefined);
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
     setEditingSlots(group.weeklySlots ?? []);
@@ -233,7 +327,7 @@ export function GroupsPage() {
         }
       />
       {!canManage && <ReadOnlyNotice module="groups" />}
-      {error && <ErrorBanner error={error} />}
+      {error && !selectedGroup && !groupDialog && <ErrorBanner error={error} />}
       {loading && !workspace ? (
         <LoadingBlock />
       ) : (
@@ -253,7 +347,10 @@ export function GroupsPage() {
               <span>Encontros</span>
               <strong>
                 {workspace?.sessions.filter(
-                  (item) => item.status === "scheduled",
+                  (item) =>
+                    item.status === "scheduled" &&
+                    new Date(item.startsAt) >= new Date(operationRange.from) &&
+                    new Date(item.startsAt) <= new Date(operationRange.to),
                 ).length ?? 0}
               </strong>
               <small>agendados</small>
@@ -581,16 +678,27 @@ export function GroupsPage() {
             </div>
           </section>
 
-          {selectedGroup && (
-            <GroupModal
-              title={selectedGroup.name}
-              subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`}
+          {selectedGroup && workspace && (
+            <GroupDetailsModal
+              key={`${selectedGroup.id}-${initialSessionId ?? ""}`}
+              group={selectedGroup}
+              workspace={workspace}
+              professionals={professionals}
+              initialSessionId={initialSessionId}
+              calendar={{
+                month: calendarMonth,
+                loading: calendarLoading,
+                error: calendarError,
+                onMonthChange: changeCalendarMonth,
+                onRetry: retryCalendarMonth,
+              }}
+              onChanged={load}
               busy={saving}
               dirty={editDirty}
+              error={error}
               onClose={closeGroupDialogs}
             >
               <div className="group-modal-sections">
-                {error && <ErrorBanner error={error} />}
                 <section className="group-modal-section">
                   <h3>Dados da turma</h3>
                   <dl className="patient-detail-fields">
@@ -761,18 +869,9 @@ export function GroupsPage() {
                   </div>
                 </section>
               </div>
-            </GroupModal>
+            </GroupDetailsModal>
           )}
         </div>
-      )}
-      {/* Encontros depois das turmas: a tela abre mostrando as turmas. */}
-      {workspace && (
-        <GroupOperationsPanel
-          workspace={workspace}
-          professionals={professionals}
-          onChanged={load}
-          initialSessionId={searchParams.get("sessionId") ?? undefined}
-        />
       )}
     </>
   );

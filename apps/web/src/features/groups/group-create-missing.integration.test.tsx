@@ -125,7 +125,7 @@ describe("creating a group (QM14)", () => {
     fireEvent.click(
       (await screen.findAllByRole("button", { name: /Matricular cliente/ }))[0]!,
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     const enroll = within(dialog).getByRole("button", { name: "Matricular" });
     expect(enroll).toBeDisabled();
     expect(enroll).toHaveAccessibleDescription("Falta: Turma, Cliente.");

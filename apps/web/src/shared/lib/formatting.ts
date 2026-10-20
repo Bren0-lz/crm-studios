@@ -44,10 +44,10 @@ export function formatIsoDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
-export function groupOperationRange() {
-  const from = new Date();
+export function groupOperationRange(now = new Date()) {
+  const from = new Date(now);
   from.setDate(from.getDate() - 30);
-  const to = new Date();
+  const to = new Date(now);
   to.setDate(to.getDate() + 120);
   return { from: from.toISOString(), to: to.toISOString() };
 }

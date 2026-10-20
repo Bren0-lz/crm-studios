@@ -830,8 +830,10 @@ export function createAgendaRepository(
             `SELECT ga.id,ga.clinic_id AS "clinicId",ga.session_id AS "sessionId",ga.patient_id AS "patientId",p.full_name AS "patientName",ga.status,ga.notes,ga.recorded_at AS "recordedAt",ga.accounting_enabled AS "accountingEnabled",ga.outcome,ga.replacement_credit_id AS "replacementCreditId" FROM group_attendance ga JOIN patients p ON p.id=ga.patient_id JOIN group_sessions gs ON gs.id=ga.session_id WHERE ga.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY ga.recorded_at`,
             [clinicId, from, to],
           ),
-          repositoryContext.pool.query<ReplacementCreditRow>(
-            `SELECT rc.id,rc.clinic_id AS "clinicId",rc.patient_id AS "patientId",p.full_name AS "patientName",rc.source_session_id AS "sourceSessionId",rc.status,rc.used_session_id AS "usedSessionId",rc.created_at AS "createdAt",rc.used_at AS "usedAt" FROM replacement_credits rc JOIN patients p ON p.id=rc.patient_id WHERE rc.clinic_id=$1 ORDER BY rc.created_at DESC`,
+          repositoryContext.pool.query<
+            ReplacementCreditRow & { sourceGroupId: string }
+          >(
+            `SELECT rc.id,rc.clinic_id AS "clinicId",rc.patient_id AS "patientId",p.full_name AS "patientName",rc.source_session_id AS "sourceSessionId",gs.group_id AS "sourceGroupId",rc.status,rc.used_session_id AS "usedSessionId",rc.created_at AS "createdAt",rc.used_at AS "usedAt" FROM replacement_credits rc JOIN patients p ON p.id=rc.patient_id JOIN group_sessions gs ON gs.id=rc.source_session_id AND gs.clinic_id=rc.clinic_id WHERE rc.clinic_id=$1 ORDER BY rc.created_at DESC`,
             [clinicId],
           ),
         ]);
@@ -840,7 +842,10 @@ export function createAgendaRepository(
         enrollments: enrollments.rows.map(mapGroupEnrollment),
         sessions: sessions.rows.map(mapGroupSession),
         attendance: attendance.rows.map(mapGroupAttendance),
-        replacementCredits: credits.rows.map(mapReplacementCredit),
+        replacementCredits: credits.rows.map((row) => ({
+          ...mapReplacementCredit(row),
+          sourceGroupId: row.sourceGroupId,
+        })),
       };
     },
 

@@ -646,8 +646,16 @@ export function createAgendaRepository(
                 session.endsAt > from,
             ),
         ),
-        replacementCredits: repositoryContext.replacementCredits.filter(
-          (item) => item.clinicId === clinicId,
+        replacementCredits: repositoryContext.replacementCredits.flatMap(
+          (item) => {
+            if (item.clinicId !== clinicId) return [];
+            const source = repositoryContext.groupSessions.find(
+              (session) =>
+                session.clinicId === clinicId &&
+                session.id === item.sourceSessionId,
+            );
+            return source ? [{ ...item, sourceGroupId: source.groupId }] : [];
+          },
         ),
       };
     },

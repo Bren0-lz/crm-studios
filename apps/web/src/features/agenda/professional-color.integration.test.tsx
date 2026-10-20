@@ -16,7 +16,7 @@ describe("professional color (V10)", () => {
     expect(professionalColorStyle(undefined)).toBeUndefined();
   });
 
-  it("paints the left border of the cards and the day grid avatar with the professional color", async () => {
+  it("keeps the professional color on dots and the day grid avatar without side borders", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -74,15 +74,22 @@ describe("professional color (V10)", () => {
     expect(color(avatar)).toBe("#9a6bc4");
 
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
-    expect(
-      color(
-        await screen.findByRole("button", {
-          name: /Detalhes de Helena Almeida/,
-        }),
-      ),
-    ).toBe("#9a6bc4");
+    const weekCard = await screen.findByRole("button", {
+      name: /Detalhes de Helena Almeida/,
+    });
+    expect(color(weekCard)).toBe("#9a6bc4");
+    expect(weekCard.querySelector(".pro-dot")).toBeInTheDocument();
+    expect(within(weekCard).getByText("Helena Almeida")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    const monthCard = await screen.findByRole("button", {
+      name: /Detalhes de Helena Almeida/,
+    });
+    expect(color(monthCard)).toBe("#9a6bc4");
+    expect(monthCard.querySelector(".pro-dot")).toBeInTheDocument();
+    expect(within(monthCard).getByText("Helena Almeida")).toBeInTheDocument();
     expect(
       readFileSync(`${process.cwd()}/src/styles/05-agenda.css`, "utf8"),
-    ).toMatch(/border-left: 3px solid var\(--pro-color\);/);
+    ).not.toMatch(/border-left\s*:/);
   });
 });

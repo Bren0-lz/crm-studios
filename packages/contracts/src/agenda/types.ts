@@ -183,7 +183,7 @@ export interface GroupWorkspace {
   enrollments: GroupEnrollment[];
   sessions: GroupSession[];
   attendance: GroupAttendance[];
-  replacementCredits: ReplacementCredit[];
+  replacementCredits: (ReplacementCredit & { sourceGroupId: string })[];
 }
 
 export type ClinicalAppointmentOption = Pick<

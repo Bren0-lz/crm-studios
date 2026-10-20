@@ -489,6 +489,27 @@
   display: flex;
   justify-content: flex-end;
 }
+.group-modal-tabs {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.group-modal-sections > [role="tabpanel"] {
+  min-width: 0;
+}
+.group-modal-tabs > [role="tab"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.group-modal-tabs > [role="tab"][aria-selected="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--paper);
+}
 .group-modal-section {
   min-width: 0;
   padding: 22px;

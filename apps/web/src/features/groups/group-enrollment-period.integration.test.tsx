@@ -116,15 +116,21 @@ function renderGroups() {
 
 describe("group enrollment period", () => {
   it("lists in each session only the clients enrolled on that date", async () => {
-    // 18/10/2026: 14/10 fica em "Anteriores" (recolhida) e 21/10 em "Próximas".
+    // 18/10/2026: 14/10 e 21/10 aparecem no calendário de outubro.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-18T15:00:00Z"));
     onTestFinished(() => {
       vi.useRealTimers();
     });
     renderGroups();
-    fireEvent.click(await screen.findByRole("button", { name: /Anteriores/ }));
-    fireEvent.click(screen.getByRole("button", { name: /14 de out/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Frequência e reposições" }),
+    );
+    const calendar = await screen.findByRole("table", {
+      name: "Aulas de Outubro de 2026",
+    });
+    fireEvent.click(within(calendar).getByRole("button", { name: /14 de out\./ }));
     let dialog = screen.getByRole("dialog", { name: group.name });
     expect(
       within(dialog).getByLabelText("Frequência de Bia Antiga"),
@@ -132,9 +138,11 @@ describe("group enrollment period", () => {
     expect(
       within(dialog).queryByLabelText("Frequência de Ana Nova"),
     ).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getAllByRole("button", { name: "Fechar" })[0]!);
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Fechar" })[0]!,
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: /21 de out/ }));
+    fireEvent.click(within(calendar).getByRole("button", { name: /21 de out\./ }));
     dialog = screen.getByRole("dialog", { name: group.name });
     expect(
       within(dialog).getByLabelText("Frequência de Ana Nova"),
