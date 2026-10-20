@@ -394,16 +394,14 @@ export function createAgendaRepository(
           item.clinicId === clinicId &&
           item.id !== appointmentId &&
           item.status !== "cancelled" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const blockConflict = repositoryContext.scheduleBlocks.some(
         (item) =>
           item.clinicId === clinicId &&
           item.status === "active" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const groupConflict =

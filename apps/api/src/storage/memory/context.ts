@@ -174,11 +174,7 @@ export class MemoryRepositoryContext {
           ),
       )
     )
-      throw new DomainError(
-        "BRANCH_NOT_FOUND",
-        "Filial não encontrada.",
-        404,
-      );
+      throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
     user.allBranches = access.allBranches;
     user.branchIds = branchIds;
     this.addAdminAudit(
@@ -188,6 +184,28 @@ export class MemoryRepositoryContext {
       user.id,
       { allBranches: user.allBranches, branchIds },
       user.clinicId,
+    );
+  }
+
+  /** O profissional (e o que é dele: comissões, acertos) está nas filiais da leitura? */
+  professionalInBranchScope(professionalId: string) {
+    const professional = this.professionals.find(
+      (item) => item.id === professionalId,
+    );
+    return professional
+      ? this.inBranchScope(professional)
+      : this.branchScope.readIds() === null;
+  }
+
+  /** Só os registros das filiais da leitura em curso (relatórios e painéis). */
+  scoped<T extends { clinicId: string; branchId?: string }>(items: T[]) {
+    return items.filter((item) => this.inBranchScope(item));
+  }
+
+  /** Comissões dos profissionais das filiais da leitura em curso. */
+  scopedCommissions() {
+    return this.commissions.filter((item) =>
+      this.professionalInBranchScope(item.professionalId),
     );
   }
 
@@ -213,13 +231,19 @@ export class MemoryRepositoryContext {
    * filiais (409 BRANCH_MISMATCH) e filial fora do escopo da requisição (403).
    */
   resourceBranch(...items: { clinicId: string; branchId?: string }[]) {
+    return this.sameBranch(
+      "Profissional e sala precisam ser da mesma filial.",
+      ...items,
+    );
+  }
+
+  /** Como `resourceBranch`, com a mensagem própria da operação. */
+  sameBranch(
+    message: string,
+    ...items: { clinicId: string; branchId?: string }[]
+  ) {
     const ids = new Set(items.map((item) => this.branchOf(item)));
-    if (ids.size > 1)
-      throw new DomainError(
-        "BRANCH_MISMATCH",
-        "Profissional e sala precisam ser da mesma filial.",
-        409,
-      );
+    if (ids.size > 1) throw new DomainError("BRANCH_MISMATCH", message, 409);
     const [branchId] = [...ids];
     this.assertBranchInScope(branchId!);
     return branchId!;
@@ -1607,9 +1631,14 @@ export class MemoryRepositoryContext {
     );
     const timestamp = now();
     const { planTemplateId, ...terms } = input;
+    // Renovação fica na filial do plano anterior; venda nova, na filial da requisição.
+    const branchId = renewedFrom
+      ? this.branchOf(renewedFrom)
+      : this.writeBranchId(clinicId);
     const plan: PatientPlan = {
       ...terms,
       ...totals,
+      branchId,
       services: input.services.map((item) => ({
         ...item,
         serviceName:
@@ -1650,6 +1679,7 @@ export class MemoryRepositoryContext {
       (installment) => ({
         id: uuid(),
         clinicId,
+        branchId,
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
@@ -2000,7 +2030,8 @@ export class MemoryRepositoryContext {
         const item = this.receivables.find(
           (candidate) => candidate.id === event.receivableId,
         );
-        if (!item || item.clinicId !== clinicId) return null;
+        if (!item || item.clinicId !== clinicId || !this.inBranchScope(item))
+          return null;
         const tab = this.patientTabs.find(
           (candidate) => candidate.receivableId === item.id,
         );

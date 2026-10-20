@@ -24,7 +24,10 @@ export function createExternalOperationsRepository(
           .filter(
             (record) =>
               record.clinicId === clinicId &&
-              (!patientId || record.patientId === patientId),
+              // Na ficha do cliente valem todas as filiais (cadastro único).
+              (patientId
+                ? record.patientId === patientId
+                : context.inBranchScope(record)),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
           .map(metadata),
@@ -94,6 +97,7 @@ export function createExternalOperationsRepository(
         ...(patient ? { patientName: patient.fullName } : {}),
         id: uuid(),
         clinicId,
+        branchId: context.writeBranchId(clinicId),
         authorId: actorUserId,
         authorName: actor.fullName,
         createdAt: now(),

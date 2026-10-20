@@ -47,7 +47,10 @@ export function registerBranchesRoutes(context: RouteContext) {
       if (!branch)
         return reply
           .status(404)
-          .send({ code: "BRANCH_NOT_FOUND", message: "Filial não encontrada." });
+          .send({
+            code: "BRANCH_NOT_FOUND",
+            message: "Filial não encontrada.",
+          });
       return branch;
     },
   );

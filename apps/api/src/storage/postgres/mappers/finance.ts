@@ -16,6 +16,7 @@ import type {
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
 
 export interface ProductRow {
+  branchId?: string;
   categoryId?: string | null;
   brandId?: string | null;
   id: string;
@@ -46,6 +47,7 @@ export interface StockMovementRow {
 }
 
 export interface PatientTabRow {
+  branchId?: string;
   id: string;
   clinicId: string;
   patientId: string;
@@ -71,6 +73,7 @@ export interface PatientTabItemRow {
 }
 
 export interface ReceivableRow {
+  branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
   source?: Receivable["source"];
@@ -112,6 +115,7 @@ export interface CostCenterRow {
 }
 
 export interface PayableRow {
+  branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
   commissionId?: string | null;
@@ -139,6 +143,7 @@ export interface PayableRow {
 }
 
 export interface RecurringPayableRow {
+  branchId?: string;
   id: string;
   clinicId: string;
   description: string;
@@ -193,7 +198,7 @@ export interface CommissionEntryRow {
 }
 
 export const receivableColumns = `
-  r.posted_on::text AS "postedOn",r.cash_available_at AS "cashAvailableAt",
+  r.branch_id AS "branchId",r.posted_on::text AS "postedOn",r.cash_available_at AS "cashAvailableAt",
   r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
   r.id, r.clinic_id AS "clinicId", r.patient_id AS "patientId",
   r.plan_id AS "planId", p.full_name AS "patientName", r.description,
@@ -206,7 +211,7 @@ export const receivableColumns = `
 `;
 
 export const payableColumns = `
-  py.posted_on::text AS "postedOn",py.cash_available_at AS "cashAvailableAt",py.commission_id AS "commissionId",
+  py.branch_id AS "branchId",py.posted_on::text AS "postedOn",py.cash_available_at AS "cashAvailableAt",py.commission_id AS "commissionId",
   py.supplier_id AS "supplierId",py.dre_competence AS "dreCompetence",
   py.id, py.clinic_id AS "clinicId", py.description, py.supplier,
   py.category_id AS "categoryId", py.cost_center_id AS "costCenterId",
@@ -220,7 +225,7 @@ export const payableColumns = `
 `;
 
 export const recurringPayableColumns = `
-  rp.id, rp.clinic_id AS "clinicId", rp.description, rp.supplier,
+  rp.branch_id AS "branchId", rp.id, rp.clinic_id AS "clinicId", rp.description, rp.supplier,
   rp.category_id AS "categoryId", rp.cost_center_id AS "costCenterId",
   fc.name AS "categoryName", cc.name AS "costCenterName",
   rp.amount_in_cents AS "amountInCents", rp.day_of_month::int AS "dayOfMonth",
@@ -258,6 +263,7 @@ export function mapProduct(row: ProductRow): Product {
   return {
     ...(row.categoryId ? { categoryId: row.categoryId } : {}),
     ...(row.brandId ? { brandId: row.brandId } : {}),
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     name: row.name,
@@ -306,6 +312,7 @@ export function mapPatientTab(
   items: PatientTabItem[],
 ): PatientTab {
   return {
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     patientId: row.patientId,
@@ -324,6 +331,7 @@ export function mapPatientTab(
 
 export function mapReceivable(row: ReceivableRow): Receivable {
   return {
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     ...(row.postedOn ? { postedOn: row.postedOn } : {}),
     ...(row.cashAvailableAt
       ? { cashAvailableAt: row.cashAvailableAt.toISOString() }
@@ -354,6 +362,7 @@ export function mapReceivable(row: ReceivableRow): Receivable {
 
 export function mapPayable(row: PayableRow): Payable {
   return {
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     ...(row.postedOn ? { postedOn: row.postedOn } : {}),
     ...(row.cashAvailableAt
       ? { cashAvailableAt: row.cashAvailableAt.toISOString() }
@@ -390,6 +399,7 @@ export function mapRecurringPayable(
   row: RecurringPayableRow,
 ): RecurringPayable {
   return {
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     id: row.id,
     clinicId: row.clinicId,
     description: row.description,

@@ -69,6 +69,7 @@ import {
   recurringPayableColumns,
   type RecurringPayableRow,
   type StockMovementRow,
+  branchClause,
 } from "./helpers.js";
 
 export function createFinanceRepository(
@@ -99,6 +100,7 @@ export function createFinanceRepository(
     },
 
     async getInventoryWorkspace(clinicId: string): Promise<InventoryWorkspace> {
+      const branchIds = repositoryContext.branchReadIds();
       const [
         productsResult,
         movementsResult,
@@ -107,16 +109,16 @@ export function createFinanceRepository(
         servicesResult,
       ] = await Promise.all([
         repositoryContext.pool.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 ORDER BY name`,
-          [clinicId],
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+          [clinicId, branchIds],
         ),
         repositoryContext.pool.query<StockMovementRow>(
-          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 ORDER BY sm.created_at DESC LIMIT 500`,
-          [clinicId],
+          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 AND ${branchClause("p.branch_id", 2)} ORDER BY sm.created_at DESC LIMIT 500`,
+          [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabRow>(
-          `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 ORDER BY t.opened_at DESC`,
-          [clinicId],
+          `SELECT t.id,t.clinic_id AS "clinicId",t.branch_id AS "branchId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 AND ${branchClause("t.branch_id", 2)} ORDER BY t.opened_at DESC`,
+          [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabItemRow>(
           `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 ORDER BY i.created_at`,
@@ -184,7 +186,7 @@ export function createFinanceRepository(
               404,
             );
         const result = await client.query<ProductRow>(
-          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,minimum_stock,category_id,brand_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`,
+          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,minimum_stock,category_id,brand_id,branch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`,
           [
             clinicId,
             input.name,
@@ -196,6 +198,7 @@ export function createFinanceRepository(
             input.minimumStock,
             input.categoryId ?? null,
             input.brandId ?? null,
+            repositoryContext.branchWriteId(),
           ],
         );
         const product = result.rows[0]!;
@@ -282,8 +285,14 @@ export function createFinanceRepository(
       input: PatientTabInput,
     ) {
       const result = await repositoryContext.pool.query<{ id: string }>(
-        `INSERT INTO patient_tabs(clinic_id,patient_id,notes,opened_by_user_id) SELECT $1,p.id,$3,$4 FROM patients p WHERE p.id=$2 AND p.clinic_id=$1 AND p.status='active' RETURNING id`,
-        [clinicId, input.patientId, input.notes || null, actorUserId],
+        `INSERT INTO patient_tabs(clinic_id,patient_id,notes,opened_by_user_id,branch_id) SELECT $1,p.id,$3,$4,$5 FROM patients p WHERE p.id=$2 AND p.clinic_id=$1 AND p.status='active' RETURNING id`,
+        [
+          clinicId,
+          input.patientId,
+          input.notes || null,
+          actorUserId,
+          repositoryContext.branchWriteId(),
+        ],
       );
       if (!result.rows[0])
         throw new DomainError(
@@ -330,9 +339,10 @@ export function createFinanceRepository(
           currentStock: number;
           salePriceInCents: number;
           costInCents: number;
+          sameBranch: boolean;
         }>(
-          `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
-          [clinicId, input.productId],
+          `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
+          [clinicId, input.productId, tabId],
         );
         const productRow = product.rows[0];
         if (!productRow)
@@ -340,6 +350,12 @@ export function createFinanceRepository(
             "PRODUCT_NOT_FOUND",
             "Produto não encontrado.",
             404,
+          );
+        if (!productRow.sameBranch)
+          throw new DomainError(
+            "BRANCH_MISMATCH",
+            "O produto é de outra filial que não a da comanda.",
+            409,
           );
         if (productRow.currentStock < input.quantity)
           throw new DomainError(
@@ -456,7 +472,7 @@ export function createFinanceRepository(
         await createTabServiceCredits(client, clinicId, actorUserId, tabId);
         const paid = input.settlement === "paid";
         const receivable = await client.query<{ id: string }>(
-          `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8) RETURNING id`,
+          `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9)) RETURNING id`,
           [
             clinicId,
             row.patientId,
@@ -466,6 +482,7 @@ export function createFinanceRepository(
             paid ? "paid" : "open",
             paid ? new Date() : null,
             paid ? input.paymentMethod : null,
+            tabId,
           ],
         );
         const receivableId = receivable.rows[0]!.id;
@@ -649,6 +666,7 @@ export function createFinanceRepository(
           client,
           clinicId,
           settings.rows[0]?.timezone ?? "America/Sao_Paulo",
+          repositoryContext.branchReadIds(),
         );
       });
     },
@@ -830,10 +848,16 @@ export function createFinanceRepository(
             [clinicId],
           ),
           timezone = settings.rows[0]?.timezone ?? "America/Sao_Paulo";
-        const totals = await loadFinancialMonth(client, clinicId, timezone);
+        const branchIds = repositoryContext.branchReadIds();
+        const totals = await loadFinancialMonth(
+          client,
+          clinicId,
+          timezone,
+          branchIds,
+        );
         const [summary, categories, costCenters, payables, rules, commissions] =
           await Promise.all([
-            loadFinancialSummary(client, clinicId, timezone, totals),
+            loadFinancialSummary(client, clinicId, timezone, branchIds, totals),
             client.query<FinancialCategoryRow>(
               `SELECT id, clinic_id AS "clinicId", name, kind, active, dre_group AS "dreGroup"
          FROM financial_categories WHERE clinic_id = $1 AND active ORDER BY name`,
@@ -848,8 +872,9 @@ export function createFinanceRepository(
               `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
          LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
-         WHERE py.clinic_id = $1 ORDER BY py.due_date, py.created_at`,
-              [clinicId],
+         WHERE py.clinic_id = $1 AND ${branchClause("py.branch_id", 2)}
+         ORDER BY py.due_date, py.created_at`,
+              [clinicId, branchIds],
             ),
             // Só regras de profissional (o JOIN exclui as do usuário, que ficam na Administração).
             client.query<CommissionRuleRow>(
@@ -868,8 +893,9 @@ export function createFinanceRepository(
                 ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
                 ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
          FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
-         WHERE ce.clinic_id = $1 ORDER BY ce.competence DESC, p.full_name`,
-              [clinicId],
+         WHERE ce.clinic_id = $1 AND ${branchClause("p.branch_id", 2)}
+         ORDER BY ce.competence DESC, p.full_name`,
+              [clinicId, branchIds],
             ),
           ]);
         const mapped = payables.rows.map(mapPayable).map((item) => ({
@@ -887,8 +913,8 @@ export function createFinanceRepository(
               occurredAt: Date;
               amountInCents: number;
             }>(
-              `SELECT commission_id AS "commissionId",occurred_at AS "occurredAt",amount_in_cents AS "amountInCents" FROM commission_payment_events WHERE clinic_id=$1`,
-              [clinicId],
+              `SELECT e.commission_id AS "commissionId",e.occurred_at AS "occurredAt",e.amount_in_cents AS "amountInCents" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+              [clinicId, branchIds],
             )
           ).rows,
           tracked = new Set(commissionEvents.map((item) => item.commissionId));
@@ -915,11 +941,21 @@ export function createFinanceRepository(
                 ),
             )
             .reduce((sum, item) => sum + item.amountInCents, 0);
-        const adjustments = await loadCommissionAdjustments(client, clinicId),
-          accountPayments = await loadCommissionAccountPayments(
-            client,
-            clinicId,
-          );
+        // Acertos de comissão seguem a filial do profissional.
+        const scopedProfessionals = new Set(
+          (
+            await client.query<{ id: string }>(
+              `SELECT id FROM professionals WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
+              [clinicId, branchIds],
+            )
+          ).rows.map((row) => row.id),
+        );
+        const adjustments = (
+            await loadCommissionAdjustments(client, clinicId)
+          ).filter((item) => scopedProfessionals.has(item.professionalId)),
+          accountPayments = (
+            await loadCommissionAccountPayments(client, clinicId)
+          ).filter((item) => scopedProfessionals.has(item.professionalId));
         return {
           ...(adjustments.length ? { commissionAdjustments: adjustments } : {}),
           ...(accountPayments.length
@@ -1061,8 +1097,13 @@ export function createFinanceRepository(
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO payables
            (clinic_id, description, supplier, category_id, cost_center_id,
-            due_date, amount_in_cents, notes, created_by_user_id,supplier_id,posted_on,dre_competence,commission_id)
-         SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11::date,$12,$13
+            due_date, amount_in_cents, notes, created_by_user_id,supplier_id,posted_on,dre_competence,commission_id,
+            branch_id)
+         SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11::date,$12,$13,
+           -- Despesa de comissão fica na filial do profissional.
+           coalesce((SELECT pr.branch_id FROM commission_entries ce
+             JOIN professionals pr ON pr.id = ce.professional_id
+             WHERE ce.clinic_id = $1 AND ce.id = $13), $14)
          FROM financial_categories fc
          LEFT JOIN cost_centers cc
            ON cc.clinic_id = $1 AND cc.id = $5::uuid AND cc.active
@@ -1083,6 +1124,7 @@ export function createFinanceRepository(
             input.postedOn ?? null,
             commissionCompetence ?? input.dreCompetence ?? null,
             input.commissionId ?? null,
+            repositoryContext.branchWriteId(),
           ],
         );
         if (!inserted.rows[0])
@@ -1147,8 +1189,9 @@ export function createFinanceRepository(
         `SELECT ${recurringPayableColumns} FROM recurring_payables rp
        JOIN financial_categories fc ON fc.id = rp.category_id
        JOIN cost_centers cc ON cc.id = rp.cost_center_id
-       WHERE rp.clinic_id = $1 ORDER BY rp.description, rp.created_at`,
-        [clinicId],
+       WHERE rp.clinic_id = $1 AND ${branchClause("rp.branch_id", 2)}
+       ORDER BY rp.description, rp.created_at`,
+        [clinicId, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapRecurringPayable);
     },
@@ -1162,8 +1205,8 @@ export function createFinanceRepository(
         `INSERT INTO recurring_payables
          (clinic_id, description, supplier, category_id, cost_center_id,
           amount_in_cents, day_of_month, start_month, end_month, active,
-          created_by_user_id)
-       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11
+          created_by_user_id, branch_id)
+       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,$12
        FROM financial_categories fc, cost_centers cc
        WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
          AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
@@ -1180,6 +1223,7 @@ export function createFinanceRepository(
           input.endMonth ?? null,
           input.active,
           actorUserId,
+          repositoryContext.branchWriteId(),
         ],
       );
       if (!inserted.rows[0])
@@ -1354,8 +1398,9 @@ export function createFinanceRepository(
               `INSERT INTO payables
                (clinic_id, description, supplier, category_id, cost_center_id,
                 due_date, amount_in_cents, created_by_user_id,
-                recurring_payable_id, competence)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                recurring_payable_id, competence, branch_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+               (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9))
              ON CONFLICT (recurring_payable_id, competence)
                WHERE recurring_payable_id IS NOT NULL DO NOTHING
              RETURNING id`,
@@ -1412,8 +1457,10 @@ export function createFinanceRepository(
           patientId: string;
           amountInCents: number;
           status: ReceivableStatus;
+          branchId: string;
         }>(
-          `SELECT id, patient_id AS "patientId", amount_in_cents AS "amountInCents", status
+          `SELECT id, patient_id AS "patientId", amount_in_cents AS "amountInCents", status,
+                branch_id AS "branchId"
          FROM receivables WHERE clinic_id = $1 AND id = ANY($2::uuid[]) FOR UPDATE`,
           [clinicId, ids],
         );
@@ -1431,6 +1478,13 @@ export function createFinanceRepository(
           throw new DomainError(
             "RENEGOTIATION_PATIENT_MISMATCH",
             "As parcelas devem pertencer ao mesmo cliente.",
+          );
+        const branchId = current.rows[0]!.branchId;
+        if (current.rows.some((item) => item.branchId !== branchId))
+          throw new DomainError(
+            "BRANCH_MISMATCH",
+            "As parcelas devem ser da mesma filial.",
+            409,
           );
         const originalAmount = current.rows.reduce(
           (sum, item) => sum + item.amountInCents,
@@ -1470,10 +1524,11 @@ export function createFinanceRepository(
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO receivables
           (clinic_id, patient_id, renegotiation_id, description, installment_number,
-           installment_count, due_date, amount_in_cents)
+           installment_count, due_date, amount_in_cents, branch_id)
          SELECT $1,$2,$3,'Renegociação · ' || $4,n,$5,
                 ($6::date + ((n - 1) || ' months')::interval)::date,
-                ($7 / $5) + CASE WHEN n <= ($7 % $5) THEN 1 ELSE 0 END
+                ($7 / $5) + CASE WHEN n <= ($7 % $5) THEN 1 ELSE 0 END,
+                $8
          FROM generate_series(1, $5) n RETURNING id`,
           [
             clinicId,
@@ -1483,6 +1538,7 @@ export function createFinanceRepository(
             input.installments,
             input.firstDueDate,
             input.totalAmountInCents,
+            branchId,
           ],
         );
         const newReceivables = (
@@ -1663,6 +1719,7 @@ export function createFinanceRepository(
     },
 
     async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
+      const branchIds = repositoryContext.branchReadIds();
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -1701,16 +1758,17 @@ export function createFinanceRepository(
          JOIN receivables r ON r.id=fe.receivable_id
          JOIN patients p ON p.id=r.patient_id
          WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+           AND ${branchClause("r.branch_id", 3)}
            AND (coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AT TIME ZONE c.timezone)::date=$2::date`,
-          [clinicId, date],
+          [clinicId, date, branchIds],
         );
         const payableResult = await client.query<PayableRow>(
           `SELECT ${payableColumns} FROM payables py
          JOIN financial_categories fc ON fc.id = py.category_id
          LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
          JOIN clinics c ON c.id = py.clinic_id
-         WHERE py.clinic_id=$1`,
-          [clinicId],
+         WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         const payableEvents = await client.query<{
           id: string;
@@ -1722,8 +1780,8 @@ export function createFinanceRepository(
           amountInCents: number;
           paymentMethod: PaymentMethod | null;
         }>(
-          `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(pe.metadata->>'paymentMethod',(SELECT prev.metadata->>'paymentMethod' FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe LEFT JOIN LATERAL(SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=pe.clinic_id AND payable_event_id=pe.id ORDER BY revision DESC LIMIT 1) dc ON true WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal')`,
-          [clinicId],
+          `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(pe.metadata->>'paymentMethod',(SELECT prev.metadata->>'paymentMethod' FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe LEFT JOIN LATERAL(SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=pe.clinic_id AND payable_event_id=pe.id ORDER BY revision DESC LIMIT 1) dc ON true WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM payables pb WHERE pb.id=pe.payable_id AND ${branchClause("pb.branch_id", 2)})`,
+          [clinicId, branchIds],
         );
         const commissionEvents = await client.query<{
           id: string;
@@ -1733,8 +1791,8 @@ export function createFinanceRepository(
           amountInCents: number;
           occurredAt: Date;
         }>(
-          'SELECT id,clinic_id AS "clinicId",commission_id AS "commissionId",kind,amount_in_cents AS "amountInCents",occurred_at AS "occurredAt",professional_name AS "professionalName" FROM commission_payment_events WHERE clinic_id=$1',
-          [clinicId],
+          `SELECT e.id,e.clinic_id AS "clinicId",e.commission_id AS "commissionId",e.kind,e.amount_in_cents AS "amountInCents",e.occurred_at AS "occurredAt",e.professional_name AS "professionalName" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         const commissionResult = await client.query<CommissionEntryRow>(
           `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
@@ -1745,8 +1803,8 @@ export function createFinanceRepository(
          FROM commission_entries ce
          JOIN professionals p ON p.id = ce.professional_id
          JOIN clinics c ON c.id = ce.clinic_id
-         WHERE ce.clinic_id=$1`,
-          [clinicId],
+         WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         await client.query("COMMIT");
         const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
@@ -1824,9 +1882,10 @@ export function createFinanceRepository(
        JOIN receivables r ON r.id=fe.receivable_id
        JOIN patients p ON p.id=r.patient_id
        WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+         AND ${branchClause("r.branch_id", 4)}
          AND (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE c.timezone)::date BETWEEN $2::date AND $3::date
        ORDER BY coalesce(dc.occurred_at,fe.occurred_at,fe.created_at), fe.id`,
-        [clinicId, from, to],
+        [clinicId, from, to, repositoryContext.branchReadIds()],
       );
       return result.rows.map((item) => ({
         id: item.id,

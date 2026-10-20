@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { MemoryClinicRepository } from "../../memory-repository.js";
+import { runBranchScenario } from "../../test-support/branch-scenario.js";
 import {
   authenticatedApp,
   type TestApp,
@@ -122,7 +124,11 @@ describe("branches", () => {
     ).toContain(appointment.json().id);
 
     const matrizProfessional = (
-      await app.inject({ method: "GET", url: "/professionals", headers: matriz })
+      await app.inject({
+        method: "GET",
+        url: "/professionals",
+        headers: matriz,
+      })
     ).json()[0] as { id: string };
     const mixed = await app.inject({
       method: "POST",
@@ -219,5 +225,11 @@ describe("branches", () => {
     expect(duplicate.statusCode).toBe(409);
     expect(duplicate.json().code).toBe("BRANCH_NAME_DUPLICATE");
     await app.close();
+  });
+});
+
+describe("branches in the memory repository", () => {
+  it("separates registrations, agenda, inventory, commercial and finance by branch", async () => {
+    await runBranchScenario(new MemoryClinicRepository());
   });
 });
