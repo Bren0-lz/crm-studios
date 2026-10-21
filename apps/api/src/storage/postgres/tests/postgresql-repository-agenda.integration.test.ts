@@ -34,6 +34,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -869,10 +870,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         score: 9,
       }),
     ).rejects.toMatchObject({ code: "SATISFACTION_APPOINTMENT_NOT_COMPLETED" });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(appointment.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, appointment.id, "completed"),
     );
     const survey = await repository.createSatisfactionSurvey(
       clinicId,

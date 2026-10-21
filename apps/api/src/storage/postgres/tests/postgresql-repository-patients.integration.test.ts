@@ -39,6 +39,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -846,7 +847,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const timeline = await repository.getPatientTimeline(clinicId, patientId);
     expect(JSON.stringify(timeline)).toContain(trial!.id);
     expect(JSON.stringify(timeline)).toContain(evaluation!.id);
-    await repository.updateAppointmentStatus(clinicId, trial!.id, "completed");
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(trial!.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, trial!.id, "completed"),
+    );
     await expect(
       repository.createSatisfactionSurvey(clinicId, ownerId, {
         patientId,
@@ -1069,10 +1073,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       notes: timelineMarker,
       visitType: "regular",
     });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      appointment.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(appointment.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, appointment.id, "completed"),
     );
     const date = saoPauloToday();
     const plan = await repository.createPatientPlan(
@@ -1504,8 +1507,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
          ORDER BY created_at`,
         [clinicId, tag.id],
       );
+      // Nome, cor, categoria e categoria removida: quatro alterações.
       expect(audit.rows.map((row) => row.action)).toEqual([
         "patient_tag.created",
+        "patient_tag.updated",
+        "patient_tag.updated",
         "patient_tag.updated",
         "patient_tag.updated",
         "patient_tag.deleted",
