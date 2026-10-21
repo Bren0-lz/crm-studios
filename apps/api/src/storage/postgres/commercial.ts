@@ -4,7 +4,14 @@ import {
 } from "../../modules/commercial/conversion.js";
 import { leadPatientProfile } from "@crm/contracts/commercial";
 import {
+  buildLeadInsightsFromGroups,
   cpfMatchKey,
+  normalizeLeadSearch,
+  type LeadFilter,
+  type LeadFilterOptions,
+  type LeadInsightGroup,
+  type LeadPage,
+  type LeadStagePage,
   emailMatchKey,
   findLeadDuplicates,
   phoneMatchKey,
@@ -38,6 +45,66 @@ import {
   type PatientRow,
   branchClause,
 } from "./helpers.js";
+
+/** Mesma tabela de acentos da migração 0044 (sem depender da extensão unaccent). */
+const unaccented = (expression: string) =>
+  `lower(translate(${expression},
+    'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ',
+    'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY'))`;
+
+/**
+ * Versão SQL de `matchesLead` (filtros do funil). Os parâmetros começam em `$1`
+ * (clínica) e `$2` (filiais); os demais são acrescentados na ordem dos filtros usados.
+ */
+function leadFilterSql(
+  clinicId: string,
+  branchIds: string[] | null,
+  filter: LeadFilter,
+  timezone = "America/Sao_Paulo",
+) {
+  const params: unknown[] = [clinicId, branchIds];
+  const conditions = ["clinic_id = $1", branchClause("branch_id", 2)];
+  const param = (value: unknown) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  if (filter.search)
+    conditions.push(
+      `strpos(${unaccented(
+        "concat_ws(' ', full_name, phone, coalesce(email, ''), array_to_string(tags, ' '))",
+      )}, ${param(normalizeLeadSearch(filter.search))}) > 0`,
+    );
+  if (filter.source) conditions.push(`source = ${param(filter.source)}`);
+  if (filter.interest) {
+    const interest = param(filter.interest);
+    conditions.push(
+      `(interest = ${interest} OR coalesce(profile->'interests', '[]'::jsonb) ? ${interest})`,
+    );
+  }
+  if (filter.contactMethod)
+    conditions.push(`contact_method = ${param(filter.contactMethod)}`);
+  if (filter.lostReason)
+    conditions.push(`lost_reason = ${param(filter.lostReason)}`);
+  if (filter.stage) conditions.push(`stage = ${param(filter.stage)}`);
+  if (filter.responsibleUserId)
+    conditions.push(
+      `responsible_user_id = ${param(filter.responsibleUserId)}::uuid`,
+    );
+  if (filter.from || filter.to) {
+    const day = `(created_at AT TIME ZONE ${param(timezone)})::date`;
+    if (filter.from) conditions.push(`${day} >= ${param(filter.from)}::date`);
+    if (filter.to) conditions.push(`${day} <= ${param(filter.to)}::date`);
+  }
+  const openTasks = `EXISTS (SELECT 1 FROM lead_tasks lt WHERE lt.lead_id = leads.id AND lt.status = 'open'`;
+  if (filter.tasks === "open") conditions.push(`${openTasks})`);
+  if (filter.tasks === "overdue")
+    conditions.push(`${openTasks} AND lt.due_at < now())`);
+  if (filter.tasks === "none") conditions.push(`NOT ${openTasks})`);
+  const contacted = `EXISTS (SELECT 1 FROM lead_contacts lc WHERE lc.lead_id = leads.id)`;
+  if (filter.contact === "with") conditions.push(contacted);
+  if (filter.contact === "without") conditions.push(`NOT ${contacted}`);
+  return { where: conditions.join(" AND "), params, param };
+}
 
 export function createCommercialRepository(
   repositoryContext: PostgresRepositoryContext,
@@ -525,6 +592,122 @@ export function createCommercialRepository(
       return result.rows[0]
         ? repositoryContext.findLeadTask(clinicId, taskId)
         : null;
+    },
+
+    async listLeadStagePage(
+      clinicId: string,
+      stage: LeadStage,
+      filter: LeadFilter,
+      page: LeadPage,
+      timezone?: string,
+    ): Promise<LeadStagePage> {
+      // Filtro de etapa diferente da coluna: a coluna fica vazia sem ir ao banco.
+      if (filter.stage && filter.stage !== stage)
+        return { stage, total: 0, leads: [] };
+      const query = leadFilterSql(
+        clinicId,
+        repositoryContext.branchReadIds(),
+        { ...filter, stage },
+        timezone,
+      );
+      const count = await repositoryContext.pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total FROM leads WHERE ${query.where}`,
+        query.params,
+      );
+      const total = count.rows[0]?.total ?? 0;
+      if (!total || page.offset >= total) return { stage, total, leads: [] };
+      // Ordem coberta pelo índice leads_pipeline_idx; as subqueries de `leadColumns`
+      // (tarefas, contato, responsável) só rodam nas linhas da página.
+      const limit = query.param(page.limit),
+        offset = query.param(page.offset);
+      const result = await repositoryContext.pool.query<LeadRow>(
+        `SELECT ${leadColumns} FROM leads WHERE ${query.where}
+         ORDER BY updated_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`,
+        query.params,
+      );
+      return { stage, total, leads: result.rows.map(mapLead) };
+    },
+
+    async summarizeLeads(
+      clinicId: string,
+      filter: LeadFilter,
+      timezone?: string,
+    ) {
+      const query = leadFilterSql(
+        clinicId,
+        repositoryContext.branchReadIds(),
+        filter,
+        timezone,
+      );
+      const result = await repositoryContext.pool.query<LeadInsightGroup>(
+        `SELECT stage, coalesce(source, '') AS source,
+           coalesce(contact_method, '') AS "contactMethod",
+           coalesce(lost_reason, '') AS "lostReason",
+           COUNT(*)::int AS leads,
+           coalesce(SUM(tasks.open), 0)::int AS "openTasks",
+           coalesce(SUM(tasks.overdue), 0)::int AS "overdueTasks",
+           COUNT(*) FILTER (WHERE NOT EXISTS (
+             SELECT 1 FROM lead_contacts lc WHERE lc.lead_id = leads.id))::int AS "withoutContact"
+         FROM leads
+         CROSS JOIN LATERAL (
+           SELECT COUNT(*) AS open, COUNT(*) FILTER (WHERE lt.due_at < now()) AS overdue
+           FROM lead_tasks lt WHERE lt.lead_id = leads.id AND lt.status = 'open'
+         ) tasks
+         WHERE ${query.where}
+         GROUP BY 1, 2, 3, 4`,
+        query.params,
+      );
+      return buildLeadInsightsFromGroups(result.rows);
+    },
+
+    async listLeadFilterOptions(clinicId: string): Promise<LeadFilterOptions> {
+      const params = [clinicId, repositoryContext.branchReadIds()];
+      const scope = `clinic_id = $1 AND ${branchClause("branch_id", 2)}`;
+      const distinct = async (expression: string, from = "leads") =>
+        (
+          await repositoryContext.pool.query<{ value: string }>(
+            `SELECT DISTINCT ${expression} AS value FROM ${from}
+             WHERE ${scope} AND coalesce(${expression}, '') <> ''
+             ORDER BY 1`,
+            params,
+          )
+        ).rows
+          .map((row) => row.value)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+      const [
+        sources,
+        interests,
+        profileInterests,
+        contactMethods,
+        lostReasons,
+        responsibles,
+      ] = await Promise.all([
+        distinct("source"),
+        distinct("interest"),
+        distinct(
+          "interests.value",
+          "leads CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(profile->'interests') = 'array' THEN profile->'interests' ELSE '[]'::jsonb END) AS interests(value)",
+        ),
+        distinct("contact_method"),
+        distinct("lost_reason"),
+        repositoryContext.pool.query<{ id: string; name: string }>(
+          `SELECT DISTINCT u.id, u.full_name AS name FROM leads
+             JOIN users u ON u.id = leads.responsible_user_id
+             WHERE leads.clinic_id = $1 AND ${branchClause("leads.branch_id", 2)}`,
+          params,
+        ),
+      ]);
+      return {
+        sources,
+        interests: [...new Set([...interests, ...profileInterests])].sort(
+          (a, b) => a.localeCompare(b, "pt-BR"),
+        ),
+        contactMethods,
+        lostReasons,
+        responsibles: responsibles.rows.sort((a, b) =>
+          a.name.localeCompare(b.name, "pt-BR"),
+        ),
+      };
     },
   };
 }

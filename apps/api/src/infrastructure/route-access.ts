@@ -224,6 +224,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Duplicidade no cadastro/edição do lead: só id e nome de quem tem o mesmo contato.
   "GET /leads/duplicates": { anyOf: operation("crm.create", "crm.update") },
   "GET /leads": view("crm"),
+  // Funil paginado (colunas com total) e valores dos filtros.
+  "GET /leads/board": view("crm"),
+  "GET /leads/board/:stage": view("crm"),
+  "GET /leads/filter-options": view("crm"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),
