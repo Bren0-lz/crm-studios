@@ -1,4 +1,4 @@
-import type { Branch, BranchInput } from "@crm/contracts";
+import type { Branch, BranchInput, BranchPhone } from "@crm/contracts";
 import { branchAddressFields, branchInputSchema } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
@@ -8,7 +8,7 @@ interface BranchRow {
   id: string;
   clinicId: string;
   name: string;
-  phone: string | null;
+  phones: BranchPhone[];
   postalCode: string | null;
   street: string | null;
   number: string | null;
@@ -21,14 +21,14 @@ interface BranchRow {
   isDefault: boolean;
 }
 
-const branchColumns = `id, clinic_id AS "clinicId", name, phone, postal_code AS "postalCode", street, number,
+const branchColumns = `id, clinic_id AS "clinicId", name, phones, postal_code AS "postalCode", street, number,
   complement, neighborhood, city, state, reference, active, is_default AS "isDefault"`;
 
 const mapBranch = (row: BranchRow): Branch => ({
   id: row.id,
   clinicId: row.clinicId,
   name: row.name,
-  ...(row.phone ? { phone: row.phone } : {}),
+  phones: row.phones,
   ...Object.fromEntries(
     branchAddressFields.flatMap((key) => (row[key] ? [[key, row[key]]] : [])),
   ),
@@ -72,22 +72,27 @@ export function createBranchesRepository(context: PostgresRepositoryContext) {
           const values = [
             clinicId,
             input.name,
-            input.phone || null,
+            JSON.stringify(
+              input.phones.map(({ number, label }) => ({
+                number,
+                ...(label ? { label } : {}),
+              })),
+            ),
             input.active,
             ...branchAddressFields.map((key) => input[key] || null),
           ];
           const result = id
             ? await client.query<BranchRow>(
-                `UPDATE branches SET name=$2, phone=$3, active=$4, postal_code=$5, street=$6,
+                `UPDATE branches SET name=$2, phones=$3::jsonb, active=$4, postal_code=$5, street=$6,
                    number=$7, complement=$8, neighborhood=$9, city=$10, state=$11,
                    reference=$12, updated_at=now()
                  WHERE clinic_id=$1 AND id=$13 RETURNING ${branchColumns}`,
                 [...values, id],
               )
             : await client.query<BranchRow>(
-                `INSERT INTO branches (clinic_id, name, phone, active, postal_code, street,
+                `INSERT INTO branches (clinic_id, name, phones, active, postal_code, street,
                    number, complement, neighborhood, city, state, reference)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ${branchColumns}`,
+                 VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ${branchColumns}`,
                 values,
               );
           const branch = mapBranch(result.rows[0]!);

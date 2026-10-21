@@ -28,7 +28,24 @@ export async function runBranchScenario(repository: ClinicRepository) {
   expect(matriz).toMatchObject({ name: "Matriz", isDefault: true });
   const centro = (await repository.saveBranch(clinicId, actor, {
     name: "Centro",
+    phones: [
+      { number: "(11) 3333-4444", label: "Recepção" },
+      { number: "11987654321" },
+    ],
+    street: "Rua das Flores",
+    city: "Campinas",
+    state: "SP",
   }))!;
+  const phones = [
+    { number: "1133334444", label: "Recepção" },
+    { number: "11987654321" },
+  ];
+  expect(centro.phones).toEqual(phones);
+  expect(
+    (await repository.listBranches(clinicId)).find(
+      (branch) => branch.id === centro.id,
+    ),
+  ).toMatchObject({ phones, street: "Rua das Flores", state: "SP" });
   const inCentro = <T>(work: () => Promise<T>) =>
     repository.branchScope.run(only(centro.id), work);
   const inMatriz = <T>(work: () => Promise<T>) =>

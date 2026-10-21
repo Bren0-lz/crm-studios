@@ -128,6 +128,7 @@ export class MemoryRepositoryContext {
       name: "Matriz",
       active: true,
       isDefault: true,
+      phones: [],
     },
   ];
 
@@ -143,6 +144,7 @@ export class MemoryRepositoryContext {
       name: "Matriz",
       active: true,
       isDefault: true,
+      phones: [],
     };
     this.branches.push(branch);
     return branch.id;

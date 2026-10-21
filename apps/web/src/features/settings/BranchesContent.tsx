@@ -102,7 +102,11 @@ export function BranchesContent() {
                         branch.isDefault ? "Filial padrão" : null,
                         branch.active ? null : "Inativa",
                         branchAddressLine(branch),
-                        branch.phone ? formatPhone(branch.phone) : null,
+                        ...(branch.phones ?? []).map((phone) =>
+                          phone.label
+                            ? `${phone.label}: ${formatPhone(phone.number)}`
+                            : formatPhone(phone.number),
+                        ),
                       ]
                         .filter(Boolean)
                         .join(" · ") || "Ativa"}

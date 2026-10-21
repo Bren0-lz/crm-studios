@@ -50,16 +50,24 @@ export const branchAddressFields = [
   "reference",
 ] as const;
 
-export const branchInputSchema = z.object({
-  name: z.string().trim().min(2).max(120),
+/** Máximo de telefones por filial. */
+export const MAX_BRANCH_PHONES = 5;
+
+export const branchPhoneSchema = z.object({
   /** Só os dígitos, com DDD (10 ou 11); a tela mostra com máscara. */
-  phone: z
+  number: z
     .string()
     .transform(phoneDigits)
-    .refine((value) => value === "" || value.length >= 10, {
+    .refine((value) => value.length >= 10, {
       message: "Informe o telefone com DDD.",
-    })
-    .optional(),
+    }),
+  /** Descrição opcional, ex.: "WhatsApp", "Recepção". */
+  label: optionalText(40),
+});
+
+export const branchInputSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phones: z.array(branchPhoneSchema).max(MAX_BRANCH_PHONES).default([]),
   postalCode: z
     .string()
     .trim()
