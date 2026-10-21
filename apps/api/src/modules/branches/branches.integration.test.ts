@@ -24,9 +24,24 @@ async function setup() {
     method: "POST",
     url: "/admin/branches",
     headers: admin,
-    payload: { name: "Centro", address: "Rua A, 10" },
+    payload: {
+      name: "Centro",
+      phone: "(19) 3333-4444",
+      street: "Rua A",
+      number: "10",
+      city: "Campinas",
+      state: "SP",
+    },
   });
   expect(created.statusCode, created.body).toBe(201);
+  // Telefone gravado só com dígitos; endereço em partes.
+  expect(created.json()).toMatchObject({
+    phone: "1933334444",
+    street: "Rua A",
+    number: "10",
+    city: "Campinas",
+    state: "SP",
+  });
   const centro = created.json() as { id: string };
   return { app, admin, matrizId: matriz.id, centroId: centro.id };
 }
@@ -231,5 +246,26 @@ describe("branches", () => {
 describe("branches in the memory repository", () => {
   it("separates registrations, agenda, inventory, commercial and finance by branch", async () => {
     await runBranchScenario(new MemoryClinicRepository());
+  });
+});
+
+describe("branch address validation", () => {
+  it("rejects an unknown state, an incomplete phone and a malformed postal code", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    for (const payload of [
+      { name: "Norte", state: "XX" },
+      { name: "Norte", phone: "3333-4444" },
+      { name: "Norte", postalCode: "1300" },
+    ]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/branches",
+        headers,
+        payload,
+      });
+      expect(response.statusCode, JSON.stringify(payload)).toBe(400);
+    }
+    await app.close();
   });
 });

@@ -9,8 +9,17 @@ export interface Branch {
   id: string;
   clinicId: string;
   name: string;
-  address?: string;
+  /** Telefone só com dígitos (ver `formatPhone`). */
   phone?: string;
+  postalCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  /** Sigla da UF. */
+  state?: string;
+  reference?: string;
   active: boolean;
   /** Filial que recebe o que é gravado sem filial; não pode ser desativada. */
   isDefault: boolean;
@@ -34,4 +43,13 @@ export function inBranchScope(
     !scope?.branchIds ||
     (item.branchId !== undefined && scope.branchIds.includes(item.branchId))
   );
+}
+
+/** "Rua das Flores, 10 · Sala 2 · Centro · Campinas/SP" (só as partes informadas). */
+export function branchAddressLine(branch: Branch) {
+  const street = [branch.street, branch.number].filter(Boolean).join(", ");
+  const place = [branch.city, branch.state].filter(Boolean).join("/");
+  return [street, branch.complement, branch.neighborhood, place]
+    .filter(Boolean)
+    .join(" · ");
 }
