@@ -49,6 +49,11 @@ export function messageParts(text: string, codes = false): MessagePart[] {
     });
 }
 
+/** O texto usa algum código de personalização (`{{nome}}`, `{{nome_completo}}`). */
+export function usesVariables(text: string) {
+  return messageParts(text, true).some((part) => part.kind === "code");
+}
+
 /** Insere `snippet` no lugar da seleção; devolve o texto e onde o cursor fica. */
 export function insertAtSelection(
   text: string,
