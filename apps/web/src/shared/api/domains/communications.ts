@@ -1,4 +1,5 @@
 import type {
+  CampaignFilterOptions,
   CampaignRecipientStatus,
   CampaignRecipientUpdate,
   MessageTemplate,
@@ -81,6 +82,8 @@ export const communicationsApi = {
     request<WhatsappCampaign[]>("/communications/campaigns"),
   whatsappCampaign: (id: string) =>
     request<WhatsappCampaignDetail>(`/communications/campaigns/${id}`),
+  campaignFilterOptions: () =>
+    request<CampaignFilterOptions>("/communications/campaigns/filter-options"),
   previewWhatsappCampaign: (input: WhatsappCampaignPreviewInput) =>
     request<WhatsappCampaignPreview>("/communications/campaigns/preview", {
       method: "POST",
