@@ -1,5 +1,13 @@
 import type { MessageTemplate } from "@crm/contracts";
-import { Images, MessageSquareText, Plus, Search, Send } from "lucide-react";
+import {
+  ArrowRight,
+  Images,
+  MessageSquareText,
+  Plus,
+  Search,
+  Send,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { useAuthorization } from "../../../authorization-context";
@@ -10,7 +18,7 @@ import { LoadingBlock } from "../../../shared/components/LoadingBlock";
 import { useToast } from "../../../shared/feedback/toast-context";
 import { shortDate } from "../../../shared/lib/formatting";
 import { loadTemplateImage, useTemplateImages } from "./images";
-import type { TemplateDraft } from "./model";
+import { usesVariables, type TemplateDraft } from "./model";
 import { TemplateEditorModal } from "./TemplateEditorModal";
 import { WhatsappText } from "./WhatsappBubble";
 
@@ -38,30 +46,29 @@ function TemplateCard({
   const cover = template.images[0];
   const { images } = useTemplateImages(cover ? [cover.id] : []);
   const coverUrl = cover ? images[cover.id] : undefined;
+  const imageCount = template.images.length;
   return (
     <article
       className={`template-card ${template.archivedAt ? "archived" : ""}`}
     >
+      {/* Capa = como a mensagem aparece na conversa (imagem + começo do texto). */}
       <div className="template-card-cover">
-        {coverUrl ? (
-          <img src={coverUrl} alt="" />
-        ) : (
-          <span className="template-card-cover-icon" aria-hidden="true">
-            <MessageSquareText size={28} />
-          </span>
-        )}
-        {template.images.length > 0 && (
-          <span className="template-card-count">
-            <Images size={13} aria-hidden="true" />
-            {template.images.length}{" "}
-            {template.images.length === 1 ? "imagem" : "imagens"}
-          </span>
-        )}
-      </div>
-      <div className="template-card-body">
-        <div className="template-card-title">
-          <h3>{template.title}</h3>
-          {canManage && (
+        <div
+          className={`template-card-bubble ${cover ? "with-image" : ""}`}
+          aria-hidden="true"
+        >
+          {cover &&
+            (coverUrl ? (
+              <img src={coverUrl} alt="" />
+            ) : (
+              <span className="wa-image-placeholder" />
+            ))}
+          <p>
+            <WhatsappText text={template.body} codes />
+          </p>
+        </div>
+        {canManage && (
+          <div className="template-card-menu">
             <ActionMenu
               label={`Mais ações da mensagem ${template.title}`}
               iconOnly
@@ -75,28 +82,46 @@ function TemplateCard({
                 },
               ]}
             />
+          </div>
+        )}
+      </div>
+      <div className="template-card-body">
+        <h3>{template.title}</h3>
+        <div className="template-card-meta">
+          {template.archivedAt && (
+            <span className="status-pill cancelled">Arquivada</span>
+          )}
+          {imageCount > 0 && (
+            <span className="status-pill">
+              <Images size={13} aria-hidden="true" />
+              {imageCount} {imageCount === 1 ? "imagem" : "imagens"}
+            </span>
+          )}
+          {usesVariables(template.body) && (
+            <span className="status-pill completed">
+              <UserRound size={13} aria-hidden="true" />
+              Personalizada
+            </span>
           )}
         </div>
-        <p className="template-card-text">
-          <WhatsappText text={template.body} codes />
-        </p>
-        <div className="template-card-foot">
-          <small>
-            {template.archivedAt
-              ? `Arquivada em ${shortDate.format(new Date(template.archivedAt))}`
-              : `Atualizada em ${shortDate.format(new Date(template.updatedAt))}`}
-          </small>
-          {canSend && !template.archivedAt && (
-            <button
-              type="button"
-              className="secondary-button button-sm"
-              onClick={onUse}
-            >
-              <Send size={15} aria-hidden="true" />
+        <small className="template-card-date">
+          {template.archivedAt
+            ? `Arquivada em ${shortDate.format(new Date(template.archivedAt))}`
+            : `Atualizada em ${shortDate.format(new Date(template.updatedAt))}`}
+        </small>
+        {canSend && !template.archivedAt && (
+          <button
+            type="button"
+            className="secondary-button template-card-use"
+            onClick={onUse}
+          >
+            <span>
+              <Send size={16} aria-hidden="true" />
               Usar em campanha
-            </button>
-          )}
-        </div>
+            </span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
     </article>
   );
@@ -195,7 +220,14 @@ export function TemplatesTab({
       <div className="panel-head">
         <div>
           <span className="eyebrow">Acervo</span>
-          <h2>Mensagens padrão</h2>
+          <h2>
+            Mensagens padrão
+            {templates && templates.length > 0 && (
+              <span className="template-count">
+                {templates.length - archivedCount} ativas
+              </span>
+            )}
+          </h2>
         </div>
         {canManage && (
           <button
@@ -297,6 +329,19 @@ export function TemplatesTab({
                   onUse={() => onUseTemplate(template)}
                 />
               ))}
+              {canManage && !showArchived && !term && (
+                <button
+                  type="button"
+                  className="text-button template-new-tile"
+                  onClick={() => setEditing({ mode: "create" })}
+                >
+                  <span aria-hidden="true">
+                    <Plus size={22} />
+                  </span>
+                  <strong>Nova mensagem</strong>
+                  <small>Texto com o nome do cliente e até 3 imagens</small>
+                </button>
+              )}
             </div>
           )}
         </>
