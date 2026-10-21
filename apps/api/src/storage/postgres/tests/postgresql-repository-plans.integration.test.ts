@@ -35,6 +35,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -467,6 +468,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "DELETE FROM audit_events WHERE clinic_id=ANY($1::uuid[])",
         [ids],
       );
+      // Numeração sequencial da clínica (0085) referencia a clínica.
+      await pool.query(
+        "DELETE FROM clinic_sequences WHERE clinic_id=ANY($1::uuid[])",
+        [ids],
+      );
       await pool.query("DELETE FROM clinics WHERE id=ANY($1::uuid[])", [ids]);
     }
   });
@@ -871,10 +877,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         visitType: "trial",
       },
     );
-    await repository.updateAppointmentStatus(
-      clinicId,
-      convertedTrial!.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(convertedTrial!.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, convertedTrial!.id, "completed"),
     );
     const conversion = await repository.convertLead(
       clinicId,
@@ -902,10 +907,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         visitType: "evaluation",
       },
     );
-    await repository.updateAppointmentStatus(
-      clinicId,
-      openEvaluation!.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(openEvaluation!.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, openEvaluation!.id, "completed"),
     );
 
     // Cliente que contrata depois de 40 dias: não convertida; cancelada fica de fora.
@@ -920,10 +924,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       startsAt: at(4),
       visitType: "trial",
     });
-    await repository.updateAppointmentStatus(
-      clinicId,
-      lateTrial.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    await atInstant(lateTrial.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, lateTrial.id, "completed"),
     );
     const cancelled = await repository.createAppointment(clinicId, {
       ...input,
