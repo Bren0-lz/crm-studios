@@ -5072,7 +5072,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -5237,7 +5237,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => [] } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -12392,7 +12392,7 @@ describe("screens without the patients module", () => {
   });
 
   it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes");
+    renderAs("communications", "/comunicacoes?aba=fila");
     fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
     });
@@ -12868,7 +12868,7 @@ describe("configured patient tags", () => {
       ]);
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
