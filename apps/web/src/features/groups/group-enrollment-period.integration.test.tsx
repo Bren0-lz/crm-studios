@@ -157,7 +157,7 @@ describe("group enrollment period", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     const start = within(dialog).getByLabelText("Início da matrícula");
     expect(start).toHaveValue(saoPauloToday());
     fireEvent.change(start, { target: { value: "2026-10-17" } });
