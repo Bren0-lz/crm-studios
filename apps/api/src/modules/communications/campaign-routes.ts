@@ -158,6 +158,11 @@ export function registerCampaignRoutes(context: RouteContext) {
       return {
         matched: plan.matched,
         recipients: plan.drafts.length,
+        included: plan.drafts.map(({ patientId, patientName, phone }) => ({
+          patientId,
+          patientName,
+          phone,
+        })),
         skipped: plan.skipped,
         ...(first
           ? {

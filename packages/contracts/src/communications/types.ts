@@ -185,6 +185,8 @@ export interface WhatsappCampaignPreview {
   matched: number;
   /** Quantos vão receber (com WhatsApp e sem bloqueio). */
   recipients: number;
+  /** Quem vai receber (para conferir o filtro antes de criar). */
+  included: Array<{ patientId: string; patientName: string; phone: string }>;
   skipped: BroadcastSkippedPatient[];
   sample?: { patientName: string; message: string };
 }

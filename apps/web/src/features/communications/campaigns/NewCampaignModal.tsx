@@ -1,5 +1,6 @@
 import {
   broadcastSkipReasonLabels,
+  formatPhone,
   patientTagDisplayColor,
   type BroadcastSegment,
   type MessageTemplate,
@@ -8,8 +9,8 @@ import {
   type WhatsappCampaignDetail,
   type WhatsappCampaignPreview,
 } from "@crm/contracts";
-import { Check, Images, UsersRound, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Images, Search, UsersRound, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { PatientPicker } from "../../../PatientPicker";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
@@ -46,6 +47,98 @@ function SamplePreview({
         dataUrl: images[image.id] ?? null,
       }))}
     />
+  );
+}
+
+/** Lista ao vivo de quem o filtro encontrou: quem recebe e quem será pulado. */
+function FilterResults({
+  loading,
+  error,
+  preview,
+}: {
+  loading: boolean;
+  error?: string | undefined;
+  preview?: WhatsappCampaignPreview | undefined;
+}) {
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLocaleLowerCase("pt-BR");
+  const rows = preview
+    ? [
+        ...preview.included.map((item) => ({ ...item, reason: "" })),
+        ...preview.skipped.map((item) => ({
+          patientId: item.patientId,
+          patientName: item.patientName,
+          phone: "",
+          reason: broadcastSkipReasonLabels[item.reason],
+        })),
+      ]
+        .sort((a, b) => a.patientName.localeCompare(b.patientName, "pt-BR"))
+        .filter(
+          (row) =>
+            !term || row.patientName.toLocaleLowerCase("pt-BR").includes(term),
+        )
+    : [];
+  return (
+    <section
+      className="span-2 campaign-filter-results"
+      aria-label="Clientes encontrados"
+      aria-busy={loading}
+    >
+      <header>
+        <strong role="status">
+          {loading
+            ? "Buscando clientes…"
+            : error
+              ? "Não foi possível buscar os clientes"
+              : `${preview!.matched} ${preview!.matched === 1 ? "cliente encontrado" : "clientes encontrados"}`}
+        </strong>
+        {preview && !loading && (
+          <span>
+            {preview.recipients} vão receber
+            {preview.skipped.length > 0 &&
+              ` · ${preview.skipped.length} ${preview.skipped.length === 1 ? "será pulado" : "serão pulados"}`}
+          </span>
+        )}
+      </header>
+      {error && <p className="form-error">{error}</p>}
+      {preview && preview.matched > 0 && (
+        <>
+          {preview.matched > 8 && (
+            <label className="campaign-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Buscar entre os clientes encontrados"
+                placeholder="Buscar entre os encontrados"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+          )}
+          <ul className="campaign-filter-list">
+            {rows.map((row) => (
+              <li key={row.patientId} className={row.reason ? "skipped" : ""}>
+                <span className="campaign-filter-avatar" aria-hidden="true">
+                  {row.patientName.trim().charAt(0).toUpperCase()}
+                </span>
+                <span>
+                  <strong>{row.patientName}</strong>
+                  <small>{row.reason || formatPhone(row.phone)}</small>
+                </span>
+              </li>
+            ))}
+            {rows.length === 0 && (
+              <li className="campaign-filter-empty">Ninguém com esse nome.</li>
+            )}
+          </ul>
+        </>
+      )}
+      {preview && preview.matched === 0 && (
+        <p className="field-hint">
+          Nenhum cliente com esses filtros. Tente tirar alguma etiqueta.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -95,6 +188,44 @@ export function NewCampaignModal({
     mode === "patients"
       ? { mode, patientIds: chosen.map((patient) => patient.id) }
       : { mode, segment };
+
+  // Por filtros: mostra na hora quem entra no segmento (consulta com pequeno atraso).
+  const filterKey =
+    mode === "segment" && step === 2 && template
+      ? JSON.stringify({ templateId: template.id, segment })
+      : "";
+  const [matches, setMatches] = useState<{
+    key: string;
+    preview?: WhatsappCampaignPreview;
+    error?: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!filterKey) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      const { templateId: id, segment: filter } = JSON.parse(filterKey) as {
+        templateId: string;
+        segment: BroadcastSegment;
+      };
+      api
+        .previewWhatsappCampaign({
+          templateId: id,
+          audience: { mode: "segment", segment: filter },
+        })
+        .then(
+          (result) => active && setMatches({ key: filterKey, preview: result }),
+        )
+        .catch(
+          (cause: Error) =>
+            active && setMatches({ key: filterKey, error: cause.message }),
+        );
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [filterKey]);
+  const currentMatches = matches?.key === filterKey ? matches : null;
 
   function change(apply: () => void) {
     apply();
@@ -359,6 +490,11 @@ export function NewCampaignModal({
                 />
                 Só aniversariantes do mês
               </label>
+              <FilterResults
+                loading={!currentMatches}
+                error={currentMatches?.error}
+                preview={currentMatches?.preview}
+              />
             </div>
           )}
         </div>
