@@ -19,6 +19,7 @@ import { createAdministrationRepository } from "./storage/memory/administration.
 import { createAgendaRepository } from "./storage/memory/agenda.js";
 import { createClinicalRepository } from "./storage/memory/clinical.js";
 import { createCommercialRepository } from "./storage/memory/commercial.js";
+import { createCampaignsRepository } from "./storage/memory/campaigns.js";
 import { createCommunicationsRepository } from "./storage/memory/communications.js";
 import { MemoryRepositoryContext } from "./storage/memory/context.js";
 import { createContractsRepository } from "./storage/memory/contracts.js";
@@ -54,6 +55,15 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateGroupSessionProfessional: ClinicRepository["updateGroupSessionProfessional"];
   readonly revokeUserSessions: ClinicRepository["revokeUserSessions"];
   readonly completeManualMessage: ClinicRepository["completeManualMessage"];
+  readonly listMessageTemplates: ClinicRepository["listMessageTemplates"];
+  readonly getMessageTemplateImage: ClinicRepository["getMessageTemplateImage"];
+  readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
+  readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
+  readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
+  readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
+  readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
+  readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
@@ -91,6 +101,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly communications: ReturnType<
     typeof createCommunicationsRepository
   >;
+  private readonly campaigns: ReturnType<typeof createCampaignsRepository>;
   private readonly contracts: ReturnType<typeof createContractsRepository>;
   constructor(withRichDemo = false) {
     this.context = new MemoryRepositoryContext(withRichDemo);
@@ -174,6 +185,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.finalizeClinicalResource = clinicalResources.finalizeClinicalResource;
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
+    this.campaigns = createCampaignsRepository(this.context);
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
@@ -333,6 +345,16 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.queueManualMessage = this.communications.queueManualMessage;
     this.queueBroadcastMessages = this.communications.queueBroadcastMessages;
     this.generateReminders = this.communications.generateReminders;
+    this.listMessageTemplates = this.campaigns.listMessageTemplates;
+    this.getMessageTemplateImage = this.campaigns.getMessageTemplateImage;
+    this.createMessageTemplate = this.campaigns.createMessageTemplate;
+    this.updateMessageTemplate = this.campaigns.updateMessageTemplate;
+    this.setMessageTemplateArchived = this.campaigns.setMessageTemplateArchived;
+    this.listWhatsappCampaigns = this.campaigns.listWhatsappCampaigns;
+    this.getWhatsappCampaign = this.campaigns.getWhatsappCampaign;
+    this.createWhatsappCampaign = this.campaigns.createWhatsappCampaign;
+    this.setWhatsappCampaignRecipientStatus =
+      this.campaigns.setWhatsappCampaignRecipientStatus;
     this.listDocumentTemplates = this.contracts.listDocumentTemplates;
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =

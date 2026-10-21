@@ -89,7 +89,7 @@ function setup() {
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   render(
-    <MemoryRouter initialEntries={["/comunicacoes"]}>
+    <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
       <App />
     </MemoryRouter>,
   );

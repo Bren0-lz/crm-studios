@@ -1236,6 +1236,95 @@ for (const storage of ["memory", "postgres"] as const) {
         ).rejects.toBeInstanceOf(Error);
         expect(await repository.listPatients(clinicId, name)).toEqual([]);
       });
+      it("keeps WhatsApp campaign snapshots and progress", async () => {
+        const png =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        const template = await repository.createMessageTemplate(
+          clinicId,
+          actorId,
+          {
+            title: "Paridade",
+            body: "Olá, {{nome}}",
+            images: [
+              {
+                fileName: "a.png",
+                mimeType: "image/png",
+                sizeBytes: 68,
+                dataUrl: png,
+              },
+            ],
+          },
+        );
+        const client = await patient("Campanha");
+        const campaign = await repository.createWhatsappCampaign(
+          clinicId,
+          actorId,
+          {
+            templateId: template.id,
+            name: "Paridade",
+            recipients: [
+              {
+                patientId: client.id,
+                patientName: client.fullName,
+                phone: "11988887777",
+                message: "Olá, Campanha",
+              },
+            ],
+          },
+        );
+        const updated = await repository.updateMessageTemplate(
+          clinicId,
+          actorId,
+          template.id,
+          { title: "Nova", body: "Outro", images: [] },
+        );
+        expect(updated?.images).toEqual([]);
+        const detail = await repository.getWhatsappCampaign(
+          clinicId,
+          campaign.id,
+        );
+        expect(detail).toMatchObject({
+          templateTitle: "Paridade",
+          body: "Olá, {{nome}}",
+          total: 1,
+          sent: 0,
+        });
+        expect(detail?.images.map((image) => image.fileName)).toEqual([
+          "a.png",
+        ]);
+        expect(
+          (
+            await repository.getMessageTemplateImage(
+              clinicId,
+              detail!.images[0]!.id,
+            )
+          )?.dataUrl,
+        ).toBe(png);
+        const result = await repository.setWhatsappCampaignRecipientStatus(
+          clinicId,
+          actorId,
+          campaign.id,
+          campaign.recipients[0]!.id,
+          "sent",
+        );
+        expect(result?.recipient.status).toBe("sent");
+        expect(result?.recipient.handledByName).toBeTruthy();
+        expect(result?.campaign).toMatchObject({ sent: 1 });
+        expect(result?.campaign.completedAt).toBeTruthy();
+        await repository.setMessageTemplateArchived(
+          clinicId,
+          actorId,
+          template.id,
+          true,
+        );
+        await expect(
+          repository.createWhatsappCampaign(clinicId, actorId, {
+            templateId: template.id,
+            name: "Arquivada",
+            recipients: campaign.recipients,
+          }),
+        ).rejects.toMatchObject({ code: "MESSAGE_TEMPLATE_NOT_FOUND" });
+      });
     },
   );
 }

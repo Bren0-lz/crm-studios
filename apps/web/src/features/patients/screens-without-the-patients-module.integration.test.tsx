@@ -100,7 +100,7 @@ describe("screens without the patients module", () => {
   });
 
   it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes");
+    renderAs("communications", "/comunicacoes?aba=fila");
     fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
     });
