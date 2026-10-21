@@ -545,6 +545,8 @@ async function openSettingsSection(...names: string[]) {
           ? "Contatos sugeridos"
           : name;
     const tab = await screen.findByRole("tab", { name: label });
+    // As abas ficam desativadas enquanto um salvamento termina: clicar antes disso é ignorado.
+    await waitFor(() => expect(tab).toBeEnabled());
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
     section = document.getElementById(tab.getAttribute("aria-controls")!);
   }
