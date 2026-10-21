@@ -1366,3 +1366,109 @@
     min-height: calc(var(--space-8) * 2);
   }
 }
+
+/* Nova campanha › Por filtros: quem o filtro encontrou */
+.campaign-filter-results {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+}
+
+.campaign-filter-results header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.campaign-filter-results header strong {
+  color: var(--green);
+  font-family: "Manrope", sans-serif;
+  font-size: var(--text-lg);
+}
+
+.campaign-filter-results header span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.campaign-filter-results .campaign-search {
+  flex: none;
+}
+
+.campaign-filter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-1) var(--space-3);
+  max-height: calc(var(--space-8) * 4);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.campaign-filter-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.campaign-filter-list li:hover {
+  background: var(--cream);
+}
+
+.campaign-filter-list li > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.campaign-filter-list strong {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-filter-list small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.campaign-filter-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.campaign-filter-list li.skipped strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.campaign-filter-list li.skipped small {
+  color: #886b29;
+}
+
+.campaign-filter-list li.skipped .campaign-filter-avatar {
+  background: #fff0cf;
+  color: #886b29;
+}
+
+.campaign-filter-empty {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

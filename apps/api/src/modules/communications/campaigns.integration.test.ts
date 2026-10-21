@@ -191,6 +191,13 @@ describe("campanhas de WhatsApp", () => {
     });
     const previewBody = preview.json<WhatsappCampaignPreview>();
     expect(previewBody).toMatchObject({ matched: 2, recipients: 1 });
+    expect(previewBody.included).toEqual([
+      {
+        patientId: ana!.id,
+        patientName: ana!.fullName,
+        phone: ana!.whatsapp || ana!.phone,
+      },
+    ]);
     expect(previewBody.skipped).toEqual([
       expect.objectContaining({ patientId: bruno!.id, reason: "opt_out" }),
     ]);

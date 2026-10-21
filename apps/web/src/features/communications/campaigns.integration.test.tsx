@@ -259,6 +259,9 @@ describe("campanhas de WhatsApp", () => {
         return {
           matched: 2,
           recipients: 1,
+          included: [
+            { patientId: "p1", patientName: "Ana Lima", phone: "11999990000" },
+          ],
           skipped: [
             {
               patientId: "p2",
@@ -332,6 +335,71 @@ describe("campanhas de WhatsApp", () => {
     expect(create?.body).toMatchObject({
       templateId: template.id,
       audience: { mode: "patients", patientIds: ["p1", "p2"] },
+    });
+  });
+
+  it("por filtros, lista na hora quem a etiqueta encontrou", async () => {
+    const previews: unknown[] = [];
+    setup("/comunicacoes", (url, init) => {
+      if (url.includes("/communications/campaigns/preview")) {
+        const body = JSON.parse(String(init?.body));
+        previews.push(body);
+        const tagged = body.audience.segment.tags.includes("Pilates");
+        return {
+          matched: tagged ? 2 : 3,
+          recipients: tagged ? 1 : 2,
+          included: [
+            { patientId: "p1", patientName: "Ana Lima", phone: "11999990000" },
+            ...(tagged
+              ? []
+              : [
+                  {
+                    patientId: "p3",
+                    patientName: "Carla Souza",
+                    phone: "21988887777",
+                  },
+                ]),
+          ],
+          skipped: [
+            { patientId: "p2", patientName: "Bruno Costa", reason: "opt_out" },
+          ],
+        };
+      }
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.endsWith("/communications/templates")) return [template];
+      if (url.includes("/patient-tags"))
+        return [{ id: "t1", name: "Pilates", color: "#184f43" }];
+      return undefined;
+    });
+    await screen.findByText("Nenhuma campanha ainda");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nova campanha" }).at(0)!,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Por filtros" }),
+    );
+    const results = within(dialog).getByRole("region", {
+      name: "Clientes encontrados",
+    });
+    expect(
+      await within(results).findByText("3 clientes encontrados"),
+    ).toBeInTheDocument();
+    expect(within(results).getByText("Carla Souza")).toBeInTheDocument();
+    expect(within(results).getByText("(21) 98888-7777")).toBeInTheDocument();
+    expect(
+      within(results).getByText("Não autorizou mensagens neste canal"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: /Pilates/ }),
+    );
+    expect(
+      await within(results).findByText("2 clientes encontrados"),
+    ).toBeInTheDocument();
+    expect(within(results).queryByText("Carla Souza")).toBeNull();
+    expect(previews.at(-1)).toMatchObject({
+      audience: { mode: "segment", segment: { tags: ["Pilates"] } },
     });
   });
 
