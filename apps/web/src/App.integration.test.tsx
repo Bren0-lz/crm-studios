@@ -1123,6 +1123,7 @@ describe("modal closing", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
+    await screen.findByRole("dialog", { name: "Nova turma" });
     const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
@@ -11838,7 +11839,7 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),
@@ -12436,7 +12437,7 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {
