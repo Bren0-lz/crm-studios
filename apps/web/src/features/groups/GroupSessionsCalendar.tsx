@@ -89,7 +89,7 @@ export function GroupSessionsCalendar({
   const selectedSessions = byDate.get(selectedDate) ?? [];
   const title = capitalize(monthTitle.format(noon(`${month}-01`)));
   const sessionName = (item: GroupSession) =>
-    `${groupSessionLabel(item)} · ${groupSessionStatusLabels[item.status]}`;
+    `${groupSessionLabel(item, timezone)} · ${groupSessionStatusLabels[item.status]}`;
 
   // Navegação por teclado entre meses: devolve o foco ao dia quando a grade volta a aparecer.
   useEffect(() => {
