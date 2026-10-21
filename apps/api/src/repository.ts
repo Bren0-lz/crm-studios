@@ -1,4 +1,14 @@
 import type { Branch, BranchInput } from "@crm/contracts";
+import type {
+  CampaignRecipientStatus,
+  CampaignRecipientUpdate,
+  MessageImageMimeType,
+  MessageTemplate,
+  MessageTemplateImageContent,
+  WhatsappCampaign,
+  WhatsappCampaignDetail,
+  WhatsappCampaignRecipientDraft,
+} from "@crm/contracts";
 import type { BranchScopeStore } from "./storage/branch-scope.js";
 import type {
   ExternalOperation,
@@ -1096,6 +1106,54 @@ export interface ClinicRepository {
     referenceDate: string,
     options?: import("@crm/contracts").ReminderGenerationOptions,
   ): Promise<ReminderGenerationResult>;
+  /** Acervo de mensagens padrão (inclui arquivadas, com `archivedAt`). */
+  listMessageTemplates(clinicId: string): Promise<MessageTemplate[]>;
+  /** Conteúdo de uma imagem de mensagem padrão (também das trocadas, usadas por campanhas). */
+  getMessageTemplateImage(
+    clinicId: string,
+    imageId: string,
+  ): Promise<MessageTemplateImageContent | null>;
+  createMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate>;
+  /** Imagens com `id` são mantidas (na ordem enviada); as demais do modelo saem. */
+  updateMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate | null>;
+  setMessageTemplateArchived(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    archived: boolean,
+  ): Promise<MessageTemplate | null>;
+  listWhatsappCampaigns(clinicId: string): Promise<WhatsappCampaign[]>;
+  getWhatsappCampaign(
+    clinicId: string,
+    campaignId: string,
+  ): Promise<WhatsappCampaignDetail | null>;
+  /** Grava a campanha com o texto e as imagens atuais do modelo (que precisa estar ativo). */
+  createWhatsappCampaign(
+    clinicId: string,
+    actorUserId: string,
+    input: {
+      templateId: string;
+      name: string;
+      recipients: WhatsappCampaignRecipientDraft[];
+    },
+  ): Promise<WhatsappCampaignDetail>;
+  /** Marca enviado/pulado (ou volta a pendente); conclui a campanha quando não sobra pendente. */
+  setWhatsappCampaignRecipientStatus(
+    clinicId: string,
+    actorUserId: string,
+    campaignId: string,
+    recipientId: string,
+    status: CampaignRecipientStatus,
+  ): Promise<CampaignRecipientUpdate | null>;
   recordDocumentSignature(
     clinicId: string,
     actorUserId: string,
@@ -1185,4 +1243,19 @@ export function lastAdminError() {
     "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes.",
     409,
   );
+}
+
+/** Mensagem padrão já validada pela rota: imagens novas chegam com tipo e tamanho conferidos. */
+export interface MessageTemplateWrite {
+  title: string;
+  body: string;
+  images: Array<
+    | { id: string }
+    | {
+        fileName: string;
+        mimeType: MessageImageMimeType;
+        sizeBytes: number;
+        dataUrl: string;
+      }
+  >;
 }
