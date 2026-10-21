@@ -10,6 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 function dataTransfer() {
   return { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
@@ -61,7 +65,7 @@ describe("commercial board drag and drop", () => {
           json: async () => ({ ...lead, stage: body.stage }),
         } as Response;
       }
-      const body = url.endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -91,6 +95,13 @@ describe("commercial board drag and drop", () => {
     expect(
       within(column("Em contato")).getByText("Bruna Lead"),
     ).toBeInTheDocument();
+    // Os totais das colunas acompanham a mudança sem recarregar o funil.
+    expect(
+      within(column("Em contato")).getByRole("banner").textContent,
+    ).toBe("Em contato1");
+    expect(within(column("Novos")).getByRole("banner").textContent).toBe(
+      "Novos0",
+    );
 
     dragTo(card(), column("Perdidos"));
     expect(

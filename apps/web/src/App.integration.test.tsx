@@ -28,6 +28,7 @@ import {
   findMoreAction,
   moreActionNames,
 } from "./test-support/patient-actions";
+import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
 
 vi.stubGlobal("fetch", vi.fn());
 
@@ -6068,8 +6069,8 @@ describe("application shell", () => {
           }),
         } as Response;
       }
-      const body = url.endsWith("/leads")
-        ? [lead, converted]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead, converted])
         : url.includes("/professionals")
           ? [
               {
@@ -11133,8 +11134,8 @@ describe("view-only modules", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/leads")
-        ? [lead]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead])
         : url.includes("/activity")
           ? activity
           : [];
@@ -11753,7 +11754,12 @@ describe("screens without loose elements", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => leadBoardResponse(input, []) ?? [],
+        }) as Response,
     );
     render(
       <MemoryRouter initialEntries={["/comercial"]}>
@@ -11790,7 +11796,9 @@ describe("screens without loose elements", () => {
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(String(input))
+        ? leadBoardResponse(String(input), [lead])
+        : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -11904,7 +11912,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -11974,7 +11983,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -12051,7 +12061,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(
