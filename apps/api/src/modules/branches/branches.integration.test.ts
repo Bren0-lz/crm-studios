@@ -26,7 +26,10 @@ async function setup() {
     headers: admin,
     payload: {
       name: "Centro",
-      phone: "(19) 3333-4444",
+      phones: [
+        { number: "(19) 3333-4444", label: "Recepção" },
+        { number: "19 98888-7777" },
+      ],
       street: "Rua A",
       number: "10",
       city: "Campinas",
@@ -36,7 +39,10 @@ async function setup() {
   expect(created.statusCode, created.body).toBe(201);
   // Telefone gravado só com dígitos; endereço em partes.
   expect(created.json()).toMatchObject({
-    phone: "1933334444",
+    phones: [
+      { number: "1933334444", label: "Recepção" },
+      { number: "19988887777" },
+    ],
     street: "Rua A",
     number: "10",
     city: "Campinas",
@@ -255,7 +261,11 @@ describe("branch address validation", () => {
     const headers = { authorization: `Bearer ${token}` };
     for (const payload of [
       { name: "Norte", state: "XX" },
-      { name: "Norte", phone: "3333-4444" },
+      { name: "Norte", phones: [{ number: "3333-4444" }] },
+      {
+        name: "Norte",
+        phones: Array.from({ length: 6 }, () => ({ number: "1133334444" })),
+      },
       { name: "Norte", postalCode: "1300" },
     ]) {
       const response = await app.inject({

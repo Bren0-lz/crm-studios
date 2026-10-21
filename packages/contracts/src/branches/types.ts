@@ -1,7 +1,13 @@
 import type { z } from "zod";
-import type { branchInputSchema, userBranchAccessSchema } from "./model.js";
+import type {
+  branchInputSchema,
+  branchPhoneSchema,
+  userBranchAccessSchema,
+} from "./model.js";
 
 export type BranchInput = z.input<typeof branchInputSchema>;
+
+export type BranchPhone = z.infer<typeof branchPhoneSchema>;
 
 export type UserBranchAccess = z.infer<typeof userBranchAccessSchema>;
 
@@ -9,8 +15,8 @@ export interface Branch {
   id: string;
   clinicId: string;
   name: string;
-  /** Telefone só com dígitos (ver `formatPhone`). */
-  phone?: string;
+  /** Telefones (só dígitos, ver `formatPhone`), na ordem cadastrada. */
+  phones?: BranchPhone[];
   postalCode?: string;
   street?: string;
   number?: string;
