@@ -49,6 +49,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -124,9 +125,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       }
     };
     try {
-      const results = await Promise.allSettled(
-        [1, 2].map(() =>
-          repository.saveClinicalRecord(clinicId, user.id, input),
+      // Evolução só vale a partir de 15 min antes do início (QC3).
+      const results = await atInstant(appointment.startsAt, () =>
+        Promise.allSettled(
+          [1, 2].map(() =>
+            repository.saveClinicalRecord(clinicId, user.id, input),
+          ),
         ),
       );
       expect(
@@ -154,10 +158,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         active: true,
         permissions: ["clinical.view", "clinical.records_update"],
       });
-      await repository.saveClinicalRecord(clinicId, user.id, {
-        ...input,
-        subjective: "Changed",
-      });
+      await atInstant(appointment.startsAt, () =>
+        repository.saveClinicalRecord(clinicId, user.id, {
+          ...input,
+          subjective: "Changed",
+        }),
+      );
       expect(
         (
           await pool.query(
