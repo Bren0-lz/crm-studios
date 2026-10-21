@@ -21,7 +21,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 
 Origem: QA em produção (modo Demonstração, admin) de 17/10/2026. IDs com prefixo `Q` para não
 colidir com a rodada 7 (QC1 = C1 do relatório do QA, QM = M, QV = V). Branch `main`
-(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0087** (0086 = filiais, pedido do dono de 20/10/2026).
+(push só com autorização do dono). Commits `fix(QC6): …` em pt-BR. Próxima migração livre: **0089** (0086–0088 = filiais, pedido do dono de 20–21/10/2026).
 
 Ordem da Fase 1 (métricas depois dos dados): QC6 → QC2 → QC3 → QC4 → QC5 → QC8 → QC1 → QC7 →
 QC9 → QC10. Depois Fase 2 (QM), Fase 3 (QV) e regressão (QR).

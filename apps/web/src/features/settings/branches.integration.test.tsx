@@ -21,9 +21,19 @@ describe("branches through real HTTP handlers", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Nova filial" }));
     const dialog = screen.getByRole("dialog", { name: "Nova filial" });
     change("Nome da filial", "Centro", dialog);
-    change("Telefone", "11 3333-4444", dialog);
-    expect(within(dialog).getByLabelText("Telefone")).toHaveValue(
+    change("Telefone 1", "11 3333-4444", dialog);
+    expect(within(dialog).getByLabelText("Telefone 1")).toHaveValue(
       "(11) 3333-4444",
+    );
+    change("Descrição do telefone 1", "Recepção", dialog);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar telefone" }),
+    );
+    change("Telefone 2", "11987654321", dialog);
+    change("Descrição do telefone 2", "WhatsApp", dialog);
+    // Linha extra vazia é ignorada ao salvar.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar telefone" }),
     );
     change("Rua", "Rua das Flores", dialog);
     change("Número", "10", dialog);
@@ -40,7 +50,10 @@ describe("branches through real HTTP handlers", () => {
       (branch) => branch.name === "Centro",
     )!;
     expect(centro).toMatchObject({
-      phone: "1133334444",
+      phones: [
+        { number: "1133334444", label: "Recepção" },
+        { number: "11987654321", label: "WhatsApp" },
+      ],
       street: "Rua das Flores",
       number: "10",
       neighborhood: "Centro",
@@ -50,7 +63,7 @@ describe("branches through real HTTP handlers", () => {
     });
     expect(
       within(panel).getByText(
-        "Rua das Flores, 10 · Centro · Campinas/SP · (11) 3333-4444",
+        "Rua das Flores, 10 · Centro · Campinas/SP · Recepção: (11) 3333-4444 · WhatsApp: (11) 98765-4321",
       ),
     ).toBeInTheDocument();
 
