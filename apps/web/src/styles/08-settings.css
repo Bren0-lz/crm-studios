@@ -1541,6 +1541,19 @@
   min-height: calc(var(--space-7) - var(--space-1));
 }
 
+/* Remover: vermelho no hover/foco, como o danger-button. */
+.branch-phone-remove:hover:not(:disabled),
+.branch-phone-remove:focus-visible {
+  border-color: var(--red);
+  background: #f7e4e1;
+  color: #a04e45;
+}
+
+.branch-phone-remove:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
 .branch-phone-add {
   justify-self: start;
 }
