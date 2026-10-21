@@ -1,4 +1,9 @@
 import type { ExternalOperation } from "@crm/contracts";
+import type {
+  StoredMessageTemplate,
+  StoredMessageTemplateImage,
+  StoredWhatsappCampaign,
+} from "./campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -452,6 +457,12 @@ export class MemoryRepositoryContext {
   readonly outboundMessages: Array<
     OutboundMessage & { idempotencyKey: string }
   > = [];
+
+  readonly messageTemplates: StoredMessageTemplate[] = [];
+
+  readonly messageTemplateImages: StoredMessageTemplateImage[] = [];
+
+  readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
 
   readonly documentTemplates: DocumentTemplate[] = [];
 

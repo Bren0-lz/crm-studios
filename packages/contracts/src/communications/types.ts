@@ -4,11 +4,17 @@ import {
   broadcastInputSchema,
   broadcastSegmentSchema,
   broadcastSkipReasons,
+  campaignRecipientStatusSchema,
   communicationChannelSchema,
   communicationKindSchema,
   communicationPreferenceInputSchema,
   manualMessageInputSchema,
+  messageTemplateImageInputSchema,
+  messageTemplateInputSchema,
   reminderGenerationInputSchema,
+  whatsappCampaignAudienceSchema,
+  whatsappCampaignInputSchema,
+  whatsappCampaignPreviewInputSchema,
 } from "./model.js";
 
 export type ReminderGenerationOptions = Partial<
@@ -92,4 +98,98 @@ export interface BroadcastResult {
   skipped: BroadcastSkippedPatient[];
   /** Texto do primeiro destinatário, para conferência. */
   sampleBody?: string;
+}
+
+export type MessageTemplateImageInput = z.infer<
+  typeof messageTemplateImageInputSchema
+>;
+
+export type MessageTemplateInput = z.input<typeof messageTemplateInputSchema>;
+
+export type MessageImageMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+export interface MessageTemplateImage {
+  id: string;
+  fileName: string;
+  mimeType: MessageImageMimeType;
+  sizeBytes: number;
+}
+
+/** Mensagem padrão do acervo de campanhas (texto com `{{nome}}` + até 3 imagens). */
+export interface MessageTemplate {
+  id: string;
+  title: string;
+  body: string;
+  images: MessageTemplateImage[];
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface MessageTemplateImageContent extends MessageTemplateImage {
+  dataUrl: string;
+}
+
+export type WhatsappCampaignAudience = z.infer<
+  typeof whatsappCampaignAudienceSchema
+>;
+
+export type WhatsappCampaignPreviewInput = z.input<
+  typeof whatsappCampaignPreviewInputSchema
+>;
+
+export type WhatsappCampaignInput = z.input<typeof whatsappCampaignInputSchema>;
+
+export type CampaignRecipientStatus = z.infer<
+  typeof campaignRecipientStatusSchema
+>;
+
+/** Destinatário já com a mensagem personalizada (antes de gravar). */
+export interface WhatsappCampaignRecipientDraft {
+  patientId: string;
+  patientName: string;
+  phone: string;
+  message: string;
+}
+
+export interface WhatsappCampaignRecipient extends WhatsappCampaignRecipientDraft {
+  id: string;
+  status: CampaignRecipientStatus;
+  handledAt?: string;
+  handledByName?: string;
+}
+
+export interface WhatsappCampaign {
+  id: string;
+  name: string;
+  templateId: string;
+  templateTitle: string;
+  /** Texto da mensagem padrão no momento da criação (com os códigos). */
+  body: string;
+  /** Imagens da mensagem padrão no momento da criação. */
+  images: MessageTemplateImage[];
+  total: number;
+  sent: number;
+  skipped: number;
+  createdAt: string;
+  createdByName: string;
+  completedAt?: string;
+}
+
+export interface WhatsappCampaignDetail extends WhatsappCampaign {
+  recipients: WhatsappCampaignRecipient[];
+}
+
+export interface WhatsappCampaignPreview {
+  /** Clientes escolhidos ou que caem no segmento. */
+  matched: number;
+  /** Quantos vão receber (com WhatsApp e sem bloqueio). */
+  recipients: number;
+  skipped: BroadcastSkippedPatient[];
+  sample?: { patientName: string; message: string };
+}
+
+export interface CampaignRecipientUpdate {
+  campaign: WhatsappCampaign;
+  recipient: WhatsappCampaignRecipient;
 }

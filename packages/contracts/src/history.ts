@@ -58,6 +58,21 @@ export const historyActions: {
     label: "Registro clínico finalizado",
   },
   {
+    action: "message_template.saved",
+    module: "communications",
+    label: "Mensagem padrão salva",
+  },
+  {
+    action: "message_template.archived",
+    module: "communications",
+    label: "Mensagem padrão arquivada ou reativada",
+  },
+  {
+    action: "campaign.created",
+    module: "communications",
+    label: "Campanha de WhatsApp criada",
+  },
+  {
     action: "message.manual_completion",
     module: "communications",
     label: "Conclusão manual de mensagem registrada",
