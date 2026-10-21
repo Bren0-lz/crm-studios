@@ -1,4 +1,9 @@
 import type { ExternalOperation } from "@crm/contracts";
+import type {
+  StoredMessageTemplate,
+  StoredMessageTemplateImage,
+  StoredWhatsappCampaign,
+} from "./campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -87,6 +92,7 @@ import { hashSync } from "bcryptjs";
 import { demoPatients } from "../../demo-patients.js";
 import {
   buildDemoScenarios,
+  demoMessageTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
@@ -453,6 +459,12 @@ export class MemoryRepositoryContext {
     OutboundMessage & { idempotencyKey: string }
   > = [];
 
+  readonly messageTemplates: StoredMessageTemplate[] = [];
+
+  readonly messageTemplateImages: StoredMessageTemplateImage[] = [];
+
+  readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
@@ -646,6 +658,15 @@ export class MemoryRepositoryContext {
     this.groupEnrollments.push(...data.enrollments);
     this.groupSessions.push(...data.sessions);
     this.groupAttendance.push(...data.attendance);
+    const createdAt = new Date().toISOString();
+    this.messageTemplates.push(
+      ...demoMessageTemplates.map((template) => ({
+        ...template,
+        clinicId: CLINIC_ID,
+        createdAt,
+        updatedAt: createdAt,
+      })),
+    );
     this.receiptEvents.push(
       ...data.financialEvents
         .filter((event) => event.kind === "payment")

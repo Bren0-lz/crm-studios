@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import {
   buildDemoScenarios,
+  demoMessageTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
@@ -100,5 +101,12 @@ export async function seedDemoScenarios(client: PoolClient) {
     FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "sessionId" uuid, "patientId" uuid, status text, notes text, "recordedAt" text)
     ON CONFLICT DO NOTHING`,
     [JSON.stringify(data.attendance), demoUserId],
+  );
+  await client.query(
+    `INSERT INTO message_templates (id, clinic_id, title, body, created_by)
+    SELECT id, $2::uuid, title, body, $3::uuid
+    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, title text, body text)
+    ON CONFLICT DO NOTHING`,
+    [JSON.stringify(demoMessageTemplates), data.plans[0]!.clinicId, demoUserId],
   );
 }

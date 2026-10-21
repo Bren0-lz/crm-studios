@@ -19,6 +19,7 @@ import { createAdministrationRepository } from "./storage/postgres/administratio
 import { createAgendaRepository } from "./storage/postgres/agenda.js";
 import { createClinicalRepository } from "./storage/postgres/clinical.js";
 import { createCommercialRepository } from "./storage/postgres/commercial.js";
+import { createCampaignsRepository } from "./storage/postgres/campaigns.js";
 import { createCommunicationsRepository } from "./storage/postgres/communications.js";
 import { PostgresRepositoryContext } from "./storage/postgres/context.js";
 import { createContractsRepository } from "./storage/postgres/contracts.js";
@@ -54,6 +55,15 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly updateGroupSessionProfessional: ClinicRepository["updateGroupSessionProfessional"];
   readonly revokeUserSessions: ClinicRepository["revokeUserSessions"];
   readonly completeManualMessage: ClinicRepository["completeManualMessage"];
+  readonly listMessageTemplates: ClinicRepository["listMessageTemplates"];
+  readonly getMessageTemplateImage: ClinicRepository["getMessageTemplateImage"];
+  readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
+  readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
+  readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
+  readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
+  readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
+  readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
@@ -91,6 +101,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   private readonly communications: ReturnType<
     typeof createCommunicationsRepository
   >;
+  private readonly campaigns: ReturnType<typeof createCampaignsRepository>;
   private readonly contracts: ReturnType<typeof createContractsRepository>;
   constructor(private readonly pool: Pool) {
     this.context = new PostgresRepositoryContext(pool);
@@ -174,6 +185,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.finalizeClinicalResource = clinicalResources.finalizeClinicalResource;
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
+    this.campaigns = createCampaignsRepository(this.context);
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
@@ -333,6 +345,16 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.queueManualMessage = this.communications.queueManualMessage;
     this.queueBroadcastMessages = this.communications.queueBroadcastMessages;
     this.generateReminders = this.communications.generateReminders;
+    this.listMessageTemplates = this.campaigns.listMessageTemplates;
+    this.getMessageTemplateImage = this.campaigns.getMessageTemplateImage;
+    this.createMessageTemplate = this.campaigns.createMessageTemplate;
+    this.updateMessageTemplate = this.campaigns.updateMessageTemplate;
+    this.setMessageTemplateArchived = this.campaigns.setMessageTemplateArchived;
+    this.listWhatsappCampaigns = this.campaigns.listWhatsappCampaigns;
+    this.getWhatsappCampaign = this.campaigns.getWhatsappCampaign;
+    this.createWhatsappCampaign = this.campaigns.createWhatsappCampaign;
+    this.setWhatsappCampaignRecipientStatus =
+      this.campaigns.setWhatsappCampaignRecipientStatus;
     this.listDocumentTemplates = this.contracts.listDocumentTemplates;
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =

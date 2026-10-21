@@ -19,7 +19,10 @@ export interface BroadcastPlan {
 }
 
 /** WhatsApp em branco cai no telefone de contato (mesma regra da mensagem manual). */
-function destination(patient: Patient, channel: BroadcastInput["channel"]) {
+export function destination(
+  patient: Patient,
+  channel: BroadcastInput["channel"],
+) {
   if (channel === "email") return patient.email?.trim() ?? "";
   const phone = patient.whatsapp?.trim() || patient.phone?.trim() || "";
   return phoneDigits(phone).length >= 10 ? phone : "";

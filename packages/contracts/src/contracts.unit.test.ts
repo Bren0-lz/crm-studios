@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cpfMatchKey,
+  fillCampaignMessage,
+  imageDataUrlInfo,
+  messageTemplateInputSchema,
+  whatsappCampaignAudienceSchema,
   describeLeadDuplicate,
   emailMatchKey,
   findLeadDuplicates,
@@ -1244,5 +1248,59 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     expect(tabReceivableDescription("Marina Souza", "2026-10-19")).toBe(
       "Comanda de 19/10 · Marina",
     );
+  });
+});
+
+describe("campanhas de WhatsApp", () => {
+  it("preenche nome e nome completo e mantém códigos desconhecidos", () => {
+    expect(
+      fillCampaignMessage(
+        "Oi, {{nome}}! {{ nome_completo }} {{x}}",
+        "  Ana   Paula Souza ",
+      ),
+    ).toBe("Oi, Ana! Ana Paula Souza {{x}}");
+  });
+
+  it("limita a 3 imagens válidas e calcula o tamanho decodificado", () => {
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const image = { fileName: "a.png", dataUrl: png };
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [image, image, image],
+      }).success,
+    ).toBe(true);
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [image, image, image, image],
+      }).success,
+    ).toBe(false);
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [{ fileName: "a.gif", dataUrl: "data:image/gif;base64,AAAA" }],
+      }).success,
+    ).toBe(false);
+    expect(imageDataUrlInfo(png)).toMatchObject({
+      mimeType: "image/png",
+      sizeBytes: 68,
+    });
+  });
+
+  it("exige clientes no público por escolha individual", () => {
+    expect(
+      whatsappCampaignAudienceSchema.safeParse({
+        mode: "patients",
+        patientIds: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
+    ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
   });
 });

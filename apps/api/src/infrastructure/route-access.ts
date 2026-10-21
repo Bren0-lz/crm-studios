@@ -258,6 +258,22 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/reminders/generate": operation(
     "communications.reminders",
   ),
+  "GET /communications/templates": view("communications"),
+  "GET /communications/template-images/:id": view("communications"),
+  "POST /communications/templates": operation("communications.templates"),
+  "PUT /communications/templates/:id": operation("communications.templates"),
+  "POST /communications/templates/:id/archive": operation(
+    "communications.templates",
+  ),
+  "GET /communications/campaigns": view("communications"),
+  "GET /communications/campaigns/:id": view("communications"),
+  "POST /communications/campaigns/preview": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/campaigns": operation("communications.campaigns"),
+  "POST /communications/campaigns/:id/recipients/:recipientId": operation(
+    "communications.campaigns",
+  ),
 
   // Contratos.
   "GET /document-templates": view("contracts"),

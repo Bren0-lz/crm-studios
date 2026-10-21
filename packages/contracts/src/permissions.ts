@@ -16,6 +16,8 @@ const additionalPermissions = new Set([
   "finance.suppliers_manage",
   "patients.products_update",
   "reports.dre",
+  "communications.templates",
+  "communications.campaigns",
 ]);
 const operations = {
   agenda: {
@@ -79,6 +81,8 @@ const operations = {
     messages: "Enviar mensagem individual",
     broadcast: "Preparar e enviar mensagens em massa",
     reminders: "Gerar lembretes",
+    templates: "Gerenciar mensagens padrão",
+    campaigns: "Criar e enviar campanhas de WhatsApp",
   },
   contracts: {
     templates_create: "Criar modelo de contrato",
