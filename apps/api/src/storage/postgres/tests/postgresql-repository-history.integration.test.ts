@@ -48,15 +48,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const ids = Array.from({ length: 235 }, () => randomUUID());
     const newerId = randomUUID();
     const futureId = randomUUID();
-    // Recente (o histórico não lista datas futuras), com microssegundos para o empate.
-    const createdAt = new Date(Date.now() - 5_000)
-      .toISOString()
-      .replace("Z", "456Z");
     try {
+      // Todos com o mesmo instante (empate com microssegundos), mais recente que os eventos
+      // do seed (que pode ter rodado há menos de 5 s num banco novo) e ainda no passado,
+      // porque o histórico não lista datas futuras. O instante vem do relógio do banco.
       await pool.query(
         `INSERT INTO audit_events (id, clinic_id, actor_user_id, ip_address, action, entity_type, created_at)
-         SELECT id, $1, $5::uuid, '192.0.2.1'::inet, $2, 'clinic', $3::timestamptz FROM unnest($4::uuid[]) AS id`,
-        [clinicId, marker, createdAt, ids, ownerId],
+         SELECT id, $1, $4::uuid, '192.0.2.1'::inet, $2, 'clinic',
+                date_trunc('milliseconds', now() - interval '2 milliseconds') + interval '456 microseconds'
+         FROM unnest($3::uuid[]) AS id`,
+        [clinicId, marker, ids, ownerId],
       );
       const first = await repository.listAdminAuditPage(clinicId);
       expect(first.items).toHaveLength(50);
