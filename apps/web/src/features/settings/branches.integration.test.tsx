@@ -21,7 +21,16 @@ describe("branches through real HTTP handlers", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Nova filial" }));
     const dialog = screen.getByRole("dialog", { name: "Nova filial" });
     change("Nome da filial", "Centro", dialog);
-    change("Endereço", "Rua das Flores, 10", dialog);
+    change("Telefone", "11 3333-4444", dialog);
+    expect(within(dialog).getByLabelText("Telefone")).toHaveValue(
+      "(11) 3333-4444",
+    );
+    change("Rua", "Rua das Flores", dialog);
+    change("Número", "10", dialog);
+    change("Bairro", "Centro", dialog);
+    change("Cidade", "Campinas", dialog);
+    change("UF", "SP", dialog);
+    change("Ponto de referência", "Em frente à praça", dialog);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar filial" }),
     );
@@ -30,7 +39,20 @@ describe("branches through real HTTP handlers", () => {
     const centro = (await repository.listBranches(clinicId)).find(
       (branch) => branch.name === "Centro",
     )!;
-    expect(centro.address).toBe("Rua das Flores, 10");
+    expect(centro).toMatchObject({
+      phone: "1133334444",
+      street: "Rua das Flores",
+      number: "10",
+      neighborhood: "Centro",
+      city: "Campinas",
+      state: "SP",
+      reference: "Em frente à praça",
+    });
+    expect(
+      within(panel).getByText(
+        "Rua das Flores, 10 · Centro · Campinas/SP · (11) 3333-4444",
+      ),
+    ).toBeInTheDocument();
 
     // Com duas filiais o seletor aparece; a escolha vai no cabeçalho das requisições.
     cleanup();
