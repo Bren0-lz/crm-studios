@@ -485,7 +485,7 @@ describe("configured patient tags", () => {
       ]);
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );

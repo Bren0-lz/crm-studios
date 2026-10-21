@@ -11,7 +11,7 @@ describe("communication buttons list what is missing (QM14)", () => {
       phone: "11988887777",
       tags: [],
     });
-    open("/comunicacoes");
+    open("/comunicacoes?aba=fila");
     const queue = await screen.findByRole("button", {
       name: "Adicionar à fila",
     });
@@ -43,7 +43,7 @@ describe("communication buttons list what is missing (QM14)", () => {
 
   it("keeps 'Gerar lembretes' disabled without a reminder type", async () => {
     await setupApi();
-    open("/comunicacoes");
+    open("/comunicacoes?aba=fila");
     const generate = await screen.findByRole("button", {
       name: "Gerar lembretes",
     });

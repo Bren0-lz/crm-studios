@@ -1400,7 +1400,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );

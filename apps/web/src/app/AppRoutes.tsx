@@ -9,6 +9,7 @@ import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationP
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
+import { CampaignSenderPage } from "../features/communications/campaigns/CampaignSenderPage";
 import { CommunicationsPage } from "../features/communications/CommunicationsPage";
 import { DocumentsPage } from "../features/contracts/DocumentsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
@@ -108,6 +109,10 @@ export function AppRoutes() {
                 <Route
                   path="/comunicacoes"
                   element={allow("communications", <CommunicationsPage />)}
+                />
+                <Route
+                  path="/comunicacoes/campanhas/:campaignId"
+                  element={allow("communications", <CampaignSenderPage />)}
                 />
                 <Route
                   path="/contratos"
