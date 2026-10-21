@@ -200,6 +200,50 @@ describe("mensagens padrão", () => {
   });
 });
 
+describe("cartões das mensagens padrão", () => {
+  it("mostra a prévia do texto, as pílulas e o atalho de nova mensagem", async () => {
+    const withImage: MessageTemplate = {
+      ...template,
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      title: "Com arte",
+      body: "Promoção de verão",
+      images: [
+        {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          fileName: "arte.png",
+          mimeType: "image/png",
+          sizeBytes: 68,
+        },
+      ],
+    };
+    setup("/comunicacoes?aba=mensagens", (url) => {
+      if (url.endsWith("/communications/templates"))
+        return [template, withImage];
+      if (url.includes("/communications/template-images/"))
+        return { ...withImage.images[0], dataUrl: png };
+      return undefined;
+    });
+    const textCard = (
+      await screen.findByRole("heading", { name: "Volta às aulas" })
+    ).closest("article")!;
+    expect(within(textCard).getByText("Personalizada")).toBeInTheDocument();
+    expect(within(textCard).getByText("Nome")).toHaveClass("message-code");
+    const imageCard = screen
+      .getByRole("heading", { name: "Com arte" })
+      .closest("article")!;
+    expect(within(imageCard).getByText("1 imagem")).toBeInTheDocument();
+    expect(within(imageCard).queryByText("Personalizada")).toBeNull();
+    await waitFor(() =>
+      expect(imageCard.querySelector("img")).toHaveAttribute("src", png),
+    );
+    expect(screen.getByText("2 ativas")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Texto com o nome/ }));
+    expect(
+      await screen.findByRole("dialog", { name: "Nova mensagem padrão" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("campanhas de WhatsApp", () => {
   it("cria a campanha escolhendo clientes e abre o envio", async () => {
     const created = campaign([
