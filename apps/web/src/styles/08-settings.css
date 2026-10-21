@@ -1506,3 +1506,54 @@
     grid-column: auto;
   }
 }
+
+/* Telefones da filial: número + descrição + remover, uma linha por telefone. */
+.branch-phones {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.branch-phones-title {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* audit: mobile-ok no celular vira número + remover, com a descrição embaixo (regra de 700px) */
+.branch-phone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  grid-template-areas: "number label remove";
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.branch-phone-number {
+  grid-area: number;
+}
+.branch-phone-label {
+  grid-area: label;
+}
+
+.branch-phone-remove {
+  grid-area: remove;
+  min-width: calc(var(--space-7) - var(--space-1));
+  min-height: calc(var(--space-7) - var(--space-1));
+}
+
+.branch-phone-add {
+  justify-self: start;
+}
+
+@media (max-width: 700px) {
+  /* audit: mobile-ok número (flexível) + botão de remover de 40px cabem em 390px; a descrição desce para a linha de baixo */
+  .branch-phone-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "number remove"
+      "label label";
+    row-gap: var(--space-1);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--line);
+  }
+}

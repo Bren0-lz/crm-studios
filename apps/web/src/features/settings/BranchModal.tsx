@@ -1,4 +1,10 @@
-import { brazilianStates, type Branch, type BranchInput } from "@crm/contracts";
+import {
+  brazilianStates,
+  MAX_BRANCH_PHONES,
+  type Branch,
+  type BranchInput,
+} from "@crm/contracts";
+import { Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -6,18 +12,31 @@ import { PhoneInput } from "../../shared/components/PhoneInput";
 import { formatCep, lookupCep } from "../../shared/lib/cep";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
+interface PhoneRow {
+  number: string;
+  label: string;
+}
+
 type BranchForm = Required<
-  Omit<BranchInput, "active" | "state" | "phone"> & {
+  Omit<BranchInput, "active" | "state" | "phones"> & {
     active: boolean;
     state: string;
-    phone: string;
+    phones: PhoneRow[];
   }
 >;
+
+const emptyPhone = (): PhoneRow => ({ number: "", label: "" });
 
 function initialForm(branch?: Branch): BranchForm {
   return {
     name: branch?.name ?? "",
-    phone: branch?.phone ?? "",
+    // Sempre ao menos uma linha de telefone para preencher.
+    phones: branch?.phones?.length
+      ? branch.phones.map((phone) => ({
+          number: phone.number,
+          label: phone.label ?? "",
+        }))
+      : [emptyPhone()],
     active: branch?.active ?? true,
     postalCode: branch?.postalCode ?? "",
     street: branch?.street ?? "",
@@ -47,6 +66,18 @@ export function BranchModal({
   const dirty = useFormDirty(form);
   const set = <K extends keyof BranchForm>(key: K, value: BranchForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const setPhone = (index: number, change: Partial<PhoneRow>) =>
+    setForm((current) => ({
+      ...current,
+      phones: current.phones.map((phone, position) =>
+        position === index ? { ...phone, ...change } : phone,
+      ),
+    }));
+  const removePhone = (index: number) =>
+    setForm((current) => {
+      const phones = current.phones.filter((_, position) => position !== index);
+      return { ...current, phones: phones.length ? phones : [emptyPhone()] };
+    });
 
   // CEP completo preenche rua, bairro, cidade e UF pelo ViaCEP (mesmo fluxo dos clientes).
   async function changeCep(value: string) {
@@ -85,12 +116,21 @@ export function BranchModal({
         typeof value === "string" ? value.trim() : value,
       ]),
     ) as BranchForm;
+    // Linhas sem número nem descrição são ignoradas.
+    const phones = form.phones
+      .map((phone) => ({ number: phone.number, label: phone.label.trim() }))
+      .filter((phone) => phone.number || phone.label);
     if (input.name.length < 2) {
       setError("Informe o nome da filial.");
       return;
     }
-    if (input.phone && input.phone.length < 10) {
-      setError("Informe o telefone com DDD.");
+    const incomplete = phones.findIndex((phone) => phone.number.length < 10);
+    if (incomplete >= 0) {
+      setError(
+        phones[incomplete]!.label
+          ? `Informe o telefone "${phones[incomplete]!.label}" com DDD.`
+          : "Informe cada telefone com DDD ou remova a linha vazia.",
+      );
       return;
     }
     if (input.postalCode && input.postalCode.length !== 9) {
@@ -101,6 +141,7 @@ export function BranchModal({
     setError("");
     const payload = {
       ...input,
+      phones,
       state: input.state as BranchInput["state"],
     };
     try {
@@ -136,25 +177,63 @@ export function BranchModal({
       >
         <fieldset className="form-fieldset span-2" disabled={saving}>
           <legend>Identificação</legend>
-          <div className="form-fieldset-grid">
-            <label>
-              Nome da filial
-              <input
-                autoFocus
-                required
-                maxLength={120}
-                placeholder="Ex.: Unidade Centro"
-                value={form.name}
-                onChange={(e) => set("name", e.target.value)}
-              />
-            </label>
-            <label>
-              Telefone
-              <PhoneInput
-                value={form.phone}
-                onChange={(digits) => set("phone", digits)}
-              />
-            </label>
+          <label>
+            Nome da filial
+            <input
+              autoFocus
+              required
+              maxLength={120}
+              placeholder="Ex.: Unidade Centro"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+            />
+          </label>
+          <div className="branch-phones" role="group" aria-label="Telefones">
+            <span className="branch-phones-title">Telefones</span>
+            {form.phones.map((phone, index) => (
+              <div className="branch-phone-row" key={index}>
+                <label className="branch-phone-number">
+                  <span className="sr-only">Telefone {index + 1}</span>
+                  <PhoneInput
+                    value={phone.number}
+                    onChange={(digits) => setPhone(index, { number: digits })}
+                  />
+                </label>
+                <label className="branch-phone-label">
+                  <span className="sr-only">
+                    Descrição do telefone {index + 1}
+                  </span>
+                  <input
+                    maxLength={40}
+                    placeholder="Descrição (ex.: WhatsApp, Recepção)"
+                    value={phone.label}
+                    onChange={(e) => setPhone(index, { label: e.target.value })}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="icon-button branch-phone-remove"
+                  aria-label={`Remover telefone ${index + 1}`}
+                  title="Remover telefone"
+                  disabled={
+                    form.phones.length === 1 && !phone.number && !phone.label
+                  }
+                  onClick={() => removePhone(index)}
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            ))}
+            {form.phones.length < MAX_BRANCH_PHONES && (
+              <button
+                type="button"
+                className="secondary-button button-sm branch-phone-add"
+                onClick={() => set("phones", [...form.phones, emptyPhone()])}
+              >
+                <Plus size={16} />
+                Adicionar telefone
+              </button>
+            )}
           </div>
           <label className="checkbox-field branch-active">
             <input

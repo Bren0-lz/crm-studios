@@ -61,7 +61,11 @@ export function createBranchesRepository(context: MemoryRepositoryContext) {
       };
       branch.name = input.name;
       branch.active = input.active;
-      for (const key of ["phone", ...branchAddressFields] as const) {
+      branch.phones = input.phones.map(({ number, label }) => ({
+        number,
+        ...(label ? { label } : {}),
+      }));
+      for (const key of branchAddressFields) {
         const value = input[key];
         if (value) branch[key] = value;
         else delete branch[key];
