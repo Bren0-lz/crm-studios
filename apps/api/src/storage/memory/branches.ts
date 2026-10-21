@@ -1,5 +1,5 @@
 import type { Branch, BranchInput } from "@crm/contracts";
-import { branchInputSchema } from "@crm/contracts";
+import { branchAddressFields, branchInputSchema } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { uuid } from "./helpers.js";
@@ -61,10 +61,11 @@ export function createBranchesRepository(context: MemoryRepositoryContext) {
       };
       branch.name = input.name;
       branch.active = input.active;
-      if (input.address) branch.address = input.address;
-      else delete branch.address;
-      if (input.phone) branch.phone = input.phone;
-      else delete branch.phone;
+      for (const key of ["phone", ...branchAddressFields] as const) {
+        const value = input[key];
+        if (value) branch[key] = value;
+        else delete branch[key];
+      }
       if (!current) context.branches.push(branch);
       context.addAdminAudit(
         actorUserId,

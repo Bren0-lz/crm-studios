@@ -1,4 +1,4 @@
-import type { Branch } from "@crm/contracts";
+import { branchAddressLine, formatPhone, type Branch } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -101,8 +101,8 @@ export function BranchesContent() {
                       {[
                         branch.isDefault ? "Filial padrão" : null,
                         branch.active ? null : "Inativa",
-                        branch.address,
-                        branch.phone,
+                        branchAddressLine(branch),
+                        branch.phone ? formatPhone(branch.phone) : null,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "Ativa"}
