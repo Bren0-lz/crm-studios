@@ -360,4 +360,101 @@ describe("campanhas de WhatsApp", () => {
     });
     expect(preview.statusCode).toBe(404);
   });
+
+  it("oferece opções de filtro e exclui quem já recebeu campanha recente", async () => {
+    const { app, repository, headers } = await setup();
+    const options = await app.inject({
+      url: "/communications/campaigns/filter-options",
+      headers,
+    });
+    expect(options.statusCode).toBe(200);
+    expect(options.json()).toMatchObject({ finance: true });
+    const [ana] = await repository.listPatients(clinicId);
+    const template = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/templates",
+        headers,
+        payload: { title: "Recente", body: "Oi, {{nome}}" },
+      })
+    ).json<MessageTemplate>();
+    const campaign = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/campaigns",
+        headers,
+        payload: {
+          templateId: template.id,
+          name: "Primeira",
+          audience: { mode: "patients", patientIds: [ana!.id] },
+        },
+      })
+    ).json<WhatsappCampaignDetail>();
+    await app.inject({
+      method: "POST",
+      url: `/communications/campaigns/${campaign.id}/recipients/${campaign.recipients[0]!.id}`,
+      headers,
+      payload: { status: "sent" },
+    });
+    const preview = (segment: Record<string, unknown>) =>
+      app
+        .inject({
+          method: "POST",
+          url: "/communications/campaigns/preview",
+          headers,
+          payload: {
+            templateId: template.id,
+            audience: { mode: "segment", segment },
+          },
+        })
+        .then((response) => response.json<WhatsappCampaignPreview>());
+    const all = await preview({});
+    const fresh = await preview({ excludeContactedDays: 7 });
+    expect(fresh.matched).toBe(all.matched - 1);
+    expect(fresh.included.some((item) => item.patientId === ana!.id)).toBe(
+      false,
+    );
+  });
+
+  it("recusa filtro de parcela vencida sem acesso ao financeiro", async () => {
+    const { app, repository, headers } = await setup();
+    const template = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/templates",
+        headers,
+        payload: { title: "Cobrança", body: "Oi" },
+      })
+    ).json<MessageTemplate>();
+    const user = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Recepção",
+        email: "recepcao@example.com",
+        password: "Password123",
+        role: "user",
+        permissions: ["communications.view", "communications.campaigns"],
+      },
+      "unused-hash",
+    );
+    const reception = {
+      authorization: `Bearer ${app.jwt.sign({ sub: user.id, clinicId, role: "user" })}`,
+    };
+    const denied = await app.inject({
+      method: "POST",
+      url: "/communications/campaigns/preview",
+      headers: reception,
+      payload: {
+        templateId: template.id,
+        audience: { mode: "segment", segment: { overdue: true } },
+      },
+    });
+    expect(denied.statusCode).toBe(403);
+    const options = await app.inject({
+      url: "/communications/campaigns/filter-options",
+      headers: reception,
+    });
+    expect(options.json()).toMatchObject({ finance: false });
+  });
 });

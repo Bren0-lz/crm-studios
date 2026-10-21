@@ -369,6 +369,18 @@ describe("campanhas de WhatsApp", () => {
       if (url.endsWith("/communications/templates")) return [template];
       if (url.includes("/patient-tags"))
         return [{ id: "t1", name: "Pilates", color: "#184f43" }];
+      if (url.includes("/campaigns/filter-options"))
+        return {
+          services: [{ id: "s1", name: "Dançaterapia" }],
+          professionals: [{ id: "pr1", name: "Clara Souza" }],
+          cities: ["Campinas", "São Paulo"],
+          neighborhoods: [],
+          sources: [],
+          occupations: [],
+          interests: [],
+          levels: [],
+          finance: true,
+        };
       return undefined;
     });
     await screen.findByText("Nenhuma campanha ainda");
@@ -392,7 +404,9 @@ describe("campanhas de WhatsApp", () => {
       within(results).getByText("Não autorizou mensagens neste canal"),
     ).toBeInTheDocument();
     fireEvent.click(
-      await within(dialog).findByRole("button", { name: /Pilates/ }),
+      await within(
+        within(dialog).getByRole("group", { name: "Com as etiquetas" }),
+      ).findByRole("button", { name: /Pilates/ }),
     );
     expect(
       await within(results).findByText("2 clientes encontrados"),
@@ -401,6 +415,48 @@ describe("campanhas de WhatsApp", () => {
     expect(previews.at(-1)).toMatchObject({
       audience: { mode: "segment", segment: { tags: ["Pilates"] } },
     });
+
+    // Filtros novos: "Todas" as etiquetas, cidade, serviço, sumidos e repetição.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Todas" }));
+    fireEvent.change(within(dialog).getByLabelText("Cidade"), {
+      target: { value: "Campinas" },
+    });
+    fireEvent.click(within(dialog).getByText("Atendimentos e frequência"));
+    fireEvent.click(
+      within(
+        within(dialog).getByRole("group", {
+          name: "Fez algum destes serviços",
+        }),
+      ).getByRole("button", { name: /Dançaterapia/ }),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Sumidos"), {
+      target: { value: "60" },
+    });
+    fireEvent.click(within(dialog).getByText("Evitar repetição"));
+    fireEvent.change(
+      within(dialog).getByLabelText("Tirar quem já recebeu campanha"),
+      { target: { value: "7" } },
+    );
+    expect(within(dialog).getByText("6 filtros ligados")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(previews.at(-1)).toMatchObject({
+        audience: {
+          segment: {
+            tags: ["Pilates"],
+            tagMode: "all",
+            city: "Campinas",
+            serviceIds: ["s1"],
+            absentDays: 60,
+            excludeContactedDays: 7,
+            status: "active",
+          },
+        },
+      }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Limpar filtros" }),
+    );
+    expect(within(dialog).getByText("1 filtro ligado")).toBeInTheDocument();
   });
 
   it("abre o WhatsApp com o texto pronto e, ao voltar, registra o envio e passa ao próximo", async () => {
