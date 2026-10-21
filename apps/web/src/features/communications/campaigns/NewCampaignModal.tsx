@@ -1,23 +1,25 @@
 import {
   broadcastSkipReasonLabels,
-  patientTagDisplayColor,
-  type BroadcastSegment,
+  formatPhone,
+  type CampaignFilterOptions,
   type MessageTemplate,
   type PatientOption,
   type WhatsappCampaignAudience,
   type WhatsappCampaignDetail,
   type WhatsappCampaignPreview,
+  type WhatsappCampaignPreviewInput,
+  type WhatsappCampaignSegment,
 } from "@crm/contracts";
-import { Check, Images, UsersRound, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Images, Search, UsersRound, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { PatientPicker } from "../../../PatientPicker";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
-import { TagChoice } from "../../../shared/components/TagChoice";
-import { usePatientTags } from "../../../shared/hooks/usePatientTags";
-import { shortDate, tagCounts } from "../../../shared/lib/formatting";
+import { shortDate } from "../../../shared/lib/formatting";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
+import { CampaignFilters } from "./CampaignFilters";
 import { useTemplateImages } from "./images";
+import { emptyCampaignSegment } from "./model";
 import { WhatsappBubble, WhatsappText } from "./WhatsappBubble";
 
 type Step = 1 | 2 | 3;
@@ -49,6 +51,98 @@ function SamplePreview({
   );
 }
 
+/** Lista ao vivo de quem o filtro encontrou: quem recebe e quem será pulado. */
+function FilterResults({
+  loading,
+  error,
+  preview,
+}: {
+  loading: boolean;
+  error?: string | undefined;
+  preview?: WhatsappCampaignPreview | undefined;
+}) {
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLocaleLowerCase("pt-BR");
+  const rows = preview
+    ? [
+        ...preview.included.map((item) => ({ ...item, reason: "" })),
+        ...preview.skipped.map((item) => ({
+          patientId: item.patientId,
+          patientName: item.patientName,
+          phone: "",
+          reason: broadcastSkipReasonLabels[item.reason],
+        })),
+      ]
+        .sort((a, b) => a.patientName.localeCompare(b.patientName, "pt-BR"))
+        .filter(
+          (row) =>
+            !term || row.patientName.toLocaleLowerCase("pt-BR").includes(term),
+        )
+    : [];
+  return (
+    <section
+      className="campaign-filter-results"
+      aria-label="Clientes encontrados"
+      aria-busy={loading}
+    >
+      <header>
+        <strong role="status">
+          {loading
+            ? "Buscando clientes…"
+            : error
+              ? "Não foi possível buscar os clientes"
+              : `${preview!.matched} ${preview!.matched === 1 ? "cliente encontrado" : "clientes encontrados"}`}
+        </strong>
+        {preview && !loading && (
+          <span>
+            {preview.recipients} vão receber
+            {preview.skipped.length > 0 &&
+              ` · ${preview.skipped.length} ${preview.skipped.length === 1 ? "será pulado" : "serão pulados"}`}
+          </span>
+        )}
+      </header>
+      {error && <p className="form-error">{error}</p>}
+      {preview && preview.matched > 0 && (
+        <>
+          {preview.matched > 8 && (
+            <label className="campaign-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Buscar entre os clientes encontrados"
+                placeholder="Buscar entre os encontrados"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+          )}
+          <ul className="campaign-filter-list">
+            {rows.map((row) => (
+              <li key={row.patientId} className={row.reason ? "skipped" : ""}>
+                <span className="campaign-filter-avatar" aria-hidden="true">
+                  {row.patientName.trim().charAt(0).toUpperCase()}
+                </span>
+                <span>
+                  <strong>{row.patientName}</strong>
+                  <small>{row.reason || formatPhone(row.phone)}</small>
+                </span>
+              </li>
+            ))}
+            {rows.length === 0 && (
+              <li className="campaign-filter-empty">Ninguém com esse nome.</li>
+            )}
+          </ul>
+        </>
+      )}
+      {preview && preview.matched === 0 && (
+        <p className="field-hint">
+          Nenhum cliente com esses filtros. Tente tirar alguma etiqueta.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** Cria a campanha: escolhe a mensagem padrão, o público e confere quem recebe. */
 export function NewCampaignModal({
   templates,
@@ -72,29 +166,72 @@ export function NewCampaignModal({
     useState<WhatsappCampaignAudience["mode"]>("patients");
   const [chosen, setChosen] = useState<PatientOption[]>([]);
   const [pickerValue, setPickerValue] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [status, setStatus] = useState<"" | "active" | "inactive">("active");
-  const [activePlan, setActivePlan] = useState<"" | "with" | "without">("");
-  const [birthdayMonth, setBirthdayMonth] = useState(false);
+  const [segment, setSegment] =
+    useState<WhatsappCampaignSegment>(emptyCampaignSegment);
+  const [filterOptions, setFilterOptions] =
+    useState<CampaignFilterOptions | null>(null);
   const template = active.find((item) => item.id === templateId);
   const [name, setName] = useState("");
   const [preview, setPreview] = useState<WhatsappCampaignPreview | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
-  const configuredTags = usePatientTags();
-  const countTag = tagCounts(patients);
-  const dirty = useFormDirty({ templateId, mode, chosen, tags, status, name });
+  const dirty = useFormDirty({ templateId, mode, chosen, segment, name });
 
-  const segment: BroadcastSegment = {
-    tags,
-    birthdayMonth,
-    ...(status ? { status } : {}),
-    ...(activePlan ? { activePlan: activePlan === "with" } : {}),
-  };
-  const audience: WhatsappCampaignAudience =
+  // Opções reais dos filtros (serviços, profissionais, cidades…), carregadas uma vez.
+  const needsOptions = mode === "segment" && !filterOptions;
+  useEffect(() => {
+    if (!needsOptions) return;
+    let active = true;
+    api
+      .campaignFilterOptions()
+      .then((result) => active && setFilterOptions(result))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [needsOptions]);
+  const audience: WhatsappCampaignPreviewInput["audience"] =
     mode === "patients"
       ? { mode, patientIds: chosen.map((patient) => patient.id) }
       : { mode, segment };
+
+  // Por filtros: mostra na hora quem entra no segmento (consulta com pequeno atraso).
+  const filterKey =
+    mode === "segment" && step === 2 && template
+      ? JSON.stringify({ templateId: template.id, segment })
+      : "";
+  const [matches, setMatches] = useState<{
+    key: string;
+    preview?: WhatsappCampaignPreview;
+    error?: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!filterKey) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      const { templateId: id, segment: filter } = JSON.parse(filterKey) as {
+        templateId: string;
+        segment: WhatsappCampaignSegment;
+      };
+      api
+        .previewWhatsappCampaign({
+          templateId: id,
+          audience: { mode: "segment", segment: filter },
+        })
+        .then(
+          (result) => active && setMatches({ key: filterKey, preview: result }),
+        )
+        .catch(
+          (cause: Error) =>
+            active && setMatches({ key: filterKey, error: cause.message }),
+        );
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [filterKey]);
+  const currentMatches = matches?.key === filterKey ? matches : null;
 
   function change(apply: () => void) {
     apply();
@@ -285,80 +422,18 @@ export function NewCampaignModal({
               )}
             </div>
           ) : (
-            <div className="form-grid">
-              {configuredTags.error ? (
-                <p className="form-error span-2">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
-              ) : (
-                (configuredTags.tags ?? []).length > 0 && (
-                  <div className="span-2 broadcast-tags">
-                    <span className="filter-label" id="campaign-tag-filter">
-                      Etiquetas (qualquer uma)
-                    </span>
-                    <div
-                      className="tag-filter-list"
-                      role="group"
-                      aria-labelledby="campaign-tag-filter"
-                    >
-                      {(configuredTags.tags ?? []).map((tag) => (
-                        <TagChoice
-                          key={tag.id}
-                          name={tag.name}
-                          color={patientTagDisplayColor(tag)}
-                          count={countTag(tag.name)}
-                          pressed={tags.includes(tag.name)}
-                          onToggle={() =>
-                            change(() =>
-                              setTags((current) =>
-                                current.includes(tag.name)
-                                  ? current.filter((item) => item !== tag.name)
-                                  : [...current, tag.name],
-                              ),
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              )}
-              <label>
-                Situação
-                <select
-                  value={status}
-                  onChange={(event) =>
-                    change(() => setStatus(event.target.value as typeof status))
-                  }
-                >
-                  <option value="">Todos</option>
-                  <option value="active">Ativos</option>
-                  <option value="inactive">Inativos</option>
-                </select>
-              </label>
-              <label>
-                Plano
-                <select
-                  value={activePlan}
-                  onChange={(event) =>
-                    change(() =>
-                      setActivePlan(event.target.value as typeof activePlan),
-                    )
-                  }
-                >
-                  <option value="">Todos</option>
-                  <option value="with">Com plano ativo</option>
-                  <option value="without">Sem plano ativo</option>
-                </select>
-              </label>
-              <label className="checkbox-field span-2">
-                <input
-                  type="checkbox"
-                  checked={birthdayMonth}
-                  onChange={(event) =>
-                    change(() => setBirthdayMonth(event.target.checked))
-                  }
-                />
-                Só aniversariantes do mês
-              </label>
+            <div className="campaign-filter-layout">
+              <CampaignFilters
+                value={segment}
+                options={filterOptions}
+                patients={patients}
+                onChange={(next) => change(() => setSegment(next))}
+              />
+              <FilterResults
+                loading={!currentMatches}
+                error={currentMatches?.error}
+                preview={currentMatches?.preview}
+              />
             </div>
           )}
         </div>

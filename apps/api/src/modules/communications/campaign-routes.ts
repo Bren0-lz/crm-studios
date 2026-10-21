@@ -5,15 +5,23 @@ import {
   messageTemplateInputSchema,
   whatsappCampaignInputSchema,
   whatsappCampaignPreviewInputSchema,
+  type CampaignFilterOptions,
   type WhatsappCampaignPreview,
 } from "@crm/contracts";
+import type { FastifyRequest } from "fastify";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import {
   clinicDateOf,
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
-import { buildCampaignAudience, inspectTemplateImages } from "./campaigns.js";
+import {
+  buildCampaignAudience,
+  inspectTemplateImages,
+  segmentNeedsAppointments,
+} from "./campaigns.js";
+
+const dayMs = 24 * 60 * 60 * 1000;
 
 const idParams = z.object({ id: z.uuid() });
 const templateNotFound = () =>
@@ -27,32 +35,126 @@ const campaignNotFound = () =>
 
 /** Mensagens padrão e campanhas de WhatsApp enviadas manualmente pela equipe. */
 export function registerCampaignRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, assertPermissions, requestAccess } =
+    context;
 
-  async function planAudience(clinicId: string, body: unknown) {
+  async function planAudience(request: FastifyRequest, body: unknown) {
+    const clinicId = request.user.clinicId;
     const input = whatsappCampaignPreviewInputSchema.parse(body);
     const template = (await repository.listMessageTemplates(clinicId)).find(
       (item) => item.id === input.templateId && !item.archivedAt,
     );
     if (!template) throw templateNotFound();
-    const needsPlans =
-      input.audience.mode === "segment" &&
-      input.audience.segment.activePlan !== undefined;
-    const [patients, plans, center, settings] = await Promise.all([
-      repository.listPatients(clinicId),
-      needsPlans ? repository.listPatientPlans(clinicId) : Promise.resolve([]),
-      repository.getCommunicationCenter(clinicId),
-      repository.getClinicSettings(clinicId),
-    ]);
+    const segment =
+      input.audience.mode === "segment" ? input.audience.segment : null;
+    if (segment?.overdue) assertPermissions(request, "finance.view");
+    const now = new Date();
+    const settings = await repository.getClinicSettings(clinicId);
+    const today = clinicDateOf(
+      now,
+      settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+    );
+    const needsPlans = Boolean(
+      segment &&
+      (segment.activePlan !== undefined ||
+        segment.planExpiringDays ||
+        segment.maxRemainingSessions !== undefined),
+    );
+    const [patients, plans, center, appointments, overdue, contacted] =
+      await Promise.all([
+        repository.listPatients(clinicId),
+        needsPlans ? repository.listPatientPlans(clinicId) : [],
+        repository.getCommunicationCenter(clinicId),
+        segment && segmentNeedsAppointments(segment)
+          ? repository.listAppointments(
+              clinicId,
+              new Date(now.getTime() - 3 * 365 * dayMs).toISOString(),
+              new Date(now.getTime() + 365 * dayMs).toISOString(),
+            )
+          : [],
+        segment?.overdue
+          ? repository.listOverduePatientIds(clinicId, today)
+          : [],
+        segment?.excludeContactedDays
+          ? contactedPatientIds(
+              clinicId,
+              now.getTime() - segment.excludeContactedDays * dayMs,
+            )
+          : [],
+      ]);
     return buildCampaignAudience(
       patients,
-      plans,
-      center.preferences,
+      {
+        plans,
+        preferences: center.preferences,
+        appointments,
+        overduePatientIds: new Set(overdue),
+        contactedPatientIds: new Set(contacted),
+        now,
+      },
       input.audience,
       template.body,
-      clinicDateOf(new Date(), settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE),
+      today,
     );
   }
+
+  /** Clientes marcados como "enviada" em alguma campanha desde `since` (ms). */
+  async function contactedPatientIds(clinicId: string, since: number) {
+    const campaigns = (await repository.listWhatsappCampaigns(clinicId)).filter(
+      (campaign) =>
+        campaign.sent > 0 &&
+        Date.parse(campaign.completedAt ?? new Date().toISOString()) >= since,
+    );
+    const details = await Promise.all(
+      campaigns.map((campaign) =>
+        repository.getWhatsappCampaign(clinicId, campaign.id),
+      ),
+    );
+    return details.flatMap((detail) =>
+      (detail?.recipients ?? [])
+        .filter(
+          (item) =>
+            item.status === "sent" &&
+            item.handledAt !== undefined &&
+            Date.parse(item.handledAt) >= since,
+        )
+        .map((item) => item.patientId),
+    );
+  }
+
+  app.get(
+    "/communications/campaigns/filter-options",
+    { preHandler: authenticate },
+    async (request): Promise<CampaignFilterOptions> => {
+      const clinicId = request.user.clinicId;
+      const [patients, services, professionals] = await Promise.all([
+        repository.listPatients(clinicId),
+        repository.listServices(clinicId),
+        repository.listProfessionals(clinicId),
+      ]);
+      const distinct = (values: Array<string | undefined>) =>
+        [...new Set(values.map((value) => value?.trim()).filter(Boolean))]
+          .map(String)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+      return {
+        services: services
+          .filter((item) => item.active)
+          .map(({ id, name }) => ({ id, name })),
+        professionals: professionals
+          .filter((item) => item.active)
+          .map(({ id, fullName }) => ({ id, name: fullName })),
+        cities: distinct(patients.map((item) => item.city)),
+        neighborhoods: distinct(patients.map((item) => item.neighborhood)),
+        sources: distinct(patients.map((item) => item.source)),
+        occupations: distinct(patients.map((item) => item.occupation)),
+        interests: distinct(patients.flatMap((item) => item.interests ?? [])),
+        levels: distinct(patients.map((item) => item.level)),
+        finance: Boolean(
+          requestAccess.get(request)?.permissions.includes("finance.view"),
+        ),
+      };
+    },
+  );
 
   app.get(
     "/communications/templates",
@@ -153,11 +255,16 @@ export function registerCampaignRoutes(context: RouteContext) {
     "/communications/campaigns/preview",
     { preHandler: authenticate },
     async (request): Promise<WhatsappCampaignPreview> => {
-      const plan = await planAudience(request.user.clinicId, request.body);
+      const plan = await planAudience(request, request.body);
       const first = plan.drafts[0];
       return {
         matched: plan.matched,
         recipients: plan.drafts.length,
+        included: plan.drafts.map(({ patientId, patientName, phone }) => ({
+          patientId,
+          patientName,
+          phone,
+        })),
         skipped: plan.skipped,
         ...(first
           ? {
@@ -176,7 +283,7 @@ export function registerCampaignRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const input = whatsappCampaignInputSchema.parse(request.body);
-      const plan = await planAudience(request.user.clinicId, input);
+      const plan = await planAudience(request, input);
       const campaign = await repository.createWhatsappCampaign(
         request.user.clinicId,
         request.user.sub,
