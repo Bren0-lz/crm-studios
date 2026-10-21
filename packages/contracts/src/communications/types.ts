@@ -15,6 +15,7 @@ import {
   whatsappCampaignAudienceSchema,
   whatsappCampaignInputSchema,
   whatsappCampaignPreviewInputSchema,
+  whatsappCampaignSegmentSchema,
 } from "./model.js";
 
 export type ReminderGenerationOptions = Partial<
@@ -185,6 +186,8 @@ export interface WhatsappCampaignPreview {
   matched: number;
   /** Quantos vão receber (com WhatsApp e sem bloqueio). */
   recipients: number;
+  /** Quem vai receber (para conferir o filtro antes de criar). */
+  included: Array<{ patientId: string; patientName: string; phone: string }>;
   skipped: BroadcastSkippedPatient[];
   sample?: { patientName: string; message: string };
 }
@@ -192,4 +195,23 @@ export interface WhatsappCampaignPreview {
 export interface CampaignRecipientUpdate {
   campaign: WhatsappCampaign;
   recipient: WhatsappCampaignRecipient;
+}
+
+/** Filtros da campanha como o formulário monta (os padrões ficam por conta do schema). */
+export type WhatsappCampaignSegment = Partial<
+  z.infer<typeof whatsappCampaignSegmentSchema>
+>;
+
+/** Valores reais para os filtros da campanha (selects em vez de texto livre). */
+export interface CampaignFilterOptions {
+  services: Array<{ id: string; name: string }>;
+  professionals: Array<{ id: string; name: string }>;
+  cities: string[];
+  neighborhoods: string[];
+  sources: string[];
+  occupations: string[];
+  interests: string[];
+  levels: string[];
+  /** O usuário pode filtrar por parcela vencida (módulo financeiro). */
+  finance: boolean;
 }

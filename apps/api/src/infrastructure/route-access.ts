@@ -266,6 +266,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "communications.templates",
   ),
   "GET /communications/campaigns": view("communications"),
+  "GET /communications/campaigns/filter-options": view("communications"),
   "GET /communications/campaigns/:id": view("communications"),
   "POST /communications/campaigns/preview": operation(
     "communications.campaigns",

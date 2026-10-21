@@ -1,5 +1,6 @@
 import {
   messageVariables,
+  type WhatsappCampaignSegment,
   type MessageTemplate,
   type WhatsappCampaign,
   type WhatsappCampaignRecipient,
@@ -138,4 +139,65 @@ export function templateDraft(template?: MessageTemplate): TemplateDraft {
         sizeBytes: image.sizeBytes,
       })) ?? [],
   };
+}
+
+export type CampaignFilterGroup =
+  "tags" | "profile" | "dates" | "agenda" | "plans" | "repeat";
+
+/** Filtros da campanha sem nada ligado, só com "ativos" (o começo mais comum). */
+export function emptyCampaignSegment(): WhatsappCampaignSegment {
+  return { tags: [], birthdayMonth: false, status: "active" };
+}
+
+/** Quantos filtros estão ligados em cada grupo (o "ativos" padrão conta). */
+export function filterGroupCounts(
+  segment: WhatsappCampaignSegment,
+): Record<CampaignFilterGroup, number> {
+  const has = (value: unknown) =>
+    Array.isArray(value)
+      ? value.length > 0
+      : value !== undefined && value !== false && value !== "";
+  const count = (...values: unknown[]) => values.filter(has).length;
+  return {
+    tags: count(segment.tags, segment.excludeTags),
+    profile: count(
+      segment.status,
+      segment.gender,
+      segment.ageMin,
+      segment.ageMax,
+      segment.clientType,
+      segment.city,
+      segment.neighborhood,
+      segment.source,
+      segment.occupation,
+      segment.interest,
+      segment.level,
+    ),
+    dates: count(
+      segment.birthdayMonth,
+      segment.birthMonth,
+      segment.newClientDays,
+    ),
+    agenda: count(
+      segment.serviceIds,
+      segment.professionalIds,
+      segment.absentDays,
+      segment.visitedWithinDays,
+      segment.noUpcomingAppointment,
+    ),
+    plans: count(
+      segment.activePlan,
+      segment.planExpiringDays,
+      segment.maxRemainingSessions,
+      segment.overdue,
+    ),
+    repeat: count(segment.excludeContactedDays),
+  };
+}
+
+export function activeFilterCount(segment: WhatsappCampaignSegment) {
+  return Object.values(filterGroupCounts(segment)).reduce(
+    (total, value) => total + value,
+    0,
+  );
 }
