@@ -12,6 +12,7 @@ export function DayEventsModal({
   appointments,
   groupSessions,
   blocks,
+  professionalColors,
   onClose,
   onOpenAppointment,
   onOpenDay,
@@ -21,6 +22,8 @@ export function DayEventsModal({
   appointments: Appointment[];
   groupSessions: GroupSession[];
   blocks: ScheduleBlock[];
+  /** Cor de cada profissional (por id), para a bolinha das aulas de turma. */
+  professionalColors: Map<string, string>;
   onClose: () => void;
   onOpenAppointment: (id: string) => void;
   onOpenDay: () => void;
@@ -46,7 +49,7 @@ export function DayEventsModal({
               endsAt: entry.session.endsAt,
               title: entry.session.groupName,
               detail: `${entry.session.professionalName} · ${entry.session.roomName}`,
-              color: undefined,
+              color: professionalColors.get(entry.session.professionalId),
               appointment: undefined,
             }
           : {
