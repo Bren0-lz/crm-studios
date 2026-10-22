@@ -6,9 +6,8 @@ import {
   type Receivable,
   formatPhone,
   isTabCreditPlan,
-  planDisplayStatus,
 } from "@crm/contracts";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, FileClock } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { allBranches, api } from "../../api";
@@ -30,7 +29,7 @@ import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
-import { planBadgeLabel } from "../plans/index";
+import { PlanCard, SessionMovementsModal, planSubtitle } from "../plans/index";
 import { InventoryPanel } from "./InventoryPanel";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
@@ -188,6 +187,7 @@ export function PatientRecordTabs({
   ];
   const visibleTabs = tabs.filter((tab) => tab.visible);
   const [selected, setSelected] = useState<TabKey | null>(null);
+  const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
   const active = selected ?? visibleTabs[0]?.key ?? null;
   const moduleLink = (to: string) =>
     `${to}?patientId=${encodeURIComponent(id)}`;
@@ -370,29 +370,26 @@ export function PatientRecordTabs({
                 }
                 link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
                 render={(items: PatientPlan[]) => (
-                  <ul className="patient-tab-items">
+                  <div className="plans-grid">
                     {items.map((plan) => (
-                      <li key={plan.id}>
-                        <div className="patient-tab-item-main">
-                          <strong>{plan.name}</strong>
-                          <span>
-                            {plan.remainingSessions} de {plan.totalSessions}{" "}
-                            sessões restantes · {formatIsoDate(plan.validFrom)}
-                            {plan.validUntil
-                              ? ` a ${formatIsoDate(plan.validUntil)}`
-                              : " · contínuo"}
-                          </span>
-                        </div>
-                        <div className="patient-tab-item-side">
-                          <span
-                            className={`status-pill ${planDisplayStatus(plan)}`}
+                      <PlanCard
+                        key={plan.id}
+                        plan={plan}
+                        plans={items}
+                        title={planSubtitle(plan)}
+                        actions={
+                          <button
+                            type="button"
+                            className="secondary-button button-sm"
+                            onClick={() => setMovementPlan(plan)}
                           >
-                            {planBadgeLabel(plan)}
-                          </span>
-                        </div>
-                      </li>
+                            <FileClock size={15} />
+                            Extrato
+                          </button>
+                        }
+                      />
                     ))}
-                  </ul>
+                  </div>
                 )}
               />
             )}
@@ -484,6 +481,12 @@ export function PatientRecordTabs({
             {active === "history" && <PatientTimelineSection patientId={id} />}
           </div>
         </section>
+      )}
+      {movementPlan && (
+        <SessionMovementsModal
+          plan={movementPlan}
+          onClose={() => setMovementPlan(null)}
+        />
       )}
     </>
   );
