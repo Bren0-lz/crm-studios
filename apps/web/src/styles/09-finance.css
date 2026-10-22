@@ -22,7 +22,6 @@
 
 .plan-card h3 {
   margin: 16px 0 4px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -41,7 +40,6 @@
 }
 
 .balance-line strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-3xl);
 }
 
@@ -141,7 +139,6 @@
   height: 37px;
   place-items: center;
   border-radius: 50%;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-xs);
 }
 
@@ -181,7 +178,7 @@
 
 .finance-metrics .metric-card strong {
   font-size: var(--text-2xl);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.01em;
 }
 
 .finance-metrics .metric-note {
@@ -247,7 +244,7 @@
   background: rgba(42, 53, 48, 0.08);
   color: inherit;
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.6;
 }
 
@@ -453,7 +450,6 @@
 }
 
 .daily-cash-totals strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -517,7 +513,6 @@
 
 .daily-cash-group-head h3 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -542,7 +537,7 @@
 .daily-cash-group-totals dd {
   margin: 0;
   font-size: var(--text-md);
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -571,7 +566,7 @@
 
 .forecast-legend dt {
   font-size: var(--text-sm);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .forecast-legend dd {
@@ -647,7 +642,7 @@
 .forecast-table .forecast-balance,
 .forecast-table tfoot th,
 .forecast-table tfoot td {
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .forecast-table td.negative {
@@ -720,7 +715,6 @@
 }
 
 .finance-row > strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-sm);
 }
 
@@ -738,12 +732,11 @@
   gap: 11px;
   padding: 15px 19px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .commercial-metrics strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -787,7 +780,7 @@
 
 .suggestion-reasons > .status-pill.open:last-child {
   color: #4e6975;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 /* Baixa de parcela (U39): valor final calculado. */

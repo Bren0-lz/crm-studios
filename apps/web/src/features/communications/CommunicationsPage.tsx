@@ -68,7 +68,6 @@ export function CommunicationsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Mensagens da equipe"
         title="Central de comunicações"
         description="Campanhas de WhatsApp com mensagens prontas, lembretes e a fila de envios manuais."
       />

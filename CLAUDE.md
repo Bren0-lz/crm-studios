@@ -77,6 +77,12 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   `.panel` não tem padding: cada filho direto usa `panel-head` (`padding: 21px 23px`) ou um
   bloco com respiro lateral próprio (padrão 23px). Exceções: `.admin-grid > .panel` e
   `.groups-layout > .panel`, que já recebem padding.
+- **Tom visual sóbrio**: sem sobretítulo (`eyebrow`) em `PageHeader` nem em `panel-head` — o título
+  basta; contexto útil (período, data, progresso) vai num `panel-context` abaixo do `h2`. `.eyebrow` só
+  no nome do módulo dos modais. Uma fonte (DM Sans); Cormorant só no nome da marca. Peso máximo 700
+  (títulos em 600), sem `letter-spacing` negativo além de `-0.01em`, caixa alta só em cabeçalho de
+  tabela e siglas. Sombras só via `--shadow`/`--shadow-sm`; raios só `--radius-*`. Nada de enfeites
+  (círculos em `::after`, gradientes decorativos, `backdrop-filter`) nem frases de efeito na interface.
 - **Tokens**: CSS novo usa `--space-1`…`--space-8` (4, 8, 12, 16, 24, 32, 48, 64px) e
   `--radius-sm/md/lg` (8, 12, 18px); valor fora da escala via `calc(var(--space-N) ± Xpx)`.
   Nada de px soltos para espaçamento e nada de `style={{}}` no JSX (exceção: cor escolhida pelo

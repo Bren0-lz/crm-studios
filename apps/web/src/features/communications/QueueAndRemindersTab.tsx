@@ -186,7 +186,6 @@ export function QueueAndRemindersTab() {
           {canManage && (
             <>
               <section className="panel communication-compose">
-                <span className="eyebrow">Mensagem individual</span>
                 <h2>Adicionar à fila</h2>
                 {(can("communications.messages") ||
                   can("communications.preferences")) && (
@@ -254,7 +253,6 @@ export function QueueAndRemindersTab() {
                 )}
               </section>
               <section className="panel reminder-generator">
-                <span className="eyebrow">Trabalho da equipe</span>
                 <h2>Gerar lembretes</h2>
                 <p>
                   Prepare avisos de atendimentos, parcelas, aniversários e NPS.
@@ -333,7 +331,6 @@ export function QueueAndRemindersTab() {
           <section className="panel communication-history">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Outbox</span>
                 <h2>Histórico da fila</h2>
               </div>
               <span className="list-count">{center.messages.length}</span>

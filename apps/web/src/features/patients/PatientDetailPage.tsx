@@ -76,7 +76,6 @@ export function PatientDetailPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Cliente"
         title={patient?.fullName ?? "Detalhes do cliente"}
         description={
           patient

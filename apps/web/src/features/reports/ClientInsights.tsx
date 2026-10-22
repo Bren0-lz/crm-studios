@@ -50,7 +50,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
         <section className="panel report-table retention-report">
           <div className="panel-head">
             <div>
-              <span className="eyebrow">Clientes</span>
               <h2>Retenção mês a mês</h2>
             </div>
           </div>
@@ -111,7 +110,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
           <section className="panel report-table">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Ranking</span>
                 <h2>Mais sessões concluídas</h2>
               </div>
             </div>
@@ -141,7 +139,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
           <section className="panel report-table">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Ranking</span>
                 <h2>Mais recebimentos</h2>
               </div>
             </div>
@@ -168,7 +165,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
           <section className="panel report-table source-report">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Perfil</span>
                 <h2>Faixa etária</h2>
               </div>
             </div>

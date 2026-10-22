@@ -68,7 +68,6 @@ export function BirthdaysMonthPanel({
     <section className="panel plans-panel">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">Aniversários do mês</span>
           <h2>Aniversariantes</h2>
         </div>
         <label className="filter-group">

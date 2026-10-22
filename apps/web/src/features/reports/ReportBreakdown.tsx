@@ -14,7 +14,6 @@ export function ReportBreakdown({
     <section className="panel report-table">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">Operação</span>
           <h2>{title}</h2>
         </div>
       </div>

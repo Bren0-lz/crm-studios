@@ -108,7 +108,6 @@ export function BroadcastPanel({
   return (
     <>
       <section className="panel communication-broadcast">
-        <span className="eyebrow">Envio em massa</span>
         <h2>Comunicado segmentado</h2>
         {outboxWarning && (
           <div className="outbox-note">

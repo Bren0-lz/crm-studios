@@ -124,7 +124,6 @@ export function CampaignSenderPage() {
     return (
       <>
         <PageHeader
-          eyebrow="Campanha de WhatsApp"
           title="Campanha"
           description="Não foi possível abrir a campanha."
           action={<BackLink />}
@@ -216,7 +215,6 @@ export function CampaignSenderPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Campanha de WhatsApp"
         title={campaign.name}
         description={`Mensagem “${campaign.templateTitle}” · criada em ${campaignDateTime.format(new Date(campaign.createdAt))} por ${campaign.createdByName}`}
         action={<BackLink />}
@@ -334,10 +332,10 @@ export function CampaignSenderPage() {
                   {recipient.patientName.trim().charAt(0).toUpperCase()}
                 </span>
                 <div>
-                  <span className="eyebrow">
-                    Cliente {currentIndex + 1} de {campaign.total}
-                  </span>
                   <h2>{recipient.patientName}</h2>
+                  <p className="panel-context">
+                    Cliente {currentIndex + 1} de {campaign.total}
+                  </p>
                   <span className="sender-phone">
                     {formatPhone(recipient.phone)}
                   </span>
