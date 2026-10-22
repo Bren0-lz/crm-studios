@@ -633,7 +633,6 @@ button.day-event:focus-visible {
   font-size: var(--text-xs);
 }
 
-.dashboard-sales,
 .sales-report {
   margin-bottom: 24px;
 }
@@ -660,12 +659,6 @@ button.day-event:focus-visible {
 
 .sales-period {
   margin: 0 23px 16px;
-  color: #63766d;
-  font-size: var(--text-sm);
-}
-
-.dashboard-sales-context {
-  margin: 0 23px 14px;
   color: #63766d;
   font-size: var(--text-sm);
 }
