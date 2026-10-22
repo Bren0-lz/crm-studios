@@ -350,23 +350,6 @@ export function CampaignFilters({
             />
           </label>
         </div>
-        <label>
-          Tipo de cliente
-          <select
-            value={value.clientType ?? ""}
-            onChange={(event) =>
-              set(
-                "clientType",
-                (event.target.value || undefined) as
-                  WhatsappCampaignSegment["clientType"] | undefined,
-              )
-            }
-          >
-            <option value="">Todos</option>
-            <option value="fixed">Fixo</option>
-            <option value="rotating">Rotativo</option>
-          </select>
-        </label>
         <ProfileSelect
           label="Cidade"
           value={value.city}

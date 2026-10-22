@@ -215,8 +215,6 @@ export async function buildClientDetails(
       }
       if (patient.gender)
         values.gender = patientProfileValueLabels[patient.gender];
-      if (patient.clientType)
-        values.clientType = patientProfileValueLabels[patient.clientType];
       values.status = patient.status === "active" ? "Ativo" : "Inativo";
       return {
         id: patient.id,

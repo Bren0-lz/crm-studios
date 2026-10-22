@@ -29,7 +29,6 @@ export function patientExportQuery(params: PatientExportParams) {
     "source",
     "interest",
     "gender",
-    "clientType",
     "segment",
     "record",
   ] as const)

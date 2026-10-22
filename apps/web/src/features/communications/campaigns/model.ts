@@ -165,7 +165,6 @@ export function filterGroupCounts(
       segment.gender,
       segment.ageMin,
       segment.ageMax,
-      segment.clientType,
       segment.city,
       segment.neighborhood,
       segment.source,
