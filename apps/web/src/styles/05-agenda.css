@@ -1186,9 +1186,23 @@ button.day-event:focus-visible {
 .appointment-detail-footer > .modal-actions {
   margin-top: 0;
 }
+/* Segunda linha do rodapé: fluxo de presença à direita, dica de liberação logo abaixo. */
+.appointment-attendance-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+.tab-footer + .appointment-attendance-actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.appointment-attendance-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
 /* Dica de liberação (realizado/falta só a partir de 15 min antes do início). */
 .appointment-detail-hint {
-  flex-basis: 100%;
   margin: 0;
   text-align: right;
 }
