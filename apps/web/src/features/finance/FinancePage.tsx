@@ -79,6 +79,8 @@ export function FinancePage() {
     | "dailyCash"
     | "forecast"
     | "inventory"
+    | "entries"
+    | "externalOperations"
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -407,6 +409,20 @@ export function FinancePage() {
                   Estoque
                 </button>
               )}
+              <button
+                className={`tab-button ${tab === "entries" ? "active" : ""}`}
+                onClick={() => setTab("entries")}
+              >
+                Lançamentos
+              </button>
+              {can("finance.external_records_view") && (
+                <button
+                  className={`tab-button ${tab === "externalOperations" ? "active" : ""}`}
+                  onClick={() => setTab("externalOperations")}
+                >
+                  Documentos fiscais
+                </button>
+              )}
             </div>
           </section>
           {tab === "dailyCash" ? (
@@ -415,6 +431,10 @@ export function FinancePage() {
             <FinanceForecastSection />
           ) : tab === "inventory" ? (
             <InventorySection />
+          ) : tab === "entries" ? (
+            <FinanceClassificationPanel workspace={data} onChanged={reload} />
+          ) : tab === "externalOperations" ? (
+            <ExternalOperationsPanel workspace={data} />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">
@@ -560,12 +580,6 @@ export function FinancePage() {
               onGenerated={reload}
             />
           )}
-        </>
-      )}
-      {data && (
-        <>
-          <FinanceClassificationPanel workspace={data} onChanged={reload} />
-          <ExternalOperationsPanel workspace={data} />
         </>
       )}
       {reconcilingCommission && (
