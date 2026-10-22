@@ -7,7 +7,6 @@ import {
   type WhatsappCampaignRecipient,
 } from "@crm/contracts";
 import {
-  ArrowLeft,
   Check,
   CheckCircle2,
   Copy,
@@ -20,7 +19,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "../../../api";
 import { useAuthorization } from "../../../authorization-context";
 import { EmptyState } from "../../../shared/components/EmptyState";
@@ -126,7 +125,7 @@ export function CampaignSenderPage() {
         <PageHeader
           title="Campanha"
           description="Não foi possível abrir a campanha."
-          action={<BackLink />}
+          back={campaignsBack}
         />
         <ErrorBanner error={error} />
       </>
@@ -217,7 +216,7 @@ export function CampaignSenderPage() {
       <PageHeader
         title={campaign.name}
         description={`Mensagem “${campaign.templateTitle}” · criada em ${campaignDateTime.format(new Date(campaign.createdAt))} por ${campaign.createdByName}`}
-        action={<BackLink />}
+        back={campaignsBack}
       />
       <section className="campaign-progress" aria-label="Progresso da campanha">
         <progress max={campaign.total} value={handled} aria-label="Progresso" />
@@ -580,11 +579,4 @@ export function CampaignSenderPage() {
   );
 }
 
-function BackLink() {
-  return (
-    <Link className="secondary-button" to="/comunicacoes">
-      <ArrowLeft size={16} aria-hidden="true" />
-      Voltar às campanhas
-    </Link>
-  );
-}
+const campaignsBack = { to: "/comunicacoes", label: "Voltar às campanhas" };
