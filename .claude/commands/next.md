@@ -1,5 +1,5 @@
 ---
-description: Executa a próxima tarefa do PLAN.md, verifica, commita e atualiza o estado.
+description: Executa a próxima tarefa do PLAN.md, verifica, commita, abre PR e atualiza o estado.
 ---
 
 Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
@@ -27,8 +27,10 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
    - `git add -A && git commit -m "<ID>: <título da tarefa>"` — mensagem em pt-BR, **sem**
      linhas `Co-Authored-By` nem "Generated with Claude" (regra do dono do repositório).
      O commit inclui código, `PLAN.md` e `STATE.md` juntos; o hash fica no `git log`.
-8. **Nunca** rode `git push`.
-9. Reporte em 3 linhas: o que foi feito · gate que passou · qual é a próxima.
+8. Abra um PR: `git push -u origin <branch-da-tarefa>` (nunca no branch padrão, nunca
+   force-push) e crie o pull request para o branch padrão com título `<ID>: <título da tarefa>`
+   e descrição em pt-BR com o que mudou e a saída do gate.
+9. Reporte em 3 linhas: o que foi feito · gate que passou + link do PR · qual é a próxima.
 
 **Nunca faça mais de uma tarefa por invocação.** O valor do loop está no ponto de controle
 entre iterações, não na velocidade.
