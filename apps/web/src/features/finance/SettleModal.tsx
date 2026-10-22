@@ -27,7 +27,9 @@ export function SettleModal({
     adjustments?: SettlementAdjustments,
   ) => Promise<void>;
 }) {
-  const [paidAt, setPaidAt] = useState(""),
+  // Por padrão a baixa é agora; "Pagamento antigo?" libera as datas para edição.
+  const [pastPayment, setPastPayment] = useState(false),
+    [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("pix");
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
@@ -38,6 +40,7 @@ export function SettleModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty({
+    pastPayment,
     paidAt,
     availableAt,
     method,
@@ -80,7 +83,7 @@ export function SettleModal({
     try {
       await onConfirm(
         method,
-        paidAt || availableAt
+        pastPayment && (paidAt || availableAt)
           ? {
               ...(paidAt ? { paidAt: new Date(paidAt).toISOString() } : {}),
               ...(availableAt
@@ -105,7 +108,7 @@ export function SettleModal({
       dirty={dirty}
       onClose={onClose}
     >
-      <form className="form-grid" onSubmit={submit}>
+      <form className="form-grid settle-form" onSubmit={submit}>
         <label className="span-2">
           {isReceivable
             ? "Forma de pagamento recebida"
@@ -177,15 +180,31 @@ export function SettleModal({
             )}
           </>
         )}
-        <details className="span-2">
-          <summary>Datas do pagamento e do caixa</summary>
-          <div className="form-grid">
+        <fieldset className="form-fieldset span-2">
+          <legend>Datas do pagamento e do caixa</legend>
+          <div className="form-fieldset-grid settle-dates">
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
+                checked={pastPayment}
+                disabled={loading}
+                onChange={(event) => {
+                  setPastPayment(event.target.checked);
+                  if (!event.target.checked) {
+                    setPaidAt(nowForInput());
+                    setAvailableAt("");
+                  }
+                }}
+              />
+              Pagamento antigo?
+            </label>
             <label>
               Data e hora do pagamento
               <input
                 type="datetime-local"
                 value={paidAt}
-                disabled={loading}
+                required={pastPayment}
+                disabled={loading || !pastPayment}
                 onChange={(event) => setPaidAt(event.target.value)}
               />
             </label>
@@ -197,19 +216,21 @@ export function SettleModal({
                   text={financeTermHelp.cashAvailable}
                 />
               </span>
+              {/* Sem valor próprio, acompanha a data do pagamento. */}
               <input
                 type="datetime-local"
-                value={availableAt}
-                disabled={loading}
+                value={availableAt || paidAt}
+                disabled={loading || !pastPayment}
                 onChange={(event) => setAvailableAt(event.target.value)}
               />
             </label>
-            <p className="muted-copy">
-              Campos vazios mantêm os padrões do lançamento. O lançamento e o
-              vencimento permanecem independentes.
+            <p className="span-2 muted-copy">
+              {pastPayment
+                ? "Informe quando o pagamento aconteceu. O lançamento e o vencimento permanecem independentes."
+                : "A baixa é registrada com a data e a hora de agora."}
             </p>
           </div>
-        </details>
+        </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">
@@ -229,4 +250,11 @@ export function SettleModal({
       </form>
     </Modal>
   );
+}
+
+// Valor de agora no formato do input datetime-local (hora local, sem segundos).
+function nowForInput() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
 }
