@@ -33,6 +33,7 @@ describe("client record", () => {
       id: "p1",
       patientId: patient.id,
       name: "Pilates 2x",
+      kind: "fixed_package",
       status: "active",
       remainingSessions: 5,
       totalSessions: 8,
@@ -92,6 +93,13 @@ describe("client record", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Planos" }));
     const panel = screen.getByRole("tabpanel");
     expect(await within(panel).findByText("Pilates 2x")).toBeInTheDocument();
+    // Cartão completo, como na página de Planos: tipo, saldo, validade e extrato.
+    expect(panel).toHaveTextContent("Pacote fixo");
+    expect(panel).toHaveTextContent("de 8 sessões restantes");
+    expect(panel).toHaveTextContent("Validade");
+    expect(
+      within(panel).getByRole("button", { name: "Extrato" }),
+    ).toBeInTheDocument();
     expect(
       within(panel).getByRole("link", { name: "Abrir em Planos" }),
     ).toHaveAttribute("href", `/planos?patientId=${patient.id}`);

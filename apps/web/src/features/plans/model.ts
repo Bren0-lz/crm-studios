@@ -1,12 +1,14 @@
 import {
   addDaysToIsoDate,
   isTabCreditPlan,
+  nextPlanPeriod,
   patientTagKey,
   planDisplayStatus,
   planDisplayStatusLabels,
   tabCreditAwaitingLabel,
   type PatientPlan,
 } from "@crm/contracts";
+import { shortDate } from "../../shared/lib/formatting";
 
 export const planKindLabels: Record<PatientPlan["kind"], string> = {
   single: "Avulso",
@@ -111,4 +113,21 @@ export function planSubtitle(plan: PatientPlan): string {
     (name) => !planKey.includes(patientTagKey(name)),
   );
   return missing.length ? `${plan.name} · ${missing.join(", ")}` : plan.name;
+}
+
+/** Texto da renovação: plano seguinte já criado, automática (com a data) ou manual. */
+export function planRenewalLabel(
+  plan: PatientPlan,
+  plans: PatientPlan[],
+): string {
+  if (plan.renewedByPlanId) {
+    const next = plans.find((item) => item.id === plan.renewedByPlanId);
+    return next
+      ? `Renovado a partir de ${shortDate.format(new Date(`${next.validFrom}T12:00:00`))}`
+      : "Renovado";
+  }
+  if (plan.autoRenew && plan.validUntil) {
+    return `Automática em ${shortDate.format(new Date(`${nextPlanPeriod(plan)!.validFrom}T12:00:00`))}`;
+  }
+  return "Manual";
 }

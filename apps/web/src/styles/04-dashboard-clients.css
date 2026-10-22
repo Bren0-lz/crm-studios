@@ -950,3 +950,8 @@
   background: var(--mint);
   color: var(--green-2);
 }
+
+/* Na aba Planos da ficha, os cartões usam o respiro do próprio painel da aba. */
+.patient-tab-list .plans-grid {
+  padding: 0;
+}
