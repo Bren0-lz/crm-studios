@@ -1,12 +1,20 @@
 import type { GroupSession } from "@crm/contracts";
-import {
-  groupOperationRange,
-  shortDate,
-  timeLabel,
-} from "../../shared/lib/formatting";
+import { groupOperationRange } from "../../shared/lib/formatting";
 
-export function groupSessionLabel(session: GroupSession) {
-  return `${session.groupName} · ${shortDate.format(new Date(session.startsAt))} · ${timeLabel.format(new Date(session.startsAt))}`;
+/** "Pilates Turma A · 18 de out. · 18:00", com data e hora no fuso da clínica (não no do navegador). */
+export function groupSessionLabel(session: GroupSession, timezone: string) {
+  const startsAt = new Date(session.startsAt);
+  const date = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: timezone,
+    day: "2-digit",
+    month: "short",
+  }).format(startsAt);
+  const time = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(startsAt);
+  return `${session.groupName} · ${date} · ${time}`;
 }
 
 export const groupSessionStatusLabels: Record<GroupSession["status"], string> =
