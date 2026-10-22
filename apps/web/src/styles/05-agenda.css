@@ -146,7 +146,16 @@
   background: #fafbf8;
 }
 
-/* Filtro "Profissional" no fim da faixa da legenda. */
+.agenda-professionals:has(.agenda-day-layout),
+.agenda-professionals:has(.agenda-professional-filter) {
+  align-items: center;
+}
+
+.agenda-day-layout {
+  margin-left: auto;
+}
+
+/* Filtro "Profissional" no fim da faixa da legenda (antes do Grade/Lista, no Dia). */
 .agenda-professional-filter {
   display: flex;
   align-items: center;
@@ -155,6 +164,9 @@
   color: #5b6b62;
   font-size: var(--text-xs);
   font-weight: 700;
+}
+.agenda-professional-filter + .agenda-day-layout {
+  margin-left: 0;
 }
 .agenda-professional-filter select {
   width: auto;
@@ -1197,9 +1209,23 @@ button.day-event:focus-visible {
 .appointment-detail-footer > .modal-actions {
   margin-top: 0;
 }
+/* Segunda linha do rodapé: fluxo de presença à direita, dica de liberação logo abaixo. */
+.appointment-attendance-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+.tab-footer + .appointment-attendance-actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.appointment-attendance-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
 /* Dica de liberação (realizado/falta só a partir de 15 min antes do início). */
 .appointment-detail-hint {
-  flex-basis: 100%;
   margin: 0;
   text-align: right;
 }
@@ -1341,20 +1367,33 @@ button.day-event:focus-visible {
 .appointment-patient-warnings {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #f0d9a8;
+  border-radius: var(--radius-md);
   background: #fdf1dc;
   color: #8a5a12;
   font-size: var(--text-sm);
-  font-weight: 700;
+  line-height: 1.45;
+}
+.appointment-patient-warnings > svg {
+  flex-shrink: 0;
+  margin-top: calc(var(--space-1) - 2px);
 }
 .appointment-patient-warnings ul {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.appointment-patient-warnings li {
+  display: grid;
+  gap: calc(var(--space-1) - 2px);
+}
+.appointment-patient-warnings strong {
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 .appointment-cancel-notify {
   display: flex;

@@ -413,6 +413,51 @@ p.field-hint {
   box-shadow: 0 0 0 3px rgba(155, 67, 60, 0.12);
 }
 
+/* Recorrência com datas escolhidas à mão (formulário de atendimento). */
+.recurrence-count {
+  align-self: center;
+  margin: 0;
+}
+.recurrence-dates {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f7f8f5;
+}
+.recurrence-dates-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.recurrence-dates-head h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+.recurrence-dates-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.recurrence-dates-head button {
+  flex: 0 0 auto;
+}
+.recurrence-date-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.recurrence-date-row .appointment-date-picker {
+  flex: 1;
+}
+.recurrence-date-row .icon-button {
+  min-height: calc(var(--space-6) + 19px);
+}
+
 .appointment-date-picker {
   position: relative;
   min-width: 0;

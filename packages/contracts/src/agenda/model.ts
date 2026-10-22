@@ -54,10 +54,57 @@ export const appointmentUpdateInputSchema = z.object({
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
-export const recurringAppointmentInputSchema = appointmentInputSchema.extend({
-  occurrences: z.number().int().min(2).max(52),
-  intervalWeeks: z.number().int().min(1).max(4).default(1),
-});
+/**
+ * Repetição de um atendimento: a cada `intervalWeeks` semanas ou, com `customStartsAt`,
+ * nas datas escolhidas à mão (além de `startsAt`, que é sempre a primeira ocorrência).
+ */
+export const recurringAppointmentInputSchema = appointmentInputSchema
+  .extend({
+    occurrences: z.number().int().min(2).max(52),
+    intervalWeeks: z.number().int().min(1).max(4).default(1),
+    customStartsAt: z
+      .array(z.iso.datetime({ offset: true }))
+      .max(51)
+      .optional(),
+  })
+  .superRefine((input, context) => {
+    if (!input.customStartsAt) return;
+    if (input.customStartsAt.length !== input.occurrences - 1)
+      context.addIssue({
+        code: "custom",
+        path: ["customStartsAt"],
+        message: "Informe uma data para cada ocorrência.",
+      });
+    const times = [input.startsAt, ...input.customStartsAt].map((value) =>
+      new Date(value).getTime(),
+    );
+    if (new Set(times).size !== times.length)
+      context.addIssue({
+        code: "custom",
+        path: ["customStartsAt"],
+        message: "Há datas repetidas na recorrência.",
+      });
+  });
+
+/** Início de cada ocorrência da recorrência, em ordem cronológica (ISO UTC). */
+export function recurringOccurrenceStarts(input: {
+  startsAt: string;
+  occurrences: number;
+  intervalWeeks: number;
+  customStartsAt?: string[] | undefined;
+}): string[] {
+  if (input.customStartsAt)
+    return [input.startsAt, ...input.customStartsAt]
+      .map((value) => new Date(value).toISOString())
+      .sort();
+  return Array.from({ length: input.occurrences }, (_, index) => {
+    const startsAt = new Date(input.startsAt);
+    startsAt.setUTCDate(
+      startsAt.getUTCDate() + index * input.intervalWeeks * 7,
+    );
+    return startsAt.toISOString();
+  });
+}
 
 // Atendimento de lead ainda não convertido: só experimental ou avaliação.
 export const leadAppointmentInputSchema = z.object({

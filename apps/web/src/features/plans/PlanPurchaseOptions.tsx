@@ -8,6 +8,7 @@ import type {
   GroupClass,
   Service,
 } from "@crm/contracts";
+import { recurringOccurrenceStarts } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api";
@@ -254,24 +255,21 @@ export function PlanPurchaseOptions({
               onBusyChange={setBusy}
               onNestedModalChange={setNested}
               onSubmit={async (input, recurrence) => {
-                const appointments = Array.from(
-                  { length: recurrence?.occurrences ?? 1 },
-                  (_, index) => {
-                    const date = new Date(input.startsAt);
-                    date.setUTCDate(
-                      date.getUTCDate() +
-                        index * (recurrence?.intervalWeeks ?? 1) * 7,
-                    );
-                    return {
-                      professionalId: input.professionalId,
-                      roomId: input.roomId,
-                      serviceId: input.serviceId,
-                      startsAt: date.toISOString(),
-                      visitType: input.visitType,
-                      notes: input.notes,
-                    };
-                  },
-                );
+                const appointments = (
+                  recurrence
+                    ? recurringOccurrenceStarts({
+                        startsAt: input.startsAt,
+                        ...recurrence,
+                      })
+                    : [input.startsAt]
+                ).map((startsAt) => ({
+                  professionalId: input.professionalId,
+                  roomId: input.roomId,
+                  serviceId: input.serviceId,
+                  startsAt,
+                  visitType: input.visitType,
+                  notes: input.notes,
+                }));
                 if (value.appointments.length + appointments.length > 120)
                   throw new Error(
                     "Uma contratação pode reservar até 120 horários.",

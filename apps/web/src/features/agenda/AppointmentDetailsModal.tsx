@@ -127,8 +127,9 @@ export function AppointmentDetailsModal({
     !survey &&
     !alreadyRated &&
     can("agenda.satisfaction_create");
-  const hasActions =
-    canCancel || canEditDetails || canRescheduleAbsence || canAttend || canRate;
+  // Rodapé em duas linhas: gestão (cancelar/editar/remarcar) e presença (falta/realizado).
+  const hasManageActions = canEditDetails || canRescheduleAbsence;
+  const hasActions = canCancel || hasManageActions || canAttend || canRate;
   const hasFooter =
     hasActions ||
     Boolean(error) ||
@@ -564,7 +565,7 @@ export function AppointmentDetailsModal({
                 </div>
               </div>
             )}
-            {hasActions && (
+            {(canCancel || hasManageActions) && (
               <div className="modal-actions tab-footer">
                 {canCancel && (
                   <div className="tab-footer-danger">
@@ -577,30 +578,38 @@ export function AppointmentDetailsModal({
                     </button>
                   </div>
                 )}
-                <div className="tab-footer-main">
-                  {canEditDetails && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => setEditing(true)}
-                      disabled={savingStatus}
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {canRescheduleScheduled && (
-                    <button
-                      className="secondary-button"
-                      onClick={onReschedule}
-                      disabled={savingStatus}
-                    >
-                      Remarcar atendimento
-                    </button>
-                  )}
-                  {canRescheduleAbsence && (
-                    <button className="primary-button" onClick={onReschedule}>
-                      Remarcar ausência
-                    </button>
-                  )}
+                {hasManageActions && (
+                  <div className="tab-footer-main">
+                    {canEditDetails && (
+                      <button
+                        className="secondary-button"
+                        onClick={() => setEditing(true)}
+                        disabled={savingStatus}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {canRescheduleScheduled && (
+                      <button
+                        className="secondary-button"
+                        onClick={onReschedule}
+                        disabled={savingStatus}
+                      >
+                        Remarcar atendimento
+                      </button>
+                    )}
+                    {canRescheduleAbsence && (
+                      <button className="primary-button" onClick={onReschedule}>
+                        Remarcar ausência
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {(canAttend || canRate) && (
+              <div className="appointment-attendance-actions">
+                <div className="appointment-attendance-buttons">
                   {canAttend && appointment.status === "scheduled" && (
                     <button
                       className="secondary-button"

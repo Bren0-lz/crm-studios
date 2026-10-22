@@ -58,24 +58,32 @@ export function AppointmentPatientWarnings({
   }, [patientId, canSeePlans]);
   if (!patient) return null;
   const keys = new Set((patient.tags ?? []).map(patientTagKey));
-  const warnings = attentionTags
+  const warnings: { title: string; detail: string }[] = attentionTags
     .filter((tag) => keys.has(patientTagKey(tag)))
-    .map((tag) => `Cliente com a etiqueta “${tag}”.`);
+    .map((tag) => ({
+      title: `Cliente com a etiqueta “${tag}”`,
+      detail: "Confirme a situação com o cliente antes de agendar.",
+    }));
   if (
     checkPlan &&
     plans?.patientId === patientId &&
     !hasCurrentPlan(plans.items, localIsoDate())
   )
-    warnings.push(
-      "Cliente sem plano vigente com saldo: o atendimento não terá sessão para descontar.",
-    );
+    warnings.push({
+      title: "Cliente sem plano com sessões disponíveis",
+      detail:
+        "Dá para agendar, mas esta sessão não será descontada de nenhum plano. Veja se o plano do cliente acabou ou venceu, ou combine o pagamento avulso.",
+    });
   if (warnings.length === 0) return null;
   return (
     <div className="appointment-patient-warnings span-2" role="status">
-      <AlertTriangle size={17} aria-hidden="true" />
+      <AlertTriangle size={18} aria-hidden="true" />
       <ul>
         {warnings.map((warning) => (
-          <li key={warning}>{warning}</li>
+          <li key={warning.title}>
+            <strong>{warning.title}</strong>
+            <span>{warning.detail}</span>
+          </li>
         ))}
       </ul>
     </div>

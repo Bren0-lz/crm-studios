@@ -131,14 +131,18 @@ describe("appointment details footer and edit (QM6)", () => {
       }),
     ).toHaveClass("danger-button");
     const main = within(groups[1] as HTMLElement);
+    for (const name of ["Editar", "Remarcar atendimento"])
+      expect(main.getByRole("button", { name })).toBeInTheDocument();
+    // Fluxo de presença numa linha própria, abaixo da gestão do atendimento.
+    const attendance = within(
+      footer.querySelector<HTMLElement>(".appointment-attendance-actions")!,
+    );
     for (const name of [
-      "Editar",
-      "Remarcar atendimento",
       "Confirmar presença",
       "Marcar falta",
       "Marcar como realizado",
     ])
-      expect(main.getByRole("button", { name })).toBeInTheDocument();
+      expect(attendance.getByRole("button", { name })).toBeInTheDocument();
 
     const css = readFileSync(
       `${process.cwd()}/src/styles/05-agenda.css`,
