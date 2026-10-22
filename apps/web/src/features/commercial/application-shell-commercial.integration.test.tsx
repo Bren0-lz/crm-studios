@@ -169,6 +169,9 @@ describe("application shell", () => {
     ).toBeEnabled();
     expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
     expect(
       within(dialog).queryByRole("region", {
         name: "Calendário de agendamento",

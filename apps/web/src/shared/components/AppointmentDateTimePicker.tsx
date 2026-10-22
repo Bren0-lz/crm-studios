@@ -512,9 +512,13 @@ export function AppointmentDateTimePicker({
                           tabIndex={key === focusedDate ? 0 : -1}
                           onFocus={() => setFocusedDate(key)}
                           onKeyDown={(event) => onDayKeyDown(event, day)}
+                          // Escolher o dia mantém o calendário aberto para conferir a
+                          // agenda dele; fecha pelo X, Esc ou clique fora.
                           onClick={() => {
                             onChange(`${key}T${time}`);
-                            closeCalendar();
+                            setFocusedDate(key);
+                            if (day.getMonth() !== month.getMonth())
+                              setMonth(firstOfMonth(day));
                           }}
                         >
                           <span className="appointment-calendar-day-number">
