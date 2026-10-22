@@ -184,6 +184,11 @@ button {
   font-weight: 500;
 }
 
+.eyebrow.light {
+  margin-bottom: var(--space-3);
+  color: #9ccfc0;
+}
+
 .story-copy h1 {
   margin: 0;
   font-size: var(--text-display);
