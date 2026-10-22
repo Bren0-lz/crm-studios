@@ -148,6 +148,23 @@ export const shortDate = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
 });
 
+/**
+ * Tempo desde `iso` em forma curta para cartões ("agora", "5min", "3h", "2d"); depois de
+ * 30 dias, a data curta ("01 de out.").
+ */
+export function relativeTime(iso: string, now = new Date()) {
+  const minutes = Math.floor(
+    (now.getTime() - new Date(iso).getTime()) / 60_000,
+  );
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days <= 30) return `${days}d`;
+  return shortDate.format(new Date(iso));
+}
+
 export function statusLabel(status: AppointmentStatus) {
   return {
     scheduled: "Agendado",
