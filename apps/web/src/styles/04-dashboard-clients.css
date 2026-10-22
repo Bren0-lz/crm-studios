@@ -717,64 +717,184 @@
 }
 
 /* Ficha do cliente: resumo no topo e abas com o conteúdo do cliente (U14). */
-.patient-overview-grid {
+.patient-record {
+  display: grid;
+  gap: var(--space-4);
+}
+.patient-overview-grid,
+.patient-overview-highlights {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-4) var(--space-5);
   margin: 0;
   padding: var(--space-5) calc(var(--space-5) - 1px);
 }
-.patient-overview-grid dt {
+.patient-overview-grid dt,
+.patient-overview-highlights dt,
+.patient-overview-tags > span:first-child {
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 600;
 }
 .patient-overview-grid dd {
   margin: var(--space-1) 0 0;
   font-size: var(--text-md);
-  font-weight: 700;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
-.patient-overview-tags dd {
+.patient-overview .is-empty {
+  color: var(--muted);
+  font-weight: 400;
+}
+/* Plano e próximo atendimento: o que a recepção mais consulta, em destaque. */
+.patient-overview-highlights {
+  border-top: 1px solid var(--line);
+  background: var(--cream);
+}
+.patient-overview-highlights dd {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+}
+.patient-overview-highlights dd strong {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.patient-overview-highlights dd span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.patient-overview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) calc(var(--space-5) - 1px);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.patient-overview-tag-list {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
-.patient-record-tabs [role="tablist"] {
+
+/* Abas da ficha: sublinhado no ativo, sem cara de botão. */
+.patient-record-tabs > [role="tablist"] {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--space-5);
+  padding: 0 calc(var(--space-5) - 1px);
   overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
 }
 .patient-record-tabs .tab-button {
   flex: 0 0 auto;
+  min-height: calc(var(--space-7) + var(--space-1));
+  padding: 0 var(--space-1);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.patient-record-tabs .tab-button:hover {
+  color: var(--ink);
+}
+.patient-record-tabs .tab-button.active {
+  border-bottom-color: var(--green);
+  color: var(--green);
+}
+.patient-record-tabs .tab-button:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: -2px;
 }
 .patient-tab-panel {
-  padding: 0 calc(var(--space-5) - 1px) var(--space-5);
+  padding: var(--space-4) calc(var(--space-5) - 1px) var(--space-5);
 }
-.patient-tab-list ul {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.patient-tab-list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: calc(var(--space-1) / 2) var(--space-3);
+.patient-tab-toolbar {
+  display: flex;
   align-items: center;
-  padding: var(--space-3);
-  border: 1px solid #ece9e2;
-  border-radius: var(--radius-md);
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  color: var(--muted);
   font-size: var(--text-sm);
 }
-.patient-tab-list li > span:not(.status-pill) {
-  grid-column: 1;
-  color: var(--muted);
+.patient-tab-toolbar > a {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
-.patient-tab-list li > .status-pill {
-  grid-column: 2;
-  grid-row: 1 / span 2;
+.patient-tab-group + .patient-tab-group {
+  margin-top: var(--space-5);
+}
+.patient-tab-group h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.patient-tab-group h3 span {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-xs);
+}
+.patient-tab-items {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  list-style: none;
+  overflow: hidden;
+}
+.patient-tab-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: white;
+}
+.patient-tab-items li + li {
+  border-top: 1px solid var(--line);
+}
+.patient-tab-item-main {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  min-width: 0;
+}
+.patient-tab-item-main strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.patient-tab-item-main span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.patient-tab-item-side {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.patient-tab-amount {
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Variação percentual (TrendBadge): verde melhora, vermelho piora, cinza estável/sem base. */

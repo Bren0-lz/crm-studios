@@ -324,14 +324,9 @@
     flex-wrap: wrap;
   }
 
-  .patient-tab-list li {
-    grid-template-columns: 1fr;
-  }
-
-  .patient-tab-list li > .status-pill {
-    grid-column: 1;
-    grid-row: auto;
-    justify-self: start;
+  .patient-tab-items li {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .table-actions {
