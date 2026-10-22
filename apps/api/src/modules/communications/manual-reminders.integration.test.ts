@@ -160,7 +160,6 @@ describe("manual relationship work", () => {
       tags: [],
       city: "Campinas",
       gender: "female",
-      clientType: "rotating",
       interests: ["Pilates"],
       level: "Iniciante",
     });
@@ -175,7 +174,6 @@ describe("manual relationship work", () => {
       segment: {
         city: "Campinas",
         gender: "female",
-        clientType: "rotating",
         interest: "Pilates",
         level: "Iniciante",
       },

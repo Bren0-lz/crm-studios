@@ -246,25 +246,6 @@ export function BroadcastPanel({
                     <option value="undisclosed">Prefere não informar</option>
                   </select>
                 </label>
-                <label>
-                  Tipo de cliente
-                  <select
-                    value={profile.clientType ?? ""}
-                    onChange={(event) =>
-                      change(() =>
-                        setProfile((current) => ({
-                          ...current,
-                          clientType: event.target
-                            .value as PatientProfileFilter["clientType"],
-                        })),
-                      )
-                    }
-                  >
-                    <option value="">Todos</option>
-                    <option value="fixed">Fixo</option>
-                    <option value="rotating">Rotativo</option>
-                  </select>
-                </label>
               </div>
             </details>
             <label>

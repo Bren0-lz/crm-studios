@@ -64,7 +64,6 @@ function clinicDate(timestamp: string) {
 function cellValue(patient: Patient, column: PatientExportColumn): string {
   switch (column) {
     case "gender":
-    case "clientType":
       return (
         patientProfileValueLabels[
           patient[column] as keyof typeof patientProfileValueLabels
