@@ -8,6 +8,7 @@ import {
   isTabCreditPlan,
   planDisplayStatus,
 } from "@crm/contracts";
+import { ArrowUpRight } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { allBranches, api } from "../../api";
@@ -90,9 +91,24 @@ function appointmentWindow() {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+const appointmentDay = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+});
+
+/** "qui., 09 de nov. · 09:00"; o ano só aparece quando não é o atual. */
 function dateTime(value: string) {
   const date = new Date(value);
-  return `${date.toLocaleDateString("pt-BR")} às ${timeLabel.format(date)}`;
+  const year =
+    date.getFullYear() === new Date().getFullYear()
+      ? ""
+      : ` de ${date.getFullYear()}`;
+  return `${appointmentDay.format(date)}${year} · ${timeLabel.format(date)}`;
+}
+
+function countLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 /**
@@ -176,6 +192,8 @@ export function PatientRecordTabs({
   const moduleLink = (to: string) =>
     `${to}?patientId=${encodeURIComponent(id)}`;
 
+  const emergency = emergencyContactLabel(patient);
+
   return (
     <>
       <section
@@ -195,71 +213,92 @@ export function PatientRecordTabs({
           )}
           <div>
             <dt>E-mail</dt>
-            <dd>{patient.email || "Não informado"}</dd>
-          </div>
-          {canView("plans") && (
-            <div>
-              <dt>Plano ativo</dt>
-              <dd>
-                {plans.loading
-                  ? "Carregando…"
-                  : currentPlan
-                    ? `${currentPlan.name} · ${currentPlan.remainingSessions} de ${currentPlan.totalSessions} sessões`
-                    : "Sem plano ativo"}
-              </dd>
-            </div>
-          )}
-          {canView("agenda") && (
-            <div>
-              <dt>Próximo atendimento</dt>
-              <dd>
-                {appointments.loading
-                  ? "Carregando…"
-                  : nextAppointment
-                    ? `${dateTime(nextAppointment.startsAt)} · ${nextAppointment.serviceName}`
-                    : "Nenhum agendado"}
-              </dd>
-            </div>
-          )}
-          <div
-            className={`emergency-contact${emergencyContactLabel(patient) ? "" : " is-missing"}`}
-          >
-            <dt>Contato de emergência</dt>
-            <dd>{emergencyContactLabel(patient) || "Não informado"}</dd>
-          </div>
-          <div className="patient-overview-tags">
-            <dt>Etiquetas</dt>
-            <dd>
-              {patient.tags.length ? (
-                patient.tags.map((tag) => (
-                  <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
-                ))
-              ) : (
-                <span>Sem etiquetas</span>
-              )}
+            <dd className={patient.email ? undefined : "is-empty"}>
+              {patient.email || "Não informado"}
             </dd>
           </div>
+          <div className={`emergency-contact${emergency ? "" : " is-missing"}`}>
+            <dt>Contato de emergência</dt>
+            <dd>{emergency || "Não informado"}</dd>
+          </div>
         </dl>
+        {(canView("plans") || canView("agenda")) && (
+          <dl className="patient-overview-highlights">
+            {canView("plans") && (
+              <div>
+                <dt>Plano ativo</dt>
+                {plans.loading ? (
+                  <dd className="is-empty">Carregando…</dd>
+                ) : currentPlan ? (
+                  <dd>
+                    <strong>{currentPlan.name}</strong>
+                    <span>
+                      {countLabel(
+                        currentPlan.remainingSessions,
+                        "sessão restante",
+                        "sessões restantes",
+                      )}{" "}
+                      de {currentPlan.totalSessions}
+                      {currentPlan.validUntil
+                        ? ` · até ${formatIsoDate(currentPlan.validUntil)}`
+                        : ""}
+                    </span>
+                  </dd>
+                ) : (
+                  <dd className="is-empty">Sem plano ativo</dd>
+                )}
+              </div>
+            )}
+            {canView("agenda") && (
+              <div>
+                <dt>Próximo atendimento</dt>
+                {appointments.loading ? (
+                  <dd className="is-empty">Carregando…</dd>
+                ) : nextAppointment ? (
+                  <dd>
+                    <strong>{dateTime(nextAppointment.startsAt)}</strong>
+                    <span>
+                      {nextAppointment.serviceName} ·{" "}
+                      {nextAppointment.professionalName}
+                    </span>
+                  </dd>
+                ) : (
+                  <dd className="is-empty">Nenhum agendado</dd>
+                )}
+              </div>
+            )}
+          </dl>
+        )}
+        <div className="patient-overview-tags">
+          <span>Etiquetas</span>
+          {patient.tags.length ? (
+            <div className="patient-overview-tag-list">
+              {patient.tags.map((tag) => (
+                <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
+              ))}
+            </div>
+          ) : (
+            <span className="is-empty">Sem etiquetas</span>
+          )}
+        </div>
       </section>
       {visibleTabs.length > 0 && active && (
         <section className="panel patient-record-tabs">
-          <div className="panel-head">
-            <div className="tabs" role="tablist" aria-label="Ficha do cliente">
-              {visibleTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  id={`patient-tab-${tab.key}`}
-                  aria-selected={active === tab.key}
-                  aria-controls="patient-tab-panel"
-                  className={`tab-button ${active === tab.key ? "active" : ""}`}
-                  onClick={() => setSelected(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          <div className="tabs" role="tablist" aria-label="Ficha do cliente">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                id={`patient-tab-${tab.key}`}
+                aria-selected={active === tab.key}
+                aria-controls="patient-tab-panel"
+                className={`tab-button ${active === tab.key ? "active" : ""}`}
+                onClick={() => setSelected(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
           <div
             className="patient-tab-panel"
@@ -271,107 +310,167 @@ export function PatientRecordTabs({
               <TabList
                 state={appointments}
                 empty="Nenhum atendimento nos últimos ou próximos 4 meses."
+                summary={(items) =>
+                  countLabel(
+                    items.length,
+                    "atendimento nos últimos e próximos 4 meses",
+                    "atendimentos nos últimos e próximos 4 meses",
+                  )
+                }
                 link={{ to: moduleLink("/agenda"), label: "Abrir na Agenda" }}
-                render={(items: Appointment[]) =>
-                  [...items]
-                    .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
-                    .map((item) => (
-                      <li key={item.id}>
+                render={(items: Appointment[]) => {
+                  const upcoming = items
+                    .filter((item) => Date.parse(item.startsAt) >= openedAt)
+                    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+                  const past = items
+                    .filter((item) => Date.parse(item.startsAt) < openedAt)
+                    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+                  const row = (item: Appointment) => (
+                    <li key={item.id}>
+                      <div className="patient-tab-item-main">
                         <strong>{dateTime(item.startsAt)}</strong>
                         <span>
                           {item.serviceName} · {item.professionalName}
                         </span>
+                      </div>
+                      <div className="patient-tab-item-side">
                         <span className={`status-pill ${item.status}`}>
                           {statusLabel(item.status)}
                         </span>
-                      </li>
-                    ))
-                }
+                      </div>
+                    </li>
+                  );
+                  return (
+                    <>
+                      {upcoming.length > 0 && (
+                        <TabGroup title="Próximos" count={upcoming.length}>
+                          {upcoming.map(row)}
+                        </TabGroup>
+                      )}
+                      {past.length > 0 && (
+                        <TabGroup title="Anteriores" count={past.length}>
+                          {past.map(row)}
+                        </TabGroup>
+                      )}
+                    </>
+                  );
+                }}
               />
             )}
             {active === "plans" && (
               <TabList
                 state={plans}
                 empty="Nenhum plano contratado."
-                link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
-                render={(items: PatientPlan[]) =>
-                  items.map((plan) => (
-                    <li key={plan.id}>
-                      <strong>{plan.name}</strong>
-                      <span>
-                        {plan.remainingSessions} de {plan.totalSessions} sessões
-                        · {formatIsoDate(plan.validFrom)}
-                        {plan.validUntil
-                          ? ` a ${formatIsoDate(plan.validUntil)}`
-                          : " · contínuo"}
-                      </span>
-                      <span
-                        className={`status-pill ${planDisplayStatus(plan)}`}
-                      >
-                        {planBadgeLabel(plan)}
-                      </span>
-                    </li>
-                  ))
+                summary={(items) =>
+                  countLabel(
+                    items.length,
+                    "plano contratado",
+                    "planos contratados",
+                  )
                 }
+                link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
+                render={(items: PatientPlan[]) => (
+                  <ul className="patient-tab-items">
+                    {items.map((plan) => (
+                      <li key={plan.id}>
+                        <div className="patient-tab-item-main">
+                          <strong>{plan.name}</strong>
+                          <span>
+                            {plan.remainingSessions} de {plan.totalSessions}{" "}
+                            sessões restantes · {formatIsoDate(plan.validFrom)}
+                            {plan.validUntil
+                              ? ` a ${formatIsoDate(plan.validUntil)}`
+                              : " · contínuo"}
+                          </span>
+                        </div>
+                        <div className="patient-tab-item-side">
+                          <span
+                            className={`status-pill ${planDisplayStatus(plan)}`}
+                          >
+                            {planBadgeLabel(plan)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               />
             )}
             {active === "finance" && (
               <TabList
                 state={finance}
                 empty="Nenhuma parcela registrada."
+                summary={(items) =>
+                  countLabel(items.length, "parcela", "parcelas")
+                }
                 link={{
                   to: moduleLink("/financeiro"),
                   label: "Abrir no Financeiro",
                 }}
-                render={(items: Receivable[]) =>
-                  [...items]
-                    .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
-                    .map((item) => (
-                      <li key={item.id}>
-                        <strong>{item.description}</strong>
-                        <span>
-                          Vence em {formatIsoDate(item.dueDate)} ·{" "}
-                          {currency.format(item.amountInCents / 100)}
-                        </span>
-                        <span
-                          className={`status-pill ${item.overdue ? "overdue" : item.status}`}
-                        >
-                          {item.overdue
-                            ? "Vencida"
-                            : item.status === "paid"
-                              ? "Paga"
-                              : item.status === "cancelled"
-                                ? "Cancelada"
-                                : "Em aberto"}
-                        </span>
-                      </li>
-                    ))
-                }
+                render={(items: Receivable[]) => (
+                  <ul className="patient-tab-items">
+                    {[...items]
+                      .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
+                      .map((item) => (
+                        <li key={item.id}>
+                          <div className="patient-tab-item-main">
+                            <strong>{item.description}</strong>
+                            <span>Vence em {formatIsoDate(item.dueDate)}</span>
+                          </div>
+                          <div className="patient-tab-item-side">
+                            <span className="patient-tab-amount">
+                              {currency.format(item.amountInCents / 100)}
+                            </span>
+                            <span
+                              className={`status-pill ${item.overdue ? "overdue" : item.status}`}
+                            >
+                              {item.overdue
+                                ? "Vencida"
+                                : item.status === "paid"
+                                  ? "Paga"
+                                  : item.status === "cancelled"
+                                    ? "Cancelada"
+                                    : "Em aberto"}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
               />
             )}
             {active === "contracts" && (
               <TabList
                 state={contracts}
                 empty="Nenhum contrato emitido."
+                summary={(items) =>
+                  countLabel(items.length, "documento", "documentos")
+                }
                 link={{
                   to: moduleLink("/contratos"),
                   label: "Abrir em Contratos",
                 }}
-                render={(items: IssuedDocument[]) =>
-                  items.map((item) => (
-                    <li key={item.id}>
-                      <strong>{item.title}</strong>
-                      <span>{item.templateName}</span>
-                      <span className={`status-pill ${item.status}`}>
-                        {item.status === "issued"
-                          ? "Emitido"
-                          : item.status === "cancelled"
-                            ? "Cancelado"
-                            : "Rascunho"}
-                      </span>
-                    </li>
-                  ))
-                }
+                render={(items: IssuedDocument[]) => (
+                  <ul className="patient-tab-items">
+                    {items.map((item) => (
+                      <li key={item.id}>
+                        <div className="patient-tab-item-main">
+                          <strong>{item.title}</strong>
+                          <span>{item.templateName}</span>
+                        </div>
+                        <div className="patient-tab-item-side">
+                          <span className={`status-pill ${item.status}`}>
+                            {item.status === "issued"
+                              ? "Emitido"
+                              : item.status === "cancelled"
+                                ? "Cancelado"
+                                : "Rascunho"}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               />
             )}
             {active === "tabs" && <InventoryPanel patientId={id} />}
@@ -390,22 +489,45 @@ export function PatientRecordTabs({
   );
 }
 
+function TabGroup({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="patient-tab-group">
+      <h3>
+        {title} <span>{count}</span>
+      </h3>
+      <ul className="patient-tab-items">{children}</ul>
+    </div>
+  );
+}
+
 function TabList<T>({
   state,
   empty,
+  summary,
   link,
   render,
 }: {
   state: { data: T[] | null; error: string; loading: boolean };
   empty: string;
+  summary: (items: T[]) => string;
   link: { to: string; label: string };
   render: (items: T[]) => ReactNode;
 }) {
   return (
     <div className="patient-tab-list">
-      <div className="page-actions">
-        <Link className="secondary-button button-sm" to={link.to}>
+      <div className="patient-tab-toolbar">
+        <span>{state.data?.length ? summary(state.data) : ""}</span>
+        <Link className="text-button button-sm" to={link.to}>
           {link.label}
+          <ArrowUpRight size={16} aria-hidden="true" />
         </Link>
       </div>
       {state.error ? (
@@ -415,7 +537,7 @@ function TabList<T>({
       ) : state.data.length === 0 ? (
         <EmptyState title="Nada por aqui" copy={empty} />
       ) : (
-        <ul>{render(state.data)}</ul>
+        render(state.data)
       )}
     </div>
   );

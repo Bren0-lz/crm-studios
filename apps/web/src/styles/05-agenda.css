@@ -1230,14 +1230,10 @@ button.day-event:focus-visible {
   border-radius: var(--radius-sm);
   background: var(--paper);
 }
-.appointment-detail-grid .emergency-contact.is-missing,
-.patient-overview-grid .emergency-contact.is-missing {
+.appointment-detail-grid .emergency-contact.is-missing {
   border: 1px solid var(--red);
   border-radius: var(--radius-sm);
   background: #fbf2ef;
-}
-.patient-overview-grid .emergency-contact.is-missing {
-  padding: var(--space-2) var(--space-3);
 }
 .appointment-detail-grid .emergency-contact.is-missing small,
 .appointment-detail-grid .emergency-contact.is-missing strong,
@@ -1510,13 +1506,14 @@ button.day-event:focus-visible {
 }
 .appt-status-swatch.appt-status-cancelled {
   border-radius: 2px;
-  background: linear-gradient(
-    to bottom right,
-    transparent 45%,
-    var(--appt-status-swatch) 45% 55%,
-    transparent 55%
-  ),
-  #f1f1ef;
+  background:
+    linear-gradient(
+      to bottom right,
+      transparent 45%,
+      var(--appt-status-swatch) 45% 55%,
+      transparent 55%
+    ),
+    #f1f1ef;
   box-shadow: 0 0 0 1px var(--appt-status-swatch);
 }
 

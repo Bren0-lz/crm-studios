@@ -74,12 +74,21 @@ describe("client record", () => {
     expect(overview).toHaveTextContent("(11) 98765-4321");
     expect(overview).toHaveTextContent("helena@example.com");
     expect(overview).toHaveTextContent("VIP");
+    expect(await within(overview).findByText("Pilates 2x")).toBeInTheDocument();
+    expect(overview).toHaveTextContent("5 sessões restantes de 8");
+    const day = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    }).format(next);
+    const year =
+      next.getFullYear() === new Date().getFullYear()
+        ? ""
+        : ` de ${next.getFullYear()}`;
     expect(
-      await within(overview).findByText("Pilates 2x · 5 de 8 sessões"),
+      within(overview).getByText(`${day}${year} · 15:00`),
     ).toBeInTheDocument();
-    expect(overview).toHaveTextContent(
-      `${next.toLocaleDateString("pt-BR")} às 15:00 · Pilates`,
-    );
+    expect(overview).toHaveTextContent("Pilates · Ana Martins");
     fireEvent.click(screen.getByRole("tab", { name: "Planos" }));
     const panel = screen.getByRole("tabpanel");
     expect(await within(panel).findByText("Pilates 2x")).toBeInTheDocument();
