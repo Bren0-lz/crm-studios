@@ -321,6 +321,14 @@
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
+.entries-table .finance-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 100px 120px minmax(
+      260px,
+      auto
+    );
+}
+
+/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .receivables-table.selectable .finance-row {
   grid-template-columns:
     calc(var(--space-4) + 2px) minmax(0, 1fr)
@@ -880,4 +888,64 @@
 .settle-dates input:disabled {
   color: var(--muted);
   cursor: not-allowed;
+}
+
+/* Aba Lançamentos: classificação em duas linhas curtas e grupos da DRE. */
+.entry-classification {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.entry-classification > small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.entry-classification > :not(.status-pill) {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries-feedback {
+  padding: var(--space-4) calc(var(--space-5) - 1px) 0;
+}
+
+.entries-feedback .success-banner {
+  margin-bottom: 0;
+}
+
+.dre-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4) calc(var(--space-5) - 1px) var(--space-5);
+}
+
+.dre-category {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.dre-category > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dre-category small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
 }
