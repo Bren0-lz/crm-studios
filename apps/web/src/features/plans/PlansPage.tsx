@@ -167,7 +167,6 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Jornada contratada"
         title="Planos e sessões"
         description="Controle validade, saldo e consumo de cada pacote vendido."
         action={
@@ -214,7 +213,6 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
       <section className="panel plans-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Carteira</span>
             <h2>Planos dos clientes</h2>
           </div>
         </div>

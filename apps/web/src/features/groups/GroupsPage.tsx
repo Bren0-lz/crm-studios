@@ -300,7 +300,6 @@ export function GroupsPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Operação coletiva"
         title="Turmas"
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
         action={

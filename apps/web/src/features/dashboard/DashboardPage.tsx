@@ -227,7 +227,6 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Hoje na clínica"
         title={firstName ? `Olá, ${firstName}.` : "Olá."}
         description={dateLabel.format(new Date())}
         action={
@@ -312,7 +311,6 @@ export function DashboardPage() {
               <section className="panel dashboard-pending-finalization">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Pendências da agenda</span>
                     <h2>
                       Atendimentos a finalizar ({data.pendingFinalization})
                     </h2>
@@ -333,10 +331,10 @@ export function DashboardPage() {
             <section className="dashboard-sales panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">
-                    Mês até {sales.current.to.split("-").reverse().join("/")}
-                  </span>
                   <h2>Vendas e retorno dos clientes</h2>
+                  <p className="panel-context">
+                    Mês até {sales.current.to.split("-").reverse().join("/")}
+                  </p>
                 </div>
                 <NavLink to="/relatorios" className="text-link">
                   Ver detalhes <ChevronRight size={16} />
@@ -398,7 +396,6 @@ export function DashboardPage() {
               <article className="panel schedule-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Pendentes</span>
                     <h2>Agenda de hoje</h2>
                   </div>
                   {canView("agenda") && (
@@ -449,7 +446,6 @@ export function DashboardPage() {
               <article className="panel pulse-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Acompanhamento</span>
                     <h2>Clientes sem retorno</h2>
                   </div>
                   {sales.patientsWithoutReturn.length > 0 && (

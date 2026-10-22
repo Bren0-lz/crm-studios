@@ -71,7 +71,6 @@ export function SalesInsights() {
     <section className="panel sales-report">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">Vendas e clientes</span>
           <h2>Comparação mensal</h2>
         </div>
         <div className="sales-report-actions">

@@ -37,27 +37,17 @@ export function LoginPage({
       <section className="login-story">
         <Logo />
         <div className="story-copy">
-          <span className="eyebrow light">Gestão clínica, sem ruído</span>
-          <h1>
-            Mais presença no cuidado.
-            <br />
-            Menos tempo na operação.
-          </h1>
-          <p>
-            Agenda, clientes e prontuários conectados em uma experiência simples
-            para toda a equipe.
-          </p>
+          <h1>Agenda, clientes e financeiro em um só lugar.</h1>
+          <p>Acesso restrito à equipe da clínica.</p>
         </div>
-        <div className="story-note">
-          <span>Ambiente de demonstração</span>
-          <span>Dados fictícios</span>
-        </div>
+        <p className="story-note">
+          Ambiente de demonstração · Dados fictícios
+        </p>
       </section>
       <section className="login-panel">
         <div className="login-card">
-          <span className="eyebrow">Bem-vinda de volta</span>
           <h2>Acesse sua clínica</h2>
-          <p>Use suas credenciais para continuar.</p>
+          <p>Entre com seu e-mail e senha.</p>
           <form onSubmit={submit}>
             <label>
               E-mail

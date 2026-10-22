@@ -168,7 +168,7 @@
   background: #c8901f;
   color: white;
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -197,7 +197,6 @@
 .lead-card h3 {
   overflow: hidden;
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -274,7 +273,7 @@
   background: var(--mint);
   color: var(--green);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .lead-card-actions {
@@ -414,7 +413,7 @@
   background: transparent;
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .activity-tabs .tab-button.active {
@@ -516,7 +515,6 @@
 .reminder-generator h2,
 .communication-broadcast h2 {
   margin: 4px 0 16px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-xl);
 }
 
@@ -831,7 +829,7 @@
   margin-bottom: 18px;
   padding: 15px 18px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
@@ -858,7 +856,7 @@
   min-height: 115px;
   padding: 19px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
@@ -872,9 +870,8 @@
 .report-metrics strong {
   display: block;
   margin: 12px 0 7px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-fluid-lg);
-  letter-spacing: -1px;
+  letter-spacing: -0.01em;
 }
 
 .report-grid {

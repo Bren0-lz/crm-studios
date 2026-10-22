@@ -106,7 +106,6 @@ export function ClinicalRecordsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Cuidado documentado"
         title="Prontuários"
         description="Evoluções clínicas no formato SOAP, protegidas e rastreáveis."
         action={
@@ -149,7 +148,6 @@ export function ClinicalRecordsPage() {
       <section className="panel clinical-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Linha do tempo</span>
             <h2>Evoluções recentes</h2>
           </div>
         </div>

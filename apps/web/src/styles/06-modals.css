@@ -207,9 +207,9 @@
   max-height: calc(100dvh - 2 * var(--modal-viewport-gap));
   overflow: hidden;
   padding: 0;
-  border-radius: 21px;
+  border-radius: var(--radius-lg);
   background: var(--paper);
-  box-shadow: 0 28px 80px rgba(17, 32, 27, 0.22);
+  box-shadow: 0 16px 48px rgba(17, 32, 27, 0.18);
 }
 
 .modal-head {
@@ -245,7 +245,6 @@
 
 .modal-head h2 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -365,7 +364,7 @@
   padding: 0 6px;
   color: #4d5b55;
   font-size: var(--text-sm);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .form-fieldset.emergency-fieldset {
@@ -497,7 +496,7 @@ p.field-hint {
   margin: 0;
   padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: #fffefa;
   color: var(--ink);
   box-shadow:

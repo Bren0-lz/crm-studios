@@ -113,7 +113,6 @@ export function CampaignsTab({
     <section className="panel campaign-panel" aria-label="Campanhas">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">WhatsApp sem API</span>
           <h2>Campanhas</h2>
         </div>
         {newButton}

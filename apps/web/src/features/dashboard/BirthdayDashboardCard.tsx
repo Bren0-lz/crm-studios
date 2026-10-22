@@ -64,12 +64,12 @@ export function BirthdayDashboardCard() {
     <section className="panel pulse-panel">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">
+          <h2>Aniversariantes</h2>
+          <p className="panel-context">
             {settings
               ? `Hoje e próximos ${settings.birthdayDaysAhead} dias`
               : "Hoje e próximos dias"}
-          </span>
-          <h2>Aniversariantes</h2>
+          </p>
         </div>
         <NavLink to="/relacionamento" className="text-link">
           Ver contatos sugeridos <ChevronRight size={16} />

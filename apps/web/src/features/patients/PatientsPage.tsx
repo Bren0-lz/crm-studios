@@ -230,7 +230,6 @@ export function PatientsPage() {
         />
       )}
       <PageHeader
-        eyebrow="Base clínica"
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={

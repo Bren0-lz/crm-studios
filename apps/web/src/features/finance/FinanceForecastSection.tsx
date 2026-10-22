@@ -33,12 +33,12 @@ export function FinanceForecastSection() {
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">
+            <h2>Previsão</h2>
+            <p className="panel-context">
               {forecast
                 ? `${formatCompetence(forecast.startMonth)} a ${formatCompetence(forecast.endMonth)}`
                 : "Próximos meses"}
-            </span>
-            <h2>Previsão</h2>
+            </p>
             <p className="panel-help">
               Quanto deve entrar e sair do caixa nos próximos meses, mês a mês.
             </p>

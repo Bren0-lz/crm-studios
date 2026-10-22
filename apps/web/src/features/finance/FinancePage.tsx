@@ -279,7 +279,6 @@ export function FinancePage() {
         }
       />
       <PageHeader
-        eyebrow="Saúde financeira"
         title="Financeiro"
         description="Controle entradas, despesas, pagamentos e fluxo de caixa."
         action={
@@ -420,7 +419,6 @@ export function FinancePage() {
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Entradas</span>
                   <h2>Parcelas</h2>
                 </div>
               </div>
@@ -471,7 +469,6 @@ export function FinancePage() {
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Saídas</span>
                   <h2>Contas a pagar</h2>
                   <p className="panel-help">
                     Despesas da clínica pelo vencimento, em aberto e já pagas.
@@ -508,7 +505,6 @@ export function FinancePage() {
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Profissionais</span>
                   <h2>Comissões</h2>
                   <p className="panel-help">
                     Quanto cada profissional tem a receber pelos atendimentos

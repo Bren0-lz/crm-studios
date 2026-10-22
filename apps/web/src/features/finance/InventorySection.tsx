@@ -142,7 +142,6 @@ export function InventorySection() {
       <section className="panel finance-panel" aria-label="Estoque">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Estoque</span>
             <h2>Produtos</h2>
           </div>
           {data && (
