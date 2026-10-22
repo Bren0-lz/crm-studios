@@ -26,6 +26,7 @@ Interface em pt-BR; no produto, `patient` significa **cliente**. Node 22+; Windo
 - Toda operação de repositório deve existir em memória e PostgreSQL; escrituras relacionadas mantêm a mesma transação e filtro clinic_id.
 - Shared não importa funcionalidades; funcionalidades usam entradas públicas de outras. Não introduza ciclos de execução.
 - Testes unitários: `*.unit.test.*`; integração: `*.integration.test.*`; navegador: `e2e/*.spec.ts`. Timeout Vitest: 20s.
-- Não altere migrações existentes, .env ou compose.yaml nem faça push/deploy sem autorização específica.
+- Não altere migrações existentes, .env ou compose.yaml nem faça deploy sem autorização específica.
+- Ao terminar uma tarefa, sempre abra um PR: commit, `git push` do branch da tarefa e pull request para o branch padrão (nunca push direto nele nem force-push). Fora disso, não faça push sem autorização.
 
 As orientações detalhadas de design continuam em CLAUDE.md. Estas instruções e os AGENTS.md dos workspaces são o mapa atual do código.
