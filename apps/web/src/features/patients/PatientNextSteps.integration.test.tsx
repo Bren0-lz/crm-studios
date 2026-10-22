@@ -290,11 +290,15 @@ async function openAppointment() {
   fireEvent.click(
     dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
   );
+  // Escolher o dia mantém o calendário aberto; fecha pelo X.
   expect(
-    within(dialog).queryByRole("region", {
+    within(dialog).getByRole("region", {
       name: "Calendário de agendamento",
     }),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Fechar calendário" }),
+  );
   fireEvent.change(within(dialog).getByLabelText("Horário"), {
     target: { value: "09:00" },
   });
