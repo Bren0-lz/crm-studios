@@ -265,8 +265,10 @@ describe("finance workflows through real HTTP handlers", () => {
       tags: [],
     });
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Lançamentos e competência", { exact: true });
-    const panel = expand("Lançamentos e competência");
+    fireEvent.click(await screen.findByRole("button", { name: "Lançamentos" }));
+    const panel = (
+      await screen.findByRole("heading", { name: "Lançamentos e competência" })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Nova conta a receber",
@@ -320,10 +322,14 @@ describe("finance workflows through real HTTP handlers", () => {
     });
     const before = await repository.getFinancialSummary(clinicId);
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Documentos fiscais e operações com parceiros", {
-      exact: true,
-    });
-    const panel = expand("Documentos fiscais e operações com parceiros");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Documentos fiscais" }),
+    );
+    const panel = (
+      await screen.findByRole("heading", {
+        name: "Documentos fiscais e operações com parceiros",
+      })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Registrar operação externa",
