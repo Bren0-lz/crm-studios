@@ -64,6 +64,7 @@ import {
   patientTagKey,
   patientTagUpdateSchema,
   phoneDigits,
+  recurringOccurrenceStarts,
   recurringPayableCompetences,
   recurringPayableDueDate,
   relationshipSettingsSchema,
@@ -106,6 +107,32 @@ describe("shared contracts", () => {
     expect(
       broadcastSkipReasons.every((reason) => broadcastSkipReasonLabels[reason]),
     ).toBe(true);
+  });
+
+  it("lists recurring occurrences by interval or by chosen dates", () => {
+    expect(
+      recurringOccurrenceStarts({
+        startsAt: "2026-11-02T13:00:00-03:00",
+        occurrences: 3,
+        intervalWeeks: 2,
+      }),
+    ).toEqual([
+      "2026-11-02T16:00:00.000Z",
+      "2026-11-16T16:00:00.000Z",
+      "2026-11-30T16:00:00.000Z",
+    ]);
+    expect(
+      recurringOccurrenceStarts({
+        startsAt: "2026-11-02T16:00:00.000Z",
+        occurrences: 3,
+        intervalWeeks: 1,
+        customStartsAt: ["2026-11-20T14:00:00.000Z", "2026-11-05T16:00:00Z"],
+      }),
+    ).toEqual([
+      "2026-11-02T16:00:00.000Z",
+      "2026-11-05T16:00:00.000Z",
+      "2026-11-20T14:00:00.000Z",
+    ]);
   });
 
   it("lists the due competences of a fixed expense across years", () => {
