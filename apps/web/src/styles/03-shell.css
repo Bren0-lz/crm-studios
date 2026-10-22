@@ -341,10 +341,6 @@
   gap: var(--space-3);
 }
 
-.metric-grid + .dashboard-sales {
-  margin-top: var(--space-5);
-}
-
 .metric-card,
 .panel {
   border: 1px solid var(--line);

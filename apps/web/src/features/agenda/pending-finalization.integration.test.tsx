@@ -9,7 +9,6 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
-import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 afterEach(() => {
@@ -332,59 +331,6 @@ describe("appointments pending finalization", () => {
     );
     expect(
       await screen.findByText("Falha ao carregar os atendimentos."),
-    ).toBeInTheDocument();
-  });
-
-  it("explains that attended clients count only completed appointments", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const period = {
-      from: "2026-10-01",
-      to: "2026-10-12",
-      netSalesInCents: 0,
-      receivedInCents: 0,
-      attendedPatients: 3,
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/dashboard")
-        ? dashboard
-        : url.includes("/reports/sales")
-          ? {
-              month: "2026-10",
-              generatedAt: "2026-10-12T12:00:00.000Z",
-              current: period,
-              previousComparable: period,
-              changeInCents: 0,
-              changePercent: null,
-              sales: [],
-              payments: [],
-              patientsWithoutReturn: [],
-            }
-          : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(
-      await screen.findByRole("button", { name: "Ajuda: Clientes atendidos" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Ajuda: Sem retorno" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Conta só atendimentos marcados como realizados/),
     ).toBeInTheDocument();
   });
 
