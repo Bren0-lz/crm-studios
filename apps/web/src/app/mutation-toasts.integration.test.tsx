@@ -112,7 +112,7 @@ async function enrollHelena() {
   fireEvent.click(
     await screen.findByRole("button", { name: "Matricular cliente" }),
   );
-  const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+  const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
   fireEvent.change(within(dialog).getByLabelText("Turma"), {
     target: { value: group.id },
   });

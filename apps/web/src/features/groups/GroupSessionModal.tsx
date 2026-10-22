@@ -133,7 +133,7 @@ export function GroupSessionModal({
     <>
       <Modal
         title={meeting.groupName}
-        subtitle={groupSessionLabel(meeting)}
+        subtitle={groupSessionLabel(meeting, timezone)}
         busy={busy}
         inactive={confirmAll}
         onClose={onClose}
@@ -319,7 +319,7 @@ export function GroupSessionModal({
         <ActionModal
           eyebrow="Frequência"
           title="Marcar todos presentes"
-          subtitle={groupSessionLabel(meeting)}
+          subtitle={groupSessionLabel(meeting, timezone)}
           effect={`Registra presença para ${unrecorded.length === 1 ? "1 cliente" : `${unrecorded.length} clientes`} sem registro neste encontro: ${unrecorded.map((item) => item.patientName).join(", ")}. Quem já tem registro não é alterado.`}
           confirmLabel="Marcar presentes"
           onConfirm={() => markAllPresent(meeting.id, unrecorded)}

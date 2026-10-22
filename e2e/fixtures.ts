@@ -94,8 +94,9 @@ export async function chooseAppointmentTime(
 ) {
   await dialog.getByRole("button", { name: "Data", exact: true }).click();
   await dialog.locator(`[data-date="${date}"]`).click();
+  // Escolher o dia já fecha o calendário (QM4); Esc aqui fecharia o próprio modal
+  // e, com o formulário preenchido, abriria "Descartar alterações?" (QM11).
   await dialog.getByLabel("Horário", { exact: true }).fill(time);
-  await dialog.getByLabel("Horário", { exact: true }).press("Escape");
   await expect(
     dialog.getByRole("region", {
       name: "Calendário de agendamento",
