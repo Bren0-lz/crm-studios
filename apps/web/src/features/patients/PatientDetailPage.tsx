@@ -4,6 +4,7 @@ import {
   patientProfileLabels,
   patientProfileValueLabels,
 } from "@crm/contracts";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
@@ -13,6 +14,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
+import { formatIsoDate } from "../../shared/lib/formatting";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
 
@@ -73,6 +75,8 @@ export function PatientDetailPage() {
     },
     { module: "communications", to: "/comunicacoes", label: "Comunicações" },
   ] as const;
+  const visibleLinks = links.filter((item) => canView(item.module));
+  const fields = patient ? detailFields(patient) : [];
   return (
     <>
       <PageHeader
@@ -83,89 +87,76 @@ export function PatientDetailPage() {
             : "Cadastro e acompanhamento"
         }
         action={
-          <Link className="secondary-button" to="/clientes">
-            Voltar aos clientes
-          </Link>
+          <div className="page-actions">
+            <Link className="secondary-button" to="/clientes">
+              <ArrowLeft size={16} aria-hidden="true" />
+              Voltar aos clientes
+            </Link>
+            {patient && can("patients.update") && (
+              <>
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void changeStatus()}
+                >
+                  {patient.status === "active"
+                    ? "Inativar cliente"
+                    : "Reativar cliente"}
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  Editar cadastro
+                </button>
+              </>
+            )}
+          </div>
         }
       />
       {error && <ErrorBanner error={error} />}
       {!patient && !error && <LoadingBlock />}
       {patient && (
-        <>
+        <div className="patient-record">
           <PatientRecordTabs
             patient={patient}
             canEditClinical={canEdit("clinical")}
           />
-          <section className="panel">
+          <section className="panel" aria-labelledby="patient-details-title">
             <div className="panel-head">
-              <h2>Cadastro e acompanhamento</h2>
-              <div className="page-actions">
-                {can("patients.update") && (
-                  <>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setEditing(true)}
-                    >
-                      Editar cadastro
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => void changeStatus()}
-                    >
-                      {patient.status === "active"
-                        ? "Inativar cliente"
-                        : "Reativar cliente"}
-                    </button>
-                  </>
-                )}
-              </div>
+              <h2 id="patient-details-title">Dados cadastrais</h2>
             </div>
             <div className="patient-detail-body">
-              <div className="page-actions">
-                {links
-                  .filter((item) => canView(item.module))
-                  .map((item) => (
-                    <Link
-                      className="secondary-button"
-                      key={item.module}
-                      to={`${item.to}?patientId=${encodeURIComponent(id)}`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-              </div>
-              <dl className="patient-detail-fields">
-                {Object.entries(patientProfileLabels).map(([key, label]) => {
-                  const value =
-                    patient[key as keyof typeof patientProfileLabels];
-                  if (
-                    value === undefined ||
-                    value === "" ||
-                    (Array.isArray(value) && !value.length)
-                  )
-                    return null;
-                  return (
+              {fields.length ? (
+                <dl className="patient-detail-fields">
+                  {fields.map(([key, label, value]) => (
                     <div key={key}>
                       <dt>{label}</dt>
-                      <dd>
-                        {Array.isArray(value)
-                          ? value.join(", ")
-                          : typeof value === "boolean"
-                            ? value
-                              ? "Sim"
-                              : "Não"
-                            : key === "gender" || key === "clientType"
-                              ? (patientProfileValueLabels[
-                                  value as keyof typeof patientProfileValueLabels
-                                ] ?? value)
-                              : value}
-                      </dd>
+                      <dd>{value}</dd>
                     </div>
-                  );
-                })}
-              </dl>
+                  ))}
+                </dl>
+              ) : (
+                <p className="patient-detail-empty">
+                  Nenhum dado complementar cadastrado.
+                </p>
+              )}
             </div>
+            {visibleLinks.length > 0 && (
+              <div className="patient-detail-links">
+                <span>Ver também</span>
+                {visibleLinks.map((item) => (
+                  <Link
+                    className="secondary-button button-sm"
+                    key={item.module}
+                    to={`${item.to}?patientId=${encodeURIComponent(id)}`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            )}
           </section>
           {editing && (
             <PatientModal
@@ -178,8 +169,43 @@ export function PatientDetailPage() {
               }}
             />
           )}
-        </>
+        </div>
       )}
     </>
   );
+}
+
+/** Campos do cadastro preenchidos, já formatados: [chave, rótulo, valor]. */
+function detailFields(patient: Patient) {
+  const fields: [string, string, string][] = [];
+  if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
+  if (patient.birthDate)
+    fields.push(["birthDate", "Nascimento", formatIsoDate(patient.birthDate)]);
+  for (const [key, label] of Object.entries(patientProfileLabels)) {
+    const value = patient[key as keyof typeof patientProfileLabels];
+    if (
+      value === undefined ||
+      value === "" ||
+      (Array.isArray(value) && !value.length)
+    )
+      continue;
+    fields.push([
+      key,
+      label,
+      Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "boolean"
+          ? value
+            ? "Sim"
+            : "Não"
+          : key === "gender" || key === "clientType"
+            ? (patientProfileValueLabels[
+                value as keyof typeof patientProfileValueLabels
+              ] ?? value)
+            : key === "clientSince"
+              ? formatIsoDate(value)
+              : value,
+    ]);
+  }
+  return fields;
 }
