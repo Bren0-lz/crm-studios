@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { config } from "../../config.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { dateAt } from "../../storage/memory/helpers.js";
 import {
   authenticatedApp,
   roleSub,
@@ -28,9 +29,11 @@ describe("CRM API", () => {
   it("returns reproducible management metrics and an authenticated CSV", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
+    // Dia da clínica em que o seed criou os atendimentos de "hoje" (`dateAt` usa o fuso do
+    // servidor): com `new Date()` o teste falhava entre 21h e 24h em São Paulo.
     const date = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
-    }).format(new Date());
+    }).format(new Date(dateAt(12)));
     const report = await app.inject({
       method: "GET",
       url: `/reports/management?from=${date}&to=${date}`,
