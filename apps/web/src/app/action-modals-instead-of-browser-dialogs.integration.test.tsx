@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
+import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
 
 describe("action modals instead of browser dialogs", () => {
   const owner = {
@@ -63,7 +64,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -133,7 +135,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -206,7 +209,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(

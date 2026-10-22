@@ -129,6 +129,11 @@ import type {
   LeadConversion,
   LeadConversionInput,
   LeadDuplicateMatch,
+  LeadFilter,
+  LeadFilterOptions,
+  LeadInsights,
+  LeadPage,
+  LeadStagePage,
   LeadDuplicateQuery,
   LeadInput,
   LeadStage,
@@ -1028,6 +1033,22 @@ export interface ClinicRepository {
     actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
+  /** Uma página de uma coluna do funil (filtros aplicados) + o total da etapa. */
+  listLeadStagePage(
+    clinicId: string,
+    stage: LeadStage,
+    filter: LeadFilter,
+    page: LeadPage,
+    timezone?: string,
+  ): Promise<LeadStagePage>;
+  /** Indicadores do funil calculados no banco, sem carregar todos os leads. */
+  summarizeLeads(
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ): Promise<LeadInsights>;
+  /** Valores distintos de origem, interesse, contato, motivo de perda e responsável. */
+  listLeadFilterOptions(clinicId: string): Promise<LeadFilterOptions>;
   /**
    * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
    * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
