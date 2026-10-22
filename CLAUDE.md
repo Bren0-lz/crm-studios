@@ -38,7 +38,11 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 - Commits **sem** `Co-Authored-By` e sem "Generated with Claude".
 - Nunca marque `DONE` sem a saída real do comando de gate.
 - Ambiguidade não se resolve por chute: marque `BLOCKED` e pare.
-- Nunca fazer sem me perguntar: `git push`; editar `.env` ou `compose.yaml`; adicionar ou
+- **Ao terminar uma tarefa, abra um PR**: depois do commit (gate verde), faça `git push` do
+  branch da tarefa e abra um pull request para o branch padrão, com título `<ID>: <título>` e
+  descrição em pt-BR (o que mudou e a saída do gate). Esse push é autorizado; tarefa sem PR
+  aberto não está concluída. Nunca faça push direto no branch padrão nem force-push.
+- Nunca fazer sem me perguntar: `git push` fora do fluxo de PR acima; editar `.env` ou `compose.yaml`; adicionar ou
   atualizar dependências npm; editar `docs/PLANO_*.md`; editar migrações existentes
   (criar migração **nova** com o próximo número é permitido).
 
