@@ -46,6 +46,7 @@ export function leadBoardResponse(
     return {
       stage,
       total: inStage.length,
+      overdue: inStage.filter((lead) => lead.overdueTasks > 0).length,
       leads: inStage.slice(offset, offset + page.limit),
     };
   };
