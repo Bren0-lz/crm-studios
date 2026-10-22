@@ -146,6 +146,22 @@
   background: #fafbf8;
 }
 
+/* Filtro "Profissional" no fim da faixa da legenda. */
+.agenda-professional-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: #5b6b62;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.agenda-professional-filter select {
+  width: auto;
+  min-width: calc(var(--space-8) * 3);
+  font-size: var(--text-sm);
+}
+
 .agenda-legend-label {
   color: #5b6b62;
   font-size: var(--text-xs);
@@ -272,6 +288,7 @@
   background: #dcece6;
 }
 .month-event i,
+.month-group i,
 .week-appointment i,
 .service-name i {
   display: inline-block;
@@ -946,19 +963,6 @@ button.day-event:focus-visible {
 .group-class .service-name {
   color: var(--green);
 }
-.group-class .service-name svg,
-.week-appointment.group-class > svg {
-  flex: 0 0 auto;
-  color: var(--green-2);
-}
-/* audit: mobile-ok ícone (10px) + texto, dentro de coluna da semana de no mínimo 145px */
-.week-appointment.group-class {
-  grid-template-columns: 10px minmax(0, 1fr);
-}
-.week-appointment.group-class > svg {
-  grid-column: 1;
-  grid-row: 1;
-}
 
 .agenda-time strong,
 .agenda-time span,
@@ -1065,6 +1069,13 @@ button.day-event:focus-visible {
   .agenda-professionals {
     padding: var(--space-3) var(--space-4);
     gap: var(--space-2);
+  }
+  .agenda-professional-filter {
+    width: 100%;
+    margin-left: 0;
+  }
+  .agenda-professional-filter select {
+    flex: 1;
   }
   .agenda-panel .legend {
     gap: var(--space-2) var(--space-4);
@@ -1530,6 +1541,7 @@ button.day-event:focus-visible {
    da grade do Dia. O fundo continua com a cor do status. */
 .pro-dot,
 .month-event .pro-dot,
+.month-group .pro-dot,
 .week-appointment .pro-dot,
 .service-name .pro-dot,
 .legend .pro-dot {
