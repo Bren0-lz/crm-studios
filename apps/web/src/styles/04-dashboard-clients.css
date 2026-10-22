@@ -82,6 +82,14 @@
   background: var(--terracotta);
 }
 
+.dashboard-schedule-error {
+  padding: var(--space-4) calc(var(--space-6) - 1px) 0;
+}
+
+.group-session-row .appointment-line {
+  background: var(--green);
+}
+
 .appointment-copy strong,
 .appointment-copy span {
   display: block;
