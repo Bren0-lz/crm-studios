@@ -4,7 +4,7 @@ import {
   patientProfileLabels,
   patientProfileValueLabels,
 } from "@crm/contracts";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
@@ -80,6 +80,7 @@ export function PatientDetailPage() {
   return (
     <>
       <PageHeader
+        back={{ to: "/clientes", label: "Voltar aos clientes" }}
         title={patient?.fullName ?? "Detalhes do cliente"}
         description={
           patient
@@ -88,10 +89,6 @@ export function PatientDetailPage() {
         }
         action={
           <div className="page-actions">
-            <Link className="secondary-button" to="/clientes">
-              <ArrowLeft size={16} aria-hidden="true" />
-              Voltar aos clientes
-            </Link>
             {patient && can("patients.update") && (
               <>
                 <button

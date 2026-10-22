@@ -335,6 +335,54 @@
   color: var(--muted);
 }
 
+.page-header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Voltar das páginas filhas (detalhe do cliente, campanha, a finalizar). */
+.page-back-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: calc(var(--space-6) + var(--space-3));
+  height: calc(var(--space-6) + var(--space-3));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--green);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.page-back-button svg {
+  transition: transform 0.15s ease;
+}
+
+.page-back-button:hover {
+  border-color: var(--green-2);
+  background: var(--green);
+  color: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.page-back-button:hover svg {
+  transform: translateX(-3px);
+}
+
+.page-back-button:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
