@@ -79,7 +79,6 @@ export function RecurringPayablesSection({
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Recorrentes</span>
             <h2>Despesas fixas</h2>
             <p className="panel-help">
               Contas que se repetem todo mês, como aluguel e internet. Cada mês

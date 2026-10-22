@@ -183,7 +183,6 @@ export function ClinicalWorkspacePanel({
       )}
       <div className="panel-head clinical-workspace-head">
         <div>
-          <span className="eyebrow">Visão longitudinal</span>
           <h2>Acompanhamento terapêutico</h2>
         </div>
         <PatientPicker
@@ -292,7 +291,6 @@ export function ClinicalWorkspacePanel({
             <div className="clinical-goals">
               <div className="panel-head compact">
                 <div>
-                  <span className="eyebrow">Objetivos</span>
                   <h3>Plano terapêutico</h3>
                 </div>
               </div>
@@ -350,7 +348,6 @@ export function ClinicalWorkspacePanel({
             <div className="clinical-timeline">
               <div className="panel-head compact">
                 <div>
-                  <span className="eyebrow">Histórico integrado</span>
                   <h3>Linha do tempo</h3>
                 </div>
               </div>
@@ -378,7 +375,6 @@ export function ClinicalWorkspacePanel({
           <div className="clinical-attachments">
             <div className="panel-head compact">
               <div>
-                <span className="eyebrow">Arquivos protegidos</span>
                 <h3>Anexos clínicos</h3>
               </div>
             </div>

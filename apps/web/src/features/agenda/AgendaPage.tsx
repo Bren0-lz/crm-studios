@@ -345,7 +345,6 @@ export function AgendaPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Operação diária"
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={

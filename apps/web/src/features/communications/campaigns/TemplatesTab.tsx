@@ -219,7 +219,6 @@ export function TemplatesTab({
     <section className="panel campaign-panel" aria-label="Mensagens padrão">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">Acervo</span>
           <h2>
             Mensagens padrão
             {templates && templates.length > 0 && (
