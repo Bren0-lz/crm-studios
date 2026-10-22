@@ -76,11 +76,10 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(within(row).getByRole("button", { name: /^Pagar / }));
     dialog = screen.getByRole("dialog", { name: "Pagar despesa" });
     change("Forma de pagamento usada", "card", dialog);
-    fireEvent.click(
-      within(dialog).getByText("Datas do pagamento e do caixa", {
-        exact: true,
-      }),
-    );
+    expect(
+      within(dialog).getByLabelText("Data e hora do pagamento"),
+    ).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText("Pagamento antigo?"));
     change("Data e hora do pagamento", "2040-06-10T10:00", dialog);
     change("Disponibilidade no caixa", "2040-06-12T08:00", dialog);
     await save("Pagar despesa", "Confirmar pagamento");
