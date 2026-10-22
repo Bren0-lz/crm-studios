@@ -1,15 +1,27 @@
-import { buildLeadInsights, type Lead, type LeadFilter } from "@crm/contracts";
+import type {
+  LeadFilter,
+  LeadFilterOptions,
+  LeadInsights,
+} from "@crm/contracts";
 import { leadStages } from "../relationship/index";
+
+const optionKeys = {
+  source: "sources",
+  interest: "interests",
+  contactMethod: "contactMethods",
+  lostReason: "lostReasons",
+} as const;
+
 export function CommercialFilters({
-  leads,
   filter,
   onChange,
-  visible,
+  options,
+  insights,
 }: {
-  leads: Lead[];
   filter: LeadFilter;
   onChange: (value: LeadFilter) => void;
-  visible: Lead[];
+  options: LeadFilterOptions;
+  insights: LeadInsights;
 }) {
   const patch = (key: keyof LeadFilter, value: string) => {
     const next = { ...filter };
@@ -17,17 +29,7 @@ export function CommercialFilters({
     else delete next[key];
     onChange(next);
   };
-  const values = (
-    key: "source" | "interest" | "contactMethod" | "lostReason",
-  ) =>
-    [
-      ...new Set(
-        leads
-          .map((lead) => lead[key])
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const insights = buildLeadInsights(visible);
+  const values = (key: keyof typeof optionKeys) => options[optionKeys[key]];
   return (
     <section className="panel">
       <details>
@@ -88,16 +90,7 @@ export function CommercialFilters({
                 }
               >
                 <option value="">Todos os responsáveis</option>
-                {[
-                  ...new Map(
-                    leads
-                      .filter((lead) => lead.responsibleUserId)
-                      .map((lead) => [
-                        lead.responsibleUserId!,
-                        lead.responsibleName ?? "Responsável cadastrado",
-                      ]),
-                  ).entries(),
-                ].map(([id, name]) => (
+                {options.responsibles.map(({ id, name }) => (
                   <option key={id} value={id}>
                     {name}
                   </option>

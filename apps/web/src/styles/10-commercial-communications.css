@@ -1,26 +1,34 @@
 /* Uma coluna por etapa, todas na mesma linha com largura mínima fixa: o quadro rola na
    horizontal em vez de cortar as últimas etapas. A altura fica limitada à da tela para a
-   barra horizontal (embaixo do quadro) estar sempre à vista; o excesso rola dentro dele. */
+   barra horizontal (embaixo do quadro) estar sempre à vista; cada coluna rola por dentro,
+   com o cabeçalho (etapa + total) sempre visível. */
 .kanban-board {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(calc(var(--space-8) * 4 - var(--space-4)), 1fr);
-  gap: var(--space-3);
+  grid-auto-columns: minmax(
+    calc(var(--space-8) * 3 + var(--space-6) + var(--space-1)),
+    1fr
+  );
+  gap: var(--space-2);
   max-width: 100%;
   /* Cabe abaixo do título, filtros e métricas já na abertura da página. */
-  max-height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 7));
-  overflow: scroll;
+  height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 6));
+  max-height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 6));
+  overflow-x: scroll;
+  overflow-y: hidden;
   scrollbar-gutter: stable;
   scroll-snap-type: x proximity;
-  padding-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
 }
 
 .kanban-column {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   scroll-snap-align: start;
-  min-height: calc(var(--space-8) * 5);
-  padding: 12px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #ebe9e2;
 }
 
@@ -28,24 +36,36 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 3px 4px 12px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-2);
   font-size: var(--text-xs);
 }
 
 .kanban-column > header span {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  border-radius: 50%;
+  min-width: var(--space-5);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
   background: white;
   color: var(--muted);
   font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--space-5);
+  text-align: center;
 }
 
-.kanban-column > div {
-  display: grid;
-  gap: 9px;
+.kanban-column-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.kanban-load-more {
+  flex-shrink: 0;
+  justify-content: center;
 }
 
 .kanban-empty-hint {
@@ -84,118 +104,143 @@
   font-weight: 700;
 }
 
+/* Cartão enxuto: nome + badge de tarefas, uma linha de interesse/origem, uma de contato e
+   uma faixa de ações em ícones — vários cartões cabem por coluna. */
 .lead-card {
-  padding: 14px;
+  display: grid;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid rgba(220, 217, 208, 0.8);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: white;
-  box-shadow: 0 5px 14px rgba(42, 53, 48, 0.04);
+  box-shadow: 0 var(--space-1) var(--space-3) rgba(42, 53, 48, 0.04);
+}
+
+.lead-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.lead-card h3 {
+  overflow: hidden;
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lead-card-meta {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lead-source {
   color: var(--terracotta);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.lead-card h3 {
-  margin: 9px 0 3px;
-  font-family: "Manrope", sans-serif;
-  font-size: var(--text-sm);
-}
-
-.lead-card p,
-.lead-card small {
-  display: block;
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.lead-card small {
-  margin-top: 7px;
+  font-weight: 700;
 }
 
 .lead-owner {
-  display: block;
-  margin-top: 8px;
   color: var(--green-2);
-  font-size: var(--text-xs);
   font-weight: 700;
 }
 
 .lead-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 8px;
+  overflow: hidden;
+  gap: var(--space-1);
 }
 
 .lead-tags span {
-  padding: 3px 6px;
-  border-radius: 6px;
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
   background: #f0eee7;
   color: var(--muted);
   font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.lead-activity-summary {
+.lead-card-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-  margin-top: 10px;
-  padding-top: 9px;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
 
-.lead-activity-summary span {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.lead-activity-summary span.overdue {
-  color: #a14f45;
-  font-weight: 800;
-}
-
-/* audit: mobile-ok fica no card do kanban (mín. 230px, com rolagem horizontal) */
-.lead-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 1px solid var(--line);
-}
-
-.lead-actions select {
-  /* V8: a etapa ocupa a linha inteira do cartão e não corta o nome. */
-  grid-column: 1 / -1;
-  min-height: 32px;
-  font-size: var(--text-sm);
-}
-
-.lead-actions select {
+.lead-card .lead-card-actions select {
+  min-width: 0;
+  height: calc(var(--space-5) + var(--space-1));
+  min-height: 0;
+  flex: 1;
   padding: 0 calc(var(--space-5) + var(--space-1)) 0 var(--space-2);
   background-position: right var(--space-2) center;
   background-size: var(--space-3);
+  font-size: var(--text-xs);
 }
 
-/* Exceção aceita: largura total de propósito no cartão estreito do kanban (botão de linha inteira). */
-.lead-actions .lead-trial-button {
-  grid-column: 1 / -1;
+.lead-card-icons {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* Mais específico que .icon-button.button-sm e o alvo de toque padrão: cabe no cartão estreito. */
+.lead-card .lead-icon-button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  min-width: calc(var(--space-5) + var(--space-1));
+  height: calc(var(--space-5) + var(--space-1));
+  min-height: 0;
+  padding: 0;
+  color: var(--green-2);
+}
+
+.lead-card .lead-activity-button {
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.lead-card .lead-activity-button.overdue {
+  border-color: #e7c3bd;
+  background: #f7e4e1;
+  color: #a14f45;
+}
+
+.lead-card .lead-icon-button.lead-convert-button {
+  border-color: var(--green-2);
+  background: var(--green-2);
+  color: white;
+}
+
+.lead-card .lead-icon-button.lead-convert-button:hover:not(:disabled) {
+  background: var(--green);
 }
 
 .lost-reason {
-  margin-top: 9px;
-  padding: 7px;
-  border-radius: 7px;
+  overflow: hidden;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
   background: #f7e4e1;
   color: #8e4b45;
   font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .activity-tabs {

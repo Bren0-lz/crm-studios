@@ -1,17 +1,15 @@
 import { CommercialFilters } from "./CommercialFilters";
 import {
-  matchesLead,
-  buildLeadInsights,
-  type LeadFilter,
-} from "@crm/contracts";
-import {
   type Lead,
   type LeadConversionInput,
+  type LeadFilter,
+  type LeadFilterOptions,
+  type LeadInsights,
   type LeadStage,
-  formatPhone,
+  type LeadStagePage,
 } from "@crm/contracts";
-import { CalendarDays, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -27,29 +25,56 @@ import {
 import { leadStages } from "../relationship/index";
 import { LeadActivityModal } from "./LeadActivityModal";
 import { LeadAppointmentModal } from "./LeadAppointmentModal";
+import { LeadCard } from "./LeadCard";
 import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
 import { useToast } from "../../shared/feedback/toast-context";
 
+type Columns = Partial<Record<LeadStage, LeadStagePage>>;
+
+const emptyOptions: LeadFilterOptions = {
+  sources: [],
+  interests: [],
+  contactMethods: [],
+  lostReasons: [],
+  responsibles: [],
+};
+/** Espera da digitação na busca antes de consultar o funil de novo. */
+const FILTER_DEBOUNCE_MS = 300;
+
+/** Tira o lead da coluna em que estava e o põe no topo da etapa atual, ajustando os totais. */
+function placeLead(columns: Columns, lead: Lead): Columns {
+  const next: Columns = {};
+  for (const [stage, column] of Object.entries(columns) as Array<
+    [LeadStage, LeadStagePage]
+  >) {
+    const had = column.leads.some((item) => item.id === lead.id);
+    next[stage] = had
+      ? {
+          ...column,
+          total: Math.max(0, column.total - 1),
+          leads: column.leads.filter((item) => item.id !== lead.id),
+        }
+      : column;
+  }
+  const target = next[lead.stage] ?? { stage: lead.stage, total: 0, leads: [] };
+  next[lead.stage] = {
+    ...target,
+    total: target.total + 1,
+    leads: [lead, ...target.leads],
+  };
+  return next;
+}
+
 export function CommercialPage() {
   const { can, canEdit } = useAuthorization();
-  const [timezone, setTimezone] = useState("America/Sao_Paulo");
-  useEffect(() => {
-    let active = true;
-    api
-      .clinicBranding()
-      .then((branding) => {
-        if (active && branding.timezone) setTimezone(branding.timezone);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [columns, setColumns] = useState<Columns>({});
+  const [insights, setInsights] = useState<LeadInsights | null>(null);
+  const [options, setOptions] = useState<LeadFilterOptions>(emptyOptions);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [loadingStage, setLoadingStage] = useState<LeadStage | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
@@ -64,26 +89,101 @@ export function CommercialPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<LeadStage | null>(null);
   const canDrag = canManage && can("crm.stage");
-  const draggingLead = leads.find((lead) => lead.id === draggingId);
+  const draggingLead = Object.values(columns)
+    .flatMap((column) => column.leads)
+    .find((lead) => lead.id === draggingId);
+  // Só a resposta da consulta mais recente vale (filtros mudando rápido).
+  const requestId = useRef(0);
+  const filterRef = useRef(filter);
   useEffect(() => {
-    let active = true;
-    api
-      .leads()
-      .then((data) => {
-        if (active) setLeads(data);
-      })
-      .catch((cause: Error) => {
-        if (active) setError(cause.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    filterRef.current = filter;
+  }, [filter]);
+
+  const loadBoard = useCallback(async (current: LeadFilter) => {
+    const id = ++requestId.current;
+    try {
+      const [board, summary] = await Promise.all([
+        api.leadBoard(current),
+        api.leadInsights(current),
+      ]);
+      if (id !== requestId.current) return;
+      setColumns(
+        Object.fromEntries(
+          board.columns.map((column) => [column.stage, column]),
+        ),
+      );
+      setInsights(summary);
+      setError("");
+    } catch (cause) {
+      if (id === requestId.current) setError((cause as Error).message);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, []);
+  const refreshInsights = useCallback(() => {
+    api
+      .leadInsights(filterRef.current)
+      .then(setInsights)
+      .catch(() => {});
+  }, []);
+  const refreshOptions = useCallback(() => {
+    api
+      .leadFilterOptions()
+      .then(setOptions)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshOptions();
+  }, [refreshOptions]);
+  const firstLoad = useRef(true);
+  useEffect(() => {
+    const delay = firstLoad.current ? 0 : FILTER_DEBOUNCE_MS;
+    firstLoad.current = false;
+    const timer = setTimeout(() => void loadBoard(filter), delay);
+    return () => clearTimeout(timer);
+  }, [filter, loadBoard]);
+  // Invalida respostas pendentes ao sair da página.
+  useEffect(
+    () => () => {
+      requestId.current += 1;
+    },
+    [],
+  );
+
   function replaceLead(lead: Lead) {
-    setLeads((items) => [lead, ...items.filter((item) => item.id !== lead.id)]);
+    setColumns((current) => placeLead(current, lead));
+    refreshInsights();
+  }
+  async function loadMore(stage: LeadStage) {
+    const column = columns[stage];
+    if (!column) return;
+    setLoadingStage(stage);
+    try {
+      const page = await api.leadStagePage(
+        stage,
+        filterRef.current,
+        column.leads.length,
+      );
+      setColumns((current) => {
+        const existing = current[stage] ?? column;
+        const known = new Set(existing.leads.map((lead) => lead.id));
+        return {
+          ...current,
+          [stage]: {
+            ...existing,
+            total: page.total,
+            leads: [
+              ...existing.leads,
+              ...page.leads.filter((lead) => !known.has(lead.id)),
+            ],
+          },
+        };
+      });
+    } catch (cause) {
+      toast.error((cause as Error).message);
+    } finally {
+      setLoadingStage(null);
+    }
   }
   async function move(lead: Lead, stage: LeadStage) {
     if (stage === "won") return;
@@ -137,10 +237,19 @@ export function CommercialPage() {
     setConvertingLead(null);
     toast.success(`Lead ${lead.fullName} convertido em cliente.`);
   }
-  const visibleLeads = leads.filter((lead) =>
-    matchesLead(lead, filter, timezone),
+  const totalLeads = Object.values(columns).reduce(
+    (sum, column) => sum + column.total,
+    0,
   );
-  const insights = buildLeadInsights(visibleLeads);
+  const filtering = Object.keys(filter).length > 0;
+  const permissions = {
+    manage: canManage,
+    drag: canDrag,
+    stage: can("crm.stage"),
+    update: can("crm.update"),
+    convert: can("crm.convert", "patients.create"),
+    schedule: can("crm.appointments_create", "agenda.create"),
+  };
   return (
     <>
       <PageHeader
@@ -172,38 +281,46 @@ export function CommercialPage() {
         <LoadingBlock />
       ) : (
         <>
-          <CommercialFilters
-            leads={leads}
-            visible={visibleLeads}
-            filter={filter}
-            onChange={setFilter}
-          />
+          {insights && (
+            <CommercialFilters
+              filter={filter}
+              onChange={setFilter}
+              options={options}
+              insights={insights}
+            />
+          )}
           <section className="commercial-metrics">
             <div>
-              <strong>{insights.open}</strong>
+              <strong>{insights?.open ?? 0}</strong>
               <span>oportunidades abertas</span>
             </div>
             <div>
-              <strong>{insights.won}</strong>
+              <strong>{insights?.won ?? 0}</strong>
               <span>conversões</span>
             </div>
             <div>
-              <strong>{insights.conversionRate}%</strong>
+              <strong>{insights?.conversionRate ?? 0}%</strong>
               <span>taxa de conversão</span>
             </div>
           </section>
-          {visibleLeads.length === 0 ? (
+          {totalLeads === 0 ? (
             !error && (
               <section className="panel">
                 <EmptyState
-                  title="Nenhum lead cadastrado"
+                  title={
+                    filtering
+                      ? "Nenhum lead no filtro"
+                      : "Nenhum lead cadastrado"
+                  }
                   copy={
-                    canManage
-                      ? "Cadastre o primeiro interessado para acompanhar o contato até a conversão."
-                      : "Os leads cadastrados pela equipe aparecem aqui."
+                    filtering
+                      ? "Ajuste ou limpe os filtros do funil para ver outros leads."
+                      : canManage
+                        ? "Cadastre o primeiro interessado para acompanhar o contato até a conversão."
+                        : "Os leads cadastrados pela equipe aparecem aqui."
                   }
                   action={
-                    canManage
+                    canManage && !filtering
                       ? can("crm.create") && (
                           <button
                             className="primary-button"
@@ -220,166 +337,85 @@ export function CommercialPage() {
             )
           ) : (
             <div className="kanban-board">
-              {leadStages.map((stage) => (
-                <section
-                  className={`kanban-column${overStage === stage.value ? " drag-over" : ""}`}
-                  key={stage.value}
-                  aria-label={stage.label}
-                  onDragOver={(event) => {
-                    if (!draggingLead || draggingLead.stage === stage.value)
-                      return;
-                    event.preventDefault();
-                    if (event.dataTransfer)
-                      event.dataTransfer.dropEffect = "move";
-                    if (overStage !== stage.value) setOverStage(stage.value);
-                  }}
-                  onDragLeave={(event) => {
-                    if (
-                      !event.currentTarget.contains(
-                        event.relatedTarget as Node | null,
+              {leadStages.map((stage) => {
+                const column = columns[stage.value] ?? {
+                  stage: stage.value,
+                  total: 0,
+                  leads: [],
+                };
+                const remaining = column.total - column.leads.length;
+                return (
+                  <section
+                    className={`kanban-column${overStage === stage.value ? " drag-over" : ""}`}
+                    key={stage.value}
+                    aria-label={stage.label}
+                    onDragOver={(event) => {
+                      if (!draggingLead || draggingLead.stage === stage.value)
+                        return;
+                      event.preventDefault();
+                      if (event.dataTransfer)
+                        event.dataTransfer.dropEffect = "move";
+                      if (overStage !== stage.value) setOverStage(stage.value);
+                    }}
+                    onDragLeave={(event) => {
+                      if (
+                        !event.currentTarget.contains(
+                          event.relatedTarget as Node | null,
+                        )
                       )
-                    )
-                      setOverStage((current) =>
-                        current === stage.value ? null : current,
-                      );
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    void drop(stage.value);
-                  }}
-                >
-                  <header>
-                    <strong>{stage.label}</strong>
-                    <span>
-                      {
-                        visibleLeads.filter(
-                          (lead) => lead.stage === stage.value,
-                        ).length
-                      }
-                    </span>
-                  </header>
-                  <div>
-                    {!visibleLeads.some(
-                      (lead) => lead.stage === stage.value,
-                    ) && <p className="kanban-empty-hint">{stage.hint}</p>}
-                    {visibleLeads
-                      .filter((lead) => lead.stage === stage.value)
-                      .map((lead) => (
-                        <article
-                          className={`lead-card${draggingId === lead.id ? " dragging" : ""}`}
+                        setOverStage((current) =>
+                          current === stage.value ? null : current,
+                        );
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      void drop(stage.value);
+                    }}
+                  >
+                    <header>
+                      <strong>{stage.label}</strong>
+                      <span>{column.total}</span>
+                    </header>
+                    <div className="kanban-column-list">
+                      {column.leads.length === 0 && (
+                        <p className="kanban-empty-hint">{stage.hint}</p>
+                      )}
+                      {column.leads.map((lead) => (
+                        <LeadCard
                           key={lead.id}
-                          draggable={
-                            canDrag && !["won", "lost"].includes(lead.stage)
-                          }
-                          onDragStart={(event) => {
-                            event.dataTransfer?.setData("text/plain", lead.id);
-                            if (event.dataTransfer)
-                              event.dataTransfer.effectAllowed = "move";
-                            setDraggingId(lead.id);
-                          }}
+                          lead={lead}
+                          dragging={draggingId === lead.id}
+                          permissions={permissions}
+                          onDragStart={() => setDraggingId(lead.id)}
                           onDragEnd={() => {
                             setDraggingId(null);
                             setOverStage(null);
                           }}
-                        >
-                          <span className="lead-source">{lead.source}</span>
-                          <h3>{lead.fullName}</h3>
-                          <p>{lead.interest}</p>
-                          <small>{formatPhone(lead.phone)}</small>
-                          {lead.responsibleName && (
-                            <span className="lead-owner">
-                              {lead.responsibleName}
-                            </span>
-                          )}
-                          {lead.tags.length > 0 && (
-                            <div className="lead-tags">
-                              {lead.tags.map((tag) => (
-                                <span key={tag}>{tag}</span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="lead-activity-summary">
-                            <span
-                              className={lead.overdueTasks ? "overdue" : ""}
-                            >
-                              {lead.openTasks} tarefa(s)
-                              {lead.overdueTasks > 0
-                                ? ` · ${lead.overdueTasks} atrasada(s)`
-                                : ""}
-                            </span>
-                            <button
-                              className="text-button button-sm"
-                              onClick={() => setActivityLead(lead)}
-                            >
-                              Atividades
-                            </button>
-                          </div>
-                          {!lead.convertedPatientId && can("crm.update") && (
-                            <button
-                              className="text-button button-sm"
-                              onClick={() => setEditingLead(lead)}
-                            >
-                              Editar cadastro
-                            </button>
-                          )}
-                          {lead.lostReason && (
-                            <div className="lost-reason">{lead.lostReason}</div>
-                          )}
-                          {canManage &&
-                            !["won", "lost"].includes(lead.stage) && (
-                              <div className="lead-actions">
-                                <select
-                                  value={lead.stage}
-                                  disabled={!can("crm.stage")}
-                                  onChange={(event) =>
-                                    void move(
-                                      lead,
-                                      event.target.value as LeadStage,
-                                    )
-                                  }
-                                >
-                                  {leadStages
-                                    .filter((item) => item.value !== "won")
-                                    .map((item) => (
-                                      <option
-                                        value={item.value}
-                                        key={item.value}
-                                      >
-                                        {item.label}
-                                      </option>
-                                    ))}
-                                </select>
-                                {can("crm.convert", "patients.create") && (
-                                  <button
-                                    className="primary-button button-sm"
-                                    onClick={() => setConvertingLead(lead)}
-                                  >
-                                    Converter
-                                  </button>
-                                )}
-                                {!lead.convertedPatientId &&
-                                  can(
-                                    "crm.appointments_create",
-                                    "agenda.create",
-                                  ) && (
-                                    <button
-                                      className="secondary-button button-sm lead-trial-button"
-                                      onClick={() => {
-                                        setNotice("");
-                                        setTrialLead(lead);
-                                      }}
-                                    >
-                                      <CalendarDays size={14} />
-                                      Agendar experimental
-                                    </button>
-                                  )}
-                              </div>
-                            )}
-                        </article>
+                          onMove={(next) => void move(lead, next)}
+                          onActivity={() => setActivityLead(lead)}
+                          onEdit={() => setEditingLead(lead)}
+                          onConvert={() => setConvertingLead(lead)}
+                          onSchedule={() => {
+                            setNotice("");
+                            setTrialLead(lead);
+                          }}
+                        />
                       ))}
-                  </div>
-                </section>
-              ))}
+                      {remaining > 0 && (
+                        <button
+                          className="secondary-button button-sm kanban-load-more"
+                          disabled={loadingStage === stage.value}
+                          onClick={() => void loadMore(stage.value)}
+                        >
+                          {loadingStage === stage.value
+                            ? "Carregando..."
+                            : `Carregar mais (${remaining})`}
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
             </div>
           )}
         </>
@@ -391,6 +427,7 @@ export function CommercialPage() {
           onCreated={(lead) => {
             toast.success(`Lead ${lead.fullName} atualizado.`);
             replaceLead(lead);
+            refreshOptions();
             setEditingLead(null);
           }}
         />
@@ -401,6 +438,7 @@ export function CommercialPage() {
           onCreated={(lead) => {
             toast.success(`Lead ${lead.fullName} cadastrado.`);
             replaceLead(lead);
+            refreshOptions();
             setModalOpen(false);
           }}
         />
@@ -437,12 +475,7 @@ export function CommercialPage() {
           lead={activityLead}
           editable={canManage}
           onClose={() => setActivityLead(null)}
-          onChanged={() => {
-            api
-              .leads()
-              .then(setLeads)
-              .catch((cause: Error) => setError(cause.message));
-          }}
+          onChanged={() => void loadBoard(filterRef.current)}
         />
       )}
     </>

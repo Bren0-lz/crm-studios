@@ -95,19 +95,22 @@ describe("extended commercial workflows", () => {
       ["Filtrar histórico de contato", "without"],
     ])
       change(filters, label!, value!);
+    // O funil é filtrado no servidor (com espera da digitação): a tela atualiza depois.
     expect(
-      screen.getByText(lead.fullName, { exact: true }),
+      await screen.findByText(lead.fullName, { exact: true }),
     ).toBeInTheDocument();
     change(filters, "Buscar no funil", "inexistente");
-    expect(
-      screen.queryByText(lead.fullName, { exact: true }),
-    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByText(lead.fullName, { exact: true }),
+      ).not.toBeInTheDocument(),
+    );
     fireEvent.click(
       within(filters).getByRole("button", { name: "Limpar filtros do funil" }),
     );
-    const card = screen
-      .getByText(lead.fullName, { exact: true })
-      .closest("article")!;
+    const card = (
+      await screen.findByText(lead.fullName, { exact: true })
+    ).closest("article")!;
     fireEvent.click(within(card).getByRole("button", { name: "Atividades" }));
     const activity = screen.getByRole("dialog");
     const task = await within(activity).findByLabelText("Tarefa");

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
+import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
 
 describe("screens without loose elements", () => {
   const owner = {
@@ -102,7 +103,12 @@ describe("screens without loose elements", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => leadBoardResponse(input, []) ?? [],
+        }) as Response,
     );
     render(
       <MemoryRouter initialEntries={["/comercial"]}>
@@ -139,7 +145,9 @@ describe("screens without loose elements", () => {
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(String(input))
+        ? leadBoardResponse(String(input), [lead])
+        : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -187,7 +195,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),

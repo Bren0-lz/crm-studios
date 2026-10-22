@@ -2,7 +2,16 @@ import {
   leadConversionData,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
-import { findLeadDuplicates, type LeadDuplicateQuery } from "@crm/contracts";
+import {
+  buildLeadFilterOptions,
+  buildLeadInsights,
+  findLeadDuplicates,
+  matchesLead,
+  type LeadDuplicateQuery,
+  type LeadFilter,
+  type LeadPage,
+  type LeadStagePage,
+} from "@crm/contracts";
 import type {
   Lead,
   LeadActivity,
@@ -23,7 +32,15 @@ import { now, uuid } from "./helpers.js";
 export function createCommercialRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
-  return {
+  const filteredLeads = async (
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ) =>
+    (await repository.listLeads(clinicId)).filter((lead) =>
+      matchesLead(lead, filter, timezone),
+    );
+  const repository = {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
         .filter(
@@ -367,5 +384,35 @@ export function createCommercialRepository(
       if (lead) repositoryContext.refreshLeadTaskStats(lead);
       return task;
     },
+
+    async listLeadStagePage(
+      clinicId: string,
+      stage: LeadStage,
+      filter: LeadFilter,
+      page: LeadPage,
+      timezone?: string,
+    ): Promise<LeadStagePage> {
+      const leads = (await filteredLeads(clinicId, filter, timezone)).filter(
+        (lead) => lead.stage === stage,
+      );
+      return {
+        stage,
+        total: leads.length,
+        leads: leads.slice(page.offset, page.offset + page.limit),
+      };
+    },
+
+    async summarizeLeads(
+      clinicId: string,
+      filter: LeadFilter,
+      timezone?: string,
+    ) {
+      return buildLeadInsights(await filteredLeads(clinicId, filter, timezone));
+    },
+
+    async listLeadFilterOptions(clinicId: string) {
+      return buildLeadFilterOptions(await repository.listLeads(clinicId));
+    },
   };
+  return repository;
 }
