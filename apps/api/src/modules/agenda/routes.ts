@@ -8,6 +8,7 @@ import {
   leadAppointmentInputSchema,
   professionalInputSchema,
   recurringAppointmentInputSchema,
+  recurringOccurrenceStarts,
   roomInputSchema,
   scheduleBlockInputSchema,
   serviceInputSchema,
@@ -201,16 +202,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     async (request, reply) => {
       const input = recurringAppointmentInputSchema.parse(request.body);
       // Mesmas datas que os repositórios geram para cada ocorrência.
-      const occurrences = Array.from(
-        { length: input.occurrences },
-        (_, index) => {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
-          return startsAt.toISOString();
-        },
-      );
+      const occurrences = recurringOccurrenceStarts(input);
       await assertNoHoliday(request.user.clinicId, occurrences);
       await assertServiceAvailable(request.user.clinicId, [input]);
       return reply
