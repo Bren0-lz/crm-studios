@@ -162,7 +162,7 @@ describe("configured plan catalog", () => {
     return writes;
   }
 
-  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+  it("requires selection, applies defaults without carrying prior fields and prices single sessions from the plan", async () => {
     const writes = setupCatalog();
     render(
       <MemoryRouter initialEntries={["/planos"]}>
@@ -196,29 +196,45 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0400,00",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(
+      "R$\u00a050,00",
+    );
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
     expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "390" },
-    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.change(selector, { target: { value: second.id } });
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0120,50",
+    );
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "99.99" },
+    // Avulso: as sessões mudam e o valor segue o preço por sessão do plano.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
     });
+    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
+      target: { value: "8" },
+    });
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a096,40",
+    );
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeEnabled();
@@ -230,7 +246,8 @@ describe("configured plan catalog", () => {
     expect(writes[0]).toMatchObject({
       name: second.name,
       planTemplateId: second.id,
-      totalValueInCents: 9999,
+      kind: "single",
+      totalValueInCents: 9640,
     });
   });
 
@@ -1881,9 +1898,10 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue(
       "2026-10-05",
     );
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "420" },
-    });
+    // Plano é fixo: sessões e valor da renovação repetem o plano atual.
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Renovar plano e gerar parcelas" }),
     );
@@ -1892,7 +1910,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(renewalBody).toMatchObject({
       validFrom: "2026-10-01",
-      totalValueInCents: 42000,
+      totalValueInCents: 40000,
       autoRenew: true,
     });
     expect(renewalBody).not.toHaveProperty("patientId");
@@ -11844,7 +11862,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),
@@ -12447,7 +12467,9 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {
