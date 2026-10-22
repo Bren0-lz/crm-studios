@@ -1,6 +1,7 @@
 import type {
   Appointment,
   DashboardViewSummary,
+  GroupSession,
   SalesReport,
 } from "@crm/contracts";
 import { CalendarDays, ChevronRight, Plus } from "lucide-react";
@@ -25,6 +26,7 @@ import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { appointmentStatusToast } from "../agenda/index";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
+import { DashboardGroupSessionRow } from "./DashboardGroupSessionRow";
 
 function appointmentCounts(appointment: Appointment, date: string) {
   const isToday = localIsoDate(new Date(appointment.startsAt)) === date;
@@ -49,6 +51,8 @@ export function DashboardPage() {
   const { can, canView } = useAuthorization();
   const [data, setData] = useState<DashboardViewSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
+  const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
+  const [groupSessionsError, setGroupSessionsError] = useState("");
   const [error, setError] = useState("");
   const [appointmentAction, setAppointmentAction] =
     useState<DashboardAppointmentAction | null>(null);
@@ -64,8 +68,43 @@ export function DashboardPage() {
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
+  const canSeeAgenda = canView("agenda");
   // Mutações na agenda, no financeiro e nos planos refazem o painel em silêncio (QC6).
   const dataVersion = useDataVersion("agenda", "finance", "plans");
+
+  // Aulas de turma de hoje (não canceladas) entram na "Agenda de hoje" junto dos
+  // atendimentos; mudanças em turmas também incrementam a versão da agenda.
+  useEffect(() => {
+    if (!canSeeAgenda) return;
+    let active = true;
+    const start = new Date(`${today}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    api
+      .groupSessions(start.toISOString(), end.toISOString())
+      .then((sessions) => {
+        if (!active) return;
+        setGroupSessions(
+          sessions
+            .filter(
+              (session) =>
+                session.status !== "cancelled" &&
+                localIsoDate(new Date(session.startsAt)) === today,
+            )
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setGroupSessionsError("");
+      })
+      .catch(() => {
+        if (active)
+          setGroupSessionsError(
+            "Não foi possível carregar as aulas de turma de hoje.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [canSeeAgenda, today, dataVersion]);
 
   useEffect(() => {
     let active = true;
@@ -341,7 +380,13 @@ export function DashboardPage() {
                     </NavLink>
                   )}
                 </div>
-                {data.nextAppointments.length === 0 ? (
+                {groupSessionsError && (
+                  <div className="dashboard-schedule-error">
+                    <ErrorBanner error={groupSessionsError} />
+                  </div>
+                )}
+                {data.nextAppointments.length === 0 &&
+                groupSessions.length === 0 ? (
                   <EmptyState
                     title={
                       data.appointmentsToday === 0
@@ -356,21 +401,43 @@ export function DashboardPage() {
                   />
                 ) : (
                   <div className="appointment-list">
-                    {data.nextAppointments.map((item) => (
-                      <AppointmentRow
-                        appointment={item}
-                        key={item.id}
-                        disabled={
-                          savingAppointment ||
-                          refreshing ||
-                          appointmentAction !== null
-                        }
-                        onAction={(kind) => openAppointmentAction(item, kind)}
-                        onStatus={(status) =>
-                          void changeDashboardStatus(item, status)
-                        }
-                      />
-                    ))}
+                    {[
+                      ...data.nextAppointments.map((item) => ({
+                        kind: "appointment" as const,
+                        startsAt: item.startsAt,
+                        item,
+                      })),
+                      ...groupSessions.map((session) => ({
+                        kind: "group" as const,
+                        startsAt: session.startsAt,
+                        session,
+                      })),
+                    ]
+                      .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+                      .map((entry) =>
+                        entry.kind === "group" ? (
+                          <DashboardGroupSessionRow
+                            session={entry.session}
+                            key={`group:${entry.session.id}`}
+                          />
+                        ) : (
+                          <AppointmentRow
+                            appointment={entry.item}
+                            key={entry.item.id}
+                            disabled={
+                              savingAppointment ||
+                              refreshing ||
+                              appointmentAction !== null
+                            }
+                            onAction={(kind) =>
+                              openAppointmentAction(entry.item, kind)
+                            }
+                            onStatus={(status) =>
+                              void changeDashboardStatus(entry.item, status)
+                            }
+                          />
+                        ),
+                      )}
                   </div>
                 )}
               </article>
