@@ -6,7 +6,7 @@ import {
 } from "@crm/contracts";
 import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -17,6 +17,10 @@ import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { formatIsoDate } from "../../shared/lib/formatting";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
+import {
+  PatientRelatedModal,
+  type PatientRelatedModule,
+} from "./PatientRelatedModal";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
@@ -27,6 +31,7 @@ export function PatientDetailPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [related, setRelated] = useState<PatientRelatedModule | null>(null);
   const tags = usePatientTags();
   useEffect(() => {
     let alive = true;
@@ -66,14 +71,11 @@ export function PatientDetailPage() {
     }
   }
   // Agenda, planos, financeiro e contratos ficam nas abas da ficha (U14).
+  // "Ver também" abre um resumo em modal; o módulo completo fica a um clique no rodapé.
   const links = [
-    { module: "groups", to: "/turmas", label: "Turmas" },
-    {
-      module: "relationship",
-      to: "/relacionamento",
-      label: "Contatos sugeridos",
-    },
-    { module: "communications", to: "/comunicacoes", label: "Comunicações" },
+    { module: "groups", label: "Turmas" },
+    { module: "relationship", label: "Contatos sugeridos" },
+    { module: "communications", label: "Comunicações" },
   ] as const;
   const visibleLinks = links.filter((item) => canView(item.module));
   const fields = patient ? detailFields(patient) : [];
@@ -144,17 +146,26 @@ export function PatientDetailPage() {
               <div className="patient-detail-links">
                 <span>Ver também</span>
                 {visibleLinks.map((item) => (
-                  <Link
+                  <button
+                    type="button"
                     className="secondary-button button-sm"
                     key={item.module}
-                    to={`${item.to}?patientId=${encodeURIComponent(id)}`}
+                    onClick={() => setRelated(item.module)}
                   >
                     {item.label}
-                  </Link>
+                  </button>
                 ))}
               </div>
             )}
           </section>
+          {related && (
+            <PatientRelatedModal
+              module={related}
+              patientId={patient.id}
+              patientName={patient.fullName}
+              onClose={() => setRelated(null)}
+            />
+          )}
           {editing && (
             <PatientModal
               patient={patient}
