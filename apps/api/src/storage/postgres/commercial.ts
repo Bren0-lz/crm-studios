@@ -603,19 +603,28 @@ export function createCommercialRepository(
     ): Promise<LeadStagePage> {
       // Filtro de etapa diferente da coluna: a coluna fica vazia sem ir ao banco.
       if (filter.stage && filter.stage !== stage)
-        return { stage, total: 0, leads: [] };
+        return { stage, total: 0, overdue: 0, leads: [] };
       const query = leadFilterSql(
         clinicId,
         repositoryContext.branchReadIds(),
         { ...filter, stage },
         timezone,
       );
-      const count = await repositoryContext.pool.query<{ total: number }>(
-        `SELECT COUNT(*)::int AS total FROM leads WHERE ${query.where}`,
+      const count = await repositoryContext.pool.query<{
+        total: number;
+        overdue: number;
+      }>(
+        `SELECT COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM lead_tasks lt WHERE lt.lead_id = leads.id
+               AND lt.status = 'open' AND lt.due_at < now()))::int AS overdue
+         FROM leads WHERE ${query.where}`,
         query.params,
       );
-      const total = count.rows[0]?.total ?? 0;
-      if (!total || page.offset >= total) return { stage, total, leads: [] };
+      const total = count.rows[0]?.total ?? 0,
+        overdue = count.rows[0]?.overdue ?? 0;
+      if (!total || page.offset >= total)
+        return { stage, total, overdue, leads: [] };
       // Ordem coberta pelo índice leads_pipeline_idx; as subqueries de `leadColumns`
       // (tarefas, contato, responsável) só rodam nas linhas da página.
       const limit = query.param(page.limit),
@@ -625,7 +634,7 @@ export function createCommercialRepository(
          ORDER BY updated_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`,
         query.params,
       );
-      return { stage, total, leads: result.rows.map(mapLead) };
+      return { stage, total, overdue, leads: result.rows.map(mapLead) };
     },
 
     async summarizeLeads(

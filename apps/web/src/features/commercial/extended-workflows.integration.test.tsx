@@ -78,14 +78,14 @@ describe("extended commercial workflows", () => {
       responsibleUserId: actorId,
       tags: ["Prioridade", "Indicação"],
     });
-    fireEvent.click(
-      screen.getByText("Filtros e análise do funil", { exact: true }),
-    );
-    const filters = screen
-      .getByText("Filtros e análise do funil", { exact: true })
-      .closest("section")!;
+    // Busca na barra; os demais filtros são configurados juntos no modal "Filtros".
+    fireEvent.change(screen.getByLabelText("Buscar no funil"), {
+      target: { value: "indicacao" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+    const filters = screen.getByRole("dialog", { name: "Filtros do funil" });
+    await within(filters).findByRole("option", { name: "Site" });
     for (const [label, value] of [
-      ["Buscar no funil", "indicacao"],
       ["Filtrar etapa", "new_contact"],
       ["Filtrar origem", "Site"],
       ["Filtrar interesse", "Pilates"],
@@ -95,19 +95,36 @@ describe("extended commercial workflows", () => {
       ["Filtrar histórico de contato", "without"],
     ])
       change(filters, label!, value!);
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Aplicar filtros" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Filtros do funil" }),
+    ).not.toBeInTheDocument();
+    // O botão mostra quantos filtros do modal estão ativos e cada um vira um chip removível.
+    expect(
+      screen.getByRole("button", { name: "Filtros (7 ativos)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remover filtro Origem" }),
+    ).toHaveTextContent("Origem: Site");
     // O funil é filtrado no servidor (com espera da digitação): a tela atualiza depois.
     expect(
       await screen.findByText(lead.fullName, { exact: true }),
     ).toBeInTheDocument();
-    change(filters, "Buscar no funil", "inexistente");
+    fireEvent.change(screen.getByLabelText("Buscar no funil"), {
+      target: { value: "inexistente" },
+    });
     await waitFor(() =>
       expect(
         screen.queryByText(lead.fullName, { exact: true }),
       ).not.toBeInTheDocument(),
     );
-    fireEvent.click(
-      within(filters).getByRole("button", { name: "Limpar filtros do funil" }),
-    );
+    fireEvent.change(screen.getByLabelText("Buscar no funil"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(screen.getByRole("button", { name: "Filtros" })).toBeInTheDocument();
     const card = (
       await screen.findByText(lead.fullName, { exact: true })
     ).closest("article")!;
