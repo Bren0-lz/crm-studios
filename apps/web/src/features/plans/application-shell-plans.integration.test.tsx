@@ -51,17 +51,12 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("heading", {
-        name: "Vendas e retorno dos clientes",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
-    expect(
-      screen.getByText("+20% vs. mês anterior comparável"),
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Clientes sem retorno" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Vendas e retorno dos clientes" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/1\.200,00/)).not.toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver todos (1)" })).toHaveAttribute(
       "href",
