@@ -4,6 +4,7 @@ import {
   nextPlanPeriod,
   planPeriodEnd,
   planPeriodMonths,
+  planServiceValueForSessions,
   planTypeKind,
   planTypeLabels,
   type PatientOption,
@@ -35,7 +36,6 @@ import {
   useModalDirty,
 } from "../../shared/workflows/ModalGuardContext";
 import { planKindLabels } from "./model";
-import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanForm({
   patients,
@@ -174,6 +174,15 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
+  // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
+  const references = renewing
+    ? renewing.services
+    : (templates?.find((item) => item.id === form.planTemplateId)?.services ??
+      []);
+  const sessionsEditable = form.kind === "single";
+  const servicesTotal = (entries: PatientPlanInput["services"]) =>
+    entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
   const formDirty =
     additionalDirty || Boolean(groupId) || JSON.stringify(form) !== baseline;
   // Sem guarda própria (PlanForm dentro de outro modal): o Modal pergunta antes de descartar.
@@ -229,9 +238,27 @@ export function PlanForm({
                     value={form.kind}
                     onChange={(e) => {
                       const kind = e.target.value as PatientPlan["kind"];
+                      const entries =
+                        kind === "single"
+                          ? form.services
+                          : form.services.map((item) => {
+                              const reference = references.find(
+                                (entry) => entry.serviceId === item.serviceId,
+                              );
+                              return reference
+                                ? {
+                                    ...item,
+                                    totalSessions: reference.totalSessions,
+                                    totalValueInCents:
+                                      reference.totalValueInCents,
+                                  }
+                                : item;
+                            });
                       setForm({
                         ...form,
                         kind,
+                        services: entries,
+                        totalValueInCents: servicesTotal(entries),
                         // Recorrente: uma cobrança por ciclo.
                         installments:
                           kind === "recurring" ? 1 : form.installments,
@@ -397,48 +424,47 @@ export function PlanForm({
                     min="1"
                     max="1000"
                     step="1"
+                    readOnly={!sessionsEditable}
                     value={entry.totalSessions}
                     onChange={(event) => {
+                      const totalSessions = Number(event.target.value);
+                      const reference = references.find(
+                        (item) => item.serviceId === entry.serviceId,
+                      );
                       const entries = form.services.map((item, position) =>
                         position === index
                           ? {
                               ...item,
-                              totalSessions: Number(event.target.value),
+                              totalSessions,
+                              totalValueInCents: reference
+                                ? planServiceValueForSessions(
+                                    reference,
+                                    totalSessions,
+                                  )
+                                : item.totalValueInCents,
                             }
                           : item,
                       );
                       setForm({
                         ...form,
                         services: entries,
+                        totalValueInCents: servicesTotal(entries),
                       });
                     }}
                   />
                 </label>
                 <label>
                   Valor do serviço {index + 1}
-                  <MoneyInput
-                    required
-                    valueInCents={entry.totalValueInCents}
-                    onChange={(cents) => {
-                      const entries = form.services.map((item, position) =>
-                        position === index
-                          ? {
-                              ...item,
-                              totalValueInCents: cents ?? 0,
-                            }
-                          : item,
-                      );
-                      setForm({
-                        ...form,
-                        services: entries,
-                        totalValueInCents: entries.reduce(
-                          (sum, item) => sum + item.totalValueInCents,
-                          0,
-                        ),
-                      });
-                    }}
+                  <input
+                    readOnly
+                    value={currency.format(entry.totalValueInCents / 100)}
                   />
                 </label>
+                <p className="span-2 muted-copy">
+                  {sessionsEditable
+                    ? "Avulso: o valor é calculado pelo preço por sessão do plano."
+                    : "Sessões e valor seguem o plano cadastrado."}
+                </p>
               </fieldset>
             ))}
             <label className="span-2">

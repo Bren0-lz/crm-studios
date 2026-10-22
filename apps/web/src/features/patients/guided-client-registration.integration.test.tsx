@@ -425,12 +425,13 @@ describe("guided client registration", () => {
         .map((item) => item.textContent),
     ).toEqual(["Segunda-feira08:00 às 09:00"]);
     expect(within(details).getByText(/^Turma cheia/)).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480" },
-    });
+    // Plano é fixo: sessões e valor vêm do plano cadastrado.
+    expect(
+      within(dialog).getByLabelText("Sessões do serviço 1"),
+    ).toHaveAttribute("readonly");
+    expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
     expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");

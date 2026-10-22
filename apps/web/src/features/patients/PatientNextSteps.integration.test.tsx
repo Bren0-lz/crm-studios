@@ -722,8 +722,8 @@ describe("client next steps", () => {
     );
     await createClient();
     const planDialog = await openPlan();
-    fireEvent.change(within(planDialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "150" },
+    fireEvent.change(within(planDialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-12-15" },
     });
     fireEvent.click(
       within(planDialog).getByRole("button", {
@@ -731,9 +731,9 @@ describe("client next steps", () => {
       }),
     );
     await within(planDialog).findByText("Falha ao vincular plano");
-    expect(within(planDialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      "150",
-    );
+    expect(
+      within(planDialog).getByLabelText("Primeiro vencimento"),
+    ).toHaveValue("2026-12-15");
     fireEvent.click(within(planDialog).getByRole("button", { name: "Voltar" }));
     discardChanges();
     const appointmentDialog = await openAppointment();
