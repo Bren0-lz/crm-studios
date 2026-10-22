@@ -124,22 +124,6 @@ export function PatientProfileFields({
           </select>
         </label>
         <label>
-          Tipo de cliente
-          <select
-            value={form.clientType ?? ""}
-            onChange={(event) =>
-              onChange(
-                "clientType",
-                event.target.value as PatientInput["clientType"],
-              )
-            }
-          >
-            <option value="">Não informado</option>
-            <option value="fixed">Fixo</option>
-            <option value="rotating">Rotativo</option>
-          </select>
-        </label>
-        <label>
           Cliente desde
           <input
             type="date"

@@ -198,7 +198,7 @@ function detailFields(patient: Patient) {
           ? value
             ? "Sim"
             : "Não"
-          : key === "gender" || key === "clientType"
+          : key === "gender"
             ? (patientProfileValueLabels[
                 value as keyof typeof patientProfileValueLabels
               ] ?? value)

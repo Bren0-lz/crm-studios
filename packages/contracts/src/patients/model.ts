@@ -39,7 +39,6 @@ export const patientProfileSchema = z.object({
   occupation: z.string().trim().max(120).optional(),
   source: z.string().trim().max(120).optional(),
   level: z.string().trim().max(80).optional(),
-  clientType: z.enum(["fixed", "rotating", ""]).optional(),
   clientSince: z.iso.date().optional().or(z.literal("")),
   imageConsent: z.boolean().optional(),
   interests: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
@@ -57,7 +56,6 @@ export const patientProfileLabels = {
   occupation: "Profissão",
   source: "Origem",
   level: "Nível",
-  clientType: "Tipo de cliente",
   clientSince: "Cliente desde",
   imageConsent: "Autoriza uso de imagem",
   interests: "Interesses",
@@ -399,6 +397,4 @@ export const patientProfileValueLabels = {
   male: "Masculino",
   other: "Outro",
   undisclosed: "Prefere não informar",
-  fixed: "Fixo",
-  rotating: "Rotativo",
 } as const;

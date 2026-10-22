@@ -111,23 +111,6 @@ export function PatientProfileFilters({
           </select>
         </label>
         <label>
-          Tipo de cliente
-          <select
-            value={value.clientType ?? ""}
-            onChange={(event) =>
-              onChange({
-                ...value,
-                clientType: (event.target.value ||
-                  undefined) as PatientProfileFilter["clientType"],
-              })
-            }
-          >
-            <option value="">Todos</option>
-            <option value="fixed">Fixo</option>
-            <option value="rotating">Rotativo</option>
-          </select>
-        </label>
-        <label>
           Segmento operacional
           <select
             disabled={busy || Boolean(error)}

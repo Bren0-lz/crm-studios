@@ -49,7 +49,6 @@ describe("extended commercial workflows", () => {
       ["Nascimento do interessado", "1990-05-01"],
       ["Profissão", "Professora"],
       ["Gênero", "female"],
-      ["Tipo de cliente", "fixed"],
       ["Observações", "Preferência pelo período da manhã"],
       ["Responsável", actorId],
       ["Etiquetas", "Prioridade, Indicação"],
@@ -71,7 +70,6 @@ describe("extended commercial workflows", () => {
     expect(lead).toMatchObject({
       birthDate: "1990-05-01",
       occupation: "Professora",
-      clientType: "fixed",
       gender: "female",
       email: "lead@example.com",
       contactMethod: "WhatsApp",
