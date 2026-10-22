@@ -17,6 +17,7 @@ import {
   type RecurringAppointmentInput,
   type ReplacementBookingInput,
   type ScheduleBlockInput,
+  recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import {
@@ -653,11 +654,10 @@ export function createAgendaRepository(
         );
         const seriesId = randomUUID();
         const ids: string[] = [];
-        for (let index = 0; index < input.occurrences; index += 1) {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
+        for (const [index, start] of recurringOccurrenceStarts(
+          input,
+        ).entries()) {
+          const startsAt = new Date(start);
           const endsAt = new Date(
             startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
           );
