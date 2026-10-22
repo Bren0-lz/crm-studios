@@ -6,9 +6,7 @@ import {
   type PlanStatus,
   type Service,
   isTabCreditPlan,
-  nextPlanPeriod,
   patientFirstName,
-  planDisplayStatus,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,15 +16,8 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { clinicIsoDate, formatIsoDate } from "../../shared/lib/formatting";
 import {
-  clinicIsoDate,
-  currency,
-  formatIsoDate,
-  shortDate,
-} from "../../shared/lib/formatting";
-import {
-  planBadgeLabel,
-  planKindLabels,
   planListFilterLabels,
   planMatchesFilter,
   planMatchesSearch,
@@ -35,6 +26,7 @@ import {
   type PlanListFilter,
 } from "./model";
 import { PlanCancelModal } from "./PlanCancelModal";
+import { PlanCard } from "./PlanCard";
 import { PlanModal } from "./PlanModal";
 import { useToast } from "../../shared/feedback/toast-context";
 import { PlanPauseModal } from "./PlanPauseModal";
@@ -150,19 +142,6 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
     </button>
   );
 
-  function planRenewalLabel(plan: PatientPlan) {
-    if (plan.renewedByPlanId) {
-      const next = plans.find((item) => item.id === plan.renewedByPlanId);
-      return next
-        ? `Renovado a partir de ${shortDate.format(new Date(`${next.validFrom}T12:00:00`))}`
-        : "Renovado";
-    }
-    if (plan.autoRenew && plan.validUntil) {
-      return `Automática em ${shortDate.format(new Date(`${nextPlanPeriod(plan)!.validFrom}T12:00:00`))}`;
-    }
-    return "Manual";
-  }
-
   return (
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
@@ -264,133 +243,88 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
         ) : (
           <div className="plans-grid">
             {visiblePlans.map((plan) => {
-              const used = plan.totalSessions - plan.remainingSessions;
-              const percent = Math.min(
-                100,
-                Math.round((used / plan.totalSessions) * 100),
-              );
               return (
-                <article className="plan-card" key={plan.id}>
-                  <div className="plan-card-head">
-                    <span className={`status-pill ${planDisplayStatus(plan)}`}>
-                      {planBadgeLabel(plan)}
-                    </span>
-                    <span>{planKindLabels[plan.kind]}</span>
-                  </div>
-                  <h3>{plan.patientName}</h3>
-                  <p>{planSubtitle(plan)}</p>
-                  <div className="balance-line">
-                    <strong>{plan.remainingSessions}</strong>
-                    <span>de {plan.totalSessions} sessões restantes</span>
-                  </div>
-                  {plan.services.map((entry) => (
-                    <p key={entry.serviceId}>
-                      {entry.serviceName}: {entry.remainingSessions} de{" "}
-                      {entry.totalSessions} sessões ·{" "}
-                      {currency.format(entry.totalValueInCents / 100)}
-                    </p>
-                  ))}
-                  <div className="progress-track">
-                    <span style={{ width: `${percent}%` }} />
-                  </div>
-                  <div className="plan-meta">
-                    <span>Validade</span>
-                    <strong>
-                      {shortDate.format(new Date(`${plan.validFrom}T12:00:00`))}
-                      {plan.validUntil
-                        ? ` — ${shortDate.format(new Date(`${plan.validUntil}T12:00:00`))}`
-                        : " · contínuo"}
-                    </strong>
-                  </div>
-                  {plan.status === "paused" && plan.pausedAt && (
-                    <div className="plan-meta plan-pause">
-                      <span>Pausa</span>
-                      <strong>
-                        Desde {shortDate.format(new Date(plan.pausedAt))}
-                        {plan.pauseExpectedReturn
-                          ? ` · retorno previsto ${shortDate.format(new Date(`${plan.pauseExpectedReturn}T12:00:00`))}`
-                          : ""}
-                        {plan.pauseReason ? ` · ${plan.pauseReason}` : ""}
-                      </strong>
-                    </div>
-                  )}
-                  {!plan.sourceTabId && plan.status !== "cancelled" && (
-                    <div className="plan-meta plan-renewal">
-                      <span>Renovação</span>
-                      <strong>{planRenewalLabel(plan)}</strong>
-                      {can("plans.auto_renew") &&
-                        plan.validUntil &&
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  plans={plans}
+                  title={plan.patientName}
+                  subtitle={planSubtitle(plan)}
+                  autoRenewControl={
+                    can("plans.auto_renew") &&
+                    plan.validUntil &&
+                    !plan.renewedByPlanId &&
+                    plan.status !== "expired" && (
+                      <label className="plan-auto-renew">
+                        <input
+                          type="checkbox"
+                          checked={plan.autoRenew}
+                          onChange={() => void toggleAutoRenew(plan)}
+                        />
+                        Renovar automaticamente
+                      </label>
+                    )
+                  }
+                  actions={
+                    <>
+                      <button
+                        className="secondary-button button-sm"
+                        onClick={() => setMovementPlan(plan)}
+                      >
+                        <FileClock size={15} />
+                        Extrato
+                      </button>
+                      {canManage &&
+                        !plan.sourceTabId &&
+                        plan.status !== "cancelled" &&
                         !plan.renewedByPlanId &&
-                        plan.status !== "expired" && (
-                          <label className="plan-auto-renew">
-                            <input
-                              type="checkbox"
-                              checked={plan.autoRenew}
-                              onChange={() => void toggleAutoRenew(plan)}
-                            />
-                            Renovar automaticamente
-                          </label>
+                        can("plans.renew") && (
+                          <button
+                            className="secondary-button button-sm"
+                            onClick={() => setRenewingPlan(plan)}
+                          >
+                            <RefreshCw size={15} />
+                            Renovar
+                          </button>
                         )}
-                    </div>
-                  )}
-                  <div className="plan-actions">
-                    <button
-                      className="secondary-button button-sm"
-                      onClick={() => setMovementPlan(plan)}
-                    >
-                      <FileClock size={15} />
-                      Extrato
-                    </button>
-                    {canManage &&
-                      !plan.sourceTabId &&
-                      plan.status !== "cancelled" &&
-                      !plan.renewedByPlanId &&
-                      can("plans.renew") && (
-                        <button
-                          className="secondary-button button-sm"
-                          onClick={() => setRenewingPlan(plan)}
-                        >
-                          <RefreshCw size={15} />
-                          Renovar
-                        </button>
-                      )}
-                    {canManage &&
-                      !plan.sourceTabId &&
-                      plan.status !== "cancelled" && (
-                        <>
-                          {plan.status === "active"
-                            ? can("plans.status") && (
-                                <button
-                                  className="secondary-button button-sm"
-                                  onClick={() => setPausingPlan(plan)}
-                                >
-                                  <Pause size={15} />
-                                  Pausar
-                                </button>
-                              )
-                            : can("plans.status") && (
-                                <button
-                                  className="secondary-button button-sm"
-                                  onClick={() =>
-                                    void changeStatus(plan, "active")
-                                  }
-                                >
-                                  <Play size={15} />
-                                  Ativar
-                                </button>
-                              )}
-                          {can("plans.cancel") && (
-                            <button
-                              className="danger-button button-sm"
-                              onClick={() => setCancellingPlan(plan)}
-                            >
-                              Cancelar
-                            </button>
-                          )}
-                        </>
-                      )}
-                  </div>
-                </article>
+                      {canManage &&
+                        !plan.sourceTabId &&
+                        plan.status !== "cancelled" && (
+                          <>
+                            {plan.status === "active"
+                              ? can("plans.status") && (
+                                  <button
+                                    className="secondary-button button-sm"
+                                    onClick={() => setPausingPlan(plan)}
+                                  >
+                                    <Pause size={15} />
+                                    Pausar
+                                  </button>
+                                )
+                              : can("plans.status") && (
+                                  <button
+                                    className="secondary-button button-sm"
+                                    onClick={() =>
+                                      void changeStatus(plan, "active")
+                                    }
+                                  >
+                                    <Play size={15} />
+                                    Ativar
+                                  </button>
+                                )}
+                            {can("plans.cancel") && (
+                              <button
+                                className="danger-button button-sm"
+                                onClick={() => setCancellingPlan(plan)}
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                          </>
+                        )}
+                    </>
+                  }
+                />
               );
             })}
           </div>
