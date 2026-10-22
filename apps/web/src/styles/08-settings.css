@@ -1,5 +1,4 @@
 .group-card > div:first-child strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -16,7 +15,7 @@
   background: #e9f3ed;
   color: var(--green);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .group-card > small {
@@ -608,12 +607,11 @@
   gap: 12px;
   padding: 16px 20px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .plan-metrics strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-3xl);
 }
 
@@ -641,9 +639,8 @@
 }
 
 .settings-page .page-header h1 {
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-3xl);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.01em;
 }
 
 .settings-tabs {
@@ -712,7 +709,7 @@
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: white;
-  box-shadow: 0 var(--space-1) var(--space-5) rgba(34, 50, 44, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .settings-panel[hidden] {
@@ -742,9 +739,8 @@
 
 .settings-panel-heading h2 {
   margin: 0 0 var(--space-1);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-2xl);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-panel-heading p {
@@ -804,7 +800,6 @@
 .settings-inline-fields legend {
   padding: 0 var(--space-2);
   color: var(--ink);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-lg);
   font-weight: 700;
 }
@@ -925,10 +920,9 @@
 
 .settings-clinic-section-heading h3 {
   margin: 0;
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-lg);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-clinic-section-heading p {
@@ -1171,7 +1165,6 @@
 .settings-plan-price {
   margin-left: auto;
   color: var(--green);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-xl);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1224,9 +1217,8 @@
 }
 
 .settings-modal .modal-head h2 {
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-2xl);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-modal .modal-head p {

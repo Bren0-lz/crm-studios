@@ -211,7 +211,6 @@ export function DocumentsPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Formalização"
         title="Contratos"
         description="Emita contratos e documentos administrativos com conteúdo e versão preservados."
       />
@@ -227,7 +226,6 @@ export function DocumentsPage() {
               <section className="panel document-form-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Biblioteca</span>
                     <h2>Novo modelo</h2>
                   </div>
                 </div>
@@ -289,7 +287,6 @@ export function DocumentsPage() {
               <section className="panel document-form-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Emissão</span>
                     <h2>Novo documento</h2>
                   </div>
                 </div>
@@ -399,7 +396,6 @@ export function DocumentsPage() {
           <section className="panel template-library">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Versões</span>
                 <h2>Modelos cadastrados</h2>
               </div>
               <span className="list-count">{templates.length}</span>
@@ -443,7 +439,6 @@ export function DocumentsPage() {
           <section className="panel issued-documents">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Documentos</span>
                 <h2>Emissões e rascunhos</h2>
               </div>
               <span className="list-count">{documents.length}</span>

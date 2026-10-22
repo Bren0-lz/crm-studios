@@ -91,7 +91,6 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <PageHeader
-        eyebrow="Gestão da clínica"
         title="Configurações"
         description="Organize sua operação e personalize os detalhes da clínica."
       />

@@ -129,7 +129,6 @@ export function HistoryPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Atividades da clínica"
         title="Histórico"
         description="Consulte as atividades de todos os módulos. Use a pesquisa e os filtros para encontrar uma alteração."
       />

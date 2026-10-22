@@ -12,12 +12,11 @@
   gap: 13px;
   padding: 17px 20px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .clinical-summary strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-3xl);
 }
 
@@ -70,7 +69,6 @@
 }
 
 .clinical-date strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -86,7 +84,6 @@
 
 .clinical-card-copy h3 {
   margin: 7px 0 3px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -160,7 +157,6 @@
 
 .pain-field span {
   color: var(--terracotta);
-  font-family: "Manrope", sans-serif;
 }
 
 .pain-field input {
@@ -215,9 +211,8 @@
   min-width: 260px;
   gap: 5px;
   color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .clinical-workspace-actions {
@@ -335,7 +330,7 @@
   min-width: 0;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #fbfcfa;
 }
 
@@ -345,7 +340,6 @@
 
 .panel-head.compact h3 {
   margin: 3px 0 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -360,7 +354,6 @@
 
 .clinical-goal-card h4 {
   margin: 7px 0 4px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-md);
 }
 
@@ -402,10 +395,8 @@
 
 .clinical-timeline article > span {
   color: var(--green);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .clinical-timeline article > strong {
@@ -426,7 +417,7 @@
   margin-top: 18px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: #fbfcfa;
 }
 
@@ -514,12 +505,11 @@
   min-width: 0;
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 .group-modal-section h3 {
   margin: 0 0 5px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 .group-modal-section > p {
@@ -594,7 +584,6 @@
 }
 .group-slots-head h4 {
   margin: 0 0 4px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-sm);
 }
 .group-slots-head p {
@@ -684,9 +673,8 @@
 .groups-layout .groups-wide h2 {
   margin: 0 0 7px;
   color: var(--ink);
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-xl);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
 }
 
 .groups-layout > .panel {
@@ -714,9 +702,9 @@
   min-width: 0;
   padding: 20px 22px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: var(--paper);
-  box-shadow: 0 10px 32px rgba(42, 53, 48, 0.045);
+  box-shadow: var(--shadow-sm);
 }
 
 .group-overview span {
@@ -727,7 +715,6 @@
 
 .group-overview strong {
   color: var(--green);
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-3xl);
   line-height: 1.2;
 }
@@ -760,13 +747,13 @@
 
 .group-card {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 18px;
   display: grid;
   gap: 14px;
   min-width: 0;
   background: white;
-  box-shadow: 0 6px 20px rgba(42, 53, 48, 0.035);
+  box-shadow: var(--shadow-sm);
 }
 
 .assessment-template-empty {

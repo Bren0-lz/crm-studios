@@ -119,7 +119,6 @@ export function PendingFinalizationPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Agenda"
         title="Atendimentos a finalizar"
         description="Atendimentos que já terminaram e ainda estão como agendados ou confirmados. Registre se foram realizados ou se o cliente faltou."
         action={
@@ -134,7 +133,6 @@ export function PendingFinalizationPage() {
       <section className="panel pending-finalization-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Pendentes de finalização</span>
             <h2>
               {items === null
                 ? "Carregando…"
