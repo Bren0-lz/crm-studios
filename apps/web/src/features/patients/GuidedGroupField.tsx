@@ -2,6 +2,7 @@ import { type GroupClass, describeGroupSchedule } from "@crm/contracts";
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { GroupDetails } from "../../shared/components/GroupDetails";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { groupOperationRange } from "../../shared/lib/formatting";
 import { groupVacancyLabel } from "./model";
@@ -47,6 +48,7 @@ export function GuidedGroupField({
   const compatible = (groups ?? []).filter(
     (item) => item.active && serviceIds.includes(item.serviceId),
   );
+  const selected = compatible.find((item) => item.id === value);
   return (
     <div className="field-with-hint span-2">
       {loadError ? (
@@ -66,6 +68,7 @@ export function GuidedGroupField({
           </select>
         </label>
       )}
+      {selected && <GroupDetails group={selected} />}
       {hint}
     </div>
   );
