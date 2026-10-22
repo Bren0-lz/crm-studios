@@ -84,7 +84,7 @@ describe("guided client registration", () => {
       activeEnrollments: 1,
       waitlistCount: 0,
       active: true,
-      weeklySlots: [{ weekday: 1, startTime: "08:00", durationMinutes: 60 }],
+      weeklySlots: [{ weekday: 1, startTime: "08:00", endTime: "09:00" }],
       createdAt: "2026-01-01T00:00:00.000Z",
       ...extra,
     };
@@ -410,7 +410,21 @@ describe("guided client registration", () => {
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
       ),
     ]);
+    expect(
+      within(dialog).queryByRole("region", { name: /^Detalhes da turma/ }),
+    ).not.toBeInTheDocument();
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
+    // Escolhida a turma, aparecem os dias e horários para repassar ao cliente.
+    const details = within(dialog).getByRole("region", {
+      name: "Detalhes da turma Pilates 2",
+    });
+    expect(within(details).getByText("Prof. Bruno Lima")).toBeInTheDocument();
+    expect(
+      within(details)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Segunda-feira08:00 às 09:00"]);
+    expect(within(details).getByText(/^Turma cheia/)).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
       target: { value: "8" },
     });

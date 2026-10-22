@@ -1,4 +1,5 @@
 import type { GroupChoices } from "../workflows/types";
+import { GroupDetails } from "./GroupDetails";
 import { LoadingBlock } from "./LoadingBlock";
 
 export function PlanGroupPicker({
@@ -72,6 +73,7 @@ export function PlanGroupPicker({
           escolher uma turma depois.
         </p>
       ) : null}
+      {selected && <GroupDetails group={selected} />}
       {selected && selected.activeEnrollments >= selected.capacity && (
         <p className="muted-copy">
           Esta turma está cheia. O cliente será incluído na lista de espera.
