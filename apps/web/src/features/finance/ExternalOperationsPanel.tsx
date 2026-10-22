@@ -27,7 +27,6 @@ export function ExternalOperationsPanel({
 }) {
   const { can } = useAuthorization(),
     patientId = usePatientContext(),
-    [opened, setOpened] = useState(false),
     [attempt, setAttempt] = useState(0),
     [items, setItems] = useState<ExternalOperation[] | null>(null),
     [patients, setPatients] = useState<PatientOption[]>([]),
@@ -59,7 +58,6 @@ export function ExternalOperationsPanel({
     ].filter((item): item is string => Boolean(item)),
   );
   useEffect(() => {
-    if (!opened) return;
     let alive = true;
     Promise.all([
       api.externalOperations(patientId || undefined),
@@ -77,7 +75,7 @@ export function ExternalOperationsPanel({
     return () => {
       alive = false;
     };
-  }, [opened, attempt, patientId]);
+  }, [attempt, patientId]);
   const patch = (input: Partial<ExternalOperationInput>) =>
     setForm((current) => ({ ...current, ...input }));
   async function save() {
@@ -147,92 +145,84 @@ export function ExternalOperationsPanel({
   return (
     <>
       <section className="panel">
-        <details
-          onToggle={(event) => {
-            if (event.currentTarget.open) setOpened(true);
-          }}
-        >
-          <summary className="panel-head">
-            Documentos fiscais e operações com parceiros
-          </summary>
-          {opened && (
-            <div className="inventory-body">
-              {error && <ErrorBanner error={error} />}
-              {notice && <p role="status">{notice}</p>}
-              <p>
-                Registre operações realizadas externamente com referência e
-                comprovante.
-              </p>
-              {can("finance.external_records_manage") && (
-                <button
-                  className="primary-button"
-                  disabled={saving}
-                  onClick={() => {
-                    const next = empty();
-                    setForm(next);
-                    setBaseline(JSON.stringify(next));
-                    setError("");
-                    setEditing(true);
-                  }}
-                >
-                  Registrar operação externa
-                </button>
-              )}
-              {!items ? (
-                error ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() => {
-                      setError("");
-                      setAttempt((value) => value + 1);
-                    }}
-                  >
-                    Tentar carregar registros
-                  </button>
-                ) : (
-                  <LoadingBlock />
-                )
-              ) : !items.length ? (
-                <EmptyState
-                  title="Nenhuma operação externa registrada"
-                  copy="Os registros e comprovantes realizados pela equipe aparecem aqui."
-                />
-              ) : (
-                items.map((item) => (
-                  <div className="table-row" key={item.id}>
-                    <div>
-                      <strong>
-                        {item.kind === "fiscal"
-                          ? "Documento fiscal"
-                          : "Operação com parceiro"}{" "}
-                        · {item.reference}
-                      </strong>
-                      <p>
-                        {item.counterpart} ·{" "}
-                        {shortDate.format(
-                          new Date(item.occurredOn + "T12:00:00"),
-                        )}
-                        {item.patientName ? ` · ${item.patientName}` : ""}
-                      </p>
-                      <small>
-                        Registrado por {item.authorName} em{" "}
-                        {shortDate.format(new Date(item.createdAt))}
-                      </small>
-                      {item.notes && <p>{item.notes}</p>}
-                    </div>
-                    <button
-                      className="secondary-button"
-                      disabled={saving}
-                      onClick={() => void download(item.id)}
-                    >
-                      Baixar comprovante
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+        <div className="panel-head">
+          <div>
+            <h2>Documentos fiscais e operações com parceiros</h2>
+          </div>
+        </div>
+        <div className="inventory-body">
+          {error && <ErrorBanner error={error} />}
+          {notice && <p role="status">{notice}</p>}
+          <p>
+            Registre operações realizadas externamente com referência e
+            comprovante.
+          </p>
+          {can("finance.external_records_manage") && (
+            <button
+              className="primary-button"
+              disabled={saving}
+              onClick={() => {
+                const next = empty();
+                setForm(next);
+                setBaseline(JSON.stringify(next));
+                setError("");
+                setEditing(true);
+              }}
+            >
+              Registrar operação externa
+            </button>
           )}
-        </details>
+          {!items ? (
+            error ? (
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setError("");
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                Tentar carregar registros
+              </button>
+            ) : (
+              <LoadingBlock />
+            )
+          ) : !items.length ? (
+            <EmptyState
+              title="Nenhuma operação externa registrada"
+              copy="Os registros e comprovantes realizados pela equipe aparecem aqui."
+            />
+          ) : (
+            items.map((item) => (
+              <div className="table-row" key={item.id}>
+                <div>
+                  <strong>
+                    {item.kind === "fiscal"
+                      ? "Documento fiscal"
+                      : "Operação com parceiro"}{" "}
+                    · {item.reference}
+                  </strong>
+                  <p>
+                    {item.counterpart} ·{" "}
+                    {shortDate.format(new Date(item.occurredOn + "T12:00:00"))}
+                    {item.patientName ? ` · ${item.patientName}` : ""}
+                  </p>
+                  <small>
+                    Registrado por {item.authorName} em{" "}
+                    {shortDate.format(new Date(item.createdAt))}
+                  </small>
+                  {item.notes && <p>{item.notes}</p>}
+                </div>
+                <button
+                  className="secondary-button"
+                  disabled={saving}
+                  onClick={() => void download(item.id)}
+                >
+                  Baixar comprovante
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </section>
       {editing && (
         <Modal
