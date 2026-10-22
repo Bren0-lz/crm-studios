@@ -451,22 +451,6 @@
   gap: 6px;
   min-width: 0;
 }
-/* Filtro recolhível direto no painel (ex.: lançamentos do financeiro). */
-.panel > details.filter-group {
-  padding: var(--space-3) calc(var(--space-5) - 1px);
-  border-bottom: 1px solid var(--line);
-}
-.panel > details.filter-group > summary {
-  width: max-content;
-  max-width: 100%;
-  color: var(--green-2);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.panel > details.filter-group[open] > .form-grid {
-  margin-top: var(--space-3);
-}
 .filter-group select {
   min-width: 190px;
   min-height: 38px;
