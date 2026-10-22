@@ -986,3 +986,9 @@ p.field-hint {
   color: var(--ink);
   font-size: var(--text-md);
 }
+
+/* Campo de arquivo com orientação de formato/tamanho (ou o arquivo anexado) logo abaixo. */
+.file-field {
+  display: grid;
+  gap: var(--space-2);
+}

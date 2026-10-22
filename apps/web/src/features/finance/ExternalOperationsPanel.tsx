@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import type {
   ExternalOperation,
   ExternalOperationInput,
@@ -33,7 +33,8 @@ export function ExternalOperationsPanel({
     [editing, setEditing] = useState(false),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    proofHintId = useId();
   const empty = (): ExternalOperationInput => ({
     kind: "fiscal",
     counterpart: "",
@@ -258,28 +259,6 @@ export function ExternalOperationsPanel({
                 </select>
               </label>
               <label>
-                Emissor ou parceiro
-                <input
-                  required
-                  autoFocus
-                  minLength={2}
-                  maxLength={160}
-                  value={form.counterpart}
-                  onChange={(event) =>
-                    patch({ counterpart: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Referência do documento ou operação
-                <input
-                  required
-                  maxLength={160}
-                  value={form.reference}
-                  onChange={(event) => patch({ reference: event.target.value })}
-                />
-              </label>
-              <label>
                 Data da operação externa
                 <input
                   required
@@ -291,7 +270,38 @@ export function ExternalOperationsPanel({
                 />
               </label>
               <label>
-                Cliente
+                Emissor ou parceiro
+                <input
+                  required
+                  autoFocus
+                  minLength={2}
+                  maxLength={160}
+                  placeholder={
+                    form.kind === "fiscal"
+                      ? "Quem emitiu o documento"
+                      : "Nome do parceiro"
+                  }
+                  value={form.counterpart}
+                  onChange={(event) =>
+                    patch({ counterpart: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Referência do documento ou operação
+                <input
+                  required
+                  maxLength={160}
+                  placeholder={
+                    form.kind === "fiscal"
+                      ? "Número da nota ou do documento"
+                      : "Código ou identificação da operação"
+                  }
+                  value={form.reference}
+                  onChange={(event) => patch({ reference: event.target.value })}
+                />
+              </label>
+              <div>
                 <PatientPicker
                   patients={patients}
                   value={form.patientId ?? ""}
@@ -304,7 +314,7 @@ export function ExternalOperationsPanel({
                     setForm(next);
                   }}
                 />
-              </label>
+              </div>
               <label>
                 Conta a receber vinculada
                 <select
@@ -335,16 +345,28 @@ export function ExternalOperationsPanel({
                     ))}
                 </select>
               </label>
-              <label className="span-2">
-                Comprovante
-                <input
-                  required
-                  type="file"
-                  accept="application/pdf,image/png,image/jpeg"
-                  onChange={(event) => void upload(event.target.files?.[0])}
-                />
-                {form.fileName && <span>{form.fileName}</span>}
-              </label>
+              <div className="span-2 file-field">
+                <label>
+                  Comprovante
+                  <input
+                    required={!form.contentBase64}
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg"
+                    aria-describedby={proofHintId}
+                    onChange={(event) => void upload(event.target.files?.[0])}
+                  />
+                </label>
+                <p className="field-hint" id={proofHintId}>
+                  {form.fileName ? (
+                    <>
+                      Anexado: <strong>{form.fileName}</strong> ·{" "}
+                      {Math.max(1, Math.round(form.sizeInBytes / 1024))} KB
+                    </>
+                  ) : (
+                    "PDF, PNG ou JPEG de até 5 MB."
+                  )}
+                </p>
+              </div>
               <label className="span-2">
                 Observações do registro
                 <textarea
