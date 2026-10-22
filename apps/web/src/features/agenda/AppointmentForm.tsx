@@ -175,13 +175,6 @@ export function AppointmentForm({
                 />
               </div>
             )}
-            <AppointmentPatientWarnings
-              patient={
-                fixedPatient ??
-                patientChoices.find((item) => item.id === form.patientId)
-              }
-              checkPlan={form.visitType === "regular"}
-            />
             <label>
               Tipo
               <select
@@ -324,6 +317,14 @@ export function AppointmentForm({
                 rows={3}
               />
             </label>
+            {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
+            <AppointmentPatientWarnings
+              patient={
+                fixedPatient ??
+                patientChoices.find((item) => item.id === form.patientId)
+              }
+              checkPlan={form.visitType === "regular"}
+            />
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">
