@@ -1,7 +1,6 @@
 import type { Appointment } from "@crm/contracts";
-import { CalendarDays, CheckCircle2, UserX } from "lucide-react";
+import { CheckCircle2, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
@@ -119,14 +118,9 @@ export function PendingFinalizationPage() {
   return (
     <>
       <PageHeader
+        back={{ to: "/agenda", label: "Voltar à agenda" }}
         title="Atendimentos a finalizar"
         description="Atendimentos que já terminaram e ainda estão como agendados ou confirmados. Registre se foram realizados ou se o cliente faltou."
-        action={
-          <NavLink to="/agenda" className="secondary-button">
-            <CalendarDays size={16} aria-hidden="true" />
-            Ver agenda
-          </NavLink>
-        }
       />
       {error && <ErrorBanner error={error} />}
       {batchError && <ErrorBanner error={batchError} />}
