@@ -359,7 +359,7 @@ export function validatePatientImport(
           : /^(não|nao|false|0)$/i.test(text)
             ? false
             : text;
-      else if (key === "gender" || key === "clientType")
+      else if (key === "gender")
         raw[key] =
           Object.entries(patientProfileValueLabels).find(
             ([, label]) => normalizeHeader(label) === normalizeHeader(text),

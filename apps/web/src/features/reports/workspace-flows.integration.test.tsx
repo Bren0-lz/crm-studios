@@ -21,7 +21,6 @@ describe("client reports through real HTTP handlers", () => {
       source: "Indicação",
       level: "Inicial",
       gender: "female",
-      clientType: "fixed",
       interests: ["Postura"],
     });
     const downloads = captureDownloads();
@@ -37,7 +36,6 @@ describe("client reports through real HTTP handlers", () => {
       ["Nível", "Inicial"],
       ["Interesse", "Postura"],
       ["Gênero", "female"],
-      ["Tipo de cliente", "fixed"],
       ["Segmento", "no_plan"],
     ])
       change(label!, value!, panel);
