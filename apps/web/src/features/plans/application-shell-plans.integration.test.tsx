@@ -198,9 +198,13 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue(
       "2026-10-05",
     );
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "420" },
-    });
+    // Plano é fixo: sessões e valor da renovação repetem o plano atual.
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Renovar plano e gerar parcelas" }),
     );
@@ -209,7 +213,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(renewalBody).toMatchObject({
       validFrom: "2026-10-01",
-      totalValueInCents: 42000,
+      totalValueInCents: 40000,
       autoRenew: true,
     });
     expect(renewalBody).not.toHaveProperty("patientId");

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cpfMatchKey,
+  planServiceValueForSessions,
   fillCampaignMessage,
   imageDataUrlInfo,
   messageTemplateInputSchema,
@@ -1329,5 +1330,20 @@ describe("campanhas de WhatsApp", () => {
     expect(
       whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
     ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
+  });
+});
+
+describe("valor do serviço vendido no plano", () => {
+  it("segue o preço por sessão da referência e arredonda em centavos", () => {
+    const reference = { totalSessions: 8, totalValueInCents: 16000 };
+    expect(planServiceValueForSessions(reference, 8)).toBe(16000);
+    expect(planServiceValueForSessions(reference, 10)).toBe(20000);
+    expect(
+      planServiceValueForSessions(
+        { totalSessions: 3, totalValueInCents: 10000 },
+        1,
+      ),
+    ).toBe(3333);
+    expect(planServiceValueForSessions(reference, 0)).toBe(0);
   });
 });
