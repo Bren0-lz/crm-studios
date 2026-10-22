@@ -786,8 +786,13 @@
 /* Baixa de parcela (U39): valor final calculado. */
 .settle-summary {
   display: grid;
-  align-content: end;
+  align-content: center;
   gap: var(--space-1);
+  min-height: calc(var(--space-7) + var(--space-3));
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #f7f8f5;
 }
 
 .settle-summary span {
@@ -860,4 +865,19 @@
 .help-tip .help-tip-button:focus-visible {
   outline: 2px solid var(--green-2);
   outline-offset: 2px;
+}
+
+/* Baixa: campos de alturas diferentes (rótulo com ajuda) alinham pela base. */
+.settle-form,
+.settle-dates {
+  align-items: end;
+}
+
+.settle-dates .muted-copy {
+  margin: 0;
+}
+
+.settle-dates input:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
