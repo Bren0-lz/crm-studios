@@ -22,6 +22,7 @@ import {
   type ReplacementBookingInput,
   type ScheduleBlock,
   type ScheduleBlockInput,
+  recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -488,18 +489,14 @@ export function createAgendaRepository(
       const seriesId = uuid();
       const appointments: Appointment[] = [];
       try {
-        for (let index = 0; index < input.occurrences; index += 1) {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
+        for (const startsAt of recurringOccurrenceStarts(input)) {
           const appointment =
             await repositoryContext.operations.createAppointment(clinicId, {
               patientId: input.patientId,
               professionalId: input.professionalId,
               roomId: input.roomId,
               serviceId: input.serviceId,
-              startsAt: startsAt.toISOString(),
+              startsAt,
               notes: input.notes,
               visitType: input.visitType,
             });
