@@ -142,6 +142,9 @@ for (const storage of ["memory", "postgres"] as const) {
               expect(page.total, JSON.stringify({ filter, stage })).toBe(
                 inStage.length,
               );
+              expect(page.overdue, JSON.stringify({ filter, stage })).toBe(
+                inStage.filter((lead) => lead.overdueTasks > 0).length,
+              );
               pages.push(...page.leads);
             }
             expect(

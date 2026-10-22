@@ -32,6 +32,8 @@ export interface LeadStagePage {
   stage: Lead["stage"];
   /** Total de leads da etapa com os filtros aplicados (não só os desta página). */
   total: number;
+  /** Leads da etapa (com os filtros) que têm tarefa atrasada. */
+  overdue: number;
   leads: Lead[];
 }
 

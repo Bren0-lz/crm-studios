@@ -64,14 +64,14 @@ describe("group name on agenda cards (V8)", () => {
     expect(name).toHaveAttribute("title", longName);
   });
 
-  it("clamps .group-name in two lines and lets the lead stage fill the card row (CSS)", () => {
+  it("clamps .group-name in two lines and keeps the lead stage picker over its icon (CSS)", () => {
     const styles = (name: string) =>
       readFileSync(`${process.cwd()}/src/styles/${name}`, "utf8");
     expect(styles("05-agenda.css")).toMatch(
       /\.group-name,[^{]*\{[^}]*-webkit-line-clamp: 2;/,
     );
     expect(styles("10-commercial-communications.css")).toMatch(
-      /\.lead-card \.lead-card-actions select \{[^}]*flex: 1;/,
+      /\.lead-card \.lead-stage-picker select \{[^}]*inset: 0;/,
     );
   });
 });

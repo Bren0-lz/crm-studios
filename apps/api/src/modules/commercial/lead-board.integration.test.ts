@@ -45,6 +45,10 @@ describe("paginated commercial board", () => {
       await create(`Lead novo ${String(index).padStart(2, "0")}`);
     const contacted = await create("Lead em contato", "Indicação");
     await repository.moveLead(clinicId, actorId, contacted.id, "contacted");
+    await repository.createLeadTask(clinicId, actorId, contacted.id, {
+      title: "Retornar",
+      dueAt: "2000-01-01T12:00:00Z",
+    });
     await create("Lead de outra clínica", "Site", otherClinicId);
 
     const response = await app.inject({
@@ -65,7 +69,8 @@ describe("paginated commercial board", () => {
     const [fresh, inContact] = board.columns;
     expect(fresh).toMatchObject({ total: LEAD_BOARD_PAGE_SIZE + 5 });
     expect(fresh!.leads).toHaveLength(LEAD_BOARD_PAGE_SIZE);
-    expect(inContact).toMatchObject({ total: 1 });
+    expect(fresh).toMatchObject({ overdue: 0 });
+    expect(inContact).toMatchObject({ total: 1, overdue: 1 });
     expect(inContact!.leads[0]!.fullName).toBe("Lead em contato");
 
     const next = await app.inject({

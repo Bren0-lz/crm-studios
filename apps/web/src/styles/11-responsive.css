@@ -251,6 +251,15 @@
 }
 
 @media (max-width: 700px) {
+  /* Barra do funil: busca na linha toda, resumo abaixo dos atalhos. */
+  .commercial-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .commercial-summary {
+    margin-left: 0;
+  }
+
   .branch-select select {
     max-width: calc(var(--space-8) + var(--space-7));
   }

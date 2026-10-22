@@ -398,6 +398,7 @@ export function createCommercialRepository(
       return {
         stage,
         total: leads.length,
+        overdue: leads.filter((lead) => lead.overdueTasks > 0).length,
         leads: leads.slice(page.offset, page.offset + page.limit),
       };
     },
