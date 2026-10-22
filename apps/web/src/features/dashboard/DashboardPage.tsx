@@ -10,14 +10,11 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { AppointmentRow } from "../../shared/components/AppointmentRow";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { HelpTip } from "../../shared/components/HelpTip";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
-import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
-  currency,
   dateLabel,
   initials,
   localIsoDate,
@@ -327,70 +324,6 @@ export function DashboardPage() {
                 </p>
               </section>
             )}
-          {canSeeSales && sales && (
-            <section className="dashboard-sales panel">
-              <div className="panel-head">
-                <div>
-                  <h2>Vendas e retorno dos clientes</h2>
-                  <p className="panel-context">
-                    Mês até {sales.current.to.split("-").reverse().join("/")}
-                  </p>
-                </div>
-                <NavLink to="/relatorios" className="text-link">
-                  Ver detalhes <ChevronRight size={16} />
-                </NavLink>
-              </div>
-              <p className="dashboard-sales-context">
-                {sales.current.attendedPatients} clientes atendidos neste mês.
-                <HelpTip
-                  term="Clientes atendidos"
-                  text="Conta só atendimentos marcados como realizados. Atendimentos a finalizar ainda não entram."
-                />
-              </p>
-              <div className="sales-metrics">
-                <article>
-                  <span>Vendido líquido</span>
-                  <strong>
-                    {currency.format(sales.current.netSalesInCents / 100)}
-                  </strong>
-                  <TrendBadge
-                    changePercent={sales.changePercent}
-                    changeInCents={sales.changeInCents}
-                    hasCurrentValue={sales.current.netSalesInCents !== 0}
-                    comparison="vs. mês anterior comparável"
-                  />
-                  {sales.current.cancelledSalesInCents > 0 && (
-                    <small>
-                      Antes dos estornos:{" "}
-                      {currency.format(sales.current.grossSalesInCents / 100)}
-                      {" · "}Estornos:{" "}
-                      {currency.format(
-                        sales.current.cancelledSalesInCents / 100,
-                      )}
-                    </small>
-                  )}
-                </article>
-                <article>
-                  <span>Recebido</span>
-                  <strong>
-                    {currency.format(sales.current.receivedInCents / 100)}
-                  </strong>
-                  <small>Pela data da baixa</small>
-                </article>
-                <article>
-                  <span>
-                    Sem retorno neste mês
-                    <HelpTip
-                      term="Sem retorno"
-                      text="Clientes com atendimento realizado no mês anterior e nenhum realizado neste mês. Atendimentos a finalizar não contam como retorno."
-                    />
-                  </span>
-                  <strong>{sales.patientsWithoutReturn.length}</strong>
-                  <small>Atendidos no mês anterior</small>
-                </article>
-              </div>
-            </section>
-          )}
           <section className="dashboard-grid">
             {data.nextAppointments && (
               <article className="panel schedule-panel">
