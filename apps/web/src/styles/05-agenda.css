@@ -146,6 +146,14 @@
   background: #fafbf8;
 }
 
+.agenda-professionals:has(.agenda-day-layout) {
+  align-items: center;
+}
+
+.agenda-day-layout {
+  margin-left: auto;
+}
+
 .agenda-legend-label {
   color: #5b6b62;
   font-size: var(--text-xs);

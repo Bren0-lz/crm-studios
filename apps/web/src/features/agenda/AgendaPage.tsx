@@ -417,7 +417,7 @@ export function AgendaPage() {
                     ? `${shortDate.format(weekStart)} — ${shortDate.format(weekDays[6]!)}`
                     : date === localIsoDate()
                       ? "Hoje"
-                      : shortDate.format(selectedDate)}
+                      : "Voltar para hoje"}
               </small>
             </button>
             <button
@@ -462,8 +462,41 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            <label className="checkbox-field agenda-cancelled-toggle">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(event) => setShowCancelled(event.target.checked)}
+              />
+              Mostrar cancelados
+            </label>
+            <AgendaStatusLegend />
+          </div>
+        </div>
+        {(professionals.length > 0 || view === "day") && (
+          <div className="agenda-professionals">
+            {professionals.length > 0 && (
+              <>
+                <span className="agenda-legend-label">Profissionais</span>
+                <div className="legend" aria-label="Legenda dos profissionais">
+                  {professionals.map((professional) => (
+                    <span key={professional.id}>
+                      <i
+                        className="pro-dot"
+                        style={professionalColorStyle(professional.color)}
+                        aria-hidden="true"
+                      />
+                      {professional.fullName.replace(/Dra?\. /, "")}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
             {view === "day" && (
-              <div className="view-toggle" aria-label="Formato do dia">
+              <div
+                className="view-toggle agenda-day-layout"
+                aria-label="Formato do dia"
+              >
                 <button
                   className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
                   onClick={() => setDayLayout("grid")}
@@ -478,32 +511,6 @@ export function AgendaPage() {
                 </button>
               </div>
             )}
-            <label className="checkbox-field agenda-cancelled-toggle">
-              <input
-                type="checkbox"
-                checked={showCancelled}
-                onChange={(event) => setShowCancelled(event.target.checked)}
-              />
-              Mostrar cancelados
-            </label>
-            <AgendaStatusLegend />
-          </div>
-        </div>
-        {professionals.length > 0 && (
-          <div className="agenda-professionals">
-            <span className="agenda-legend-label">Profissionais</span>
-            <div className="legend" aria-label="Legenda dos profissionais">
-              {professionals.map((professional) => (
-                <span key={professional.id}>
-                  <i
-                    className="pro-dot"
-                    style={professionalColorStyle(professional.color)}
-                    aria-hidden="true"
-                  />
-                  {professional.fullName.replace(/Dra?\. /, "")}
-                </span>
-              ))}
-            </div>
           </div>
         )}
         {loading ? (
