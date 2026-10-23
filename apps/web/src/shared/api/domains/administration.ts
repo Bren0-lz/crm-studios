@@ -17,6 +17,7 @@ import type {
   AdminUserInput,
   AdminUserUpdate,
   AuditHistoryFilters,
+  ClinicBranding,
   ClinicSettings,
   ClinicSettingsInput,
   HistoryActor,
@@ -56,10 +57,7 @@ export const administrationApi = {
     }),
   revokeAdminUserSessions: (id: string) =>
     request<void>(`/admin/users/${id}/revoke-sessions`, { method: "POST" }),
-  clinicBranding: () =>
-    request<{ name: string; logoDataUrl: string; timezone: string }>(
-      "/clinic/branding",
-    ),
+  clinicBranding: () => request<ClinicBranding>("/clinic/branding"),
   administrativeRegistry: () =>
     request<AdministrativeRegistryWorkspace>("/admin/registry"),
   updateAdministrativeRegistry: (

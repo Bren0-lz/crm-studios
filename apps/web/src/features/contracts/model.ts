@@ -1,5 +1,7 @@
 import {
+  formatPhone,
   patientFirstName,
+  type ClinicBranding,
   type DocumentKind,
   type IssuedDocument,
 } from "@crm/contracts";
@@ -36,4 +38,20 @@ export function issuedDocumentMessage(document: IssuedDocument) {
 /** wa.me sem número: o WhatsApp pede o contato e já abre com a mensagem. */
 export function issuedDocumentWhatsappLink(document: IssuedDocument) {
   return `https://wa.me/?text=${encodeURIComponent(issuedDocumentMessage(document))}`;
+}
+
+/** Identificação da empresa no cabeçalho, uma linha por dado: razão social, CNPJ, endereço e contato. */
+export function companyIdentification(
+  branding?: ClinicBranding | null | undefined,
+) {
+  if (!branding?.name) return [];
+  const legalName = branding.legalName?.trim() || branding.name;
+  return [
+    legalName,
+    branding.taxId?.trim() ? `CNPJ ${branding.taxId.trim()}` : "",
+    branding.address?.trim() ?? "",
+    [formatPhone(branding.phone ?? ""), branding.email?.trim()]
+      .filter(Boolean)
+      .join(" · "),
+  ].filter(Boolean);
 }
