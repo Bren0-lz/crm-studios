@@ -740,7 +740,7 @@
 }
 
 /* Abas da página de Turmas (Turmas · Visão geral). */
-.groups-tabs {
+.settings-tabs.groups-tabs {
   grid-column: 1 / -1;
   margin-bottom: 0;
 }
