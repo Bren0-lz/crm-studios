@@ -949,3 +949,18 @@
   font-size: var(--text-xs);
   font-weight: 500;
 }
+
+/* Barra de filtros dos lançamentos: o botão abre o modal de filtros. */
+.finance-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) calc(var(--space-5) - 1px);
+  border-bottom: 1px solid var(--line);
+}
+
+.finance-filter-summary {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
