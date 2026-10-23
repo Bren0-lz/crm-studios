@@ -3,6 +3,7 @@ import type { AppModule, UserRole } from "./index.js";
 
 // This catalog is the authority for operations, their dependencies and legacy migration.
 const additionalPermissions = new Set([
+  "agenda.notes",
   "finance.commissions_reconcile",
   "crm.update",
   "finance.external_records_view",
@@ -21,6 +22,7 @@ const additionalPermissions = new Set([
 ]);
 const operations = {
   agenda: {
+    notes: "Gerenciar notas da agenda",
     create: "Agendar atendimento",
     recurring: "Agendar atendimentos recorrentes",
     reschedule: "Reagendar atendimento",

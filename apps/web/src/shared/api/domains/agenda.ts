@@ -1,4 +1,10 @@
 import type {
+  AgendaNote,
+  AgendaNoteInput,
+  AgendaNoteUpdate,
+  AgendaNoteScope,
+} from "@crm/contracts";
+import type {
   GroupAttendance,
   GroupAttendanceInput,
   ReplacementCredit,
@@ -29,6 +35,26 @@ import type {
 import { request } from "../transport";
 
 export const agendaApi = {
+  agendaNotes: (from: string, to: string) =>
+    request<AgendaNote[]>(
+      `/agenda-notes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  createAgendaNotes: (input: AgendaNoteInput) =>
+    request<AgendaNote[]>("/agenda-notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateAgendaNote: (
+    id: string,
+    input: AgendaNoteUpdate,
+    scope: AgendaNoteScope,
+  ) =>
+    request<AgendaNote[]>(`/agenda-notes/${id}?scope=${scope}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteAgendaNote: (id: string, scope: AgendaNoteScope) =>
+    request<void>(`/agenda-notes/${id}?scope=${scope}`, { method: "DELETE" }),
   createAbsenceSuccessor: (id: string, input: AppointmentRescheduleInput) =>
     request<Appointment>(`/appointments/${id}/successor`, {
       method: "POST",

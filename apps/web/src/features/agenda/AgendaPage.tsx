@@ -1,3 +1,12 @@
+import { AgendaNoteCard } from "./AgendaNoteCard";
+import { AgendaNoteModal } from "./AgendaNoteModal";
+import { AgendaNoteDetailsModal } from "./AgendaNoteDetailsModal";
+import type { AgendaNote } from "@crm/contracts";
+import {
+  sortAgendaEntriesWithNotes,
+  storedShowNotes,
+  storeShowNotes,
+} from "./model";
 import { AppointmentAbsenceModal } from "./AppointmentAbsenceModal";
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
@@ -71,7 +80,7 @@ import { AgendaStatusLegend } from "./AgendaStatusLegend";
 import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 export function AgendaPage() {
-  const { can, canView, canEdit } = useAuthorization();
+  const { can, canView, canEdit, user } = useAuthorization();
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -91,6 +100,14 @@ export function AgendaPage() {
     storeAgendaView(next);
   }
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [notes, setNotes] = useState<AgendaNote[]>([]);
+  const [showNotes, setShowNotes] = useState(storedShowNotes);
+  const [ownProfessionalId, setOwnProfessionalId] = useState<string | null>(
+    null,
+  );
+  const [noteModal, setNoteModal] = useState<AgendaNote | "new" | null>(null);
+  const [selectedNote, setSelectedNote] = useState<AgendaNote | null>(null);
+  const [noteReload, setNoteReload] = useState(0);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
     null,
@@ -191,13 +208,25 @@ export function AgendaPage() {
   const shownAppointments = byProfessional(appointments);
   const shownGroupSessions = byProfessional(groupSessions);
   const shownBlocks = byProfessional(blocks);
+  const shownNotes = showNotes
+    ? notes.filter(
+        (item) =>
+          (!ownProfessionalId ||
+            item.professionalId === null ||
+            item.professionalId === ownProfessionalId) &&
+          (!professionalFilter ||
+            !item.professionalId ||
+            item.professionalId === professionalFilter),
+      )
+    : [];
   const visibleAppointments = showCancelled
     ? shownAppointments
     : shownAppointments.filter((item) => item.status !== "cancelled");
   const dayEventCount =
     shownAppointments.filter((item) => item.status !== "cancelled").length +
     shownGroupSessions.length +
-    shownBlocks.length;
+    shownBlocks.length +
+    shownNotes.length;
   const professionalColors = new Map(
     professionals.map((item) => [item.id, item.color]),
   );
@@ -271,6 +300,8 @@ export function AgendaPage() {
       api.rooms(),
       api.services(),
       fetchAgendaPatients(canView("patients")),
+      api.agendaNotes(rangeFrom, rangeTo),
+      user?.role === "admin" ? Promise.resolve(null) : api.ownProfile(),
     ])
       .then(
         ([
@@ -282,6 +313,8 @@ export function AgendaPage() {
           roomData,
           serviceData,
           patientData,
+          noteData,
+          profileData,
         ]) => {
           if (!active) return;
           setAppointments(
@@ -291,6 +324,8 @@ export function AgendaPage() {
             ),
           );
           setBlocks(blockData);
+          setNotes(noteData);
+          setOwnProfessionalId(profileData?.professional?.id ?? null);
           setGroupSessions(groupSessionData);
           setHolidays(holidayData);
           setProfessionals(professionalData);
@@ -309,7 +344,16 @@ export function AgendaPage() {
     return () => {
       active = false;
     };
-  }, [contextPatientId, rangeFrom, rangeTo, holidayFrom, holidayTo, canView]);
+  }, [
+    contextPatientId,
+    rangeFrom,
+    rangeTo,
+    holidayFrom,
+    holidayTo,
+    canView,
+    noteReload,
+    user?.role,
+  ]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -362,8 +406,18 @@ export function AgendaPage() {
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
-          (canBlock || canSchedule) && (
+          (canBlock || canSchedule || can("agenda.notes")) && (
             <div className="page-actions">
+              {can("agenda.notes") && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setNoteModal("new")}
+                  disabled={loading}
+                  type="button"
+                >
+                  Nova nota
+                </button>
+              )}
               {canBlock && can("agenda.blocks_create") && (
                 <button
                   className="secondary-button"
@@ -389,7 +443,9 @@ export function AgendaPage() {
           )
         }
       />
-      {!canSchedule && <ReadOnlyNotice module="agenda" />}
+      {!canSchedule && !can("agenda.notes") && (
+        <ReadOnlyNotice module="agenda" />
+      )}
       {error && <ErrorBanner error={error} />}
       <section className="panel agenda-panel">
         <div className="agenda-toolbar">
@@ -449,6 +505,17 @@ export function AgendaPage() {
             </button>
           </div>
           <div className="agenda-toolbar-end">
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={showNotes}
+                onChange={(event) => {
+                  setShowNotes(event.target.checked);
+                  storeShowNotes(event.target.checked);
+                }}
+              />
+              Mostrar notas
+            </label>
             <div
               className="view-toggle"
               role="group"
@@ -573,6 +640,9 @@ export function AgendaPage() {
                   appointments: dayAppointments,
                   groupSessions: dayGroups,
                 });
+                const dayNotes = shownNotes.filter(
+                  (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
+                );
                 const dayHoliday = holidayNames.get(dayKey);
                 return (
                   <div
@@ -588,7 +658,7 @@ export function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => setEventsDay(day)}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios, ${dayNotes.length} notas${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
                     >
                       <strong>{day.getDate()}</strong>
                       {activeCount > 0 && (
@@ -673,19 +743,31 @@ export function AgendaPage() {
                       {dayEvents.length > 2 && (
                         <button
                           type="button"
-                          className={`month-more${dayEvents
-                            .slice(2)
-                            .some(
-                              (entry) =>
-                                entry.kind === "appointment" &&
-                                highlightedIds.includes(entry.appointment.id),
-                            )
-                            ? " agenda-just-saved"
-                            : ""}`}
+                          className={`month-more${
+                            dayEvents
+                              .slice(2)
+                              .some(
+                                (entry) =>
+                                  entry.kind === "appointment" &&
+                                  highlightedIds.includes(entry.appointment.id),
+                              )
+                              ? " agenda-just-saved"
+                              : ""
+                          }`}
                           onClick={() => setEventsDay(day)}
                         >
                           +{dayEvents.length - 2}{" "}
                           {dayEvents.length - 2 === 1 ? "evento" : "eventos"}
+                        </button>
+                      )}
+                      {dayNotes.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-button month-note-count"
+                          onClick={() => setEventsDay(day)}
+                        >
+                          {dayNotes.length}{" "}
+                          {dayNotes.length === 1 ? "nota" : "notas"}
                         </button>
                       )}
                       {dayBlocks.length > 0 && (
@@ -713,6 +795,9 @@ export function AgendaPage() {
               const dayGroups = shownGroupSessions.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
+              const dayNotes = shownNotes.filter(
+                (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
+              );
               const dayHoliday = holidayNames.get(dayKey);
               return (
                 <section key={dayKey}>
@@ -728,12 +813,19 @@ export function AgendaPage() {
                         Feriado: {dayHoliday}
                       </span>
                     )}
-                    {sortAgendaEntries({
+                    {sortAgendaEntriesWithNotes({
                       appointments: dayAppointments,
                       groupSessions: dayGroups,
                       blocks: dayBlocks,
+                      notes: dayNotes,
                     }).map((entry) =>
-                      entry.kind === "block" ? (
+                      entry.kind === "note" ? (
+                        <AgendaNoteCard
+                          key={entry.note.id}
+                          note={entry.note}
+                          onOpen={() => setSelectedNote(entry.note)}
+                        />
+                      ) : entry.kind === "block" ? (
                         <ScheduleBlockCard
                           compact
                           block={entry.block}
@@ -799,6 +891,7 @@ export function AgendaPage() {
                     {!dayHoliday &&
                       dayAppointments.length === 0 &&
                       dayBlocks.length === 0 &&
+                      dayNotes.length === 0 &&
                       dayGroups.length === 0 && (
                         <span className="week-empty">Livre</span>
                       )}
@@ -824,6 +917,8 @@ export function AgendaPage() {
               appointments={visibleAppointments}
               groupSessions={shownGroupSessions}
               blocks={shownBlocks}
+              notes={shownNotes}
+              onOpenNote={setSelectedNote}
               onOpenAppointment={setSelectedAppointmentId}
               highlightedIds={highlightedIds}
               onCreate={
@@ -838,6 +933,7 @@ export function AgendaPage() {
           </div>
         ) : visibleAppointments.length === 0 &&
           shownBlocks.length === 0 &&
+          shownNotes.length === 0 &&
           shownGroupSessions.length === 0 ? (
           selectedHoliday ? (
             <div className="day-agenda">
@@ -864,12 +960,19 @@ export function AgendaPage() {
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
-            {sortAgendaEntries({
+            {sortAgendaEntriesWithNotes({
               appointments: visibleAppointments,
               groupSessions: shownGroupSessions,
               blocks: shownBlocks,
+              notes: shownNotes,
             }).map((entry) =>
-              entry.kind === "block" ? (
+              entry.kind === "note" ? (
+                <AgendaNoteCard
+                  key={entry.note.id}
+                  note={entry.note}
+                  onOpen={() => setSelectedNote(entry.note)}
+                />
+              ) : entry.kind === "block" ? (
                 <ScheduleBlockCard
                   block={entry.block}
                   key={entry.block.id}
@@ -959,6 +1062,43 @@ export function AgendaPage() {
           }}
         />
       )}
+      {noteModal && (
+        <AgendaNoteModal
+          date={selectedDate}
+          note={noteModal === "new" ? undefined : noteModal}
+          professionals={professionals}
+          currentProfessionalId={
+            professionalFilter || professionals[0]?.id || ""
+          }
+          ownProfessionalId={ownProfessionalId}
+          onClose={() => setNoteModal(null)}
+          onSaved={() => {
+            setNoteModal(null);
+            setNoteReload((value) => value + 1);
+            toast.success("Nota salva.");
+          }}
+        />
+      )}
+      {selectedNote && (
+        <AgendaNoteDetailsModal
+          note={selectedNote}
+          canManage={
+            can("agenda.notes") &&
+            (!ownProfessionalId ||
+              selectedNote.professionalId === ownProfessionalId)
+          }
+          onClose={() => setSelectedNote(null)}
+          onEdit={() => {
+            setNoteModal(selectedNote);
+            setSelectedNote(null);
+          }}
+          onDeleted={() => {
+            setSelectedNote(null);
+            setNoteReload((value) => value + 1);
+            toast.success("Nota excluída.");
+          }}
+        />
+      )}
       {blockModalOpen && (
         <ScheduleBlockModal
           date={selectedDate}
@@ -999,9 +1139,7 @@ export function AgendaPage() {
       {rescheduling && (
         <AppointmentRescheduleModal
           appointment={rescheduling}
-          service={services.find(
-            (item) => item.id === rescheduling.serviceId,
-          )}
+          service={services.find((item) => item.id === rescheduling.serviceId)}
           professionals={professionals}
           rooms={rooms}
           onClose={() => setRescheduling(null)}
@@ -1063,6 +1201,11 @@ export function AgendaPage() {
       {eventsDay && (
         <DayEventsModal
           day={eventsDay}
+          notes={shownNotes.filter(
+            (item) =>
+              localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
+          )}
+          onOpenNote={setSelectedNote}
           holidayName={holidayNames.get(localIsoDate(eventsDay))}
           appointments={visibleAppointments.filter(
             (item) =>

@@ -7,6 +7,21 @@ export const historyActions: {
   label: string;
 }[] = [
   {
+    action: "agenda.note_created",
+    module: "agenda",
+    label: "Nota da agenda criada",
+  },
+  {
+    action: "agenda.note_updated",
+    module: "agenda",
+    label: "Nota da agenda editada",
+  },
+  {
+    action: "agenda.note_deleted",
+    module: "agenda",
+    label: "Nota da agenda excluída",
+  },
+  {
     action: "external.operation_recorded",
     module: "finance",
     label: "Operação externa registrada",

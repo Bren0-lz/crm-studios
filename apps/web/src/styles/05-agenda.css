@@ -1699,3 +1699,47 @@ button.day-event:focus-visible {
     animation: none;
   }
 }
+
+/* Notas usam o fundo inteiro; o texto acompanha o contraste da paleta. */
+.agenda-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--tag-color);
+  color: var(--tag-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.agenda-note > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.agenda-note-preview {
+  cursor: default;
+}
+.agenda-note-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.month-note-count {
+  font-size: var(--text-sm);
+}
+@media (max-width: 700px) {
+  .agenda-note {
+    padding: var(--space-2);
+  }
+}
