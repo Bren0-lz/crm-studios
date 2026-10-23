@@ -24,6 +24,8 @@ import {
   type AppointmentRescheduleEvent,
   type AppointmentStatus,
   formatSequenceNumber,
+  documentTemplateValues,
+  renderDocumentTemplate,
   type AssessmentTemplate,
   type ClinicalAccessEvent,
   type ClinicalAddendum,
@@ -2089,22 +2091,27 @@ export class MemoryRepositoryContext {
 
   renderDocument(
     body: string,
-    patientName: string,
-    planName?: string,
+    patient: Patient,
+    plan?: PatientPlan,
     professional?: Professional,
-    planServices: PatientPlan["services"] = [],
   ) {
-    return body
-      .replaceAll("{{paciente_nome}}", patientName)
-      .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
-      .replaceAll(
-        "{{plano_servicos}}",
-        formatPlanServices(planServices) || "Não vinculado",
-      )
-      .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
-      .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
-      .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
-      .replaceAll("{{clinica_nome}}", this.clinicSettings.name);
+    return renderDocumentTemplate(
+      body,
+      documentTemplateValues({
+        clinic: this.clinicSettings,
+        patient,
+        ...(plan
+          ? {
+              plan: {
+                ...plan,
+                services: formatPlanServices(plan.services),
+              },
+            }
+          : {}),
+        ...(professional ? { professional } : {}),
+        issuedOn: new Date().toLocaleDateString("pt-BR"),
+      }),
+    );
   }
 
   channelAllowed(

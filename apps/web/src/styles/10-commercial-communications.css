@@ -953,6 +953,35 @@
   text-align: right;
 }
 
+/* Abas da página de Contratos (Documentos · Modelos · Criar modelo). */
+.settings-tabs.contracts-tabs {
+  margin-bottom: var(--space-4);
+}
+
+.documents-layout[hidden] {
+  display: none;
+}
+
+/* Aba Documentos: formulário de emissão ao lado da lista de emissões. */
+.documents-layout.documents-tab {
+  grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr);
+  align-items: start;
+}
+
+.documents-tab > .issued-documents {
+  grid-column: auto;
+}
+
+@media (max-width: 1100px) {
+  .documents-layout.documents-tab {
+    grid-template-columns: 1fr;
+  }
+}
+
+.template-studio-form {
+  padding-top: var(--space-4);
+}
+
 /* Editor de modelo: campo com botões "Inserir campo" e prévia ao lado. */
 .template-body-editor {
   display: grid;
@@ -966,11 +995,20 @@
   align-content: start;
 }
 
+.template-body-input[hidden] {
+  display: none;
+}
+
+.template-body-input textarea {
+  line-height: 1.6;
+  resize: vertical;
+}
+
 .template-fields {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2) var(--space-3);
 }
 
 .template-fields > span {
@@ -978,27 +1016,181 @@
   font-size: var(--text-xs);
 }
 
+.template-field-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.template-field-group > span {
+  color: #4d5b55;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
 .template-preview {
-  padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--line);
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--paper);
+  background: var(--cream);
+}
+
+.template-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .template-preview h3 {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--text-sm);
 }
 
-.template-preview p {
+.template-preview-copy,
+.template-preview > .field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* Fundo cinza com a folha centralizada, como num visualizador de PDF. */
+.document-paper-canvas {
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: #e6e3db;
+}
+
+.document-paper {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 210mm;
+  aspect-ratio: 210 / 297;
+  margin: 0 auto;
+  padding: var(--space-7);
+  background: white;
+  box-shadow: var(--shadow);
+  color: #1f2925;
+}
+
+.document-paper-body {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: var(--text-md);
+  line-height: 1.7;
+}
+
+.document-letterhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.document-letterhead .clinic-logo {
+  height: var(--space-8);
+}
+
+.document-letterhead .brand-name {
+  font-size: var(--text-2xl);
+}
+
+.document-letterhead-company {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+/* Aba "Criar modelo": editor e folha lado a lado ocupando a largura toda. */
+.template-studio {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: start;
+}
+
+.template-studio.preview-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.template-studio .template-body-input textarea {
+  min-height: 70vh;
+}
+
+.template-studio .template-preview {
+  position: sticky;
+  top: var(--space-4);
+}
+
+.template-studio .document-paper-canvas {
+  max-height: calc(100vh - var(--space-8) * 2);
+  padding: var(--space-5);
+}
+
+.template-studio.preview-only .document-paper-canvas {
+  max-height: none;
+}
+
+.template-studio .document-paper {
+  padding: var(--space-8) var(--space-7);
+}
+
+.template-studio-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.template-studio-meta > label {
+  display: grid;
+  gap: calc(var(--space-2) - 1px);
+  color: #4d5b55;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.template-studio-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 @media (max-width: 700px) {
-  .template-body-editor {
+  .documents-layout.documents-tab,
+  .template-body-editor,
+  .template-studio,
+  .template-studio-meta {
     grid-template-columns: 1fr;
+  }
+
+  .template-studio .template-preview {
+    position: static;
+  }
+
+  .document-paper,
+  .template-studio .document-paper {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .document-letterhead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .document-letterhead-company {
+    text-align: left;
   }
 }
 

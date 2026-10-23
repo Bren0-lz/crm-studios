@@ -79,6 +79,10 @@ import {
   tabReceivableDescription,
   formatSequenceNumber,
   parseSequenceNumber,
+  defaultContractTemplateBody,
+  documentTemplateValues,
+  documentTemplateVariables,
+  renderDocumentTemplate,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1345,5 +1349,65 @@ describe("valor do serviço vendido no plano", () => {
       ),
     ).toBe(3333);
     expect(planServiceValueForSessions(reference, 0)).toBe(0);
+  });
+});
+
+describe("document templates", () => {
+  const context = {
+    clinic: {
+      name: "Studios Aryana",
+      legalName: "",
+      taxId: "11.222.333/0001-81",
+      phone: "19999990000",
+    },
+    patient: {
+      fullName: "Helena Almeida",
+      cpf: "52998224725",
+      address: "Rua das Flores, 120",
+      city: "Campinas",
+      state: "SP",
+      postalCode: "13010-000",
+    },
+    issuedOn: "23/10/2026",
+  };
+
+  it("fills the parties with formatted documents and falls back when data is missing", () => {
+    const values = documentTemplateValues(context);
+    expect(values).toMatchObject({
+      clinica_razao_social: "Studios Aryana",
+      clinica_cnpj: "11.222.333/0001-81",
+      clinica_telefone: "(19) 99999-0000",
+      clinica_endereco: "não informado",
+      paciente_cpf: "529.982.247-25",
+      paciente_endereco: "Rua das Flores, 120, Campinas/SP, CEP 13010-000",
+      plano_nome: "Não vinculado",
+      plano_vigencia: "Não vinculado",
+      profissional_nome: "",
+    });
+    expect(
+      documentTemplateValues({
+        ...context,
+        plan: {
+          name: "Pilates",
+          services: "Pilates: 8 sessões",
+          totalValueInCents: 120000,
+          installments: 3,
+          validFrom: "2026-11-01",
+        },
+      }).plano_vigencia,
+    ).toBe("a partir de 01/11/2026, por prazo indeterminado");
+  });
+
+  it("offers every field used by the standard contract", () => {
+    const rendered = renderDocumentTemplate(
+      defaultContractTemplateBody,
+      documentTemplateValues(context),
+    );
+    expect(rendered).not.toContain("{{");
+    expect(rendered).toContain("inscrita no CNPJ sob o nº 11.222.333/0001-81");
+    expect(rendered).toContain("TESTEMUNHAS:");
+    const keys = documentTemplateVariables.map((variable) => variable.key);
+    for (const match of defaultContractTemplateBody.matchAll(/\{\{(\w+)\}\}/g))
+      expect(keys).toContain(match[1]);
   });
 });

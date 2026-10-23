@@ -144,6 +144,12 @@ export function registerAdministrationRoutes(context: RouteContext) {
       name: settings?.name ?? "Studios Aryana",
       logoDataUrl: settings?.logoDataUrl ?? "",
       timezone: settings?.timezone ?? "America/Sao_Paulo",
+      // Dados da empresa para o cabeçalho e a prévia de contratos.
+      legalName: settings?.legalName ?? "",
+      taxId: settings?.taxId ?? "",
+      address: settings?.address ?? "",
+      phone: settings?.phone ?? "",
+      email: settings?.email ?? "",
     };
   });
   app.get(

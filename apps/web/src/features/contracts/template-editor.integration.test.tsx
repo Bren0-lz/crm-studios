@@ -52,10 +52,17 @@ describe("document template editor", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     const form = fields.closest("form") as HTMLFormElement;
     const name = within(form).getByLabelText("Nome");
     const body = within(form).getByLabelText("Conteúdo") as HTMLTextAreaElement;
+    // O editor abre com o contrato padrão; "Começar em branco" limpa nome e conteúdo.
+    expect(name).toHaveValue("Contrato de prestação de serviços");
+    expect(body.value).toContain("{{clinica_cnpj}}");
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Começar em branco" }),
+    );
     expect(name).toHaveValue("");
     expect(body).toHaveValue("");
     // Sem nome e conteúdo, "Criar modelo" diz o que falta (QM14).
@@ -88,7 +95,7 @@ describe("document template editor", () => {
       "Eu, {{paciente_nome}}, aceito os termos da clínica{{clinica_nome}}.",
     );
     const preview = within(form).getByRole("region", {
-      name: "Prévia com cliente de exemplo",
+      name: "Prévia do documento final",
     });
     expect(preview).toHaveTextContent(
       "Eu, Maria da Silva, aceito os termos da clínicaStudios Aryana.",
@@ -115,5 +122,64 @@ describe("document template editor", () => {
         body: "Eu, {{paciente_nome}}, aceito os termos da clínica{{clinica_nome}}.",
       }),
     ]);
+  });
+
+  it("opens with the standard contract and previews it with the clinic data", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.endsWith("/clinic/branding")
+        ? {
+            name: "Studios Aryana",
+            logoDataUrl: "",
+            timezone: "America/Sao_Paulo",
+            legalName: "Aryana Fisioterapia Ltda.",
+            taxId: "11.222.333/0001-81",
+            address: "",
+            phone: "19999990000",
+            email: "contato@aryana.com.br",
+          }
+        : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/contratos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    const preview = await screen.findByRole("region", {
+      name: "Prévia do documento final",
+    });
+    await waitFor(() =>
+      expect(preview).toHaveTextContent(
+        "CONTRATADA: Aryana Fisioterapia Ltda., nome fantasia Studios Aryana, inscrita no CNPJ sob o nº 11.222.333/0001-81",
+      ),
+    );
+    expect(preview).toHaveTextContent("telefone (19) 99999-0000");
+    expect(preview).toHaveTextContent("CPF sob o nº 529.982.247-25");
+    expect(preview).toHaveTextContent(
+      "Aryana Fisioterapia Ltda.CNPJ 11.222.333/0001-81",
+    );
+    // O endereço não está cadastrado: a prévia avisa onde preencher.
+    expect(preview).toHaveAccessibleDescription(
+      "Sem cadastro em Configurações › Clínica: Endereço da clínica. Na emissão, aparece “não informado”.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Usar contrato padrão" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Ampliar prévia" }));
+    expect(screen.queryByLabelText("Conteúdo")).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar editor" }));
+    expect(screen.getByLabelText("Conteúdo")).toBeVisible();
   });
 });
