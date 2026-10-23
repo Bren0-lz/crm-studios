@@ -344,6 +344,7 @@ export class MemoryRepositoryContext {
 
   readonly relationshipSettings = new Map<string, RelationshipSettings>();
 
+  readonly agendaNotes: import("@crm/contracts").AgendaNote[] = [];
   readonly holidays = new Map<string, Holiday[]>();
 
   readonly contactActivities: ContactActivity[] = [];

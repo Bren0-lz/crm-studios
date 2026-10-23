@@ -1,3 +1,4 @@
+import { createAgendaNotesRepository } from "./storage/postgres/agenda-notes.js";
 import { createBranchesRepository } from "./storage/postgres/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
@@ -30,6 +31,11 @@ import { createRelationshipRepository } from "./storage/postgres/relationship.js
 import { createReportsRepository } from "./storage/postgres/reports.js";
 
 export class PostgresClinicRepository implements ClinicRepository {
+  readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
+  readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
+  readonly updateAgendaNote: ClinicRepository["updateAgendaNote"];
+  readonly deleteAgendaNote: ClinicRepository["deleteAgendaNote"];
+
   readonly branchScope: ClinicRepository["branchScope"];
   readonly listBranches: ClinicRepository["listBranches"];
   readonly saveBranch: ClinicRepository["saveBranch"];
@@ -163,6 +169,12 @@ export class PostgresClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const agendaNotes = createAgendaNotesRepository(this.context);
+    this.listAgendaNotes = agendaNotes.listAgendaNotes;
+    this.createAgendaNotes = agendaNotes.createAgendaNotes;
+    this.updateAgendaNote = agendaNotes.updateAgendaNote;
+    this.deleteAgendaNote = agendaNotes.deleteAgendaNote;
+
     this.createAbsenceSuccessor = createAgendaLinksRepository(
       this.context,
     ).createAbsenceSuccessor;
