@@ -150,6 +150,33 @@ export const adminUserUpdateSchema = z
 
 export const passwordResetSchema = z.object({ password: strongPasswordSchema });
 
+/** Foto do usuário (perfil próprio): PNG ou JPEG em data URL; vazio = sem foto. */
+export const avatarDataUrlSchema = z
+  .string()
+  .max(2800000)
+  .regex(/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/)
+  .or(z.literal(""));
+
+/** Edição do próprio perfil (`PUT /me/profile`); a agenda só vale com profissional ligado. */
+export const ownProfileUpdateSchema = z.object({
+  fullName: z.string().trim().min(3).max(160),
+  /** Ausente = mantém a foto atual; vazio = remove. */
+  avatarDataUrl: avatarDataUrlSchema.optional(),
+  /** Nome exibido na agenda (nome do profissional ligado). */
+  agendaName: z.string().trim().min(3).max(160).optional(),
+  /** Cor do profissional ligado na agenda. */
+  agendaColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+});
+
+/** Troca da própria senha: exige a senha atual. */
+export const ownPasswordChangeSchema = z.object({
+  currentPassword: z.string().nonempty(),
+  newPassword: strongPasswordSchema,
+});
+
 export const clinicSettingsInputSchema = z.object({
   logoDataUrl: z
     .string()

@@ -8,6 +8,8 @@ import {
   auditHistoryQuerySchema,
   clinicSettingsInputSchema,
   loginSchema,
+  ownPasswordChangeSchema,
+  ownProfileUpdateSchema,
   professionalInputSchema,
   roomInputSchema,
   serviceInputSchema,
@@ -23,6 +25,23 @@ export type AppModule = z.infer<typeof appModuleSchema>;
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
+
+export type OwnProfileUpdate = z.infer<typeof ownProfileUpdateSchema>;
+
+export type OwnPasswordChange = z.infer<typeof ownPasswordChangeSchema>;
+
+/** Perfil do usuário logado (`GET /me/profile`). */
+export interface OwnProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  jobTitle?: string;
+  /** Foto em data URL; vazio = sem foto. */
+  avatarDataUrl: string;
+  /** Profissional da agenda ligado ao usuário (nome e cor exibidos na agenda). */
+  professional: { id: string; fullName: string; color: string } | null;
+}
 
 export type ClinicSettingsInput = z.infer<typeof clinicSettingsInputSchema>;
 
@@ -56,6 +75,8 @@ export interface UserSummary {
   email: string;
   role: UserRole;
   jobTitle?: string;
+  /** Foto do perfil (só em `/me` e no login; ausente = sem foto). */
+  avatarDataUrl?: string;
   /** Módulos efetivos (já resolvidos com `effectiveModules`). */
   modules: AppModule[];
   /** Módulos com edição efetiva (`effectiveEditModules`; sempre subconjunto de `modules`). */
