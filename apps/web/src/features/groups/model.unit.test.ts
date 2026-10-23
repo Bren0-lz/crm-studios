@@ -1,8 +1,10 @@
+import type { GroupClass, GroupEnrollment, PatientPlan } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { groupOperationRange } from "../../shared/lib/formatting";
 import {
   calendarMonthDays,
   groupCalendarRange,
+  groupRevenueOverview,
   shiftIsoDate,
   shiftMonth,
 } from "./model";
@@ -40,5 +42,96 @@ describe("group sessions calendar dates", () => {
       from: operation.from,
       to: "2027-07-06T00:00:00.000Z",
     });
+  });
+});
+
+describe("group revenue overview", () => {
+  const serviceId = "service-pilates";
+  const group = {
+    id: "group-a",
+    serviceId,
+    capacity: 5,
+    activeEnrollments: 3,
+    weeklySlots: [
+      { weekday: 1, startTime: "08:00", endTime: "09:00" },
+      { weekday: 3, startTime: "08:00", endTime: "09:00" },
+    ],
+  } as GroupClass;
+  const enrollment = (patientId: string, status = "active") =>
+    ({
+      id: `enrollment-${patientId}`,
+      groupId: group.id,
+      patientId,
+      patientName: patientId,
+      status,
+    }) as GroupEnrollment;
+  const plan = (
+    patientId: string,
+    totalSessions: number,
+    totalValueInCents: number,
+    extra: Partial<PatientPlan> = {},
+  ) =>
+    ({
+      patientId,
+      status: "active",
+      validFrom: "2026-01-01",
+      validUntil: "",
+      services: [{ serviceId, totalSessions, totalValueInCents }],
+      ...extra,
+    }) as PatientPlan;
+  const services = [{ id: serviceId, priceInCents: 7000 }];
+
+  it("sums monthly plan values and projects free seats by the average ticket", () => {
+    const [row] = groupRevenueOverview(
+      [group],
+      [
+        enrollment("ana"),
+        enrollment("bia"),
+        enrollment("caio"),
+        enrollment("davi", "waitlisted"),
+      ],
+      [
+        // R$ 400 por 8 sessões × 8 encontros no mês.
+        plan("ana", 8, 40000),
+        // Trimestral: R$ 960 por 24 sessões → R$ 320 por mês.
+        plan("bia", 24, 96000),
+        // Plano expirado e plano pausado não contam.
+        plan("caio", 8, 40000, { validUntil: "2026-05-31" }),
+        plan("caio", 8, 40000, { status: "paused" }),
+        plan("davi", 8, 40000),
+      ],
+      services,
+      "2026-10-23",
+    );
+    expect(row).toMatchObject({
+      enrolled: 3,
+      freeSeats: 2,
+      sessionsPerMonth: 8,
+      currentInCents: 72000,
+      // 2 vagas × ticket médio de R$ 360.
+      potentialInCents: 72000 + 2 * 36000,
+    });
+    expect(
+      row!.members.map((item) => [
+        item.enrollment.patientId,
+        item.monthlyInCents,
+      ]),
+    ).toEqual([
+      ["ana", 40000],
+      ["bia", 32000],
+      ["caio", null],
+    ]);
+  });
+
+  it("uses the service price when no member has an active plan", () => {
+    const [row] = groupRevenueOverview(
+      [{ ...group, activeEnrollments: 0 }],
+      [],
+      [],
+      services,
+      "2026-10-23",
+    );
+    expect(row!.currentInCents).toBe(0);
+    expect(row!.potentialInCents).toBe(5 * 7000 * 8);
   });
 });
