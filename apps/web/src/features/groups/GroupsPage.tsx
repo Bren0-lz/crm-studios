@@ -14,9 +14,16 @@ import {
   saoPauloToday,
 } from "@crm/contracts";
 import { useToast } from "../../shared/feedback/toast-context";
-import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
+import {
+  LayoutList,
+  Plus,
+  Table2,
+  UserMinus,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -36,11 +43,18 @@ import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
+import { GroupsOverviewTab } from "./GroupsOverviewTab";
 import { groupCalendarRange } from "./model";
 import {
   missingLabels,
   useMissingFields,
 } from "../../shared/components/MissingFields";
+
+const groupTabs = [
+  { key: "turmas", label: "Turmas", icon: LayoutList },
+  { key: "visao-geral", label: "Visão geral", icon: Table2 },
+] as const;
+type GroupTabKey = (typeof groupTabs)[number]["key"];
 
 /**
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
@@ -58,7 +72,24 @@ function fetchGroupsData(month: string) {
 }
 
 export function GroupsPage() {
-  const { can, canEdit } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
+  const tabsId = useId();
+  const [activeTab, setActiveTab] = useState<GroupTabKey>("turmas");
+  function moveTabFocus(
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let next: number;
+    if (event.key === "ArrowRight") next = (index + 1) % groupTabs.length;
+    else if (event.key === "ArrowLeft")
+      next = (index - 1 + groupTabs.length) % groupTabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = groupTabs.length - 1;
+    else return;
+    event.preventDefault();
+    setActiveTab(groupTabs[next]!.key);
+    document.getElementById(`${tabsId}-${groupTabs[next]!.key}-tab`)?.focus();
+  }
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const weekDayNames = [
@@ -616,7 +647,46 @@ export function GroupsPage() {
             </GroupModal>
           )}
 
-          <section className="panel groups-wide">
+          <div
+            className="settings-tabs groups-tabs"
+            role="tablist"
+            aria-label="Seções de turmas"
+          >
+            {groupTabs.map((tab, index) => (
+              <button
+                key={tab.key}
+                id={`${tabsId}-${tab.key}-tab`}
+                type="button"
+                role="tab"
+                className="text-button settings-tab"
+                aria-selected={activeTab === tab.key}
+                aria-controls={`${tabsId}-${tab.key}-panel`}
+                tabIndex={activeTab === tab.key ? 0 : -1}
+                onClick={() => setActiveTab(tab.key)}
+                onKeyDown={(event) => moveTabFocus(event, index)}
+              >
+                <tab.icon size={18} aria-hidden="true" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {activeTab === "visao-geral" && workspace && (
+            <GroupsOverviewTab
+              id={`${tabsId}-visao-geral-panel`}
+              labelledBy={`${tabsId}-visao-geral-tab`}
+              workspace={workspace}
+              services={services}
+              weekDayNames={weekDayNames}
+              showRevenue={canView("plans")}
+            />
+          )}
+          <section
+            className="panel groups-wide"
+            id={`${tabsId}-turmas-panel`}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-turmas-tab`}
+            hidden={activeTab !== "turmas"}
+          >
             <h2>Turmas</h2>
             <p className="group-panel-copy">
               Acompanhe ocupação, participantes e lista de espera.
