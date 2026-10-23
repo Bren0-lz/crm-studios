@@ -1,9 +1,11 @@
 import type { PoolClient } from "pg";
-import type {
-  DocumentStatus,
-  DocumentTemplateInput,
-  IssuedDocumentInput,
-  PatientPlanService,
+import {
+  documentTemplateValues,
+  renderDocumentTemplate,
+  type DocumentStatus,
+  type DocumentTemplateInput,
+  type IssuedDocumentInput,
+  type PatientPlanService,
 } from "@crm/contracts";
 import { formatPlanServices } from "../../modules/plans/plan-services.js";
 import { DomainError } from "../../repository.js";
@@ -205,13 +207,37 @@ export async function createIssuedDocumentInTransaction(
     patientName: string;
     planName: string | null;
     planServices: PatientPlanService[] | null;
+    planTotalValueInCents: number | null;
+    planInstallments: number | null;
+    planValidFrom: string | null;
+    planValidUntil: string | null;
+    patientCpf: string | null;
+    patientProfile: Partial<
+      Record<
+        "address" | "neighborhood" | "city" | "state" | "postalCode",
+        string
+      >
+    > | null;
     clinicName: string;
+    clinicLegalName: string | null;
+    clinicTaxId: string | null;
+    clinicAddress: string | null;
+    clinicPhone: string | null;
+    clinicEmail: string | null;
     professionalName: string | null;
     professionalCrefito: string | null;
   }>(
     `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
               dt.body AS "templateBody", p.full_name AS "patientName",
-              pp.name AS "planName", c.name AS "clinicName",
+              p.cpf AS "patientCpf", p.profile AS "patientProfile",
+              pp.name AS "planName",
+              pp.total_value_in_cents AS "planTotalValueInCents",
+              pp.installments AS "planInstallments",
+              pp.valid_from::text AS "planValidFrom",
+              pp.valid_until::text AS "planValidUntil",
+              c.name AS "clinicName", c.legal_name AS "clinicLegalName",
+              c.tax_id AS "clinicTaxId", c.address AS "clinicAddress",
+              c.phone AS "clinicPhone", c.email AS "clinicEmail",
               (SELECT jsonb_agg(jsonb_build_object('serviceName', x.service_name, 'totalSessions', x.total_sessions, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "planServices",
               pr.full_name AS "professionalName",
               pr.crefito AS "professionalCrefito"
@@ -276,17 +302,49 @@ export async function createIssuedDocumentInTransaction(
   const emissionDate = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
   }).format(new Date());
-  const snapshot = item.templateBody
-    .replaceAll("{{paciente_nome}}", item.patientName)
-    .replaceAll("{{plano_nome}}", item.planName ?? "Não vinculado")
-    .replaceAll(
-      "{{plano_servicos}}",
-      formatPlanServices(item.planServices ?? []) || "Não vinculado",
-    )
-    .replaceAll("{{profissional_nome}}", item.professionalName ?? "")
-    .replaceAll("{{profissional_crefito}}", item.professionalCrefito ?? "")
-    .replaceAll("{{data_emissao}}", emissionDate)
-    .replaceAll("{{clinica_nome}}", item.clinicName);
+  const snapshot = renderDocumentTemplate(
+    item.templateBody,
+    documentTemplateValues({
+      clinic: {
+        name: item.clinicName,
+        legalName: item.clinicLegalName,
+        taxId: item.clinicTaxId,
+        address: item.clinicAddress,
+        phone: item.clinicPhone,
+        email: item.clinicEmail,
+      },
+      patient: {
+        address: item.patientProfile?.address,
+        neighborhood: item.patientProfile?.neighborhood,
+        city: item.patientProfile?.city,
+        state: item.patientProfile?.state,
+        postalCode: item.patientProfile?.postalCode,
+        fullName: item.patientName,
+        cpf: item.patientCpf,
+      },
+      ...(item.planName !== null
+        ? {
+            plan: {
+              name: item.planName,
+              services: formatPlanServices(item.planServices ?? []),
+              totalValueInCents: item.planTotalValueInCents ?? 0,
+              installments: item.planInstallments ?? 1,
+              validFrom: item.planValidFrom ?? "",
+              validUntil: item.planValidUntil,
+            },
+          }
+        : {}),
+      ...(item.professionalName !== null
+        ? {
+            professional: {
+              fullName: item.professionalName,
+              crefito: item.professionalCrefito,
+            },
+          }
+        : {}),
+      issuedOn: emissionDate,
+    }),
+  );
   const result = await client.query<IssuedDocumentRow>(
     `WITH inserted AS (
          INSERT INTO issued_documents

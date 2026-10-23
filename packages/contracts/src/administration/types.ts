@@ -109,6 +109,18 @@ export interface AdminUser extends UserSummary {
   commissionEffectiveFrom?: string;
 }
 
+/** Dados públicos da clínica para qualquer usuário logado (logo, cabeçalho de documentos). */
+export interface ClinicBranding {
+  name: string;
+  logoDataUrl: string;
+  timezone: string;
+  legalName?: string;
+  taxId?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface ClinicSettings extends ClinicSettingsInput {
   id: string;
   updatedAt: string;

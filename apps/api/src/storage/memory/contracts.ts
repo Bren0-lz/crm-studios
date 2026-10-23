@@ -146,10 +146,9 @@ export function createContractsRepository(
         ...(plan ? { planName: plan.name } : {}),
         snapshotBody: repositoryContext.renderDocument(
           template.body,
-          patient.fullName,
-          plan?.name,
+          patient,
+          plan,
           professional,
-          plan?.services,
         ),
         status: "draft",
         createdAt: timestamp,
