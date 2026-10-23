@@ -104,6 +104,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     expect(
       within(fields).getByRole("button", { name: "Profissional" }),
@@ -111,6 +112,7 @@ describe("application shell", () => {
     expect(
       within(fields).getByRole("button", { name: "CREFITO do profissional" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Documentos" }));
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(
       within(select).getByRole("option", {
@@ -271,6 +273,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
     fireEvent.click(await screen.findByRole("button", { name: "Nova versão" }));
     const dialog = await screen.findByRole("dialog");
     const textarea = within(dialog).getByLabelText(

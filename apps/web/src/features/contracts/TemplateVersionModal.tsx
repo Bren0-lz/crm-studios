@@ -1,4 +1,4 @@
-import type { DocumentTemplate } from "@crm/contracts";
+import type { ClinicBranding, DocumentTemplate } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -8,10 +8,12 @@ import { TemplateBodyEditor } from "./TemplateBodyEditor";
 
 export function TemplateVersionModal({
   template,
+  branding,
   onClose,
   onCreated,
 }: {
   template: DocumentTemplate;
+  branding?: ClinicBranding | null | undefined;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -45,6 +47,7 @@ export function TemplateVersionModal({
       title="Nova versão"
       subtitle={`${template.name} · versão ${template.version + 1}`}
       eyebrow="Modelos"
+      wide
       busy={saving}
       dirty={dirty}
       onClose={onClose}
@@ -56,6 +59,7 @@ export function TemplateVersionModal({
               value={body}
               rows={12}
               disabled={saving}
+              branding={branding}
               onChange={setBody}
             />
           </div>

@@ -1,5 +1,6 @@
 import {
   allocatePlanRevenue,
+  defaultContractTemplateBody,
   guidedPatientInputSchema,
   patientPlanInputSchema,
   planRenewalInputSchema,
@@ -291,6 +292,46 @@ for (const backend of ["memory", "postgres"] as const) {
         ).toMatchObject([{ serviceId: services[0]!.id, quantity: 1 }]);
         expect(movements.reduce((sum, item) => sum + item.quantity, 0)).toBe(
           sold.remainingSessions,
+        );
+      });
+      it("fills the standard contract with the plan terms and the clinic and client data", async () => {
+        const { plan } = await setup();
+        const clinic = (await repository.getClinicSettings(clinicId))!;
+        const documentTemplate = await repository.createDocumentTemplate(
+          clinicId,
+          {
+            name: `multiservice-${randomUUID()}`,
+            kind: "contract",
+            body: defaultContractTemplateBody,
+          },
+        );
+        documentTemplateIds.push(documentTemplate.id);
+        const document = await repository.createIssuedDocument(
+          clinicId,
+          actorId,
+          {
+            patientId: plan.patientId,
+            planId: plan.id,
+            templateId: documentTemplate.id,
+            title: "Contrato padrão",
+          },
+        );
+        const value = new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(2);
+        expect(document.snapshotBody).not.toContain("{{");
+        expect(document.snapshotBody).toContain(
+          `CONTRATADA: ${clinic.legalName || clinic.name}, nome fantasia ${clinic.name}`,
+        );
+        expect(document.snapshotBody).toContain(
+          "inscrito(a) no CPF sob o nº não informado, residente em não informado.",
+        );
+        expect(document.snapshotBody).toContain(
+          `o valor total de ${value}, em 3 parcela(s).`,
+        );
+        expect(document.snapshotBody).toContain(
+          "Este contrato vigora de 01/01/2049 a 31/12/2051,",
         );
       });
       it("keeps sold terms after catalog changes, renews inactive templates and allocates actual receipts", async () => {
