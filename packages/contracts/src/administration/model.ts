@@ -111,6 +111,24 @@ export const strongPasswordSchema = z
   .regex(/[A-Z]/, "Inclua uma letra maiúscula.")
   .regex(/[0-9]/, "Inclua um número.");
 
+export const professionalInputSchema = z.object({
+  fullName: z.string().trim().min(3).max(160),
+  crefito: z.string().trim().min(4).max(40),
+  specialty: z.string().trim().min(2).max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+
+/** Operação da agenda executada junto com o cadastro do usuário. */
+export const adminUserAgendaInputSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("create"), data: professionalInputSchema }),
+  z.object({
+    mode: z.literal("save"),
+    id: z.uuid(),
+    data: professionalInputSchema,
+  }),
+  z.object({ mode: z.literal("deactivate") }),
+]);
+
 export const adminUserInputSchema = z
   .object({
     fullName: z.string().trim().min(3).max(160),
@@ -126,6 +144,7 @@ export const adminUserInputSchema = z
     permissions: userPermissionsSchema.optional(),
     /** Comissão do usuário já na criação; ausente = sem comissão. */
     commission: adminUserCommissionInputSchema.optional(),
+    professional: adminUserAgendaInputSchema.optional(),
     /** Filiais que o usuário acessa; ausente = todas. */
     branchAccess: userBranchAccessSchema.optional(),
   })
@@ -145,6 +164,8 @@ export const adminUserUpdateSchema = z
     permissions: userPermissionsSchema.optional(),
     /** Ausente = mantém as filiais atuais. */
     branchAccess: userBranchAccessSchema.optional(),
+    professional: adminUserAgendaInputSchema.optional(),
+    commission: adminUserCommissionInputSchema.optional(),
   })
   .superRefine(validatePermissionInput);
 
@@ -212,13 +233,6 @@ export const clinicSettingsInputSchema = z.object({
         return false;
       }
     }, "Informe um fuso horário válido."),
-});
-
-export const professionalInputSchema = z.object({
-  fullName: z.string().trim().min(3).max(160),
-  crefito: z.string().trim().min(4).max(40),
-  specialty: z.string().trim().min(2).max(100),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
 export const roomInputSchema = z.object({

@@ -7,9 +7,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
   const patient = await seedPatient(api, "Cliente Anexo Protegido");
   await login(page);
   await page.goto(`/clientes/${patient.id}`);
-  await page
-    .getByRole("tab", { name: "Prontuário", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Prontuário", exact: true }).click();
   await page.getByRole("button", { name: "Mais ações", exact: true }).click();
   await page
     .getByRole("menuitem", { name: "Anexar arquivo", exact: true })
@@ -142,9 +140,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   expect(otherResponse.status()).toBe(201);
   const other = await otherResponse.json();
   await page.goto(`/clientes/${patient.id}`);
-  await page
-    .getByRole("tab", { name: "Prontuário", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Prontuário", exact: true }).click();
   await page
     .getByRole("tab", { name: "Treinos e documentos", exact: true })
     .click();
@@ -426,10 +422,10 @@ test("records external proof manually with guarded edits and preserves the origi
   const invoice = await invoiceResponse.json();
   await login(page);
   await page.goto(`/financeiro?patientId=${patient.id}`);
-  const summary = page.getByText(
-    "Documentos fiscais e operações com parceiros",
-    { exact: true },
-  );
+  const summary = page.getByRole("button", {
+    name: "Documentos fiscais",
+    exact: true,
+  });
   await summary.focus();
   await summary.press("Enter");
   await page

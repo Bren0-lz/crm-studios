@@ -1,5 +1,6 @@
 import {
   type AdminUser,
+  type Professional,
   type PermissionKey,
   effectiveEditModules,
   effectivePermissions,
@@ -106,6 +107,7 @@ export function mapAdminUser(row: UserRow): AdminUser {
 export interface AdminUserRow extends UserRow {
   professionalId: string | null;
   professionalName: string | null;
+  professional: Professional | null;
   commissionKind?: "fixed" | "percentage" | null;
   commissionFixedAmountInCents?: number | null;
   commissionPercentage: string | null;
@@ -117,11 +119,13 @@ export interface AdminUserRow extends UserRow {
  * (`commission_rules.user_id`) vigente hoje no fuso da clínica (ativa, maior vigência que já
  * começou). `$1` = clínica; para um só usuário, filtre por `u.id` no WHERE.
  */
-export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "professionalName",
+export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "professionalName", p.professional,
     cr.kind AS "commissionKind",cr.fixed_amount_in_cents AS "commissionFixedAmountInCents",cr.percentage AS "commissionPercentage", cr.effective_from::text AS "commissionEffectiveFrom"
   FROM (SELECT ${userColumns} FROM users WHERE clinic_id = $1) u
   JOIN clinics c ON c.id = u."clinicId"
-  LEFT JOIN LATERAL (SELECT pr.id, pr.full_name FROM professionals pr
+  LEFT JOIN LATERAL (SELECT pr.id, pr.full_name, json_build_object(
+    'id',pr.id,'clinicId',pr.clinic_id,'branchId',pr.branch_id,'fullName',pr.full_name,
+    'crefito',COALESCE(pr.crefito,''),'specialty',pr.specialty,'color',pr.color,'active',pr.active) AS professional FROM professionals pr
     WHERE pr.clinic_id = u."clinicId" AND pr.user_id = u.id
     ORDER BY pr.created_at, pr.id LIMIT 1) p ON true
   LEFT JOIN LATERAL (SELECT r.percentage,r.kind,r.fixed_amount_in_cents, r.effective_from FROM commission_rules r

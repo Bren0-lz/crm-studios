@@ -1,3 +1,4 @@
+import { saveUserAgenda, userSaveError } from "./user-agenda.js";
 import {
   type AdminAuditPage,
   type AdminUserInput,
@@ -325,8 +326,16 @@ export function createAdministrationRepository(
             created.id,
             input.branchAccess,
           );
+        await saveUserAgenda(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          created.id,
+          input,
+        );
         const withCommission =
-          input.commission || input.branchAccess
+          input.commission || input.branchAccess || input.professional
             ? await repositoryContext.findAdminUser(
                 client,
                 clinicId,
@@ -337,13 +346,7 @@ export function createAdministrationRepository(
         return withCommission ?? created;
       } catch (error) {
         await client.query("ROLLBACK");
-        if (hasDatabaseCode(error, "23505"))
-          throw new DomainError(
-            "USER_EMAIL_DUPLICATE",
-            "Este e-mail já está em uso.",
-            409,
-          );
-        throw error;
+        userSaveError(error);
       } finally {
         client.release();
       }
@@ -463,6 +466,22 @@ export function createAdministrationRepository(
             userId,
             input.branchAccess,
           );
+        if (input.commission)
+          await repositoryContext.insertUserCommissionRule(
+            client,
+            clinicId,
+            actorUserId,
+            userId,
+            input.commission,
+          );
+        await saveUserAgenda(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          userId,
+          input,
+        );
         const withCommission = await repositoryContext.findAdminUser(
           client,
           clinicId,
@@ -472,7 +491,7 @@ export function createAdministrationRepository(
         return withCommission ?? updated;
       } catch (error) {
         await client.query("ROLLBACK");
-        throw error;
+        userSaveError(error);
       } finally {
         client.release();
       }

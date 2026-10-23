@@ -1,3 +1,5 @@
+import { UserAgendaFields } from "./UserAgendaFields";
+import { useUserAgenda } from "./useUserAgenda";
 import {
   legacyPermissions,
   saoPauloToday,
@@ -5,20 +7,17 @@ import {
   type AdminUser,
   type Branch,
   type PermissionKey,
-  type Professional,
   type UserRole,
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
-import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { roleLabels } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
-  loadCommissionProfessionals,
   parsePercentage,
   percentageLabel,
   percentageText,
@@ -28,19 +27,15 @@ import {
 export function UserFormModal({
   user,
   users,
-  onUserUpdated,
   onClose,
   onSaved,
 }: {
   user: AdminUser | null;
   users: AdminUser[];
-  onUserUpdated: (updated: AdminUser) => void;
   onClose: () => void;
   onSaved: (saved: AdminUser) => void;
 }) {
-  // Usuário já gravado (o editado ou o recém-criado numa falha parcial): a próxima tentativa
-  // é PATCH, nunca outro POST.
-  const [current, setCurrent] = useState<AdminUser | null>(user);
+  const current = user;
   const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,17 +57,11 @@ export function UserFormModal({
     percentageText(user?.commissionPercentage),
   );
   const [effectiveFrom, setEffectiveFrom] = useState(today);
-  const [savedCommission, setSavedCommission] = useState({
+  const [savedCommission] = useState({
     percentage: parsePercentage(percentageText(user?.commissionPercentage)),
     effectiveFrom: today,
   });
-  const [professionals, setProfessionals] = useState<Professional[] | null>(
-    null,
-  );
-  const [professionalsError, setProfessionalsError] = useState("");
-  const [selectedProfessional, setSelectedProfessional] = useState(
-    user?.professionalId ?? "",
-  );
+  const agenda = useUserAgenda(user, users, fullName);
   // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
   const [branches, setBranches] = useState<Branch[]>([]);
   const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
@@ -90,7 +79,12 @@ export function UserFormModal({
     selectedPermissions,
     percentage,
     effectiveFrom,
-    selectedProfessional,
+    agenda: {
+      attends: agenda.attends,
+      mode: agenda.mode,
+      selected: agenda.selected,
+      draft: agenda.draft,
+    },
   });
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
@@ -100,14 +94,6 @@ export function UserFormModal({
 
   useEffect(() => {
     let active = true;
-    loadCommissionProfessionals(
-      (items) => {
-        if (active) setProfessionals(items);
-      },
-      (message) => {
-        if (active) setProfessionalsError(message);
-      },
-    );
     api
       .adminBranches()
       .then((items) => {
@@ -122,18 +108,6 @@ export function UserFormModal({
     };
   }, []);
   const choosesBranches = branches.length > 1 && !isAdmin;
-
-  // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
-  const taken = new Set(
-    users
-      .filter((item) => item.id !== current?.id && item.professionalId)
-      .map((item) => item.professionalId),
-  );
-  const professionalOptions = (professionals ?? []).filter(
-    (item) =>
-      item.id === current?.professionalId ||
-      (item.active && !taken.has(item.id)),
-  );
 
   const typedPercentage = parsePercentage(percentage);
   const commissionChanged =
@@ -161,6 +135,7 @@ export function UserFormModal({
 
   // O que falta: o botão principal fica desativado listando os campos (QM14).
   const missing = useMissingFields([
+    ...agenda.missing,
     ...(fullName.trim().length < 3
       ? ["Nome completo (pelo menos 3 caracteres)"]
       : []),
@@ -187,10 +162,7 @@ export function UserFormModal({
     return "";
   }
 
-  /**
-   * Um botão grava tudo: dados e módulos (POST/PATCH), depois a ligação com o profissional
-   * e a comissão (PUT), cada um só se mudou. Se um PUT falhar, o que já foi gravado fica.
-   */
+  // O servidor grava todo o formulário em uma única transação.
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -231,6 +203,8 @@ export function UserFormModal({
             active: current.active,
             jobTitle: title,
             ...permissions,
+            ...(commission ? { commission } : {}),
+            ...(agenda.operation ? { professional: agenda.operation } : {}),
           })
         : await api.createAdminUser({
             fullName: fullName.trim(),
@@ -240,41 +214,12 @@ export function UserFormModal({
             ...(title ? { jobTitle: title } : {}),
             ...permissions,
             ...(commission ? { commission } : {}),
+            ...(agenda.operation ? { professional: agenda.operation } : {}),
           });
-    } catch (cause) {
-      setError(userSaveErrorMessage(cause));
-      setSaving(false);
-      return;
-    }
-    // Na criação a comissão já foi junto no POST.
-    const commissionByPut = current !== null ? commission : undefined;
-    if (commission && !commissionByPut) {
-      setSavedCommission({ percentage: commission.percentage, effectiveFrom });
-    }
-    let failed: "professional" | "commission" = "professional";
-    try {
-      if (selectedProfessional !== (latest.professionalId ?? "")) {
-        latest = await api.setUserProfessional(
-          latest.id,
-          selectedProfessional || null,
-        );
-      }
-      failed = "commission";
-      if (commissionByPut) {
-        latest = await api.setUserCommission(latest.id, commissionByPut);
-      }
       onSaved(latest);
     } catch (cause) {
-      const saved = latest;
-      setCurrent(saved);
-      onUserUpdated(saved);
-      const part =
-        failed === "professional"
-          ? "a ligação com o profissional da agenda não foi salva"
-          : "a comissão não foi salva";
-      setError(
-        `${current ? "Dados do usuário salvos" : `Usuário ${saved.fullName} criado`}, mas ${part}: ${(cause as Error).message} Ajuste e clique em “Salvar alterações” de novo.`,
-      );
+      setError(userSaveErrorMessage(cause));
+    } finally {
       setSaving(false);
     }
   }
@@ -429,6 +374,7 @@ export function UserFormModal({
               ))}
           </fieldset>
         )}
+        <UserAgendaFields agenda={agenda} />
         <fieldset className="form-fieldset span-2">
           <legend>Comissão</legend>
           <div className="commission-editor">
@@ -472,35 +418,6 @@ export function UserFormModal({
                   : `Data futura: a comissão só passa a valer em ${isoDateLabel(effectiveFrom)}.`}
               </p>
             )}
-            {professionals === null && !professionalsError ? (
-              <LoadingBlock />
-            ) : professionalsError ? (
-              <div className="form-error" role="alert">
-                Não foi possível carregar os profissionais da agenda:{" "}
-                {professionalsError}
-              </div>
-            ) : (
-              <label>
-                Profissional da agenda (opcional)
-                <select
-                  value={selectedProfessional}
-                  onChange={(event) =>
-                    setSelectedProfessional(event.target.value)
-                  }
-                >
-                  <option value="">Nenhum</option>
-                  {professionalOptions.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <p className="muted-copy">
-              Ligue o profissional da agenda para contar os atendimentos desta
-              pessoa na comissão.
-            </p>
           </div>
         </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
