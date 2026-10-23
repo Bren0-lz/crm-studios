@@ -4,6 +4,8 @@ import {
   assessmentFieldSchema,
   assessmentTemplateInputSchema,
   clinicalAddendumInputSchema,
+  clinicalAlertInputSchema,
+  clinicalAlertSeveritySchema,
   clinicalAssessmentInputSchema,
   clinicalAttachmentInputSchema,
   clinicalMeasurementInputSchema,
@@ -43,6 +45,17 @@ export type ClinicalAttachmentInput = z.infer<
 >;
 
 export type ClinicalAddendumInput = z.infer<typeof clinicalAddendumInputSchema>;
+
+export type ClinicalAlertSeverity = z.infer<typeof clinicalAlertSeveritySchema>;
+
+export type ClinicalAlertInput = z.infer<typeof clinicalAlertInputSchema>;
+
+export interface ClinicalAlert extends ClinicalAlertInput {
+  id: string;
+  clinicId: string;
+  authorName: string;
+  createdAt: string;
+}
 
 export interface ClinicalRecord extends ClinicalRecordInput {
   id: string;
@@ -160,4 +173,6 @@ export interface ClinicalWorkspace {
   closures: TreatmentClosure[];
   attachments: ClinicalAttachment[];
   addenda: ClinicalAddendum[];
+  /** Alertas ativos, do mais grave para o mais leve. */
+  alerts: ClinicalAlert[];
 }

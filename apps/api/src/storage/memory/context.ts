@@ -29,6 +29,7 @@ import {
   type AssessmentTemplate,
   type ClinicalAccessEvent,
   type ClinicalAddendum,
+  type ClinicalAlert,
   type ClinicalAssessment,
   type ClinicalAttachmentContent,
   type ClinicalMeasurement,
@@ -333,6 +334,9 @@ export class MemoryRepositoryContext {
   readonly clinicalAttachments: ClinicalAttachmentContent[] = [];
 
   readonly clinicalAddenda: ClinicalAddendum[] = [];
+
+  /** Alertas clínicos; `archivedAt` marca os removidos (o histórico fica). */
+  readonly clinicalAlerts: (ClinicalAlert & { archivedAt?: string })[] = [];
 
   readonly clinicalAccessEvents: ClinicalAccessEvent[] = [];
 
@@ -1018,6 +1022,11 @@ export class MemoryRepositoryContext {
         records: this.clinicalAddenda,
         module: "clinical",
         action: "clinical.addendum_created",
+      },
+      {
+        records: this.clinicalAlerts,
+        module: "clinical",
+        action: "clinical.alert_created",
       },
       {
         records: this.clinicalAssessments,

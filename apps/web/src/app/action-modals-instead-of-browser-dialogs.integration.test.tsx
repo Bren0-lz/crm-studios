@@ -337,12 +337,14 @@ describe("action modals instead of browser dialogs", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // O servidor passa a devolver a evolução finalizada depois da confirmação.
+    let current: Record<string, unknown> = record;
     mockApi(
       (url) =>
         url.includes("/clinical-workspace/")
           ? {
               patient,
-              records: [record],
+              records: [current],
               templates: [],
               assessments: [],
               goals: [],
@@ -356,16 +358,20 @@ describe("action modals instead of browser dialogs", () => {
             : url.includes("/patients")
               ? [patient]
               : undefined,
-      () => ({
-        ...record,
-        status: "finalized",
-        finalizedAt: new Date().toISOString(),
-      }),
+      () =>
+        (current = {
+          ...record,
+          status: "finalized",
+          finalizedAt: new Date().toISOString(),
+        }),
     );
     render(
       <MemoryRouter initialEntries={["/prontuarios"]}>
         <App />
       </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
     );
     fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
     let dialog = await screen.findByRole("dialog", {

@@ -146,13 +146,23 @@ export function registerAgendaRoutes(context: RouteContext) {
         appointments
           // Evolução só para atendimento já iniciado (início − 15 min).
           .filter((item) => item.patientId && isAppointmentStarted(item))
-          .map(({ id, startsAt, patientName, professionalName, status }) => ({
-            id,
-            startsAt,
-            patientName,
-            professionalName,
-            status,
-          }))
+          .map(
+            ({
+              id,
+              patientId,
+              startsAt,
+              patientName,
+              professionalName,
+              status,
+            }) => ({
+              id,
+              ...(patientId ? { patientId } : {}),
+              startsAt,
+              patientName,
+              professionalName,
+              status,
+            }),
+          )
       );
     },
   );

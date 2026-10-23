@@ -3,6 +3,7 @@ import type {
   AssessmentField,
   AssessmentTemplateInput,
   ClinicalAddendumInput,
+  ClinicalAlertInput,
   ClinicalAssessmentInput,
   ClinicalAttachment,
   ClinicalAttachmentContent,
@@ -16,6 +17,7 @@ import type {
   TherapeuticGoalStatus,
   TreatmentClosureInput,
 } from "@crm/contracts";
+import { compareClinicalAlerts } from "@crm/contracts";
 import {
   assertClinicalWritePermission,
   inspectClinicalAttachment,
@@ -27,6 +29,7 @@ import {
   type AssessmentTemplateRow,
   type ClinicalAccessEventRow,
   type ClinicalAddendumRow,
+  type ClinicalAlertRow,
   type ClinicalAssessmentRow,
   type ClinicalAttachmentRow,
   type ClinicalMeasurementRow,
@@ -40,6 +43,7 @@ import {
   mapAssessmentTemplate,
   mapClinicalAccessEvent,
   mapClinicalAddendum,
+  mapClinicalAlert,
   mapClinicalAssessment,
   mapClinicalAttachment,
   mapClinicalMeasurement,
@@ -292,6 +296,7 @@ export function createClinicalRepository(
         closures,
         attachments,
         addenda,
+        alerts,
       ] = await Promise.all([
         repositoryContext.pool.query<PatientRow>(
           `SELECT ${patientColumns} FROM patients WHERE clinic_id = $1 AND id = $2`,
@@ -368,6 +373,15 @@ export function createClinicalRepository(
          ORDER BY ca.created_at DESC`,
           [clinicId, patientId],
         ),
+        repositoryContext.pool.query<ClinicalAlertRow>(
+          `SELECT ca.id, ca.clinic_id AS "clinicId", ca.patient_id AS "patientId",
+                ca.severity, ca.text, u.full_name AS "authorName",
+                ca.created_at AS "createdAt"
+         FROM clinical_alerts ca JOIN users u ON u.id = ca.author_user_id
+         WHERE ca.clinic_id = $1 AND ca.archived_at IS NULL
+           AND ca.patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2))`,
+          [clinicId, patientId],
+        ),
       ]);
       if (!patient.rows[0]) return null;
       await repositoryContext.addClinicalAccessEvent(
@@ -387,6 +401,7 @@ export function createClinicalRepository(
         closures: closures.rows.map(mapTreatmentClosure),
         attachments: attachments.rows.map(mapClinicalAttachment),
         addenda: addenda.rows.map(mapClinicalAddendum),
+        alerts: alerts.rows.map(mapClinicalAlert).sort(compareClinicalAlerts),
       };
     },
 
@@ -789,6 +804,45 @@ export function createClinicalRepository(
       } finally {
         client.release();
       }
+    },
+
+    async createClinicalAlert(
+      clinicId: string,
+      authorUserId: string,
+      input: ClinicalAlertInput,
+    ) {
+      const result = await repositoryContext.pool.query<ClinicalAlertRow>(
+        `WITH inserted AS (
+           INSERT INTO clinical_alerts
+             (clinic_id, patient_id, author_user_id, severity, text)
+           SELECT $1, p.id, u.id, $4, $5
+           FROM patients p, users u
+           WHERE p.clinic_id = $1 AND p.id = $2
+             AND u.clinic_id = $1 AND u.id = $3
+           RETURNING *
+         )
+         SELECT i.id, i.clinic_id AS "clinicId", i.patient_id AS "patientId",
+                i.severity, i.text, u.full_name AS "authorName",
+                i.created_at AS "createdAt"
+         FROM inserted i JOIN users u ON u.id = i.author_user_id`,
+        [clinicId, input.patientId, authorUserId, input.severity, input.text],
+      );
+      if (!result.rows[0])
+        throw new DomainError(
+          "CLINICAL_CONTEXT_NOT_FOUND",
+          "Cliente ou autor não encontrado.",
+          404,
+        );
+      return mapClinicalAlert(result.rows[0]);
+    },
+
+    async archiveClinicalAlert(clinicId: string, alertId: string) {
+      const result = await repositoryContext.pool.query(
+        `UPDATE clinical_alerts SET archived_at = now()
+         WHERE clinic_id = $1 AND id = $2 AND archived_at IS NULL`,
+        [clinicId, alertId],
+      );
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listClinicalAccessEvents(clinicId: string, patientId: string) {

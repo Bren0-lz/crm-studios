@@ -63,6 +63,9 @@ describe("assessment without templates", () => {
       </MemoryRouter>,
     );
     fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
+    fireEvent.click(
       await screen.findByRole("button", { name: "Nova avaliação" }),
     );
     const assessment = screen.getByRole("dialog", {
@@ -97,7 +100,9 @@ describe("assessment without templates", () => {
       { target: { value: "Queixa principal" } },
     );
     expect(publish).toBeEnabled();
-    expect(within(templateDialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+    expect(
+      within(templateDialog).queryByText(/Falta:/),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(templateDialog).getByRole("button", { name: "Publicar modelo" }),
     );
