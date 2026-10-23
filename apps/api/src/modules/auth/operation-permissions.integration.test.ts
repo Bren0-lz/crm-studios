@@ -89,8 +89,10 @@ describe("per-operation API authorization", () => {
     });
     expect(options.statusCode).toBe(200);
     expect(options.json()).toHaveLength(1);
+    // Só o necessário para escolher a sessão; `patientId` liga a sessão ao prontuário do cliente.
     expect(Object.keys(options.json()[0]).sort()).toEqual([
       "id",
+      "patientId",
       "patientName",
       "professionalName",
       "startsAt",

@@ -474,7 +474,7 @@ export function PatientRecordTabs({
             {active === "clinical" && (
               <ClinicalWorkspacePanel
                 key={id}
-                patients={[patient]}
+                patientId={id}
                 editable={canEditClinical}
               />
             )}

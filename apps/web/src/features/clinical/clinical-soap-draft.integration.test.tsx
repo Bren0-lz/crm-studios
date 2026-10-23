@@ -139,13 +139,15 @@ describe("SOAP draft", () => {
       objective: "",
     });
 
-    const timeline = (
-      await screen.findByRole("heading", { name: "Linha do tempo" })
-    ).closest(".clinical-timeline") as HTMLElement;
-    const item = await within(timeline).findByText("Dor ao subir escadas.");
-    expect(item.closest("article")).toHaveTextContent("Rascunho");
+    // Depois de salvar, o prontuário do cliente abre na linha do tempo.
     expect(
-      within(timeline).queryByText("Nenhum evento clínico registrado."),
+      await screen.findByRole("tab", { name: "Linha do tempo" }),
+    ).toHaveAttribute("aria-selected", "true");
+    const timeline = screen.getByRole("tabpanel");
+    const item = await within(timeline).findByText("Dor ao subir escadas.");
+    expect(item.closest("li")).toHaveTextContent("Rascunho");
+    expect(
+      within(timeline).queryByText("Nenhum evento clínico registrado"),
     ).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));

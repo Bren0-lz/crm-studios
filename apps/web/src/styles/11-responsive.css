@@ -99,16 +99,8 @@
     grid-template-columns: 1fr;
   }
 
-  .clinical-card {
-    grid-template-columns: 58px minmax(0, 1fr);
-  }
-
   .plans-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .clinical-card-actions {
-    grid-column: 2;
   }
 }
 
@@ -204,14 +196,6 @@
     flex-direction: column;
   }
 
-  .clinical-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .clinical-workspace-grid {
-    grid-template-columns: 1fr;
-  }
-
   .plan-metrics {
     grid-template-columns: 1fr;
   }
@@ -251,6 +235,33 @@
 }
 
 @media (max-width: 700px) {
+  /* Prontuários: lista ou prontuário, um de cada vez. */
+  .clinical-records-layout {
+    grid-template-columns: 1fr;
+  }
+  .clinical-records-aside {
+    position: static;
+  }
+  .clinical-records-layout.has-selection .clinical-records-aside,
+  .clinical-records-layout:not(.has-selection) .clinical-chart-shell {
+    display: none;
+  }
+  .clinical-back {
+    display: inline-flex;
+  }
+  .clinical-patient-items {
+    max-height: none;
+  }
+  .clinical-chart {
+    padding: var(--space-4);
+  }
+  .clinical-chart-output {
+    margin-left: 0;
+  }
+  .chart-soap {
+    grid-template-columns: 1fr;
+  }
+
   /* Barra do funil: busca na linha toda, resumo abaixo dos atalhos. */
   .commercial-search {
     max-width: none;
@@ -268,8 +279,6 @@
   .app-shell,
   .dashboard-grid,
   .sales-detail-grid,
-  .clinical-summary,
-  .clinical-workspace-grid,
   .plan-metrics,
   .plans-grid,
   .receipt-content dl,
@@ -485,52 +494,8 @@
     grid-template-columns: 1fr;
   }
 
-  /* audit: mobile-ok data (46px) + texto flexível cabem em 390px */
-  .clinical-card {
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .clinical-date {
-    width: 44px;
-    height: 52px;
-  }
-
-  .clinical-card-actions {
-    flex-wrap: wrap;
-  }
-
-  .clinical-card-actions button {
-    flex: 1;
-  }
-
   .clinical-form-row {
     grid-template-columns: 1fr;
-  }
-
-  .clinical-workspace-panel {
-    padding: 16px;
-  }
-
-  .clinical-workspace-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .clinical-workspace-head > label {
-    min-width: 0;
-  }
-
-  .clinical-workspace-actions,
-  .clinical-workspace-main-actions,
-  .clinical-workspace-output-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .clinical-workspace-output-actions {
-    margin-left: 0;
   }
 
   .action-menu > .secondary-button {

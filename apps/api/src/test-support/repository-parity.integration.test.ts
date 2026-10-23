@@ -832,6 +832,43 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(record.appointmentId).toBe(appointment.id);
       });
 
+      it("pins clinical alerts by severity and hides archived ones", async () => {
+        const client = await patient("Alerta");
+        const info = await repository.createClinicalAlert(clinicId, actorId, {
+          patientId: client.id,
+          severity: "info",
+          text: "Prefere a sala 2.",
+        });
+        await repository.createClinicalAlert(clinicId, actorId, {
+          patientId: client.id,
+          severity: "critical",
+          text: "Marcapasso: sem eletroterapia.",
+        });
+        let workspace = await repository.getClinicalWorkspace(
+          clinicId,
+          client.id,
+          actorId,
+        );
+        expect(workspace?.alerts.map((alert) => alert.severity)).toEqual([
+          "critical",
+          "info",
+        ]);
+        expect(await repository.archiveClinicalAlert(clinicId, info.id)).toBe(
+          true,
+        );
+        expect(await repository.archiveClinicalAlert(clinicId, info.id)).toBe(
+          false,
+        );
+        workspace = await repository.getClinicalWorkspace(
+          clinicId,
+          client.id,
+          actorId,
+        );
+        expect(workspace?.alerts.map((alert) => alert.text)).toEqual([
+          "Marcapasso: sem eletroterapia.",
+        ]);
+      });
+
       it("persists and finds a patient without exposing the record to another clinic", async () => {
         const created = await patient("Parity Cliente");
         expect(

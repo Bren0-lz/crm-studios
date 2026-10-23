@@ -399,6 +399,11 @@ export const historyActions: {
     label: "Adendo clínico registrado",
   },
   {
+    action: "clinical.alert_created",
+    module: "clinical",
+    label: "Alerta clínico registrado",
+  },
+  {
     action: "clinical.template_created",
     module: "clinical",
     label: "Modelo de avaliação criado",

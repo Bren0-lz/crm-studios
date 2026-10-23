@@ -83,6 +83,8 @@ import {
   documentTemplateValues,
   documentTemplateVariables,
   renderDocumentTemplate,
+  clinicalAlertInputSchema,
+  compareClinicalAlerts,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1409,5 +1411,35 @@ describe("document templates", () => {
     const keys = documentTemplateVariables.map((variable) => variable.key);
     for (const match of defaultContractTemplateBody.matchAll(/\{\{(\w+)\}\}/g))
       expect(keys).toContain(match[1]);
+  });
+});
+
+describe("clinical alerts", () => {
+  it("validates the text and orders critical alerts first", () => {
+    const patientId = "99999999-9999-4999-8999-999999999999";
+    expect(
+      clinicalAlertInputSchema.safeParse({
+        patientId,
+        severity: "warning",
+        text: "  ok ",
+      }).success,
+    ).toBe(false);
+    expect(
+      clinicalAlertInputSchema.parse({
+        patientId,
+        severity: "critical",
+        text: "  Alergia a látex ",
+      }).text,
+    ).toBe("Alergia a látex");
+    const alerts = [
+      { severity: "info" as const, createdAt: "2026-10-02T10:00:00.000Z" },
+      { severity: "critical" as const, createdAt: "2026-10-01T10:00:00.000Z" },
+      { severity: "info" as const, createdAt: "2026-10-03T10:00:00.000Z" },
+    ];
+    expect([...alerts].sort(compareClinicalAlerts)).toEqual([
+      { severity: "critical", createdAt: "2026-10-01T10:00:00.000Z" },
+      { severity: "info", createdAt: "2026-10-03T10:00:00.000Z" },
+      { severity: "info", createdAt: "2026-10-02T10:00:00.000Z" },
+    ]);
   });
 });

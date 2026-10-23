@@ -329,6 +329,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.getClinicalAttachmentContent =
       this.clinical.getClinicalAttachmentContent;
     this.createClinicalAddendum = this.clinical.createClinicalAddendum;
+    this.createClinicalAlert = this.clinical.createClinicalAlert;
+    this.archiveClinicalAlert = this.clinical.archiveClinicalAlert;
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
     this.listLeadStagePage = this.commercial.listLeadStagePage;
@@ -882,6 +884,14 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly createClinicalAddendum: ReturnType<
     typeof createClinicalRepository
   >["createClinicalAddendum"];
+
+  readonly createClinicalAlert: ReturnType<
+    typeof createClinicalRepository
+  >["createClinicalAlert"];
+
+  readonly archiveClinicalAlert: ReturnType<
+    typeof createClinicalRepository
+  >["archiveClinicalAlert"];
 
   readonly listClinicalAccessEvents: ReturnType<
     typeof createClinicalRepository

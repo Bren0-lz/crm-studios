@@ -3,6 +3,7 @@ import type {
   AssessmentTemplate,
   ClinicalAccessEvent,
   ClinicalAddendum,
+  ClinicalAlert,
   ClinicalAssessment,
   ClinicalAttachment,
   ClinicalMeasurement,
@@ -143,6 +144,16 @@ export interface ClinicalAddendumRow {
   clinicalRecordId: string;
   reason: string;
   content: string;
+  authorName: string;
+  createdAt: Date;
+}
+
+export interface ClinicalAlertRow {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  severity: ClinicalAlert["severity"];
+  text: string;
   authorName: string;
   createdAt: Date;
 }
@@ -316,6 +327,18 @@ export function mapClinicalAddendum(
     clinicalRecordId: row.clinicalRecordId,
     reason: row.reason,
     content: row.content,
+    authorName: row.authorName,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function mapClinicalAlert(row: ClinicalAlertRow): ClinicalAlert {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    patientId: row.patientId,
+    severity: row.severity,
+    text: row.text,
     authorName: row.authorName,
     createdAt: row.createdAt.toISOString(),
   };
