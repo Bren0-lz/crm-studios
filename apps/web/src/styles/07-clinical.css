@@ -767,6 +767,75 @@
   font-weight: 400;
 }
 
+.groups-overview-table .text-button.groups-overview-members-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--space-6);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.groups-overview-members-toggle svg {
+  transition: transform 0.15s;
+}
+
+.groups-overview-members-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.groups-overview-table .groups-overview-members-row td {
+  padding: var(--space-3) var(--space-4);
+  background: var(--cream);
+  text-align: left;
+  white-space: normal;
+}
+
+.groups-overview-members-row p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.groups-overview-scroll {
+  container-type: inline-size;
+}
+
+.groups-overview-table thead th {
+  white-space: normal;
+}
+
+/* Lista presa à área visível: não rola junto com as colunas da tabela. */
+.groups-overview-members-row td > * {
+  position: sticky;
+  left: var(--space-4);
+  max-width: calc(100cqw - var(--space-6));
+}
+
+.groups-overview-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groups-overview-members li {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.groups-overview-members small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .groups-overview-error {
   display: flex;
   flex-wrap: wrap;
