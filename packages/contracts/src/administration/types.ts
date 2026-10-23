@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PermissionKey } from "../permissions.js";
 import {
+  adminUserAgendaInputSchema,
   adminUserInputSchema,
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
@@ -25,6 +26,8 @@ export type AppModule = z.infer<typeof appModuleSchema>;
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
+
+export type AdminUserAgendaInput = z.infer<typeof adminUserAgendaInputSchema>;
 
 export type OwnProfileUpdate = z.infer<typeof ownProfileUpdateSchema>;
 
@@ -98,6 +101,8 @@ export interface AdminUser extends UserSummary {
   /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
   professionalId?: string;
   professionalName?: string;
+  /** Cadastro completo, inclusive quando está inativo. */
+  professional?: Professional;
   /**
    * Percentual da regra de comissão do próprio usuário vigente hoje (fuso da clínica); não
    * depende do profissional ligado. Regras só do profissional (Financeiro) não aparecem aqui.

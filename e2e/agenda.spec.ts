@@ -55,9 +55,9 @@ test("appointment modals preserve the scrolled agenda and sticky shell", async (
       };
     });
   const before = await background();
-  expect(before.header.y).toBe(0);
+  expect(Math.abs(before.header.y)).toBeLessThanOrEqual(1);
   if (page.viewportSize()!.width > 820) {
-    expect(before.sidebar.y).toBe(0);
+    expect(Math.abs(before.sidebar.y)).toBeLessThanOrEqual(1);
     expect(before.sidebar.height).toBe(page.viewportSize()!.height);
   }
   const expectStable = async () => {

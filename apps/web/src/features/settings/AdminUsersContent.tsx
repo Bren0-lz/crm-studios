@@ -162,17 +162,6 @@ export function AdminUsersContent() {
         <UserFormModal
           user={userForm === "new" ? null : userForm}
           users={users ?? []}
-          onUserUpdated={(updated) =>
-            setUsers((current) =>
-              current
-                ? current.some((item) => item.id === updated.id)
-                  ? current.map((item) =>
-                      item.id === updated.id ? updated : item,
-                    )
-                  : [...current, updated]
-                : current,
-            )
-          }
           onClose={() => setUserForm(null)}
           onSaved={(saved) =>
             finish(

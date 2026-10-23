@@ -72,7 +72,7 @@ describe("document template editor", () => {
       within(form).getByRole("button", { name: "Começar em branco" }),
     );
     expect(name).toHaveValue("");
-    expect(body.textContent).toBe("");
+    await waitFor(() => expect(body.textContent).toBe(""));
     // Sem nome e conteúdo, "Criar modelo" diz o que falta (QM14).
     const createTemplate = within(form).getByRole("button", {
       name: "Criar modelo",
@@ -128,7 +128,7 @@ describe("document template editor", () => {
       ),
     ).toBeInTheDocument();
     expect(name).toHaveValue("");
-    expect(body.textContent).toBe("");
+    await waitFor(() => expect(body.textContent).toBe(""));
     expect(created).toEqual([
       expect.objectContaining({
         name: "Termo de adesão",

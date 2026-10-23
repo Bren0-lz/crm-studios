@@ -238,6 +238,7 @@ export const recurringPayableColumns = `
 
 export function mapAdminUserWithCommission(row: AdminUserRow): AdminUser {
   return {
+    ...(row.professional ? { professional: row.professional } : {}),
     ...mapAdminUser(row),
     ...(row.professionalId
       ? {

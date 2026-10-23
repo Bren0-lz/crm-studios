@@ -1,4 +1,4 @@
-import type { AdminUser, PatientTag, Professional } from "@crm/contracts";
+import type { AdminUser, PatientTag } from "@crm/contracts";
 import {
   type LucideIcon,
   Building2,
@@ -10,22 +10,12 @@ import {
   Tags,
   Users,
 } from "lucide-react";
-import { api, ApiClientError } from "../../api";
+import { ApiClientError } from "../../api";
 import { shortDate } from "../../shared/lib/formatting";
 import type { RelationshipDeadlineKey, SettingsTabKey } from "./types";
 
 export function isoDateLabel(value: string) {
   return shortDate.format(new Date(`${value}T12:00:00`));
-}
-
-export function loadCommissionProfessionals(
-  onLoaded: (items: Professional[]) => void,
-  onError: (message: string) => void,
-) {
-  api
-    .professionals()
-    .then(onLoaded)
-    .catch((cause: Error) => onError(cause.message));
 }
 
 export function parsePercentage(text: string) {
@@ -208,7 +198,7 @@ export function userAccessSummary(user: AdminUser) {
 
 export function userCommissionSummary(user: AdminUser) {
   const agenda = user.professionalId
-    ? `Agenda: ${user.professionalName ?? "profissional ligado"}`
+    ? `Agenda: ${user.professionalName ?? "profissional ligado"}${user.professional?.active === false ? " (inativo)" : ""}`
     : "Sem profissional da agenda";
   const commission =
     user.commissionPercentage === undefined

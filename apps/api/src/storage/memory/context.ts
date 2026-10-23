@@ -170,12 +170,8 @@ export class MemoryRepositoryContext {
     return !ids || ids.includes(this.branchOf(item));
   }
 
-  /** Grava as filiais do usuário (lista validada contra as filiais da clínica). */
-  setUserBranchAccess(
-    user: AuthenticatedUser,
-    access: UserBranchAccess,
-    actorUserId: string,
-  ) {
+  /** Valida as filiais sem alterar o usuário ou a auditoria. */
+  validateUserBranchAccess(user: AuthenticatedUser, access: UserBranchAccess) {
     const branchIds = access.allBranches ? [] : [...new Set(access.branchIds)];
     if (
       branchIds.some(
@@ -186,6 +182,15 @@ export class MemoryRepositoryContext {
       )
     )
       throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
+    return branchIds;
+  }
+
+  setUserBranchAccess(
+    user: AuthenticatedUser,
+    access: UserBranchAccess,
+    actorUserId: string,
+  ) {
+    const branchIds = this.validateUserBranchAccess(user, access);
     user.allBranches = access.allBranches;
     user.branchIds = branchIds;
     this.addAdminAudit(
@@ -768,6 +773,10 @@ export class MemoryRepositoryContext {
       branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
       ...(professional
         ? {
+            professional: {
+              ...structuredClone(professional),
+              branchId: this.branchOf(professional),
+            },
             professionalId: professional.id,
             professionalName: professional.fullName,
           }
@@ -800,9 +809,8 @@ export class MemoryRepositoryContext {
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
   }
 
-  addUserCommissionRule(
+  validateUserCommissionRule(
     clinicId: string,
-    actorUserId: string,
     userId: string,
     input: AdminUserCommissionInput,
   ) {
@@ -832,13 +840,32 @@ export class MemoryRepositoryContext {
         existing.fixedAmountInCents === input.fixedAmountInCents &&
         existing.effectiveUntil === input.effectiveUntil
       )
-        return;
+        return existing;
       if (this.commissionEntryRuleIds.has(existing.id))
         throw new DomainError(
           "COMMISSION_RULE_DUPLICATE",
           "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
           409,
         );
+    }
+    return existing;
+  }
+
+  addUserCommissionRule(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    const existing = this.validateUserCommissionRule(clinicId, userId, input);
+    if (existing) {
+      if (
+        existing.percentage === input.percentage &&
+        existing.kind === input.kind &&
+        existing.fixedAmountInCents === input.fixedAmountInCents &&
+        existing.effectiveUntil === input.effectiveUntil
+      )
+        return;
       const previousPercentage = existing.percentage;
       Object.assign(existing, input);
       this.addAdminAudit(
