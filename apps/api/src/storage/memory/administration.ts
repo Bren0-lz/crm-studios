@@ -7,6 +7,8 @@ import {
   type AuditHistoryFilters,
   type ClinicSettingsInput,
   type HistoryActor,
+  type OwnProfile,
+  type OwnProfileUpdate,
   type Professional,
   type ProfessionalInput,
   type Room,
@@ -25,6 +27,28 @@ import { CLINIC_ID, now, uuid } from "./helpers.js";
 export function createAdministrationRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  function ownProfileOf(user: AuthenticatedUser): OwnProfile {
+    const professional = repositoryContext.linkedProfessional(
+      user.clinicId,
+      user.id,
+    );
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
+      avatarDataUrl: repositoryContext.userAvatars.get(user.id) ?? "",
+      professional: professional
+        ? {
+            id: professional.id,
+            fullName: professional.fullName,
+            color: professional.color,
+          }
+        : null,
+    };
+  }
+
   return {
     async revokeUserSessions(
       clinicId: string,
@@ -312,6 +336,52 @@ export function createAdministrationRepository(
         clinicId,
       );
       return true;
+    },
+
+    async getOwnProfile(clinicId: string, userId: string) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      return ownProfileOf(user);
+    },
+
+    async updateOwnProfile(
+      clinicId: string,
+      userId: string,
+      input: OwnProfileUpdate,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      const professional = repositoryContext.linkedProfessional(
+        clinicId,
+        userId,
+      );
+      user.fullName = input.fullName;
+      user.updatedAt = now();
+      if (input.avatarDataUrl !== undefined) {
+        if (input.avatarDataUrl)
+          repositoryContext.userAvatars.set(user.id, input.avatarDataUrl);
+        else repositoryContext.userAvatars.delete(user.id);
+      }
+      if (professional) {
+        if (input.agendaName) professional.fullName = input.agendaName;
+        if (input.agendaColor) professional.color = input.agendaColor;
+      }
+      repositoryContext.addAdminAudit(
+        userId,
+        "user.profile_updated",
+        "user",
+        user.id,
+        {
+          fullName: user.fullName,
+          ...(professional ? { agendaName: professional.fullName } : {}),
+        },
+        clinicId,
+      );
+      return ownProfileOf(user);
     },
 
     async getClinicSettings(clinicId: string) {
