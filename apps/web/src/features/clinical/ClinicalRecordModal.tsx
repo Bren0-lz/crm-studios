@@ -3,6 +3,7 @@ import type {
   ClinicalRecord,
   ClinicalRecordInput,
 } from "@crm/contracts";
+import { Copy } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -16,17 +17,23 @@ import { ClinicalAppointmentPicker } from "./ClinicalAppointmentPicker";
 export function ClinicalRecordModal({
   record,
   appointments,
+  initialAppointmentId,
+  previousRecord,
   onClose,
   onSaved,
 }: {
   record: ClinicalRecord | undefined;
   appointments: ClinicalAppointmentOption[];
+  /** Sessão já escolhida (ex.: "Evoluir" numa pendência do prontuário). */
+  initialAppointmentId?: string | undefined;
+  /** Última evolução do cliente: oferece copiar o texto como ponto de partida. */
+  previousRecord?: ClinicalRecord | undefined;
   onClose: () => void;
   onSaved: (record: ClinicalRecord) => void;
 }) {
   const { can } = useAuthorization();
   const [form, setForm] = useState<ClinicalRecordInput>({
-    appointmentId: record?.appointmentId ?? "",
+    appointmentId: record?.appointmentId ?? initialAppointmentId ?? "",
     subjective: record?.subjective ?? "",
     objective: record?.objective ?? "",
     assessment: record?.assessment ?? "",
@@ -88,6 +95,30 @@ export function ClinicalRecordModal({
                 record.professionalCrefito,
               )}
             </p>
+          )}
+          {!record && previousRecord && (
+            <div className="clinical-copy-previous">
+              <span>
+                Última evolução em{" "}
+                {shortDate.format(new Date(previousRecord.appointmentStartsAt))}
+              </span>
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    subjective: previousRecord.subjective,
+                    objective: previousRecord.objective,
+                    assessment: previousRecord.assessment,
+                    plan: previousRecord.plan,
+                    painScale: previousRecord.painScale,
+                  })
+                }
+              >
+                <Copy size={15} /> Copiar da última evolução
+              </button>
+            </div>
           )}
           <p className="muted-copy">
             O rascunho pode ser salvo com qualquer etapa em branco; para

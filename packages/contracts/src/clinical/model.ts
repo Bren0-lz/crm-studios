@@ -127,3 +127,36 @@ export const clinicalAddendumInputSchema = z.object({
   reason: z.string().trim().min(5).max(500),
   content: z.string().trim().min(10).max(5000),
 });
+
+export const clinicalAlertSeveritySchema = z.enum([
+  "info",
+  "warning",
+  "critical",
+]);
+
+/** Alerta fixado no topo do prontuário (contraindicação, alergia, cuidado). */
+export const clinicalAlertInputSchema = z.object({
+  patientId: z.uuid(),
+  severity: clinicalAlertSeveritySchema,
+  text: z.string().trim().min(3).max(280),
+});
+
+export const clinicalAlertSeverityLabels = {
+  critical: "Crítico",
+  warning: "Atenção",
+  info: "Informativo",
+} as const;
+
+const clinicalAlertSeverityOrder = { critical: 0, warning: 1, info: 2 };
+
+/** Ordena alertas do mais grave para o mais leve; empate: o mais recente primeiro. */
+export function compareClinicalAlerts(
+  a: { severity: z.infer<typeof clinicalAlertSeveritySchema>; createdAt: string },
+  b: { severity: z.infer<typeof clinicalAlertSeveritySchema>; createdAt: string },
+) {
+  return (
+    clinicalAlertSeverityOrder[a.severity] -
+      clinicalAlertSeverityOrder[b.severity] ||
+    b.createdAt.localeCompare(a.createdAt)
+  );
+}
