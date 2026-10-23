@@ -1,4 +1,10 @@
 import type {
+  AgendaNote,
+  AgendaNoteInput,
+  AgendaNoteUpdate,
+  AgendaNoteScope,
+} from "@crm/contracts";
+import type {
   DocumentContent,
   DocumentDraftInput,
   DocumentPreview,
@@ -225,6 +231,33 @@ export interface AuthenticatedUser extends UserSummary {
 }
 
 export interface ClinicRepository {
+  listAgendaNotes(
+    clinicId: string,
+    from: string,
+    to: string,
+    professionalScope?: string,
+  ): Promise<AgendaNote[]>;
+  createAgendaNotes(
+    clinicId: string,
+    actorUserId: string,
+    input: AgendaNoteInput,
+  ): Promise<AgendaNote[]>;
+  updateAgendaNote(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: AgendaNoteUpdate,
+    scope: AgendaNoteScope,
+    professionalScope?: string,
+  ): Promise<AgendaNote[] | null>;
+  deleteAgendaNote(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    scope: AgendaNoteScope,
+    professionalScope?: string,
+  ): Promise<boolean>;
+
   /** Filial da requisição em curso (ver `storage/branch-scope.ts`). */
   readonly branchScope: BranchScopeStore;
   /** Todas as filiais da clínica (ativas e inativas), a padrão primeiro. */

@@ -1,3 +1,4 @@
+import { createAgendaNotesRepository } from "./storage/memory/agenda-notes.js";
 import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
@@ -30,6 +31,11 @@ import { createRelationshipRepository } from "./storage/memory/relationship.js";
 import { createReportsRepository } from "./storage/memory/reports.js";
 
 export class MemoryClinicRepository implements ClinicRepository {
+  readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
+  readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
+  readonly updateAgendaNote: ClinicRepository["updateAgendaNote"];
+  readonly deleteAgendaNote: ClinicRepository["deleteAgendaNote"];
+
   readonly branchScope: ClinicRepository["branchScope"];
   readonly listBranches: ClinicRepository["listBranches"];
   readonly saveBranch: ClinicRepository["saveBranch"];
@@ -163,6 +169,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const agendaNotes = createAgendaNotesRepository(this.context);
+    this.listAgendaNotes = agendaNotes.listAgendaNotes;
+    this.createAgendaNotes = agendaNotes.createAgendaNotes;
+    this.updateAgendaNote = agendaNotes.updateAgendaNote;
+    this.deleteAgendaNote = agendaNotes.deleteAgendaNote;
+
     this.createAbsenceSuccessor = createAgendaLinksRepository(
       this.context,
     ).createAbsenceSuccessor;
