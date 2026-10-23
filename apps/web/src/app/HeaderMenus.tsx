@@ -5,6 +5,7 @@ import {
   CalendarClock,
   LogOut,
   Settings,
+  UserRound,
   WalletCards,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -135,7 +136,12 @@ export function NotificationsMenu({
   const watched =
     canView("relationship") || canView("finance") || canView("agenda");
   // Recarga silenciosa quando agenda, financeiro, clientes ou contatos mudam (QC6).
-  const version = useDataVersion("agenda", "finance", "patients", "relationship");
+  const version = useDataVersion(
+    "agenda",
+    "finance",
+    "patients",
+    "relationship",
+  );
   const [summary, setSummary] = useState<NotificationsSummary | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -254,8 +260,16 @@ export function UserMenu({
   return (
     <HeaderPopover
       label="Menu do usuário"
-      triggerClassName="top-avatar"
-      trigger={initials(user.fullName)}
+      triggerClassName={
+        user.avatarDataUrl ? "top-avatar has-photo" : "top-avatar"
+      }
+      trigger={
+        user.avatarDataUrl ? (
+          <img src={user.avatarDataUrl} alt="" />
+        ) : (
+          initials(user.fullName)
+        )
+      }
     >
       {(close) => (
         <>
@@ -265,6 +279,16 @@ export function UserMenu({
             <small>{user.jobTitle ?? roleLabels[user.role]}</small>
           </div>
           <div className="header-user-actions">
+            <button
+              type="button"
+              className="action-menu-item"
+              onClick={() => {
+                close();
+                onNavigate("/perfil");
+              }}
+            >
+              <UserRound size={16} /> Meu perfil
+            </button>
             {canView("settings") && (
               <button
                 type="button"

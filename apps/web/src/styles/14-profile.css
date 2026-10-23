@@ -1,0 +1,157 @@
+/* Meu perfil: foto, dados pessoais, nome na agenda e senha do usuário logado. */
+.profile-layout {
+  display: grid;
+  gap: var(--space-5);
+  max-width: calc(var(--space-8) * 14);
+}
+
+.profile-panel > .profile-state {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+}
+
+.profile-panel > .profile-form {
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.profile-fieldset {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-photo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.profile-photo-preview {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  width: calc(var(--space-8) + var(--space-6) + var(--space-2));
+  height: calc(var(--space-8) + var(--space-6) + var(--space-2));
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+}
+
+.profile-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-photo-controls {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.profile-photo-controls input[type="file"] {
+  width: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.profile-photo-controls input::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--green);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-photo-controls p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.text-button.profile-photo-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+}
+
+.profile-subtitle {
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.profile-fieldset .muted-copy {
+  margin: 0;
+}
+
+.clinical-form .profile-color {
+  width: calc(var(--space-8) + var(--space-5));
+  height: calc(var(--space-6) + var(--space-4));
+  padding: var(--space-1);
+  cursor: pointer;
+}
+
+.profile-form > .success-banner {
+  margin-bottom: 0;
+}
+
+.top-avatar.has-photo {
+  overflow: hidden;
+  padding: 0;
+}
+
+.top-avatar.has-photo img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-form input[readonly] {
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.profile-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 700px) {
+  .profile-panel > .profile-form,
+  .profile-panel > .profile-state {
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+  }
+
+  .profile-photo {
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+}

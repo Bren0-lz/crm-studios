@@ -200,6 +200,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createAdminUser = this.administration.createAdminUser;
     this.updateAdminUser = this.administration.updateAdminUser;
     this.resetAdminUserPassword = this.administration.resetAdminUserPassword;
+    this.getOwnProfile = this.administration.getOwnProfile;
+    this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
     this.updateClinicSettings = this.administration.updateClinicSettings;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
@@ -393,6 +395,14 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly resetAdminUserPassword: ReturnType<
     typeof createAdministrationRepository
   >["resetAdminUserPassword"];
+
+  readonly getOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["getOwnProfile"];
+
+  readonly updateOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["updateOwnProfile"];
 
   readonly getClinicSettings: ReturnType<
     typeof createAdministrationRepository

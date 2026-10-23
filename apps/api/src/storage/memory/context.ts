@@ -472,6 +472,9 @@ export class MemoryRepositoryContext {
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   readonly professionalUsers = new Map<string, string>();
 
+  /** Foto do perfil por usuário (`users.avatar_data_url` no PostgreSQL). */
+  readonly userAvatars = new Map<string, string>();
+
   readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",

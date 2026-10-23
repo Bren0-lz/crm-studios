@@ -63,6 +63,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /auth/login": "public",
   "POST /auth/logout-all": "login",
   "GET /me": "login",
+  "GET /me/profile": "login",
+  "PUT /me/profile": "login",
+  "POST /me/password": "login",
   "GET /branches": "login",
 
   // Administração (só admin).
