@@ -77,8 +77,16 @@ export function groupCalendarRange(month: string, now = new Date()) {
 /** Semanas consideradas num mês, como nos planos (`planSessionsForPeriod`). */
 const weeksPerMonth = 4;
 
+export interface GroupRevenueMember {
+  enrollment: GroupEnrollment;
+  /** Valor mensal do plano para a turma; null quando não há plano ativo. */
+  monthlyInCents: number | null;
+}
+
 export interface GroupRevenueRow {
   group: GroupClass;
+  /** Matrículas ativas, em ordem alfabética. */
+  members: GroupRevenueMember[];
   enrolled: number;
   freeSeats: number;
   /** Encontros por mês: horários semanais × 4 semanas. */
@@ -104,30 +112,34 @@ export function groupRevenueOverview(
 ): GroupRevenueRow[] {
   return groups.map((group) => {
     const sessionsPerMonth = (group.weeklySlots ?? []).length * weeksPerMonth;
-    const members = enrollments.filter(
-      (item) => item.groupId === group.id && item.status === "active",
+    const members = enrollments
+      .filter((item) => item.groupId === group.id && item.status === "active")
+      .sort((a, b) => a.patientName.localeCompare(b.patientName, "pt-BR"))
+      .map((enrollment): GroupRevenueMember => {
+        const share = plans
+          .filter(
+            (plan) =>
+              plan.patientId === enrollment.patientId &&
+              plan.status === "active" &&
+              plan.validFrom <= today &&
+              (!plan.validUntil || plan.validUntil >= today),
+          )
+          .sort((a, b) => b.validFrom.localeCompare(a.validFrom))
+          .flatMap((plan) => plan.services)
+          .find((item) => item.serviceId === group.serviceId);
+        return {
+          enrollment,
+          monthlyInCents: share
+            ? Math.round(
+                (share.totalValueInCents / share.totalSessions) *
+                  sessionsPerMonth,
+              )
+            : null,
+        };
+      });
+    const monthlyValues = members.flatMap((member) =>
+      member.monthlyInCents === null ? [] : [member.monthlyInCents],
     );
-    const monthlyValues = members.flatMap((member) => {
-      const share = plans
-        .filter(
-          (plan) =>
-            plan.patientId === member.patientId &&
-            plan.status === "active" &&
-            plan.validFrom <= today &&
-            (!plan.validUntil || plan.validUntil >= today),
-        )
-        .sort((a, b) => b.validFrom.localeCompare(a.validFrom))
-        .flatMap((plan) => plan.services)
-        .find((item) => item.serviceId === group.serviceId);
-      return share
-        ? [
-            Math.round(
-              (share.totalValueInCents / share.totalSessions) *
-                sessionsPerMonth,
-            ),
-          ]
-        : [];
-    });
     const currentInCents = monthlyValues.reduce((sum, value) => sum + value, 0);
     const referenceInCents = monthlyValues.length
       ? Math.round(currentInCents / monthlyValues.length)
@@ -137,6 +149,7 @@ export function groupRevenueOverview(
     const freeSeats = Math.max(0, group.capacity - enrolled);
     return {
       group,
+      members,
       enrolled,
       freeSeats,
       sessionsPerMonth,

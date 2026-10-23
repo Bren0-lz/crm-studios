@@ -58,7 +58,13 @@ describe("group revenue overview", () => {
     ],
   } as GroupClass;
   const enrollment = (patientId: string, status = "active") =>
-    ({ groupId: group.id, patientId, status }) as GroupEnrollment;
+    ({
+      id: `enrollment-${patientId}`,
+      groupId: group.id,
+      patientId,
+      patientName: patientId,
+      status,
+    }) as GroupEnrollment;
   const plan = (
     patientId: string,
     totalSessions: number,
@@ -105,6 +111,16 @@ describe("group revenue overview", () => {
       // 2 vagas × ticket médio de R$ 360.
       potentialInCents: 72000 + 2 * 36000,
     });
+    expect(
+      row!.members.map((item) => [
+        item.enrollment.patientId,
+        item.monthlyInCents,
+      ]),
+    ).toEqual([
+      ["ana", 40000],
+      ["bia", 32000],
+      ["caio", null],
+    ]);
   });
 
   it("uses the service price when no member has an active plan", () => {

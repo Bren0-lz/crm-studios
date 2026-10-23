@@ -120,10 +120,42 @@ describe("groups overview tab", () => {
     // Potencial: 2 vagas × ticket médio de R$ 400.
     const cells = within(row).getAllByRole("cell");
     expect(cells[2]).toHaveTextContent("2");
+    expect(screen.queryByText("Marina Souza")).not.toBeInTheDocument();
     expect(cells[3]).toHaveTextContent("R$ 400,00");
     expect(cells[4]).toHaveTextContent("R$ 1.200,00");
     expect(
       screen.queryByRole("button", { name: "Abrir turma" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("lists the enrolled clients of a group without leaving the tab", async () => {
+    renderGroups();
+    fireEvent.click(await screen.findByRole("tab", { name: "Visão geral" }));
+    const toggle = await screen.findByRole("button", {
+      name: "Ver matriculados de Pilates Turma A: 2 de 4",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const members = screen.getByRole("list", {
+      name: "Matriculados de Pilates Turma A",
+    });
+    const items = within(members).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Helena Almeida");
+    expect(items[0]).toHaveTextContent("Desde 05 de jan.");
+    expect(items[0]).toHaveTextContent("R$ 400,00/mês");
+    expect(items[1]).toHaveTextContent("Marina Souza");
+    expect(items[1]).toHaveTextContent("Sem plano ativo");
+    expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Ocultar matriculados de Pilates Turma A: 2 de 4",
+      }),
+    );
+    expect(screen.queryByText("Marina Souza")).not.toBeInTheDocument();
   });
 });
