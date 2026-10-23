@@ -9,7 +9,13 @@ import type {
 } from "@crm/contracts";
 import { serviceAvailableFor } from "@crm/contracts";
 import { X } from "lucide-react";
-import { useId, useRef, useState, type FormEvent } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { ApiClientError } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -103,15 +109,22 @@ export function AppointmentForm({
   );
   const [pickerVersion, setPickerVersion] = useState(0);
   const patientInputRef = useRef<HTMLInputElement>(null);
+  const restorePatientFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!patientModalOpen && restorePatientFocus.current) {
+      restorePatientFocus.current = false;
+      patientInputRef.current?.focus();
+    }
+  }, [patientModalOpen, pickerVersion]);
   const patientChoices =
     selectedPatient &&
     !patients.some((patient) => patient.id === selectedPatient.id)
       ? [...patients, selectedPatient]
       : patients;
   function closePatientModal() {
+    restorePatientFocus.current = true;
     setPatientModalOpen(false);
     onNestedModalChange?.(false);
-    requestAnimationFrame(() => patientInputRef.current?.focus());
   }
   async function submit(event: FormEvent) {
     event.preventDefault();

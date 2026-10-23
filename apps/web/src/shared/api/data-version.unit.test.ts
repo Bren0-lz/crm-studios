@@ -50,6 +50,23 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("POST", "/auth/login")).toEqual([]);
   });
 
+  it("atualiza agenda, comissões e histórico após salvar o cadastro unificado", () => {
+    for (const [method, path] of [
+      ["POST", "/admin/users"],
+      ["PATCH", "/admin/users/ana"],
+      ["PUT", "/admin/users/ana/professional"],
+      ["PUT", "/admin/users/ana/commission"],
+    ]) {
+      expect(domainsForMutation(method!, path!)).toEqual(
+        expect.arrayContaining(["agenda", "finance", "history"]),
+      );
+    }
+    expect(domainsForMutation("GET", "/admin/users")).toEqual([]);
+    expect(
+      domainsForMutation("POST", "/admin/users/ana/reset-password"),
+    ).toEqual([]);
+  });
+
   it("avisa os assinantes e muda só a versão dos domínios afetados", () => {
     const listener = vi.fn();
     const stop = subscribeDataVersion(listener);

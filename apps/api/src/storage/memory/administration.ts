@@ -1,3 +1,4 @@
+import { prepareUserAgenda } from "./user-agenda.js";
 import {
   resolvePermissionInput,
   saoPauloToday,
@@ -180,6 +181,20 @@ export function createAdministrationRepository(
         createdAt: timestamp,
         updatedAt: timestamp,
       };
+      if (input.branchAccess)
+        repositoryContext.validateUserBranchAccess(user, input.branchAccess);
+      if (input.commission)
+        repositoryContext.validateUserCommissionRule(
+          clinicId,
+          user.id,
+          input.commission,
+        );
+      const saveAgenda = prepareUserAgenda(
+        repositoryContext,
+        user,
+        input,
+        actorUserId,
+      );
       repositoryContext.setUserPermissions(
         user,
         resolvePermissionInput(input.role, input),
@@ -224,6 +239,7 @@ export function createAdministrationRepository(
           user.id,
           input.commission,
         );
+      saveAgenda();
       return repositoryContext.toAdminUser(user);
     },
 
@@ -258,6 +274,20 @@ export function createAdministrationRepository(
         )
       )
         throw lastAdminError();
+      if (input.branchAccess)
+        repositoryContext.validateUserBranchAccess(user, input.branchAccess);
+      if (input.commission)
+        repositoryContext.validateUserCommissionRule(
+          clinicId,
+          userId,
+          input.commission,
+        );
+      const saveAgenda = prepareUserAgenda(
+        repositoryContext,
+        user,
+        input,
+        actorUserId,
+      );
       const previousPermissions = [...user.permissions];
       const previousRole = user.role;
       if (input.branchAccess)
@@ -311,6 +341,14 @@ export function createAdministrationRepository(
           },
           clinicId,
         );
+      if (input.commission)
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          userId,
+          input.commission,
+        );
+      saveAgenda();
       return repositoryContext.toAdminUser(user);
     },
 
