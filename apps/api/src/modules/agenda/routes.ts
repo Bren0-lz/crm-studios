@@ -1,3 +1,4 @@
+import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
@@ -20,6 +21,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 
 export function registerAgendaRoutes(context: RouteContext) {
+  registerAgendaNoteRoutes(context);
   const {
     app,
     authenticate,

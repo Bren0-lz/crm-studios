@@ -1,3 +1,5 @@
+import { AgendaNoteCard } from "./AgendaNoteCard";
+import type { AgendaNote } from "@crm/contracts";
 import type {
   Appointment,
   GroupSession,
@@ -18,6 +20,7 @@ import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 const SLOT_MINUTES = 30;
 
 type GridEntry =
+  | { kind: "note"; id: string; start: number; end: number; item: AgendaNote }
   | {
       kind: "appointment";
       id: string;
@@ -97,6 +100,8 @@ export function DayScheduleGrid({
   appointments,
   groupSessions,
   blocks,
+  notes = [],
+  onOpenNote,
   onOpenAppointment,
   onCreate,
   highlightedIds = [],
@@ -106,6 +111,8 @@ export function DayScheduleGrid({
   appointments: Appointment[];
   groupSessions: GroupSession[];
   blocks: ScheduleBlock[];
+  notes?: AgendaNote[];
+  onOpenNote?: ((note: AgendaNote) => void) | undefined;
   onOpenAppointment: (id: string) => void;
   /** Atendimentos recém-salvos, com realce temporário. */
   highlightedIds?: string[];
@@ -117,6 +124,19 @@ export function DayScheduleGrid({
     professionalId: string;
     professionalName: string;
   })[] = [
+    ...notes.map((item) => ({
+      kind: "note" as const,
+      id: item.id,
+      start: Date.parse(item.startsAt),
+      end: Date.parse(item.endsAt),
+      item,
+      professionalId: item.professionalId ?? "all-notes",
+      professionalName: item.professionalId
+        ? (professionals.find(
+            (professional) => professional.id === item.professionalId,
+          )?.fullName ?? "Profissional")
+        : "Todos os profissionais",
+    })),
     ...appointments.map((item) => ({
       kind: "appointment" as const,
       id: item.id,
@@ -253,9 +273,29 @@ export function DayScheduleGrid({
                             entry.kind === "appointment" &&
                             highlightedIds.includes(entry.id)
                           }
+                          onOpenNote={onOpenNote}
                           onOpenAppointment={onOpenAppointment}
                         />
                       ))}
+                      {onCreate &&
+                        column.id !== "all-notes" &&
+                        cluster.entries.every(
+                          (entry) => entry.kind === "note",
+                        ) && (
+                          <button
+                            type="button"
+                            className="text-button day-grid-add"
+                            aria-label={`Agendar com ${column.name} às ${slotLabel(slot)}`}
+                            onClick={() =>
+                              onCreate(
+                                column.id,
+                                `${dayKey}T${slotLabel(slot)}`,
+                              )
+                            }
+                          >
+                            <Plus size={14} aria-hidden="true" />
+                          </button>
+                        )}
                     </td>
                   );
                 if (
@@ -269,7 +309,7 @@ export function DayScheduleGrid({
                 const startsAt = `${dayKey}T${slotLabel(slot)}`;
                 return (
                   <td key={column.id} className="day-grid-free">
-                    {onCreate && (
+                    {onCreate && column.id !== "all-notes" && (
                       <button
                         type="button"
                         className="text-button day-grid-add"
@@ -294,12 +334,21 @@ function GridEvent({
   entry,
   onOpenAppointment,
   highlighted,
+  onOpenNote,
 }: {
   entry: GridEntry;
+  onOpenNote?: ((note: AgendaNote) => void) | undefined;
   onOpenAppointment: (id: string) => void;
   highlighted: boolean;
 }) {
   const time = `${timeLabel.format(new Date(entry.start))}–${timeLabel.format(new Date(entry.end))}`;
+  if (entry.kind === "note")
+    return (
+      <AgendaNoteCard
+        note={entry.item}
+        onOpen={() => onOpenNote?.(entry.item)}
+      />
+    );
   if (entry.kind === "appointment")
     return (
       <button

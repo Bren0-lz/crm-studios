@@ -129,3 +129,32 @@ export const agendaStatusLegend: Array<{
   { status: "no_show", label: "Falta ou ausência" },
   { status: "cancelled", label: "Cancelado" },
 ];
+
+export function storedShowNotes() {
+  try {
+    return localStorage.getItem("crm.agenda.showNotes") !== "false";
+  } catch {
+    return true;
+  }
+}
+export function storeShowNotes(value: boolean) {
+  try {
+    localStorage.setItem("crm.agenda.showNotes", String(value));
+  } catch {
+    /* Preferência só nesta sessão. */
+  }
+}
+export function sortAgendaEntriesWithNotes(
+  input: Parameters<typeof sortAgendaEntries>[0] & {
+    notes: import("@crm/contracts").AgendaNote[];
+  },
+) {
+  return [
+    ...sortAgendaEntries(input),
+    ...input.notes.map((note) => ({
+      kind: "note" as const,
+      startsAt: note.startsAt,
+      note,
+    })),
+  ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+}

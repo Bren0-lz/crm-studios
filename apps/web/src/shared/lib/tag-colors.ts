@@ -1,19 +1,13 @@
-import { DEFAULT_PATIENT_TAG_COLOR } from "@crm/contracts";
+import {
+  agendaNotePalette,
+  agendaNoteTextColor,
+  DEFAULT_PATIENT_TAG_COLOR,
+} from "@crm/contracts";
 import type { CSSProperties } from "react";
 
 /** Paleta sugerida para as etiquetas (Configurações › Etiquetas); qualquer cor #RRGGBB vale. */
 export const patientTagPalette: ReadonlyArray<{ name: string; color: string }> =
-  [
-    { name: "Cinza", color: DEFAULT_PATIENT_TAG_COLOR },
-    { name: "Verde", color: "#276749" },
-    { name: "Turquesa", color: "#0d9488" },
-    { name: "Azul", color: "#2563eb" },
-    { name: "Roxo", color: "#7c3aed" },
-    { name: "Rosa", color: "#db2777" },
-    { name: "Vermelho", color: "#dc2626" },
-    { name: "Laranja", color: "#ea580c" },
-    { name: "Amarelo", color: "#facc15" },
-  ];
+  agendaNotePalette;
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -48,10 +42,7 @@ export function contrastRatio(first: string, second: string): number {
  * dois, o melhor sempre passa de 4,5:1 (AA) para qualquer fundo.
  */
 export function tagTextColor(background: string): "#000000" | "#ffffff" {
-  return contrastRatio(background, "#000000") >=
-    contrastRatio(background, "#ffffff")
-    ? "#000000"
-    : "#ffffff";
+  return agendaNoteTextColor(normalizeTagColor(background));
 }
 
 /**

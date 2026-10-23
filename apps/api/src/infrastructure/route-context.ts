@@ -324,6 +324,7 @@ export async function createRouteContext({
       !["POST", "PUT", "PATCH", "DELETE"].includes(request.method) ||
       reply.statusCode < 200 ||
       reply.statusCode >= 300 ||
+      route.startsWith("/agenda-notes") ||
       route.startsWith("/admin/users") ||
       route.startsWith("/admin/branches") ||
       route === "/admin/clinic-settings" ||

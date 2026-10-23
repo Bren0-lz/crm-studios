@@ -15,6 +15,15 @@ import {
 } from "../permissions.js";
 
 describe("operation permissions", () => {
+  it("keeps agenda notes explicit and dependent on agenda visibility", () => {
+    expect(legacyPermissions("user", ["agenda"], ["agenda"])).not.toContain(
+      "agenda.notes",
+    );
+    expect(normalizePermissions(["agenda.notes"])).toEqual([]);
+    expect(normalizePermissions(["agenda.view", "agenda.notes"])).toContain(
+      "agenda.notes",
+    );
+  });
   it("requires explicit grants for new catalog operations instead of inferring them from legacy settings", () => {
     const legacy = legacyPermissions("user", ["settings"], ["settings"]);
     expect(legacy).not.toContain("settings.plans_create");
