@@ -1,5 +1,7 @@
 import {
   appointmentStatusSchema,
+  documentContentFromText,
+  documentContentText,
   appointmentInputSchema,
   professionalInputSchema,
   externalOperationInputSchema,
@@ -110,6 +112,94 @@ for (const storage of ["memory", "postgres"] as const) {
           }),
         );
       }
+
+      it("preserves visual contracts, individual drafts and frozen branding", async () => {
+        const client = await patient("Contrato visual");
+        const content = documentContentFromText(
+          "Contrato para {{paciente_nome}}. Condições do serviço.",
+        );
+        content.doc.content![0]!.content![1]!.marks = [{ type: "bold" }];
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato visual " + randomUUID(),
+          kind: "contract",
+          body: "Texto incompatível será derivado do conteúdo.",
+          content,
+        });
+        expect(template.body).toBe(documentContentText(content));
+        const input = {
+          templateId: template.id,
+          patientId: client.id,
+          title: "Contrato visual do cliente",
+        };
+        const before = (await repository.listIssuedDocuments(clinicId)).length;
+        const preview = await repository.previewDocument(clinicId, input);
+        expect(preview.snapshotBody).toContain(client.fullName);
+        expect((await repository.listIssuedDocuments(clinicId)).length).toBe(
+          before,
+        );
+        const document = await repository.createIssuedDocument(
+          clinicId,
+          actorId,
+          { ...input, content: preview.snapshotContent },
+        );
+        const changed = documentContentFromText(
+          document.snapshotBody +
+            "\n\nCondição individual adicionada ao rascunho.",
+        );
+        const saved = await repository.updateDocumentDraft(
+          clinicId,
+          document.id,
+          { title: input.title, content: changed },
+        );
+        expect(saved).toMatchObject({
+          snapshotBody: documentContentText(changed),
+          snapshotContent: changed,
+          branding: document.branding,
+        });
+        expect(
+          (await repository.listDocumentTemplates(clinicId)).find(
+            (item) => item.id === template.id,
+          )?.content,
+        ).toEqual(content);
+        expect(
+          await repository.updateDocumentDraft(
+            "99999999-9999-4999-8999-999999999999",
+            document.id,
+            { title: input.title, content: changed },
+          ),
+        ).toBeNull();
+        const next = documentContentFromText(
+          "Nova versão do modelo para contratos futuros.",
+        );
+        await repository.createDocumentTemplateVersion(
+          clinicId,
+          template.id,
+          "",
+          next,
+        );
+        const [issued, blocked] = await Promise.allSettled([
+          repository.updateIssuedDocumentStatus(
+            clinicId,
+            document.id,
+            "issued",
+          ),
+          repository.updateDocumentDraft(clinicId, document.id, {
+            title: "Alteração concorrente",
+            content: next,
+          }),
+        ]);
+        expect(issued.status).toBe("fulfilled");
+        expect(blocked.status).toBe("rejected");
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === document.id,
+          ),
+        ).toMatchObject({
+          snapshotContent: changed,
+          templateVersion: 1,
+          branding: document.branding,
+        });
+      });
 
       it("keeps each credit's source group outside the workspace period", async () => {
         await atInstant("2055-01-01T12:00:00Z", async () => {

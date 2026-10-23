@@ -366,6 +366,8 @@ export class PostgresClinicRepository implements ClinicRepository {
       this.contracts.createDocumentTemplateVersion;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
+    this.previewDocument = this.contracts.previewDocument;
+    this.updateDocumentDraft = this.contracts.updateDocumentDraft;
     this.updateIssuedDocumentStatus = this.contracts.updateIssuedDocumentStatus;
   }
   readonly findUserByEmail: ReturnType<
@@ -958,6 +960,12 @@ export class PostgresClinicRepository implements ClinicRepository {
     typeof createContractsRepository
   >["listIssuedDocuments"];
 
+  readonly previewDocument: ReturnType<
+    typeof createContractsRepository
+  >["previewDocument"];
+  readonly updateDocumentDraft: ReturnType<
+    typeof createContractsRepository
+  >["updateDocumentDraft"];
   readonly createIssuedDocument: ReturnType<
     typeof createContractsRepository
   >["createIssuedDocument"];

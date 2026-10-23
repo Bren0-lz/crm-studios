@@ -1,5 +1,8 @@
 import type {
   DocumentSignatureInput,
+  DocumentContent,
+  DocumentPreview,
+  DocumentDraftInput,
   DocumentSignatureContent,
   DocumentStatus,
   DocumentTemplate,
@@ -23,10 +26,24 @@ export const contractsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  createDocumentTemplateVersion: (id: string, body: string) =>
+  createDocumentTemplateVersion: (
+    id: string,
+    body: string,
+    content?: DocumentContent,
+  ) =>
     request<DocumentTemplate>(`/document-templates/${id}/versions`, {
       method: "POST",
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body, ...(content ? { content } : {}) }),
+    }),
+  previewDocument: (input: IssuedDocumentInput) =>
+    request<DocumentPreview>("/documents/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateDocumentDraft: (id: string, input: DocumentDraftInput) =>
+    request<IssuedDocument>(`/documents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
     }),
   documents: () => request<IssuedDocument[]>("/documents"),
   createDocument: (input: IssuedDocumentInput) =>

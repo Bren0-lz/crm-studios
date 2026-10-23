@@ -1,7 +1,17 @@
+import {
+  documentTemplateInputSchema,
+  documentTemplateVersionInputSchema,
+  documentBranding,
+  prepareDocumentContent,
+  documentContentFields,
+  documentContentText,
+  type DocumentContent,
+  type DocumentDraftInput,
+  type DocumentPreview,
+} from "@crm/contracts";
 import type { PoolClient } from "pg";
 import {
   documentTemplateValues,
-  renderDocumentTemplate,
   type DocumentStatus,
   type DocumentTemplateInput,
   type IssuedDocumentInput,
@@ -24,6 +34,50 @@ export function createContractsRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
   return {
+    async previewDocument(clinicId: string, input: IssuedDocumentInput) {
+      return repositoryContext.inTransaction((client) =>
+        prepareDocumentInTransaction(client, clinicId, input),
+      );
+    },
+    async updateDocumentDraft(
+      clinicId: string,
+      documentId: string,
+      input: DocumentDraftInput,
+    ) {
+      if (documentContentFields(input.content).length)
+        throw new DomainError(
+          "DOCUMENT_UNFILLED_FIELDS",
+          "Preencha os campos antes de salvar o contrato.",
+        );
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<{ status: DocumentStatus }>(
+          "SELECT status FROM issued_documents WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
+          [clinicId, documentId],
+        );
+        if (!current.rows[0]) return null;
+        if (current.rows[0].status !== "draft")
+          throw new DomainError(
+            "DOCUMENT_NOT_DRAFT",
+            "Apenas rascunhos podem ser editados.",
+            409,
+          );
+        await client.query(
+          "UPDATE issued_documents SET title=$3, snapshot_body=$4, snapshot_content=$5, updated_at=now() WHERE clinic_id=$1 AND id=$2",
+          [
+            clinicId,
+            documentId,
+            input.title,
+            documentContentText(input.content),
+            JSON.stringify(input.content),
+          ],
+        );
+        return repositoryContext.findIssuedDocument(
+          client,
+          clinicId,
+          documentId,
+        );
+      });
+    },
     async listDocumentTemplates(clinicId: string) {
       const result = await repositoryContext.pool.query<DocumentTemplateRow>(
         `SELECT ${documentTemplateColumns} FROM document_templates
@@ -37,13 +91,20 @@ export function createContractsRepository(
       clinicId: string,
       input: DocumentTemplateInput,
     ) {
+      input = documentTemplateInputSchema.parse(input);
       try {
         const result = await repositoryContext.pool.query<DocumentTemplateRow>(
           `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body)
-         VALUES ($1,$2,$3,1,$4)
+           (clinic_id, name, kind, version, body, content)
+         VALUES ($1,$2,$3,1,$4,$5)
          RETURNING ${documentTemplateColumns}`,
-          [clinicId, input.name, input.kind, input.body],
+          [
+            clinicId,
+            input.name,
+            input.kind,
+            input.body,
+            input.content ? JSON.stringify(input.content) : null,
+          ],
         );
         return mapDocumentTemplate(result.rows[0]!);
       } catch (error) {
@@ -61,7 +122,12 @@ export function createContractsRepository(
       clinicId: string,
       templateId: string,
       body: string,
+      content?: DocumentContent,
     ) {
+      ({ body, content } = documentTemplateVersionInputSchema.parse({
+        body,
+        content,
+      }));
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
@@ -87,8 +153,8 @@ export function createContractsRepository(
         );
         const result = await client.query<DocumentTemplateRow>(
           `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body, previous_version_id)
-         VALUES ($1,$2,$3,$4,$5,$6)
+           (clinic_id, name, kind, version, body, previous_version_id, content)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
          RETURNING ${documentTemplateColumns}`,
           [
             clinicId,
@@ -97,6 +163,7 @@ export function createContractsRepository(
             versionResult.rows[0]!.nextVersion,
             body,
             template.id,
+            content ? JSON.stringify(content) : null,
           ],
         );
         await client.query("COMMIT");
@@ -199,11 +266,50 @@ export async function createIssuedDocumentInTransaction(
   actorUserId: string,
   input: IssuedDocumentInput,
 ) {
+  const item = await prepareDocumentInTransaction(client, clinicId, input);
+  const result = await client.query<IssuedDocumentRow>(
+    `WITH inserted AS (
+         INSERT INTO issued_documents
+           (clinic_id, template_id, patient_id, plan_id, title, template_name,
+            template_version, snapshot_body, created_by_user_id, professional_id, snapshot_content, branding)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         RETURNING *
+       )
+       SELECT ${issuedDocumentColumns}
+       FROM inserted d
+       JOIN patients p ON p.id = d.patient_id
+       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
+    [
+      clinicId,
+      input.templateId,
+      input.patientId,
+      input.planId || null,
+      input.title,
+      item.templateName,
+      item.templateVersion,
+      item.snapshotBody,
+      actorUserId,
+      input.professionalId || null,
+      JSON.stringify(item.snapshotContent),
+      JSON.stringify(item.branding),
+    ],
+  );
+  return mapIssuedDocument(result.rows[0]!);
+}
+
+async function prepareDocumentInTransaction(
+  client: PoolClient,
+  clinicId: string,
+  input: IssuedDocumentInput,
+): Promise<DocumentPreview> {
   const professionalId = input.professionalId;
   const context = await client.query<{
     templateName: string;
     templateVersion: number;
     templateBody: string;
+    templateContent: DocumentContent | null;
+    clinicLogo: string;
+    clinicTimezone: string;
     patientName: string;
     planName: string | null;
     planServices: PatientPlanService[] | null;
@@ -228,7 +334,7 @@ export async function createIssuedDocumentInTransaction(
     professionalCrefito: string | null;
   }>(
     `SELECT dt.name AS "templateName", dt.version AS "templateVersion",
-              dt.body AS "templateBody", p.full_name AS "patientName",
+              dt.body AS "templateBody", dt.content AS "templateContent", c.logo_data_url AS "clinicLogo", c.timezone AS "clinicTimezone", p.full_name AS "patientName",
               p.cpf AS "patientCpf", p.profile AS "patientProfile",
               pp.name AS "planName",
               pp.total_value_in_cents AS "planTotalValueInCents",
@@ -300,75 +406,68 @@ export async function createIssuedDocumentInTransaction(
   }
   const item = context.rows[0];
   const emissionDate = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+    timeZone: item.clinicTimezone,
   }).format(new Date());
-  const snapshot = renderDocumentTemplate(
-    item.templateBody,
-    documentTemplateValues({
-      clinic: {
-        name: item.clinicName,
-        legalName: item.clinicLegalName,
-        taxId: item.clinicTaxId,
-        address: item.clinicAddress,
-        phone: item.clinicPhone,
-        email: item.clinicEmail,
-      },
-      patient: {
-        address: item.patientProfile?.address,
-        neighborhood: item.patientProfile?.neighborhood,
-        city: item.patientProfile?.city,
-        state: item.patientProfile?.state,
-        postalCode: item.patientProfile?.postalCode,
-        fullName: item.patientName,
-        cpf: item.patientCpf,
-      },
-      ...(item.planName !== null
-        ? {
-            plan: {
-              name: item.planName,
-              services: formatPlanServices(item.planServices ?? []),
-              totalValueInCents: item.planTotalValueInCents ?? 0,
-              installments: item.planInstallments ?? 1,
-              validFrom: item.planValidFrom ?? "",
-              validUntil: item.planValidUntil,
-            },
-          }
-        : {}),
-      ...(item.professionalName !== null
-        ? {
-            professional: {
-              fullName: item.professionalName,
-              crefito: item.professionalCrefito,
-            },
-          }
-        : {}),
-      issuedOn: emissionDate,
-    }),
-  );
-  const result = await client.query<IssuedDocumentRow>(
-    `WITH inserted AS (
-         INSERT INTO issued_documents
-           (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id, professional_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-         RETURNING *
-       )
-       SELECT ${issuedDocumentColumns}
-       FROM inserted d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
-    [
-      clinicId,
-      input.templateId,
-      input.patientId,
-      input.planId || null,
-      input.title,
-      item.templateName,
-      item.templateVersion,
-      snapshot,
-      actorUserId,
-      professionalId || null,
-    ],
-  );
-  return mapIssuedDocument(result.rows[0]!);
+  const branding = documentBranding({
+    name: item.clinicName,
+    logoDataUrl: item.clinicLogo ?? "",
+    timezone: item.clinicTimezone,
+    ...(item.clinicLegalName ? { legalName: item.clinicLegalName } : {}),
+    ...(item.clinicTaxId ? { taxId: item.clinicTaxId } : {}),
+    ...(item.clinicAddress ? { address: item.clinicAddress } : {}),
+    ...(item.clinicPhone ? { phone: item.clinicPhone } : {}),
+    ...(item.clinicEmail ? { email: item.clinicEmail } : {}),
+  });
+  const values = documentTemplateValues({
+    clinic: {
+      name: item.clinicName,
+      legalName: item.clinicLegalName,
+      taxId: item.clinicTaxId,
+      address: item.clinicAddress,
+      phone: item.clinicPhone,
+      email: item.clinicEmail,
+    },
+    patient: {
+      address: item.patientProfile?.address,
+      neighborhood: item.patientProfile?.neighborhood,
+      city: item.patientProfile?.city,
+      state: item.patientProfile?.state,
+      postalCode: item.patientProfile?.postalCode,
+      fullName: item.patientName,
+      cpf: item.patientCpf,
+    },
+    ...(item.planName !== null
+      ? {
+          plan: {
+            name: item.planName,
+            services: formatPlanServices(item.planServices ?? []),
+            totalValueInCents: item.planTotalValueInCents ?? 0,
+            installments: item.planInstallments ?? 1,
+            validFrom: item.planValidFrom ?? "",
+            validUntil: item.planValidUntil,
+          },
+        }
+      : {}),
+    ...(item.professionalName !== null
+      ? {
+          professional: {
+            fullName: item.professionalName,
+            crefito: item.professionalCrefito,
+          },
+        }
+      : {}),
+    issuedOn: emissionDate,
+  });
+  return {
+    ...prepareDocumentContent(
+      item.templateBody,
+      input.content ?? item.templateContent ?? undefined,
+      values,
+    ),
+    branding,
+    templateName: item.templateName,
+    templateVersion: item.templateVersion,
+    patientName: item.patientName,
+    ...(item.planName ? { planName: item.planName } : {}),
+  };
 }

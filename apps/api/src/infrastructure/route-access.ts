@@ -293,6 +293,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /documents/:id/signature/content": view("contracts"),
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
+  "POST /documents/preview": operation("contracts.issue"),
+  "PATCH /documents/:id": operation("contracts.issue"),
   "PATCH /documents/:id/status": {
     anyOf: operation("contracts.status", "contracts.cancel"),
   },

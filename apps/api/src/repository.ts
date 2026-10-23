@@ -1,3 +1,8 @@
+import type {
+  DocumentContent,
+  DocumentDraftInput,
+  DocumentPreview,
+} from "@crm/contracts";
 import type { Branch, BranchInput } from "@crm/contracts";
 import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
 import type {
@@ -1207,7 +1212,17 @@ export interface ClinicRepository {
     clinicId: string,
     templateId: string,
     body: string,
+    content?: DocumentContent,
   ): Promise<DocumentTemplate | null>;
+  previewDocument(
+    clinicId: string,
+    input: IssuedDocumentInput,
+  ): Promise<DocumentPreview>;
+  updateDocumentDraft(
+    clinicId: string,
+    documentId: string,
+    input: DocumentDraftInput,
+  ): Promise<IssuedDocument | null>;
   listIssuedDocuments(clinicId: string): Promise<IssuedDocument[]>;
   createIssuedDocument(
     clinicId: string,

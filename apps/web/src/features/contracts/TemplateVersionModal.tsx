@@ -1,5 +1,9 @@
-import type { ClinicBranding, DocumentTemplate } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import {
+  documentContentFromText,
+  type ClinicBranding,
+  type DocumentTemplate,
+} from "@crm/contracts";
+import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -19,12 +23,23 @@ export function TemplateVersionModal({
 }) {
   const { can } = useAuthorization();
   const [body, setBody] = useState(template.body);
+  const [content, setContent] = useState(
+    template.content ?? documentContentFromText(template.body),
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty(body);
+  const savingRef = useRef(false);
+  const dirty = useFormDirty({ body, content });
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (body.trim() === template.body.trim()) {
+    if (savingRef.current) return;
+    if (
+      body.trim() === template.body.trim() &&
+      JSON.stringify(content) ===
+        JSON.stringify(
+          template.content ?? documentContentFromText(template.body),
+        )
+    ) {
       setError("Altere o conteúdo para criar uma nova versão.");
       return;
     }
@@ -32,14 +47,16 @@ export function TemplateVersionModal({
       setError("O conteúdo precisa ter pelo menos 20 caracteres.");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError("");
     try {
-      await api.createDocumentTemplateVersion(template.id, body);
+      await api.createDocumentTemplateVersion(template.id, body, content);
       onCreated();
     } catch (cause) {
       setError((cause as Error).message);
       setSaving(false);
+      savingRef.current = false;
     }
   }
   return (
@@ -57,10 +74,14 @@ export function TemplateVersionModal({
           <div className="span-2">
             <TemplateBodyEditor
               value={body}
+              content={content}
               rows={12}
               disabled={saving}
               branding={branding}
-              onChange={setBody}
+              onChange={(body, content) => {
+                setBody(body);
+                setContent(content);
+              }}
             />
           </div>
           {error && <div className="span-2 form-error">{error}</div>}

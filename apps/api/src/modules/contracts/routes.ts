@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   documentSignatureInputSchema,
+  documentDraftInputSchema,
   documentTemplateInputSchema,
   documentTemplateVersionInputSchema,
   documentTransitionSchema,
@@ -66,6 +67,7 @@ export function registerContractsRoutes(context: RouteContext) {
         request.user.clinicId,
         id,
         input.body,
+        input.content,
       );
       if (!template)
         return reply.status(404).send({
@@ -76,6 +78,33 @@ export function registerContractsRoutes(context: RouteContext) {
     },
   );
 
+  app.post(
+    "/documents/preview",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.previewDocument(
+        request.user.clinicId,
+        issuedDocumentInputSchema.parse(request.body),
+      ),
+  );
+  app.patch(
+    "/documents/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const document = await repository.updateDocumentDraft(
+        request.user.clinicId,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+        documentDraftInputSchema.parse(request.body),
+      );
+      return (
+        document ??
+        reply.status(404).send({
+          code: "DOCUMENT_NOT_FOUND",
+          message: "Documento não encontrado.",
+        })
+      );
+    },
+  );
   app.get("/documents", { preHandler: authenticate }, async (request) =>
     repository.listIssuedDocuments(request.user.clinicId),
   );

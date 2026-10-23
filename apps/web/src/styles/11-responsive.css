@@ -563,13 +563,13 @@
   }
 
   /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */
-  .template-list article,
-  .issued-document-list article {
+  .template-list > article,
+  .issued-document-list > article {
     grid-template-columns: 1fr auto;
     padding: calc(var(--space-3) + 2px) var(--space-4);
   }
 
-  .template-list article > button,
+  .template-list > article > button,
   .document-actions {
     grid-column: 1 / -1;
   }

@@ -366,6 +366,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.contracts.createDocumentTemplateVersion;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
+    this.previewDocument = this.contracts.previewDocument;
+    this.updateDocumentDraft = this.contracts.updateDocumentDraft;
     this.updateIssuedDocumentStatus = this.contracts.updateIssuedDocumentStatus;
     // All clinics share the in-memory collections. One instance-wide guard
     // keeps composed rollback isolated from writes in any other clinic.
@@ -970,6 +972,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createContractsRepository
   >["listIssuedDocuments"];
 
+  readonly previewDocument: ReturnType<
+    typeof createContractsRepository
+  >["previewDocument"];
+  readonly updateDocumentDraft: ReturnType<
+    typeof createContractsRepository
+  >["updateDocumentDraft"];
   readonly createIssuedDocument: ReturnType<
     typeof createContractsRepository
   >["createIssuedDocument"];

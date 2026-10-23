@@ -1,3 +1,9 @@
+import { act } from "@testing-library/react";
+import {
+  documentEditor,
+  setDocumentText,
+  installDocumentBrowserMocks,
+} from "../../test-support/document-editor";
 import {
   fireEvent,
   render,
@@ -53,18 +59,20 @@ describe("document template editor", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    installDocumentBrowserMocks();
+    fireEvent.click(screen.getByText("Inserir campo automático"));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     const form = fields.closest("form") as HTMLFormElement;
     const name = within(form).getByLabelText("Nome");
-    const body = within(form).getByLabelText("Conteúdo") as HTMLTextAreaElement;
+    const body = within(form).getByLabelText("Conteúdo");
     // O editor abre com o contrato padrão; "Começar em branco" limpa nome e conteúdo.
     expect(name).toHaveValue("Contrato de prestação de serviços");
-    expect(body.value).toContain("{{clinica_cnpj}}");
+    expect(body).toHaveTextContent("CNPJ");
     fireEvent.click(
       within(form).getByRole("button", { name: "Começar em branco" }),
     );
     expect(name).toHaveValue("");
-    expect(body).toHaveValue("");
+    expect(body.textContent).toBe("");
     // Sem nome e conteúdo, "Criar modelo" diz o que falta (QM14).
     const createTemplate = within(form).getByRole("button", {
       name: "Criar modelo",
@@ -75,24 +83,29 @@ describe("document template editor", () => {
     );
 
     fireEvent.change(name, { target: { value: "Termo de adesão" } });
-    fireEvent.change(body, {
-      target: { value: "Eu, , aceito os termos da clínica." },
-    });
+    setDocumentText(body, "Eu, , aceito os termos da clínica.");
     expect(createTemplate).toBeEnabled();
     expect(within(form).queryByText(/Falta:/)).not.toBeInTheDocument();
-    body.setSelectionRange(4, 4);
+    act(() => {
+      body.focus();
+      documentEditor(body).commands.setTextSelection(5);
+    });
     fireEvent.click(
       within(fields).getByRole("button", { name: "Nome do cliente" }),
     );
-    expect(body).toHaveValue(
-      "Eu, {{paciente_nome}}, aceito os termos da clínica.",
+    expect(body).toHaveTextContent(
+      "Eu, Nome do cliente, aceito os termos da clínica.",
     );
-    body.setSelectionRange(body.value.length - 1, body.value.length - 1);
+    act(() => {
+      documentEditor(body).commands.setTextSelection(
+        documentEditor(body).state.doc.content.size - 2,
+      );
+    });
     fireEvent.click(
       within(fields).getByRole("button", { name: "Nome da clínica" }),
     );
-    expect(body).toHaveValue(
-      "Eu, {{paciente_nome}}, aceito os termos da clínica{{clinica_nome}}.",
+    expect(body).toHaveTextContent(
+      "Eu, Nome do cliente, aceito os termos da clínicaNome da clínica.",
     );
     const preview = within(form).getByRole("region", {
       name: "Prévia do documento final",
@@ -115,7 +128,7 @@ describe("document template editor", () => {
       ),
     ).toBeInTheDocument();
     expect(name).toHaveValue("");
-    expect(body).toHaveValue("");
+    expect(body.textContent).toBe("");
     expect(created).toEqual([
       expect.objectContaining({
         name: "Termo de adesão",

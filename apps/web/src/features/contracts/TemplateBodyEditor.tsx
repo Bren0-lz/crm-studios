@@ -2,27 +2,17 @@ import {
   documentTemplateVariables,
   formatPhone,
   missingDocumentValue,
-  previewDocumentTemplate,
+  documentContentFromText,
+  fillDocumentContent,
+  documentContentText,
+  type DocumentContent,
   type ClinicBranding,
   type DocumentTemplateValues,
 } from "@crm/contracts";
 import { Maximize2, Minimize2 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { DocumentPaper } from "./DocumentPaper";
-
-/** Botões "Inserir campo" agrupados pelo cadastro de onde o dado vem. */
-const variableGroups = [
-  { prefix: "paciente_", label: "Cliente" },
-  { prefix: "plano_", label: "Plano" },
-  { prefix: "profissional_", label: "Profissional" },
-  { prefix: "clinica_", label: "Clínica" },
-  { prefix: "data_", label: "Data" },
-].map((group) => ({
-  ...group,
-  variables: documentTemplateVariables.filter((variable) =>
-    variable.key.startsWith(group.prefix),
-  ),
-}));
+import { RichDocumentEditor } from "./RichDocumentEditor";
 
 /** Campos da clínica que vêm de Configurações (e não do exemplo) na prévia. */
 const clinicFields = {
@@ -53,35 +43,21 @@ function clinicValue(
 export function TemplateBodyEditor({
   value,
   onChange,
-  rows = 8,
+  content,
   disabled = false,
   branding,
   studio = false,
 }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, content: DocumentContent) => void;
+  content?: DocumentContent | undefined;
   rows?: number;
   disabled?: boolean;
   branding?: ClinicBranding | null | undefined;
   studio?: boolean;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const id = useId();
   const [previewOnly, setPreviewOnly] = useState(false);
-
-  function insert(key: string) {
-    const textarea = textareaRef.current;
-    const token = `{{${key}}}`;
-    const start = textarea?.selectionStart ?? value.length;
-    const end = textarea?.selectionEnd ?? value.length;
-    onChange(value.slice(0, start) + token + value.slice(end));
-    requestAnimationFrame(() => {
-      if (!textarea) return;
-      textarea.focus();
-      const cursor = start + token.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
-  }
 
   // Com os dados da clínica carregados, a prévia mostra o que a emissão vai mostrar,
   // inclusive "não informado" no que falta no cadastro.
@@ -108,6 +84,17 @@ export function TemplateBodyEditor({
     }
   }
 
+  const source = content ?? documentContentFromText(value);
+  const exampleValues = Object.fromEntries(
+    documentTemplateVariables.map((variable) => [
+      variable.key,
+      variable.example,
+    ]),
+  );
+  const previewContent = fillDocumentContent(source, {
+    ...exampleValues,
+    ...overrides,
+  });
   const preview = (
     <section
       className="template-preview"
@@ -145,7 +132,8 @@ export function TemplateBodyEditor({
       )}
       <div className="document-paper-canvas">
         <DocumentPaper
-          body={previewDocumentTemplate(value, overrides)}
+          body={documentContentText(previewContent)}
+          content={previewContent}
           branding={branding}
         />
       </div>
@@ -163,40 +151,10 @@ export function TemplateBodyEditor({
         .join(" ")}
     >
       <div className="template-body-input" hidden={previewOnly}>
-        <label htmlFor={`${id}-body`}>Conteúdo</label>
-        <div
-          className="template-fields"
-          role="group"
-          aria-label="Inserir campo"
-        >
-          <span>Inserir campo:</span>
-          {variableGroups.map((group) => (
-            <div className="template-field-group" key={group.prefix}>
-              <span>{group.label}</span>
-              {group.variables.map((variable) => (
-                <button
-                  key={variable.key}
-                  type="button"
-                  className="secondary-button button-sm"
-                  disabled={disabled}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => insert(variable.key)}
-                >
-                  {variable.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-        <textarea
-          id={`${id}-body`}
-          ref={textareaRef}
-          required
-          rows={rows}
+        <RichDocumentEditor
+          value={source}
           disabled={disabled}
-          spellCheck
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(next) => onChange(documentContentText(next), next)}
         />
       </div>
       {preview}

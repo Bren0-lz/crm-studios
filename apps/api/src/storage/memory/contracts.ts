@@ -1,3 +1,15 @@
+import {
+  documentTemplateInputSchema,
+  documentTemplateVersionInputSchema,
+  documentBranding,
+  documentTemplateValues,
+  prepareDocumentContent,
+  documentContentText,
+  documentContentFields,
+  type DocumentContent,
+  type DocumentDraftInput,
+} from "@crm/contracts";
+import { formatPlanServices } from "../../modules/plans/plan-services.js";
 import type {
   DocumentStatus,
   DocumentTemplate,
@@ -12,7 +24,112 @@ import { now, uuid } from "./helpers.js";
 export function createContractsRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  async function previewDocument(clinicId: string, input: IssuedDocumentInput) {
+    const template = repositoryContext.documentTemplates.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === input.templateId &&
+        item.active,
+    );
+    if (!template)
+      throw new DomainError(
+        "DOCUMENT_TEMPLATE_NOT_FOUND",
+        "Modelo ativo não encontrado.",
+        404,
+      );
+    const patient = repositoryContext.patients.find(
+      (item) => item.clinicId === clinicId && item.id === input.patientId,
+    );
+    if (!patient)
+      throw new DomainError(
+        "PATIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        404,
+      );
+    const plan = input.planId
+      ? repositoryContext.patientPlans.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === input.planId &&
+            item.patientId === patient.id,
+        )
+      : undefined;
+    if (input.planId && !plan)
+      throw new DomainError(
+        "DOCUMENT_PLAN_MISMATCH",
+        "O plano informado não pertence ao cliente.",
+      );
+    const professional = input.professionalId
+      ? repositoryContext.professionals.find(
+          (item) =>
+            item.clinicId === clinicId && item.id === input.professionalId,
+        )
+      : undefined;
+    if (input.professionalId && !professional)
+      throw new DomainError(
+        "PROFESSIONAL_NOT_FOUND",
+        "Profissional não encontrado.",
+        404,
+      );
+
+    const settings = repositoryContext.clinicSettings;
+    if (settings.id !== clinicId)
+      throw new DomainError("CLINIC_NOT_FOUND", "Clínica não encontrada.", 404);
+    const values = documentTemplateValues({
+      clinic: settings,
+      patient,
+      ...(plan
+        ? { plan: { ...plan, services: formatPlanServices(plan.services) } }
+        : {}),
+      ...(professional ? { professional } : {}),
+      issuedOn: new Intl.DateTimeFormat("pt-BR", {
+        timeZone: settings.timezone,
+      }).format(new Date()),
+    });
+    return {
+      ...prepareDocumentContent(
+        template.body,
+        input.content ?? template.content,
+        values,
+      ),
+      branding: documentBranding({
+        ...settings,
+        logoDataUrl: settings.logoDataUrl ?? "",
+      }),
+      templateName: template.name,
+      templateVersion: template.version,
+      patientName: patient.fullName,
+      ...(plan ? { planName: plan.name } : {}),
+    };
+  }
   return {
+    previewDocument,
+    async updateDocumentDraft(
+      clinicId: string,
+      documentId: string,
+      input: DocumentDraftInput,
+    ) {
+      const document = repositoryContext.issuedDocuments.find(
+        (item) => item.clinicId === clinicId && item.id === documentId,
+      );
+      if (!document) return null;
+      if (document.status !== "draft")
+        throw new DomainError(
+          "DOCUMENT_NOT_DRAFT",
+          "Apenas rascunhos podem ser editados.",
+          409,
+        );
+      if (documentContentFields(input.content).length)
+        throw new DomainError(
+          "DOCUMENT_UNFILLED_FIELDS",
+          "Preencha os campos antes de salvar o contrato.",
+        );
+      document.title = input.title;
+      document.snapshotContent = structuredClone(input.content);
+      document.snapshotBody = documentContentText(input.content);
+      document.updatedAt = now();
+      return document;
+    },
     async listDocumentTemplates(clinicId: string) {
       return repositoryContext.documentTemplates
         .filter((item) => item.clinicId === clinicId)
@@ -23,6 +140,7 @@ export function createContractsRepository(
       clinicId: string,
       input: DocumentTemplateInput,
     ) {
+      input = documentTemplateInputSchema.parse(input);
       if (
         repositoryContext.documentTemplates.some(
           (item) =>
@@ -52,7 +170,12 @@ export function createContractsRepository(
       clinicId: string,
       templateId: string,
       body: string,
+      content?: DocumentContent,
     ) {
+      ({ body, content } = documentTemplateVersionInputSchema.parse({
+        body,
+        content,
+      }));
       const template = repositoryContext.documentTemplates.find(
         (item) => item.clinicId === clinicId && item.id === templateId,
       );
@@ -69,6 +192,7 @@ export function createContractsRepository(
         name: template.name,
         kind: template.kind,
         body,
+        ...(content ? { content } : {}),
         version: Math.max(...versions.map((item) => item.version)) + 1,
         active: true,
         previousVersionId: template.id,
@@ -89,67 +213,25 @@ export function createContractsRepository(
       _actorUserId: string,
       input: IssuedDocumentInput,
     ) {
-      const template = repositoryContext.documentTemplates.find(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.id === input.templateId &&
-          item.active,
-      );
-      if (!template)
-        throw new DomainError(
-          "DOCUMENT_TEMPLATE_NOT_FOUND",
-          "Modelo ativo não encontrado.",
-          404,
-        );
-      const patient = repositoryContext.patients.find(
-        (item) => item.clinicId === clinicId && item.id === input.patientId,
-      );
-      if (!patient)
-        throw new DomainError(
-          "PATIENT_NOT_FOUND",
-          "Cliente não encontrado.",
-          404,
-        );
-      const plan = input.planId
-        ? repositoryContext.patientPlans.find(
-            (item) =>
-              item.clinicId === clinicId &&
-              item.id === input.planId &&
-              item.patientId === patient.id,
-          )
-        : undefined;
-      if (input.planId && !plan)
-        throw new DomainError(
-          "DOCUMENT_PLAN_MISMATCH",
-          "O plano informado não pertence ao cliente.",
-        );
-      const professional = input.professionalId
-        ? repositoryContext.professionals.find(
-            (item) =>
-              item.clinicId === clinicId && item.id === input.professionalId,
-          )
-        : undefined;
-      if (input.professionalId && !professional)
-        throw new DomainError(
-          "PROFESSIONAL_NOT_FOUND",
-          "Profissional não encontrado.",
-          404,
-        );
+      const preview = await previewDocument(clinicId, input);
       const timestamp = now();
       const issuedDocument: IssuedDocument = {
-        ...input,
+        templateId: input.templateId,
+        patientId: input.patientId,
+        title: input.title,
+        ...(input.planId ? { planId: input.planId } : {}),
+        ...(input.professionalId
+          ? { professionalId: input.professionalId }
+          : {}),
         id: uuid(),
         clinicId,
-        templateName: template.name,
-        templateVersion: template.version,
-        patientName: patient.fullName,
-        ...(plan ? { planName: plan.name } : {}),
-        snapshotBody: repositoryContext.renderDocument(
-          template.body,
-          patient,
-          plan,
-          professional,
-        ),
+        templateName: preview.templateName,
+        templateVersion: preview.templateVersion,
+        patientName: preview.patientName,
+        ...(preview.planName ? { planName: preview.planName } : {}),
+        snapshotBody: preview.snapshotBody,
+        snapshotContent: preview.snapshotContent,
+        branding: structuredClone(preview.branding),
         status: "draft",
         createdAt: timestamp,
         updatedAt: timestamp,
