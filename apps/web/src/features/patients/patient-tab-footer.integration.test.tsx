@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, expand } from "../../test-support/workflow-ui";
+import { open } from "../../test-support/workflow-ui";
 
 async function openTabModal() {
   const { repository } = await setupApi();
@@ -16,8 +16,8 @@ async function openTabModal() {
   open(`/clientes/${patient.id}`);
   await screen.findByRole("heading", { name: patient.fullName });
   fireEvent.click(await screen.findByRole("tab", { name: "Comandas" }));
-  const panel = expand("Estoque e comandas");
-  await within(panel).findByText("Comandas", { exact: true });
+  const panel = screen.getByRole("region", { name: "Comandas do cliente" });
+  await within(panel).findByText("Aberta");
   fireEvent.click(
     within(panel).getAllByRole("button", { name: "Abrir comanda" }).at(-1)!,
   );
@@ -114,5 +114,27 @@ describe("patient tab footer (QM5)", () => {
         (item) => item.id === tab.id,
       )?.status,
     ).toBe("cancelled");
+  });
+
+  it("keeps 'Confirmar fechamento' disabled listing what is missing (QM14)", async () => {
+    const { dialog } = await openTabModal();
+    fireEvent.click(
+      within(footerOf(dialog).main).getByRole("button", {
+        name: "Fechar comanda",
+      }),
+    );
+    const confirm = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+    expect(confirm).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+    const due = within(dialog).getByLabelText("Vencimento");
+    const filled = (due as HTMLInputElement).value;
+    fireEvent.change(due, { target: { value: "" } });
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAccessibleDescription("Falta: Vencimento.");
+    fireEvent.change(due, { target: { value: filled } });
+    expect(confirm).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
   });
 });

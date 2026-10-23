@@ -131,14 +131,18 @@ describe("appointment details footer and edit (QM6)", () => {
       }),
     ).toHaveClass("danger-button");
     const main = within(groups[1] as HTMLElement);
+    for (const name of ["Editar", "Remarcar atendimento"])
+      expect(main.getByRole("button", { name })).toBeInTheDocument();
+    // Fluxo de presença numa linha própria, abaixo da gestão do atendimento.
+    const attendance = within(
+      footer.querySelector<HTMLElement>(".appointment-attendance-actions")!,
+    );
     for (const name of [
-      "Editar",
-      "Remarcar atendimento",
       "Confirmar presença",
       "Marcar falta",
       "Marcar como realizado",
     ])
-      expect(main.getByRole("button", { name })).toBeInTheDocument();
+      expect(attendance.getByRole("button", { name })).toBeInTheDocument();
 
     const css = readFileSync(
       `${process.cwd()}/src/styles/05-agenda.css`,
@@ -273,8 +277,12 @@ describe("appointment details footer and edit (QM6)", () => {
     expect(
       await within(dialog).findByRole("button", { name: "Salvando…" }),
     ).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "Voltar" })).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "Fechar" })).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Voltar" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Fechar" }),
+    ).toBeDisabled();
     reject(new Response());
     expect(
       await within(dialog).findByText(
@@ -284,5 +292,38 @@ describe("appointment details footer and edit (QM6)", () => {
     expect(
       within(dialog).getByRole("button", { name: "Voltar" }),
     ).toBeEnabled();
+  });
+
+  it("asks before discarding an edited appointment and keeps the details open (QM11)", async () => {
+    mockApi(appointment);
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Editar atendimento",
+    });
+    const notes = await within(dialog).findByLabelText("Observação");
+    expect(notes).toHaveValue("Trazer exames");
+    fireEvent.change(notes, { target: { value: "Chegar 10 min antes" } });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Descartar alterações?" }),
+      ).getByRole("button", { name: "Continuar editando" }),
+    );
+    expect(within(dialog).getByLabelText("Observação")).toHaveValue(
+      "Chegar 10 min antes",
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Descartar alterações?" }),
+      ).getByRole("button", { name: "Descartar" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Editar atendimento" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
   });
 });

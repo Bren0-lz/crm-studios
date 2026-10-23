@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cpfMatchKey,
+  planServiceValueForSessions,
+  fillCampaignMessage,
+  imageDataUrlInfo,
+  messageTemplateInputSchema,
+  whatsappCampaignAudienceSchema,
+  describeLeadDuplicate,
+  emailMatchKey,
+  findLeadDuplicates,
+  phoneMatchKey,
   salesChangePercent,
   DEFAULT_PATIENT_TAG_COLOR,
   patientTagDisplayColor,
@@ -55,6 +65,7 @@ import {
   patientTagKey,
   patientTagUpdateSchema,
   phoneDigits,
+  recurringOccurrenceStarts,
   recurringPayableCompetences,
   recurringPayableDueDate,
   relationshipSettingsSchema,
@@ -63,6 +74,15 @@ import {
   userRoleLabels,
   userRoleSchema,
   whatsappLink,
+  historyActions,
+  permissionCatalog,
+  tabReceivableDescription,
+  formatSequenceNumber,
+  parseSequenceNumber,
+  defaultContractTemplateBody,
+  documentTemplateValues,
+  documentTemplateVariables,
+  renderDocumentTemplate,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -92,6 +112,32 @@ describe("shared contracts", () => {
     expect(
       broadcastSkipReasons.every((reason) => broadcastSkipReasonLabels[reason]),
     ).toBe(true);
+  });
+
+  it("lists recurring occurrences by interval or by chosen dates", () => {
+    expect(
+      recurringOccurrenceStarts({
+        startsAt: "2026-11-02T13:00:00-03:00",
+        occurrences: 3,
+        intervalWeeks: 2,
+      }),
+    ).toEqual([
+      "2026-11-02T16:00:00.000Z",
+      "2026-11-16T16:00:00.000Z",
+      "2026-11-30T16:00:00.000Z",
+    ]);
+    expect(
+      recurringOccurrenceStarts({
+        startsAt: "2026-11-02T16:00:00.000Z",
+        occurrences: 3,
+        intervalWeeks: 1,
+        customStartsAt: ["2026-11-20T14:00:00.000Z", "2026-11-05T16:00:00Z"],
+      }),
+    ).toEqual([
+      "2026-11-02T16:00:00.000Z",
+      "2026-11-05T16:00:00.000Z",
+      "2026-11-20T14:00:00.000Z",
+    ]);
   });
 
   it("lists the due competences of a fixed expense across years", () => {
@@ -1141,5 +1187,227 @@ describe("sales change percent", () => {
     expect(salesChangePercent(5000, 10000)).toBe(-50);
     expect(salesChangePercent(49000, 0)).toBeNull();
     expect(salesChangePercent(49000, -700000)).toBeNull();
+  });
+});
+
+describe("lead duplicates", () => {
+  it("normaliza telefone, e-mail e CPF para comparar", () => {
+    expect(phoneMatchKey("+55 (11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("(11) 98765-4321")).toBe("11987654321");
+    expect(phoneMatchKey("551134567890")).toBe("1134567890");
+    expect(phoneMatchKey("5511987654")).toBe("5511987654");
+    expect(emailMatchKey(" Maria.Souza @Email.com ")).toBe(
+      "maria.souza@email.com",
+    );
+    expect(cpfMatchKey("529.982.247-25")).toBe("52998224725");
+    expect(phoneMatchKey(undefined)).toBe("");
+  });
+
+  it("encontra clientes e leads com o mesmo contato, sem contar o próprio lead", () => {
+    const matches = findLeadDuplicates(
+      {
+        phone: "11987654321",
+        email: "MARIA@email.com",
+        cpf: "52998224725",
+        excludeLeadId: "lead-self",
+      },
+      [
+        {
+          id: "p1",
+          fullName: "Maria Souza",
+          phone: "5511987654321",
+          email: " maria@email.com",
+          cpf: "529.982.247-25",
+        },
+        { id: "p2", fullName: "Outra Pessoa", phone: "11900000000" },
+      ],
+      [
+        { id: "lead-self", fullName: "Eu", phone: "11987654321" },
+        { id: "l2", fullName: "Lead Antigo", email: "maria@EMAIL.com" },
+      ],
+    );
+    expect(matches).toEqual([
+      {
+        kind: "patient",
+        id: "p1",
+        fullName: "Maria Souza",
+        fields: ["phone", "email", "cpf"],
+      },
+      { kind: "lead", id: "l2", fullName: "Lead Antigo", fields: ["email"] },
+    ]);
+    expect(describeLeadDuplicate(matches[0]!)).toBe(
+      "Telefone, e-mail e CPF já cadastrados para Maria Souza (cliente).",
+    );
+    expect(describeLeadDuplicate(matches[1]!)).toBe(
+      "E-mail já cadastrado para Lead Antigo (lead).",
+    );
+  });
+
+  it("ignora campos vazios", () => {
+    expect(
+      findLeadDuplicates(
+        { phone: "", email: "", cpf: "" },
+        [{ id: "p1", fullName: "Sem Dados" }],
+        [],
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("textos de interface sem nome antigo nem código interno (QM15)", () => {
+  it("rotula permissões e histórico sem 'movimenta'", () => {
+    const labels = [
+      ...permissionCatalog.map((item) => item.name),
+      ...historyActions.map((item) => item.label),
+    ];
+    expect(labels.filter((label) => /movimenta/i.test(label))).toEqual([]);
+    expect(
+      permissionCatalog.find((item) => item.key === "patients.stock_move")
+        ?.name,
+    ).toBe("Ajustar estoque");
+  });
+
+  it("formata e lê números sequenciais de prontuário e recibo", () => {
+    expect(formatSequenceNumber("PAC", 7)).toBe("PAC-00007");
+    expect(formatSequenceNumber("REC", 123456)).toBe("REC-123456");
+    expect(parseSequenceNumber("PAC", "PAC-00124")).toBe(124);
+    expect(parseSequenceNumber("PAC", "PAC-E2CD5FDF")).toBeNull();
+    expect(parseSequenceNumber("PAC", "PAC-9999")).toBeNull();
+    expect(parseSequenceNumber("REC", "PAC-00001")).toBeNull();
+  });
+
+  it("descreve a cobrança da comanda por data e cliente, sem o id", () => {
+    expect(tabReceivableDescription("Marina Souza", "2026-10-19")).toBe(
+      "Comanda de 19/10 · Marina",
+    );
+  });
+});
+
+describe("campanhas de WhatsApp", () => {
+  it("preenche nome e nome completo e mantém códigos desconhecidos", () => {
+    expect(
+      fillCampaignMessage(
+        "Oi, {{nome}}! {{ nome_completo }} {{x}}",
+        "  Ana   Paula Souza ",
+      ),
+    ).toBe("Oi, Ana! Ana Paula Souza {{x}}");
+  });
+
+  it("limita a 3 imagens válidas e calcula o tamanho decodificado", () => {
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const image = { fileName: "a.png", dataUrl: png };
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [image, image, image],
+      }).success,
+    ).toBe(true);
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [image, image, image, image],
+      }).success,
+    ).toBe(false);
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "B",
+        images: [{ fileName: "a.gif", dataUrl: "data:image/gif;base64,AAAA" }],
+      }).success,
+    ).toBe(false);
+    expect(imageDataUrlInfo(png)).toMatchObject({
+      mimeType: "image/png",
+      sizeBytes: 68,
+    });
+  });
+
+  it("exige clientes no público por escolha individual", () => {
+    expect(
+      whatsappCampaignAudienceSchema.safeParse({
+        mode: "patients",
+        patientIds: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
+    ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
+  });
+});
+
+describe("valor do serviço vendido no plano", () => {
+  it("segue o preço por sessão da referência e arredonda em centavos", () => {
+    const reference = { totalSessions: 8, totalValueInCents: 16000 };
+    expect(planServiceValueForSessions(reference, 8)).toBe(16000);
+    expect(planServiceValueForSessions(reference, 10)).toBe(20000);
+    expect(
+      planServiceValueForSessions(
+        { totalSessions: 3, totalValueInCents: 10000 },
+        1,
+      ),
+    ).toBe(3333);
+    expect(planServiceValueForSessions(reference, 0)).toBe(0);
+  });
+});
+
+describe("document templates", () => {
+  const context = {
+    clinic: {
+      name: "Studios Aryana",
+      legalName: "",
+      taxId: "11.222.333/0001-81",
+      phone: "19999990000",
+    },
+    patient: {
+      fullName: "Helena Almeida",
+      cpf: "52998224725",
+      address: "Rua das Flores, 120",
+      city: "Campinas",
+      state: "SP",
+      postalCode: "13010-000",
+    },
+    issuedOn: "23/10/2026",
+  };
+
+  it("fills the parties with formatted documents and falls back when data is missing", () => {
+    const values = documentTemplateValues(context);
+    expect(values).toMatchObject({
+      clinica_razao_social: "Studios Aryana",
+      clinica_cnpj: "11.222.333/0001-81",
+      clinica_telefone: "(19) 99999-0000",
+      clinica_endereco: "não informado",
+      paciente_cpf: "529.982.247-25",
+      paciente_endereco: "Rua das Flores, 120, Campinas/SP, CEP 13010-000",
+      plano_nome: "Não vinculado",
+      plano_vigencia: "Não vinculado",
+      profissional_nome: "",
+    });
+    expect(
+      documentTemplateValues({
+        ...context,
+        plan: {
+          name: "Pilates",
+          services: "Pilates: 8 sessões",
+          totalValueInCents: 120000,
+          installments: 3,
+          validFrom: "2026-11-01",
+        },
+      }).plano_vigencia,
+    ).toBe("a partir de 01/11/2026, por prazo indeterminado");
+  });
+
+  it("offers every field used by the standard contract", () => {
+    const rendered = renderDocumentTemplate(
+      defaultContractTemplateBody,
+      documentTemplateValues(context),
+    );
+    expect(rendered).not.toContain("{{");
+    expect(rendered).toContain("inscrita no CNPJ sob o nº 11.222.333/0001-81");
+    expect(rendered).toContain("TESTEMUNHAS:");
+    const keys = documentTemplateVariables.map((variable) => variable.key);
+    for (const match of defaultContractTemplateBody.matchAll(/\{\{(\w+)\}\}/g))
+      expect(keys).toContain(match[1]);
   });
 });

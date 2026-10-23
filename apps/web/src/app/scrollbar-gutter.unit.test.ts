@@ -10,9 +10,8 @@ describe("page scrollbar (V9)", () => {
     );
   });
 
-  it("locks the html (not only the body) while a modal is open", () => {
-    expect(css).toMatch(
-      /html\.modal-open,\s*body\.modal-open \{\s*overflow: hidden;/,
-    );
+  it("locks only the html so sticky elements keep following the viewport", () => {
+    expect(css).toMatch(/html\.modal-open \{\s*overflow: hidden;/);
+    expect(css).not.toMatch(/body\.modal-open/);
   });
 });

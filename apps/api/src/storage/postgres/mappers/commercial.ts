@@ -8,6 +8,7 @@ import type {
 } from "@crm/contracts";
 
 export interface LeadRow {
+  branchId?: string;
   contactMethod: string | null;
   profile?: Record<string, unknown>;
   id: string;
@@ -60,7 +61,7 @@ export interface LeadTaskRow {
 }
 
 export const leadColumns = `
-  id, clinic_id AS "clinicId", full_name AS "fullName", phone, email,
+  branch_id AS "branchId", id, clinic_id AS "clinicId", full_name AS "fullName", phone, email,
   contact_method AS "contactMethod",profile,source, interest, notes, stage, lost_reason AS "lostReason",
   converted_patient_id AS "convertedPatientId",
   responsible_user_id AS "responsibleUserId", tags,
@@ -73,6 +74,7 @@ export const leadColumns = `
 
 export function mapLead(row: LeadRow): Lead {
   return {
+    ...(row.branchId ? { branchId: row.branchId } : {}),
     ...leadPatientProfile(row.profile ?? {}),
     id: row.id,
     clinicId: row.clinicId,

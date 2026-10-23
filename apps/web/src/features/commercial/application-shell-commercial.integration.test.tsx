@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("application shell", () => {
   it("books a trial class for a lead from the CRM card", async () => {
@@ -74,8 +78,8 @@ describe("application shell", () => {
           }),
         } as Response;
       }
-      const body = url.endsWith("/leads")
-        ? [lead, converted]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead, converted])
         : url.includes("/professionals")
           ? [
               {
@@ -147,10 +151,27 @@ describe("application shell", () => {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
+    // Sem horário, Confirmar fica desativado dizendo o que falta (QM14).
+    fireEvent.change(within(dialog).getByLabelText("Horário"), {
+      target: { value: "" },
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toHaveAccessibleDescription("Falta: Data e horário.");
     fireEvent.change(within(dialog).getByLabelText("Horário"), {
       target: { value: "09:00" },
     });
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
+    ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
     expect(
       within(dialog).queryByRole("region", {
         name: "Calendário de agendamento",

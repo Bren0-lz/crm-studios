@@ -9,6 +9,7 @@ import { Download, Paperclip, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PatientPicker } from "../../PatientPicker";
 import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -35,6 +36,7 @@ export function ClinicalWorkspacePanel({
   editable: boolean;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [patientId, setPatientId] = useState(
     initialPatientId ?? patients[0]?.id ?? "",
   );
@@ -181,7 +183,6 @@ export function ClinicalWorkspacePanel({
       )}
       <div className="panel-head clinical-workspace-head">
         <div>
-          <span className="eyebrow">Visão longitudinal</span>
           <h2>Acompanhamento terapêutico</h2>
         </div>
         <PatientPicker
@@ -290,7 +291,6 @@ export function ClinicalWorkspacePanel({
             <div className="clinical-goals">
               <div className="panel-head compact">
                 <div>
-                  <span className="eyebrow">Objetivos</span>
                   <h3>Plano terapêutico</h3>
                 </div>
               </div>
@@ -330,6 +330,7 @@ export function ClinicalWorkspacePanel({
                                   goal.id,
                                   "achieved",
                                 );
+                                toast.success("Objetivo marcado como alcançado.");
                                 await load();
                               } catch (cause) {
                                 setError((cause as Error).message);
@@ -347,7 +348,6 @@ export function ClinicalWorkspacePanel({
             <div className="clinical-timeline">
               <div className="panel-head compact">
                 <div>
-                  <span className="eyebrow">Histórico integrado</span>
                   <h3>Linha do tempo</h3>
                 </div>
               </div>
@@ -375,7 +375,6 @@ export function ClinicalWorkspacePanel({
           <div className="clinical-attachments">
             <div className="panel-head compact">
               <div>
-                <span className="eyebrow">Arquivos protegidos</span>
                 <h3>Anexos clínicos</h3>
               </div>
             </div>
@@ -528,6 +527,7 @@ export function ClinicalWorkspacePanel({
           template={templateEditing}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Modelo de avaliação salvo.");
             setEditor(null);
             void load();
           }}
@@ -539,6 +539,7 @@ export function ClinicalWorkspacePanel({
           templates={workspace.templates}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Avaliação registrada.");
             setEditor(null);
             void load();
           }}
@@ -549,6 +550,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Objetivo terapêutico criado.");
             setEditor(null);
             void load();
           }}
@@ -560,6 +562,7 @@ export function ClinicalWorkspacePanel({
           goals={workspace.goals.filter((item) => item.status === "active")}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Medição registrada.");
             setEditor(null);
             void load();
           }}
@@ -570,6 +573,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Encerramento do tratamento registrado.");
             setEditor(null);
             void load();
           }}
@@ -580,6 +584,7 @@ export function ClinicalWorkspacePanel({
           patientId={patientId}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Anexo enviado.");
             setEditor(null);
             void load();
           }}
@@ -592,6 +597,7 @@ export function ClinicalWorkspacePanel({
           )}
           onClose={() => setEditor(null)}
           onSaved={() => {
+            toast.success("Adendo registrado.");
             setEditor(null);
             void load();
           }}

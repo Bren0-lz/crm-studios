@@ -1,4 +1,5 @@
 import {
+  formatSequenceNumber,
   settlementBreakdown,
   type PaymentTiming,
   type SettlementAdjustments,
@@ -27,8 +28,11 @@ import {
   type PlanTemplateInput,
   type ReceivableStatus,
 } from "@crm/contracts";
+import type { UserBranchAccess } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
+import { BranchScopeStore } from "../branch-scope.js";
 import type { Pool, PoolClient } from "pg";
+import { nextClinicSequence } from "./clinic-sequences.js";
 import {
   findWeeklyScheduleConflicts,
   groupScheduleConflictMessage,
@@ -95,8 +99,110 @@ import {
 
 export class PostgresRepositoryContext {
   operations!: ClinicRepository;
+  readonly branchScope = new BranchScopeStore();
 
   constructor(readonly pool: Pool) {}
+
+  /** Filiais da leitura em curso para `$N::uuid[]` (`null` = todas). */
+  branchReadIds() {
+    return this.branchScope.readIds();
+  }
+
+  /** Filial da gravação em curso; `null` = a padrão (gatilho `fill_default_branch`). */
+  branchWriteId() {
+    return this.branchScope.writeId() ?? null;
+  }
+
+  /** Recusa (403) gravar em filial fora das filiais da requisição. */
+  assertBranchInScope(branchId: string) {
+    const ids = this.branchReadIds();
+    if (ids && !ids.includes(branchId))
+      throw new DomainError(
+        "BRANCH_ACCESS_DENIED",
+        "Este registro é de uma filial que não está selecionada.",
+        403,
+      );
+  }
+
+  /**
+   * Filial comum aos recursos (profissional, sala, turma, atendimento) de uma gravação: recusa
+   * mistura de filiais (409 BRANCH_MISMATCH) e filial fora do escopo (403). `null` = nenhum dos
+   * recursos existe (o chamador responde o próprio "não encontrado").
+   */
+  async resourceBranch(
+    client: Pool | PoolClient,
+    clinicId: string,
+    refs: {
+      professionalId?: string | null | undefined;
+      roomId?: string | null | undefined;
+      groupId?: string | null | undefined;
+      appointmentId?: string | null | undefined;
+    },
+  ) {
+    const result = await client.query<{ branchId: string }>(
+      `SELECT DISTINCT branch_id AS "branchId" FROM (
+         SELECT branch_id FROM professionals WHERE clinic_id=$1 AND id=$2
+         UNION ALL SELECT branch_id FROM rooms WHERE clinic_id=$1 AND id=$3
+         UNION ALL SELECT branch_id FROM group_classes WHERE clinic_id=$1 AND id=$4
+         UNION ALL SELECT branch_id FROM appointments WHERE clinic_id=$1 AND id=$5
+       ) resources`,
+      [
+        clinicId,
+        refs.professionalId ?? null,
+        refs.roomId ?? null,
+        refs.groupId ?? null,
+        refs.appointmentId ?? null,
+      ],
+    );
+    if (result.rows.length > 1)
+      throw new DomainError(
+        "BRANCH_MISMATCH",
+        "Profissional e sala precisam ser da mesma filial.",
+        409,
+      );
+    const branchId = result.rows[0]?.branchId ?? null;
+    if (branchId) this.assertBranchInScope(branchId);
+    return branchId;
+  }
+
+  /** Grava as filiais do usuário na transação do chamador. */
+  async setUserBranchAccess(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+    access: UserBranchAccess,
+  ) {
+    const branchIds = access.allBranches ? [] : [...new Set(access.branchIds)];
+    const found = await client.query(
+      "SELECT id FROM branches WHERE clinic_id=$1 AND id = ANY($2::uuid[])",
+      [clinicId, branchIds],
+    );
+    if (found.rowCount !== branchIds.length)
+      throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
+    await client.query(
+      "UPDATE users SET all_branches=$3 WHERE clinic_id=$1 AND id=$2",
+      [clinicId, userId, access.allBranches],
+    );
+    await client.query(
+      "DELETE FROM user_branches WHERE clinic_id=$1 AND user_id=$2",
+      [clinicId, userId],
+    );
+    await client.query(
+      `INSERT INTO user_branches (clinic_id, user_id, branch_id)
+       SELECT $1, $2, unnest($3::uuid[])`,
+      [clinicId, userId, branchIds],
+    );
+    await this.addAdminAudit(
+      client,
+      clinicId,
+      actorUserId,
+      "users.branches_updated",
+      "user",
+      userId,
+      { allBranches: access.allBranches, branchIds },
+    );
+  }
 
   async findAdminUser(
     client: Pool | PoolClient,
@@ -326,6 +432,11 @@ export class PostgresRepositoryContext {
     input: PatientInput,
   ) {
     const id = randomUUID();
+    // Prontuário sequencial da clínica (QM15), sem trecho do UUID.
+    const recordNumber = formatSequenceNumber(
+      "PAC",
+      await nextClinicSequence(client, clinicId, "patient_record"),
+    );
     try {
       const result = await client.query<PatientRow>(
         `
@@ -339,7 +450,7 @@ export class PostgresRepositoryContext {
         [
           id,
           clinicId,
-          `PAC-${id.slice(0, 8).toUpperCase()}`,
+          recordNumber,
           input.fullName,
           input.cpf || null,
           input.email || null,
@@ -446,14 +557,18 @@ export class PostgresRepositoryContext {
         "O profissional ou a sala está ocupado por uma turma nesse horário.",
         409,
       );
+    const branchId = await this.resourceBranch(client, clinicId, {
+      professionalId: input.professionalId,
+      roomId: input.roomId,
+    });
     try {
       const inserted = await client.query<{ id: string }>(
         `
           INSERT INTO appointments (
             clinic_id, patient_id, lead_id, professional_id, room_id,
-            service_id, starts_at, ends_at, notes, visit_type
+            service_id, starts_at, ends_at, notes, visit_type, branch_id
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING id
         `,
         [
@@ -467,6 +582,7 @@ export class PostgresRepositoryContext {
           endsAt,
           input.notes || null,
           input.visitType,
+          branchId,
         ],
       );
       return (await this.findAppointment(
@@ -749,8 +865,12 @@ export class PostgresRepositoryContext {
       `INSERT INTO patient_plans (
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
-         installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+         installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
+         branch_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+         -- Renovação fica na filial do plano anterior; venda nova, na da requisição.
+         coalesce((SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$13), $15)
+       ) RETURNING id`,
       [
         clinicId,
         input.patientId,
@@ -766,6 +886,7 @@ export class PostgresRepositoryContext {
         autoRenew,
         renewedFromPlanId ?? null,
         input.planTemplateId ?? null,
+        this.branchWriteId(),
       ],
     );
     const planId = inserted.rows[0]!.id;
@@ -805,8 +926,10 @@ export class PostgresRepositoryContext {
       const receivable = await client.query<{ id: string }>(
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
-           installment_count, due_date, amount_in_cents
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+           installment_count, due_date, amount_in_cents, branch_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3)
+         ) RETURNING id`,
         [
           clinicId,
           input.patientId,
@@ -1239,13 +1362,13 @@ export class PostgresRepositoryContext {
             `INSERT INTO receivables
                (clinic_id, patient_id, plan_id, description, installment_number,
                 installment_count, due_date, amount_in_cents, competence,
-                category_id, cost_center_id, posted_on)
+                category_id, cost_center_id, posted_on, branch_id)
              SELECT r.clinic_id, r.patient_id, r.plan_id, r.description || ' · saldo',
                     CASE WHEN r.plan_id IS NULL THEN r.installment_number
                          ELSE (SELECT max(x.installment_number) + 1 FROM receivables x
                                WHERE x.plan_id = r.plan_id) END,
                     r.installment_count, coalesce($3::date, r.due_date), $4,
-                    r.competence, r.category_id, r.cost_center_id, r.posted_on
+                    r.competence, r.category_id, r.cost_center_id, r.posted_on, r.branch_id
              FROM receivables r WHERE r.clinic_id = $1 AND r.id = $2
              RETURNING id`,
             [

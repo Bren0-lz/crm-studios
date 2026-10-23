@@ -2,7 +2,9 @@ import type { IssuedDocument, DocumentSignatureInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useToast } from "../../shared/feedback/toast-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { localIsoDate, shortDate } from "../../shared/lib/formatting";
 export function DocumentSignatureActions({
@@ -13,6 +15,7 @@ export function DocumentSignatureActions({
   onChanged: (document: IssuedDocument) => void;
 }) {
   const { can, user } = useAuthorization();
+  const toast = useToast();
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -22,6 +25,15 @@ export function DocumentSignatureActions({
       DocumentSignatureInput,
       "signedOn" | "responsibleName"
     > | null>(null);
+  const missing = useMissingFields(
+    [
+      !date && "Data da assinatura",
+      responsible.trim().length < 2 &&
+        "Responsável pela obtenção (pelo menos 2 caracteres)",
+      !file && "Cópia do documento assinado",
+    ].filter((item): item is string => Boolean(item)),
+    "field-hint",
+  );
   async function select(file: File | undefined) {
     if (!file) return;
     setError("");
@@ -106,7 +118,11 @@ export function DocumentSignatureActions({
           title="Registrar assinatura manual"
           subtitle={document.title}
           busy={busy}
-          onClose={() => setOpen(false)}
+          dirty={Boolean(file)}
+          onClose={() => {
+            setOpen(false);
+            setFile(null);
+          }}
         >
           <form
             className="clinical-form"
@@ -124,6 +140,8 @@ export function DocumentSignatureActions({
                   }),
                 );
                 setOpen(false);
+                setFile(null);
+                toast.success("Assinatura registrada.");
               } catch (cause) {
                 setError((cause as Error).message);
               } finally {
@@ -166,16 +184,14 @@ export function DocumentSignatureActions({
                 situação do documento permanecem preservados.
               </p>
             </fieldset>
+            {missing.hint}
             <div className="modal-actions">
+              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
               <button
-                type="button"
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setOpen(false)}
+                className="primary-button"
+                disabled={busy || missing.blocked}
+                aria-describedby={missing.describedBy}
               >
-                Cancelar
-              </button>
-              <button className="primary-button" disabled={busy || !file}>
                 Registrar assinatura
               </button>
             </div>

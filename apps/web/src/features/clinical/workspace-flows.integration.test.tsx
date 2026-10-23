@@ -107,11 +107,21 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     change("Nome", "Evolução por questionário", dialog);
     change("Atendimento", appointment.id, dialog);
     change("Modelo", template.id, dialog);
+    // Resposta obrigatória do modelo em branco: Salvar desativado com o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar" }),
+    ).toHaveAccessibleDescription("Falta: Resposta curta.");
+    // A API continua recusando o envio direto do formulário.
     fireEvent.submit(
       within(dialog).getByRole("button", { name: "Salvar" }).closest("form")!,
     );
     await within(dialog).findByText(/Preencha Resposta curta/);
     change("Resposta curta", "Mobilidade funcional", dialog);
+    expect(within(dialog).getByRole("button", { name: "Salvar" })).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     change(
       "Resposta longa",
       "Cliente apresentou evolução clínica positiva",
@@ -214,11 +224,22 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       await screen.findByRole("menuitem", { name: "Anexar arquivo" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo anexo clínico" });
+    // Sem arquivo, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toHaveAccessibleDescription("Falta: Arquivo ou gravação de áudio.");
     fireEvent.change(within(dialog).getByLabelText("Arquivo"), {
       target: {
         files: [new File(["texto"], "arquivo.txt", { type: "text/plain" })],
       },
     });
+    expect(
+      within(dialog).getByRole("button", { name: "Anexar arquivo" }),
+    ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.submit(
       within(dialog)
         .getByRole("button", { name: "Anexar arquivo" })

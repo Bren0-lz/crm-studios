@@ -1,6 +1,7 @@
 import type {
   Appointment,
   DashboardViewSummary,
+  GroupSession,
   SalesReport,
 } from "@crm/contracts";
 import { CalendarDays, ChevronRight, Plus } from "lucide-react";
@@ -10,14 +11,11 @@ import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { AppointmentRow } from "../../shared/components/AppointmentRow";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { HelpTip } from "../../shared/components/HelpTip";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
-import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
-  currency,
   dateLabel,
   initials,
   localIsoDate,
@@ -28,6 +26,7 @@ import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { appointmentStatusToast } from "../agenda/index";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
+import { DashboardGroupSessionRow } from "./DashboardGroupSessionRow";
 
 function appointmentCounts(appointment: Appointment, date: string) {
   const isToday = localIsoDate(new Date(appointment.startsAt)) === date;
@@ -52,6 +51,8 @@ export function DashboardPage() {
   const { can, canView } = useAuthorization();
   const [data, setData] = useState<DashboardViewSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
+  const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
+  const [groupSessionsError, setGroupSessionsError] = useState("");
   const [error, setError] = useState("");
   const [appointmentAction, setAppointmentAction] =
     useState<DashboardAppointmentAction | null>(null);
@@ -67,8 +68,43 @@ export function DashboardPage() {
   const firstName = getStoredUser()?.fullName?.split(" ")[0];
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
+  const canSeeAgenda = canView("agenda");
   // Mutações na agenda, no financeiro e nos planos refazem o painel em silêncio (QC6).
   const dataVersion = useDataVersion("agenda", "finance", "plans");
+
+  // Aulas de turma de hoje (não canceladas) entram na "Agenda de hoje" junto dos
+  // atendimentos; mudanças em turmas também incrementam a versão da agenda.
+  useEffect(() => {
+    if (!canSeeAgenda) return;
+    let active = true;
+    const start = new Date(`${today}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    api
+      .groupSessions(start.toISOString(), end.toISOString())
+      .then((sessions) => {
+        if (!active) return;
+        setGroupSessions(
+          sessions
+            .filter(
+              (session) =>
+                session.status !== "cancelled" &&
+                localIsoDate(new Date(session.startsAt)) === today,
+            )
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setGroupSessionsError("");
+      })
+      .catch(() => {
+        if (active)
+          setGroupSessionsError(
+            "Não foi possível carregar as aulas de turma de hoje.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [canSeeAgenda, today, dataVersion]);
 
   useEffect(() => {
     let active = true;
@@ -227,7 +263,6 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Hoje na clínica"
         title={firstName ? `Olá, ${firstName}.` : "Olá."}
         description={dateLabel.format(new Date())}
         action={
@@ -312,7 +347,6 @@ export function DashboardPage() {
               <section className="panel dashboard-pending-finalization">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Pendências da agenda</span>
                     <h2>
                       Atendimentos a finalizar ({data.pendingFinalization})
                     </h2>
@@ -329,76 +363,11 @@ export function DashboardPage() {
                 </p>
               </section>
             )}
-          {canSeeSales && sales && (
-            <section className="dashboard-sales panel">
-              <div className="panel-head">
-                <div>
-                  <span className="eyebrow">
-                    Mês até {sales.current.to.split("-").reverse().join("/")}
-                  </span>
-                  <h2>Vendas e retorno dos clientes</h2>
-                </div>
-                <NavLink to="/relatorios" className="text-link">
-                  Ver detalhes <ChevronRight size={16} />
-                </NavLink>
-              </div>
-              <p className="dashboard-sales-context">
-                {sales.current.attendedPatients} clientes atendidos neste mês.
-                <HelpTip
-                  term="Clientes atendidos"
-                  text="Conta só atendimentos marcados como realizados. Atendimentos a finalizar ainda não entram."
-                />
-              </p>
-              <div className="sales-metrics">
-                <article>
-                  <span>Vendido líquido</span>
-                  <strong>
-                    {currency.format(sales.current.netSalesInCents / 100)}
-                  </strong>
-                  <TrendBadge
-                    changePercent={sales.changePercent}
-                    changeInCents={sales.changeInCents}
-                    hasCurrentValue={sales.current.netSalesInCents !== 0}
-                    comparison="vs. mês anterior comparável"
-                  />
-                  {sales.current.cancelledSalesInCents > 0 && (
-                    <small>
-                      Antes dos estornos:{" "}
-                      {currency.format(sales.current.grossSalesInCents / 100)}
-                      {" · "}Estornos:{" "}
-                      {currency.format(
-                        sales.current.cancelledSalesInCents / 100,
-                      )}
-                    </small>
-                  )}
-                </article>
-                <article>
-                  <span>Recebido</span>
-                  <strong>
-                    {currency.format(sales.current.receivedInCents / 100)}
-                  </strong>
-                  <small>Pela data da baixa</small>
-                </article>
-                <article>
-                  <span>
-                    Sem retorno neste mês
-                    <HelpTip
-                      term="Sem retorno"
-                      text="Clientes com atendimento realizado no mês anterior e nenhum realizado neste mês. Atendimentos a finalizar não contam como retorno."
-                    />
-                  </span>
-                  <strong>{sales.patientsWithoutReturn.length}</strong>
-                  <small>Atendidos no mês anterior</small>
-                </article>
-              </div>
-            </section>
-          )}
           <section className="dashboard-grid">
             {data.nextAppointments && (
               <article className="panel schedule-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Pendentes</span>
                     <h2>Agenda de hoje</h2>
                   </div>
                   {canView("agenda") && (
@@ -411,7 +380,13 @@ export function DashboardPage() {
                     </NavLink>
                   )}
                 </div>
-                {data.nextAppointments.length === 0 ? (
+                {groupSessionsError && (
+                  <div className="dashboard-schedule-error">
+                    <ErrorBanner error={groupSessionsError} />
+                  </div>
+                )}
+                {data.nextAppointments.length === 0 &&
+                groupSessions.length === 0 ? (
                   <EmptyState
                     title={
                       data.appointmentsToday === 0
@@ -426,21 +401,43 @@ export function DashboardPage() {
                   />
                 ) : (
                   <div className="appointment-list">
-                    {data.nextAppointments.map((item) => (
-                      <AppointmentRow
-                        appointment={item}
-                        key={item.id}
-                        disabled={
-                          savingAppointment ||
-                          refreshing ||
-                          appointmentAction !== null
-                        }
-                        onAction={(kind) => openAppointmentAction(item, kind)}
-                        onStatus={(status) =>
-                          void changeDashboardStatus(item, status)
-                        }
-                      />
-                    ))}
+                    {[
+                      ...data.nextAppointments.map((item) => ({
+                        kind: "appointment" as const,
+                        startsAt: item.startsAt,
+                        item,
+                      })),
+                      ...groupSessions.map((session) => ({
+                        kind: "group" as const,
+                        startsAt: session.startsAt,
+                        session,
+                      })),
+                    ]
+                      .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+                      .map((entry) =>
+                        entry.kind === "group" ? (
+                          <DashboardGroupSessionRow
+                            session={entry.session}
+                            key={`group:${entry.session.id}`}
+                          />
+                        ) : (
+                          <AppointmentRow
+                            appointment={entry.item}
+                            key={entry.item.id}
+                            disabled={
+                              savingAppointment ||
+                              refreshing ||
+                              appointmentAction !== null
+                            }
+                            onAction={(kind) =>
+                              openAppointmentAction(entry.item, kind)
+                            }
+                            onStatus={(status) =>
+                              void changeDashboardStatus(entry.item, status)
+                            }
+                          />
+                        ),
+                      )}
                   </div>
                 )}
               </article>
@@ -449,7 +446,6 @@ export function DashboardPage() {
               <article className="panel pulse-panel">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Acompanhamento</span>
                     <h2>Clientes sem retorno</h2>
                   </div>
                   {sales.patientsWithoutReturn.length > 0 && (
@@ -499,9 +495,17 @@ export function DashboardPage() {
           onReschedule={() =>
             setAppointmentAction({ ...appointmentAction, kind: "reschedule" })
           }
-          onUpdated={(updated) =>
-            void appointmentUpdated(updated, appointmentAction.appointment)
-          }
+          onUpdated={(updated) => {
+            const previous = appointmentAction.appointment;
+            toast.success(
+              updated.status !== previous.status
+                ? appointmentStatusToast(updated.status)
+                : updated.startsAt !== previous.startsAt
+                  ? "Atendimento remarcado."
+                  : "Atendimento atualizado.",
+            );
+            void appointmentUpdated(updated, previous);
+          }}
         />
       )}
     </>

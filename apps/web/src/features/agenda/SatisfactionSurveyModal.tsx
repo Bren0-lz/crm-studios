@@ -1,13 +1,17 @@
-import type {
-  Appointment,
-  SatisfactionSurvey,
-  PatientOption,
+import {
+  patientFirstName,
+  type Appointment,
+  type SatisfactionSurvey,
+  type PatientOption,
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function SatisfactionSurveyModal({
   appointment,
@@ -25,10 +29,13 @@ export function SatisfactionSurveyModal({
   onDuplicate: () => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [score, setScore] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty({ score, comment });
+  const missing = useMissingFields(score === null ? ["Nota de 0 a 10"] : []);
   async function save(event: FormEvent) {
     event.preventDefault();
     if (score === null) return;
@@ -41,15 +48,21 @@ export function SatisfactionSurveyModal({
     setError("");
     try {
       const trimmed = comment.trim();
-      onSaved(
-        await api.createSatisfactionSurvey({
-          patientId,
-          ...(appointment ? { appointmentId: appointment.id } : {}),
-          ...(sourceMessageId ? { sourceMessageId } : {}),
-          score,
-          ...(trimmed ? { comment: trimmed } : {}),
-        }),
+      const saved = await api.createSatisfactionSurvey({
+        patientId,
+        ...(appointment ? { appointmentId: appointment.id } : {}),
+        ...(sourceMessageId ? { sourceMessageId } : {}),
+        score,
+        ...(trimmed ? { comment: trimmed } : {}),
+      });
+      const name =
+        saved.patientName || appointment?.patientName || patient?.fullName;
+      toast.success(
+        name
+          ? `Avaliação de ${patientFirstName(name)} registrada: nota ${saved.score}.`
+          : `Avaliação registrada: nota ${saved.score}.`,
       );
+      onSaved(saved);
     } catch (cause) {
       if (
         cause instanceof ApiClientError &&
@@ -76,6 +89,7 @@ export function SatisfactionSurveyModal({
       }
       eyebrow="Pesquisa NPS"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("agenda.satisfaction_create") && (
@@ -113,19 +127,14 @@ export function SatisfactionSurveyModal({
               <ErrorBanner error={error} />
             </div>
           )}
+          {missing.hint}
           <div className="span-2 appointment-detail-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
             <button
               type="submit"
               className="primary-button"
-              disabled={score === null || saving}
+              disabled={missing.blocked || saving}
+              aria-describedby={missing.describedBy}
             >
               {saving ? "Salvando…" : "Salvar avaliação"}
             </button>

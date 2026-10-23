@@ -111,9 +111,20 @@ describe("AppointmentDetailsModal attendance actions", () => {
     );
     mount(vi.fn());
     fireEvent.click(screen.getByRole("button", { name: "Marcar falta" }));
+    // Um caractere só não basta: o botão diz o que falta (QM14).
+    fireEvent.change(screen.getByLabelText("Motivo (opcional)"), {
+      target: { value: "A" },
+    });
+    const register = screen.getByRole("button", { name: "Registrar falta" });
+    expect(register).toBeDisabled();
+    expect(register).toHaveAccessibleDescription(
+      "Falta: Motivo (pelo menos 2 caracteres).",
+    );
     fireEvent.change(screen.getByLabelText("Motivo (opcional)"), {
       target: { value: "Avisou que estava doente" },
     });
+    expect(register).toBeEnabled();
+    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Registrar falta" }));
     await vi.waitFor(() =>
       expect(patchBody()).toEqual({
@@ -150,9 +161,16 @@ describe("AppointmentDetailsModal cancellation", () => {
       name: "Confirmar cancelamento",
     });
     expect(confirm).toBeDisabled();
+    // O motivo do botão desativado fica visível e ligado a ele (QM14).
+    expect(confirm).toHaveAccessibleDescription(
+      "Falta: Motivo do cancelamento.",
+    );
     fireEvent.change(screen.getByLabelText("Motivo do cancelamento"), {
       target: { value: "Profissional indisponível" },
     });
+    expect(confirm).toBeEnabled();
+    expect(confirm).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Detalhes (opcional)"), {
       target: { value: "Curso externo" },
     });

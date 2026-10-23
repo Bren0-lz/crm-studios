@@ -15,12 +15,14 @@ import {
 } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { FixedPatient } from "../../shared/components/FixedPatient";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import {
   currency,
+  groupEnrollmentToast,
   groupOperationRange,
   shortDate,
   timeLabel,
@@ -28,16 +30,19 @@ import {
 import type { GroupChoices } from "../../shared/workflows/types";
 import { AppointmentForm } from "../agenda/index";
 import { PlanForm } from "../plans/index";
-import type { NextStepResources } from "./types";
+import type { NextStepResources, PatientRegistrationResult } from "./types";
 
 export function PatientNextSteps({
   patient,
+  initialResult,
   onClose,
 }: {
   patient: Patient;
+  initialResult?: PatientRegistrationResult;
   onClose: () => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const canPlan = can("plans.create");
   const canAppointment = can("agenda.create") || can("agenda.recurring");
   const canEnroll = can("groups.enroll");
@@ -50,11 +55,17 @@ export function PatientNextSteps({
     busyRef.current = value;
     setBusy(value);
   }, []);
-  const [plan, setPlan] = useState<PatientPlan | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
-  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(null);
+  const [plan, setPlan] = useState<PatientPlan | null>(
+    initialResult?.plan ?? null,
+  );
+  const [appointments, setAppointments] = useState<Appointment[] | null>(
+    initialResult?.appointment ? [initialResult.appointment] : null,
+  );
+  const [enrollment, setEnrollment] = useState<GroupEnrollment | null>(
+    initialResult?.enrollment ?? null,
+  );
   const [enrollmentGroup, setEnrollmentGroup] = useState<GroupClass | null>(
-    null,
+    initialResult?.group ?? null,
   );
   const [pendingGroup, setPendingGroup] = useState("");
   const [enrollmentError, setEnrollmentError] = useState("");
@@ -161,6 +172,7 @@ export function PatientNextSteps({
     });
     setEnrollment(saved);
     setEnrollmentGroup(group);
+    toast.success(groupEnrollmentToast(saved, group.name));
     setPendingGroup("");
     setEnrollmentError("");
     setStep("choice");
@@ -414,6 +426,7 @@ export function PatientNextSteps({
           onSubmit={async (input, groupId) => {
             const saved = await api.createPlan(input);
             setPlan(saved);
+            toast.success(`Plano ${saved.name} vinculado.`);
             if (groupId) {
               setPendingGroup(groupId);
               try {
@@ -464,6 +477,11 @@ export function PatientNextSteps({
                 })
               : [await api.createAppointment(input)];
             setAppointments(saved);
+            toast.success(
+              saved.length > 1
+                ? `${saved.length} atendimentos agendados.`
+                : "Atendimento agendado.",
+            );
             setStep("choice");
           }}
         />

@@ -194,7 +194,16 @@ describe("dashboard appointment actions", () => {
             attendedPatients: 0,
           },
           changePercent: null,
-          patientsWithoutReturn: [],
+          patientsWithoutReturn:
+            controls.salesReads > 1
+              ? [
+                  {
+                    patientId: "p-retorno",
+                    patientName: "Rosa Retorno",
+                    lastCompletedAt: `${date}T09:00:00.000Z`,
+                  },
+                ]
+              : [],
         });
         if (controls.salesReads === 1 && controls.holdInitialSales)
           await salesGate;
@@ -420,7 +429,7 @@ describe("dashboard appointment actions", () => {
     ).toBeInTheDocument();
   });
 
-  it("finalizes a pending appointment, updates metrics and sales, and fills the vacancy", async () => {
+  it("finalizes a pending appointment, updates metrics and clients without return, and fills the vacancy", async () => {
     const { controls } = setup({ count: 6, status: "confirmed" });
     expect(await screen.findByText("Ana 0")).toBeInTheDocument();
     expect(screen.queryByText("Ana 5")).not.toBeInTheDocument();
@@ -438,7 +447,7 @@ describe("dashboard appointment actions", () => {
     expect(controls.writes[0]?.body).toEqual({ status: "completed" });
     expect(controls.dashboardReads).toBe(2);
     expect(controls.salesReads).toBe(2);
-    expect(await screen.findByText(/120,00/)).toBeInTheDocument();
+    expect(await screen.findByText("Rosa Retorno")).toBeInTheDocument();
   });
 
   it("requires confirmation before cancelling and removes it from today's workload", async () => {
@@ -695,17 +704,17 @@ describe("dashboard appointment actions", () => {
     },
   );
 
-  it("keeps refreshed sales when the initial report arrives after the saved change", async () => {
+  it("keeps refreshed clients without return when the initial report arrives after the saved change", async () => {
     const { releaseSales } = setup({ holdInitialSales: true });
     const { menu } = await openMenu();
     fireEvent.click(
       within(menu).getByRole("menuitem", { name: "Finalizar atendimento" }),
     );
-    expect(await screen.findByText(/120,00/)).toBeInTheDocument();
+    expect(await screen.findByText("Rosa Retorno")).toBeInTheDocument();
     await act(async () => {
       releaseSales();
     });
-    expect(screen.getByText(/120,00/)).toBeInTheDocument();
+    expect(screen.getByText("Rosa Retorno")).toBeInTheDocument();
   });
 
   it("blocks actions and duplicate submissions until saving finishes", async () => {

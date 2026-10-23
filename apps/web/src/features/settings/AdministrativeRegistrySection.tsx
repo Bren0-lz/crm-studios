@@ -5,6 +5,7 @@ import type {
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { Modal } from "../../shared/components/Modal";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -155,6 +156,7 @@ function RegistryEditor({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState(editor.input),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -175,6 +177,7 @@ function RegistryEditor({
         await api.createProfessional(form.data);
       else if (form.kind === "room") await api.createRoom(form.data);
       else await api.createService(form.data);
+      toast.success(editor.id ? "Cadastro atualizado." : "Cadastro criado.");
       await onSaved();
       onClose();
     } finally {

@@ -11,7 +11,8 @@ export type DataDomain =
   | "patients"
   | "history"
   | "clinical"
-  | "contracts";
+  | "contracts"
+  | "relationship";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
 const mutationRules: [RegExp, DataDomain[]][] = [
@@ -28,6 +29,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/plan-(?:catalog|templates)(?:\/|$)/, ["plans"]],
   [/^\/finance\//, ["finance", "history"]],
   [/^\/admin\/users\/[^/]+\/commission$/, ["finance"]],
+  // Nome e cor do profissional ligado aparecem na agenda.
+  [/^\/me\/profile$/, ["agenda"]],
   // Status do atendimento consome sessão do plano e entra no dashboard e na ficha.
   [
     /^\/(?:appointments|group-sessions|group-replacements|group-enrollments|groups|schedule-blocks|holidays)(?:\/|$)/,
@@ -40,6 +43,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     ["clinical", "history"],
   ],
   [/^\/(?:documents|document-templates)(?:\/|$)/, ["contracts", "history"]],
+  // Contato registrado (ex.: parabéns enviados) tira o aniversariante do sino (QM13).
+  [/^\/relationship\/activities(?:\/|$)/, ["relationship"]],
 ];
 
 export function domainsForMutation(method: string, path: string): DataDomain[] {

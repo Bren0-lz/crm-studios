@@ -7,6 +7,8 @@ import {
   type AuditHistoryFilters,
   type ClinicSettingsInput,
   type HistoryActor,
+  type OwnProfile,
+  type OwnProfileUpdate,
   type Professional,
   type ProfessionalInput,
   type Room,
@@ -25,6 +27,28 @@ import { CLINIC_ID, now, uuid } from "./helpers.js";
 export function createAdministrationRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  function ownProfileOf(user: AuthenticatedUser): OwnProfile {
+    const professional = repositoryContext.linkedProfessional(
+      user.clinicId,
+      user.id,
+    );
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
+      avatarDataUrl: repositoryContext.userAvatars.get(user.id) ?? "",
+      professional: professional
+        ? {
+            id: professional.id,
+            fullName: professional.fullName,
+            color: professional.color,
+          }
+        : null,
+    };
+  }
+
   return {
     async revokeUserSessions(
       clinicId: string,
@@ -160,6 +184,12 @@ export function createAdministrationRepository(
         user,
         resolvePermissionInput(input.role, input),
       );
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
       repositoryContext.users.push(user);
       repositoryContext.addAdminAudit(
         actorUserId,
@@ -230,6 +260,12 @@ export function createAdministrationRepository(
         throw lastAdminError();
       const previousPermissions = [...user.permissions];
       const previousRole = user.role;
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
       user.fullName = input.fullName;
       user.role = input.role;
       user.active = input.active;
@@ -300,6 +336,52 @@ export function createAdministrationRepository(
         clinicId,
       );
       return true;
+    },
+
+    async getOwnProfile(clinicId: string, userId: string) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      return ownProfileOf(user);
+    },
+
+    async updateOwnProfile(
+      clinicId: string,
+      userId: string,
+      input: OwnProfileUpdate,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      const professional = repositoryContext.linkedProfessional(
+        clinicId,
+        userId,
+      );
+      user.fullName = input.fullName;
+      user.updatedAt = now();
+      if (input.avatarDataUrl !== undefined) {
+        if (input.avatarDataUrl)
+          repositoryContext.userAvatars.set(user.id, input.avatarDataUrl);
+        else repositoryContext.userAvatars.delete(user.id);
+      }
+      if (professional) {
+        if (input.agendaName) professional.fullName = input.agendaName;
+        if (input.agendaColor) professional.color = input.agendaColor;
+      }
+      repositoryContext.addAdminAudit(
+        userId,
+        "user.profile_updated",
+        "user",
+        user.id,
+        {
+          fullName: user.fullName,
+          ...(professional ? { agendaName: professional.fullName } : {}),
+        },
+        clinicId,
+      );
+      return ownProfileOf(user);
     },
 
     async getClinicSettings(clinicId: string) {
@@ -438,13 +520,17 @@ export function createAdministrationRepository(
 
     async listProfessionals(clinicId: string) {
       return repositoryContext.professionals.filter(
-        (item) => item.clinicId === clinicId && item.active,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
       );
     },
 
     async createProfessional(clinicId: string, input: ProfessionalInput) {
       const professional: Professional = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         active: true,
@@ -455,12 +541,21 @@ export function createAdministrationRepository(
 
     async listRooms(clinicId: string) {
       return repositoryContext.rooms.filter(
-        (item) => item.clinicId === clinicId && item.active,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
       );
     },
 
     async createRoom(clinicId: string, input: RoomInput) {
-      const room: Room = { ...input, id: uuid(), clinicId, active: true };
+      const room: Room = {
+        ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
       repositoryContext.rooms.push(room);
       return room;
     },

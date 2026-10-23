@@ -1,27 +1,37 @@
 import {
   type Patient,
+  patientFirstName,
   patientProfileLabels,
   patientProfileValueLabels,
 } from "@crm/contracts";
+import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
+import { formatIsoDate } from "../../shared/lib/formatting";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
+import {
+  PatientRelatedModal,
+  type PatientRelatedModule,
+} from "./PatientRelatedModal";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { can, canView, canEdit } = useAuthorization();
+  const toast = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [related, setRelated] = useState<PatientRelatedModule | null>(null);
   const tags = usePatientTags();
   useEffect(() => {
     let alive = true;
@@ -46,11 +56,13 @@ export function PatientDetailPage() {
     setBusy(true);
     setError("");
     try {
-      setPatient(
-        await api.setPatientStatus(
-          id,
-          patient.status === "active" ? "inactive" : "active",
-        ),
+      const updated = await api.setPatientStatus(
+        id,
+        patient.status === "active" ? "inactive" : "active",
+      );
+      setPatient(updated);
+      toast.success(
+        `Cadastro de ${patientFirstName(updated.fullName)} ${updated.status === "active" ? "reativado" : "inativado"}.`,
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -59,19 +71,18 @@ export function PatientDetailPage() {
     }
   }
   // Agenda, planos, financeiro e contratos ficam nas abas da ficha (U14).
+  // "Ver também" abre um resumo em modal; o módulo completo fica a um clique no rodapé.
   const links = [
-    { module: "groups", to: "/turmas", label: "Turmas" },
-    {
-      module: "relationship",
-      to: "/relacionamento",
-      label: "Contatos sugeridos",
-    },
-    { module: "communications", to: "/comunicacoes", label: "Comunicações" },
+    { module: "groups", label: "Turmas" },
+    { module: "relationship", label: "Contatos sugeridos" },
+    { module: "communications", label: "Comunicações" },
   ] as const;
+  const visibleLinks = links.filter((item) => canView(item.module));
+  const fields = patient ? detailFields(patient) : [];
   return (
     <>
       <PageHeader
-        eyebrow="Cliente"
+        back={{ to: "/clientes", label: "Voltar aos clientes" }}
         title={patient?.fullName ?? "Detalhes do cliente"}
         description={
           patient
@@ -79,90 +90,82 @@ export function PatientDetailPage() {
             : "Cadastro e acompanhamento"
         }
         action={
-          <Link className="secondary-button" to="/clientes">
-            Voltar aos clientes
-          </Link>
+          <div className="page-actions">
+            {patient && can("patients.update") && (
+              <>
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void changeStatus()}
+                >
+                  {patient.status === "active"
+                    ? "Inativar cliente"
+                    : "Reativar cliente"}
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  Editar cadastro
+                </button>
+              </>
+            )}
+          </div>
         }
       />
       {error && <ErrorBanner error={error} />}
       {!patient && !error && <LoadingBlock />}
       {patient && (
-        <>
+        <div className="patient-record">
           <PatientRecordTabs
             patient={patient}
             canEditClinical={canEdit("clinical")}
           />
-          <section className="panel">
+          <section className="panel" aria-labelledby="patient-details-title">
             <div className="panel-head">
-              <h2>Cadastro e acompanhamento</h2>
-              <div className="page-actions">
-                {can("patients.update") && (
-                  <>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setEditing(true)}
-                    >
-                      Editar cadastro
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => void changeStatus()}
-                    >
-                      {patient.status === "active"
-                        ? "Inativar cliente"
-                        : "Reativar cliente"}
-                    </button>
-                  </>
-                )}
-              </div>
+              <h2 id="patient-details-title">Dados cadastrais</h2>
             </div>
             <div className="patient-detail-body">
-              <div className="page-actions">
-                {links
-                  .filter((item) => canView(item.module))
-                  .map((item) => (
-                    <Link
-                      className="secondary-button"
-                      key={item.module}
-                      to={`${item.to}?patientId=${encodeURIComponent(id)}`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-              </div>
-              <dl className="patient-detail-fields">
-                {Object.entries(patientProfileLabels).map(([key, label]) => {
-                  const value =
-                    patient[key as keyof typeof patientProfileLabels];
-                  if (
-                    value === undefined ||
-                    value === "" ||
-                    (Array.isArray(value) && !value.length)
-                  )
-                    return null;
-                  return (
+              {fields.length ? (
+                <dl className="patient-detail-fields">
+                  {fields.map(([key, label, value]) => (
                     <div key={key}>
                       <dt>{label}</dt>
-                      <dd>
-                        {Array.isArray(value)
-                          ? value.join(", ")
-                          : typeof value === "boolean"
-                            ? value
-                              ? "Sim"
-                              : "Não"
-                            : key === "gender" || key === "clientType"
-                              ? (patientProfileValueLabels[
-                                  value as keyof typeof patientProfileValueLabels
-                                ] ?? value)
-                              : value}
-                      </dd>
+                      <dd>{value}</dd>
                     </div>
-                  );
-                })}
-              </dl>
+                  ))}
+                </dl>
+              ) : (
+                <p className="patient-detail-empty">
+                  Nenhum dado complementar cadastrado.
+                </p>
+              )}
             </div>
+            {visibleLinks.length > 0 && (
+              <div className="patient-detail-links">
+                <span>Ver também</span>
+                {visibleLinks.map((item) => (
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    key={item.module}
+                    onClick={() => setRelated(item.module)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
+          {related && (
+            <PatientRelatedModal
+              module={related}
+              patientId={patient.id}
+              patientName={patient.fullName}
+              onClose={() => setRelated(null)}
+            />
+          )}
           {editing && (
             <PatientModal
               patient={patient}
@@ -174,8 +177,43 @@ export function PatientDetailPage() {
               }}
             />
           )}
-        </>
+        </div>
       )}
     </>
   );
+}
+
+/** Campos do cadastro preenchidos, já formatados: [chave, rótulo, valor]. */
+function detailFields(patient: Patient) {
+  const fields: [string, string, string][] = [];
+  if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
+  if (patient.birthDate)
+    fields.push(["birthDate", "Nascimento", formatIsoDate(patient.birthDate)]);
+  for (const [key, label] of Object.entries(patientProfileLabels)) {
+    const value = patient[key as keyof typeof patientProfileLabels];
+    if (
+      value === undefined ||
+      value === "" ||
+      (Array.isArray(value) && !value.length)
+    )
+      continue;
+    fields.push([
+      key,
+      label,
+      Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "boolean"
+          ? value
+            ? "Sim"
+            : "Não"
+          : key === "gender"
+            ? (patientProfileValueLabels[
+                value as keyof typeof patientProfileValueLabels
+              ] ?? value)
+            : key === "clientSince"
+              ? formatIsoDate(value)
+              : value,
+    ]);
+  }
+  return fields;
 }

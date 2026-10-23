@@ -6,6 +6,10 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import {
+  missingBuilderFields,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
 import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
@@ -41,6 +45,18 @@ export function AssessmentTemplateModal({
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
   const [savedForm] = useState(() => JSON.stringify(form));
+  const missing = useMissingFields(
+    [
+      ...(form.name.trim().length < 3
+        ? ["Nome do modelo (pelo menos 3 caracteres)"]
+        : []),
+      ...(form.specialty.trim().length < 2
+        ? ["Especialidade (pelo menos 2 caracteres)"]
+        : []),
+      ...missingBuilderFields(form.fields),
+    ],
+    "field-hint",
+  );
   async function save(status: "draft" | "published" = "draft") {
     setError("");
     setSaving(true);
@@ -134,6 +150,7 @@ export function AssessmentTemplateModal({
                 </fieldset>
               )}
             </fieldset>
+            {missing.hint}
             <div className="modal-actions">
               <button
                 type="button"
@@ -145,14 +162,16 @@ export function AssessmentTemplateModal({
               </button>
               <button
                 className="secondary-button"
-                disabled={saving}
+                disabled={saving || missing.blocked}
+                aria-describedby={missing.describedBy}
                 value="draft"
               >
                 Salvar rascunho
               </button>
               <button
                 className="primary-button"
-                disabled={saving}
+                disabled={saving || missing.blocked}
+                aria-describedby={missing.describedBy}
                 value="published"
               >
                 Publicar modelo

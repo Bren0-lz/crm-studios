@@ -7,6 +7,7 @@ import {
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -31,6 +32,7 @@ export function RecurringPayablesSection({
   editable: boolean;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [items, setItems] = useState<RecurringPayable[] | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -63,6 +65,7 @@ export function RecurringPayablesSection({
         item.id,
         recurringPayableInput(item, changes),
       );
+      toast.success("Despesa fixa atualizada.");
       await refresh();
     } catch (cause) {
       setError((cause as Error).message);
@@ -76,7 +79,6 @@ export function RecurringPayablesSection({
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Recorrentes</span>
             <h2>Despesas fixas</h2>
             <p className="panel-help">
               Contas que se repetem todo mês, como aluguel e internet. Cada mês
@@ -184,6 +186,7 @@ export function RecurringPayablesSection({
           currentMonth={currentMonth}
           onClose={() => setModal(false)}
           onCreated={() => {
+            toast.success("Despesa fixa criada.");
             setModal(false);
             void refresh().catch((cause: Error) => setError(cause.message));
           }}
@@ -195,6 +198,7 @@ export function RecurringPayablesSection({
           currentMonth={currentMonth}
           onClose={() => setEnding(null)}
           onEnded={() => {
+            toast.success("Despesa fixa encerrada.");
             setEnding(null);
             void refresh().catch((cause: Error) => setError(cause.message));
           }}

@@ -10,6 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 function catalog(names: string[]) {
   return names.map((name, index) => ({
@@ -61,8 +65,8 @@ describe("lead origin and interest selects", () => {
         ? catalog(["Instagram", "Indicação", "Inativo"])
         : url.endsWith("/clinic-catalogs/interest")
           ? catalog(["Pilates", "Dançaterapia"])
-          : url.endsWith("/leads")
-            ? [legacy]
+          : isLeadBoardUrl(url)
+            ? leadBoardResponse(url, [legacy])
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -103,12 +107,20 @@ describe("lead origin and interest selects", () => {
       name: "Interesse",
     });
     await waitFor(() => expect(options(interest)).toContain("Dançaterapia"));
+    // Sem nome e telefone, o botão diz o que falta (QM14).
+    const add = within(dialog).getByRole("button", {
+      name: "Adicionar ao funil",
+    });
+    expect(add).toBeDisabled();
+    expect(add).toHaveAccessibleDescription("Falta: Nome completo, Telefone.");
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Lead Novo" },
     });
     fireEvent.change(within(dialog).getByLabelText("Telefone"), {
       target: { value: "11977776666" },
     });
+    expect(add).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.change(interest, { target: { value: "Dançaterapia" } });
     fireEvent.change(origin, { target: { value: "__other__" } });
     fireEvent.change(within(dialog).getByLabelText("Origem: qual?"), {

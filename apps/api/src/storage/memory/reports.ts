@@ -19,11 +19,13 @@ export function createReportsRepository(
       date: string,
     ): Promise<DashboardSummary> {
       const month = date.slice(0, 7);
-      const appointmentsToday = repositoryContext.appointments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          localDate(new Date(item.startsAt)) === date,
-      );
+      const appointmentsToday = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            localDate(new Date(item.startsAt)) === date,
+        );
       return {
         date,
         appointmentsToday: appointmentsToday.length,
@@ -42,12 +44,14 @@ export function createReportsRepository(
         patientsActive: repositoryContext.patients.filter(
           (item) => item.clinicId === clinicId && item.status === "active",
         ).length,
-        noShowsThisMonth: repositoryContext.appointments.filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.startsAt.startsWith(month) &&
-            item.status === "no_show",
-        ).length,
+        noShowsThisMonth: repositoryContext
+          .scoped(repositoryContext.appointments)
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.startsAt.startsWith(month) &&
+              item.status === "no_show",
+          ).length,
         nextAppointments: appointmentsToday
           .filter(
             (item) =>
@@ -63,9 +67,9 @@ export function createReportsRepository(
       month: string,
     ): Promise<SalesReport> {
       const sales: SaleMovement[] = [];
-      for (const plan of repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId && !item.sourceTabId,
-      )) {
+      for (const plan of repositoryContext
+        .scoped(repositoryContext.patientPlans)
+        .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
         const base = {
           sourceId: plan.id,
           sourceType: "plan" as const,
@@ -92,9 +96,9 @@ export function createReportsRepository(
             ),
           });
       }
-      for (const tab of repositoryContext.patientTabs.filter(
-        (item) => item.clinicId === clinicId && item.closedAt,
-      )) {
+      for (const tab of repositoryContext
+        .scoped(repositoryContext.patientTabs)
+        .filter((item) => item.clinicId === clinicId && item.closedAt)) {
         const items = [
           ...tab.items.map((item) => ({
             ...item,
@@ -139,9 +143,9 @@ export function createReportsRepository(
         month,
         sales,
         repositoryContext.receivedPayments(clinicId),
-        repositoryContext.appointments.filter(
-          (item) => item.clinicId === clinicId,
-        ),
+        repositoryContext
+          .scoped(repositoryContext.appointments)
+          .filter((item) => item.clinicId === clinicId),
       );
     },
 
@@ -150,10 +154,12 @@ export function createReportsRepository(
       from: string,
       to: string,
     ): Promise<ManagementReport> {
-      const appointments = repositoryContext.appointments.filter((item) => {
-        const date = localDate(new Date(item.startsAt));
-        return item.clinicId === clinicId && date >= from && date <= to;
-      });
+      const appointments = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter((item) => {
+          const date = localDate(new Date(item.startsAt));
+          return item.clinicId === clinicId && date >= from && date <= to;
+        });
       const attendance = (completed: number, noShows: number) => {
         const decided = completed + noShows;
         return decided ? Math.round((completed / decided) * 100) : 0;
@@ -183,10 +189,12 @@ export function createReportsRepository(
           })
           .filter((item) => item.appointments > 0)
           .sort((a, b) => b.appointments - a.appointments);
-      const leads = repositoryContext.leads.filter((item) => {
-        const date = localDate(new Date(item.createdAt));
-        return item.clinicId === clinicId && date >= from && date <= to;
-      });
+      const leads = repositoryContext
+        .scoped(repositoryContext.leads)
+        .filter((item) => {
+          const date = localDate(new Date(item.createdAt));
+          return item.clinicId === clinicId && date >= from && date <= to;
+        });
       const sources = [...new Set(leads.map((item) => item.source))];
       const bySource = sources
         .map((source) => {
@@ -210,25 +218,29 @@ export function createReportsRepository(
       const noShows = appointments.filter(
         (item) => item.status === "no_show",
       ).length;
-      const openReceivables = repositoryContext.receivables.filter(
-        (item) => item.clinicId === clinicId && item.status === "open",
-      );
-      const paidInPeriod = repositoryContext.receivables.filter((item) => {
-        if (
-          item.clinicId !== clinicId ||
-          item.status !== "paid" ||
-          !item.paidAt
-        )
-          return false;
-        const date = localDate(new Date(item.paidAt));
-        return date >= from && date <= to;
-      });
+      const openReceivables = repositoryContext
+        .scoped(repositoryContext.receivables)
+        .filter((item) => item.clinicId === clinicId && item.status === "open");
+      const paidInPeriod = repositoryContext
+        .scoped(repositoryContext.receivables)
+        .filter((item) => {
+          if (
+            item.clinicId !== clinicId ||
+            item.status !== "paid" ||
+            !item.paidAt
+          )
+            return false;
+          const date = localDate(new Date(item.paidAt));
+          return date >= from && date <= to;
+        });
       const planMovements = repositoryContext.sessionMovements.filter(
         (item) => {
-          const plan = repositoryContext.patientPlans.find(
-            (candidate) =>
-              candidate.id === item.planId && candidate.clinicId === clinicId,
-          );
+          const plan = repositoryContext
+            .scoped(repositoryContext.patientPlans)
+            .find(
+              (candidate) =>
+                candidate.id === item.planId && candidate.clinicId === clinicId,
+            );
           const date = localDate(new Date(item.createdAt));
           return plan && item.kind !== "credit" && date >= from && date <= to;
         },
@@ -237,9 +249,11 @@ export function createReportsRepository(
         (sum, item) => sum + item.quantity,
         0,
       );
-      const activePlans = repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId && item.status === "active",
-      );
+      const activePlans = repositoryContext
+        .scoped(repositoryContext.patientPlans)
+        .filter(
+          (item) => item.clinicId === clinicId && item.status === "active",
+        );
       const won = leads.filter((item) => item.stage === "won").length;
       const lost = leads.filter((item) => item.stage === "lost").length;
       const responseTimes = leads
@@ -265,13 +279,18 @@ export function createReportsRepository(
         const date = localDate(new Date(value));
         return date >= from && date <= to;
       };
-      const paidProductTabs = repositoryContext.patientTabs.filter((tab) => {
-        if (tab.clinicId !== clinicId || tab.status !== "closed") return false;
-        const receivable = repositoryContext.receivables.find(
-          (item) => item.id === tab.receivableId && item.status === "paid",
-        );
-        return inPeriod(receivable?.paidAt);
-      });
+      const paidProductTabs = repositoryContext
+        .scoped(repositoryContext.patientTabs)
+        .filter((tab) => {
+          if (tab.clinicId !== clinicId || tab.status !== "closed")
+            return false;
+          const receivable = repositoryContext
+            .scoped(repositoryContext.receivables)
+            .find(
+              (item) => item.id === tab.receivableId && item.status === "paid",
+            );
+          return inPeriod(receivable?.paidAt);
+        });
       const productReceivableIds = new Set(
         paidProductTabs.flatMap((item) =>
           item.receivableId ? [item.receivableId] : [],
@@ -293,7 +312,8 @@ export function createReportsRepository(
       const serviceRevenueInCents = paidInPeriod
         .filter((item) => !productReceivableIds.has(item.id))
         .reduce((sum, item) => sum + item.amountInCents, 0);
-      const operatingExpensesInCents = repositoryContext.payables
+      const operatingExpensesInCents = repositoryContext
+        .scoped(repositoryContext.payables)
         .filter(
           (item) =>
             item.clinicId === clinicId &&
@@ -301,12 +321,14 @@ export function createReportsRepository(
             inPeriod(item.paidAt),
         )
         .reduce((sum, item) => sum + item.amountInCents, 0);
-      const paidCommissions = repositoryContext.commissions.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.status === "paid" &&
-          inPeriod(item.paidAt),
-      );
+      const paidCommissions = repositoryContext
+        .scopedCommissions()
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status === "paid" &&
+            inPeriod(item.paidAt),
+        );
       const commissionsInCents = paidCommissions.reduce(
         (sum, item) => sum + item.amountInCents,
         0,
@@ -317,7 +339,8 @@ export function createReportsRepository(
         grossProfitInCents - operatingExpensesInCents - commissionsInCents;
       const percentage = (part: number, total: number) =>
         total ? Math.round((part / total) * 1000) / 10 : 0;
-      const byProduct = repositoryContext.products
+      const byProduct = repositoryContext
+        .scoped(repositoryContext.products)
         .filter((product) => product.clinicId === clinicId)
         .map((product) => {
           const soldItems = paidProductTabs.flatMap((tab) =>
@@ -349,9 +372,9 @@ export function createReportsRepository(
         .filter((item) => item.unitsSold > 0)
         .sort((a, b) => b.revenueInCents - a.revenueInCents);
       const serviceRevenue = new Map<string, number>();
-      for (const plan of repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId,
-      )) {
+      for (const plan of repositoryContext
+        .scoped(repositoryContext.patientPlans)
+        .filter((item) => item.clinicId === clinicId)) {
         const received = paidInPeriod
           .filter((item) => item.planId === plan.id)
           .reduce((sum, item) => sum + item.amountInCents, 0);
@@ -373,9 +396,9 @@ export function createReportsRepository(
           ).length;
           const serviceCommissions = paidCommissions
             .filter((commission) => {
-              const appointment = repositoryContext.appointments.find(
-                (item) => item.id === commission.appointmentId,
-              );
+              const appointment = repositoryContext
+                .scoped(repositoryContext.appointments)
+                .find((item) => item.id === commission.appointmentId);
               return appointment?.serviceId === service.id;
             })
             .reduce((sum, item) => sum + item.amountInCents, 0);
@@ -394,9 +417,9 @@ export function createReportsRepository(
           (item) => item.completedAppointments > 0 || item.revenueInCents > 0,
         )
         .sort((a, b) => b.revenueInCents - a.revenueInCents);
-      const groups = repositoryContext.groupClasses.filter(
-        (item) => item.clinicId === clinicId && item.active,
-      );
+      const groups = repositoryContext
+        .scoped(repositoryContext.groupClasses)
+        .filter((item) => item.clinicId === clinicId && item.active);
       const activeGroupSeats = groups.reduce(
         (sum, item) => sum + item.activeEnrollments,
         0,
@@ -417,12 +440,14 @@ export function createReportsRepository(
         if (!item.patientId) return false;
         const start = new Date(item.startsAt).getTime();
         const limit = start + 30 * 24 * 60 * 60 * 1000;
-        return repositoryContext.patientPlans.some((plan) => {
-          if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
-            return false;
-          const createdAt = new Date(plan.createdAt).getTime();
-          return createdAt >= start && createdAt <= limit;
-        });
+        return repositoryContext
+          .scoped(repositoryContext.patientPlans)
+          .some((plan) => {
+            if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
+              return false;
+            const createdAt = new Date(plan.createdAt).getTime();
+            return createdAt >= start && createdAt <= limit;
+          });
       }).length;
       return {
         from,
@@ -471,9 +496,9 @@ export function createReportsRepository(
             .reduce((sum, item) => sum + item.amountInCents, 0),
           paidInPeriodInCents: repositoryContext.receiptEvents
             .filter((event) => {
-              const receivable = repositoryContext.receivables.find(
-                (item) => item.id === event.receivableId,
-              );
+              const receivable = repositoryContext
+                .scoped(repositoryContext.receivables)
+                .find((item) => item.id === event.receivableId);
               return (
                 receivable?.clinicId === clinicId && inPeriod(event.occurredAt)
               );
@@ -495,10 +520,12 @@ export function createReportsRepository(
             : 0,
         },
         byProfessional: breakdown(
-          repositoryContext.professionals.map((item) => ({
-            id: item.id,
-            name: item.fullName,
-          })),
+          repositoryContext
+            .scoped(repositoryContext.professionals)
+            .map((item) => ({
+              id: item.id,
+              name: item.fullName,
+            })),
           (appointment) => appointment.professionalId,
         ),
         byService: breakdown(
@@ -534,11 +561,13 @@ export function createReportsRepository(
               (sum, item) => sum + item.waitlistCount,
               0,
             ),
-            lowStockCount: repositoryContext.products.filter(
-              (item) =>
-                item.clinicId === clinicId &&
-                item.currentStock <= item.minimumStock,
-            ).length,
+            lowStockCount: repositoryContext
+              .scoped(repositoryContext.products)
+              .filter(
+                (item) =>
+                  item.clinicId === clinicId &&
+                  item.currentStock <= item.minimumStock,
+              ).length,
             productUnitsSold: byProduct.reduce(
               (sum, item) => sum + item.unitsSold,
               0,

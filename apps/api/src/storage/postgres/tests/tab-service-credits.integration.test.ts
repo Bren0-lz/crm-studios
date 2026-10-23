@@ -5,6 +5,8 @@ import {
   tabCreditHistoryLabel,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { runMigrations, seedDemoData } from "../../../database.js";
@@ -199,6 +201,43 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(created.items.some((item) => item.entityId === credit!.id)).toBe(
           false,
         );
+      });
+
+      // QM15: a cobrança da comanda não mostra trecho do id; a 0084 corrige as antigas.
+      it("descreve a cobrança da comanda por data e cliente, inclusive as antigas", async () => {
+        const { patient, tab } = await closedTabCredit(
+          "2061-05-10T12:00:00.000Z",
+        );
+        const firstName = patient.fullName.split(" ")[0]!;
+        const invoice = async () =>
+          (await repository.getFinancialSummary(clinicId)).receivables.find(
+            (item) => item.patientId === patient.id,
+          )!;
+        expect((await invoice()).description).toMatch(
+          new RegExp(`^Comanda de \\d{2}/\\d{2} · ${firstName}$`),
+        );
+        if (storage === "memory") return;
+        const current = (await invoice()).description;
+        await pool!.query(
+          "UPDATE receivables SET description=$3 WHERE clinic_id=$1 AND id=$2",
+          [
+            clinicId,
+            (await invoice()).id,
+            `Comanda ${tab.id.slice(0, 8).toUpperCase()}`,
+          ],
+        );
+        await pool!.query(
+          readFileSync(
+            fileURLToPath(
+              new URL(
+                "../../../../migrations/0084_tab_receivable_description.sql",
+                import.meta.url,
+              ),
+            ),
+            "utf8",
+          ),
+        );
+        expect((await invoice()).description).toBe(current);
       });
     },
   );

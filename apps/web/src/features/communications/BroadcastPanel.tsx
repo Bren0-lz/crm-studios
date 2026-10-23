@@ -11,6 +11,7 @@ import { LockKeyhole } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
@@ -36,6 +37,9 @@ export function BroadcastPanel({
   const [birthdayMonth, setBirthdayMonth] = useState(false);
   const [channel, setChannel] = useState<CommunicationChannel>("whatsapp");
   const [body, setBody] = useState("");
+  const bodyMissing = useMissingFields(
+    body.trim() ? [] : ["Texto do comunicado"],
+  );
   const [preview, setPreview] = useState<BroadcastResult | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -69,10 +73,8 @@ export function BroadcastPanel({
   async function requestPreview(event: FormEvent) {
     event.preventDefault();
     setPreview(null);
-    if (!input.body) {
-      setError("Escreva o texto do comunicado.");
-      return;
-    }
+    // Sem texto, "Ver prévia" já vem desativado com "Falta: Texto do comunicado." (QM14).
+    if (!input.body) return;
     setError("");
     setPreviewing(true);
     try {
@@ -106,7 +108,6 @@ export function BroadcastPanel({
   return (
     <>
       <section className="panel communication-broadcast">
-        <span className="eyebrow">Envio em massa</span>
         <h2>Comunicado segmentado</h2>
         {outboxWarning && (
           <div className="outbox-note">
@@ -245,25 +246,6 @@ export function BroadcastPanel({
                     <option value="undisclosed">Prefere não informar</option>
                   </select>
                 </label>
-                <label>
-                  Tipo de cliente
-                  <select
-                    value={profile.clientType ?? ""}
-                    onChange={(event) =>
-                      change(() =>
-                        setProfile((current) => ({
-                          ...current,
-                          clientType: event.target
-                            .value as PatientProfileFilter["clientType"],
-                        })),
-                      )
-                    }
-                  >
-                    <option value="">Todos</option>
-                    <option value="fixed">Fixo</option>
-                    <option value="rotating">Rotativo</option>
-                  </select>
-                </label>
               </div>
             </details>
             <label>
@@ -298,11 +280,13 @@ export function BroadcastPanel({
                 {error}
               </div>
             )}
+            {bodyMissing.hint}
             <div className="span-2 broadcast-actions">
               <button
                 type="submit"
                 className="secondary-button"
-                disabled={previewing}
+                disabled={previewing || bodyMissing.blocked}
+                aria-describedby={bodyMissing.describedBy}
               >
                 {previewing ? "Calculando…" : "Ver prévia"}
               </button>

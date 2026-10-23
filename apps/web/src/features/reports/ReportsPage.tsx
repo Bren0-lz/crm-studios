@@ -10,7 +10,6 @@ export function ReportsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Gestão por evidências"
         title="Relatórios gerenciais"
         description="Veja o resultado do mês e encontre quem precisa de acompanhamento."
       />

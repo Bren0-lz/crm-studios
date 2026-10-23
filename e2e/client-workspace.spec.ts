@@ -733,10 +733,9 @@ test("closes a mixed tab from the customer context and shows its independent ses
   await login(page);
   await page.goto(`/clientes/${patient.id}`);
   await page.getByRole("tab", { name: "Comandas", exact: true }).click();
-  const inventory = page.getByText("Estoque e comandas", { exact: true });
-  await inventory.focus();
-  await inventory.press("Enter");
+  // QM9: na ficha, as comandas ficam abertas em "Comandas do cliente" (o estoque foi para o Financeiro).
   await page
+    .getByRole("region", { name: "Comandas do cliente", exact: true })
     .locator(".table-row")
     .filter({ hasText: patient.fullName })
     .getByRole("button", { name: "Abrir comanda", exact: true })

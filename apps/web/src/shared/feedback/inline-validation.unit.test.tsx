@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { installInlineValidation } from "./inline-validation";
+import { fieldForMessage, installInlineValidation } from "./inline-validation";
 
 let uninstall = () => undefined as void;
 afterEach(() => uninstall());
@@ -126,5 +127,98 @@ describe("inline validation", () => {
     expect(email).not.toHaveAttribute("aria-invalid");
     expect(email).not.toHaveAttribute("aria-description");
     expect(errorOf(email)).toBeNull();
+  });
+
+  it("moves a submit error to the field it mentions, focused, and clears it when edited", async () => {
+    uninstall = installInlineValidation(document);
+    function Form() {
+      const [error, setError] = useState("");
+      return (
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError("");
+            setError("Já existe um cliente com este CPF.");
+          }}
+        >
+          <label>
+            Nome
+            <input defaultValue="Ana" />
+          </label>
+          <label>
+            CPF
+            <input defaultValue="111" />
+          </label>
+          {error && <div className="form-error">{error}</div>}
+          <button>Salvar</button>
+        </form>
+      );
+    }
+    render(<Form />);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await act(async () => {});
+    const cpf = screen.getByRole("textbox", { name: "CPF" });
+    expect(cpf).toHaveFocus();
+    expect(cpf).toHaveAttribute("aria-invalid", "true");
+    expect(cpf).toHaveAttribute(
+      "aria-description",
+      "Já existe um cliente com este CPF.",
+    );
+    expect(
+      cpf.closest("label")!.querySelector(".inline-field-error"),
+    ).toHaveAttribute("data-message", "Já existe um cliente com este CPF.");
+    expect(document.querySelector(".form-error")).toHaveClass("is-at-field");
+
+    fireEvent.input(cpf, { target: { value: "222" } });
+    expect(cpf).not.toHaveAttribute("aria-invalid");
+    expect(document.querySelector(".inline-field-error")).toBeNull();
+  });
+
+  it("keeps generic or unrelated submit errors in the form footer", async () => {
+    uninstall = installInlineValidation(document);
+    render(
+      <form className="form-grid">
+        <label>
+          Cliente
+          <input defaultValue="Ana" />
+        </label>
+        <div className="form-error">Não foi possível salvar o cliente.</div>
+      </form>,
+    );
+    await act(async () => {});
+    expect(screen.getByRole("textbox", { name: "Cliente" })).not.toHaveAttribute(
+      "aria-invalid",
+    );
+    expect(document.querySelector(".form-error")).not.toHaveClass("is-at-field");
+  });
+
+  it("matches labels ignoring accents, articles and option texts", () => {
+    render(
+      <form>
+        <label>
+          Serviço
+          <select defaultValue="a">
+            <option value="a">Data e horário</option>
+          </select>
+        </label>
+        <label>
+          Data e horário
+          <input type="datetime-local" />
+        </label>
+        <label>
+          Data
+          <input type="date" />
+        </label>
+      </form>,
+    );
+    const form = document.querySelector("form")!;
+    expect(
+      fieldForMessage(form, "Informe a data e o horario da aula."),
+    ).toBe(screen.getByLabelText("Data e horário"));
+    expect(fieldForMessage(form, "Este SERVICO está inativo.")).toBe(
+      screen.getByRole("combobox", { name: "Serviço" }),
+    );
+    expect(fieldForMessage(form, "Revise os dados informados.")).toBeNull();
   });
 });

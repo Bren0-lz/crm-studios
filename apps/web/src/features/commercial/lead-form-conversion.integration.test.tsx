@@ -10,6 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("lean lead form", () => {
   it("creates a lead with name and phone and asks CPF, emergency contact and address on conversion", async () => {
@@ -55,7 +59,7 @@ describe("lean lead form", () => {
             }),
           } as Response;
       }
-      const body = url.endsWith("/leads") ? leads : [];
+      const body = isLeadBoardUrl(url) ? leadBoardResponse(url, leads) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(

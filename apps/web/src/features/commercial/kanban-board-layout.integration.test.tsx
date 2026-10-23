@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 const commercialCss = readFileSync(
   `${process.cwd()}/src/styles/10-commercial-communications.css`,
@@ -22,7 +26,7 @@ describe("commercial board layout", () => {
     expect(board).toContain("grid-auto-flow: column");
     expect(board).toMatch(/grid-auto-columns: minmax\(/);
     expect(board).not.toContain("grid-template-columns");
-    expect(board).toContain("overflow: scroll");
+    expect(board).toContain("overflow-x: scroll");
     expect(board).toContain("max-height");
 
     localStorage.setItem("crm.auth.token", "test-token");
@@ -36,8 +40,8 @@ describe("commercial board layout", () => {
       }),
     );
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = /\/leads(\?|$)/.test(String(input))
-        ? [
+      const body = isLeadBoardUrl(input)
+        ? leadBoardResponse(input, [
             {
               id: "l1",
               clinicId: "c1",
@@ -52,7 +56,7 @@ describe("commercial board layout", () => {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             },
-          ]
+          ])
         : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });

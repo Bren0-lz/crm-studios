@@ -1,15 +1,19 @@
 import { useAuthorization } from "../../authorization-context";
 import { Link } from "react-router-dom";
 import type { GroupSession } from "@crm/contracts";
-import { ArrowUpRight, Users } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { timeLabel } from "../../shared/lib/formatting";
+import { professionalColorStyle } from "../../tag-colors";
 
 export function GroupSessionCard({
   session,
   compact = false,
+  professionalColor,
 }: {
   session: GroupSession;
   compact?: boolean;
+  /** Cor do profissional responsável (bolinha, como nos atendimentos). */
+  professionalColor?: string | undefined;
 }) {
   const { can } = useAuthorization();
   const startsAt = timeLabel.format(new Date(session.startsAt));
@@ -18,9 +22,10 @@ export function GroupSessionCard({
     return (
       <article
         className="week-appointment group-class"
+        style={professionalColorStyle(professionalColor)}
         aria-label={session.groupName}
       >
-        <Users size={10} aria-hidden="true" />
+        <i className="pro-dot" aria-hidden="true" />
         <time>
           {startsAt}–{endsAt}
         </time>
@@ -33,7 +38,11 @@ export function GroupSessionCard({
       </article>
     );
   return (
-    <article className="agenda-card group-class" aria-label={session.groupName}>
+    <article
+      className="agenda-card group-class"
+      style={professionalColorStyle(professionalColor)}
+      aria-label={session.groupName}
+    >
       <div className="agenda-time">
         <strong>{startsAt}</strong>
         <span>{endsAt}</span>
@@ -41,7 +50,7 @@ export function GroupSessionCard({
       <div className="agenda-main">
         <div>
           <span className="service-name">
-            <Users size={13} aria-hidden="true" />
+            <i className="pro-dot" aria-hidden="true" />
             Aula em grupo
           </span>
           <h3 className="group-name" title={session.groupName}>

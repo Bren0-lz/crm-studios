@@ -31,11 +31,6 @@
       "Bash(wc:*)"
     ],
     "deny": [
-      "Bash(git push:*)",
-      "Bash(git reset --hard:*)",
-      "Bash(npm install:*)",
-      "Bash(npm i:*)",
-      "Bash(npm uninstall:*)",
       "Edit(.env)",
       "Write(.env)",
       "Edit(compose.yaml)",

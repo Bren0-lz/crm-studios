@@ -2,13 +2,17 @@ import { z } from "zod";
 import {
   leadFilterSchema,
   matchesLead,
-  buildLeadInsights,
   leadContactInputSchema,
+  leadDuplicateQuerySchema,
   leadInputSchema,
   leadConversionInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
+  leadStageParamSchema,
+  leadStageSchema,
+  parseLeadPageQuery,
+  type LeadBoard,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 
@@ -25,12 +29,70 @@ export function registerCommercialRoutes(context: RouteContext) {
   app.get("/leads/insights", { preHandler: authenticate }, async (request) => {
     const filter = leadFilterSchema.parse(request.query),
       settings = await repository.getClinicSettings(request.user.clinicId);
-    return buildLeadInsights(
-      (await repository.listLeads(request.user.clinicId)).filter((lead) =>
-        matchesLead(lead, filter, settings?.timezone),
-      ),
+    return repository.summarizeLeads(
+      request.user.clinicId,
+      filter,
+      settings?.timezone,
     );
   });
+
+  // Funil paginado: cada coluna traz só a primeira página e o total da etapa, para não
+  // carregar todos os leads da clínica de uma vez.
+  app.get(
+    "/leads/board",
+    { preHandler: authenticate },
+    async (request): Promise<LeadBoard> => {
+      const { filter, page } = parseLeadPageQuery(request.query),
+        settings = await repository.getClinicSettings(request.user.clinicId);
+      return {
+        columns: await Promise.all(
+          leadStageSchema.options.map((stage) =>
+            repository.listLeadStagePage(
+              request.user.clinicId,
+              stage,
+              filter,
+              { ...page, offset: 0 },
+              settings?.timezone,
+            ),
+          ),
+        ),
+      };
+    },
+  );
+
+  app.get(
+    "/leads/board/:stage",
+    { preHandler: authenticate },
+    async (request) => {
+      const { stage } = leadStageParamSchema.parse(request.params),
+        { filter, page } = parseLeadPageQuery(request.query),
+        settings = await repository.getClinicSettings(request.user.clinicId);
+      return repository.listLeadStagePage(
+        request.user.clinicId,
+        stage,
+        filter,
+        page,
+        settings?.timezone,
+      );
+    },
+  );
+
+  app.get(
+    "/leads/filter-options",
+    { preHandler: authenticate },
+    async (request) => repository.listLeadFilterOptions(request.user.clinicId),
+  );
+
+  app.get(
+    "/leads/duplicates",
+    { preHandler: authenticate },
+    async (request) => ({
+      matches: await repository.findLeadDuplicates(
+        request.user.clinicId,
+        leadDuplicateQuerySchema.parse(request.query),
+      ),
+    }),
+  );
 
   app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
     reply

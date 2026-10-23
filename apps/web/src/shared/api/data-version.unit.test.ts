@@ -38,6 +38,9 @@ describe("versão dos dados por domínio", () => {
     );
     expect(domainsForMutation("DELETE", "/holidays/h1")).toContain("agenda");
     expect(domainsForMutation("PATCH", "/patients/p1")).toContain("patients");
+    expect(domainsForMutation("POST", "/relationship/activities")).toEqual([
+      "relationship",
+    ]);
   });
 
   it("ignora leituras, prévias e sessão", () => {

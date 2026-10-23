@@ -67,9 +67,11 @@ export const agendaApi = {
     request<ClinicalAppointmentOption[]>(
       `/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
-  appointments: (from: string, to: string) =>
+  /** `options`: `allBranches` na ficha do cliente (atendimentos de todas as filiais). */
+  appointments: (from: string, to: string, options?: RequestInit) =>
     request<Appointment[]>(
       `/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      options,
     ),
   /** Atendimentos passados ainda agendados/confirmados, de qualquer data (QC2). */
   pendingFinalizationAppointments: () =>

@@ -1,13 +1,16 @@
 import type { Supplier, SupplierInput } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 export function SuppliersSection() {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(false),
     [editor, setEditor] = useState<Supplier | "new" | null>(null),
@@ -22,6 +25,7 @@ export function SuppliersSection() {
       notes: "",
       active: true,
     });
+  const dirty = useFormDirty(form, Boolean(editor));
   async function load() {
     setError("");
     try {
@@ -101,6 +105,7 @@ export function SuppliersSection() {
           title={editor === "new" ? "Novo fornecedor" : "Editar fornecedor"}
           subtitle="Desativar mantém os vínculos e o histórico das despesas."
           busy={busy}
+          dirty={dirty}
           onClose={() => setEditor(null)}
         >
           <form
@@ -113,6 +118,11 @@ export function SuppliersSection() {
                 await api.saveSupplier(
                   form,
                   editor !== "new" ? editor.id : undefined,
+                );
+                toast.success(
+                  editor === "new"
+                    ? "Fornecedor cadastrado."
+                    : "Fornecedor atualizado.",
                 );
                 await load();
                 setEditor(null);
@@ -204,14 +214,7 @@ export function SuppliersSection() {
               </label>
             </fieldset>
             <div className="modal-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setEditor(null)}
-              >
-                Cancelar
-              </button>
+              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={busy}>
                 Salvar fornecedor
               </button>

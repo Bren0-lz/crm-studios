@@ -42,12 +42,12 @@ export function DailyCashSection() {
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">
+            <h2>Caixa do dia</h2>
+            <p className="panel-context">
               {cash
                 ? `Movimentos de ${formatIsoDate(cash.date)}`
                 : "Movimentos"}
-            </span>
-            <h2>Caixa do dia</h2>
+            </p>
             <p className="panel-help">
               Tudo o que entrou e saiu do caixa no dia escolhido, separado por
               forma de pagamento.

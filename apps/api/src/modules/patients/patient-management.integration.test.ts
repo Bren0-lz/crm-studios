@@ -32,7 +32,6 @@ describe("client management", () => {
         city: "São Paulo",
         guardianName: "Responsável",
         gender: "female",
-        clientType: "fixed",
         imageConsent: true,
         interests: ["Postura"],
       },

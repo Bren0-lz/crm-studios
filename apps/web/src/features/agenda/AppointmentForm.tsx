@@ -8,7 +8,8 @@ import type {
   Service,
 } from "@crm/contracts";
 import { serviceAvailableFor } from "@crm/contracts";
-import { useRef, useState, type FormEvent } from "react";
+import { X } from "lucide-react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { ApiClientError } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
@@ -22,6 +23,11 @@ import {
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function AppointmentForm({
   patients,
@@ -45,7 +51,11 @@ export function AppointmentForm({
   onBusyChange: (busy: boolean) => void;
   onSubmit: (
     input: AppointmentInput,
-    recurrence?: { occurrences: number; intervalWeeks: number },
+    recurrence?: {
+      occurrences: number;
+      intervalWeeks: number;
+      customStartsAt?: string[];
+    },
   ) => Promise<void>;
   onPatientCreated?: (patient: Patient) => void;
   onNestedModalChange?: (open: boolean) => void;
@@ -63,7 +73,11 @@ export function AppointmentForm({
     recurring: can("agenda.recurring") && !can("agenda.create"),
     occurrences: 4,
     intervalWeeks: 1,
+    // "Escolher datas": as demais ocorrências (além de startsAt) definidas à mão.
+    manualDates: false,
+    extraStarts: [] as string[],
   });
+  const startTime = form.startsAt.split("T")[1] ?? "";
   // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
@@ -77,6 +91,11 @@ export function AppointmentForm({
   }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
+  const missing = form.patientId ? [] : ["Cliente"];
+  const missingId = useId();
+  useModalDirty(useFormDirty(form));
+  const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(
@@ -118,9 +137,20 @@ export function AppointmentForm({
       };
       await onSubmit(
         input,
-        form.recurring
-          ? { occurrences: form.occurrences, intervalWeeks: form.intervalWeeks }
-          : undefined,
+        !form.recurring
+          ? undefined
+          : form.manualDates
+            ? {
+                occurrences: form.extraStarts.length + 1,
+                intervalWeeks: 1,
+                customStartsAt: form.extraStarts.map((value) =>
+                  new Date(value).toISOString(),
+                ),
+              }
+            : {
+                occurrences: form.occurrences,
+                intervalWeeks: form.intervalWeeks,
+              },
       );
     } catch (cause) {
       setError(
@@ -165,13 +195,6 @@ export function AppointmentForm({
                 />
               </div>
             )}
-            <AppointmentPatientWarnings
-              patient={
-                fixedPatient ??
-                patientChoices.find((item) => item.id === form.patientId)
-              }
-              checkPlan={form.visitType === "regular"}
-            />
             <label>
               Tipo
               <select
@@ -206,33 +229,55 @@ export function AppointmentForm({
             </label>
             {form.recurring && (
               <>
-                <label>
-                  Número de ocorrências
-                  <input
-                    type="number"
-                    min={2}
-                    max={52}
-                    value={form.occurrences}
-                    onChange={(e) =>
-                      setForm({ ...form, occurrences: Number(e.target.value) })
-                    }
-                  />
-                </label>
+                {form.manualDates ? (
+                  <p className="field-hint recurrence-count">
+                    {form.extraStarts.length + 1} ocorrências: a data do
+                    atendimento e as escolhidas abaixo.
+                  </p>
+                ) : (
+                  <label>
+                    Número de ocorrências
+                    <input
+                      type="number"
+                      min={2}
+                      max={52}
+                      value={form.occurrences}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          occurrences: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                )}
                 <label>
                   Intervalo
                   <select
-                    value={form.intervalWeeks}
+                    value={form.manualDates ? "custom" : form.intervalWeeks}
                     onChange={(e) =>
-                      setForm({
-                        ...form,
-                        intervalWeeks: Number(e.target.value),
-                      })
+                      setForm(
+                        e.target.value === "custom"
+                          ? {
+                              ...form,
+                              manualDates: true,
+                              extraStarts: form.extraStarts.length
+                                ? form.extraStarts
+                                : [`T${startTime}`],
+                            }
+                          : {
+                              ...form,
+                              manualDates: false,
+                              intervalWeeks: Number(e.target.value),
+                            },
+                      )
                     }
                   >
                     <option value={1}>Toda semana</option>
                     <option value={2}>A cada 2 semanas</option>
                     <option value={3}>A cada 3 semanas</option>
                     <option value={4}>A cada 4 semanas</option>
+                    <option value="custom">Escolher datas</option>
                   </select>
                 </label>
               </>
@@ -306,6 +351,68 @@ export function AppointmentForm({
                 disabled={loading}
               />
             </div>
+            {form.recurring && form.manualDates && (
+              <div className="recurrence-dates span-2">
+                <div className="recurrence-dates-head">
+                  <div>
+                    <h4>Outras datas</h4>
+                    <p>
+                      A primeira ocorrência é a data e o horário acima. Escolha
+                      os demais dias do atendimento.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    disabled={form.extraStarts.length >= 51}
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        extraStarts: [...current.extraStarts, `T${startTime}`],
+                      }))
+                    }
+                  >
+                    Adicionar data
+                  </button>
+                </div>
+                {form.extraStarts.map((value, index) => (
+                  <div className="recurrence-date-row" key={index}>
+                    <AppointmentDateTimePicker
+                      label={`Ocorrência ${index + 2}`}
+                      value={value}
+                      onChange={(next) =>
+                        setForm((current) => ({
+                          ...current,
+                          extraStarts: current.extraStarts.map(
+                            (item, position) =>
+                              position === index ? next : item,
+                          ),
+                        }))
+                      }
+                      professionalId={form.professionalId}
+                      roomId={form.roomId}
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Remover ocorrência ${index + 2}`}
+                      disabled={form.extraStarts.length <= 1}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          extraStarts: current.extraStarts.filter(
+                            (_, position) => position !== index,
+                          ),
+                        }))
+                      }
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <label className="span-2">
               Observação
               <textarea
@@ -314,24 +421,38 @@ export function AppointmentForm({
                 rows={3}
               />
             </label>
+            {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
+            <AppointmentPatientWarnings
+              patient={
+                fixedPatient ??
+                patientChoices.find((item) => item.id === form.patientId)
+              }
+              checkPlan={form.visitType === "regular"}
+            />
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">
               {error}
             </div>
           )}
+          {missing.length > 0 && (
+            <p className="field-hint span-2" id={missingId}>
+              Falta: {missing.join(", ")}.
+            </p>
+          )}
           <div className="modal-actions span-2">
             <button
               type="button"
               className="secondary-button"
-              onClick={onCancel}
+              onClick={() => confirmDiscard(onCancel)}
               disabled={loading}
             >
               {fixedPatient ? "Voltar" : "Cancelar"}
             </button>
             <button
               className="primary-button"
-              disabled={loading || !form.patientId}
+              disabled={loading || missing.length > 0}
+              aria-describedby={missing.length > 0 ? missingId : undefined}
             >
               {loading ? "Agendando…" : "Confirmar atendimento"}
             </button>

@@ -1,25 +1,34 @@
-import type { Appointment, UserSummary } from "@crm/contracts";
-import { Bell, CalendarClock, LogOut, Settings } from "lucide-react";
+import type { NotificationsSummary, UserSummary } from "@crm/contracts";
+import {
+  Bell,
+  Cake,
+  CalendarClock,
+  LogOut,
+  Settings,
+  UserRound,
+  WalletCards,
+} from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuthorization } from "../authorization-context";
-import {
-  initials,
-  localIsoDate,
-  roleLabels,
-  timeLabel,
-} from "../shared/lib/formatting";
+import { useDataVersion } from "../shared/hooks/useDataVersion";
+import { initials, roleLabels } from "../shared/lib/formatting";
 
 /** Painel suspenso do cabeçalho: fecha com Esc, clique fora ou ao escolher um item. */
 function HeaderPopover({
   label,
+  triggerLabel = label,
   trigger,
   triggerClassName,
+  onOpen,
   children,
 }: {
   label: string;
+  /** Nome do botão, quando difere do painel (ex.: com a contagem de pendências). */
+  triggerLabel?: string;
   trigger: ReactNode;
   triggerClassName: string;
+  onOpen?: () => void;
   children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -48,11 +57,14 @@ function HeaderPopover({
         ref={buttonRef}
         type="button"
         className={triggerClassName}
-        aria-label={label}
-        title={label}
+        aria-label={triggerLabel}
+        title={triggerLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen((current) => !current);
+        }}
       >
         {trigger}
       </button>
@@ -65,94 +77,173 @@ function HeaderPopover({
   );
 }
 
+interface NotificationGroup {
+  key: string;
+  label: string;
+  detail: string;
+  count: number;
+  to: string;
+  icon: ReactNode;
+}
+
+/**
+ * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
+ * (Relacionamento), parcelas vencidas (Financeiro) e atendimentos a finalizar (Agenda).
+ * Grupos zerados não aparecem.
+ */
+function notificationGroups(
+  summary: NotificationsSummary | null,
+  canView: (module: "relationship" | "finance" | "agenda") => boolean,
+): NotificationGroup[] {
+  if (!summary) return [];
+  const groups: NotificationGroup[] = [];
+  if (canView("relationship") && (summary.birthdaysToday ?? 0) > 0)
+    groups.push({
+      key: "birthdays",
+      label: "Aniversariantes de hoje",
+      detail: "Envie os parabéns em Relacionamento",
+      count: summary.birthdaysToday ?? 0,
+      to: "/relacionamento",
+      icon: <Cake size={16} aria-hidden="true" />,
+    });
+  if (canView("finance") && (summary.overdueReceivables ?? 0) > 0)
+    groups.push({
+      key: "overdue",
+      label: "Parcelas vencidas",
+      detail: "Em aberto com vencimento já passado",
+      count: summary.overdueReceivables ?? 0,
+      to: "/financeiro",
+      icon: <WalletCards size={16} aria-hidden="true" />,
+    });
+  if (canView("agenda") && (summary.pendingFinalization ?? 0) > 0)
+    groups.push({
+      key: "pending",
+      label: "Atendimentos a finalizar",
+      detail: "Já passaram e seguem agendados ou confirmados",
+      count: summary.pendingFinalization ?? 0,
+      to: "/agenda/a-finalizar",
+      icon: <CalendarClock size={16} aria-hidden="true" />,
+    });
+  return groups;
+}
+
 export function NotificationsMenu({
   onNavigate,
 }: {
   onNavigate: (to: string) => void;
 }) {
-  return (
-    <HeaderPopover
-      label="Notificações"
-      triggerClassName="icon-button"
-      trigger={<Bell size={19} />}
-    >
-      {(close) => (
-        <NotificationsList
-          onOpen={(to) => {
-            close();
-            onNavigate(to);
-          }}
-        />
-      )}
-    </HeaderPopover>
-  );
-}
-
-function NotificationsList({ onOpen }: { onOpen: (to: string) => void }) {
   const { canView } = useAuthorization();
-  const canSeeAgenda = canView("agenda");
-  const [pending, setPending] = useState<Appointment[] | null>(
-    canSeeAgenda ? null : [],
+  const watched =
+    canView("relationship") || canView("finance") || canView("agenda");
+  // Recarga silenciosa quando agenda, financeiro, clientes ou contatos mudam (QC6).
+  const version = useDataVersion(
+    "agenda",
+    "finance",
+    "patients",
+    "relationship",
   );
+  const [summary, setSummary] = useState<NotificationsSummary | null>(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!canSeeAgenda) return;
+    if (!watched) return;
     let active = true;
     api
-      .dashboard(localIsoDate())
-      .then((data) => active && setPending(data.nextAppointments ?? []))
-      .catch(() => {
+      .notifications()
+      .then((data) => {
         if (!active) return;
-        setError("Não foi possível carregar as notificações.");
-        setPending([]);
+        setSummary(data);
+        setError("");
+      })
+      .catch(() => {
+        if (active) setError("Não foi possível carregar as notificações.");
       });
     return () => {
       active = false;
     };
-  }, [canSeeAgenda]);
+  }, [watched, version, attempt]);
+  const groups = notificationGroups(summary, canView);
+  const total = groups.reduce((sum, group) => sum + group.count, 0);
+  const loading = watched && summary === null && !error;
   return (
-    <>
-      <strong className="header-popover-title">Notificações</strong>
-      {pending === null ? (
-        <p className="muted-copy">Carregando…</p>
-      ) : error ? (
-        <p className="form-error">{error}</p>
-      ) : pending.length === 0 ? (
-        <p className="muted-copy">Nenhuma notificação.</p>
-      ) : (
-        <ul className="header-notifications">
-          {pending.slice(0, 5).map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className="text-button header-notification-item"
-                onClick={() => onOpen("/agenda")}
-              >
-                <CalendarClock size={16} aria-hidden="true" />
-                <span>
-                  <strong>{item.patientName}</strong>
-                  <small>
-                    Pendente hoje às {timeLabel.format(new Date(item.startsAt))}{" "}
-                    · {item.serviceName}
-                  </small>
-                </span>
-              </button>
-            </li>
-          ))}
-          {pending.length > 5 && (
-            <li>
-              <button
-                type="button"
-                className="text-button header-notification-item"
-                onClick={() => onOpen("/")}
-              >
-                Ver todos os {pending.length} pendentes de hoje
-              </button>
-            </li>
+    <HeaderPopover
+      label="Notificações"
+      triggerLabel={
+        total > 0
+          ? `Notificações: ${total} ${total === 1 ? "pendência" : "pendências"}`
+          : "Notificações"
+      }
+      triggerClassName="icon-button header-bell"
+      // Abrir o sino confere de novo (os atendimentos a finalizar mudam com a hora).
+      onOpen={() => setAttempt((value) => value + 1)}
+      trigger={
+        <>
+          <Bell size={19} />
+          {total > 0 && (
+            <span className="header-bell-count" aria-hidden="true">
+              {total > 99 ? "99+" : total}
+            </span>
           )}
-        </ul>
+        </>
+      }
+    >
+      {(close) => (
+        <>
+          <strong className="header-popover-title">Notificações</strong>
+          {error && (
+            <div className="header-notifications-error">
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                onClick={() => setAttempt((value) => value + 1)}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+          {loading ? (
+            <div
+              className="header-notifications-skeleton"
+              role="status"
+              aria-label="Carregando notificações"
+            >
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : groups.length > 0 ? (
+            <ul className="header-notifications">
+              {groups.map((group) => (
+                <li key={group.key}>
+                  <button
+                    type="button"
+                    className="text-button header-notification-item"
+                    onClick={() => {
+                      close();
+                      onNavigate(group.to);
+                    }}
+                  >
+                    {group.icon}
+                    <span>
+                      <strong>{group.label}</strong>
+                      <small>{group.detail}</small>
+                    </span>
+                    <span className="header-notification-count">
+                      {group.count}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            !error && <p className="muted-copy">Nada pendente.</p>
+          )}
+        </>
       )}
-    </>
+    </HeaderPopover>
   );
 }
 
@@ -169,8 +260,16 @@ export function UserMenu({
   return (
     <HeaderPopover
       label="Menu do usuário"
-      triggerClassName="top-avatar"
-      trigger={initials(user.fullName)}
+      triggerClassName={
+        user.avatarDataUrl ? "top-avatar has-photo" : "top-avatar"
+      }
+      trigger={
+        user.avatarDataUrl ? (
+          <img src={user.avatarDataUrl} alt="" />
+        ) : (
+          initials(user.fullName)
+        )
+      }
     >
       {(close) => (
         <>
@@ -180,6 +279,16 @@ export function UserMenu({
             <small>{user.jobTitle ?? roleLabels[user.role]}</small>
           </div>
           <div className="header-user-actions">
+            <button
+              type="button"
+              className="action-menu-item"
+              onClick={() => {
+                close();
+                onNavigate("/perfil");
+              }}
+            >
+              <UserRound size={16} /> Meu perfil
+            </button>
             {canView("settings") && (
               <button
                 type="button"

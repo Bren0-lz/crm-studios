@@ -271,23 +271,6 @@ export function ClientDetailsSection() {
                 </select>
               </label>
               <label>
-                Tipo de cliente
-                <select
-                  value={filter.clientType ?? ""}
-                  onChange={(event) =>
-                    setFilter({
-                      ...filter,
-                      clientType: (event.target.value ||
-                        undefined) as Filters["clientType"],
-                    })
-                  }
-                >
-                  <option value="">Todos</option>
-                  <option value="fixed">Fixo</option>
-                  <option value="rotating">Rotativo</option>
-                </select>
-              </label>
-              <label>
                 Segmento
                 <select
                   value={filter.segment ?? ""}

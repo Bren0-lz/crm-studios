@@ -168,6 +168,20 @@ export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
   };
 }
 
+/**
+ * Valor de um serviço vendido: o plano cadastrado é fixo; só o avulso muda a
+ * quantidade de sessões, e o valor segue o preço por sessão da referência.
+ */
+export function planServiceValueForSessions(
+  reference: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
+  sessions: number,
+): number {
+  if (!Number.isInteger(sessions) || sessions < 1) return 0;
+  return Math.round(
+    (reference.totalValueInCents * sessions) / reference.totalSessions,
+  );
+}
+
 /** Largest remainders with stable service-order ties, using exact integer arithmetic. */
 export function allocatePlanRevenue(
   amountInCents: number,

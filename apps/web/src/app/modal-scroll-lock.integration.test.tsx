@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Modal } from "../App";
 import "../test-support/legacy-setup";
 
@@ -70,5 +70,29 @@ describe("modal scroll lock", () => {
     cleanup();
     expect(document.body).not.toHaveClass("modal-open");
     expect(document.documentElement).not.toHaveClass("modal-open");
+  });
+
+  it("compensates the rendered scrollbar gutter once and restores existing padding", () => {
+    const root = document.documentElement;
+    vi.spyOn(root, "clientWidth", "get").mockReturnValue(window.innerWidth);
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, window.innerWidth - 10, 720),
+    );
+    const originalPadding = document.body.style.paddingRight;
+    document.body.style.paddingRight = "4px";
+    try {
+      render(<StackedModals />);
+      fireEvent.click(screen.getByRole("button", { name: "Abrir primeiro" }));
+      expect(document.body.style.paddingRight).toBe("10px");
+      fireEvent.click(screen.getByRole("button", { name: "Abrir segundo" }));
+      expect(document.body.style.paddingRight).toBe("10px");
+      fireEvent.click(screen.getByRole("button", { name: "Fechar segundo" }));
+      expect(document.body.style.paddingRight).toBe("10px");
+      fireEvent.click(screen.getByRole("button", { name: "Fechar primeiro" }));
+      expect(document.body.style.paddingRight).toBe("4px");
+    } finally {
+      cleanup();
+      document.body.style.paddingRight = originalPadding;
+    }
   });
 });

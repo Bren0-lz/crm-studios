@@ -38,7 +38,11 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 - Commits **sem** `Co-Authored-By` e sem "Generated with Claude".
 - Nunca marque `DONE` sem a saída real do comando de gate.
 - Ambiguidade não se resolve por chute: marque `BLOCKED` e pare.
-- Nunca fazer sem me perguntar: `git push`; editar `.env` ou `compose.yaml`; adicionar ou
+- **Ao terminar uma tarefa, abra um PR**: depois do commit (gate verde), faça `git push` do
+  branch da tarefa e abra um pull request para o branch padrão, com título `<ID>: <título>` e
+  descrição em pt-BR (o que mudou e a saída do gate). Esse push é autorizado; tarefa sem PR
+  aberto não está concluída. Nunca faça push direto no branch padrão nem force-push.
+- Nunca fazer sem me perguntar: `git push` fora do fluxo de PR acima; editar `.env` ou `compose.yaml`; adicionar ou
   atualizar dependências npm; editar `docs/PLANO_*.md`; editar migrações existentes
   (criar migração **nova** com o próximo número é permitido).
 
@@ -77,6 +81,12 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   `.panel` não tem padding: cada filho direto usa `panel-head` (`padding: 21px 23px`) ou um
   bloco com respiro lateral próprio (padrão 23px). Exceções: `.admin-grid > .panel` e
   `.groups-layout > .panel`, que já recebem padding.
+- **Tom visual sóbrio**: sem sobretítulo (`eyebrow`) em `PageHeader` nem em `panel-head` — o título
+  basta; contexto útil (período, data, progresso) vai num `panel-context` abaixo do `h2`. `.eyebrow` só
+  no nome do módulo dos modais. Uma fonte (DM Sans); Cormorant só no nome da marca. Peso máximo 700
+  (títulos em 600), sem `letter-spacing` negativo além de `-0.01em`, caixa alta só em cabeçalho de
+  tabela e siglas. Sombras só via `--shadow`/`--shadow-sm`; raios só `--radius-*`. Nada de enfeites
+  (círculos em `::after`, gradientes decorativos, `backdrop-filter`) nem frases de efeito na interface.
 - **Tokens**: CSS novo usa `--space-1`…`--space-8` (4, 8, 12, 16, 24, 32, 48, 64px) e
   `--radius-sm/md/lg` (8, 12, 18px); valor fora da escala via `calc(var(--space-N) ± Xpx)`.
   Nada de px soltos para espaçamento e nada de `style={{}}` no JSX (exceção: cor escolhida pelo

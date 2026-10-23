@@ -1,4 +1,5 @@
 import {
+  patientFirstName,
   type ContactSuggestion,
   type RelationshipSettings,
   whatsappLink,
@@ -8,12 +9,14 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { initials } from "../../shared/lib/formatting";
 import { birthdayMessage, markBirthdaySent } from "../relationship/index";
 
 export function BirthdayDashboardCard() {
   const { canEdit } = useAuthorization();
+  const toast = useToast();
   const [birthdays, setBirthdays] = useState<ContactSuggestion[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
@@ -44,6 +47,9 @@ export function BirthdayDashboardCard() {
     setSaving(suggestion.referenceKey);
     try {
       await markBirthdaySent(suggestion.patientId, suggestion.referenceKey);
+      toast.success(
+        `Parabéns para ${patientFirstName(suggestion.patientName)} marcados como enviados.`,
+      );
       setBirthdays((current) =>
         current.filter((item) => item.referenceKey !== suggestion.referenceKey),
       );
@@ -58,12 +64,12 @@ export function BirthdayDashboardCard() {
     <section className="panel pulse-panel">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">
+          <h2>Aniversariantes</h2>
+          <p className="panel-context">
             {settings
               ? `Hoje e próximos ${settings.birthdayDaysAhead} dias`
               : "Hoje e próximos dias"}
-          </span>
-          <h2>Aniversariantes</h2>
+          </p>
         </div>
         <NavLink to="/relacionamento" className="text-link">
           Ver contatos sugeridos <ChevronRight size={16} />

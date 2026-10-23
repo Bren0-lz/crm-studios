@@ -547,3 +547,22 @@ export function buildDemoScenarios(): DemoData {
     attendance,
   };
 }
+
+/** Mensagens padrão de exemplo para as campanhas de WhatsApp (sem imagens). */
+export const demoMessageTemplates = [
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000001",
+    title: "Convite para aula experimental",
+    body: "Olá, {{nome}}! Tudo bem? 😊\nAbrimos novos horários de *Pilates* e queremos te convidar para uma aula experimental gratuita. Quer que eu reserve um horário para você?",
+  },
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000002",
+    title: "Sentimos sua falta",
+    body: "Oi, {{nome}}! Sentimos sua falta por aqui 💚\nQue tal voltar a cuidar do corpo com a gente? Esta semana temos condições especiais para retorno.",
+  },
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000003",
+    title: "Aviso de feriado",
+    body: "Olá, {{nome}}! Passando para avisar que no feriado o estúdio estará fechado. Suas aulas seguem normalmente nos outros dias. Qualquer dúvida, é só chamar!",
+  },
+] as const;

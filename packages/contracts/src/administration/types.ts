@@ -8,6 +8,8 @@ import {
   auditHistoryQuerySchema,
   clinicSettingsInputSchema,
   loginSchema,
+  ownPasswordChangeSchema,
+  ownProfileUpdateSchema,
   professionalInputSchema,
   roomInputSchema,
   serviceInputSchema,
@@ -23,6 +25,23 @@ export type AppModule = z.infer<typeof appModuleSchema>;
 export type AdminUserInput = z.infer<typeof adminUserInputSchema>;
 
 export type AdminUserUpdate = z.infer<typeof adminUserUpdateSchema>;
+
+export type OwnProfileUpdate = z.infer<typeof ownProfileUpdateSchema>;
+
+export type OwnPasswordChange = z.infer<typeof ownPasswordChangeSchema>;
+
+/** Perfil do usuário logado (`GET /me/profile`). */
+export interface OwnProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  jobTitle?: string;
+  /** Foto em data URL; vazio = sem foto. */
+  avatarDataUrl: string;
+  /** Profissional da agenda ligado ao usuário (nome e cor exibidos na agenda). */
+  professional: { id: string; fullName: string; color: string } | null;
+}
 
 export type ClinicSettingsInput = z.infer<typeof clinicSettingsInputSchema>;
 
@@ -56,6 +75,8 @@ export interface UserSummary {
   email: string;
   role: UserRole;
   jobTitle?: string;
+  /** Foto do perfil (só em `/me` e no login; ausente = sem foto). */
+  avatarDataUrl?: string;
   /** Módulos efetivos (já resolvidos com `effectiveModules`). */
   modules: AppModule[];
   /** Módulos com edição efetiva (`effectiveEditModules`; sempre subconjunto de `modules`). */
@@ -70,6 +91,10 @@ export interface AdminUser extends UserSummary {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Acessa todas as filiais (admin: sempre `true`). */
+  allBranches?: boolean;
+  /** Filiais do usuário quando `allBranches` é `false`. */
+  branchIds?: string[];
   /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
   professionalId?: string;
   professionalName?: string;
@@ -82,6 +107,18 @@ export interface AdminUser extends UserSummary {
   commissionPercentage?: number;
   /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
   commissionEffectiveFrom?: string;
+}
+
+/** Dados públicos da clínica para qualquer usuário logado (logo, cabeçalho de documentos). */
+export interface ClinicBranding {
+  name: string;
+  logoDataUrl: string;
+  timezone: string;
+  legalName?: string;
+  taxId?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface ClinicSettings extends ClinicSettingsInput {
@@ -128,12 +165,16 @@ export interface PermissionMatrixItem {
 }
 
 export interface Professional extends ProfessionalInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   active: boolean;
 }
 
 export interface Room extends RoomInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   active: boolean;

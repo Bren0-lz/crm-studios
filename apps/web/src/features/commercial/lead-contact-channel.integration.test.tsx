@@ -11,6 +11,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("lead contact channel", () => {
   it("infers the technical channel from the chosen name", () => {
@@ -80,8 +84,8 @@ describe("lead contact channel", () => {
               { id: "k1", name: "Instagram Direct", active: true },
               { id: "k2", name: "whatsapp", active: true },
             ]
-          : url.endsWith("/leads")
-            ? [lead]
+          : isLeadBoardUrl(url)
+            ? leadBoardResponse(url, [lead])
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
@@ -124,9 +128,19 @@ describe("lead contact channel", () => {
     ).toHaveTextContent("WhatsApp");
 
     fireEvent.change(channel, { target: { value: "Instagram Direct" } });
+    // Sem o registro, o botão diz o que falta (QM14).
+    const register = within(dialog).getByRole("button", {
+      name: "Registrar contato",
+    });
+    expect(register).toBeDisabled();
+    expect(register).toHaveAccessibleDescription(
+      "Falta: Registro do contato.",
+    );
     fireEvent.change(within(dialog).getByLabelText("Registro do contato"), {
       target: { value: "Respondeu no direct" },
     });
+    expect(register).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Registrar contato" }),
     );

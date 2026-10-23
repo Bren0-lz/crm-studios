@@ -58,6 +58,21 @@ export const historyActions: {
     label: "Registro clínico finalizado",
   },
   {
+    action: "message_template.saved",
+    module: "communications",
+    label: "Mensagem padrão salva",
+  },
+  {
+    action: "message_template.archived",
+    module: "communications",
+    label: "Mensagem padrão arquivada ou reativada",
+  },
+  {
+    action: "campaign.created",
+    module: "communications",
+    label: "Campanha de WhatsApp criada",
+  },
+  {
     action: "message.manual_completion",
     module: "communications",
     label: "Conclusão manual de mensagem registrada",
@@ -157,6 +172,18 @@ export const historyActions: {
   { action: "user.created", module: "settings", label: "Usuário cadastrado" },
   { action: "user.updated", module: "settings", label: "Usuário atualizado" },
   {
+    action: "user.profile_updated",
+    module: "settings",
+    label: "Perfil próprio atualizado",
+  },
+  { action: "branch.created", module: "settings", label: "Filial cadastrada" },
+  { action: "branch.updated", module: "settings", label: "Filial atualizada" },
+  {
+    action: "users.branches_updated",
+    module: "settings",
+    label: "Filiais do usuário alteradas",
+  },
+  {
     action: "user.password_reset",
     module: "settings",
     label: "Senha redefinida",
@@ -250,7 +277,7 @@ export const historyActions: {
   {
     action: "lead.stage_changed",
     module: "crm",
-    label: "Lead movimentado no funil",
+    label: "Lead mudou de etapa no funil",
   },
   {
     action: "clinical.revision",
@@ -273,12 +300,12 @@ export const historyActions: {
   {
     action: "session.movement",
     module: "plans",
-    label: "Saldo de sessões movimentado",
+    label: "Saldo de sessões alterado",
   },
   {
     action: "stock.movement",
     module: "patients",
-    label: "Estoque movimentado",
+    label: "Estoque ajustado",
   },
   {
     action: "lead.contact",

@@ -5,6 +5,7 @@ import {
   isValidCpf,
 } from "@crm/contracts";
 import { useState } from "react";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { PhoneInput } from "../../shared/components/PhoneInput";
@@ -34,6 +35,7 @@ export function LeadConvertModal({
     state: lead.state ?? "",
   });
   const [cepStatus, setCepStatus] = useState("");
+  const dirty = useFormDirty(form);
   const field = <K extends keyof LeadConversionInput>(
     key: K,
     value: LeadConversionInput[K],
@@ -75,6 +77,7 @@ export function LeadConvertModal({
       validate={() =>
         form.cpf && !isValidCpf(form.cpf) ? "Informe um CPF válido." : ""
       }
+      dirty={dirty}
       onConfirm={() => onConfirm(form)}
       onClose={onClose}
     >

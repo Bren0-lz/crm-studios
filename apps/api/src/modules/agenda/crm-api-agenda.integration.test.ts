@@ -8,6 +8,11 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import {
+  atInstant,
+  patchStatusAt,
+  reissuedHeaders,
+} from "../../test-support/clock.js";
 
 describe("CRM API", () => {
   it("saves a SOAP draft with only the subjective step and requires the rest to finalize", async () => {
@@ -24,15 +29,18 @@ describe("CRM API", () => {
         headers,
       })
     ).json<Appointment[]>();
-    const draft = await app.inject({
-      method: "POST",
-      url: "/clinical-records",
-      headers,
-      payload: {
-        appointmentId: appointments[0]!.id,
-        subjective: "Cliente relata dor ao subir escadas.",
-      },
-    });
+    // A evolução só vale a partir do início do atendimento: registra com o relógio nele.
+    const draft = await atInstant(appointments[0]!.startsAt, () =>
+      app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers: reissuedHeaders(app, headers),
+        payload: {
+          appointmentId: appointments[0]!.id,
+          subjective: "Cliente relata dor ao subir escadas.",
+        },
+      }),
+    );
     expect(draft.statusCode).toBe(201);
     expect(draft.json()).toMatchObject({
       status: "draft",
@@ -75,21 +83,25 @@ describe("CRM API", () => {
         url: `/appointments?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
         headers,
       })
-    ).json();
+    ).json<Appointment[]>();
+    const startsAt = appointments[0]!.startsAt;
 
-    const draft = await app.inject({
-      method: "POST",
-      url: "/clinical-records",
-      headers,
-      payload: {
-        appointmentId: appointments[0].id,
-        subjective: "Cliente relata redução da dor.",
-        objective: "Amplitude de movimento em evolução.",
-        assessment: "Resposta positiva ao tratamento.",
-        plan: "Manter exercícios e progressão de carga.",
-        painScale: 3,
-      },
-    });
+    // A evolução só vale a partir do início do atendimento: registra com o relógio nele.
+    const draft = await atInstant(startsAt, () =>
+      app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers: reissuedHeaders(app, headers),
+        payload: {
+          appointmentId: appointments[0]!.id,
+          subjective: "Cliente relata redução da dor.",
+          objective: "Amplitude de movimento em evolução.",
+          assessment: "Resposta positiva ao tratamento.",
+          plan: "Manter exercícios e progressão de carga.",
+          painScale: 3,
+        },
+      }),
+    );
     expect(draft.statusCode).toBe(201);
     const draftBody = draft.json<{
       id: string;
@@ -104,7 +116,7 @@ describe("CRM API", () => {
       await app.inject({ method: "GET", url: "/professionals", headers })
     ).json<Array<{ id: string; crefito: string }>>();
     const professional = professionals.find(
-      (item) => item.id === appointments[0].professionalId,
+      (item) => item.id === appointments[0]!.professionalId,
     );
     expect(professional?.crefito).toBeTruthy();
     expect(draft.json()).toMatchObject({
@@ -124,20 +136,25 @@ describe("CRM API", () => {
     });
     expect(finalized.json()).toMatchObject({ status: "finalized", version: 2 });
 
-    const editAfterFinalize = await app.inject({
-      method: "POST",
-      url: "/clinical-records",
-      headers,
-      payload: {
-        appointmentId: draftBody.appointmentId,
-        subjective: "Tentativa de alteração",
-        objective: draftBody.objective,
-        assessment: draftBody.assessment,
-        plan: draftBody.plan,
-        painScale: draftBody.painScale,
-      },
-    });
+    const editAfterFinalize = await atInstant(startsAt, () =>
+      app.inject({
+        method: "POST",
+        url: "/clinical-records",
+        headers: reissuedHeaders(app, headers),
+        payload: {
+          appointmentId: draftBody.appointmentId,
+          subjective: "Tentativa de alteração",
+          objective: draftBody.objective,
+          assessment: draftBody.assessment,
+          plan: draftBody.plan,
+          painScale: draftBody.painScale,
+        },
+      }),
+    );
     expect(editAfterFinalize.statusCode).toBe(409);
+    expect(editAfterFinalize.json()).toMatchObject({
+      code: "CLINICAL_RECORD_FINALIZED",
+    });
 
     const revisions = await app.inject({
       method: "GET",
@@ -447,12 +464,23 @@ describe("CRM API", () => {
       code: "SATISFACTION_APPOINTMENT_NOT_COMPLETED",
     });
 
-    const completed = await app.inject({
-      method: "PATCH",
-      url: `/appointments/${helenaAppointment}/status`,
+    // Realizado só vale a partir do início do atendimento (hoje às 9h, no fuso local).
+    const helenaStartsAt = (
+      await app.inject({
+        method: "GET",
+        url: `/appointments?from=${encodeURIComponent(new Date(Date.now() - 86_400_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 86_400_000).toISOString())}`,
+        headers,
+      })
+    )
+      .json<Appointment[]>()
+      .find((item) => item.id === helenaAppointment)!.startsAt;
+    const completed = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "completed" },
-    });
+      helenaStartsAt,
+      helenaAppointment,
+      { status: "completed" },
+    );
     expect(completed.statusCode).toBe(200);
 
     const otherPatient = await post({

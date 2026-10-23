@@ -5,6 +5,8 @@ import {
 import {
   type AdminAuditEvent,
   type ApiError,
+  BRANCH_HEADER,
+  type BranchScope,
   type AppModule,
   appModuleLabels,
   broadcastInputSchema,
@@ -33,7 +35,7 @@ import {
   readXlsxRows,
   validatePatientImport,
 } from "../modules/patients/patient-import.js";
-import { DomainError } from "../repository.js";
+import { type AuthenticatedUser, DomainError } from "../repository.js";
 import {
   moduleDeniedCodes,
   type ModuleRequirement,
@@ -76,6 +78,11 @@ export async function createRouteContext({
   });
 
   await app.register(jwt, { secret: config.JWT_SECRET });
+
+  // Cada requisição ganha o próprio contexto de filial (gravado no `authenticate`).
+  app.addHook("onRequest", (_request, _reply, done) =>
+    repository.branchScope.open(done),
+  );
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof DomainError) {
@@ -148,6 +155,56 @@ export async function createRouteContext({
       modules: user.modules,
       permissions: user.permissions,
     });
+    const scope = await resolveBranchScope(request, user);
+    if ("code" in scope) return reply.status(403).send(scope);
+    repository.branchScope.set(scope);
+  }
+
+  /** Filiais ativas que o usuário acessa (admin e "todas as filiais": todas as ativas). */
+  async function accessibleBranches(user: AuthenticatedUser) {
+    const branches = (await repository.listBranches(user.clinicId)).filter(
+      (branch) => branch.active,
+    );
+    return user.role === "admin" || (user.allBranches ?? true)
+      ? branches
+      : branches.filter((branch) => user.branchIds?.includes(branch.id));
+  }
+
+  /**
+   * Escopo de filial da requisição: com `X-Branch-Id`, só essa filial (403 se o usuário não a
+   * acessa); sem o cabeçalho, todas as filiais do usuário (`null` = toda a rede). Gravação sem
+   * cabeçalho vai para a filial padrão, ou para a primeira do usuário se ele não a acessa.
+   */
+  async function resolveBranchScope(
+    request: FastifyRequest,
+    user: AuthenticatedUser,
+  ): Promise<BranchScope | ApiError> {
+    const header = request.headers[BRANCH_HEADER];
+    // "all" = consolidado explícito (ficha do cliente: histórico de todas as filiais).
+    const requested =
+      typeof header === "string" && header.trim() !== "all"
+        ? header.trim()
+        : "";
+    const branches = await accessibleBranches(user);
+    if (requested) {
+      if (!branches.some((branch) => branch.id === requested))
+        return {
+          code: "BRANCH_ACCESS_DENIED",
+          message: "Seu usuário não tem acesso a esta filial.",
+        };
+      return { branchIds: [requested], writeBranchId: requested };
+    }
+    if (branches.length === 0)
+      return {
+        code: "BRANCH_ACCESS_DENIED",
+        message: "Seu usuário não tem acesso a nenhuma filial ativa.",
+      };
+    const everything = user.role === "admin" || (user.allBranches ?? true);
+    const write = branches.find((branch) => branch.isDefault) ?? branches[0]!;
+    return {
+      branchIds: everything ? null : branches.map((branch) => branch.id),
+      writeBranchId: write.id,
+    };
   }
 
   /** Primeiro requisito que o usuário da requisição não cumpre (403 com `moduleDenied`). */
@@ -268,6 +325,7 @@ export async function createRouteContext({
       reply.statusCode < 200 ||
       reply.statusCode >= 300 ||
       route.startsWith("/admin/users") ||
+      route.startsWith("/admin/branches") ||
       route === "/admin/clinic-settings" ||
       route.startsWith("/patient-tags") ||
       route.startsWith("/plan-templates") ||
@@ -510,6 +568,7 @@ export async function createRouteContext({
     toUserSummary,
     authenticate,
     requestAccess,
+    accessibleBranches,
     visibleHistory,
     withConfiguredTags,
     assertPermissions,

@@ -20,7 +20,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--space-2) - 1px);
+}
+.patient-picker-header > label {
+  display: inline-block;
 }
 .patient-picker > input {
   width: 100%;
@@ -29,20 +32,24 @@
   z-index: 2;
 }
 .patient-picker-results {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   z-index: 1;
   max-height: min(240px, 40dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(17, 32, 27, 0.18);
 }
 .patient-picker-results ul {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -64,6 +71,18 @@
 .patient-picker-results li[aria-selected="true"] {
   background: var(--mint);
   font-weight: 700;
+}
+.patient-picker-results p {
+  flex-shrink: 0;
+}
+.patient-picker-footer {
+  flex-shrink: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.patient-picker-footer > button {
+  width: 100%;
 }
 
 .patient-picker-results[popover] {
@@ -188,9 +207,9 @@
   max-height: calc(100dvh - 2 * var(--modal-viewport-gap));
   overflow: hidden;
   padding: 0;
-  border-radius: 21px;
+  border-radius: var(--radius-lg);
   background: var(--paper);
-  box-shadow: 0 28px 80px rgba(17, 32, 27, 0.22);
+  box-shadow: 0 16px 48px rgba(17, 32, 27, 0.18);
 }
 
 .modal-head {
@@ -226,7 +245,6 @@
 
 .modal-head h2 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -346,7 +364,7 @@
   padding: 0 6px;
   color: #4d5b55;
   font-size: var(--text-sm);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .form-fieldset.emergency-fieldset {
@@ -375,6 +393,10 @@
   font-weight: 400;
   line-height: 1.4;
 }
+/* Lista "Falta: …" acima do botão principal (QM14). */
+p.field-hint {
+  margin: 0;
+}
 
 .field-error {
   color: #9b433c;
@@ -389,6 +411,51 @@
 
 .form-grid input[aria-invalid="true"]:focus {
   box-shadow: 0 0 0 3px rgba(155, 67, 60, 0.12);
+}
+
+/* Recorrência com datas escolhidas à mão (formulário de atendimento). */
+.recurrence-count {
+  align-self: center;
+  margin: 0;
+}
+.recurrence-dates {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f7f8f5;
+}
+.recurrence-dates-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.recurrence-dates-head h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+.recurrence-dates-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.recurrence-dates-head button {
+  flex: 0 0 auto;
+}
+.recurrence-date-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.recurrence-date-row .appointment-date-picker {
+  flex: 1;
+}
+.recurrence-date-row .icon-button {
+  min-height: calc(var(--space-6) + 19px);
 }
 
 .appointment-date-picker {
@@ -411,6 +478,12 @@
   margin-bottom: 8px;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+.appointment-date-picker:has(.appointment-time-field > input:required)
+  > .appointment-date-label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
 }
 .appointment-date-fields {
   display: grid;
@@ -468,7 +541,7 @@
   margin: 0;
   padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: #fffefa;
   color: var(--ink);
   box-shadow:
@@ -837,4 +910,85 @@
 /* Contatos do lead: o registro ocupa a linha inteira. */
 .activity-form > .span-2 {
   grid-column: 1 / -1;
+}
+
+/* Resumo da turma escolhida no cadastro/vínculo de plano. */
+.group-details {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.group-details header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--green);
+}
+
+.group-details header div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.group-details header strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.group-details header small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.group-details-slots {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-details-slots li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.group-details-slots li span:last-child {
+  font-weight: 600;
+}
+
+.group-details-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.group-details-info dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.group-details-info dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+/* Campo de arquivo com orientação de formato/tamanho (ou o arquivo anexado) logo abaixo. */
+.file-field {
+  display: grid;
+  gap: var(--space-2);
 }

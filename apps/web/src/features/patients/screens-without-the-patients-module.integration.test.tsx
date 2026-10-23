@@ -100,7 +100,7 @@ describe("screens without the patients module", () => {
   });
 
   it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes");
+    renderAs("communications", "/comunicacoes?aba=fila");
     fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
     });
@@ -144,7 +144,7 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {

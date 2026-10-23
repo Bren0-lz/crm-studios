@@ -13,6 +13,7 @@ import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import type { CloseGuard } from "../../shared/workflows/types";
 import { AdminUsersContent } from "./AdminUsersContent";
+import { BranchesContent } from "./BranchesContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
 import { settingsTabFromSection, settingsTabs } from "./model";
@@ -90,7 +91,6 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <PageHeader
-        eyebrow="Gestão da clínica"
         title="Configurações"
         description="Organize sua operação e personalize os detalhes da clínica."
       />
@@ -130,6 +130,8 @@ export function SettingsPage() {
           {(visited.includes(tab.key) || selected === tab.key) &&
             (tab.key === "clinic" ? (
               <ClinicSettingsContent />
+            ) : tab.key === "branches" ? (
+              <BranchesContent />
             ) : tab.key === "users" ? (
               <AdminUsersContent />
             ) : tab.key === "plans" ? (

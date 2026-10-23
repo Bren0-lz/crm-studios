@@ -25,6 +25,7 @@ import {
   type ReceivableRow,
   type PayableRow,
   type CommissionEntryRow,
+  branchClause,
   hasDatabaseCode,
 } from "./helpers.js";
 
@@ -144,9 +145,10 @@ export function createFinanceOperationsRepository(
       professionalName: string;
       price: number;
       startsAt: Date;
+      sameBranch: boolean;
     }>(
-      `SELECT a.id,a.service_id AS "serviceId",s.name AS "serviceName",a.professional_id AS "professionalId",p.full_name AS "professionalName",s.price_in_cents AS price,a.starts_at AS "startsAt" FROM appointments a JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id WHERE a.clinic_id=$1 AND a.id=$2 AND a.patient_id=$3 AND a.status IN ('scheduled','confirmed') FOR UPDATE OF a`,
-      [clinicId, input.appointmentId, current.patientId],
+      `SELECT a.id,a.service_id AS "serviceId",s.name AS "serviceName",a.professional_id AS "professionalId",p.full_name AS "professionalName",s.price_in_cents AS price,a.starts_at AS "startsAt",a.branch_id=(SELECT t.branch_id FROM patient_tabs t WHERE t.clinic_id=$1 AND t.id=$4) AS "sameBranch" FROM appointments a JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id WHERE a.clinic_id=$1 AND a.id=$2 AND a.patient_id=$3 AND a.status IN ('scheduled','confirmed') FOR UPDATE OF a`,
+      [clinicId, input.appointmentId, current.patientId, tabId],
     );
     const appointment = result.rows[0];
     if (!appointment)
@@ -154,6 +156,12 @@ export function createFinanceOperationsRepository(
         "APPOINTMENT_NOT_FOUND",
         "Atendimento do cliente não encontrado.",
         404,
+      );
+    if (!appointment.sameBranch)
+      throw new DomainError(
+        "BRANCH_MISMATCH",
+        "O atendimento é de outra filial que não a da comanda.",
+        409,
       );
     if (
       await covered(
@@ -496,7 +504,7 @@ export function createFinanceOperationsRepository(
       return context.inTransaction(async (client) => {
         await classification(client, clinicId, input, "income");
         const result = await client.query<{ id: string }>(
-          `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,competence,category_id,cost_center_id,posted_on) SELECT $1,p.id,$3,1,1,$4,$5,coalesce($6,to_char(now() AT TIME ZONE c.timezone,'YYYY-MM')),$7,$8,$9::date FROM patients p JOIN clinics c ON c.id=p.clinic_id WHERE p.clinic_id=$1 AND p.id=$2 AND p.merged_into_patient_id IS NULL RETURNING id`,
+          `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,competence,category_id,cost_center_id,posted_on,branch_id) SELECT $1,p.id,$3,1,1,$4,$5,coalesce($6,to_char(now() AT TIME ZONE c.timezone,'YYYY-MM')),$7,$8,$9::date,$10::uuid FROM patients p JOIN clinics c ON c.id=p.clinic_id WHERE p.clinic_id=$1 AND p.id=$2 AND p.merged_into_patient_id IS NULL RETURNING id`,
           [
             clinicId,
             input.patientId,
@@ -507,6 +515,7 @@ export function createFinanceOperationsRepository(
             input.categoryId ?? null,
             input.costCenterId ?? null,
             input.postedOn ?? null,
+            context.branchWriteId(),
           ],
         );
         if (!result.rows[0])
@@ -646,14 +655,15 @@ export function createFinanceOperationsRepository(
       to: string,
       costCenterId?: string,
     ) {
+      const branchIds = context.branchReadIds();
       return context.inTransaction(async (client) => {
         const receivables = await client.query<ReceivableRow>(
-          `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1`,
-          [clinicId],
+          `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         const payables = await client.query<PayableRow>(
-          `SELECT ${payableColumns} FROM payables py JOIN financial_categories fc ON fc.id=py.category_id LEFT JOIN cost_centers cc ON cc.id=py.cost_center_id WHERE py.clinic_id=$1`,
-          [clinicId],
+          `SELECT ${payableColumns} FROM payables py JOIN financial_categories fc ON fc.id=py.category_id LEFT JOIN cost_centers cc ON cc.id=py.cost_center_id WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         const categories = await client.query<{
           id: string;
@@ -667,12 +677,20 @@ export function createFinanceOperationsRepository(
           [clinicId],
         );
         const commissions = await client.query<CommissionEntryRow>(
-          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1`,
-          [clinicId],
+          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+          [clinicId, branchIds],
         );
         const ids = await client.query<{ id: string }>(
-          "SELECT id FROM patient_tabs WHERE clinic_id=$1",
-          [clinicId],
+          `SELECT id FROM patient_tabs WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
+          [clinicId, branchIds],
+        );
+        const scopedProfessionals = new Set(
+          (
+            await client.query<{ id: string }>(
+              `SELECT id FROM professionals WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
+              [clinicId, branchIds],
+            )
+          ).rows.map((row) => row.id),
         );
         const tabs = [];
         for (const { id } of ids.rows) {
@@ -693,7 +711,9 @@ export function createFinanceOperationsRepository(
           tabs,
           costCenterId,
           settings.rows[0]?.timezone,
-          await loadCommissionAdjustments(client, clinicId),
+          (await loadCommissionAdjustments(client, clinicId)).filter((item) =>
+            scopedProfessionals.has(item.professionalId),
+          ),
         );
       });
     },

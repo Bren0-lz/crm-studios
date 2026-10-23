@@ -1,4 +1,4 @@
-import { patientTagDisplayColor } from "@crm/contracts";
+import { patientFirstName, patientTagDisplayColor } from "@crm/contracts";
 import {
   isValidCpf,
   patientTagKey,
@@ -13,9 +13,12 @@ import {
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { tagColorLookup } from "../../shared/lib/formatting";
@@ -35,7 +38,11 @@ import {
 } from "./model";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 import { PatientProfileFields } from "./PatientProfileFields";
-import type { GuidedPlanForm, GuidedSingleForm } from "./types";
+import type {
+  GuidedPlanForm,
+  GuidedSingleForm,
+  PatientRegistrationResult,
+} from "./types";
 
 export function PatientModal({
   patient,
@@ -47,10 +54,15 @@ export function PatientModal({
   /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
   configuredTags: { tags: PatientTag[] | null; error: string };
   onClose: () => void;
-  /** `notice`: resumo do passo guiado (demonstração agendada, plano criado, turma/lista de espera). */
-  onSaved: (patient: Patient, notice?: string) => void;
+  /** `result` preserva os registros já criados para continuar sem repetir as operações. */
+  onSaved: (
+    patient: Patient,
+    notice?: string,
+    result?: PatientRegistrationResult,
+  ) => void;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [form, setForm] = useState<PatientInput>(() => ({
     ...patient,
     fullName: patient?.fullName ?? "",
@@ -117,6 +129,35 @@ export function PatientModal({
   const [groupId, setGroupId] = useState("");
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  const dirty = useFormDirty({
+    form,
+    step,
+    demonstration,
+    planForm,
+    singleForm,
+    groupId,
+  });
+  // O que falta no cadastro e na etapa guiada escolhida: o botão fica desativado listando (QM14).
+  const guidedPlan = step === "plan" ? planForm : singleForm;
+  const missing = useMissingFields([
+    ...(form.fullName.trim() ? [] : ["Nome completo"]),
+    ...(form.phone.trim() ? [] : ["Telefone"]),
+    ...(step === "demonstration"
+      ? [
+          !demonstration.serviceId && "Serviço",
+          !demonstration.professionalId && "Profissional",
+          !demonstration.roomId && "Sala",
+          !demonstration.startsAt && "Data e horário",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+    ...(step === "plan" || step === "single"
+      ? [
+          !guidedPlan.planTemplateId && "Plano cadastrado",
+          !guidedPlan.validFrom && "Início",
+          !guidedPlan.firstDueDate && "Primeiro vencimento",
+        ].filter((item): item is string => Boolean(item))
+      : []),
+  ]);
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
@@ -162,7 +203,9 @@ export function PatientModal({
     if (patient) {
       setLoading(true);
       try {
-        onSaved(await api.updatePatient(patient.id, form));
+        const saved = await api.updatePatient(patient.id, form);
+        toast.success(`Cadastro de ${patientFirstName(saved.fullName)} atualizado.`);
+        onSaved(saved);
       } catch (cause) {
         setError((cause as Error).message);
       } finally {
@@ -181,11 +224,17 @@ export function PatientModal({
     setLoading(true);
     try {
       if (input.next === "none") {
-        onSaved(await api.createPatient(form));
+        const created = await api.createPatient(form);
+        toast.success(`Cadastro de ${patientFirstName(created.fullName)} criado.`);
+        onSaved(created);
         return;
       }
+      // O cadastro guiado já confirma num aviso detalhado na lista (savedNotice).
       const result = await api.createGuidedPatient(input);
-      onSaved(result.patient, guidedNotice(result, groups ?? []));
+      onSaved(result.patient, guidedNotice(result, groups ?? []), {
+        ...result,
+        group: groups?.find((group) => group.id === result.enrollment?.groupId),
+      });
     } catch (cause) {
       // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);
@@ -204,6 +253,7 @@ export function PatientModal({
           : "Cadastre as informações essenciais. O restante pode ser completado depois."
       }
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -417,17 +467,17 @@ export function PatientModal({
             salvas.
           </p>
         )}
+        {editable && missing.hint}
         <div className="modal-actions span-2">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={loading}
-          >
+          <ModalCancelButton disabled={loading}>
             {editable ? "Cancelar" : "Fechar"}
-          </button>
+          </ModalCancelButton>
           {editable && (
-            <button className="primary-button" disabled={loading}>
+            <button
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {loading
                 ? "Salvando…"
                 : patient

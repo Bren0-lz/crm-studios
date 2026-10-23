@@ -3,6 +3,10 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("view-only modules", () => {
   it("shows appointment details without cancel, reschedule or satisfaction when the agenda is view-only", async () => {
@@ -162,8 +166,8 @@ describe("view-only modules", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/leads")
-        ? [lead]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead])
         : url.includes("/activity")
           ? activity
           : [];

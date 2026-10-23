@@ -1,3 +1,4 @@
+import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
 import { createPlanPurchasesRepository } from "./storage/memory/plan-purchases.js";
@@ -18,6 +19,7 @@ import { createAdministrationRepository } from "./storage/memory/administration.
 import { createAgendaRepository } from "./storage/memory/agenda.js";
 import { createClinicalRepository } from "./storage/memory/clinical.js";
 import { createCommercialRepository } from "./storage/memory/commercial.js";
+import { createCampaignsRepository } from "./storage/memory/campaigns.js";
 import { createCommunicationsRepository } from "./storage/memory/communications.js";
 import { MemoryRepositoryContext } from "./storage/memory/context.js";
 import { createContractsRepository } from "./storage/memory/contracts.js";
@@ -28,6 +30,9 @@ import { createRelationshipRepository } from "./storage/memory/relationship.js";
 import { createReportsRepository } from "./storage/memory/reports.js";
 
 export class MemoryClinicRepository implements ClinicRepository {
+  readonly branchScope: ClinicRepository["branchScope"];
+  readonly listBranches: ClinicRepository["listBranches"];
+  readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
@@ -50,6 +55,15 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateGroupSessionProfessional: ClinicRepository["updateGroupSessionProfessional"];
   readonly revokeUserSessions: ClinicRepository["revokeUserSessions"];
   readonly completeManualMessage: ClinicRepository["completeManualMessage"];
+  readonly listMessageTemplates: ClinicRepository["listMessageTemplates"];
+  readonly getMessageTemplateImage: ClinicRepository["getMessageTemplateImage"];
+  readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
+  readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
+  readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
+  readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
+  readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
+  readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
@@ -87,10 +101,15 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly communications: ReturnType<
     typeof createCommunicationsRepository
   >;
+  private readonly campaigns: ReturnType<typeof createCampaignsRepository>;
   private readonly contracts: ReturnType<typeof createContractsRepository>;
   constructor(withRichDemo = false) {
     this.context = new MemoryRepositoryContext(withRichDemo);
     this.context.operations = this;
+    this.branchScope = this.context.branchScope;
+    const branches = createBranchesRepository(this.context);
+    this.listBranches = branches.listBranches;
+    this.saveBranch = branches.saveBranch;
     const reconciliation = createCommissionReconciliationRepository(
       this.context,
     );
@@ -166,6 +185,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.finalizeClinicalResource = clinicalResources.finalizeClinicalResource;
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
+    this.campaigns = createCampaignsRepository(this.context);
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
@@ -180,6 +200,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createAdminUser = this.administration.createAdminUser;
     this.updateAdminUser = this.administration.updateAdminUser;
     this.resetAdminUserPassword = this.administration.resetAdminUserPassword;
+    this.getOwnProfile = this.administration.getOwnProfile;
+    this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
     this.updateClinicSettings = this.administration.updateClinicSettings;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -309,6 +331,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createClinicalAddendum = this.clinical.createClinicalAddendum;
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
+    this.listLeadStagePage = this.commercial.listLeadStagePage;
+    this.summarizeLeads = this.commercial.summarizeLeads;
+    this.listLeadFilterOptions = this.commercial.listLeadFilterOptions;
+    this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
     this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
@@ -324,6 +350,16 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.queueManualMessage = this.communications.queueManualMessage;
     this.queueBroadcastMessages = this.communications.queueBroadcastMessages;
     this.generateReminders = this.communications.generateReminders;
+    this.listMessageTemplates = this.campaigns.listMessageTemplates;
+    this.getMessageTemplateImage = this.campaigns.getMessageTemplateImage;
+    this.createMessageTemplate = this.campaigns.createMessageTemplate;
+    this.updateMessageTemplate = this.campaigns.updateMessageTemplate;
+    this.setMessageTemplateArchived = this.campaigns.setMessageTemplateArchived;
+    this.listWhatsappCampaigns = this.campaigns.listWhatsappCampaigns;
+    this.getWhatsappCampaign = this.campaigns.getWhatsappCampaign;
+    this.createWhatsappCampaign = this.campaigns.createWhatsappCampaign;
+    this.setWhatsappCampaignRecipientStatus =
+      this.campaigns.setWhatsappCampaignRecipientStatus;
     this.listDocumentTemplates = this.contracts.listDocumentTemplates;
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
@@ -371,6 +407,14 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly resetAdminUserPassword: ReturnType<
     typeof createAdministrationRepository
   >["resetAdminUserPassword"];
+
+  readonly getOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["getOwnProfile"];
+
+  readonly updateOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["updateOwnProfile"];
 
   readonly getClinicSettings: ReturnType<
     typeof createAdministrationRepository
@@ -859,6 +903,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createCommercialRepository
   >["listLeads"];
 
+  readonly listLeadStagePage: ClinicRepository["listLeadStagePage"];
+  readonly summarizeLeads: ClinicRepository["summarizeLeads"];
+  readonly listLeadFilterOptions: ClinicRepository["listLeadFilterOptions"];
+  readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
   readonly createLead: ReturnType<
     typeof createCommercialRepository

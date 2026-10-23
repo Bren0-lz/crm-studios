@@ -2,7 +2,12 @@ import type { Professional, Room, ScheduleBlock } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import {
+  missingLabels,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 export function ScheduleBlockModal({
@@ -32,6 +37,15 @@ export function ScheduleBlockModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    missingLabels([
+      ["Recurso", form.targetId],
+      ["Início", form.startsAt],
+      ["Término", form.endsAt],
+      ["Motivo", form.reason],
+    ]),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -59,6 +73,7 @@ export function ScheduleBlockModal({
       title="Bloquear horário"
       subtitle="Impeça novos agendamentos durante uma indisponibilidade."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("agenda.blocks_create") && (
@@ -132,18 +147,13 @@ export function ScheduleBlockModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.targetId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Bloqueando…" : "Criar bloqueio"}
             </button>

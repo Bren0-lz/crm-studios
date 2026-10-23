@@ -124,7 +124,7 @@
   }
 
   .story-copy {
-    margin: 65px 0;
+    margin: var(--space-6) 0 0;
   }
 
   .story-note {
@@ -251,6 +251,19 @@
 }
 
 @media (max-width: 700px) {
+  /* Barra do funil: busca na linha toda, resumo abaixo dos atalhos. */
+  .commercial-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .commercial-summary {
+    margin-left: 0;
+  }
+
+  .branch-select select {
+    max-width: calc(var(--space-8) + var(--space-7));
+  }
+
   .login-page,
   .app-shell,
   .dashboard-grid,
@@ -311,14 +324,9 @@
     flex-wrap: wrap;
   }
 
-  .patient-tab-list li {
-    grid-template-columns: 1fr;
-  }
-
-  .patient-tab-list li > .status-pill {
-    grid-column: 1;
-    grid-row: auto;
-    justify-self: start;
+  .patient-tab-items li {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .table-actions {
@@ -403,15 +411,6 @@
 }
 
 @media (max-width: 560px) {
-  .story-copy h1 {
-    font-size: var(--text-4xl);
-    letter-spacing: -2.3px;
-  }
-
-  .login-card {
-    border-radius: 20px;
-  }
-
   .page-header {
     align-items: flex-start;
     flex-direction: column;
@@ -439,10 +438,6 @@
 
   .metric-grid {
     grid-template-columns: 1fr;
-  }
-
-  .metric-card {
-    min-height: 125px;
   }
 
   /* audit: mobile-ok hora (48px) + barra (3px) + texto flexível cabem em 390px */

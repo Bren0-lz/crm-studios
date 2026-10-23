@@ -81,6 +81,7 @@ describe("settings tabs", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Clínica",
       "Usuários",
+      "Filiais",
       "Planos",
       "Feriados",
       "Etiquetas",

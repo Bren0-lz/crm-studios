@@ -145,7 +145,7 @@ describe("configured plan catalog", () => {
     return writes;
   }
 
-  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+  it("requires selection, applies defaults without carrying prior fields and prices single sessions from the plan", async () => {
     const writes = setupCatalog();
     render(
       <MemoryRouter initialEntries={["/planos"]}>
@@ -172,28 +172,55 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0400,00",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(
+      "R$\u00a050,00",
+    );
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
     expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "390" },
-    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.change(selector, { target: { value: second.id } });
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0120,50",
+    );
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "99.99" },
+    // Avulso: as sessões mudam e o valor segue o preço por sessão do plano.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
+    });
+    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
+      target: { value: "8" },
+    });
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a096,40",
+    );
+    // Voltar a plano restaura sessões e valor do plano cadastrado.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "fixed_package" },
+    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
+    });
+    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
+      target: { value: "8" },
     });
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
@@ -202,7 +229,8 @@ describe("configured plan catalog", () => {
     expect(writes[0]).toMatchObject({
       name: second.name,
       planTemplateId: second.id,
-      totalValueInCents: 9999,
+      kind: "single",
+      totalValueInCents: 9640,
     });
   });
 
@@ -295,12 +323,17 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
+    // O que falta no serviço novo fica listado e ligado ao botão (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
     fill("Valor do serviço 2", "25.50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );

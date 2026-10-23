@@ -3,7 +3,8 @@ import { TagCategorySelect } from "./TagCategorySelect";
 import { useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { normalizeTagColor } from "../../tag-colors";
 import { countLabel } from "../patients/index";
 import { TagColorPicker } from "./TagColorPicker";
@@ -25,6 +26,7 @@ export function PatientTagEditModal({
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({ name, color, category });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -65,6 +67,7 @@ export function PatientTagEditModal({
       title="Editar etiqueta"
       subtitle={`${tag.name} · ${countLabel(tag.patientCount, "cliente", "clientes")}. Renomear atualiza esses clientes.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("settings.tags_update") && (
@@ -94,14 +97,7 @@ export function PatientTagEditModal({
             </div>
           )}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
+            <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
             <button className="primary-button" disabled={saving}>
               {saving ? "Salvando…" : "Salvar etiqueta"}
             </button>

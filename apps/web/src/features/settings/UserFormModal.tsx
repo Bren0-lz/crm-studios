@@ -3,6 +3,7 @@ import {
   saoPauloToday,
   userRoleSchema,
   type AdminUser,
+  type Branch,
   type PermissionKey,
   type Professional,
   type UserRole,
@@ -11,7 +12,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { roleLabels } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
@@ -70,8 +73,25 @@ export function UserFormModal({
   const [selectedProfessional, setSelectedProfessional] = useState(
     user?.professionalId ?? "",
   );
+  // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
+  const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const dirty = useFormDirty({
+    allBranches,
+    branchIds,
+    fullName,
+    email,
+    password,
+    role,
+    jobTitle,
+    selectedPermissions,
+    percentage,
+    effectiveFrom,
+    selectedProfessional,
+  });
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
   const copySources = users.filter(
@@ -88,10 +108,20 @@ export function UserFormModal({
         if (active) setProfessionalsError(message);
       },
     );
+    api
+      .adminBranches()
+      .then((items) => {
+        if (active && Array.isArray(items))
+          setBranches(items.filter((item) => item.active));
+      })
+      .catch(() => {
+        // Sem a lista, o acesso às filiais fica como está.
+      });
     return () => {
       active = false;
     };
   }, []);
+  const choosesBranches = branches.length > 1 && !isAdmin;
 
   // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
   const taken = new Set(
@@ -129,13 +159,24 @@ export function UserFormModal({
     setCopiedFrom(source.fullName);
   }
 
+  // O que falta: o botão principal fica desativado listando os campos (QM14).
+  const missing = useMissingFields([
+    ...(fullName.trim().length < 3
+      ? ["Nome completo (pelo menos 3 caracteres)"]
+      : []),
+    ...(!current && !email.trim() ? ["E-mail de acesso"] : []),
+    ...(!current && !password ? ["Senha inicial"] : []),
+    // Já havia comissão: em branco não vale (para não pagar, 0%).
+    ...(typedPercentage === undefined &&
+    savedCommission.percentage !== undefined
+      ? ["Comissão (%) — para não pagar comissão, informe 0%"]
+      : []),
+    ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
+  ]);
+
+  /** Regra do percentual informado (não é falta de campo). */
   function commissionError() {
-    if (typedPercentage === undefined) {
-      return savedCommission.percentage === undefined
-        ? ""
-        : "A comissão não pode ficar em branco: para não pagar comissão, informe 0%.";
-    }
-    if (!commissionChanged) return "";
+    if (typedPercentage === undefined || !commissionChanged) return "";
     if (
       Number.isNaN(typedPercentage) ||
       typedPercentage < 0 ||
@@ -143,8 +184,6 @@ export function UserFormModal({
     ) {
       return "Informe um percentual de comissão entre 0 e 100.";
     }
-    if (!effectiveFrom)
-      return "Informe a data em que a comissão passa a valer.";
     return "";
   }
 
@@ -155,7 +194,11 @@ export function UserFormModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const invalid = commissionError();
+    const invalid =
+      commissionError() ||
+      (choosesBranches && !allBranches && branchIds.length === 0
+        ? "Selecione ao menos uma filial."
+        : "");
     if (invalid) {
       setError(invalid);
       return;
@@ -163,7 +206,17 @@ export function UserFormModal({
     setSaving(true);
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
-    const permissions = { permissions: isAdmin ? [] : selectedPermissions };
+    const permissions = {
+      permissions: isAdmin ? [] : selectedPermissions,
+      ...(choosesBranches
+        ? {
+            branchAccess: {
+              allBranches,
+              branchIds: allBranches ? [] : branchIds,
+            },
+          }
+        : {}),
+    };
     const title = jobTitle.trim();
     const commission =
       commissionChanged && typedPercentage !== undefined
@@ -236,6 +289,7 @@ export function UserFormModal({
       }
       eyebrow="Usuários"
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
@@ -345,6 +399,36 @@ export function UserFormModal({
             </div>
           )}
         </fieldset>
+        {choosesBranches && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Filiais</legend>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={allBranches}
+                onChange={(event) => setAllBranches(event.target.checked)}
+              />
+              Acessa todas as filiais
+            </label>
+            {!allBranches &&
+              branches.map((branch) => (
+                <label className="checkbox-field" key={branch.id}>
+                  <input
+                    type="checkbox"
+                    checked={branchIds.includes(branch.id)}
+                    onChange={(event) =>
+                      setBranchIds((current) =>
+                        event.target.checked
+                          ? [...current, branch.id]
+                          : current.filter((id) => id !== branch.id),
+                      )
+                    }
+                  />
+                  {branch.name}
+                </label>
+              ))}
+          </fieldset>
+        )}
         <fieldset className="form-fieldset span-2">
           <legend>Comissão</legend>
           <div className="commission-editor">
@@ -420,16 +504,14 @@ export function UserFormModal({
           </div>
         </fieldset>
         {error && <div className="form-error span-2">{error}</div>}
+        {missing.hint}
         <div className="modal-actions span-2">
+          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
           <button
-            type="button"
-            className="secondary-button"
-            onClick={onClose}
-            disabled={saving}
+            className="primary-button"
+            disabled={saving || missing.blocked}
+            aria-describedby={missing.describedBy}
           >
-            Cancelar
-          </button>
-          <button className="primary-button" disabled={saving}>
             {saving
               ? "Salvando…"
               : current

@@ -28,6 +28,7 @@ import {
   findMoreAction,
   moreActionNames,
 } from "./test-support/patient-actions";
+import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
 
 vi.stubGlobal("fetch", vi.fn());
 
@@ -161,7 +162,7 @@ describe("configured plan catalog", () => {
     return writes;
   }
 
-  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+  it("requires selection, applies defaults without carrying prior fields and prices single sessions from the plan", async () => {
     const writes = setupCatalog();
     render(
       <MemoryRouter initialEntries={["/planos"]}>
@@ -175,6 +176,10 @@ describe("configured plan catalog", () => {
     expect(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     ).toBeDisabled();
+    // O que falta fica listado e ligado ao botão (QM14).
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toHaveAccessibleDescription("Falta: Cliente, Plano cadastrado.");
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: "Cliente teste" },
     });
@@ -182,35 +187,58 @@ describe("configured plan catalog", () => {
       await screen.findByRole("option", { name: "Cliente teste" }),
     );
     expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toHaveAccessibleDescription("Falta: Plano cadastrado.");
+    expect(
       screen.queryByRole("option", { name: /Plano inativo/ }),
     ).not.toBeInTheDocument();
     fireEvent.change(selector, { target: { value: first.id } });
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0400,00",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(
+      "R$\u00a050,00",
+    );
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
     expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "390" },
-    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.change(selector, { target: { value: second.id } });
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0120,50",
+    );
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "99.99" },
+    // Avulso: as sessões mudam e o valor segue o preço por sessão do plano.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
     });
+    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
+      target: { value: "8" },
+    });
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a096,40",
+    );
+    expect(
+      screen.getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     );
@@ -218,7 +246,8 @@ describe("configured plan catalog", () => {
     expect(writes[0]).toMatchObject({
       name: second.name,
       planTemplateId: second.id,
-      totalValueInCents: 9999,
+      kind: "single",
+      totalValueInCents: 9640,
     });
   });
 
@@ -311,12 +340,17 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
+    // O que falta no serviço novo fica listado e ligado ao botão (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar plano" }),
+    ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
     fill("Valor do serviço 2", "25.50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -529,6 +563,8 @@ async function openSettingsSection(...names: string[]) {
           ? "Contatos sugeridos"
           : name;
     const tab = await screen.findByRole("tab", { name: label });
+    // As abas ficam desativadas enquanto um salvamento termina: clicar antes disso é ignorado.
+    await waitFor(() => expect(tab).toBeEnabled());
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
     section = document.getElementById(tab.getAttribute("aria-controls")!);
   }
@@ -575,11 +611,15 @@ async function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
+    // Escolher o dia mantém o calendário aberto; fecha pelo X.
     expect(
-      within(dialog).queryByRole("region", {
+      within(dialog).getByRole("region", {
         name: "Calendário de agendamento",
       }),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
   }
   const time = within(dialog).getByLabelText("Horário");
   if (!(time as HTMLInputElement).value)
@@ -703,6 +743,10 @@ describe("appointment client search and creation", () => {
       name: "Data",
     }).textContent;
     const originalTime = startsAt.value;
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -712,11 +756,8 @@ describe("appointment client search and creation", () => {
     expect(client.closest("form")).toBeNull();
     await within(client).findByText(/Nenhuma etiqueta configurada/);
     const save = within(client).getByRole("button", { name: "Salvar cliente" });
-    save.focus();
-    expect(save).toHaveFocus();
-    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
-    expect(client.contains(document.activeElement)).toBe(true);
-    expect(save).not.toHaveFocus();
+    // Sem nome e telefone o botão fica desativado (QM14) e não recebe foco.
+    expect(save).toBeDisabled();
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
@@ -726,6 +767,11 @@ describe("appointment client search and creation", () => {
       ).getByLabelText("Telefone"),
       { target: { value: created.phone } },
     );
+    save.focus();
+    expect(save).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(client.contains(document.activeElement)).toBe(true);
+    expect(save).not.toHaveFocus();
     fireEvent.submit(client.querySelector("form")!);
     await waitFor(() =>
       expect(
@@ -766,9 +812,13 @@ describe("appointment client search and creation", () => {
     });
   });
 
-  it("closes only the client modal on Escape and keeps the previous selection", async () => {
+  it("closes only the client modal on Escape and keeps the search text", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -779,13 +829,17 @@ describe("appointment client search and creation", () => {
     expect(appointment).toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
     expect(document.body).toHaveClass("modal-open");
   });
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -803,9 +857,16 @@ describe("appointment client search and creation", () => {
       created.fullName,
     );
     fireEvent.click(within(client).getByRole("button", { name: "Cancelar" }));
+    const discard = screen.getByRole("dialog", {
+      name: "Descartar alterações?",
+    });
+    fireEvent.click(within(discard).getByRole("button", { name: "Descartar" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Novo cliente" }),
+    ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
   });
 
   it("searches CPF and selects a result by keyboard, clearing selection when edited", async () => {
@@ -1086,6 +1147,7 @@ describe("modal closing", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
+    await screen.findByRole("dialog", { name: "Nova turma" });
     const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
@@ -1616,17 +1678,12 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("heading", {
-        name: "Vendas e retorno dos clientes",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
-    expect(
-      screen.getByText("+20% vs. mês anterior comparável"),
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Clientes sem retorno" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Vendas e retorno dos clientes" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/1\.200,00/)).not.toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
@@ -1845,9 +1902,10 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue(
       "2026-10-05",
     );
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "420" },
-    });
+    // Plano é fixo: sessões e valor da renovação repetem o plano atual.
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Renovar plano e gerar parcelas" }),
     );
@@ -1856,7 +1914,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(renewalBody).toMatchObject({
       validFrom: "2026-10-01",
-      totalValueInCents: 42000,
+      totalValueInCents: 40000,
       autoRenew: true,
     });
     expect(renewalBody).not.toHaveProperty("patientId");
@@ -3155,6 +3213,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
     expect(
       await within(
         await screen.findByRole("group", { name: "Inserir campo" }),
@@ -3166,6 +3225,7 @@ describe("application shell", () => {
         { name: "CREFITO do profissional" },
       ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Documentos" }));
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(
       within(select).getByRole("option", {
@@ -3322,6 +3382,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
     fireEvent.click(await screen.findByRole("button", { name: "Nova versão" }));
     const dialog = await screen.findByRole("dialog");
     const textarea = within(dialog).getByLabelText(
@@ -5035,7 +5096,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -5200,7 +5261,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => [] } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -5210,9 +5271,13 @@ describe("application shell", () => {
     fireEvent.submit(
       within(panel).getByLabelText("Texto do comunicado").closest("form")!,
     );
+    // Sem texto, "Ver prévia" fica desativado dizendo o que falta (QM14).
     expect(
-      within(panel).getByText("Escreva o texto do comunicado."),
-    ).toBeInTheDocument();
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeDisabled();
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toHaveAccessibleDescription("Falta: Texto do comunicado.");
     expect(
       vi
         .mocked(fetch)
@@ -5222,6 +5287,10 @@ describe("application shell", () => {
     fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
       target: { value: "Aviso geral" },
     });
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeEnabled();
+    expect(within(panel).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
     expect(
       await within(panel).findByText(
@@ -6023,8 +6092,8 @@ describe("application shell", () => {
           }),
         } as Response;
       }
-      const body = url.endsWith("/leads")
-        ? [lead, converted]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead, converted])
         : url.includes("/professionals")
           ? [
               {
@@ -6100,6 +6169,9 @@ describe("application shell", () => {
       target: { value: "09:00" },
     });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
     expect(
       within(dialog).queryByRole("region", {
         name: "Calendário de agendamento",
@@ -6365,6 +6437,14 @@ describe("application shell", () => {
     expect(
       within(dialog).queryByRole("option", { name: "Mensalidades" }),
     ).not.toBeInTheDocument();
+    // Antes de preencher, o botão diz o que falta (QM14).
+    const createRecurring = within(dialog).getByRole("button", {
+      name: "Cadastrar despesa fixa",
+    });
+    expect(createRecurring).toBeDisabled();
+    expect(createRecurring).toHaveAccessibleDescription(
+      "Falta: Descrição (pelo menos 3 caracteres), Valor mensal.",
+    );
     fireEvent.change(within(dialog).getByLabelText("Descrição"), {
       target: { value: "Contador" },
     });
@@ -6383,6 +6463,8 @@ describe("application shell", () => {
     fireEvent.change(within(dialog).getByLabelText("Mês final (opcional)"), {
       target: { value: "2027-09" },
     });
+    expect(createRecurring).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     const loadsBeforeCreate = workspaceLoads();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }),
@@ -7239,29 +7321,30 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // O que falta fica listado e Confirmar desativado, sem erro após o clique (QM14).
+      const adjustConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Informe o novo valor em reais (zero ou mais).",
-        ),
-      ).toHaveClass("form-error");
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
         target: { value: "199.9" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
+        target: { value: "Desc" },
+      });
+      expect(adjustConfirm).toBeDisabled();
+      expect(adjustConfirm).toHaveAccessibleDescription(
+        "Falta: Justificativa (pelo menos 5 caracteres).",
       );
-      expect(
-        within(dialog).getByText(
-          "Escreva a justificativa do ajuste (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "  Desconto combinado " },
       });
+      expect(adjustConfirm).toBeEnabled();
+      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
       );
@@ -7381,26 +7464,38 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+      // Campos que faltam: Confirmar desativado com a lista (QM14).
+      const renegotiateConfirm = within(dialog).getByRole("button", {
+        name: "Confirmar",
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Motivo da renegociação (pelo menos 5 caracteres).",
       );
+      fireEvent.change(
+        within(dialog).getByLabelText("Motivo da renegociação"),
+        { target: { value: "Cliente pediu para parcelar" } },
+      );
+      expect(renegotiateConfirm).toBeEnabled();
+      // Fora do intervalo é regra, não falta: erro uma única vez após o clique.
+      fireEvent.click(renegotiateConfirm);
       expect(
         within(dialog).getByText("Informe de 1 a 36 parcelas."),
       ).toHaveClass("form-error");
+      expect(within(dialog).getAllByText(/1 a 36 parcelas/)).toHaveLength(1);
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "3" },
       });
       fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+        target: { value: "" },
+      });
+      expect(renegotiateConfirm).toBeDisabled();
+      expect(renegotiateConfirm).toHaveAccessibleDescription(
+        "Falta: Primeiro vencimento.",
+      );
+      fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
         target: { value: "2026-11-10" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
-      expect(
-        within(dialog).getByText(
-          "Escreva o motivo da renegociação (pelo menos 5 caracteres).",
-        ),
-      ).toBeInTheDocument();
       expect(writes()).toHaveLength(0);
       fireEvent.change(
         within(dialog).getByLabelText("Motivo da renegociação"),
@@ -7446,12 +7541,13 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " a " },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      // Nome curto: Salvar desativado com o que falta (QM14).
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       expect(writes()).toHaveLength(0);
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: " Material de limpeza " },
@@ -7471,12 +7567,9 @@ describe("application shell", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Novo centro de custo",
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
-        within(dialog).getByText(
-          "Informe um nome com pelo menos 2 caracteres.",
-        ),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
       fireEvent.change(within(dialog).getByLabelText("Nome"), {
         target: { value: "Estúdio" },
       });
@@ -7872,8 +7965,21 @@ describe("application shell", () => {
         target: { value: professionals[1]!.id },
       });
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "" },
+      });
+      // Campo vazio é falta: Salvar desativado com a lista (QM14).
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toHaveAccessibleDescription("Falta: Percentual (%).");
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "120" },
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar" }),
+      ).toBeEnabled();
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       expect(
         within(dialog).getByText("Informe um percentual entre 0 e 100."),
@@ -9949,11 +10055,13 @@ describe("users and permissions", () => {
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(await within(dialog).findByText(/informe 0%/)).toHaveClass(
-        "form-error",
+      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
+      const saveUser = within(dialog).getByRole("button", {
+        name: "Salvar alterações",
+      });
+      expect(saveUser).toBeDisabled();
+      expect(saveUser).toHaveAccessibleDescription(
+        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
       );
       // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
@@ -10317,6 +10425,7 @@ describe("settings tabs", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Clínica",
       "Usuários",
+      "Filiais",
       "Planos",
       "Feriados",
       "Etiquetas",
@@ -11051,8 +11160,8 @@ describe("view-only modules", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/leads")
-        ? [lead]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead])
         : url.includes("/activity")
           ? activity
           : [];
@@ -11671,7 +11780,12 @@ describe("screens without loose elements", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => leadBoardResponse(input, []) ?? [],
+        }) as Response,
     );
     render(
       <MemoryRouter initialEntries={["/comercial"]}>
@@ -11708,7 +11822,9 @@ describe("screens without loose elements", () => {
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(String(input))
+        ? leadBoardResponse(String(input), [lead])
+        : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -11756,7 +11872,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),
@@ -11822,7 +11940,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -11856,12 +11975,13 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), {
         target: { value: "   " },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
+      // Sem motivo, Confirmar fica desativado e diz o que falta (QM14).
       expect(
-        within(dialog).getByText("Informe o motivo da perda."),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toHaveAccessibleDescription("Falta: Motivo da perda.");
       expect(writes()).toHaveLength(0);
       expect(
         within(dialog).getByRole("button", { name: "Confirmar" }),
@@ -11891,7 +12011,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -11968,7 +12089,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(
@@ -12309,7 +12433,7 @@ describe("screens without the patients module", () => {
   });
 
   it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes");
+    renderAs("communications", "/comunicacoes?aba=fila");
     fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
     });
@@ -12353,7 +12477,9 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {
@@ -12785,7 +12911,7 @@ describe("configured patient tags", () => {
       ]);
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -13224,7 +13350,9 @@ describe("guided client registration", () => {
     expect(
       await screen.findByText(/Aula de demonstração agendada para/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
+    ).toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -13380,14 +13508,19 @@ describe("guided client registration", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );
-    // O aviso aparece fora do modal (a opção "turma cheia (lista de espera)" some com ele).
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "A turma Pilates 2 está cheia: o cliente entrou na lista de espera (posição 2).",
-    );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const nextSteps = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(
+      screen.getByText(
+        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(nextSteps).getByText(
+        "Na lista de espera de Pilates 2 · posição 2",
+      ),
+    ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "plan",
       groupId: groups[1]!.id,

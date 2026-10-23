@@ -17,6 +17,7 @@ import {
   type RecurringAppointmentInput,
   type ReplacementBookingInput,
   type ScheduleBlockInput,
+  recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import {
@@ -50,6 +51,7 @@ import {
   mapScheduleBlock,
   type ReplacementCreditRow,
   type ScheduleBlockRow,
+  branchClause,
 } from "./helpers.js";
 
 export function createAgendaRepository(
@@ -128,9 +130,10 @@ export function createAgendaRepository(
         FROM appointments a
         ${appointmentJoins}
         WHERE a.clinic_id = $1 AND a.starts_at < $3 AND a.ends_at > $2
+          AND ($4::uuid[] IS NULL OR a.branch_id = ANY($4::uuid[]))
         ORDER BY a.starts_at
       `,
-        [clinicId, from, to],
+        [clinicId, from, to, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapAppointment);
     },
@@ -144,9 +147,10 @@ export function createAgendaRepository(
         WHERE a.clinic_id = $1
           AND a.status IN ('scheduled', 'confirmed')
           AND a.ends_at < $2
+          AND ($3::uuid[] IS NULL OR a.branch_id = ANY($3::uuid[]))
         ORDER BY a.starts_at
       `,
-        [clinicId, now],
+        [clinicId, now, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapAppointment);
     },
@@ -283,6 +287,11 @@ export function createAgendaRepository(
             "Profissional, sala ou serviço não encontrado.",
             404,
           );
+        await repositoryContext.resourceBranch(client, clinicId, {
+          professionalId: input.professionalId,
+          roomId: input.roomId,
+          appointmentId,
+        });
         const startsAt = new Date(input.startsAt);
         const endsAt = new Date(
           startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
@@ -638,13 +647,17 @@ export function createAgendaRepository(
             "Cliente, profissional, sala ou serviço não encontrado.",
             404,
           );
+        const branchId = await repositoryContext.resourceBranch(
+          client,
+          clinicId,
+          { professionalId: input.professionalId, roomId: input.roomId },
+        );
         const seriesId = randomUUID();
         const ids: string[] = [];
-        for (let index = 0; index < input.occurrences; index += 1) {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
+        for (const [index, start] of recurringOccurrenceStarts(
+          input,
+        ).entries()) {
+          const startsAt = new Date(start);
           const endsAt = new Date(
             startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
           );
@@ -666,8 +679,8 @@ export function createAgendaRepository(
           const inserted = await client.query<{ id: string }>(
             `INSERT INTO appointments
              (clinic_id, patient_id, professional_id, room_id, service_id,
-              starts_at, ends_at, notes, series_id, visit_type)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+              starts_at, ends_at, notes, series_id, visit_type, branch_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
             [
               clinicId,
               input.patientId,
@@ -679,6 +692,7 @@ export function createAgendaRepository(
               input.notes || null,
               seriesId,
               input.visitType,
+              branchId,
             ],
           );
           ids.push(inserted.rows[0]!.id);
@@ -717,9 +731,9 @@ export function createAgendaRepository(
        LEFT JOIN professionals pr ON pr.id = b.professional_id
        LEFT JOIN rooms r ON r.id = b.room_id
        WHERE b.clinic_id = $1 AND b.status = 'active'
-         AND b.starts_at < $3 AND b.ends_at > $2
+         AND b.starts_at < $3 AND b.ends_at > $2 AND ${branchClause("b.branch_id", 4)}
        ORDER BY b.starts_at`,
-        [clinicId, from, to],
+        [clinicId, from, to, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapScheduleBlock);
     },
@@ -763,11 +777,16 @@ export function createAgendaRepository(
           "O bloqueio conflita com uma turma existente.",
           409,
         );
+      const branchId = await repositoryContext.resourceBranch(
+        repositoryContext.pool,
+        clinicId,
+        { professionalId: input.professionalId, roomId: input.roomId },
+      );
       try {
         const inserted = await repositoryContext.pool.query<{ id: string }>(
           `INSERT INTO schedule_blocks
-           (clinic_id, professional_id, room_id, starts_at, ends_at, reason)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+           (clinic_id, professional_id, room_id, starts_at, ends_at, reason, branch_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
           [
             clinicId,
             input.professionalId || null,
@@ -775,6 +794,7 @@ export function createAgendaRepository(
             input.startsAt,
             input.endsAt,
             input.reason,
+            branchId,
           ],
         );
         return (await repositoryContext.findScheduleBlock(
@@ -812,27 +832,30 @@ export function createAgendaRepository(
         clinicId,
         groupSessionHorizon(),
       );
+      const branchIds = repositoryContext.branchReadIds();
       const [groups, enrollments, sessions, attendance, credits] =
         await Promise.all([
           repositoryContext.pool.query<GroupClassRow>(
-            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
-            [clinicId],
+            `SELECT g.id,g.clinic_id AS "clinicId",g.name,g.sequence,g.service_id AS "serviceId",g.professional_id AS "professionalId",g.room_id AS "roomId",g.capacity,g.weekly_slots AS "weeklySlots",s.name AS "serviceName",p.full_name AS "professionalName",r.name AS "roomName",g.active,g.created_at AS "createdAt",count(e.id) FILTER (WHERE e.status='active') AS "activeEnrollments",count(e.id) FILTER (WHERE e.status='waitlisted') AS "waitlistCount" FROM group_classes g JOIN services s ON s.id=g.service_id JOIN professionals p ON p.id=g.professional_id JOIN rooms r ON r.id=g.room_id LEFT JOIN group_enrollments e ON e.group_id=g.id WHERE g.clinic_id=$1 AND ${branchClause("g.branch_id", 2)} GROUP BY g.id,s.name,p.full_name,r.name ORDER BY g.name`,
+            [clinicId, branchIds],
           ),
           repositoryContext.pool.query<GroupEnrollmentRow>(
-            `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 ORDER BY e.enrolled_at`,
-            [clinicId],
+            `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND ${branchClause("g.branch_id", 2)} ORDER BY e.enrolled_at`,
+            [clinicId, branchIds],
           ),
           repositoryContext.pool.query<GroupSessionRow>(
-            `SELECT ${groupSessionColumns},count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 GROUP BY gs.id,g.id,p.full_name,r.name ORDER BY gs.starts_at`,
-            [clinicId, from, to],
+            `SELECT ${groupSessionColumns},count(ga.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id LEFT JOIN group_attendance ga ON ga.session_id=gs.id WHERE gs.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 AND ${branchClause("g.branch_id", 4)} GROUP BY gs.id,g.id,p.full_name,r.name ORDER BY gs.starts_at`,
+            [clinicId, from, to, branchIds],
           ),
           repositoryContext.pool.query<GroupAttendanceRow>(
-            `SELECT ga.id,ga.clinic_id AS "clinicId",ga.session_id AS "sessionId",ga.patient_id AS "patientId",p.full_name AS "patientName",ga.status,ga.notes,ga.recorded_at AS "recordedAt",ga.accounting_enabled AS "accountingEnabled",ga.outcome,ga.replacement_credit_id AS "replacementCreditId" FROM group_attendance ga JOIN patients p ON p.id=ga.patient_id JOIN group_sessions gs ON gs.id=ga.session_id WHERE ga.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY ga.recorded_at`,
-            [clinicId, from, to],
+            `SELECT ga.id,ga.clinic_id AS "clinicId",ga.session_id AS "sessionId",ga.patient_id AS "patientId",p.full_name AS "patientName",ga.status,ga.notes,ga.recorded_at AS "recordedAt",ga.accounting_enabled AS "accountingEnabled",ga.outcome,ga.replacement_credit_id AS "replacementCreditId" FROM group_attendance ga JOIN patients p ON p.id=ga.patient_id JOIN group_sessions gs ON gs.id=ga.session_id JOIN group_classes g ON g.id=gs.group_id WHERE ga.clinic_id=$1 AND gs.starts_at<$3 AND gs.ends_at>$2 AND ${branchClause("g.branch_id", 4)} ORDER BY ga.recorded_at`,
+            [clinicId, from, to, branchIds],
           ),
-          repositoryContext.pool.query<ReplacementCreditRow>(
-            `SELECT rc.id,rc.clinic_id AS "clinicId",rc.patient_id AS "patientId",p.full_name AS "patientName",rc.source_session_id AS "sourceSessionId",rc.status,rc.used_session_id AS "usedSessionId",rc.created_at AS "createdAt",rc.used_at AS "usedAt" FROM replacement_credits rc JOIN patients p ON p.id=rc.patient_id WHERE rc.clinic_id=$1 ORDER BY rc.created_at DESC`,
-            [clinicId],
+          repositoryContext.pool.query<
+            ReplacementCreditRow & { sourceGroupId: string }
+          >(
+            `SELECT rc.id,rc.clinic_id AS "clinicId",rc.patient_id AS "patientId",p.full_name AS "patientName",rc.source_session_id AS "sourceSessionId",gs.group_id AS "sourceGroupId",rc.status,rc.used_session_id AS "usedSessionId",rc.created_at AS "createdAt",rc.used_at AS "usedAt" FROM replacement_credits rc JOIN patients p ON p.id=rc.patient_id JOIN group_sessions gs ON gs.id=rc.source_session_id AND gs.clinic_id=rc.clinic_id JOIN group_classes g ON g.id=gs.group_id WHERE rc.clinic_id=$1 AND ${branchClause("g.branch_id", 2)} ORDER BY rc.created_at DESC`,
+            [clinicId, branchIds],
           ),
         ]);
       return {
@@ -840,7 +863,10 @@ export function createAgendaRepository(
         enrollments: enrollments.rows.map(mapGroupEnrollment),
         sessions: sessions.rows.map(mapGroupSession),
         attendance: attendance.rows.map(mapGroupAttendance),
-        replacementCredits: credits.rows.map(mapReplacementCredit),
+        replacementCredits: credits.rows.map((row) => ({
+          ...mapReplacementCredit(row),
+          sourceGroupId: row.sourceGroupId,
+        })),
       };
     },
 
@@ -875,6 +901,11 @@ export function createAgendaRepository(
           clinicId,
           input,
         );
+        const branchId = await repositoryContext.resourceBranch(
+          client,
+          clinicId,
+          { professionalId: input.professionalId, roomId: input.roomId },
+        );
         // O lock no serviço serializa a escolha da próxima letra entre criações simultâneas.
         const next = await client.query<{ sequence: number }>(
           `SELECT coalesce(max(sequence),0)+1 AS sequence FROM group_classes WHERE clinic_id=$1 AND service_id=$2`,
@@ -882,8 +913,12 @@ export function createAgendaRepository(
         );
         const sequence = next.rows[0]!.sequence;
         const name = groupClassName(names.serviceName, sequence);
-        const result = await client.query<{ id: string; createdAt: Date }>(
-          `INSERT INTO group_classes(clinic_id,name,sequence,service_id,professional_id,room_id,capacity,weekly_slots) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING id,created_at AS "createdAt"`,
+        const result = await client.query<{
+          id: string;
+          branchId: string;
+          createdAt: Date;
+        }>(
+          `INSERT INTO group_classes(clinic_id,name,sequence,service_id,professional_id,room_id,capacity,weekly_slots,branch_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) RETURNING id,branch_id AS "branchId",created_at AS "createdAt"`,
           [
             clinicId,
             name,
@@ -893,6 +928,7 @@ export function createAgendaRepository(
             input.roomId,
             input.capacity,
             JSON.stringify(input.weeklySlots),
+            branchId,
           ],
         );
         await repositoryContext.ensureGroupSessions(
@@ -906,6 +942,7 @@ export function createAgendaRepository(
         await client.query("COMMIT");
         return {
           ...input,
+          branchId: result.rows[0]!.branchId,
           id: result.rows[0]!.id,
           clinicId,
           name,
@@ -1064,8 +1101,8 @@ export function createAgendaRepository(
         clampGroupSessionUntil(new Date(to)),
       );
       const result = await repositoryContext.pool.query<GroupSessionRow>(
-        `SELECT ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.starts_at<$3 AND gs.ends_at>$2 ORDER BY gs.starts_at`,
-        [clinicId, from, to],
+        `SELECT ${groupSessionColumns},(SELECT count(*) FROM group_attendance ga WHERE ga.session_id=gs.id) AS "attendanceCount" FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) JOIN rooms r ON r.id=g.room_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.starts_at<$3 AND gs.ends_at>$2 AND ${branchClause("g.branch_id", 4)} ORDER BY gs.starts_at`,
+        [clinicId, from, to, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapGroupSession);
     },

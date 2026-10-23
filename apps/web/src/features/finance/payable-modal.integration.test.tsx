@@ -59,18 +59,27 @@ describe("PayableModal without categories", () => {
     const onCreated = mount();
     expect(screen.getByText("Nenhuma categoria de despesa.")).toBeVisible();
     expect(
-      screen.getByText(
-        "Para cadastrar, preencha: descrição, categoria, valor.",
-      ),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("button", { name: "Cadastrar despesa" }),
     ).toBeDisabled();
+    // A lista do que falta é visível e ligada ao botão (QM14).
+    expect(
+      screen.getByRole("button", { name: "Cadastrar despesa" }),
+    ).toHaveAccessibleDescription(
+      "Falta: Descrição (pelo menos 3 caracteres), Categoria, Valor.",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Criar categoria" }));
+    expect(screen.getByRole("button", { name: "Criar" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Criar" }),
+    ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
     fireEvent.change(screen.getByLabelText("Criar categoria"), {
       target: { value: "Limpeza" },
     });
+    expect(screen.getByRole("button", { name: "Criar" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Criar" }),
+    ).not.toHaveAttribute("aria-describedby");
     fireEvent.click(screen.getByRole("button", { name: "Criar" }));
     expect(
       await screen.findByRole("option", { name: "Limpeza" }),
@@ -78,12 +87,24 @@ describe("PayableModal without categories", () => {
     expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
 
     fireEvent.change(screen.getByLabelText("Descrição"), {
-      target: { value: "Material de limpeza" },
+      target: { value: "Ma" },
     });
     fireEvent.change(screen.getByLabelText("Valor"), {
       target: { value: "45,90" },
     });
-    expect(screen.queryByText(/Para cadastrar, preencha/)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Cadastrar despesa" }),
+    ).toHaveAccessibleDescription("Falta: Descrição (pelo menos 3 caracteres).");
+    fireEvent.change(screen.getByLabelText("Descrição"), {
+      target: { value: "Material de limpeza" },
+    });
+    expect(screen.queryByText(/Falta:/)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Cadastrar despesa" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Cadastrar despesa" }),
+    ).not.toHaveAttribute("aria-describedby");
     fireEvent.click(screen.getByRole("button", { name: "Cadastrar despesa" }));
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalled());
     const payable = bodies.find((item) =>
