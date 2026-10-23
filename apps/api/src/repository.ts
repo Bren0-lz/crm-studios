@@ -77,6 +77,8 @@ import type {
   ClinicalAccessEvent,
   ClinicalAddendum,
   ClinicalAddendumInput,
+  ClinicalAlert,
+  ClinicalAlertInput,
   ClinicalAssessment,
   ClinicalAssessmentInput,
   ClinicalAttachment,
@@ -883,6 +885,13 @@ export interface ClinicRepository {
     authorUserId: string,
     input: ClinicalAddendumInput,
   ): Promise<ClinicalAddendum>;
+  createClinicalAlert(
+    clinicId: string,
+    authorUserId: string,
+    input: ClinicalAlertInput,
+  ): Promise<ClinicalAlert>;
+  /** Tira o alerta do prontuário; `false` se não existe ou já foi removido. */
+  archiveClinicalAlert(clinicId: string, alertId: string): Promise<boolean>;
   listClinicalAccessEvents(
     clinicId: string,
     patientId: string,

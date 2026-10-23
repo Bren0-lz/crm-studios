@@ -144,6 +144,7 @@ function workspace(patient: Patient): ClinicalWorkspace {
     closures: [],
     attachments: [],
     addenda: [],
+    alerts: [],
   };
 }
 
@@ -398,7 +399,7 @@ describe("searchable client selection across modules", () => {
     );
   });
 
-  it("clears the clinical workspace and ignores results for a previous client", async () => {
+  it("opens the chosen client's chart and ignores results for a previous client", async () => {
     let finishOld!: (data: ClinicalWorkspace) => void;
     vi.mocked(api.clinicalWorkspace).mockImplementation((id) =>
       id === ana.id
@@ -407,32 +408,35 @@ describe("searchable client selection across modules", () => {
           })
         : Promise.resolve(workspace(breno)),
     );
+    vi.mocked(api.patientOptions).mockResolvedValue([ana, breno]);
     page("/prontuarios");
-    const input = await screen.findByRole("combobox", { name: "Cliente" });
-    expect(input).toHaveValue(ana.fullName);
-    fireEvent.change(input, { target: { value: "12345678909" } });
+    const search = await screen.findByRole("searchbox", {
+      name: "Buscar cliente",
+    });
+    // Nenhum prontuário abre sozinho: a equipe escolhe o cliente na lista.
+    expect(api.clinicalWorkspace).not.toHaveBeenCalled();
+    fireEvent.change(search, { target: { value: "breno" } });
     expect(
-      screen.getByText(/Busque e selecione um cliente/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Nova avaliação" }),
+      screen.queryByRole("button", { name: new RegExp(ana.fullName) }),
     ).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "" } });
     fireEvent.click(
-      await screen.findByRole("option", { name: breno.fullName }),
+      screen.getByRole("button", { name: new RegExp(ana.fullName) }),
     );
     await waitFor(() =>
-      expect(api.clinicalWorkspace).toHaveBeenCalledWith(breno.id),
+      expect(api.clinicalWorkspace).toHaveBeenCalledWith(ana.id),
     );
-    await screen.findAllByText(`Objetivo de ${breno.fullName}`);
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(breno.fullName) }),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 2, name: breno.fullName }),
+    ).toBeInTheDocument();
     await act(async () => {
       finishOld(workspace(ana));
     });
     expect(
-      screen.queryByText(`Objetivo de ${ana.fullName}`),
-    ).not.toBeInTheDocument();
-    fireEvent.change(input, { target: { value: "" } });
-    expect(
-      screen.queryByText(`Objetivo de ${breno.fullName}`),
+      screen.queryByRole("heading", { level: 2, name: ana.fullName }),
     ).not.toBeInTheDocument();
     expect(api.clinicalWorkspace).not.toHaveBeenCalledWith("");
   });

@@ -196,7 +196,7 @@ export interface GroupWorkspace {
 
 export type ClinicalAppointmentOption = Pick<
   Appointment,
-  "id" | "startsAt" | "patientName" | "professionalName" | "status"
+  "id" | "patientId" | "startsAt" | "patientName" | "professionalName" | "status"
 >;
 
 export interface AppointmentReportBreakdown {

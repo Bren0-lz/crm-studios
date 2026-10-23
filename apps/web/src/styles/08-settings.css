@@ -538,12 +538,13 @@
   .sidebar,
   .topbar,
   .page-header,
-  .clinical-summary,
-  .clinical-panel,
-  .clinical-workspace-actions,
-  .clinical-workspace-head > label,
-  .clinical-workspace-grid,
-  .clinical-attachments {
+  .clinical-records-aside,
+  .clinical-back,
+  .clinical-chart-head,
+  .clinical-alerts,
+  .clinical-pending,
+  .clinical-chart-tabs,
+  .clinical-chart-panel {
     display: none !important;
   }
 
@@ -555,7 +556,11 @@
     background: white;
   }
 
-  .clinical-workspace-panel {
+  .clinical-records-layout {
+    display: block;
+  }
+
+  .clinical-chart-shell {
     border: 0;
     box-shadow: none;
   }

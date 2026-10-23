@@ -79,6 +79,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
     .getByRole("button", { name: "Anexar arquivo", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
+  await page.getByRole("tab", { name: "Arquivos", exact: true }).click();
   await expect(page.getByText("avaliacao.pdf", { exact: true })).toBeVisible();
 });
 
@@ -143,6 +144,9 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await page.goto(`/clientes/${patient.id}`);
   await page
     .getByRole("tab", { name: "Prontuário", exact: true })
+    .click();
+  await page
+    .getByRole("tab", { name: "Treinos e documentos", exact: true })
     .click();
   const resources = page.getByText("Modelos, evoluções e treinos", {
     exact: true,

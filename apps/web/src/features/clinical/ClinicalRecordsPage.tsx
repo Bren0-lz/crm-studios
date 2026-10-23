@@ -1,29 +1,37 @@
 import {
-  isAppointmentStarted,
   patientFirstName,
   type ClinicalAppointmentOption,
   type ClinicalRecord,
   type PatientOption,
 } from "@crm/contracts";
-import { FileClock, FileText, LockKeyhole } from "lucide-react";
+import { ArrowLeft, FileText, Stethoscope } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
-import { professionalWithCrefito } from "../contracts/index";
-import { ClinicalHistoryModal } from "./ClinicalHistoryModal";
+import { useToast } from "../../shared/feedback/toast-context";
+import { ClinicalChart } from "./ClinicalChart";
+import { ClinicalPatientList } from "./ClinicalPatientList";
 import { ClinicalRecordModal } from "./ClinicalRecordModal";
-import { ClinicalWorkspacePanel } from "./ClinicalWorkspacePanel";
-import { FinalizeRecordModal } from "./FinalizeRecordModal";
+import {
+  buildPatientSummaries,
+  clinicalAppointmentRange,
+  evolvableAppointments,
+} from "./model";
 
+/**
+ * Prontuários por cliente: à esquerda a lista com busca e pendências, à direita o prontuário
+ * do cliente escolhido (`?cliente=<id>`, que também serve de link direto).
+ */
 export function ClinicalRecordsPage() {
   const { can, canEdit } = useAuthorization();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<ClinicalRecord[]>([]);
   const [appointments, setAppointments] = useState<ClinicalAppointmentOption[]>(
     [],
@@ -31,41 +39,24 @@ export function ClinicalRecordsPage() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editor, setEditor] = useState<ClinicalRecord | "new" | null>(null);
-  const [historyRecord, setHistoryRecord] = useState<ClinicalRecord | null>(
-    null,
-  );
-  const [finalizing, setFinalizing] = useState<ClinicalRecord | null>(null);
+  const [creating, setCreating] = useState(false);
+  // Recarrega o prontuário aberto depois de uma evolução criada pelo cabeçalho.
+  const [chartVersion, setChartVersion] = useState(0);
   const canManage = canEdit("clinical");
-  // Depois de salvar ou finalizar, o acompanhamento recarrega no cliente da evolução.
-  const [workspaceFocus, setWorkspaceFocus] = useState<{
-    patientId: string;
-    version: number;
-  } | null>(null);
+  const selectedId = searchParams.get("cliente") ?? undefined;
 
   useEffect(() => {
     let active = true;
-    const from = new Date();
-    from.setDate(from.getDate() - 180);
-    const to = new Date();
-    to.setDate(to.getDate() + 2);
     Promise.all([
       api.clinicalRecords(),
-      api.clinicalAppointmentOptions(from.toISOString(), to.toISOString()),
+      api.clinicalAppointmentOptions(...clinicalAppointmentRange()),
       api.patientOptions(),
     ])
       .then(([recordData, appointmentData, patientData]) => {
         if (!active) return;
         setRecords(recordData);
         setPatients(patientData);
-        setAppointments(
-          // Evolução só para atendimento já iniciado (início − 15 min); a API também recusa.
-          appointmentData.filter(
-            (appointment) =>
-              appointment.status !== "cancelled" &&
-              isAppointmentStarted(appointment),
-          ),
-        );
+        setAppointments(evolvableAppointments(appointmentData));
       })
       .catch((cause: Error) => {
         if (active) setError(cause.message);
@@ -78,11 +69,11 @@ export function ClinicalRecordsPage() {
     };
   }, []);
 
+  function select(patientId: string | undefined) {
+    setSearchParams(patientId ? { cliente: patientId } : {});
+  }
+
   function replaceRecord(record: ClinicalRecord) {
-    setWorkspaceFocus((current) => ({
-      patientId: record.patientId,
-      version: (current?.version ?? 0) + 1,
-    }));
     setRecords((current) =>
       [record, ...current.filter((item) => item.id !== record.id)].sort(
         (a, b) => b.appointmentStartsAt.localeCompare(a.appointmentStartsAt),
@@ -90,30 +81,29 @@ export function ClinicalRecordsPage() {
     );
   }
 
-  async function finalize(record: ClinicalRecord) {
-    replaceRecord(await api.finalizeClinicalRecord(record.id));
-    setFinalizing(null);
-    toast.success(
-      `Evolução de ${patientFirstName(record.patientName)} finalizada.`,
-    );
-  }
-
   const availableAppointments = appointments.filter(
     (appointment) =>
       !records.some((record) => record.appointmentId === appointment.id),
   );
+  const summaries = buildPatientSummaries(patients, records, appointments);
+  const selected = summaries.find((item) => item.patient.id === selectedId);
+  const totalPending = summaries.reduce(
+    (total, item) => total + item.pending.length,
+    0,
+  );
+  const totalDrafts = records.filter((item) => item.status === "draft").length;
 
   return (
     <>
       <PageHeader
         title="Prontuários"
-        description="Evoluções clínicas no formato SOAP, protegidas e rastreáveis."
+        description="Evoluções, avaliações, metas e arquivos de cada cliente, num só lugar."
         action={
           canManage &&
           can("clinical.records_create") && (
             <button
               className="primary-button"
-              onClick={() => setEditor("new")}
+              onClick={() => setCreating(true)}
               disabled={availableAppointments.length === 0}
               title={
                 availableAppointments.length === 0
@@ -129,153 +119,97 @@ export function ClinicalRecordsPage() {
       />
       {!canManage && <ReadOnlyNotice module="clinical" />}
       {error && <ErrorBanner error={error} />}
-      <section className="clinical-summary">
-        <div>
-          <strong>{records.length}</strong>
-          <span>evoluções registradas</span>
-        </div>
-        <div>
-          <strong>
-            {records.filter((record) => record.status === "draft").length}
-          </strong>
-          <span>rascunhos aguardando revisão</span>
-        </div>
-        <div className="clinical-security">
-          <LockKeyhole size={18} />
-          <span>Acesso restrito à equipe clínica</span>
-        </div>
-      </section>
-      <section className="panel clinical-panel">
-        <div className="panel-head">
-          <div>
-            <h2>Evoluções recentes</h2>
+      {loading ? (
+        <LoadingBlock />
+      ) : (
+        <div
+          className={`clinical-records-layout${selected ? " has-selection" : ""}`}
+        >
+          <div className="clinical-records-aside">
+            {(totalPending > 0 || totalDrafts > 0) && (
+              <p className="clinical-records-summary">
+                {[
+                  totalPending > 0
+                    ? `${totalPending} ${totalPending === 1 ? "sessão" : "sessões"} sem evolução`
+                    : null,
+                  totalDrafts > 0
+                    ? `${totalDrafts} ${totalDrafts === 1 ? "rascunho" : "rascunhos"} para finalizar`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
+            <ClinicalPatientList
+              summaries={summaries}
+              selectedId={selected?.patient.id}
+              onSelect={select}
+            />
           </div>
-        </div>
-        {loading ? (
-          <LoadingBlock />
-        ) : records.length === 0 ? (
-          <EmptyState
-            icon={FileText}
-            title="Nenhuma evolução registrada"
-            copy="Crie o primeiro prontuário a partir de um atendimento realizado."
-            action={
-              canManage &&
-              can("clinical.records_create") &&
-              availableAppointments.length > 0 ? (
+          <section
+            className="panel clinical-chart-shell"
+            aria-label="Prontuário do cliente"
+          >
+            {selected ? (
+              <>
                 <button
                   type="button"
-                  className="primary-button"
-                  onClick={() => setEditor("new")}
+                  className="text-button clinical-back"
+                  onClick={() => select(undefined)}
                 >
-                  <FileText size={18} /> Registrar primeira evolução
+                  <ArrowLeft size={16} /> Clientes
                 </button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <div className="clinical-list">
-            {records.map((record) => (
-              <article className="clinical-card" key={record.id}>
-                <div className="clinical-date">
-                  <strong>
-                    {new Intl.DateTimeFormat("pt-BR", {
-                      day: "2-digit",
-                    }).format(new Date(record.appointmentStartsAt))}
-                  </strong>
-                  <span>
-                    {new Intl.DateTimeFormat("pt-BR", {
-                      month: "short",
-                    }).format(new Date(record.appointmentStartsAt))}
-                  </span>
-                </div>
-                <div className="clinical-card-copy">
-                  <div>
-                    <span className={`status-pill ${record.status}`}>
-                      {record.status === "finalized"
-                        ? "Finalizado"
-                        : "Rascunho"}
-                    </span>
-                    <h3>{record.patientName}</h3>
-                    <p>
-                      {professionalWithCrefito(
-                        record.professionalName,
-                        record.professionalCrefito,
-                      )}{" "}
-                      · versão {record.version}
-                    </p>
-                  </div>
-                  <p className="clinical-preview">
-                    {record.assessment ||
-                      "Avaliação clínica ainda não preenchida."}
-                  </p>
-                </div>
-                <div className="clinical-card-actions">
-                  <button
-                    className="secondary-button button-sm"
-                    onClick={() => setHistoryRecord(record)}
-                  >
-                    <FileClock size={16} />
-                    Histórico
-                  </button>
-                  {canManage && record.status === "draft" && (
-                    <>
-                      {can("clinical.records_update") && (
-                        <button
-                          className="secondary-button button-sm"
-                          onClick={() => setEditor(record)}
-                        >
-                          Editar
-                        </button>
-                      )}
-                      {can("clinical.finalize") && (
-                        <button
-                          className="primary-button button-sm"
-                          onClick={() => setFinalizing(record)}
-                        >
-                          Finalizar
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-      {!loading && patients.length > 0 && (
-        <ClinicalWorkspacePanel
-          key={workspaceFocus?.version ?? 0}
-          patients={patients}
-          editable={canManage}
-          initialPatientId={workspaceFocus?.patientId}
-        />
+                <ClinicalChart
+                  key={`${selected.patient.id}-${chartVersion}`}
+                  patientId={selected.patient.id}
+                  editable={canManage}
+                  appointments={selected.pending}
+                  onRecordChanged={replaceRecord}
+                />
+              </>
+            ) : records.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="Nenhuma evolução registrada"
+                copy="Crie o primeiro prontuário a partir de um atendimento realizado."
+                action={
+                  canManage &&
+                  can("clinical.records_create") &&
+                  availableAppointments.length > 0 ? (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => setCreating(true)}
+                    >
+                      <FileText size={18} /> Registrar primeira evolução
+                    </button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Stethoscope}
+                title="Escolha um cliente"
+                copy="Selecione um cliente na lista para abrir o prontuário completo."
+              />
+            )}
+          </section>
+        </div>
       )}
-      {editor && (
+      {creating && (
         <ClinicalRecordModal
-          record={editor === "new" ? undefined : editor}
+          record={undefined}
           appointments={availableAppointments}
-          onClose={() => setEditor(null)}
+          onClose={() => setCreating(false)}
           onSaved={(record) => {
             toast.success(
               `Evolução de ${patientFirstName(record.patientName)} salva.`,
             );
             replaceRecord(record);
-            setEditor(null);
+            setCreating(false);
+            setChartVersion((current) => current + 1);
+            select(record.patientId);
           }}
-        />
-      )}
-      {historyRecord && (
-        <ClinicalHistoryModal
-          record={historyRecord}
-          onClose={() => setHistoryRecord(null)}
-        />
-      )}
-      {finalizing && (
-        <FinalizeRecordModal
-          record={finalizing}
-          onClose={() => setFinalizing(null)}
-          onConfirm={() => finalize(finalizing)}
         />
       )}
     </>

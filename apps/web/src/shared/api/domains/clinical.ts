@@ -6,6 +6,8 @@ import type {
   ClinicalAccessEvent,
   ClinicalAddendum,
   ClinicalAddendumInput,
+  ClinicalAlert,
+  ClinicalAlertInput,
   ClinicalAssessment,
   ClinicalAssessmentInput,
   ClinicalAttachment,
@@ -85,6 +87,13 @@ export const clinicalApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  createClinicalAlert: (input: ClinicalAlertInput) =>
+    request<ClinicalAlert>("/clinical-alerts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  archiveClinicalAlert: (id: string) =>
+    request<void>(`/clinical-alerts/${id}`, { method: "DELETE" }),
   createAssessmentTemplate: (input: AssessmentTemplateInput) =>
     request<AssessmentTemplate>("/assessment-templates", {
       method: "POST",

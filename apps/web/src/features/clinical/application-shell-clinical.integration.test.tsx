@@ -141,6 +141,10 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Evoluções" }));
     expect(
       await screen.findByText(
         "Dra. Ana Martins · CREFITO-3 123456-F · versão 2",

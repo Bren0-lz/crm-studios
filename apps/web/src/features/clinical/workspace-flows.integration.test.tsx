@@ -98,6 +98,9 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     );
     open(`/clientes/${patient.id}`);
     fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Treinos e documentos" }),
+    );
     await screen.findByText("Modelos, evoluções e treinos", { exact: true });
     const panel = expand("Modelos, evoluções e treinos");
     fireEvent.click(
@@ -120,7 +123,9 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     );
     await within(dialog).findByText(/Preencha Resposta curta/);
     change("Resposta curta", "Mobilidade funcional", dialog);
-    expect(within(dialog).getByRole("button", { name: "Salvar" })).toBeEnabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar" }),
+    ).toBeEnabled();
     expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     change(
       "Resposta longa",
@@ -216,6 +221,9 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     open(`/clientes/${patient.id}`);
     fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
     fireEvent.click(
+      await screen.findByRole("tab", { name: "Plano e medições" }),
+    );
+    fireEvent.click(
       await screen.findByRole("button", { name: "Marcar alcançado" }),
     );
     await screen.findByText("Alcançado", { exact: true });
@@ -259,6 +267,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     });
     change("Observações", "Avaliação anexada pela equipe", dialog);
     await save("Novo anexo clínico", "Anexar arquivo");
+    fireEvent.click(screen.getByRole("tab", { name: "Arquivos" }));
     expect(
       await screen.findByText("avaliacao.pdf", { exact: true }),
     ).toBeInTheDocument();
@@ -337,6 +346,9 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       );
       open(`/clientes/${patient.id}`);
       fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
+      fireEvent.click(
+        await screen.findByRole("tab", { name: "Treinos e documentos" }),
+      );
       await screen.findByText("Modelos, evoluções e treinos", { exact: true });
       const panel = expand("Modelos, evoluções e treinos");
       await within(panel).findByRole("button", { name: "Novo registro" });

@@ -3076,6 +3076,10 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Evoluções" }));
     expect(
       await screen.findByText(
         "Dra. Ana Martins · CREFITO-3 123456-F · versão 2",
@@ -11807,20 +11811,15 @@ describe("screens without loose elements", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
     const more = await screen.findByRole("button", { name: "Mais ações" });
-    const actions = more.closest(".clinical-workspace-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Nova medição", "Adicionar adendo"]) {
+    // Cabeçalho do prontuário: ação principal visível, o resto no menu.
+    const actions = more.closest(".clinical-chart-actions") as HTMLElement;
+    for (const name of ["Nova avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
-    const output = actions.querySelector(
-      ".clinical-workspace-output-actions",
-    ) as HTMLElement;
-    expect(
-      within(output).getByRole("button", { name: "Imprimir" }),
-    ).toBeInTheDocument();
-    expect(
-      within(output).getByRole("button", { name: "Exportar" }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Novo modelo" }),
     ).not.toBeInTheDocument();
@@ -11835,16 +11834,18 @@ describe("screens without loose elements", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "Novo modelo",
+      "Nova medição",
       "Novo objetivo",
       "Anexar arquivo",
+      "Novo alerta clínico",
+      "Novo modelo",
       "Encerrar tratamento",
     ]);
     expect(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
     ).toHaveFocus();
     fireEvent.keyDown(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
       { key: "ArrowDown" },
     );
     expect(
@@ -12304,12 +12305,14 @@ describe("action modals instead of browser dialogs", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // O servidor passa a devolver a evolução finalizada depois da confirmação.
+    let current: Record<string, unknown> = record;
     mockApi(
       (url) =>
         url.includes("/clinical-workspace/")
           ? {
               patient,
-              records: [record],
+              records: [current],
               templates: [],
               assessments: [],
               goals: [],
@@ -12323,16 +12326,20 @@ describe("action modals instead of browser dialogs", () => {
             : url.includes("/patients")
               ? [patient]
               : undefined,
-      () => ({
-        ...record,
-        status: "finalized",
-        finalizedAt: new Date().toISOString(),
-      }),
+      () =>
+        (current = {
+          ...record,
+          status: "finalized",
+          finalizedAt: new Date().toISOString(),
+        }),
     );
     render(
       <MemoryRouter initialEntries={["/prontuarios"]}>
         <App />
       </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
     );
     fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
     let dialog = await screen.findByRole("dialog", {

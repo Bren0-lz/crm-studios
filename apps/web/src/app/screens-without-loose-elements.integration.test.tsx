@@ -43,20 +43,15 @@ describe("screens without loose elements", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
     const more = await screen.findByRole("button", { name: "Mais ações" });
-    const actions = more.closest(".clinical-workspace-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Nova medição", "Adicionar adendo"]) {
+    // Cabeçalho do prontuário: ação principal visível, o resto no menu.
+    const actions = more.closest(".clinical-chart-actions") as HTMLElement;
+    for (const name of ["Nova avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
-    const output = actions.querySelector(
-      ".clinical-workspace-output-actions",
-    ) as HTMLElement;
-    expect(
-      within(output).getByRole("button", { name: "Imprimir" }),
-    ).toBeInTheDocument();
-    expect(
-      within(output).getByRole("button", { name: "Exportar" }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Novo modelo" }),
     ).not.toBeInTheDocument();
@@ -71,16 +66,18 @@ describe("screens without loose elements", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "Novo modelo",
+      "Nova medição",
       "Novo objetivo",
       "Anexar arquivo",
+      "Novo alerta clínico",
+      "Novo modelo",
       "Encerrar tratamento",
     ]);
     expect(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
     ).toHaveFocus();
     fireEvent.keyDown(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
       { key: "ArrowDown" },
     );
     expect(
