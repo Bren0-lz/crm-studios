@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("finance workflows through real HTTP handlers", () => {
   it("classifies a supplier expense, combines filters and settles with independent payment and cash dates", async () => {
@@ -42,8 +42,13 @@ describe("finance workflows through real HTTP handlers", () => {
       change(label!, value!, dialog);
     await save("Nova conta a pagar", "Cadastrar despesa");
     fireEvent.click(screen.getByRole("button", { name: /^Contas a pagar \(/ }));
-    const filters = expand("Filtrar lançamentos por datas e classificação");
-    await within(filters).findByLabelText("Pesquisar lançamento");
+    const openFilters = async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Filtrar lançamentos/ }),
+      );
+      return screen.findByRole("dialog", { name: "Filtrar lançamentos" });
+    };
+    let filters = await openFilters();
     await within(filters).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Pesquisar lançamento", "FAIXAS"],
@@ -58,18 +63,33 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Forma de pagamento do lançamento", "unspecified"],
     ])
       change(label!, value!, filters);
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("9 filtros aplicados")).toBeInTheDocument();
     expect(
       screen.getByText("Compra de faixas", { exact: true }),
     ).toBeInTheDocument();
+    filters = await openFilters();
+    expect(within(filters).getByLabelText("Pesquisar lançamento")).toHaveValue(
+      "FAIXAS",
+    );
     change("Data considerada", "paidAt", filters);
+    // Sem salvar, a lista continua com o filtro anterior.
+    expect(
+      screen.getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
     expect(
       screen.queryByText("Compra de faixas", { exact: true }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      within(filters).getByRole("button", {
-        name: "Limpar filtros de lançamentos",
-      }),
+      screen.getByRole("button", { name: "Limpar filtros de lançamentos" }),
     );
+    expect(screen.getByText("Nenhum filtro aplicado")).toBeInTheDocument();
     const row = screen
       .getByText("Compra de faixas", { exact: true })
       .closest<HTMLElement>(".finance-row")!;
