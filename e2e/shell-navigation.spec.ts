@@ -66,9 +66,9 @@ test("SOS search and contact remain usable with long names on desktop and a smal
     await expect(dialog.getByRole("option")).toHaveCount(24);
     const results = dialog.locator(".patient-picker-results");
     expect(
-      await results.evaluate(
-        (element) => element.scrollHeight > element.clientHeight,
-      ),
+      await results
+        .locator("ul")
+        .evaluate((element) => element.scrollHeight > element.clientHeight),
     ).toBe(true);
     const body = dialog.locator(".modal-body");
     const listBox = await results.boundingBox();
@@ -172,6 +172,8 @@ test("SOS search and contact remain usable with long names on desktop and a smal
     await page.keyboard.press("Tab");
     await expect(close).toBeFocused();
     await search.focus();
+    await expect(dialog.getByRole("listbox")).toHaveCount(0);
+    await search.fill("Cliente SOS");
     await expect(dialog.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog.getByRole("listbox")).toHaveCount(0);

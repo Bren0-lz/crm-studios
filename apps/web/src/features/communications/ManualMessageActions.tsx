@@ -5,6 +5,7 @@ import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { Modal } from "../../shared/components/Modal";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { canMarkSent, messageLink } from "./model";
 
 type Confirm = "sent" | "cancelled" | "returned";
@@ -23,6 +24,7 @@ export function ManualMessageActions({
   onChanged: () => Promise<void>;
 }) {
   const { can } = useAuthorization();
+  const toast = useToast();
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setCurrentTime(Date.now()), 30000);
@@ -49,6 +51,11 @@ export function ManualMessageActions({
     setError("");
     try {
       await api.completeManualMessage(message.id, status);
+      toast.success(
+        status === "sent"
+          ? "Envio manual registrado."
+          : "Cancelamento registrado.",
+      );
       await onChanged();
       setConfirm(null);
     } catch (cause) {

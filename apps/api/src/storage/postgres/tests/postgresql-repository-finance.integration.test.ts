@@ -34,6 +34,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -465,10 +466,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
     // Finalizar não consome sessão de plano algum.
     const plansBefore = await repository.listPatientPlans(clinicId);
-    const completed = await repository.updateAppointmentStatus(
-      clinicId,
-      trial!.id,
-      "completed",
+    // Realizado só vale a partir de 15 min antes do início (QC3).
+    const completed = await atInstant(trial!.startsAt, () =>
+      repository.updateAppointmentStatus(clinicId, trial!.id, "completed"),
     );
     expect(completed).toMatchObject({ status: "completed", leadId: lead.id });
     expect(await repository.listPatientPlans(clinicId)).toEqual(plansBefore);

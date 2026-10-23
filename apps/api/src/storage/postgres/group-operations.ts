@@ -378,8 +378,12 @@ export function createGroupOperationsRepository(
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
           [clinicId],
         );
-        const meeting = await client.query<{ startsAt: Date; endsAt: Date }>(
-          `SELECT starts_at AS "startsAt",ends_at AS "endsAt" FROM group_sessions WHERE clinic_id=$1 AND id=$2 AND status<>'cancelled' FOR UPDATE`,
+        const meeting = await client.query<{
+          startsAt: Date;
+          endsAt: Date;
+          groupId: string;
+        }>(
+          `SELECT starts_at AS "startsAt",ends_at AS "endsAt",group_id AS "groupId" FROM group_sessions WHERE clinic_id=$1 AND id=$2 AND status<>'cancelled' FOR UPDATE`,
           [clinicId, sessionId],
         );
         if (!meeting.rows[0])
@@ -398,6 +402,10 @@ export function createGroupOperationsRepository(
             "Profissional não encontrado.",
             404,
           );
+        await context.resourceBranch(client, clinicId, {
+          professionalId,
+          groupId: meeting.rows[0].groupId,
+        });
         const { startsAt, endsAt } = meeting.rows[0];
         const conflicts = await client.query(
           `SELECT 1 FROM appointments WHERE clinic_id=$1 AND professional_id=$2 AND status<>'cancelled' AND starts_at<$4 AND ends_at>$3 UNION ALL SELECT 1 FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id<>$5 AND coalesce(gs.professional_id,g.professional_id)=$2 AND gs.status<>'cancelled' AND gs.starts_at<$4 AND gs.ends_at>$3 UNION ALL SELECT 1 FROM schedule_blocks WHERE clinic_id=$1 AND professional_id=$2 AND status='active' AND starts_at<$4 AND ends_at>$3`,

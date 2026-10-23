@@ -421,9 +421,12 @@ export function AppointmentDateTimePicker({
             </span>
           </button>
         </div>
-        <label className="appointment-time-field">
-          <span className="sr-only">Horário</span>
+        <div className="appointment-time-field">
+          <label className="sr-only" htmlFor={`${id}-time`}>
+            Horário
+          </label>
           <input
+            id={`${id}-time`}
             ref={timeRef}
             type="time"
             required
@@ -431,7 +434,7 @@ export function AppointmentDateTimePicker({
             value={time}
             onChange={(event) => onChange(`${date}T${event.target.value}`)}
           />
-        </label>
+        </div>
       </div>
       {expanded && (
         <div
@@ -509,9 +512,13 @@ export function AppointmentDateTimePicker({
                           tabIndex={key === focusedDate ? 0 : -1}
                           onFocus={() => setFocusedDate(key)}
                           onKeyDown={(event) => onDayKeyDown(event, day)}
+                          // Escolher o dia mantém o calendário aberto para conferir a
+                          // agenda dele; fecha pelo X, Esc ou clique fora.
                           onClick={() => {
                             onChange(`${key}T${time}`);
-                            closeCalendar();
+                            setFocusedDate(key);
+                            if (day.getMonth() !== month.getMonth())
+                              setMonth(firstOfMonth(day));
                           }}
                         >
                           <span className="appointment-calendar-day-number">

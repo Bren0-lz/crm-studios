@@ -2,6 +2,16 @@ import {
   leadConversionData,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
+import {
+  buildLeadFilterOptions,
+  buildLeadInsights,
+  findLeadDuplicates,
+  matchesLead,
+  type LeadDuplicateQuery,
+  type LeadFilter,
+  type LeadPage,
+  type LeadStagePage,
+} from "@crm/contracts";
 import type {
   Lead,
   LeadActivity,
@@ -22,10 +32,21 @@ import { now, uuid } from "./helpers.js";
 export function createCommercialRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
-  return {
+  const filteredLeads = async (
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ) =>
+    (await repository.listLeads(clinicId)).filter((lead) =>
+      matchesLead(lead, filter, timezone),
+    );
+  const repository = {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
-        .filter((lead) => lead.clinicId === clinicId)
+        .filter(
+          (lead) =>
+            lead.clinicId === clinicId && repositoryContext.inBranchScope(lead),
+        )
         .map((lead) => {
           const tasks = repositoryContext.leadTasks.filter(
             (task) => task.clinicId === clinicId && task.leadId === lead.id,
@@ -55,6 +76,19 @@ export function createCommercialRepository(
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 
+    async findLeadDuplicates(clinicId: string, query: LeadDuplicateQuery) {
+      return findLeadDuplicates(
+        query,
+        repositoryContext.patients.filter(
+          (patient) =>
+            patient.clinicId === clinicId && !patient.mergedIntoPatientId,
+        ),
+        repositoryContext.leads.filter(
+          (lead) => lead.clinicId === clinicId && !lead.convertedPatientId,
+        ),
+      );
+    },
+
     async createLead(clinicId: string, input: LeadInput) {
       if (
         input.responsibleUserId &&
@@ -76,6 +110,7 @@ export function createCommercialRepository(
         : undefined;
       const lead: Lead = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         stage: "new_contact",
@@ -349,5 +384,36 @@ export function createCommercialRepository(
       if (lead) repositoryContext.refreshLeadTaskStats(lead);
       return task;
     },
+
+    async listLeadStagePage(
+      clinicId: string,
+      stage: LeadStage,
+      filter: LeadFilter,
+      page: LeadPage,
+      timezone?: string,
+    ): Promise<LeadStagePage> {
+      const leads = (await filteredLeads(clinicId, filter, timezone)).filter(
+        (lead) => lead.stage === stage,
+      );
+      return {
+        stage,
+        total: leads.length,
+        overdue: leads.filter((lead) => lead.overdueTasks > 0).length,
+        leads: leads.slice(page.offset, page.offset + page.limit),
+      };
+    },
+
+    async summarizeLeads(
+      clinicId: string,
+      filter: LeadFilter,
+      timezone?: string,
+    ) {
+      return buildLeadInsights(await filteredLeads(clinicId, filter, timezone));
+    },
+
+    async listLeadFilterOptions(clinicId: string) {
+      return buildLeadFilterOptions(await repository.listLeads(clinicId));
+    },
   };
+  return repository;
 }

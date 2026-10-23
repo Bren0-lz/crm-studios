@@ -33,6 +33,7 @@ describe("client record", () => {
       id: "p1",
       patientId: patient.id,
       name: "Pilates 2x",
+      kind: "fixed_package",
       status: "active",
       remainingSessions: 5,
       totalSessions: 8,
@@ -74,15 +75,31 @@ describe("client record", () => {
     expect(overview).toHaveTextContent("(11) 98765-4321");
     expect(overview).toHaveTextContent("helena@example.com");
     expect(overview).toHaveTextContent("VIP");
+    expect(await within(overview).findByText("Pilates 2x")).toBeInTheDocument();
+    expect(overview).toHaveTextContent("5 sessões restantes de 8");
+    const day = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    }).format(next);
+    const year =
+      next.getFullYear() === new Date().getFullYear()
+        ? ""
+        : ` de ${next.getFullYear()}`;
     expect(
-      await within(overview).findByText("Pilates 2x · 5 de 8 sessões"),
+      within(overview).getByText(`${day}${year} · 15:00`),
     ).toBeInTheDocument();
-    expect(overview).toHaveTextContent(
-      `${next.toLocaleDateString("pt-BR")} às 15:00 · Pilates`,
-    );
+    expect(overview).toHaveTextContent("Pilates · Ana Martins");
     fireEvent.click(screen.getByRole("tab", { name: "Planos" }));
     const panel = screen.getByRole("tabpanel");
     expect(await within(panel).findByText("Pilates 2x")).toBeInTheDocument();
+    // Cartão completo, como na página de Planos: tipo, saldo, validade e extrato.
+    expect(panel).toHaveTextContent("Pacote fixo");
+    expect(panel).toHaveTextContent("de 8 sessões restantes");
+    expect(panel).toHaveTextContent("Validade");
+    expect(
+      within(panel).getByRole("button", { name: "Extrato" }),
+    ).toBeInTheDocument();
     expect(
       within(panel).getByRole("link", { name: "Abrir em Planos" }),
     ).toHaveAttribute("href", `/planos?patientId=${patient.id}`);

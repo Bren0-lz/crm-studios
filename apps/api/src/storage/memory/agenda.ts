@@ -22,6 +22,7 @@ import {
   type ReplacementBookingInput,
   type ScheduleBlock,
   type ScheduleBlockInput,
+  recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -123,6 +124,7 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             item.startsAt < to &&
             item.endsAt > from,
         )
@@ -135,6 +137,7 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             isAppointmentPendingFinalization(item, instant),
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -214,6 +217,7 @@ export function createAgendaRepository(
           "Profissional, sala ou serviço não encontrado.",
           404,
         );
+      repositoryContext.resourceBranch(appointment, professional, room);
       const startsAt = new Date(input.startsAt);
       const endsAt = new Date(
         startsAt.getTime() + service.durationMinutes * 60_000,
@@ -391,16 +395,14 @@ export function createAgendaRepository(
           item.clinicId === clinicId &&
           item.id !== appointmentId &&
           item.status !== "cancelled" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const blockConflict = repositoryContext.scheduleBlocks.some(
         (item) =>
           item.clinicId === clinicId &&
           item.status === "active" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const groupConflict =
@@ -487,18 +489,14 @@ export function createAgendaRepository(
       const seriesId = uuid();
       const appointments: Appointment[] = [];
       try {
-        for (let index = 0; index < input.occurrences; index += 1) {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
+        for (const startsAt of recurringOccurrenceStarts(input)) {
           const appointment =
             await repositoryContext.operations.createAppointment(clinicId, {
               patientId: input.patientId,
               professionalId: input.professionalId,
               roomId: input.roomId,
               serviceId: input.serviceId,
-              startsAt: startsAt.toISOString(),
+              startsAt,
               notes: input.notes,
               visitType: input.visitType,
             });
@@ -517,6 +515,7 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             item.status === "active" &&
             item.startsAt < to &&
             item.endsAt > from,
@@ -588,9 +587,13 @@ export function createAgendaRepository(
           "O bloqueio conflita com um atendimento ou bloqueio existente.",
           409,
         );
+      const branchId = repositoryContext.resourceBranch(
+        ...[professional, room].filter((item) => item !== undefined),
+      );
       const timestamp = now();
       const block: ScheduleBlock = {
         ...input,
+        branchId,
         id: uuid(),
         clinicId,
         ...(professional ? { professionalName: professional.fullName } : {}),
@@ -621,17 +624,26 @@ export function createAgendaRepository(
       repositoryContext.ensureGroupSessions(clinicId, groupSessionHorizon(), {
         renewBefore: new Date(groupSessionHorizon().getTime() - 7 * 86_400_000),
       });
+      const groups = repositoryContext.groupClasses.filter(
+        (item) =>
+          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+      );
+      const groupIds = new Set(groups.map((group) => group.id));
+      const sessionIds = new Set(
+        repositoryContext.groupSessions
+          .filter((session) => groupIds.has(session.groupId))
+          .map((session) => session.id),
+      );
       return {
-        groups: repositoryContext.groupClasses.filter(
-          (item) => item.clinicId === clinicId,
-        ),
+        groups,
         enrollments: repositoryContext.groupEnrollments.filter(
-          (item) => item.clinicId === clinicId,
+          (item) => item.clinicId === clinicId && groupIds.has(item.groupId),
         ),
         sessions: repositoryContext.groupSessions
           .filter(
             (item) =>
               item.clinicId === clinicId &&
+              groupIds.has(item.groupId) &&
               item.startsAt < to &&
               item.endsAt > from,
           )
@@ -639,6 +651,7 @@ export function createAgendaRepository(
         attendance: repositoryContext.groupAttendance.filter(
           (item) =>
             item.clinicId === clinicId &&
+            sessionIds.has(item.sessionId) &&
             repositoryContext.groupSessions.some(
               (session) =>
                 session.id === item.sessionId &&
@@ -646,8 +659,17 @@ export function createAgendaRepository(
                 session.endsAt > from,
             ),
         ),
-        replacementCredits: repositoryContext.replacementCredits.filter(
-          (item) => item.clinicId === clinicId,
+        replacementCredits: repositoryContext.replacementCredits.flatMap(
+          (item) => {
+            if (item.clinicId !== clinicId) return [];
+            const source = repositoryContext.groupSessions.find(
+              (session) =>
+                session.clinicId === clinicId &&
+                sessionIds.has(session.id) &&
+                session.id === item.sourceSessionId,
+            );
+            return source ? [{ ...item, sourceGroupId: source.groupId }] : [];
+          },
         ),
       };
     },
@@ -682,6 +704,7 @@ export function createAgendaRepository(
           409,
         );
       repositoryContext.assertGroupScheduleAvailable(clinicId, input);
+      const branchId = repositoryContext.resourceBranch(professional, room);
       const sequence =
         Math.max(
           0,
@@ -695,6 +718,7 @@ export function createAgendaRepository(
         ) + 1;
       const group: GroupClass = {
         ...input,
+        branchId,
         id: uuid(),
         clinicId,
         name: groupClassName(service.name, sequence),
@@ -922,6 +946,7 @@ export function createAgendaRepository(
           (item) =>
             item.clinicId === clinicId &&
             item.status !== "cancelled" &&
+            repositoryContext.groupInBranchScope(item.groupId) &&
             item.startsAt < to &&
             item.endsAt > from,
         )

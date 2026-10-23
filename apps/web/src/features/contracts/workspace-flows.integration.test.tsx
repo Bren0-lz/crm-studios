@@ -38,6 +38,13 @@ describe("manual signature workflows", () => {
       name: "Registrar assinatura manual",
     });
     change("Responsável pela obtenção", "Equipe responsável", dialog);
+    // Sem a cópia, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Registrar assinatura" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Registrar assinatura" }),
+    ).toHaveAccessibleDescription("Falta: Cópia do documento assinado.");
     const content = new TextEncoder().encode(
       "%PDF-1.7\nConsentimento assinado\n%%EOF",
     );
@@ -56,6 +63,7 @@ describe("manual signature workflows", () => {
         within(dialog).getByRole("button", { name: "Registrar assinatura" }),
       ).toBeEnabled(),
     );
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     await save("Registrar assinatura manual", "Registrar assinatura");
     const saved = (await repository.listIssuedDocuments(clinicId)).find(
       (item) => item.id === document.id,

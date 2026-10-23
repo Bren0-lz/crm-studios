@@ -55,6 +55,10 @@
     "./relationship": {
       "types": "./src/relationship/index.ts",
       "default": "./src/relationship/index.ts"
+    },
+    "./branches": {
+      "types": "./src/branches/index.ts",
+      "default": "./src/branches/index.ts"
     }
   },
   "scripts": {

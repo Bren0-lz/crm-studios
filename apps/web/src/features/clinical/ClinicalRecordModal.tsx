@@ -6,7 +6,9 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { shortDate } from "../../shared/lib/formatting";
 import { professionalWithCrefito } from "../contracts/index";
 import { ClinicalAppointmentPicker } from "./ClinicalAppointmentPicker";
@@ -33,6 +35,12 @@ export function ClinicalRecordModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const dirty = useFormDirty(form);
+  // O rascunho aceita etapas em branco, mas precisa do atendimento.
+  const missing = useMissingFields(
+    form.appointmentId ? [] : ["Atendimento"],
+    "field-hint",
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -52,6 +60,7 @@ export function ClinicalRecordModal({
       title={record ? "Editar evolução" : "Nova evolução clínica"}
       subtitle="Registre informações objetivas e necessárias para a continuidade do cuidado."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can(record ? "clinical.records_update" : "clinical.records_create") && (
@@ -141,16 +150,14 @@ export function ClinicalRecordModal({
             />
           </label>
           {error && <div className="form-error">{error}</div>}
+          {missing.hint}
           <div className="modal-actions">
+            <ModalCancelButton disabled={loading}>Cancelar</ModalCancelButton>
             <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
+              className="primary-button"
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
-              Cancelar
-            </button>
-            <button className="primary-button" disabled={loading}>
               {loading ? "Salvando…" : "Salvar rascunho"}
             </button>
           </div>

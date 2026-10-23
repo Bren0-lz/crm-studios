@@ -1,5 +1,4 @@
 .group-card > div:first-child strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 
@@ -16,7 +15,7 @@
   background: #e9f3ed;
   color: var(--green);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .group-card > small {
@@ -608,12 +607,11 @@
   gap: 12px;
   padding: 16px 20px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .plan-metrics strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-3xl);
 }
 
@@ -641,9 +639,8 @@
 }
 
 .settings-page .page-header h1 {
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-3xl);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.01em;
 }
 
 .settings-tabs {
@@ -712,7 +709,7 @@
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: white;
-  box-shadow: 0 var(--space-1) var(--space-5) rgba(34, 50, 44, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .settings-panel[hidden] {
@@ -742,9 +739,8 @@
 
 .settings-panel-heading h2 {
   margin: 0 0 var(--space-1);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-2xl);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-panel-heading p {
@@ -804,7 +800,6 @@
 .settings-inline-fields legend {
   padding: 0 var(--space-2);
   color: var(--ink);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-lg);
   font-weight: 700;
 }
@@ -925,10 +920,9 @@
 
 .settings-clinic-section-heading h3 {
   margin: 0;
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-lg);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-clinic-section-heading p {
@@ -1171,7 +1165,6 @@
 .settings-plan-price {
   margin-left: auto;
   color: var(--green);
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-xl);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1224,9 +1217,8 @@
 }
 
 .settings-modal .modal-head h2 {
-  font-family: "Manrope", "DM Sans", sans-serif;
   font-size: var(--text-2xl);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .settings-modal .modal-head p {
@@ -1454,4 +1446,119 @@
   gap: var(--space-2);
   padding-left: var(--space-3);
   border-left: 1px solid #dcd9d0;
+}
+
+/* Modal de filial: identificação e endereço em partes (grade de 12 colunas no desktop). */
+.branch-form .form-fieldset {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.branch-active span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.branch-address-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: calc(var(--space-3) + 2px);
+}
+
+.branch-cep {
+  grid-column: span 3;
+}
+.branch-street {
+  grid-column: span 7;
+}
+.branch-number {
+  grid-column: span 2;
+}
+.branch-complement,
+.branch-neighborhood {
+  grid-column: span 6;
+}
+.branch-city {
+  grid-column: span 9;
+}
+.branch-state {
+  grid-column: span 3;
+}
+.branch-reference {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .branch-address-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .branch-address-grid > * {
+    grid-column: auto;
+  }
+}
+
+/* Telefones da filial: número + descrição + remover, uma linha por telefone. */
+.branch-phones {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.branch-phones-title {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* audit: mobile-ok no celular vira número + remover, com a descrição embaixo (regra de 700px) */
+.branch-phone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  grid-template-areas: "number label remove";
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.branch-phone-number {
+  grid-area: number;
+}
+.branch-phone-label {
+  grid-area: label;
+}
+
+.branch-phone-remove {
+  grid-area: remove;
+  min-width: calc(var(--space-7) - var(--space-1));
+  min-height: calc(var(--space-7) - var(--space-1));
+}
+
+/* Remover: vermelho no hover/foco, como o danger-button. */
+.branch-phone-remove:hover:not(:disabled),
+.branch-phone-remove:focus-visible {
+  border-color: var(--red);
+  background: #f7e4e1;
+  color: #a04e45;
+}
+
+.branch-phone-remove:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.branch-phone-add {
+  justify-self: start;
+}
+
+@media (max-width: 700px) {
+  /* audit: mobile-ok número (flexível) + botão de remover de 40px cabem em 390px; a descrição desce para a linha de baixo */
+  .branch-phone-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "number remove"
+      "label label";
+    row-gap: var(--space-1);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--line);
+  }
 }

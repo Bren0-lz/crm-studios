@@ -3,6 +3,7 @@ import type { ClinicalAttachmentInput } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { fileToBase64 } from "./model";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
@@ -23,6 +24,10 @@ export function ClinicalAttachmentModal({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const missing = useMissingFields(
+    file ? [] : ["Arquivo ou gravação de áudio"],
+    "field-hint",
+  );
 
   async function save() {
     if (!file) throw new Error("Selecione um arquivo ou grave um áudio.");
@@ -126,6 +131,7 @@ export function ClinicalAttachmentModal({
               />
             </label>
             {error && <div className="form-error">{error}</div>}
+            {missing.hint}
             <div className="modal-actions">
               <button
                 type="button"
@@ -137,7 +143,8 @@ export function ClinicalAttachmentModal({
               </button>
               <button
                 className="primary-button"
-                disabled={!file || loading || recording}
+                disabled={missing.blocked || loading || recording}
+                aria-describedby={missing.describedBy}
               >
                 {loading ? "Enviando…" : "Anexar arquivo"}
               </button>

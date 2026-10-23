@@ -5,6 +5,7 @@ import {
   groupSeatsLabel,
   initials,
   localIsoDate,
+  relativeTime,
   statusLabel,
   toLocalDateTimeInput,
 } from "./formatting";
@@ -56,5 +57,17 @@ describe("groupSeatsLabel", () => {
     [5, 4, "5 matriculados · Sem vagas livres"],
   ] as const)("%i de %i vagas", (enrolled, capacity, expected) => {
     expect(groupSeatsLabel(enrolled, capacity)).toBe(expected);
+  });
+});
+
+describe("relativeTime", () => {
+  const now = new Date("2026-10-22T12:00:00Z");
+  it("uses short units up to 30 days and the short date after that", () => {
+    expect(relativeTime("2026-10-22T11:59:40Z", now)).toBe("agora");
+    expect(relativeTime("2026-10-22T11:55:00Z", now)).toBe("5min");
+    expect(relativeTime("2026-10-22T09:00:00Z", now)).toBe("3h");
+    expect(relativeTime("2026-10-20T12:00:00Z", now)).toBe("2d");
+    expect(relativeTime("2026-09-22T12:00:00Z", now)).toBe("30d");
+    expect(relativeTime("2026-08-01T12:00:00Z", now)).toMatch(/^01 de ago/);
   });
 });

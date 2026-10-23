@@ -24,6 +24,7 @@ import {
   planTemplateColumns,
   type PlanTemplateRow,
   type SessionMovementRow,
+  branchClause,
 } from "./helpers.js";
 
 export function createPlansRepository(
@@ -260,9 +261,12 @@ export function createPlansRepository(
        FROM patient_plans pp
        JOIN patients p ON p.id = pp.patient_id
        JOIN services s ON s.id = pp.service_id
-       WHERE pp.clinic_id = $1 AND ($2::uuid IS NULL OR pp.patient_id = $2)
+       WHERE pp.clinic_id = $1
+         -- Planos do cliente valem em todas as filiais (cadastro único).
+         AND CASE WHEN $2::uuid IS NULL THEN ${branchClause("pp.branch_id", 3)}
+                  ELSE pp.patient_id = $2 END
        ORDER BY pp.created_at DESC`,
-        [clinicId, patientId ?? null],
+        [clinicId, patientId ?? null, repositoryContext.branchReadIds()],
       );
       return result.rows.map(mapPatientPlan);
     },

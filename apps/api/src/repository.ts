@@ -1,3 +1,16 @@
+import type { Branch, BranchInput } from "@crm/contracts";
+import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
+import type {
+  CampaignRecipientStatus,
+  CampaignRecipientUpdate,
+  MessageImageMimeType,
+  MessageTemplate,
+  MessageTemplateImageContent,
+  WhatsappCampaign,
+  WhatsappCampaignDetail,
+  WhatsappCampaignRecipientDraft,
+} from "@crm/contracts";
+import type { BranchScopeStore } from "./storage/branch-scope.js";
 import type {
   ExternalOperation,
   ExternalOperationInput,
@@ -116,6 +129,13 @@ import type {
   LeadContactInput,
   LeadConversion,
   LeadConversionInput,
+  LeadDuplicateMatch,
+  LeadFilter,
+  LeadFilterOptions,
+  LeadInsights,
+  LeadPage,
+  LeadStagePage,
+  LeadDuplicateQuery,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -184,6 +204,10 @@ import type {
 
 export interface AuthenticatedUser extends UserSummary {
   sessionVersion?: number;
+  /** Acessa todas as filiais (admin: sempre). */
+  allBranches?: boolean;
+  /** Filiais do usuário quando `allBranches` é `false`. */
+  branchIds?: string[];
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;
@@ -194,6 +218,20 @@ export interface AuthenticatedUser extends UserSummary {
 }
 
 export interface ClinicRepository {
+  /** Filial da requisição em curso (ver `storage/branch-scope.ts`). */
+  readonly branchScope: BranchScopeStore;
+  /** Todas as filiais da clínica (ativas e inativas), a padrão primeiro. */
+  listBranches(clinicId: string): Promise<Branch[]>;
+  /**
+   * Cria (`id` ausente) ou altera a filial. `null` = filial inexistente; BRANCH_NAME_DUPLICATE
+   * (409) e BRANCH_DEFAULT_INACTIVE (409, a padrão não pode ser desativada).
+   */
+  saveBranch(
+    clinicId: string,
+    actorUserId: string,
+    input: BranchInput,
+    id?: string,
+  ): Promise<Branch | null>;
   getCommissionReconciliationPreview(
     clinicId: string,
     id: string,
@@ -399,6 +437,17 @@ export interface ClinicRepository {
     userId: string,
     passwordHash: string,
   ): Promise<boolean>;
+  /** Perfil do próprio usuário (foto e profissional ligado); `null` = usuário inexistente. */
+  getOwnProfile(clinicId: string, userId: string): Promise<OwnProfile | null>;
+  /**
+   * O usuário altera o próprio nome e foto e, com profissional ligado, o nome e a cor dele na
+   * agenda (mesma transação). `null` = usuário inexistente.
+   */
+  updateOwnProfile(
+    clinicId: string,
+    userId: string,
+    input: OwnProfileUpdate,
+  ): Promise<OwnProfile | null>;
   /**
    * Liga o usuário a um profissional da agenda (`professionals.user_id`) ou desliga (`null`).
    * Um usuário tem no máximo um profissional: ligar outro desliga o anterior. `null` = usuário
@@ -996,6 +1045,30 @@ export interface ClinicRepository {
     actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
+  /** Uma página de uma coluna do funil (filtros aplicados) + o total da etapa. */
+  listLeadStagePage(
+    clinicId: string,
+    stage: LeadStage,
+    filter: LeadFilter,
+    page: LeadPage,
+    timezone?: string,
+  ): Promise<LeadStagePage>;
+  /** Indicadores do funil calculados no banco, sem carregar todos os leads. */
+  summarizeLeads(
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ): Promise<LeadInsights>;
+  /** Valores distintos de origem, interesse, contato, motivo de perda e responsável. */
+  listLeadFilterOptions(clinicId: string): Promise<LeadFilterOptions>;
+  /**
+   * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
+   * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
+   */
+  findLeadDuplicates(
+    clinicId: string,
+    query: LeadDuplicateQuery,
+  ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
   updateLead(
     clinicId: string,
@@ -1066,6 +1139,54 @@ export interface ClinicRepository {
     referenceDate: string,
     options?: import("@crm/contracts").ReminderGenerationOptions,
   ): Promise<ReminderGenerationResult>;
+  /** Acervo de mensagens padrão (inclui arquivadas, com `archivedAt`). */
+  listMessageTemplates(clinicId: string): Promise<MessageTemplate[]>;
+  /** Conteúdo de uma imagem de mensagem padrão (também das trocadas, usadas por campanhas). */
+  getMessageTemplateImage(
+    clinicId: string,
+    imageId: string,
+  ): Promise<MessageTemplateImageContent | null>;
+  createMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate>;
+  /** Imagens com `id` são mantidas (na ordem enviada); as demais do modelo saem. */
+  updateMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate | null>;
+  setMessageTemplateArchived(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    archived: boolean,
+  ): Promise<MessageTemplate | null>;
+  listWhatsappCampaigns(clinicId: string): Promise<WhatsappCampaign[]>;
+  getWhatsappCampaign(
+    clinicId: string,
+    campaignId: string,
+  ): Promise<WhatsappCampaignDetail | null>;
+  /** Grava a campanha com o texto e as imagens atuais do modelo (que precisa estar ativo). */
+  createWhatsappCampaign(
+    clinicId: string,
+    actorUserId: string,
+    input: {
+      templateId: string;
+      name: string;
+      recipients: WhatsappCampaignRecipientDraft[];
+    },
+  ): Promise<WhatsappCampaignDetail>;
+  /** Marca enviado/pulado (ou volta a pendente); conclui a campanha quando não sobra pendente. */
+  setWhatsappCampaignRecipientStatus(
+    clinicId: string,
+    actorUserId: string,
+    campaignId: string,
+    recipientId: string,
+    status: CampaignRecipientStatus,
+  ): Promise<CampaignRecipientUpdate | null>;
   recordDocumentSignature(
     clinicId: string,
     actorUserId: string,
@@ -1155,4 +1276,19 @@ export function lastAdminError() {
     "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes.",
     409,
   );
+}
+
+/** Mensagem padrão já validada pela rota: imagens novas chegam com tipo e tamanho conferidos. */
+export interface MessageTemplateWrite {
+  title: string;
+  body: string;
+  images: Array<
+    | { id: string }
+    | {
+        fileName: string;
+        mimeType: MessageImageMimeType;
+        sizeBytes: number;
+        dataUrl: string;
+      }
+  >;
 }

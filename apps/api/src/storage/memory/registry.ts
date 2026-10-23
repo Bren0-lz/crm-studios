@@ -6,9 +6,11 @@ export function createRegistryRepository(context: MemoryRepositoryContext) {
     async getAdministrativeRegistry(clinicId: string) {
       return structuredClone({
         professionals: context.professionals.filter(
-          (item) => item.clinicId === clinicId,
+          (item) => item.clinicId === clinicId && context.inBranchScope(item),
         ),
-        rooms: context.rooms.filter((item) => item.clinicId === clinicId),
+        rooms: context.rooms.filter(
+          (item) => item.clinicId === clinicId && context.inBranchScope(item),
+        ),
         services: context.services.filter((item) => item.clinicId === clinicId),
       });
     },
@@ -39,6 +41,7 @@ export function createRegistryRepository(context: MemoryRepositoryContext) {
           (item) =>
             item.clinicId === clinicId &&
             item.id !== id &&
+            context.branchOf(item) === context.branchOf(current) &&
             item.crefito.toLowerCase() === input.data.crefito.toLowerCase(),
         )
       )
@@ -53,6 +56,7 @@ export function createRegistryRepository(context: MemoryRepositoryContext) {
           (item) =>
             item.clinicId === clinicId &&
             item.id !== id &&
+            context.branchOf(item) === context.branchOf(current) &&
             item.name.toLowerCase() === input.data.name.toLowerCase(),
         )
       )

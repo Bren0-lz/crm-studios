@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
+import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
 
 describe("action modals instead of browser dialogs", () => {
   const owner = {
@@ -63,7 +64,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -97,12 +99,13 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("Motivo da perda"), {
         target: { value: "   " },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
-      );
+      // Sem motivo, Confirmar fica desativado e diz o que falta (QM14).
       expect(
-        within(dialog).getByText("Informe o motivo da perda."),
-      ).toHaveClass("form-error");
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toHaveAccessibleDescription("Falta: Motivo da perda.");
       expect(writes()).toHaveLength(0);
       expect(
         within(dialog).getByRole("button", { name: "Confirmar" }),
@@ -132,7 +135,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -205,7 +209,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(

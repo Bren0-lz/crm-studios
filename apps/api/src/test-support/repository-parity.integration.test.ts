@@ -111,6 +111,77 @@ for (const storage of ["memory", "postgres"] as const) {
         );
       }
 
+      it("keeps each credit's source group outside the workspace period", async () => {
+        await atInstant("2055-01-01T12:00:00Z", async () => {
+          const client = await patient("Parity Créditos por turma");
+          const groups = [];
+          for (const weekday of [0, 1]) {
+            const group = await repository.createGroupClass(clinicId, {
+              serviceId,
+              professionalId,
+              roomId,
+              capacity: 2,
+              weeklySlots: [{ weekday, startTime: "06:00", endTime: "07:00" }],
+            });
+            groups.push(group);
+            await repository.createGroupEnrollment(clinicId, {
+              groupId: group.id,
+              patientId: client.id,
+              startsOn: "2055-01-01",
+            });
+          }
+          const initial = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-01-01T00:00:00Z",
+            "2055-02-01T00:00:00Z",
+          );
+          const sources = [];
+          for (const group of groups) {
+            const source = initial.sessions.find(
+              (item) => item.groupId === group.id,
+            )!;
+            expect(source).toBeDefined();
+            sources.push(source);
+            await repository.recordGroupAttendance(
+              clinicId,
+              actorId,
+              source.id,
+              client.id,
+              {
+                status: "excused_absence",
+              },
+            );
+          }
+          const later = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          const credits = later.replacementCredits.filter(
+            (item) => item.patientId === client.id,
+          );
+          expect(credits).toHaveLength(2);
+          for (const source of sources) {
+            expect(later.sessions.some((item) => item.id === source.id)).toBe(
+              false,
+            );
+            expect(
+              credits.find((item) => item.sourceSessionId === source.id),
+            ).toMatchObject({
+              clinicId,
+              sourceGroupId: source.groupId,
+              status: "available",
+            });
+          }
+          const otherClinic = await repository.getGroupWorkspace(
+            randomUUID(),
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          expect(otherClinic.replacementCredits).toEqual([]);
+        });
+      });
+
       it("counts the whole local day by status, independently of the five pending rows", async () => {
         const date = "2088-10-12";
         const client = await patient("Parity Dashboard");
@@ -533,6 +604,22 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toHaveLength(1);
       });
 
+      // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
+      it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
+        const patients = await repository.listPatients(clinicId);
+        const numbers = patients.map((item) => item.recordNumber);
+        expect(new Set(numbers).size).toBe(numbers.length);
+        const byName = new Map(
+          patients.map((item) => [item.fullName, item.recordNumber]),
+        );
+        expect(byName.get("Helena Almeida")).toBe("PAC-00001");
+        expect(byName.get("Lucas Ribeiro")).toBe("PAC-00002");
+        expect(byName.get("Sônia Barros")).toBe("PAC-00003");
+        const created = await patient("Prontuário Sequencial");
+        expect(created.recordNumber).toMatch(/^PAC-\d{5,}$/);
+        expect(numbers).not.toContain(created.recordNumber);
+      });
+
       it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
         const created = await patient("Comanda integrada");
         const tab = await repository.openPatientTab(clinicId, actorId, {
@@ -593,6 +680,12 @@ for (const storage of ["memory", "postgres"] as const) {
         ).receivables.filter((item) => item.patientId === created.id);
         expect(invoices).toHaveLength(1);
         expect(invoices[0]!.amountInCents).toBe(scheduled.totalInCents);
+        expect(invoices[0]!.description).toMatch(
+          /^Comanda de \d{2}\/\d{2} · Comanda$/,
+        );
+        expect(invoices[0]!.description).not.toContain(
+          tab.id.slice(0, 8).toUpperCase(),
+        );
         const [credit] = await repository.listPatientPlans(
           clinicId,
           created.id,
@@ -1142,6 +1235,95 @@ for (const storage of ["memory", "postgres"] as const) {
           repository.createPatientWithNextStep(clinicId, actorId, input),
         ).rejects.toBeInstanceOf(Error);
         expect(await repository.listPatients(clinicId, name)).toEqual([]);
+      });
+      it("keeps WhatsApp campaign snapshots and progress", async () => {
+        const png =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        const template = await repository.createMessageTemplate(
+          clinicId,
+          actorId,
+          {
+            title: "Paridade",
+            body: "Olá, {{nome}}",
+            images: [
+              {
+                fileName: "a.png",
+                mimeType: "image/png",
+                sizeBytes: 68,
+                dataUrl: png,
+              },
+            ],
+          },
+        );
+        const client = await patient("Campanha");
+        const campaign = await repository.createWhatsappCampaign(
+          clinicId,
+          actorId,
+          {
+            templateId: template.id,
+            name: "Paridade",
+            recipients: [
+              {
+                patientId: client.id,
+                patientName: client.fullName,
+                phone: "11988887777",
+                message: "Olá, Campanha",
+              },
+            ],
+          },
+        );
+        const updated = await repository.updateMessageTemplate(
+          clinicId,
+          actorId,
+          template.id,
+          { title: "Nova", body: "Outro", images: [] },
+        );
+        expect(updated?.images).toEqual([]);
+        const detail = await repository.getWhatsappCampaign(
+          clinicId,
+          campaign.id,
+        );
+        expect(detail).toMatchObject({
+          templateTitle: "Paridade",
+          body: "Olá, {{nome}}",
+          total: 1,
+          sent: 0,
+        });
+        expect(detail?.images.map((image) => image.fileName)).toEqual([
+          "a.png",
+        ]);
+        expect(
+          (
+            await repository.getMessageTemplateImage(
+              clinicId,
+              detail!.images[0]!.id,
+            )
+          )?.dataUrl,
+        ).toBe(png);
+        const result = await repository.setWhatsappCampaignRecipientStatus(
+          clinicId,
+          actorId,
+          campaign.id,
+          campaign.recipients[0]!.id,
+          "sent",
+        );
+        expect(result?.recipient.status).toBe("sent");
+        expect(result?.recipient.handledByName).toBeTruthy();
+        expect(result?.campaign).toMatchObject({ sent: 1 });
+        expect(result?.campaign.completedAt).toBeTruthy();
+        await repository.setMessageTemplateArchived(
+          clinicId,
+          actorId,
+          template.id,
+          true,
+        );
+        await expect(
+          repository.createWhatsappCampaign(clinicId, actorId, {
+            templateId: template.id,
+            name: "Arquivada",
+            recipients: campaign.recipients,
+          }),
+        ).rejects.toMatchObject({ code: "MESSAGE_TEMPLATE_NOT_FOUND" });
       });
     },
   );

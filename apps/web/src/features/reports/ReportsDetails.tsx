@@ -239,7 +239,6 @@ export function ReportsDetails() {
               <div className="panel dre-card">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Resultado financeiro</span>
                     <h2>DRE básica por caixa</h2>
                   </div>
                   <strong
@@ -317,7 +316,6 @@ export function ReportsDetails() {
               <div className="panel operation-card">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Eficiência</span>
                     <h2>Indicadores operacionais</h2>
                   </div>
                 </div>
@@ -367,7 +365,6 @@ export function ReportsDetails() {
               <div className="panel profit-table">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Margem</span>
                     <h2>Rentabilidade por serviço</h2>
                   </div>
                 </div>
@@ -405,7 +402,6 @@ export function ReportsDetails() {
               <div className="panel profit-table">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Produtos</span>
                     <h2>Rentabilidade por produto</h2>
                   </div>
                 </div>
@@ -452,7 +448,6 @@ export function ReportsDetails() {
               <section className="panel report-table source-report">
                 <div className="panel-head">
                   <div>
-                    <span className="eyebrow">Aquisição</span>
                     <h2>Conversão por origem</h2>
                   </div>
                 </div>

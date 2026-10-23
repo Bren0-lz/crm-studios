@@ -110,6 +110,12 @@ describe("SOAP draft", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Nova evolução clínica",
     });
+    // Sem atendimento, o rascunho não salva e o botão diz o que falta (QM14).
+    const saveDraft = within(dialog).getByRole("button", {
+      name: "Salvar rascunho",
+    });
+    expect(saveDraft).toBeDisabled();
+    expect(saveDraft).toHaveAccessibleDescription("Falta: Atendimento.");
     const picker = within(dialog).getByRole("combobox", {
       name: "Atendimento",
     });
@@ -121,6 +127,8 @@ describe("SOAP draft", () => {
       target: { value: "Dor ao subir escadas." },
     });
     expect(within(dialog).getByLabelText(/O — Objetivo/)).not.toBeRequired();
+    expect(saveDraft).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar rascunho" }),
     );
@@ -142,15 +150,15 @@ describe("SOAP draft", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
     const finalize = screen.getByRole("dialog", { name: "Finalizar evolução" });
-    expect(finalize).toHaveTextContent(
-      "Faltam as etapas: O — Objetivo, A — Avaliação, P — Plano.",
+    // Confirmar já vem desativado, com as etapas que faltam ligadas ao botão (QM14).
+    const confirm = within(finalize).getByRole("button", { name: "Confirmar" });
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAccessibleDescription(
+      'Falta: O — Objetivo, A — Avaliação, P — Plano. Use "Editar" para completar o rascunho.',
     );
-    fireEvent.click(
-      within(finalize).getByRole("button", { name: "Confirmar" }),
-    );
-    expect(
-      await within(finalize).findByText(/Preencha antes de finalizar/),
-    ).toBeInTheDocument();
+    expect(within(finalize).getAllByText(/Falta:/)).toHaveLength(1);
+    expect(within(finalize).queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(confirm);
     expect(posts).toHaveLength(1);
   });
 });

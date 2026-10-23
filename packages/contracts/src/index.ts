@@ -1,5 +1,6 @@
 export * from "./administration/index.js";
 export * from "./agenda/index.js";
+export * from "./branches/index.js";
 export * from "./clinical/index.js";
 export * from "./commercial/index.js";
 export * from "./common/index.js";

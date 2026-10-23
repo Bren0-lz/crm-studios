@@ -16,7 +16,7 @@ type PatientPickerProps = {
   onChange: (id: string, patient?: PatientOption) => void;
   required?: boolean;
   disabled?: boolean;
-  /** Sem efeito visual: a lista só abre com texto digitado e busca no servidor. */
+  /** Sem efeito visual: as sugestões dependem do texto digitado e da busca no servidor. */
   loading?: boolean;
   popover?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
@@ -59,11 +59,11 @@ export function PatientPicker({
     patients.find((patient) => patient.id === value) ??
     (selectedResult?.id === value ? selectedResult : undefined);
   const term = query?.trim() ?? "";
-  // A lista só abre com texto digitado e sempre filtrada por ele.
-  const isOpen = open && !disabled && Boolean(term);
-  const loading = response?.term !== term;
-  const error = response?.term === term ? response.error : "";
-  const choices = loading || error ? [] : (response?.items ?? []);
+  // Sem texto, mostra apenas a ação de cadastro, sem consultar nem listar clientes.
+  const isOpen = open && !disabled && (Boolean(term) || Boolean(onAddPatient));
+  const loading = Boolean(term) && response?.term !== term;
+  const error = term && response?.term === term ? response.error : "";
+  const choices = !term || loading || error ? [] : (response?.items ?? []);
 
   useLayoutEffect(() => {
     const panel = panelRef.current;
@@ -196,19 +196,26 @@ export function PatientPicker({
   }
 
   return (
-    <div ref={pickerRef} className={`patient-picker ${className}`}>
+    <div
+      ref={pickerRef}
+      className={`patient-picker ${className}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && isOpen) {
+          event.stopPropagation();
+          ref.current?.focus();
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+    >
       <div className="patient-picker-header">
         <label htmlFor={`${listId}-input`}>Cliente</label>
-        {onAddPatient && (
-          <button
-            type="button"
-            className="secondary-button button-sm"
-            onClick={onAddPatient}
-            disabled={disabled}
-          >
-            Adicionar cliente
-          </button>
-        )}
       </div>
       <input
         id={`${listId}-input`}
@@ -227,10 +234,6 @@ export function PatientPicker({
           isOpen && choices[active] ? `${listId}-${active}` : undefined
         }
         onFocus={() => setOpen(true)}
-        onBlur={() => {
-          setOpen(false);
-          setActive(-1);
-        }}
         onChange={(event) => {
           setQuery(event.target.value.slice(0, 160));
           onChange("");
@@ -254,10 +257,6 @@ export function PatientPicker({
           } else if (event.key === "Enter" && isOpen) {
             event.preventDefault();
             if (choices[active]) choose(choices[active]);
-          } else if (event.key === "Escape" && isOpen) {
-            event.stopPropagation();
-            setOpen(false);
-            setActive(-1);
           }
         }}
       />
@@ -271,13 +270,14 @@ export function PatientPicker({
             <p role="status">Buscando clientes…</p>
           ) : error ? (
             <p role="alert">{error}</p>
-          ) : choices.length === 0 ? (
+          ) : term && choices.length === 0 ? (
             <p role="status">Nenhum cliente encontrado</p>
           ) : null}
           <ul
             ref={listRef}
             id={listId}
             role="listbox"
+            tabIndex={-1}
             aria-label="Clientes encontrados"
             aria-busy={loading}
           >
@@ -296,6 +296,22 @@ export function PatientPicker({
               </li>
             ))}
           </ul>
+          {onAddPatient && (
+            <div className="patient-picker-footer">
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                onClick={() => {
+                  setOpen(false);
+                  setActive(-1);
+                  onAddPatient();
+                }}
+                disabled={disabled}
+              >
+                Adicionar cliente
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

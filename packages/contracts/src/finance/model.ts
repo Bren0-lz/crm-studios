@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { competenceMonthSchema } from "../common/model.js";
+import { patientFirstName } from "../communications/model.js";
+
+/**
+ * Descrição da cobrança gerada ao fechar a comanda: data de abertura (dia local da clínica,
+ * `aaaa-mm-dd`) e primeiro nome do cliente, sem o id interno ("Comanda de 19/10 · Marina").
+ */
+export function tabReceivableDescription(
+  patientName: string,
+  openedOn: string,
+) {
+  const [, month, day] = openedOn.split("-");
+  return `Comanda de ${day}/${month} · ${patientFirstName(patientName)}`;
+}
 
 /**
  * Regra de comissão do próprio usuário (`commission_rules.user_id`), sem exigir profissional

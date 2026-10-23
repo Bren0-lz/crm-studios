@@ -180,13 +180,27 @@ export function AgendaPage() {
     highlightedIds.includes(id) ? " agenda-just-saved" : "";
   // Cancelados não ocupam horário: ficam fora das contagens e, por padrão, da agenda.
   const [showCancelled, setShowCancelled] = useState(false);
+  // Filtro "Profissional": vazio mostra a agenda de todos.
+  const [professionalFilter, setProfessionalFilter] = useState("");
+  const byProfessional = <T extends { professionalId?: string | undefined }>(
+    items: T[],
+  ) =>
+    professionalFilter
+      ? items.filter((item) => item.professionalId === professionalFilter)
+      : items;
+  const shownAppointments = byProfessional(appointments);
+  const shownGroupSessions = byProfessional(groupSessions);
+  const shownBlocks = byProfessional(blocks);
   const visibleAppointments = showCancelled
-    ? appointments
-    : appointments.filter((item) => item.status !== "cancelled");
+    ? shownAppointments
+    : shownAppointments.filter((item) => item.status !== "cancelled");
   const dayEventCount =
-    appointments.filter((item) => item.status !== "cancelled").length +
-    groupSessions.length +
-    blocks.length;
+    shownAppointments.filter((item) => item.status !== "cancelled").length +
+    shownGroupSessions.length +
+    shownBlocks.length;
+  const professionalColors = new Map(
+    professionals.map((item) => [item.id, item.color]),
+  );
   const selectedAppointment = appointments.find(
     (item) => item.id === selectedAppointmentId,
   );
@@ -345,7 +359,6 @@ export function AgendaPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Operação diária"
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
@@ -418,7 +431,7 @@ export function AgendaPage() {
                     ? `${shortDate.format(weekStart)} — ${shortDate.format(weekDays[6]!)}`
                     : date === localIsoDate()
                       ? "Hoje"
-                      : shortDate.format(selectedDate)}
+                      : "Voltar para hoje"}
               </small>
             </button>
             <button
@@ -463,8 +476,57 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            <label className="checkbox-field agenda-cancelled-toggle">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(event) => setShowCancelled(event.target.checked)}
+              />
+              Mostrar cancelados
+            </label>
+            <AgendaStatusLegend />
+          </div>
+        </div>
+        {(professionals.length > 0 || view === "day") && (
+          <div className="agenda-professionals">
+            {professionals.length > 0 && (
+              <>
+                <span className="agenda-legend-label">Profissionais</span>
+                <div className="legend" aria-label="Legenda dos profissionais">
+                  {professionals.map((professional) => (
+                    <span key={professional.id}>
+                      <i
+                        className="pro-dot"
+                        style={professionalColorStyle(professional.color)}
+                        aria-hidden="true"
+                      />
+                      {professional.fullName.replace(/Dra?\. /, "")}
+                    </span>
+                  ))}
+                </div>
+                <label className="agenda-professional-filter">
+                  Profissional
+                  <select
+                    value={professionalFilter}
+                    onChange={(event) =>
+                      setProfessionalFilter(event.target.value)
+                    }
+                  >
+                    <option value="">Todos os profissionais</option>
+                    {professionals.map((professional) => (
+                      <option key={professional.id} value={professional.id}>
+                        {professional.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             {view === "day" && (
-              <div className="view-toggle" aria-label="Formato do dia">
+              <div
+                className="view-toggle agenda-day-layout"
+                aria-label="Formato do dia"
+              >
                 <button
                   className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
                   onClick={() => setDayLayout("grid")}
@@ -479,32 +541,6 @@ export function AgendaPage() {
                 </button>
               </div>
             )}
-            <label className="checkbox-field agenda-cancelled-toggle">
-              <input
-                type="checkbox"
-                checked={showCancelled}
-                onChange={(event) => setShowCancelled(event.target.checked)}
-              />
-              Mostrar cancelados
-            </label>
-            <AgendaStatusLegend />
-          </div>
-        </div>
-        {professionals.length > 0 && (
-          <div className="agenda-professionals">
-            <span className="agenda-legend-label">Profissionais</span>
-            <div className="legend" aria-label="Legenda dos profissionais">
-              {professionals.map((professional) => (
-                <span key={professional.id}>
-                  <i
-                    className="pro-dot"
-                    style={professionalColorStyle(professional.color)}
-                    aria-hidden="true"
-                  />
-                  {professional.fullName.replace(/Dra?\. /, "")}
-                </span>
-              ))}
-            </div>
           </div>
         )}
         {loading ? (
@@ -525,12 +561,12 @@ export function AgendaPage() {
                 const activeCount = dayAppointments.filter(
                   (item) => item.status !== "cancelled",
                 ).length;
-                const dayBlocks = blocks.filter(
+                const dayBlocks = shownBlocks.filter(
                   (item) =>
                     localIsoDate(new Date(item.startsAt)) === dayKey &&
                     item.status === "active",
                 );
-                const dayGroups = groupSessions.filter(
+                const dayGroups = shownGroupSessions.filter(
                   (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
                 );
                 const dayEvents = sortAgendaEntries({
@@ -609,9 +645,15 @@ export function AgendaPage() {
                           <span
                             className="month-group"
                             key={entry.session.id}
+                            style={professionalColorStyle(
+                              professionalColors.get(
+                                entry.session.professionalId,
+                              ),
+                            )}
                             title={`${entry.session.groupName} · ${entry.session.professionalName} · ${entry.session.roomName}`}
                           >
                             <span className="month-event-time">
+                              <i className="pro-dot" aria-hidden="true" />
                               <time>
                                 {timeLabel.format(
                                   new Date(entry.session.startsAt),
@@ -665,10 +707,10 @@ export function AgendaPage() {
               const dayAppointments = visibleAppointments.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
-              const dayBlocks = blocks.filter(
+              const dayBlocks = shownBlocks.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
-              const dayGroups = groupSessions.filter(
+              const dayGroups = shownGroupSessions.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               const dayHoliday = holidayNames.get(dayKey);
@@ -706,6 +748,9 @@ export function AgendaPage() {
                         <GroupSessionCard
                           compact
                           session={entry.session}
+                          professionalColor={professionalColors.get(
+                            entry.session.professionalId,
+                          )}
                           key={entry.session.id}
                         />
                       ) : (
@@ -769,10 +814,16 @@ export function AgendaPage() {
             )}
             <DayScheduleGrid
               day={selectedDate}
-              professionals={professionals}
+              professionals={
+                professionalFilter
+                  ? professionals.filter(
+                      (item) => item.id === professionalFilter,
+                    )
+                  : professionals
+              }
               appointments={visibleAppointments}
-              groupSessions={groupSessions}
-              blocks={blocks}
+              groupSessions={shownGroupSessions}
+              blocks={shownBlocks}
               onOpenAppointment={setSelectedAppointmentId}
               highlightedIds={highlightedIds}
               onCreate={
@@ -786,8 +837,8 @@ export function AgendaPage() {
             />
           </div>
         ) : visibleAppointments.length === 0 &&
-          blocks.length === 0 &&
-          groupSessions.length === 0 ? (
+          shownBlocks.length === 0 &&
+          shownGroupSessions.length === 0 ? (
           selectedHoliday ? (
             <div className="day-agenda">
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
@@ -815,8 +866,8 @@ export function AgendaPage() {
             )}
             {sortAgendaEntries({
               appointments: visibleAppointments,
-              groupSessions,
-              blocks,
+              groupSessions: shownGroupSessions,
+              blocks: shownBlocks,
             }).map((entry) =>
               entry.kind === "block" ? (
                 <ScheduleBlockCard
@@ -831,6 +882,9 @@ export function AgendaPage() {
               ) : entry.kind === "group" ? (
                 <GroupSessionCard
                   session={entry.session}
+                  professionalColor={professionalColors.get(
+                    entry.session.professionalId,
+                  )}
                   key={entry.session.id}
                 />
               ) : (
@@ -1014,15 +1068,16 @@ export function AgendaPage() {
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
-          groupSessions={groupSessions.filter(
+          groupSessions={shownGroupSessions.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
-          blocks={blocks.filter(
+          blocks={shownBlocks.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) ===
                 localIsoDate(eventsDay) && item.status === "active",
           )}
+          professionalColors={professionalColors}
           onClose={() => setEventsDay(null)}
           onOpenAppointment={(id) => {
             setEventsDay(null);

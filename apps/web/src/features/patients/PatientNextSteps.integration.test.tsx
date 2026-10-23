@@ -267,6 +267,10 @@ async function savePlan(dialog: HTMLElement) {
   );
   return screen.findByRole("dialog", { name: "Cliente cadastrado" });
 }
+function discardChanges() {
+  const prompt = screen.getByRole("dialog", { name: "Descartar alterações?" });
+  fireEvent.click(within(prompt).getByRole("button", { name: "Descartar" }));
+}
 async function openAppointment() {
   fireEvent.click(screen.getByRole("button", { name: "Agendar atendimento" }));
   const dialog = await screen.findByRole("dialog", {
@@ -286,11 +290,15 @@ async function openAppointment() {
   fireEvent.click(
     dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
   );
+  // Escolher o dia mantém o calendário aberto; fecha pelo X.
   expect(
-    within(dialog).queryByRole("region", {
+    within(dialog).getByRole("region", {
       name: "Calendário de agendamento",
     }),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Fechar calendário" }),
+  );
   fireEvent.change(within(dialog).getByLabelText("Horário"), {
     target: { value: "09:00" },
   });
@@ -304,6 +312,117 @@ async function saveAppointment(dialog: HTMLElement) {
 }
 
 describe("client next steps", () => {
+  it("continues to scheduling after creating a plan in guided registration", async () => {
+    const createGuided = vi
+      .spyOn(api, "createGuidedPatient")
+      .mockResolvedValue({ patient, plan });
+    const dialog = await openCreation();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    const selector = await within(dialog).findByLabelText("Plano cadastrado");
+    await within(dialog).findByRole("option", { name: /Pilates mensal/ });
+    fireEvent.change(selector, { target: { value: template.id } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+
+    const hub = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(within(hub).getByText("Plano vinculado")).toBeInTheDocument();
+    expect(
+      within(hub).queryByRole("button", { name: "Vincular a plano" }),
+    ).not.toBeInTheDocument();
+    await saveAppointment(await openAppointment());
+    expect(createGuided).toHaveBeenCalledTimes(1);
+    expect(api.createPlan).not.toHaveBeenCalled();
+    expect(api.createPatient).not.toHaveBeenCalled();
+    expect(api.createAppointment).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ patientId: patient.id }),
+    );
+  });
+
+  it("continues to a plan after scheduling a demonstration in guided registration", async () => {
+    const createGuided = vi
+      .spyOn(api, "createGuidedPatient")
+      .mockResolvedValue({
+        patient,
+        appointment: { ...appointment, visitType: "trial" },
+      });
+    const dialog = await openCreation();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+    );
+    const startsAt = await within(dialog).findByLabelText("Data e horário");
+    fireEvent.change(startsAt, { target: { value: "2035-10-10T09:00" } });
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Salvar e agendar demonstração",
+      }),
+    );
+
+    const hub = await screen.findByRole("dialog", {
+      name: "Cliente cadastrado",
+    });
+    expect(within(hub).getByText("Atendimento agendado")).toBeInTheDocument();
+    expect(
+      within(hub).queryByRole("button", { name: "Agendar atendimento" }),
+    ).not.toBeInTheDocument();
+    await savePlan(await openPlan());
+    expect(createGuided).toHaveBeenCalledTimes(1);
+    expect(api.createAppointment).not.toHaveBeenCalled();
+    expect(api.createPatient).not.toHaveBeenCalled();
+    expect(api.createPlan).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ patientId: patient.id }),
+    );
+  });
+
+  it.each(["active", "waitlisted"] as const)(
+    "retains the completed guided enrollment: %s",
+    async (status) => {
+      vi.spyOn(api, "createGuidedPatient").mockResolvedValue({
+        patient,
+        plan,
+        enrollment: {
+          ...enrollment,
+          status,
+          ...(status === "waitlisted" ? { queuePosition: 3 } : {}),
+        },
+      });
+      const dialog = await openCreation();
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      );
+      const selector = await within(dialog).findByLabelText("Plano cadastrado");
+      await within(dialog).findByRole("option", { name: /Pilates mensal/ });
+      fireEvent.change(selector, { target: { value: template.id } });
+      await within(dialog).findByRole("option", { name: /Pilates 01/ });
+      fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+        target: { value: group.id },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+
+      const hub = await screen.findByRole("dialog", {
+        name: "Cliente cadastrado",
+      });
+      expect(
+        within(hub).getByText(
+          status === "active"
+            ? "Matriculado na turma Pilates 01"
+            : "Na lista de espera de Pilates 01 · posição 3",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(hub).queryByRole("button", { name: "Retomar matrícula" }),
+      ).not.toBeInTheDocument();
+      expect(api.createPlan).not.toHaveBeenCalled();
+      expect(api.createGroupEnrollment).not.toHaveBeenCalled();
+    },
+  );
+
   it("saves once, updates the list and completes without loading other actions", async () => {
     const hub = await createClient();
     expect(within(hub).getByText(patient.fullName)).toBeInTheDocument();
@@ -440,6 +559,7 @@ describe("client next steps", () => {
     });
     expect(within(dialog).queryByLabelText("Turma")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const appointmentDialog = await openAppointment();
     expect(
       within(appointmentDialog).queryByRole("combobox", { name: "Cliente" }),
@@ -606,8 +726,8 @@ describe("client next steps", () => {
     );
     await createClient();
     const planDialog = await openPlan();
-    fireEvent.change(within(planDialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "150" },
+    fireEvent.change(within(planDialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-12-15" },
     });
     fireEvent.click(
       within(planDialog).getByRole("button", {
@@ -615,10 +735,11 @@ describe("client next steps", () => {
       }),
     );
     await within(planDialog).findByText("Falha ao vincular plano");
-    expect(within(planDialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      "150",
-    );
+    expect(
+      within(planDialog).getByLabelText("Primeiro vencimento"),
+    ).toHaveValue("2026-12-15");
     fireEvent.click(within(planDialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const appointmentDialog = await openAppointment();
     fireEvent.change(within(appointmentDialog).getByLabelText("Observação"), {
       target: { value: "Primeira avaliação" },
@@ -812,6 +933,7 @@ describe("client next steps", () => {
     const dialog = await openPlan();
     expect(within(dialog).getByLabelText("Modelo")).toHaveFocus();
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    discardChanges();
     const hub = screen.getByRole("dialog", { name: "Cliente cadastrado" });
     const conclude = within(hub).getByRole("button", { name: "Concluir" });
     conclude.focus();

@@ -63,6 +63,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /auth/login": "public",
   "POST /auth/logout-all": "login",
   "GET /me": "login",
+  "GET /me/profile": "login",
+  "PUT /me/profile": "login",
+  "POST /me/password": "login",
+  "GET /branches": "login",
 
   // Administração (só admin).
   "POST /admin/users/:id/revoke-sessions": "admin",
@@ -73,6 +77,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/users/:id/professional": "admin",
   "PUT /admin/users/:id/commission": "admin",
   "GET /clinic/branding": "login",
+  "GET /admin/branches": "admin",
+  "POST /admin/branches": "admin",
+  "PUT /admin/branches/:id": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
@@ -86,6 +93,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",
+  // Sino do cabeçalho: cada contagem é filtrada pelos módulos dentro da rota.
+  "GET /notifications": "login",
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny(
     "agenda",
@@ -215,7 +224,13 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
 
   // CRM comercial.
   "GET /leads/insights": operation("crm.view"),
+  // Duplicidade no cadastro/edição do lead: só id e nome de quem tem o mesmo contato.
+  "GET /leads/duplicates": { anyOf: operation("crm.create", "crm.update") },
   "GET /leads": view("crm"),
+  // Funil paginado (colunas com total) e valores dos filtros.
+  "GET /leads/board": view("crm"),
+  "GET /leads/board/:stage": view("crm"),
+  "GET /leads/filter-options": view("crm"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),
@@ -249,6 +264,23 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/broadcast": operation("communications.broadcast"),
   "POST /communications/reminders/generate": operation(
     "communications.reminders",
+  ),
+  "GET /communications/templates": view("communications"),
+  "GET /communications/template-images/:id": view("communications"),
+  "POST /communications/templates": operation("communications.templates"),
+  "PUT /communications/templates/:id": operation("communications.templates"),
+  "POST /communications/templates/:id/archive": operation(
+    "communications.templates",
+  ),
+  "GET /communications/campaigns": view("communications"),
+  "GET /communications/campaigns/filter-options": view("communications"),
+  "GET /communications/campaigns/:id": view("communications"),
+  "POST /communications/campaigns/preview": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/campaigns": operation("communications.campaigns"),
+  "POST /communications/campaigns/:id/recipients/:recipientId": operation(
+    "communications.campaigns",
   ),
 
   // Contratos.

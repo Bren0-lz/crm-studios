@@ -49,6 +49,7 @@ import {
   trialConversionMarker,
   trialConversionPhones,
 } from "../../../test-support/postgres-fixtures.js";
+import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/postgres-setup.js";
 
 describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
@@ -124,9 +125,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       }
     };
     try {
-      const results = await Promise.allSettled(
-        [1, 2].map(() =>
-          repository.saveClinicalRecord(clinicId, user.id, input),
+      // Evolução só vale a partir de 15 min antes do início (QC3).
+      const results = await atInstant(appointment.startsAt, () =>
+        Promise.allSettled(
+          [1, 2].map(() =>
+            repository.saveClinicalRecord(clinicId, user.id, input),
+          ),
         ),
       );
       expect(
@@ -154,10 +158,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         active: true,
         permissions: ["clinical.view", "clinical.records_update"],
       });
-      await repository.saveClinicalRecord(clinicId, user.id, {
-        ...input,
-        subjective: "Changed",
-      });
+      await atInstant(appointment.startsAt, () =>
+        repository.saveClinicalRecord(clinicId, user.id, {
+          ...input,
+          subjective: "Changed",
+        }),
+      );
       expect(
         (
           await pool.query(
@@ -582,6 +588,76 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       expect(events).toHaveLength(4);
     } finally {
       await cleanupPermissionsUser();
+    }
+  });
+
+  it("updates the own profile, photo and linked professional in one transaction", async () => {
+    const crefito = `PERFIL-${randomUUID().slice(0, 8)}`;
+    const cleanup = async () => {
+      await cleanupPermissionsUser();
+      await pool.query(
+        "DELETE FROM professionals WHERE clinic_id = $1 AND crefito = $2",
+        [clinicId, crefito],
+      );
+    };
+    await cleanup();
+    try {
+      const user = await repository.createAdminUser(
+        clinicId,
+        ownerId,
+        {
+          fullName: "Teste Perfil",
+          email: permissionsUserEmail,
+          role: "user",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      expect(await repository.getOwnProfile(clinicId, user.id)).toMatchObject({
+        fullName: "Teste Perfil",
+        avatarDataUrl: "",
+        professional: null,
+      });
+      const inserted = await pool.query<{ id: string }>(
+        `INSERT INTO professionals (clinic_id, user_id, full_name, crefito, specialty, color)
+         VALUES ($1, $2, 'Perfil Agenda', $3, 'Pilates', '#5c6f68') RETURNING id`,
+        [clinicId, user.id, crefito],
+      );
+      const photo = "data:image/png;base64,iVBORw0KGgo=";
+      const updated = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: photo,
+        agendaName: "Perfil na Agenda",
+        agendaColor: "#123456",
+      });
+      expect(updated).toMatchObject({
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: photo,
+        professional: {
+          id: inserted.rows[0]!.id,
+          fullName: "Perfil na Agenda",
+          color: "#123456",
+        },
+      });
+      const kept = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+      });
+      expect(kept).toMatchObject({
+        avatarDataUrl: photo,
+        professional: { fullName: "Perfil na Agenda" },
+      });
+      const removed = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: "",
+      });
+      expect(removed?.avatarDataUrl).toBe("");
+      expect(
+        await repository.updateOwnProfile(clinicId, randomUUID(), {
+          fullName: "Ninguém",
+        }),
+      ).toBeNull();
+    } finally {
+      await cleanup();
     }
   });
 

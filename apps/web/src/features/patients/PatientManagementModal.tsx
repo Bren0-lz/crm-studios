@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PatientPicker } from "../../PatientPicker";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 
 export function PatientManagementModal({
@@ -67,21 +68,42 @@ export function PatientManagementModal({
       setBusy(false);
     }
   }
-  const fieldLabel = (key: string) =>
-    patientProfileLabels[key as keyof typeof patientProfileLabels] ??
-    (
-      {
-        fullName: "Nome",
-        phone: "Telefone",
-        cpf: "CPF",
-        email: "E-mail",
-        birthDate: "Nascimento",
-        whatsapp: "WhatsApp",
-        emergencyContactName: "Contato de emergência",
-        emergencyContactPhone: "Telefone de emergência",
-      } as Record<string, string>
-    )[key] ??
-    key;
+  // O que falta para a prévia e para confirmar a mescla (QM14).
+  const previewMissing = useMissingFields(
+    mode === "merge"
+      ? [
+          !sourceId && "Cadastro duplicado",
+          !targetId && "Cadastro principal",
+        ].filter((item): item is string => Boolean(item))
+      : [],
+    "field-hint",
+  );
+  const confirmMissing = useMissingFields(
+    merge
+      ? merge.fields
+          .filter((field) => !choices[field.key])
+          .map((field) => fieldLabel(field.key))
+      : [],
+    "field-hint",
+  );
+  function fieldLabel(key: string) {
+    return (
+      patientProfileLabels[key as keyof typeof patientProfileLabels] ??
+      (
+        {
+          fullName: "Nome",
+          phone: "Telefone",
+          cpf: "CPF",
+          email: "E-mail",
+          birthDate: "Nascimento",
+          whatsapp: "WhatsApp",
+          emergencyContactName: "Contato de emergência",
+          emergencyContactPhone: "Telefone de emergência",
+        } as Record<string, string>
+      )[key] ??
+      key
+    );
+  }
   return (
     <Modal
       title={
@@ -134,8 +156,13 @@ export function PatientManagementModal({
               </p>
             </>
           )}
+          {previewMissing.hint}
           <div className="modal-actions">
-            <button className="primary-button" disabled={busy}>
+            <button
+              className="primary-button"
+              disabled={busy || previewMissing.blocked}
+              aria-describedby={previewMissing.describedBy}
+            >
               Visualizar prévia
             </button>
           </div>
@@ -184,6 +211,7 @@ export function PatientManagementModal({
               ))}
             </>
           )}
+          {confirmMissing.hint}
           <div className="modal-actions">
             <button
               className="secondary-button"
@@ -200,10 +228,10 @@ export function PatientManagementModal({
               disabled={
                 busy ||
                 (merge
-                  ? merge.conflicts.length > 0 ||
-                    merge.fields.some((field) => !choices[field.key])
+                  ? merge.conflicts.length > 0 || confirmMissing.blocked
                   : !candidates?.length)
               }
+              aria-describedby={confirmMissing.describedBy}
               onClick={() => void confirm()}
             >
               Confirmar {merge ? "mesclagem" : "inativação"}

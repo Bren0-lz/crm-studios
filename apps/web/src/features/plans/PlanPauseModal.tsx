@@ -1,6 +1,7 @@
 import type { PatientPlan, PlanPauseDetails } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { formatIsoDate, localIsoDate } from "../../shared/lib/formatting";
 
 /** Confirmação da pausa com motivo e previsão de retorno (opcionais). */
@@ -15,6 +16,7 @@ export function PlanPauseModal({
 }) {
   const [reason, setReason] = useState("");
   const [expectedReturn, setExpectedReturn] = useState("");
+  const dirty = useFormDirty({ reason, expectedReturn });
   return (
     <ActionModal
       eyebrow="Planos e sessões"
@@ -31,6 +33,7 @@ export function PlanPauseModal({
           ? "A previsão de retorno não pode ser no passado."
           : ""
       }
+      dirty={dirty}
       onClose={onClose}
       onConfirm={() =>
         onConfirm({

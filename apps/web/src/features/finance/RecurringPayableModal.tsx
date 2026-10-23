@@ -1,8 +1,11 @@
 import type { FinancialWorkspace } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { InlineClassificationCreate } from "./InlineClassificationCreate";
 
@@ -17,6 +20,7 @@ export function RecurringPayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const toast = useToast();
   const { can } = useAuthorization();
   const [expenseCategories, setExpenseCategories] = useState(() =>
     workspace.categories.filter(
@@ -38,12 +42,16 @@ export function RecurringPayableModal({
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const missing = [
-    form.description.trim().length < 3 && "descrição",
-    !form.categoryId && "categoria",
-    !form.costCenterId && "centro de custo",
-    form.amountInCents <= 0 && "valor mensal",
-  ].filter((item): item is string => Boolean(item));
+  const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      form.description.trim().length < 3 &&
+        "Descrição (pelo menos 3 caracteres)",
+      !form.categoryId && "Categoria",
+      !form.costCenterId && "Centro de custo",
+      form.amountInCents <= 0 && "Valor mensal",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -69,6 +77,7 @@ export function RecurringPayableModal({
       title="Nova despesa fixa"
       subtitle="A conta a pagar é gerada todo mês, do mês inicial até o final."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("finance.recurring_create") && (
@@ -134,6 +143,7 @@ export function RecurringPayableModal({
                     kind: "expense",
                   });
                   setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
                   setForm((current) => ({
                     ...current,
                     categoryId: created.id,
@@ -170,6 +180,7 @@ export function RecurringPayableModal({
                 onCreate={async (name) => {
                   const created = await api.createCostCenter({ name });
                   setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
                   setForm((current) => ({
                     ...current,
                     costCenterId: created.id,
@@ -215,23 +226,13 @@ export function RecurringPayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
-          {missing.length > 0 && (
-            <p className="muted-copy payable-missing span-2">
-              Para cadastrar, preencha: {missing.join(", ")}.
-            </p>
-          )}
+          {missing.hint}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId || !form.costCenterId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Salvando…" : "Cadastrar despesa fixa"}
             </button>

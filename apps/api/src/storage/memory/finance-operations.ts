@@ -118,6 +118,7 @@ export function createFinanceOperationsRepository(
           (entry) =>
             entry.clinicId === clinicId &&
             entry.id !== id &&
+            context.branchOf(entry) === context.branchOf(item) &&
             entry.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
         )
       )
@@ -252,6 +253,11 @@ export function createFinanceOperationsRepository(
           "Atendimento do cliente não encontrado.",
           404,
         );
+      context.sameBranch(
+        "O atendimento é de outra filial que não a da comanda.",
+        current,
+        appointment,
+      );
       if (
         covered(
           clinicId,
@@ -426,6 +432,7 @@ export function createFinanceOperationsRepository(
         ...input,
         id: uuid(),
         clinicId,
+        branchId: context.writeBranchId(clinicId),
         patientName: patient.fullName,
         source: "manual",
         postedOn:
@@ -572,17 +579,28 @@ export function createFinanceOperationsRepository(
     ) {
       const scope = <T extends { clinicId: string }>(items: T[]) =>
         items.filter((item) => item.clinicId === clinicId);
+      const inBranch = <T extends { clinicId: string; branchId?: string }>(
+        items: T[],
+      ) => scope(items).filter((item) => context.inBranchScope(item));
+      const byProfessional = <
+        T extends { clinicId: string; professionalId: string },
+      >(
+        items: T[],
+      ) =>
+        scope(items).filter((item) =>
+          context.professionalInBranchScope(item.professionalId),
+        );
       return buildDre(
         from,
         to,
-        scope(context.receivables),
-        scope(context.payables),
+        inBranch(context.receivables),
+        inBranch(context.payables),
         scope(context.financialCategories),
-        scope(context.commissions),
-        scope(context.patientTabs),
+        byProfessional(context.commissions),
+        inBranch(context.patientTabs),
         costCenterId,
         context.clinicSettings.timezone,
-        scope(context.commissionAdjustments),
+        byProfessional(context.commissionAdjustments),
       );
     },
   };

@@ -1,6 +1,7 @@
 import type { Receivable } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   centsToMoneyText,
   currency,
@@ -21,20 +22,21 @@ export function ReceivableAdjustModal({
     centsToMoneyText(receivable.amountInCents),
   );
   const [reason, setReason] = useState("");
+  const dirty = useFormDirty({ value, reason });
   return (
     <ActionModal
       eyebrow="Financeiro"
       title="Ajustar valor da parcela"
       subtitle={`${receivable.patientName} · ${receivable.description}`}
       effect={`Hoje a parcela vale ${currency.format(receivable.amountInCents / 100)}. O novo valor substitui o atual e a justificativa fica registrada no histórico.`}
-      validate={() => {
-        if (reaisToCents(value) === null)
-          return "Informe o novo valor em reais (zero ou mais).";
-        if (reason.trim().length < 5)
-          return "Escreva a justificativa do ajuste (pelo menos 5 caracteres).";
-        return "";
-      }}
+      missing={[
+        ...(reaisToCents(value) === null ? ["Novo valor"] : []),
+        ...(reason.trim().length < 5
+          ? ["Justificativa (pelo menos 5 caracteres)"]
+          : []),
+      ]}
       onConfirm={() => onConfirm(reaisToCents(value) ?? 0, reason.trim())}
+      dirty={dirty}
       onClose={onClose}
     >
       <label>

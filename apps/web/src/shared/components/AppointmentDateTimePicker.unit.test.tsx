@@ -175,7 +175,7 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T17:15",
     );
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("region")).toBeInTheDocument();
     expect(outside).toHaveValue("17:15");
   });
 
@@ -217,9 +217,11 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T16:45",
     );
-    open();
     expect(day("2026-10-08")).toHaveAttribute("aria-pressed", "true");
-    await screen.findByText("Nenhum compromisso registrado.");
+    expect(screen.getByText("Quinta, 8 de outubro")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum compromisso registrado."),
+    ).toBeInTheDocument();
   });
 
   it("requires both date and time without assigning a default time", async () => {
@@ -334,8 +336,7 @@ describe("appointment calendar", () => {
     expect(day("2026-10-06")).toHaveAccessibleName(/1 compromisso/);
     expect(day("2026-10-08")).toHaveAccessibleName(/1 compromisso/);
     fireEvent.click(day("2026-10-08"));
-    open();
-    expect(await screen.findByText("00:00–01:00")).toBeInTheDocument();
+    expect(screen.getByText("00:00–01:00")).toBeInTheDocument();
     vi.mocked(api.scheduleBlocks).mockResolvedValue([
       block({
         startsAt: at("2026-10-06", "23:00"),
@@ -371,7 +372,6 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-11-15T15:30",
     );
-    open();
     expect(screen.getByRole("table")).toHaveAccessibleName("novembro de 2026");
     await screen.findByText("Nenhum compromisso registrado.");
   });
@@ -463,7 +463,7 @@ describe("appointment calendar", () => {
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 
-  it("closes when selecting a day and dismisses on outside pointer interaction", async () => {
+  it("stays open when selecting a day to show its agenda and dismisses on outside pointer interaction", async () => {
     render(
       <>
         <Harness />
@@ -474,13 +474,19 @@ describe("appointment calendar", () => {
     await screen.findByText("Nenhum compromisso registrado.");
     fireEvent.pointerDown(day("2026-10-08"));
     fireEvent.click(day("2026-10-08"));
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByText("Quinta, 8 de outubro")).toBeInTheDocument();
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T15:30",
     );
-    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Data" })).toHaveTextContent(
+      "08/10/2026",
+    );
     expect(screen.getByLabelText("Horário")).toHaveValue("15:30");
-    open();
+    // Dia de outro mês na grade leva o calendário para aquele mês.
+    fireEvent.click(day("2026-11-01"));
+    expect(screen.getByRole("table")).toHaveAccessibleName("novembro de 2026");
+    expect(day("2026-11-01")).toHaveAttribute("aria-pressed", "true");
     await screen.findByText("Nenhum compromisso registrado.");
     const outside = screen.getByRole("button", { name: "Outro campo" });
     fireEvent.pointerDown(outside);

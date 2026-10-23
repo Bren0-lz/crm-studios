@@ -54,6 +54,8 @@ export interface PatientPlan extends Omit<
   PatientPlanInput,
   "planTemplateId" | "services"
 > {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   sourceTabId?: string;
   sourceAppointmentId?: string;
   serviceId: string;

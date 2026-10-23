@@ -2,7 +2,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand } from "../../test-support/workflow-ui";
+import { open, change } from "../../test-support/workflow-ui";
 
 async function openTabWithProduct(
   repository: Awaited<ReturnType<typeof setupApi>>["repository"],
@@ -44,7 +44,9 @@ describe("dados atualizados sem recarregar após mutações (QC6)", () => {
     await within(panel).findByText("Nenhuma parcela registrada.");
 
     fireEvent.click(screen.getByRole("tab", { name: "Comandas" }));
-    const inventory = expand("Estoque e comandas");
+    const inventory = screen.getByRole("region", {
+      name: "Comandas do cliente",
+    });
     await within(inventory).findByText("Aberta");
     fireEvent.click(
       within(inventory)

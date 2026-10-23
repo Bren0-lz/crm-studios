@@ -16,6 +16,8 @@ import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
 import type { NavigationGuard } from "../shared/lib/types";
 import { installInlineValidation } from "../shared/feedback/inline-validation";
+import { BRANCH_CHANGED_EVENT, getStoredBranchId } from "../api";
+import { BranchSelector } from "./BranchSelector";
 import { NotificationsMenu, UserMenu } from "./HeaderMenus";
 import { navGroups } from "./navItems";
 
@@ -29,6 +31,13 @@ export function Shell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Trocar de filial remonta a página aberta: todas as telas recarregam na filial nova.
+  const [branchKey, setBranchKey] = useState(() => getStoredBranchId() ?? "");
+  useEffect(() => {
+    const changed = () => setBranchKey(getStoredBranchId() ?? "");
+    window.addEventListener(BRANCH_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(BRANCH_CHANGED_EVENT, changed);
+  }, []);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // Rótulo dos modais: o módulo da página aberta (o item de menu mais específico).
@@ -163,6 +172,7 @@ export function Shell({
             <span className="environment-dot">Demonstração</span>
           </div>
           <div className="top-actions">
+            <BranchSelector />
             <EmergencyButton />
             <NotificationsMenu onNavigate={guardedNavigate} />
             <UserMenu
@@ -172,7 +182,7 @@ export function Shell({
             />
           </div>
         </header>
-        <div className="page-content">
+        <div className="page-content" key={branchKey}>
           <NavigationGuardContext.Provider value={registerGuard}>
             <ModuleLabelContext.Provider value={moduleLabel}>
               {children}

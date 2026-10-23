@@ -10,6 +10,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import {
   countLabel,
@@ -71,6 +72,11 @@ export function PatientImportModal({
   }
 
   const validCount = analysis?.totals.valid ?? 0;
+  // Sem planilha, Importar fica desativado dizendo o que falta; sem linhas válidas, a prévia explica.
+  const missing = useMissingFields(
+    file || analysis ? [] : ["Planilha de clientes"],
+    "field-hint",
+  );
   return (
     <Modal
       eyebrow="Importação"
@@ -163,6 +169,7 @@ export function PatientImportModal({
             )}
           </>
         )}
+        {!result && can("patients.import") && missing.hint}
         <div className="modal-actions">
           <button
             type="button"
@@ -177,6 +184,7 @@ export function PatientImportModal({
               type="button"
               className="primary-button"
               disabled={loading || !file || validCount === 0}
+              aria-describedby={missing.describedBy}
               onClick={() => void confirmImport()}
             >
               <FileDown size={18} aria-hidden="true" />

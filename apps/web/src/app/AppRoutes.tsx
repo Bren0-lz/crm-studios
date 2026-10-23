@@ -9,6 +9,7 @@ import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationP
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
+import { CampaignSenderPage } from "../features/communications/campaigns/CampaignSenderPage";
 import { CommunicationsPage } from "../features/communications/CommunicationsPage";
 import { DocumentsPage } from "../features/contracts/DocumentsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
@@ -17,6 +18,7 @@ import { GroupsPage } from "../features/groups/GroupsPage";
 import { HistoryPage } from "../features/history/HistoryPage";
 import { PatientsPage } from "../features/patients/PatientsPage";
 import { PlansPage } from "../features/plans/PlansPage";
+import { ProfilePage } from "../features/profile/ProfilePage";
 import { RelationshipPage } from "../features/relationship/RelationshipPage";
 import { ReportsPage } from "../features/reports/ReportsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
@@ -110,6 +112,10 @@ export function AppRoutes() {
                   element={allow("communications", <CommunicationsPage />)}
                 />
                 <Route
+                  path="/comunicacoes/campanhas/:campaignId"
+                  element={allow("communications", <CampaignSenderPage />)}
+                />
+                <Route
                   path="/contratos"
                   element={allow("contracts", <DocumentsPage />)}
                 />
@@ -133,6 +139,7 @@ export function AppRoutes() {
                   path="/relatorios"
                   element={allow("reports", <ReportsPage />)}
                 />
+                <Route path="/perfil" element={<ProfilePage />} />
                 <Route
                   path="/configuracoes"
                   element={allow("settings", <SettingsPage />)}

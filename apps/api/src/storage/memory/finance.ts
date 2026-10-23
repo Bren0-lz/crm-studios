@@ -6,10 +6,12 @@ import {
 } from "./tab-service-credits.js";
 import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
+  formatSequenceNumber,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
   settlementBreakdown,
+  tabReceivableDescription,
   type AdminUserCommissionInput,
   type CommissionRule,
   type CommissionRuleInput,
@@ -70,15 +72,21 @@ export function createFinanceRepository(
 
     async getInventoryWorkspace(clinicId: string): Promise<InventoryWorkspace> {
       const products = repositoryContext.products.filter(
-        (item) => item.clinicId === clinicId,
+        (item) =>
+          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
       );
+      const productIds = new Set(products.map((item) => item.id));
       const tabs = repositoryContext.patientTabs.filter(
-        (item) => item.clinicId === clinicId,
+        (item) =>
+          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
       );
       return {
         products,
         movements: repositoryContext.stockMovements
-          .filter((item) => item.clinicId === clinicId)
+          .filter(
+            (item) =>
+              item.clinicId === clinicId && productIds.has(item.productId),
+          )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         tabs: tabs.sort((a, b) => b.openedAt.localeCompare(a.openedAt)),
         lowStockCount: products.filter((item) => item.lowStock).length,
@@ -97,10 +105,12 @@ export function createFinanceRepository(
       _actorUserId: string,
       input: ProductInput,
     ) {
+      const branchId = repositoryContext.writeBranchId(clinicId);
       if (
         repositoryContext.products.some(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.branchOf(item) === branchId &&
             item.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
         )
       )
@@ -136,6 +146,7 @@ export function createFinanceRepository(
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
         minimumStock: input.minimumStock,
+        branchId,
         id: uuid(),
         clinicId,
         currentStock: input.initialStock,
@@ -208,6 +219,7 @@ export function createFinanceRepository(
         );
       const tab: PatientTab = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         patientName: patient.fullName,
@@ -249,6 +261,11 @@ export function createFinanceRepository(
           "Produto não encontrado.",
           404,
         );
+      repositoryContext.sameBranch(
+        "O produto é de outra filial que não a da comanda.",
+        tab,
+        product,
+      );
       if (product.currentStock < input.quantity)
         throw new DomainError(
           "INSUFFICIENT_STOCK",
@@ -338,9 +355,16 @@ export function createFinanceRepository(
         ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         id: uuid(),
         clinicId,
+        branchId: repositoryContext.branchOf(tab),
         patientId: tab.patientId,
         patientName: tab.patientName,
-        description: `Comanda ${tab.id.slice(0, 8).toUpperCase()}`,
+        description: tabReceivableDescription(
+          tab.patientName,
+          clinicDateOf(
+            new Date(tab.openedAt),
+            repositoryContext.clinicSettings.timezone,
+          ),
+        ),
         installmentNumber: 1,
         installmentCount: 1,
         dueDate: input.dueDate,
@@ -453,7 +477,10 @@ export function createFinanceRepository(
       );
       const month = currentDate.slice(0, 7);
       const receivables = repositoryContext.receivables
-        .filter((item) => item.clinicId === clinicId)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+        )
         .map((item) => ({
           ...item,
           overdue: item.status === "open" && item.dueDate < currentDate,
@@ -674,8 +701,27 @@ export function createFinanceRepository(
             item.receivableId === receivableId && item.kind === "payment",
         )
         .at(-1);
+      // Número do recibo: atribuído na primeira emissão e repetido nas reemissões (QM15).
+      let issued = repositoryContext.receiptNumbers.find(
+        (item) =>
+          item.clinicId === clinicId && item.receivableId === receivableId,
+      );
+      if (!issued) {
+        issued = {
+          clinicId,
+          receivableId,
+          number:
+            Math.max(
+              0,
+              ...repositoryContext.receiptNumbers
+                .filter((item) => item.clinicId === clinicId)
+                .map((item) => item.number),
+            ) + 1,
+        };
+        repositoryContext.receiptNumbers.push(issued);
+      }
       return receiptWithClinic({
-        receiptNumber: `REC-${receivable.id.slice(0, 8).toUpperCase()}`,
+        receiptNumber: formatSequenceNumber("REC", issued.number),
         patientName: receivable.patientName,
         patientPhone: patient?.whatsapp || patient?.phone || "",
         description: receivable.description,
@@ -700,7 +746,10 @@ export function createFinanceRepository(
       );
       const month = currentDate.slice(0, 7);
       const payables = repositoryContext.payables
-        .filter((item) => item.clinicId === clinicId)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+        )
         .map((item) => ({
           ...item,
           overdue: item.status === "open" && item.dueDate < currentDate,
@@ -720,6 +769,7 @@ export function createFinanceRepository(
           .filter(
             (item) =>
               item.clinicId === clinicId &&
+              repositoryContext.inBranchScope(item) &&
               item.status === "paid" &&
               item.paidAt &&
               inMonth(item.cashAvailableAt ?? item.paidAt) &&
@@ -728,8 +778,12 @@ export function createFinanceRepository(
               ),
           )
           .reduce((sum, item) => sum + item.amountInCents, 0);
+      const payableIds = new Set(payables.map((item) => item.id));
       const expenseEvents = repositoryContext.payablePaymentEvents
-        .filter((item) => item.clinicId === clinicId)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && payableIds.has(item.payableId),
+        )
         .map((event) => {
           const correction = repositoryContext.financialDateCorrections
             .filter(
@@ -766,8 +820,27 @@ export function createFinanceRepository(
         legacyExpenses
           .filter((item) => inMonth(item.cashAvailableAt ?? item.paidAt!))
           .reduce((sum, item) => sum + item.amountInCents, 0);
+      const commissions = repositoryContext.commissions.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          repositoryContext.professionalInBranchScope(item.professionalId),
+      );
+      const commissionIds = new Set(commissions.map((item) => item.id));
+      const commissionAdjustments =
+        repositoryContext.commissionAdjustments.filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            repositoryContext.professionalInBranchScope(item.professionalId),
+        );
+      const commissionAccountPayments =
+        repositoryContext.commissionAccountPayments.filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            repositoryContext.professionalInBranchScope(item.professionalId),
+        );
       const commissionEvents = repositoryContext.commissionPaymentEvents.filter(
-          (item) => item.clinicId === clinicId,
+          (item) =>
+            item.clinicId === clinicId && commissionIds.has(item.commissionId),
         ),
         tracked = new Set(commissionEvents.map((item) => item.commissionId));
       const paidCommissionsThisMonthInCents =
@@ -780,10 +853,9 @@ export function createFinanceRepository(
               ).slice(0, 7) === month,
           )
           .reduce((sum, item) => sum + item.amountInCents, 0) +
-        repositoryContext.commissions
+        commissions
           .filter(
             (item) =>
-              item.clinicId === clinicId &&
               item.status === "paid" &&
               item.paidAt &&
               clinicDateOf(
@@ -818,45 +890,27 @@ export function createFinanceRepository(
           receiptCashInCents -
           expenseCashOutInCents -
           paidCommissionsThisMonthInCents,
-        ...(repositoryContext.commissionAdjustments.some(
-          (item) => item.clinicId === clinicId,
-        )
-          ? {
-              commissionAdjustments: structuredClone(
-                repositoryContext.commissionAdjustments.filter(
-                  (item) => item.clinicId === clinicId,
-                ),
-              ),
-            }
+        ...(commissionAdjustments.length
+          ? { commissionAdjustments: structuredClone(commissionAdjustments) }
           : {}),
-        ...(repositoryContext.commissionAccountPayments.some(
-          (item) => item.clinicId === clinicId,
-        )
+        ...(commissionAccountPayments.length
           ? {
               commissionAccountPayments: structuredClone(
-                repositoryContext.commissionAccountPayments.filter(
-                  (item) => item.clinicId === clinicId,
-                ),
+                commissionAccountPayments,
               ),
             }
           : {}),
         commissionRules: repositoryContext.commissionRules.filter(
           (item) => item.clinicId === clinicId && item.active,
         ),
-        commissions: repositoryContext.commissions.filter(
-          (item) => item.clinicId === clinicId,
-        ),
+        commissions,
         paidCommissionsThisMonthInCents,
         commissionOpenInCents:
-          repositoryContext.commissions
-            .filter(
-              (item) => item.clinicId === clinicId && item.status === "open",
-            )
+          commissions
+            .filter((item) => item.status === "open")
             .reduce((sum, item) => sum + item.amountInCents, 0) +
-          repositoryContext.commissionAdjustments
-            .filter(
-              (item) => item.clinicId === clinicId && item.status === "open",
-            )
+          commissionAdjustments
+            .filter((item) => item.status === "open")
             .reduce((sum, item) => sum + item.amountInCents, 0),
       };
     },
@@ -986,9 +1040,18 @@ export function createFinanceRepository(
           400,
         );
       const timestamp = now();
+      // Despesa de comissão fica na filial do profissional; as demais, na da requisição.
+      const professional = commission
+        ? repositoryContext.professionals.find(
+            (item) => item.id === commission.professionalId,
+          )
+        : undefined;
       const payable: Payable = {
         ...input,
         ...(commission ? { dreCompetence: commission.competence } : {}),
+        branchId: professional
+          ? repositoryContext.branchOf(professional)
+          : repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         categoryName: category.name,
@@ -1045,7 +1108,10 @@ export function createFinanceRepository(
 
     async listRecurringPayables(clinicId: string) {
       return repositoryContext.recurringPayables
-        .filter((item) => item.clinicId === clinicId)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+        )
         .map((item) => repositoryContext.toRecurringPayable(item))
         .sort((a, b) => a.description.localeCompare(b.description, "pt-BR"));
     },
@@ -1064,6 +1130,7 @@ export function createFinanceRepository(
       const model = {
         id: uuid(),
         clinicId,
+        branchId: repositoryContext.writeBranchId(clinicId),
         ...repositoryContext.recurringPayableFields(input),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -1099,6 +1166,7 @@ export function createFinanceRepository(
       const updated = {
         id: current.id,
         clinicId,
+        branchId: repositoryContext.branchOf(current),
         ...repositoryContext.recurringPayableFields(input),
         ...(resumedFromMonth ? { resumedFromMonth } : {}),
         createdAt: current.createdAt,
@@ -1155,6 +1223,7 @@ export function createFinanceRepository(
           repositoryContext.payables.push({
             id: uuid(),
             clinicId,
+            branchId: repositoryContext.branchOf(model),
             description: model.description,
             ...(model.supplier ? { supplier: model.supplier } : {}),
             categoryId: model.categoryId,
@@ -1205,6 +1274,10 @@ export function createFinanceRepository(
           "RENEGOTIATION_PATIENT_MISMATCH",
           "As parcelas devem pertencer ao mesmo cliente.",
         );
+      const branchId = repositoryContext.sameBranch(
+        "As parcelas devem ser da mesma filial.",
+        ...originals,
+      );
       const timestamp = now();
       originals.forEach((item) => {
         item.status = "cancelled";
@@ -1219,6 +1292,7 @@ export function createFinanceRepository(
         (_, index) => ({
           id: uuid(),
           clinicId,
+          branchId,
           patientId,
           patientName,
           description: `Renegociação · ${input.reason}`,
@@ -1460,16 +1534,32 @@ export function createFinanceRepository(
     },
 
     async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
+      const payables = repositoryContext.payables.filter(
+        (item) =>
+          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+      );
+      const payableIds = new Set(payables.map((item) => item.id));
+      const commissions = repositoryContext.commissions.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          repositoryContext.professionalInBranchScope(item.professionalId),
+      );
+      const commissionIds = new Set(commissions.map((item) => item.id));
       // A função pura filtra pela data do evento no fuso da clínica.
       return buildDailyCash(
         date,
         {
           receipts: repositoryContext.receivedPayments(clinicId),
           commissionEvents: repositoryContext.commissionPaymentEvents.filter(
-            (item) => item.clinicId === clinicId,
+            (item) =>
+              item.clinicId === clinicId &&
+              commissionIds.has(item.commissionId),
           ),
           payableEvents: repositoryContext.payablePaymentEvents
-            .filter((item) => item.clinicId === clinicId)
+            .filter(
+              (item) =>
+                item.clinicId === clinicId && payableIds.has(item.payableId),
+            )
             .map((item) => {
               const correction = repositoryContext.financialDateCorrections
                 .filter(
@@ -1489,12 +1579,8 @@ export function createFinanceRepository(
                   : {}),
               };
             }),
-          payables: repositoryContext.payables.filter(
-            (item) => item.clinicId === clinicId,
-          ),
-          commissions: repositoryContext.commissions.filter(
-            (item) => item.clinicId === clinicId,
-          ),
+          payables,
+          commissions,
         },
         repositoryContext.clinicSettings.timezone,
       );

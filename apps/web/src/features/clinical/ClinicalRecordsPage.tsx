@@ -1,5 +1,6 @@
 import {
   isAppointmentStarted,
+  patientFirstName,
   type ClinicalAppointmentOption,
   type ClinicalRecord,
   type PatientOption,
@@ -8,6 +9,7 @@ import { FileClock, FileText, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -21,6 +23,7 @@ import { FinalizeRecordModal } from "./FinalizeRecordModal";
 
 export function ClinicalRecordsPage() {
   const { can, canEdit } = useAuthorization();
+  const toast = useToast();
   const [records, setRecords] = useState<ClinicalRecord[]>([]);
   const [appointments, setAppointments] = useState<ClinicalAppointmentOption[]>(
     [],
@@ -90,6 +93,9 @@ export function ClinicalRecordsPage() {
   async function finalize(record: ClinicalRecord) {
     replaceRecord(await api.finalizeClinicalRecord(record.id));
     setFinalizing(null);
+    toast.success(
+      `Evolução de ${patientFirstName(record.patientName)} finalizada.`,
+    );
   }
 
   const availableAppointments = appointments.filter(
@@ -100,7 +106,6 @@ export function ClinicalRecordsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Cuidado documentado"
         title="Prontuários"
         description="Evoluções clínicas no formato SOAP, protegidas e rastreáveis."
         action={
@@ -143,7 +148,6 @@ export function ClinicalRecordsPage() {
       <section className="panel clinical-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Linha do tempo</span>
             <h2>Evoluções recentes</h2>
           </div>
         </div>
@@ -253,6 +257,9 @@ export function ClinicalRecordsPage() {
           appointments={availableAppointments}
           onClose={() => setEditor(null)}
           onSaved={(record) => {
+            toast.success(
+              `Evolução de ${patientFirstName(record.patientName)} salva.`,
+            );
             replaceRecord(record);
             setEditor(null);
           }}

@@ -8,13 +8,16 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { useToast } from "../../shared/feedback/toast-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function ClinicCatalogsContent() {
   const { user, can } = useAuthorization();
+  const toast = useToast();
   const [kind, setKind] = useState<ClinicCatalogKind>("interest");
   const [items, setItems] = useState<ClinicCatalogEntry[] | null>(null);
   const [error, setError] = useState("");
@@ -23,6 +26,7 @@ export function ClinicCatalogsContent() {
   const [active, setActive] = useState(true);
   const [parentId, setParentId] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty({ name, active, parentId }, Boolean(editor));
   useEffect(() => {
     let alive = true;
     api
@@ -58,6 +62,9 @@ export function ClinicCatalogsContent() {
             : {}),
         },
         editor && editor !== "new" ? editor.id : undefined,
+      );
+      toast.success(
+        editor && editor !== "new" ? "Item atualizado." : "Item cadastrado.",
       );
       setItems(await api.clinicCatalog(kind));
       setEditor(null);
@@ -124,6 +131,7 @@ export function ClinicCatalogsContent() {
           title={editor === "new" ? "Novo cadastro" : "Editar cadastro"}
           subtitle={clinicCatalogLabels[kind]}
           busy={saving}
+          dirty={dirty}
           onClose={() => setEditor(null)}
         >
           <form className="clinical-form" onSubmit={save}>
@@ -173,14 +181,7 @@ export function ClinicCatalogsContent() {
               Ativo
             </label>
             <div className="modal-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={saving}
-                onClick={() => setEditor(null)}
-              >
-                Cancelar
-              </button>
+              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={saving}>
                 Salvar
               </button>

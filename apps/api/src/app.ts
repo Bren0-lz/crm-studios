@@ -1,3 +1,4 @@
+import { registerBranchesRoutes } from "./modules/branches/routes.js";
 import { registerFinanceOperationRoutes } from "./modules/finance/operation-routes.js";
 import { registerClinicalResourceRoutes } from "./modules/clinical/resource-routes.js";
 import { registerPatientManagementRoutes } from "./modules/patients/management-routes.js";
@@ -9,6 +10,7 @@ import { registerAgendaRoutes } from "./modules/agenda/routes.js";
 import { registerAuthRoutes } from "./modules/auth/routes.js";
 import { registerClinicalRoutes } from "./modules/clinical/routes.js";
 import { registerCommercialRoutes } from "./modules/commercial/routes.js";
+import { registerCampaignRoutes } from "./modules/communications/campaign-routes.js";
 import { registerCommunicationsRoutes } from "./modules/communications/routes.js";
 import { registerContractsRoutes } from "./modules/contracts/routes.js";
 import { registerDashboardRoutes } from "./modules/dashboard/routes.js";
@@ -23,6 +25,7 @@ import { registerReportsRoutes } from "./modules/reports/routes.js";
 export async function buildApp(options: BuildAppOptions) {
   const context = await createRouteContext(options);
   registerAuthRoutes(context);
+  registerBranchesRoutes(context);
   registerCatalogRoutes(context);
   registerAdministrationRoutes(context);
   registerRelationshipRoutes(context);
@@ -39,6 +42,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerClinicalResourceRoutes(context);
   registerCommercialRoutes(context);
   registerCommunicationsRoutes(context);
+  registerCampaignRoutes(context);
   registerContractsRoutes(context);
   registerReportsRoutes(context);
   return context.app;

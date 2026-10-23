@@ -36,6 +36,7 @@ import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
+import { InventorySection } from "./InventorySection";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
@@ -72,7 +73,14 @@ export function FinancePage() {
   }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
   const [tab, setTab] = useState<
-    "receivables" | "payables" | "commissions" | "dailyCash" | "forecast"
+    | "receivables"
+    | "payables"
+    | "commissions"
+    | "dailyCash"
+    | "forecast"
+    | "inventory"
+    | "entries"
+    | "externalOperations"
   >("receivables");
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -273,7 +281,6 @@ export function FinancePage() {
         }
       />
       <PageHeader
-        eyebrow="Saúde financeira"
         title="Financeiro"
         description="Controle entradas, despesas, pagamentos e fluxo de caixa."
         action={
@@ -394,17 +401,44 @@ export function FinancePage() {
               >
                 Previsão
               </button>
+              {can("patients.inventory_view") && (
+                <button
+                  className={`tab-button ${tab === "inventory" ? "active" : ""}`}
+                  onClick={() => setTab("inventory")}
+                >
+                  Estoque
+                </button>
+              )}
+              <button
+                className={`tab-button ${tab === "entries" ? "active" : ""}`}
+                onClick={() => setTab("entries")}
+              >
+                Lançamentos
+              </button>
+              {can("finance.external_records_view") && (
+                <button
+                  className={`tab-button ${tab === "externalOperations" ? "active" : ""}`}
+                  onClick={() => setTab("externalOperations")}
+                >
+                  Documentos fiscais
+                </button>
+              )}
             </div>
           </section>
           {tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
+          ) : tab === "inventory" ? (
+            <InventorySection />
+          ) : tab === "entries" ? (
+            <FinanceClassificationPanel workspace={data} onChanged={reload} />
+          ) : tab === "externalOperations" ? (
+            <ExternalOperationsPanel workspace={data} />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Entradas</span>
                   <h2>Parcelas</h2>
                 </div>
               </div>
@@ -455,7 +489,6 @@ export function FinancePage() {
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Saídas</span>
                   <h2>Contas a pagar</h2>
                   <p className="panel-help">
                     Despesas da clínica pelo vencimento, em aberto e já pagas.
@@ -492,7 +525,6 @@ export function FinancePage() {
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Profissionais</span>
                   <h2>Comissões</h2>
                   <p className="panel-help">
                     Quanto cada profissional tem a receber pelos atendimentos
@@ -550,12 +582,6 @@ export function FinancePage() {
           )}
         </>
       )}
-      {data && (
-        <>
-          <FinanceClassificationPanel workspace={data} onChanged={reload} />
-          <ExternalOperationsPanel workspace={data} />
-        </>
-      )}
       {reconcilingCommission && (
         <CommissionReconciliationModal
           id={reconcilingCommission}
@@ -568,6 +594,7 @@ export function FinancePage() {
           workspace={data}
           onClose={() => setPayableModal(false)}
           onCreated={() => {
+            toast.success("Despesa registrada.");
             setPayableModal(false);
             void reload();
           }}

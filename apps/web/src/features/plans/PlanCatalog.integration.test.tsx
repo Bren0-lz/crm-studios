@@ -197,7 +197,7 @@ describe("plan types and weekly sessions", () => {
       8,
     );
     expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      "160,00",
+      "R$\u00a0160,00",
     );
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue(
       "2026-11-09",

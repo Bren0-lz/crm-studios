@@ -5,8 +5,11 @@ import type {
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { localIsoDate } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { InlineClassificationCreate } from "./InlineClassificationCreate";
@@ -22,6 +25,7 @@ export function PayableModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const toast = useToast();
   const { can } = useAuthorization();
   const [expenseCategories, setExpenseCategories] = useState(() =>
     workspace.categories.filter((item) => item.kind === "expense"),
@@ -53,12 +57,16 @@ export function PayableModal({
     };
   }, []);
   const [loading, setLoading] = useState(false);
-  const missing = [
-    form.description.trim().length < 3 && "descrição",
-    !form.categoryId && "categoria",
-    !form.dueDate && "vencimento",
-    form.amountInCents <= 0 && "valor",
-  ].filter((item): item is string => Boolean(item));
+  const dirty = useFormDirty(form);
+  const missing = useMissingFields(
+    [
+      form.description.trim().length < 3 &&
+        "Descrição (pelo menos 3 caracteres)",
+      !form.categoryId && "Categoria",
+      !form.dueDate && "Vencimento",
+      form.amountInCents <= 0 && "Valor",
+    ].filter((item): item is string => Boolean(item)),
+  );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -81,6 +89,7 @@ export function PayableModal({
       title="Nova conta a pagar"
       subtitle="Classifique a despesa para compor o fluxo de caixa."
       busy={loading}
+      dirty={dirty}
       onClose={onClose}
     >
       {can("finance.payables_create") && (
@@ -235,6 +244,7 @@ export function PayableModal({
                     kind: "expense",
                   });
                   setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
                   setForm((current) => ({
                     ...current,
                     categoryId: created.id,
@@ -274,6 +284,7 @@ export function PayableModal({
                 onCreate={async (name) => {
                   const created = await api.createCostCenter({ name });
                   setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
                   setForm((current) => ({
                     ...current,
                     costCenterId: created.id,
@@ -302,23 +313,13 @@ export function PayableModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
-          {missing.length > 0 && (
-            <p className="muted-copy payable-missing span-2">
-              Para cadastrar, preencha: {missing.join(", ")}.
-            </p>
-          )}
+          {missing.hint}
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={loading || !form.categoryId}
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {loading ? "Salvando…" : "Cadastrar despesa"}
             </button>

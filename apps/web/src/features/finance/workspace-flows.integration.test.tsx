@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("finance workflows through real HTTP handlers", () => {
   it("classifies a supplier expense, combines filters and settles with independent payment and cash dates", async () => {
@@ -42,8 +42,13 @@ describe("finance workflows through real HTTP handlers", () => {
       change(label!, value!, dialog);
     await save("Nova conta a pagar", "Cadastrar despesa");
     fireEvent.click(screen.getByRole("button", { name: /^Contas a pagar \(/ }));
-    const filters = expand("Filtrar lançamentos por datas e classificação");
-    await within(filters).findByLabelText("Pesquisar lançamento");
+    const openFilters = async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Filtrar lançamentos/ }),
+      );
+      return screen.findByRole("dialog", { name: "Filtrar lançamentos" });
+    };
+    let filters = await openFilters();
     await within(filters).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Pesquisar lançamento", "FAIXAS"],
@@ -58,29 +63,43 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Forma de pagamento do lançamento", "unspecified"],
     ])
       change(label!, value!, filters);
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("9 filtros aplicados")).toBeInTheDocument();
     expect(
       screen.getByText("Compra de faixas", { exact: true }),
     ).toBeInTheDocument();
+    filters = await openFilters();
+    expect(within(filters).getByLabelText("Pesquisar lançamento")).toHaveValue(
+      "FAIXAS",
+    );
     change("Data considerada", "paidAt", filters);
+    // Sem salvar, a lista continua com o filtro anterior.
+    expect(
+      screen.getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
     expect(
       screen.queryByText("Compra de faixas", { exact: true }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      within(filters).getByRole("button", {
-        name: "Limpar filtros de lançamentos",
-      }),
+      screen.getByRole("button", { name: "Limpar filtros de lançamentos" }),
     );
+    expect(screen.getByText("Nenhum filtro aplicado")).toBeInTheDocument();
     const row = screen
       .getByText("Compra de faixas", { exact: true })
       .closest<HTMLElement>(".finance-row")!;
     fireEvent.click(within(row).getByRole("button", { name: /^Pagar / }));
     dialog = screen.getByRole("dialog", { name: "Pagar despesa" });
     change("Forma de pagamento usada", "card", dialog);
-    fireEvent.click(
-      within(dialog).getByText("Datas do pagamento e do caixa", {
-        exact: true,
-      }),
-    );
+    expect(
+      within(dialog).getByLabelText("Data e hora do pagamento"),
+    ).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText("Pagamento antigo?"));
     change("Data e hora do pagamento", "2040-06-10T10:00", dialog);
     change("Disponibilidade no caixa", "2040-06-12T08:00", dialog);
     await save("Pagar despesa", "Confirmar pagamento");
@@ -171,11 +190,21 @@ describe("finance workflows through real HTTP handlers", () => {
       }),
     );
     await within(dialog).findByText("Pagamento original registrado");
+    // Sem motivo, Confirmar fica desativado dizendo o que falta (QM14).
+    const reconcile = within(dialog).getByRole("button", {
+      name: "Confirmar conciliação",
+    });
+    expect(reconcile).toBeDisabled();
+    expect(reconcile).toHaveAccessibleDescription(
+      "Falta: Motivo da conciliação (pelo menos 5 caracteres).",
+    );
     change(
       "Motivo da conciliação",
       "Correção da presença registrada pela equipe",
       dialog,
     );
+    expect(reconcile).toBeEnabled();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar conciliação" }),
     );
@@ -235,7 +264,7 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(compensate);
     expect(
       screen.getByRole("dialog", { name: "Confirmar baixa conciliada" }),
-    ).toHaveTextContent("O saldo zero não gera movimentação no caixa.");
+    ).toHaveTextContent("O saldo zero não gera entrada nem saída no caixa.");
     await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
     await waitFor(async () => {
       const current = await repository.getFinancialWorkspace(clinicId);
@@ -256,8 +285,10 @@ describe("finance workflows through real HTTP handlers", () => {
       tags: [],
     });
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Lançamentos e competência", { exact: true });
-    const panel = expand("Lançamentos e competência");
+    fireEvent.click(await screen.findByRole("button", { name: "Lançamentos" }));
+    const panel = (
+      await screen.findByRole("heading", { name: "Lançamentos e competência" })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Nova conta a receber",
@@ -311,10 +342,14 @@ describe("finance workflows through real HTTP handlers", () => {
     });
     const before = await repository.getFinancialSummary(clinicId);
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Documentos fiscais e operações com parceiros", {
-      exact: true,
-    });
-    const panel = expand("Documentos fiscais e operações com parceiros");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Documentos fiscais" }),
+    );
+    const panel = (
+      await screen.findByRole("heading", {
+        name: "Documentos fiscais e operações com parceiros",
+      })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Registrar operação externa",
@@ -324,6 +359,15 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Registrar operação externa",
     });
     change("Tipo de registro", "partner", dialog);
+    // Antes de preencher, o botão diz o que falta (QM14).
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar registro manual" }),
+    ).toHaveAccessibleDescription(
+      "Falta: Emissor ou parceiro (pelo menos 2 caracteres), Referência do documento ou operação, Comprovante.",
+    );
     change("Emissor ou parceiro", "Parceiro de atendimento", dialog);
     change("Referência do documento ou operação", "PARCEIRO-123", dialog);
     change(
@@ -340,6 +384,7 @@ describe("finance workflows through real HTTP handlers", () => {
       target: { files: [proof] },
     });
     await within(dialog).findByText("comprovante.pdf");
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     await save("Registrar operação externa", "Salvar registro manual");
     expect(await within(panel).findByText(/PARCEIRO-123/)).toBeInTheDocument();
     expect(

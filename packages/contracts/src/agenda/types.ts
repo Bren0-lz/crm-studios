@@ -59,6 +59,8 @@ export type ReplacementBookingInput = z.infer<
  * repete o nome do lead (`leadName`) para a agenda exibir o nome sem ramificar.
  */
 export interface Appointment extends Omit<AppointmentInput, "patientId"> {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   predecessorId?: string;
   absenceReason?: string;
   id: string;
@@ -98,6 +100,8 @@ export interface AppointmentRescheduleEvent {
 }
 
 export interface ScheduleBlock extends ScheduleBlockInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   professionalName?: string;
@@ -108,6 +112,8 @@ export interface ScheduleBlock extends ScheduleBlockInput {
 }
 
 export interface GroupClass extends GroupClassInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   name: string;
@@ -136,6 +142,8 @@ export interface GroupEnrollment extends GroupEnrollmentInput {
 }
 
 export interface GroupSession {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   groupId: string;
@@ -183,7 +191,7 @@ export interface GroupWorkspace {
   enrollments: GroupEnrollment[];
   sessions: GroupSession[];
   attendance: GroupAttendance[];
-  replacementCredits: ReplacementCredit[];
+  replacementCredits: (ReplacementCredit & { sourceGroupId: string })[];
 }
 
 export type ClinicalAppointmentOption = Pick<

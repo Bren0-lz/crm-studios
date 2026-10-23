@@ -1,4 +1,9 @@
 import type { ExternalOperation } from "@crm/contracts";
+import type {
+  StoredMessageTemplate,
+  StoredMessageTemplateImage,
+  StoredWhatsappCampaign,
+} from "./campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -18,6 +23,9 @@ import {
   type AppointmentInput,
   type AppointmentRescheduleEvent,
   type AppointmentStatus,
+  formatSequenceNumber,
+  documentTemplateValues,
+  renderDocumentTemplate,
   type AssessmentTemplate,
   type ClinicalAccessEvent,
   type ClinicalAddendum,
@@ -86,6 +94,7 @@ import { hashSync } from "bcryptjs";
 import { demoPatients } from "../../demo-patients.js";
 import {
   buildDemoScenarios,
+  demoMessageTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
@@ -105,8 +114,11 @@ import {
 } from "../../modules/plans/plan-services.js";
 import type { ClinicRepository } from "../../repository.js";
 import { type AuthenticatedUser, DomainError } from "../../repository.js";
+import type { Branch, UserBranchAccess } from "@crm/contracts";
+import { BranchScopeStore } from "../branch-scope.js";
 import {
   CLINIC_ID,
+  DEFAULT_BRANCH_ID,
   dateAt,
   now,
   type StoredRecurringPayable,
@@ -116,6 +128,141 @@ import {
 
 export class MemoryRepositoryContext {
   operations!: ClinicRepository;
+  readonly branchScope = new BranchScopeStore();
+  readonly branches: Branch[] = [
+    {
+      id: DEFAULT_BRANCH_ID,
+      clinicId: CLINIC_ID,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+      phones: [],
+    },
+  ];
+
+  /** Filial padrão da clínica (criada na primeira consulta, como o gatilho do PostgreSQL). */
+  defaultBranchId(clinicId: string) {
+    const current = this.branches.find(
+      (branch) => branch.clinicId === clinicId && branch.isDefault,
+    );
+    if (current) return current.id;
+    const branch: Branch = {
+      id: uuid(),
+      clinicId,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+      phones: [],
+    };
+    this.branches.push(branch);
+    return branch.id;
+  }
+
+  /** Filial do registro; os anteriores às filiais ficam na padrão. */
+  branchOf(item: { clinicId: string; branchId?: string }) {
+    return item.branchId ?? this.defaultBranchId(item.clinicId);
+  }
+
+  /** O registro está nas filiais da leitura em curso? */
+  inBranchScope(item: { clinicId: string; branchId?: string }) {
+    const ids = this.branchScope.readIds();
+    return !ids || ids.includes(this.branchOf(item));
+  }
+
+  /** Grava as filiais do usuário (lista validada contra as filiais da clínica). */
+  setUserBranchAccess(
+    user: AuthenticatedUser,
+    access: UserBranchAccess,
+    actorUserId: string,
+  ) {
+    const branchIds = access.allBranches ? [] : [...new Set(access.branchIds)];
+    if (
+      branchIds.some(
+        (id) =>
+          !this.branches.some(
+            (branch) => branch.clinicId === user.clinicId && branch.id === id,
+          ),
+      )
+    )
+      throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
+    user.allBranches = access.allBranches;
+    user.branchIds = branchIds;
+    this.addAdminAudit(
+      actorUserId,
+      "users.branches_updated",
+      "user",
+      user.id,
+      { allBranches: user.allBranches, branchIds },
+      user.clinicId,
+    );
+  }
+
+  /** O profissional (e o que é dele: comissões, acertos) está nas filiais da leitura? */
+  professionalInBranchScope(professionalId: string) {
+    const professional = this.professionals.find(
+      (item) => item.id === professionalId,
+    );
+    return professional
+      ? this.inBranchScope(professional)
+      : this.branchScope.readIds() === null;
+  }
+
+  /** Só os registros das filiais da leitura em curso (relatórios e painéis). */
+  scoped<T extends { clinicId: string; branchId?: string }>(items: T[]) {
+    return items.filter((item) => this.inBranchScope(item));
+  }
+
+  /** Comissões dos profissionais das filiais da leitura em curso. */
+  scopedCommissions() {
+    return this.commissions.filter((item) =>
+      this.professionalInBranchScope(item.professionalId),
+    );
+  }
+
+  /** A turma está nas filiais da leitura em curso? */
+  groupInBranchScope(groupId: string) {
+    const group = this.groupClasses.find((item) => item.id === groupId);
+    return Boolean(group && this.inBranchScope(group));
+  }
+
+  /** Recusa (403) gravar em filial fora das filiais da requisição. */
+  assertBranchInScope(branchId: string) {
+    const ids = this.branchScope.readIds();
+    if (ids && !ids.includes(branchId))
+      throw new DomainError(
+        "BRANCH_ACCESS_DENIED",
+        "Este registro é de uma filial que não está selecionada.",
+        403,
+      );
+  }
+
+  /**
+   * Filial comum aos recursos (profissional, sala, turma…) de uma gravação: recusa mistura de
+   * filiais (409 BRANCH_MISMATCH) e filial fora do escopo da requisição (403).
+   */
+  resourceBranch(...items: { clinicId: string; branchId?: string }[]) {
+    return this.sameBranch(
+      "Profissional e sala precisam ser da mesma filial.",
+      ...items,
+    );
+  }
+
+  /** Como `resourceBranch`, com a mensagem própria da operação. */
+  sameBranch(
+    message: string,
+    ...items: { clinicId: string; branchId?: string }[]
+  ) {
+    const ids = new Set(items.map((item) => this.branchOf(item)));
+    if (ids.size > 1) throw new DomainError("BRANCH_MISMATCH", message, 409);
+    const [branchId] = [...ids];
+    this.assertBranchInScope(branchId!);
+    return branchId!;
+  }
+
+  /** Filial em que a requisição em curso grava. */
+  writeBranchId(clinicId: string) {
+    return this.branchScope.writeId() ?? this.defaultBranchId(clinicId);
+  }
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
@@ -216,6 +363,12 @@ export class MemoryRepositoryContext {
   readonly sessionMovements: SessionMovement[] = [];
 
   readonly receivables: Receivable[] = [];
+  /** Número do recibo (sequencial por clínica), atribuído na primeira emissão (QM15). */
+  readonly receiptNumbers: Array<{
+    clinicId: string;
+    receivableId: string;
+    number: number;
+  }> = [];
 
   readonly payablePaymentEvents: PayablePaymentEvent[] = [];
   readonly financialDateCorrections: FinancialDateCorrection[] = [];
@@ -308,12 +461,21 @@ export class MemoryRepositoryContext {
     OutboundMessage & { idempotencyKey: string }
   > = [];
 
+  readonly messageTemplates: StoredMessageTemplate[] = [];
+
+  readonly messageTemplateImages: StoredMessageTemplateImage[] = [];
+
+  readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
 
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   readonly professionalUsers = new Map<string, string>();
+
+  /** Foto do perfil por usuário (`users.avatar_data_url` no PostgreSQL). */
+  readonly userAvatars = new Map<string, string>();
 
   readonly users: AuthenticatedUser[] = [
     {
@@ -399,18 +561,21 @@ export class MemoryRepositoryContext {
       "Helena Almeida",
       "11987654321",
       ["Pós-operatório"],
+      1,
     ),
     this.seedPatient(
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       "Lucas Ribeiro",
       "11976543210",
       ["Esportivo"],
+      2,
     ),
     this.seedPatient(
       "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       "Sônia Barros",
       "11965432109",
       ["Recorrente"],
+      3,
     ),
   ];
 
@@ -498,6 +663,15 @@ export class MemoryRepositoryContext {
     this.groupEnrollments.push(...data.enrollments);
     this.groupSessions.push(...data.sessions);
     this.groupAttendance.push(...data.attendance);
+    const createdAt = new Date().toISOString();
+    this.messageTemplates.push(
+      ...demoMessageTemplates.map((template) => ({
+        ...template,
+        clinicId: CLINIC_ID,
+        createdAt,
+        updatedAt: createdAt,
+      })),
+    );
     this.receiptEvents.push(
       ...data.financialEvents
         .filter((event) => event.kind === "payment")
@@ -519,11 +693,13 @@ export class MemoryRepositoryContext {
     fullName: string,
     phone: string,
     tags: string[],
+    number: number,
   ): Patient {
     return {
       id,
       clinicId: CLINIC_ID,
-      recordNumber: `PAC-${id.slice(0, 4).toUpperCase()}`,
+      // PAC-00001..00003, como no seed do PostgreSQL; os demo começam em PAC-00004 (QM15).
+      recordNumber: formatSequenceNumber("PAC", number),
       fullName,
       phone,
       tags,
@@ -581,8 +757,11 @@ export class MemoryRepositoryContext {
     const professional = this.linkedProfessional(user.clinicId, user.id);
     const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
+    const allBranches = user.role === "admin" || (user.allBranches ?? true);
     return {
       ...summary,
+      allBranches,
+      branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
       ...(professional
         ? {
             professionalId: professional.id,
@@ -1158,8 +1337,10 @@ export class MemoryRepositoryContext {
       );
     }
 
+    const branchId = this.resourceBranch(professional, room);
     const timestamp = now();
     const appointment: Appointment = {
+      branchId,
       professionalId: input.professionalId,
       roomId: input.roomId,
       serviceId: input.serviceId,
@@ -1478,9 +1659,14 @@ export class MemoryRepositoryContext {
     );
     const timestamp = now();
     const { planTemplateId, ...terms } = input;
+    // Renovação fica na filial do plano anterior; venda nova, na filial da requisição.
+    const branchId = renewedFrom
+      ? this.branchOf(renewedFrom)
+      : this.writeBranchId(clinicId);
     const plan: PatientPlan = {
       ...terms,
       ...totals,
+      branchId,
       services: input.services.map((item) => ({
         ...item,
         serviceName:
@@ -1521,6 +1707,7 @@ export class MemoryRepositoryContext {
       (installment) => ({
         id: uuid(),
         clinicId,
+        branchId,
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
@@ -1871,7 +2058,8 @@ export class MemoryRepositoryContext {
         const item = this.receivables.find(
           (candidate) => candidate.id === event.receivableId,
         );
-        if (!item || item.clinicId !== clinicId) return null;
+        if (!item || item.clinicId !== clinicId || !this.inBranchScope(item))
+          return null;
         const tab = this.patientTabs.find(
           (candidate) => candidate.receivableId === item.id,
         );
@@ -1906,22 +2094,27 @@ export class MemoryRepositoryContext {
 
   renderDocument(
     body: string,
-    patientName: string,
-    planName?: string,
+    patient: Patient,
+    plan?: PatientPlan,
     professional?: Professional,
-    planServices: PatientPlan["services"] = [],
   ) {
-    return body
-      .replaceAll("{{paciente_nome}}", patientName)
-      .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
-      .replaceAll(
-        "{{plano_servicos}}",
-        formatPlanServices(planServices) || "Não vinculado",
-      )
-      .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
-      .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
-      .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
-      .replaceAll("{{clinica_nome}}", this.clinicSettings.name);
+    return renderDocumentTemplate(
+      body,
+      documentTemplateValues({
+        clinic: this.clinicSettings,
+        patient,
+        ...(plan
+          ? {
+              plan: {
+                ...plan,
+                services: formatPlanServices(plan.services),
+              },
+            }
+          : {}),
+        ...(professional ? { professional } : {}),
+        issuedOn: new Date().toLocaleDateString("pt-BR"),
+      }),
+    );
   }
 
   channelAllowed(

@@ -545,6 +545,8 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Salvar avaliação" });
     expect(save).toBeDisabled();
+    // Sem nota, o botão diz o que falta (QM14).
+    expect(save).toHaveAccessibleDescription("Falta: Nota de 0 a 10.");
     for (let score = 0; score <= 10; score += 1) {
       expect(
         screen.getByRole("button", { name: `Nota ${score}` }),
@@ -555,6 +557,8 @@ describe("application shell", () => {
       "aria-pressed",
       "true",
     );
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-describedby");
     fireEvent.change(screen.getByLabelText("Comentário (opcional)"), {
       target: { value: "Ótimo atendimento" },
     });
@@ -761,6 +765,9 @@ describe("application shell", () => {
     expect(
       within(dialog).getByRole("button", { name: /Importar \d+ cliente/ }),
     ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: /Importar \d+ cliente/ }),
+    ).toHaveAccessibleDescription("Falta: Planilha de clientes.");
 
     const content =
       "nome;telefone\nAna Lima;11999990000\n;123\nHelena A.;11987654321\nAna Lima;11999990000\n";
@@ -770,6 +777,7 @@ describe("application shell", () => {
       },
     });
     expect(await within(dialog).findByText("1 válido")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("1 com erro")).toBeInTheDocument();
     expect(within(dialog).getByText("2 duplicados")).toBeInTheDocument();
     expect(
@@ -1392,7 +1400,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => patients } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );

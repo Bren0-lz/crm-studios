@@ -138,6 +138,15 @@ describe("CRM API", () => {
         },
       })
     ).json();
+    // QM15: prontuário sequencial da clínica, sem trecho de UUID.
+    expect(patient.recordNumber).toBe("PAC-00124");
+    const next = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers,
+      payload: { fullName: "Rita Sequência", phone: "11999990001", tags: [] },
+    });
+    expect(next.json().recordNumber).toBe("PAC-00125");
     const [professional, room, service] = await Promise.all([
       app.inject({ method: "GET", url: "/professionals", headers }),
       app.inject({ method: "GET", url: "/rooms", headers }),
@@ -957,12 +966,15 @@ describe("CRM API", () => {
         ),
     ).toBe(10001);
 
-    await app.inject({
-      method: "PATCH",
-      url: `/appointments/${appointment.id}/status`,
+    // Realizado só vale a partir do início do atendimento: conclui com o relógio nele.
+    const completed = await patchStatusAt(
+      app,
       headers,
-      payload: { status: "completed" },
-    });
+      appointment.startsAt,
+      appointment.id,
+      { status: "completed" },
+    );
+    expect(completed.statusCode).toBe(200);
     let plans = await app.inject({ method: "GET", url: "/plans", headers });
     expect(plans.json()[0].remainingSessions).toBe(4);
 

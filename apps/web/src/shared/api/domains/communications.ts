@@ -1,4 +1,15 @@
 import type {
+  CampaignFilterOptions,
+  CampaignRecipientStatus,
+  CampaignRecipientUpdate,
+  MessageTemplate,
+  MessageTemplateImageContent,
+  MessageTemplateInput,
+  WhatsappCampaign,
+  WhatsappCampaignDetail,
+  WhatsappCampaignInput,
+  WhatsappCampaignPreview,
+  WhatsappCampaignPreviewInput,
   BroadcastInput,
   BroadcastResult,
   CommunicationCenter,
@@ -46,4 +57,50 @@ export const communicationsApi = {
       method: "POST",
       body: JSON.stringify({ referenceDate, ...options }),
     }),
+  messageTemplates: () =>
+    request<MessageTemplate[]>("/communications/templates"),
+  messageTemplateImage: (imageId: string) =>
+    request<MessageTemplateImageContent>(
+      `/communications/template-images/${imageId}`,
+    ),
+  createMessageTemplate: (input: MessageTemplateInput) =>
+    request<MessageTemplate>("/communications/templates", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateMessageTemplate: (id: string, input: MessageTemplateInput) =>
+    request<MessageTemplate>(`/communications/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  archiveMessageTemplate: (id: string, archived: boolean) =>
+    request<MessageTemplate>(`/communications/templates/${id}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ archived }),
+    }),
+  whatsappCampaigns: () =>
+    request<WhatsappCampaign[]>("/communications/campaigns"),
+  whatsappCampaign: (id: string) =>
+    request<WhatsappCampaignDetail>(`/communications/campaigns/${id}`),
+  campaignFilterOptions: () =>
+    request<CampaignFilterOptions>("/communications/campaigns/filter-options"),
+  previewWhatsappCampaign: (input: WhatsappCampaignPreviewInput) =>
+    request<WhatsappCampaignPreview>("/communications/campaigns/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createWhatsappCampaign: (input: WhatsappCampaignInput) =>
+    request<WhatsappCampaignDetail>("/communications/campaigns", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  setCampaignRecipientStatus: (
+    campaignId: string,
+    recipientId: string,
+    status: CampaignRecipientStatus,
+  ) =>
+    request<CampaignRecipientUpdate>(
+      `/communications/campaigns/${campaignId}/recipients/${recipientId}`,
+      { method: "POST", body: JSON.stringify({ status }) },
+    ),
 };

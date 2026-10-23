@@ -47,11 +47,11 @@ describe("AppointmentPatientWarnings", () => {
     mount(true);
     expect(
       await screen.findByText(
-        "Cliente sem plano vigente com saldo: o atendimento não terá sessão para descontar.",
+        "Cliente sem plano com sessões disponíveis",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Cliente com a etiqueta “Pagamento atrasado”."),
+      screen.getByText("Cliente com a etiqueta “Pagamento atrasado”"),
     ).toBeInTheDocument();
   });
 
@@ -59,8 +59,8 @@ describe("AppointmentPatientWarnings", () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse([]));
     mount(false);
     expect(
-      await screen.findByText("Cliente com a etiqueta “Pagamento atrasado”."),
+      await screen.findByText("Cliente com a etiqueta “Pagamento atrasado”"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/sem plano vigente/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sem plano com sessões/)).not.toBeInTheDocument();
   });
 });

@@ -16,7 +16,6 @@ describe("client profile and segments", () => {
     source: "Indicação",
     interests: ["Pilates"],
     gender: "female",
-    clientType: "fixed",
     email: "cliente@example.com",
   };
 
@@ -33,22 +32,18 @@ describe("client profile and segments", () => {
     },
   );
 
-  it("combines exact interests, gender, client type and email availability", () => {
+  it("combines exact interests, gender and email availability", () => {
     expect(matchesPatientProfile({}, {})).toBe(true);
     expect(
       matchesPatientProfile(profile, {
         interest: "Pilates",
         gender: "female",
-        clientType: "fixed",
-        record: "with_email",
+            record: "with_email",
       }),
     ).toBe(true);
     expect(matchesPatientProfile(profile, { interest: "Postura" })).toBe(false);
     expect(matchesPatientProfile({}, { interest: "Pilates" })).toBeFalsy();
     expect(matchesPatientProfile(profile, { gender: "male" })).toBe(false);
-    expect(matchesPatientProfile(profile, { clientType: "rotating" })).toBe(
-      false,
-    );
     expect(matchesPatientProfile(profile, { record: "without_email" })).toBe(
       false,
     );

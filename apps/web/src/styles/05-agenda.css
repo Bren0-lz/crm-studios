@@ -1,7 +1,9 @@
 .page-actions,
 .agenda-toolbar-end {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
@@ -15,7 +17,7 @@
 
 .view-toggle .tab-button {
   min-height: calc(var(--space-6) + var(--space-1));
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -109,7 +111,8 @@
 }
 
 .agenda-toolbar {
-  padding: var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
   background: white;
   border-bottom: 0;
 }
@@ -149,6 +152,34 @@
   background: #fafbf8;
 }
 
+.agenda-professionals:has(.agenda-day-layout),
+.agenda-professionals:has(.agenda-professional-filter) {
+  align-items: center;
+}
+
+.agenda-day-layout {
+  margin-left: auto;
+}
+
+/* Filtro "Profissional" no fim da faixa da legenda (antes do Grade/Lista, no Dia). */
+.agenda-professional-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: #5b6b62;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.agenda-professional-filter + .agenda-day-layout {
+  margin-left: 0;
+}
+.agenda-professional-filter select {
+  width: auto;
+  min-width: calc(var(--space-8) * 3);
+  font-size: var(--text-sm);
+}
+
 .agenda-legend-label {
   color: #5b6b62;
   font-size: var(--text-xs);
@@ -175,14 +206,14 @@
   padding: 10px 12px 13px;
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
 }
 .month-grid {
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--line);
 }
 .month-day {
@@ -275,6 +306,7 @@
   background: #dcece6;
 }
 .month-event i,
+.month-group i,
 .week-appointment i,
 .service-name i {
   display: inline-block;
@@ -296,19 +328,18 @@
   text-overflow: ellipsis;
 }
 .month-event time {
-  font-weight: 800;
+  font-weight: 600;
 }
 .month-block {
   background: #fbf0eb;
   color: #955a48;
 }
 .month-group {
-  border-left: 3px solid var(--green-2);
   background: #e3f0e9;
   color: var(--green);
 }
 .month-group time {
-  font-weight: 800;
+  font-weight: 600;
 }
 .month-more {
   width: 100%;
@@ -352,7 +383,7 @@
 }
 .day-event time {
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
 }
 .day-event span {
   display: grid;
@@ -389,7 +420,6 @@ button.day-event:focus-visible {
   outline-offset: 2px;
 }
 .day-event.group {
-  border-left: 4px solid var(--green-2);
   background: #eef6f1;
 }
 .day-event.block {
@@ -499,7 +529,6 @@ button.day-event:focus-visible {
 
 .agenda-day-heading h2 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-md);
   font-weight: 700;
 }
@@ -543,7 +572,7 @@ button.day-event:focus-visible {
 .week-agenda > section > header span {
   color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 800;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -639,7 +668,6 @@ button.day-event:focus-visible {
   font-size: var(--text-xs);
 }
 
-.dashboard-sales,
 .sales-report {
   margin-bottom: 24px;
 }
@@ -666,12 +694,6 @@ button.day-event:focus-visible {
 
 .sales-period {
   margin: 0 23px 16px;
-  color: #63766d;
-  font-size: var(--text-sm);
-}
-
-.dashboard-sales-context {
-  margin: 0 23px 14px;
   color: #63766d;
   font-size: var(--text-sm);
 }
@@ -928,7 +950,6 @@ button.day-event:focus-visible {
 
 .agenda-main h3 {
   margin: var(--space-1) 0 var(--space-2);
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-xl);
 }
 
@@ -940,7 +961,7 @@ button.day-event:focus-visible {
 
 .agenda-card:hover {
   border-color: #c9d5d0;
-  box-shadow: 0 7px 21px rgba(42, 53, 48, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Aula em grupo: mesmo card do atendimento, com fundo verde-claro e sem ação de clique. */
@@ -960,19 +981,6 @@ button.day-event:focus-visible {
 .group-class .service-name {
   color: var(--green);
 }
-.group-class .service-name svg,
-.week-appointment.group-class > svg {
-  flex: 0 0 auto;
-  color: var(--green-2);
-}
-/* audit: mobile-ok ícone (10px) + texto, dentro de coluna da semana de no mínimo 145px */
-.week-appointment.group-class {
-  grid-template-columns: 10px minmax(0, 1fr);
-}
-.week-appointment.group-class > svg {
-  grid-column: 1;
-  grid-row: 1;
-}
 
 .agenda-time strong,
 .agenda-time span,
@@ -982,7 +990,6 @@ button.day-event:focus-visible {
 }
 
 .agenda-time strong {
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
 }
@@ -1081,6 +1088,13 @@ button.day-event:focus-visible {
     padding: var(--space-3) var(--space-4);
     gap: var(--space-2);
   }
+  .agenda-professional-filter {
+    width: 100%;
+    margin-left: 0;
+  }
+  .agenda-professional-filter select {
+    flex: 1;
+  }
   .agenda-panel .legend {
     gap: var(--space-2) var(--space-4);
     font-size: var(--text-xs);
@@ -1136,12 +1150,11 @@ button.day-event:focus-visible {
 .appointment-detail-section {
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: white;
 }
 .appointment-detail-section h3 {
   margin: 0 0 16px;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-lg);
 }
 .appointment-detail-section p {
@@ -1202,9 +1215,23 @@ button.day-event:focus-visible {
 .appointment-detail-footer > .modal-actions {
   margin-top: 0;
 }
+/* Segunda linha do rodapé: fluxo de presença à direita, dica de liberação logo abaixo. */
+.appointment-attendance-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+.tab-footer + .appointment-attendance-actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.appointment-attendance-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
 /* Dica de liberação (realizado/falta só a partir de 15 min antes do início). */
 .appointment-detail-hint {
-  flex-basis: 100%;
   margin: 0;
   text-align: right;
 }
@@ -1239,14 +1266,10 @@ button.day-event:focus-visible {
   border-radius: var(--radius-sm);
   background: var(--paper);
 }
-.appointment-detail-grid .emergency-contact.is-missing,
-.patient-overview-grid .emergency-contact.is-missing {
+.appointment-detail-grid .emergency-contact.is-missing {
   border: 1px solid var(--red);
   border-radius: var(--radius-sm);
   background: #fbf2ef;
-}
-.patient-overview-grid .emergency-contact.is-missing {
-  padding: var(--space-2) var(--space-3);
 }
 .appointment-detail-grid .emergency-contact.is-missing small,
 .appointment-detail-grid .emergency-contact.is-missing strong,
@@ -1350,20 +1373,33 @@ button.day-event:focus-visible {
 .appointment-patient-warnings {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #f0d9a8;
+  border-radius: var(--radius-md);
   background: #fdf1dc;
   color: #8a5a12;
   font-size: var(--text-sm);
-  font-weight: 700;
+  line-height: 1.45;
+}
+.appointment-patient-warnings > svg {
+  flex-shrink: 0;
+  margin-top: calc(var(--space-1) - 2px);
 }
 .appointment-patient-warnings ul {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.appointment-patient-warnings li {
+  display: grid;
+  gap: calc(var(--space-1) - 2px);
+}
+.appointment-patient-warnings strong {
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 .appointment-cancel-notify {
   display: flex;
@@ -1519,13 +1555,14 @@ button.day-event:focus-visible {
 }
 .appt-status-swatch.appt-status-cancelled {
   border-radius: 2px;
-  background: linear-gradient(
-    to bottom right,
-    transparent 45%,
-    var(--appt-status-swatch) 45% 55%,
-    transparent 55%
-  ),
-  #f1f1ef;
+  background:
+    linear-gradient(
+      to bottom right,
+      transparent 45%,
+      var(--appt-status-swatch) 45% 55%,
+      transparent 55%
+    ),
+    #f1f1ef;
   box-shadow: 0 0 0 1px var(--appt-status-swatch);
 }
 
@@ -1545,16 +1582,11 @@ button.day-event:focus-visible {
   line-clamp: 2;
 }
 
-/* V10: cor do profissional (--pro-color, do cadastro) na borda esquerda dos cartões, nas
-   bolinhas e no avatar do cabeçalho da grade do Dia. O fundo continua com a cor do status. */
-.agenda-card[style*="--pro-color"],
-.week-appointment[style*="--pro-color"],
-.month-event[style*="--pro-color"],
-.day-grid-event[style*="--pro-color"] {
-  border-left: 3px solid var(--pro-color);
-}
+/* Cor do profissional (--pro-color, do cadastro) nas bolinhas e no avatar do cabeçalho
+   da grade do Dia. O fundo continua com a cor do status. */
 .pro-dot,
 .month-event .pro-dot,
+.month-group .pro-dot,
 .week-appointment .pro-dot,
 .service-name .pro-dot,
 .legend .pro-dot {

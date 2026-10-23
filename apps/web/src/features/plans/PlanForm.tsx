@@ -4,6 +4,7 @@ import {
   nextPlanPeriod,
   planPeriodEnd,
   planPeriodMonths,
+  planServiceValueForSessions,
   planTypeKind,
   planTypeLabels,
   type PatientOption,
@@ -25,12 +26,16 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
+import {
+  useConfirmDiscard,
+  useModalDirty,
+} from "../../shared/workflows/ModalGuardContext";
 import { planKindLabels } from "./model";
-import { MoneyInput } from "../../shared/components/MoneyInput";
 
 export function PlanForm({
   patients,
@@ -105,6 +110,16 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline] = useState(() => JSON.stringify(form));
+  // O que falta para contratar ou renovar: o botão fica desativado listando (QM14).
+  const missing = useMissingFields(
+    [
+      !renewing && !form.patientId && "Cliente",
+      !renewing && !form.planTemplateId && "Plano cadastrado",
+      Boolean(renewing) && !form.name.trim() && "Nome do plano",
+      !form.validFrom && "Início",
+      !form.firstDueDate && "Primeiro vencimento",
+    ].filter((item): item is string => Boolean(item)),
+  );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
   const [catalogError, setCatalogError] = useState("");
@@ -159,13 +174,23 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
+  // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
+  const references = renewing
+    ? renewing.services
+    : (templates?.find((item) => item.id === form.planTemplateId)?.services ??
+      []);
+  const sessionsEditable = form.kind === "single";
+  const servicesTotal = (entries: PatientPlanInput["services"]) =>
+    entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
+  const formDirty =
+    additionalDirty || Boolean(groupId) || JSON.stringify(form) !== baseline;
+  // Sem guarda própria (PlanForm dentro de outro modal): o Modal pergunta antes de descartar.
+  useModalDirty(!registerCloseGuard && formDirty);
+  const confirmDiscard = useConfirmDiscard();
   const prompt = useUnsavedChangesPrompt({
     section: renewing ? "Renovação do plano" : "Contratação do plano",
-    dirty:
-      Boolean(registerCloseGuard) &&
-      (additionalDirty ||
-        Boolean(groupId) ||
-        JSON.stringify(form) !== baseline),
+    dirty: Boolean(registerCloseGuard) && formDirty,
     busy: loading,
     save,
     discard: () => {},
@@ -174,7 +199,10 @@ export function PlanForm({
     () => registerCloseGuard?.(prompt.confirmLeave),
     [registerCloseGuard, prompt.confirmLeave],
   );
-  const cancel = () => prompt.confirmLeave(onCancel);
+  const cancel = () =>
+    registerCloseGuard
+      ? prompt.confirmLeave(onCancel)
+      : confirmDiscard(onCancel);
   async function submit(event: FormEvent) {
     event.preventDefault();
     try {
@@ -210,9 +238,27 @@ export function PlanForm({
                     value={form.kind}
                     onChange={(e) => {
                       const kind = e.target.value as PatientPlan["kind"];
+                      const entries =
+                        kind === "single"
+                          ? form.services
+                          : form.services.map((item) => {
+                              const reference = references.find(
+                                (entry) => entry.serviceId === item.serviceId,
+                              );
+                              return reference
+                                ? {
+                                    ...item,
+                                    totalSessions: reference.totalSessions,
+                                    totalValueInCents:
+                                      reference.totalValueInCents,
+                                  }
+                                : item;
+                            });
                       setForm({
                         ...form,
                         kind,
+                        services: entries,
+                        totalValueInCents: servicesTotal(entries),
                         // Recorrente: uma cobrança por ciclo.
                         installments:
                           kind === "recurring" ? 1 : form.installments,
@@ -378,48 +424,47 @@ export function PlanForm({
                     min="1"
                     max="1000"
                     step="1"
+                    readOnly={!sessionsEditable}
                     value={entry.totalSessions}
                     onChange={(event) => {
+                      const totalSessions = Number(event.target.value);
+                      const reference = references.find(
+                        (item) => item.serviceId === entry.serviceId,
+                      );
                       const entries = form.services.map((item, position) =>
                         position === index
                           ? {
                               ...item,
-                              totalSessions: Number(event.target.value),
+                              totalSessions,
+                              totalValueInCents: reference
+                                ? planServiceValueForSessions(
+                                    reference,
+                                    totalSessions,
+                                  )
+                                : item.totalValueInCents,
                             }
                           : item,
                       );
                       setForm({
                         ...form,
                         services: entries,
+                        totalValueInCents: servicesTotal(entries),
                       });
                     }}
                   />
                 </label>
                 <label>
                   Valor do serviço {index + 1}
-                  <MoneyInput
-                    required
-                    valueInCents={entry.totalValueInCents}
-                    onChange={(cents) => {
-                      const entries = form.services.map((item, position) =>
-                        position === index
-                          ? {
-                              ...item,
-                              totalValueInCents: cents ?? 0,
-                            }
-                          : item,
-                      );
-                      setForm({
-                        ...form,
-                        services: entries,
-                        totalValueInCents: entries.reduce(
-                          (sum, item) => sum + item.totalValueInCents,
-                          0,
-                        ),
-                      });
-                    }}
+                  <input
+                    readOnly
+                    value={currency.format(entry.totalValueInCents / 100)}
                   />
                 </label>
+                <p className="span-2 muted-copy">
+                  {sessionsEditable
+                    ? "Avulso: o valor é calculado pelo preço por sessão do plano."
+                    : "Sessões e valor seguem o plano cadastrado."}
+                </p>
               </fieldset>
             ))}
             <label className="span-2">
@@ -517,6 +562,7 @@ export function PlanForm({
               {error}
             </div>
           )}
+          {missing.hint}
           <div className="modal-actions span-2">
             <button
               type="button"
@@ -528,11 +574,8 @@ export function PlanForm({
             </button>
             <button
               className="primary-button"
-              disabled={
-                loading ||
-                !form.patientId ||
-                (!renewing && !form.planTemplateId)
-              }
+              disabled={loading || missing.blocked}
+              aria-describedby={missing.describedBy}
             >
               {renewing
                 ? loading

@@ -14,7 +14,12 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal } from "../../shared/components/Modal";
+import {
+  isCompleteDateTime,
+  useMissingFields,
+} from "../../shared/components/MissingFields";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   leadVisitTypes,
   toLocalDateTimeInput,
@@ -87,6 +92,15 @@ export function LeadAppointmentModal({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dirty = useFormDirty(form, options !== null);
+  const missing = useMissingFields(
+    [
+      !form.serviceId && "Serviço",
+      !form.professionalId && "Profissional",
+      !form.roomId && "Sala",
+      !isCompleteDateTime(form.startsAt) && "Data e horário",
+    ].filter((item): item is string => Boolean(item)),
+  );
   useEffect(() => {
     let active = true;
     Promise.all([api.services(), api.professionals(), api.rooms()])
@@ -146,6 +160,7 @@ export function LeadAppointmentModal({
       title="Agendar experimental"
       subtitle={`${lead.fullName} · o atendimento entra na agenda sem criar cadastro de cliente.`}
       busy={saving}
+      dirty={dirty}
       onClose={onClose}
     >
       {loadError ? (
@@ -250,16 +265,14 @@ export function LeadAppointmentModal({
               />
             </label>
             {error && <div className="form-error span-2">{error}</div>}
+            {missing.hint}
             <div className="modal-actions span-2">
+              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
               <button
-                type="button"
-                className="secondary-button"
-                onClick={onClose}
-                disabled={saving}
+                className="primary-button"
+                disabled={saving || missing.blocked}
+                aria-describedby={missing.describedBy}
               >
-                Cancelar
-              </button>
-              <button className="primary-button" disabled={saving}>
                 {saving ? "Agendando…" : "Confirmar agendamento"}
               </button>
             </div>

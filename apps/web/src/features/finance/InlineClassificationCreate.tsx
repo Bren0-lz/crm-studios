@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 /**
  * Cadastro rápido de categoria ou centro de custo sem sair do formulário da despesa.
@@ -20,6 +20,8 @@ export function InlineClassificationCreate({
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const missingId = useId();
+  const tooShort = name.trim().length < 2;
   async function create() {
     setSaving(true);
     setError("");
@@ -73,11 +75,17 @@ export function InlineClassificationCreate({
       <button
         type="button"
         className="secondary-button"
-        disabled={saving || name.trim().length < 2}
+        disabled={saving || tooShort}
+        aria-describedby={tooShort ? missingId : undefined}
         onClick={() => void create()}
       >
         {saving ? "Criando…" : "Criar"}
       </button>
+      {tooShort && (
+        <span className="field-hint" id={missingId}>
+          Falta: Nome (pelo menos 2 caracteres).
+        </span>
+      )}
       {error && <span className="form-error">{error}</span>}
     </span>
   );

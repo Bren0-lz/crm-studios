@@ -120,7 +120,7 @@ describe("application shell", () => {
       return { ok: true, status: 200, json: async () => [] } as Response;
     });
     render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
+      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
         <App />
       </MemoryRouter>,
     );
@@ -130,9 +130,13 @@ describe("application shell", () => {
     fireEvent.submit(
       within(panel).getByLabelText("Texto do comunicado").closest("form")!,
     );
+    // Sem texto, "Ver prévia" fica desativado dizendo o que falta (QM14).
     expect(
-      within(panel).getByText("Escreva o texto do comunicado."),
-    ).toBeInTheDocument();
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeDisabled();
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toHaveAccessibleDescription("Falta: Texto do comunicado.");
     expect(
       vi
         .mocked(fetch)
@@ -142,6 +146,10 @@ describe("application shell", () => {
     fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
       target: { value: "Aviso geral" },
     });
+    expect(
+      within(panel).getByRole("button", { name: "Ver prévia" }),
+    ).toBeEnabled();
+    expect(within(panel).queryByText(/Falta:/)).not.toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
     expect(
       await within(panel).findByText(

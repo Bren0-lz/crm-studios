@@ -1,10 +1,17 @@
 import type {
   Lead,
   LeadActivity,
+  LeadBoard,
+  LeadFilter,
+  LeadFilterOptions,
+  LeadInsights,
+  LeadStagePage,
   LeadContact,
   LeadContactInput,
   LeadConversion,
   LeadConversionInput,
+  LeadDuplicateMatch,
+  LeadDuplicateQuery,
   LeadInput,
   LeadStage,
   LeadTask,
@@ -13,8 +20,37 @@ import type {
 } from "@crm/contracts";
 import { request } from "../transport";
 
+/** Filtros do funil (+ paginação) como query string, sem chaves vazias. */
+function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...filter, ...extra }))
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 export const commercialApi = {
   leads: () => request<Lead[]>("/leads"),
+  /** Funil paginado: a primeira página e o total de cada etapa. */
+  leadBoard: (filter: LeadFilter = {}) =>
+    request<LeadBoard>(`/leads/board${leadQuery(filter)}`),
+  /** Próxima página de uma coluna do funil ("Carregar mais"). */
+  leadStagePage: (stage: LeadStage, filter: LeadFilter, offset: number) =>
+    request<LeadStagePage>(
+      `/leads/board/${stage}${leadQuery(filter, { offset })}`,
+    ),
+  leadInsights: (filter: LeadFilter = {}) =>
+    request<LeadInsights>(`/leads/insights${leadQuery(filter)}`),
+  leadFilterOptions: () => request<LeadFilterOptions>("/leads/filter-options"),
+  /** Clientes e leads com o mesmo telefone, e-mail ou CPF (só id e nome). */
+  leadDuplicates: (query: LeadDuplicateQuery) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (typeof value === "string" && value.trim()) params.set(key, value);
+    return request<{ matches: LeadDuplicateMatch[] }>(
+      `/leads/duplicates?${params.toString()}`,
+    );
+  },
   createLead: (input: LeadInput) =>
     request<Lead>("/leads", { method: "POST", body: JSON.stringify(input) }),
   updateLead: (id: string, input: LeadInput) =>

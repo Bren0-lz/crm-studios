@@ -102,7 +102,6 @@ export function RelationshipPage() {
         }))}
       />
       <PageHeader
-        eyebrow="Acompanhamento de clientes"
         title="Contatos sugeridos"
         description="Clientes que merecem um contato agora, com a mensagem pronta para o WhatsApp."
       />
@@ -132,7 +131,6 @@ export function RelationshipPage() {
         <section className="panel plans-panel">
           <div className="panel-head">
             <div>
-              <span className="eyebrow">Fila de contatos</span>
               <h2>Quem contatar</h2>
             </div>
           </div>
