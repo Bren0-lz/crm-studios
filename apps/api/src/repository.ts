@@ -1,4 +1,5 @@
 import type { Branch, BranchInput } from "@crm/contracts";
+import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
 import type {
   CampaignRecipientStatus,
   CampaignRecipientUpdate,
@@ -436,6 +437,17 @@ export interface ClinicRepository {
     userId: string,
     passwordHash: string,
   ): Promise<boolean>;
+  /** Perfil do próprio usuário (foto e profissional ligado); `null` = usuário inexistente. */
+  getOwnProfile(clinicId: string, userId: string): Promise<OwnProfile | null>;
+  /**
+   * O usuário altera o próprio nome e foto e, com profissional ligado, o nome e a cor dele na
+   * agenda (mesma transação). `null` = usuário inexistente.
+   */
+  updateOwnProfile(
+    clinicId: string,
+    userId: string,
+    input: OwnProfileUpdate,
+  ): Promise<OwnProfile | null>;
   /**
    * Liga o usuário a um profissional da agenda (`professionals.user_id`) ou desliga (`null`).
    * Um usuário tem no máximo um profissional: ligar outro desliga o anterior. `null` = usuário

@@ -18,6 +18,7 @@ import { GroupsPage } from "../features/groups/GroupsPage";
 import { HistoryPage } from "../features/history/HistoryPage";
 import { PatientsPage } from "../features/patients/PatientsPage";
 import { PlansPage } from "../features/plans/PlansPage";
+import { ProfilePage } from "../features/profile/ProfilePage";
 import { RelationshipPage } from "../features/relationship/RelationshipPage";
 import { ReportsPage } from "../features/reports/ReportsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
@@ -138,6 +139,7 @@ export function AppRoutes() {
                   path="/relatorios"
                   element={allow("reports", <ReportsPage />)}
                 />
+                <Route path="/perfil" element={<ProfilePage />} />
                 <Route
                   path="/configuracoes"
                   element={allow("settings", <SettingsPage />)}

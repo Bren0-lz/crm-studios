@@ -20,15 +20,36 @@ import type {
   ClinicSettings,
   ClinicSettingsInput,
   HistoryActor,
+  OwnPasswordChange,
+  OwnProfile,
+  OwnProfileUpdate,
   Professional,
   Room,
   Service,
   UserSummary,
 } from "@crm/contracts";
 import type { Branch, BranchInput } from "@crm/contracts";
+import { TOKEN_KEY, storeUser, type Session } from "../session";
 import { request } from "../transport";
 
 export const administrationApi = {
+  /** Perfil do usuário logado (página "Meu perfil"). */
+  ownProfile: () => request<OwnProfile>("/me/profile"),
+  updateOwnProfile: (input: OwnProfileUpdate) =>
+    request<OwnProfile>("/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  /** Troca a própria senha; a API encerra as outras sessões e devolve um token novo. */
+  changeOwnPassword: async (input: OwnPasswordChange) => {
+    const session = await request<Session>("/me/password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    localStorage.setItem(TOKEN_KEY, session.token);
+    storeUser(session.user);
+    return session;
+  },
   /** Filiais ativas que o usuário logado acessa (seletor do cabeçalho). */
   branches: () => request<Branch[]>("/branches"),
   adminBranches: () => request<Branch[]>("/admin/branches"),

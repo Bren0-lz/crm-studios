@@ -29,6 +29,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/plan-(?:catalog|templates)(?:\/|$)/, ["plans"]],
   [/^\/finance\//, ["finance", "history"]],
   [/^\/admin\/users\/[^/]+\/commission$/, ["finance"]],
+  // Nome e cor do profissional ligado aparecem na agenda.
+  [/^\/me\/profile$/, ["agenda"]],
   // Status do atendimento consome sessão do plano e entra no dashboard e na ficha.
   [
     /^\/(?:appointments|group-sessions|group-replacements|group-enrollments|groups|schedule-blocks|holidays)(?:\/|$)/,

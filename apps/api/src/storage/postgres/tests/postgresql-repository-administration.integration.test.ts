@@ -591,6 +591,76 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("updates the own profile, photo and linked professional in one transaction", async () => {
+    const crefito = `PERFIL-${randomUUID().slice(0, 8)}`;
+    const cleanup = async () => {
+      await cleanupPermissionsUser();
+      await pool.query(
+        "DELETE FROM professionals WHERE clinic_id = $1 AND crefito = $2",
+        [clinicId, crefito],
+      );
+    };
+    await cleanup();
+    try {
+      const user = await repository.createAdminUser(
+        clinicId,
+        ownerId,
+        {
+          fullName: "Teste Perfil",
+          email: permissionsUserEmail,
+          role: "user",
+          password: "Segura@1234",
+        },
+        "hash-de-teste",
+      );
+      expect(await repository.getOwnProfile(clinicId, user.id)).toMatchObject({
+        fullName: "Teste Perfil",
+        avatarDataUrl: "",
+        professional: null,
+      });
+      const inserted = await pool.query<{ id: string }>(
+        `INSERT INTO professionals (clinic_id, user_id, full_name, crefito, specialty, color)
+         VALUES ($1, $2, 'Perfil Agenda', $3, 'Pilates', '#5c6f68') RETURNING id`,
+        [clinicId, user.id, crefito],
+      );
+      const photo = "data:image/png;base64,iVBORw0KGgo=";
+      const updated = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: photo,
+        agendaName: "Perfil na Agenda",
+        agendaColor: "#123456",
+      });
+      expect(updated).toMatchObject({
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: photo,
+        professional: {
+          id: inserted.rows[0]!.id,
+          fullName: "Perfil na Agenda",
+          color: "#123456",
+        },
+      });
+      const kept = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+      });
+      expect(kept).toMatchObject({
+        avatarDataUrl: photo,
+        professional: { fullName: "Perfil na Agenda" },
+      });
+      const removed = await repository.updateOwnProfile(clinicId, user.id, {
+        fullName: "Teste Perfil Novo",
+        avatarDataUrl: "",
+      });
+      expect(removed?.avatarDataUrl).toBe("");
+      expect(
+        await repository.updateOwnProfile(clinicId, randomUUID(), {
+          fullName: "Ninguém",
+        }),
+      ).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("refuses to demote or deactivate the last active admin of a clinic", async () => {
     const lonelyClinic = "0f550000-0000-4000-8000-000000000055";
     const cleanup = async () => {

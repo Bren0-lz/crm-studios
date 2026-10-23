@@ -6,6 +6,8 @@ import {
   type ClinicSettings,
   type ClinicSettingsInput,
   type HistoryActor,
+  type OwnProfile,
+  type OwnProfileUpdate,
   type ProfessionalInput,
   type RoomInput,
   type ServiceInput,
@@ -13,6 +15,7 @@ import {
   permissionModules,
   resolvePermissionInput,
 } from "@crm/contracts";
+import type { Pool, PoolClient } from "pg";
 import { DomainError, lastAdminError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -61,6 +64,51 @@ function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
     address: row.address ?? "",
     timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+type OwnProfileRow = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: OwnProfile["role"];
+  jobTitle: string | null;
+  avatarDataUrl: string | null;
+  professionalId: string | null;
+  professionalName: string | null;
+  professionalColor: string | null;
+};
+
+async function selectOwnProfile(
+  client: Pool | PoolClient,
+  clinicId: string,
+  userId: string,
+): Promise<OwnProfile | null> {
+  const result = await client.query<OwnProfileRow>(
+    `SELECT u.id, u.full_name AS "fullName", u.email, u.role, u.job_title AS "jobTitle",
+       u.avatar_data_url AS "avatarDataUrl", p.id AS "professionalId",
+       p.full_name AS "professionalName", p.color AS "professionalColor"
+     FROM users u
+     LEFT JOIN professionals p ON p.clinic_id = u.clinic_id AND p.user_id = u.id
+     WHERE u.clinic_id = $1 AND u.id = $2`,
+    [clinicId, userId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    fullName: row.fullName,
+    email: row.email,
+    role: row.role,
+    ...(row.jobTitle ? { jobTitle: row.jobTitle } : {}),
+    avatarDataUrl: row.avatarDataUrl ?? "",
+    professional: row.professionalId
+      ? {
+          id: row.professionalId,
+          fullName: row.professionalName!,
+          color: row.professionalColor!,
+        }
+      : null,
   };
 }
 
@@ -464,6 +512,60 @@ export function createAdministrationRepository(
       } finally {
         client.release();
       }
+    },
+
+    async getOwnProfile(clinicId: string, userId: string) {
+      return selectOwnProfile(repositoryContext.pool, clinicId, userId);
+    },
+
+    async updateOwnProfile(
+      clinicId: string,
+      userId: string,
+      input: OwnProfileUpdate,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const updated = await client.query(
+          `UPDATE users SET full_name = $3,
+             avatar_data_url = CASE WHEN $4::boolean THEN NULLIF($5, '') ELSE avatar_data_url END,
+             updated_at = now()
+           WHERE clinic_id = $1 AND id = $2`,
+          [
+            clinicId,
+            userId,
+            input.fullName,
+            input.avatarDataUrl !== undefined,
+            input.avatarDataUrl ?? "",
+          ],
+        );
+        if (!updated.rowCount) return null;
+        const professional = await client.query<{ fullName: string }>(
+          `UPDATE professionals SET full_name = COALESCE($3, full_name),
+             color = COALESCE($4, color), updated_at = now()
+           WHERE clinic_id = $1 AND user_id = $2
+           RETURNING full_name AS "fullName"`,
+          [
+            clinicId,
+            userId,
+            input.agendaName ?? null,
+            input.agendaColor ?? null,
+          ],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          userId,
+          "user.profile_updated",
+          "user",
+          userId,
+          {
+            fullName: input.fullName,
+            ...(professional.rows[0]
+              ? { agendaName: professional.rows[0].fullName }
+              : {}),
+          },
+        );
+        return selectOwnProfile(client, clinicId, userId);
+      });
     },
 
     async getClinicSettings(clinicId: string) {
