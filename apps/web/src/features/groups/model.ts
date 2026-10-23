@@ -1,4 +1,10 @@
-import type { GroupSession } from "@crm/contracts";
+import type {
+  GroupClass,
+  GroupEnrollment,
+  GroupSession,
+  PatientPlan,
+  Service,
+} from "@crm/contracts";
 import { groupOperationRange } from "../../shared/lib/formatting";
 
 /** "Pilates Turma A · 18 de out. · 18:00", com data e hora no fuso da clínica (não no do navegador). */
@@ -66,4 +72,76 @@ export function groupCalendarRange(month: string, now = new Date()) {
     from: from < operation.from ? from : operation.from,
     to: to > operation.to ? to : operation.to,
   };
+}
+
+/** Semanas consideradas num mês, como nos planos (`planSessionsForPeriod`). */
+const weeksPerMonth = 4;
+
+export interface GroupRevenueRow {
+  group: GroupClass;
+  enrolled: number;
+  freeSeats: number;
+  /** Encontros por mês: horários semanais × 4 semanas. */
+  sessionsPerMonth: number;
+  /** Soma mensal dos planos ativos dos matriculados para o serviço da turma. */
+  currentInCents: number;
+  /** Atual + vagas livres × valor de referência por aluno (turma cheia). */
+  potentialInCents: number;
+}
+
+/**
+ * Faturamento mensal de cada turma. Cada matriculado contribui com o valor por sessão do
+ * plano ativo mais recente que cobre o serviço da turma (valor do serviço ÷ sessões)
+ * × encontros da turma no mês. Matriculado sem plano ativo não soma. As vagas livres
+ * valem o ticket médio dos matriculados com plano; sem nenhum, o preço avulso do serviço.
+ */
+export function groupRevenueOverview(
+  groups: GroupClass[],
+  enrollments: GroupEnrollment[],
+  plans: PatientPlan[],
+  services: Pick<Service, "id" | "priceInCents">[],
+  today: string,
+): GroupRevenueRow[] {
+  return groups.map((group) => {
+    const sessionsPerMonth = (group.weeklySlots ?? []).length * weeksPerMonth;
+    const members = enrollments.filter(
+      (item) => item.groupId === group.id && item.status === "active",
+    );
+    const monthlyValues = members.flatMap((member) => {
+      const share = plans
+        .filter(
+          (plan) =>
+            plan.patientId === member.patientId &&
+            plan.status === "active" &&
+            plan.validFrom <= today &&
+            (!plan.validUntil || plan.validUntil >= today),
+        )
+        .sort((a, b) => b.validFrom.localeCompare(a.validFrom))
+        .flatMap((plan) => plan.services)
+        .find((item) => item.serviceId === group.serviceId);
+      return share
+        ? [
+            Math.round(
+              (share.totalValueInCents / share.totalSessions) *
+                sessionsPerMonth,
+            ),
+          ]
+        : [];
+    });
+    const currentInCents = monthlyValues.reduce((sum, value) => sum + value, 0);
+    const referenceInCents = monthlyValues.length
+      ? Math.round(currentInCents / monthlyValues.length)
+      : (services.find((item) => item.id === group.serviceId)?.priceInCents ??
+          0) * sessionsPerMonth;
+    const enrolled = group.activeEnrollments;
+    const freeSeats = Math.max(0, group.capacity - enrolled);
+    return {
+      group,
+      enrolled,
+      freeSeats,
+      sessionsPerMonth,
+      currentInCents,
+      potentialInCents: currentInCents + freeSeats * referenceInCents,
+    };
+  });
 }

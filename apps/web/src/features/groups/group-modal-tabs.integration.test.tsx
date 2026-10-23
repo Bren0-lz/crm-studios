@@ -203,7 +203,7 @@ describe("group modal tabs", () => {
     });
     fireEvent.keyDown(details, { key: "ArrowRight" });
     expect(operations).toHaveFocus();
-    expect(screen.getByRole("tabpanel")).toHaveAccessibleName(
+    expect(within(dialog).getByRole("tabpanel")).toHaveAccessibleName(
       "Frequência e reposições",
     );
     expect(
