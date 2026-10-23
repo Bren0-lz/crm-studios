@@ -118,8 +118,11 @@ describe("screens without the patients module", () => {
 
   it("opens contracts without the clients and plans modules", async () => {
     renderAs("contracts", "/contratos");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo documento" }),
+    );
     expect(
-      await screen.findByRole("button", { name: "Criar rascunho" }),
+      await screen.findByRole("button", { name: "Preparar conteúdo" }),
     ).toBeDisabled();
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
@@ -129,7 +132,7 @@ describe("screens without the patients module", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
     expect(
-      screen.getByRole("button", { name: "Criar rascunho" }),
+      screen.getByRole("button", { name: "Preparar conteúdo" }),
     ).toBeEnabled();
     expectOnlyOptions();
     expect(
@@ -144,7 +147,9 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {

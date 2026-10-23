@@ -1,4 +1,5 @@
 import {
+  documentContentFromText,
   effectivePermissions,
   permissionEditModules,
   permissionModules,
@@ -24,6 +25,12 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { api } from "../../api";
+import { installDocumentBrowserMocks } from "../../test-support/document-editor";
+
+vi.mock("../contracts/document-pdf", () => ({
+  generateDocumentPdf: async () =>
+    new Blob(["%PDF-1.7\nContract"], { type: "application/pdf" }),
+}));
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-10-12T12:00:00Z";
@@ -255,9 +262,46 @@ describe("searchable client selection across modules", () => {
   });
 
   it("clears a linked contract plan on client edits and issues for the new selection", async () => {
-    const create = vi.spyOn(api, "createDocument");
+    installDocumentBrowserMocks();
+    const snapshotBody = `Contrato para ${breno.fullName}. Condições combinadas.`;
+    const snapshotContent = documentContentFromText(snapshotBody);
+    const branding = {
+      name: "Studios Aryana",
+      logoDataUrl: "",
+      timezone: "America/Sao_Paulo",
+    };
+    vi.spyOn(api, "previewDocument").mockResolvedValue({
+      snapshotBody,
+      snapshotContent,
+      branding,
+      missingFields: [],
+      templateName: "Contrato padrão",
+      templateVersion: 1,
+      patientName: breno.fullName,
+    });
+    const create = vi
+      .spyOn(api, "createDocument")
+      .mockImplementation(async (input) => ({
+        ...input,
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        clinicId,
+        snapshotBody,
+        snapshotContent,
+        branding,
+        templateName: "Contrato padrão",
+        templateVersion: 1,
+        patientName: breno.fullName,
+        status: "draft",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }));
     page("/contratos");
-    const save = await screen.findByRole("button", { name: "Criar rascunho" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo documento" }),
+    );
+    const save = await screen.findByRole("button", {
+      name: "Preparar conteúdo",
+    });
     expect(save).toBeDisabled();
     const input = screen.getByRole("combobox", { name: "Cliente" });
     fireEvent.change(input, {
@@ -272,6 +316,15 @@ describe("searchable client selection across modules", () => {
     expect(save).toBeDisabled();
     await selectBreno(document.body);
     fireEvent.click(save);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({ patientId: breno.id }),

@@ -1,3 +1,4 @@
+import { installDocumentBrowserMocks } from "../../test-support/document-editor";
 import {
   fireEvent,
   render,
@@ -43,6 +44,10 @@ describe("issued document sharing", () => {
       const body = /\/documents(\?|$)/.test(url) ? documents : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
+    installDocumentBrowserMocks();
+    const clicked = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
     const print = vi.spyOn(window, "print").mockImplementation(() => {});
     render(
       <MemoryRouter initialEntries={["/contratos"]}>
@@ -70,8 +75,18 @@ describe("issued document sharing", () => {
 
     fireEvent.click(within(issued).getByRole("button", { name: /Salvar PDF/ }));
     const dialog = screen.getByRole("dialog", { name: "Contrato Pilates" });
-    expect(dialog).toHaveTextContent("escolha “Salvar como PDF”");
-    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    const link = await within(dialog).findByRole("link", {
+      name: "Salvar PDF",
+    });
+    expect(link).toHaveAttribute("download", "Contrato Pilates.pdf");
+    expect(link).toHaveAttribute("href", "blob:test-contract");
+    await waitFor(() => expect(clicked).toHaveBeenCalledTimes(1));
+    expect(print).not.toHaveBeenCalled();
     print.mockRestore();
   });
 });
+
+vi.mock("./document-pdf", () => ({
+  generateDocumentPdf: async () =>
+    new Blob(["%PDF-1.7\nTest contract"], { type: "application/pdf" }),
+}));
