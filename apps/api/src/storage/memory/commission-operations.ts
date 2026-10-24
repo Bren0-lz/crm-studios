@@ -11,6 +11,98 @@ import {
 } from "../../modules/finance/commission-calculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+/**
+ * Sessões concluídas da competência ainda sem comissão, com a regra e o serviço que a
+ * geração usaria (mesma seleção de `generateCommissions`).
+ */
+export function commissionCandidates(
+  context: MemoryRepositoryContext,
+  clinicId: string,
+  competence: string,
+) {
+  const individual = context.appointments
+    .filter(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.patientId &&
+        item.status === "completed",
+    )
+    .map((item) => ({
+      appointmentId: item.id,
+      professionalId: item.professionalId,
+      professionalName: item.professionalName,
+      serviceId: item.serviceId,
+      startsAt: item.startsAt,
+    }));
+  const collective = context.groupAttendance
+    .filter(
+      (item) =>
+        item.clinicId === clinicId &&
+        (item.status === "present" || item.outcome === "present"),
+    )
+    .flatMap((item) => {
+      const meeting = context.groupSessions.find(
+          (entry) =>
+            entry.clinicId === clinicId &&
+            entry.id === item.sessionId &&
+            entry.status !== "cancelled",
+        ),
+        group = context.groupClasses.find(
+          (entry) =>
+            entry.clinicId === clinicId && entry.id === meeting?.groupId,
+        );
+      return meeting && group
+        ? [
+            {
+              groupAttendanceId: item.id,
+              professionalId: meeting.professionalId,
+              professionalName: meeting.professionalName,
+              serviceId: group.serviceId,
+              startsAt: meeting.startsAt,
+            },
+          ]
+        : [];
+    });
+  const candidates = [];
+  for (const source of [...individual, ...collective]) {
+    const date = clinicDateOf(
+      new Date(source.startsAt),
+      context.clinicSettings.timezone,
+    );
+    if (
+      date.slice(0, 7) !== competence ||
+      context.commissions.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          ("appointmentId" in source
+            ? item.appointmentId === source.appointmentId
+            : item.groupAttendanceId === source.groupAttendanceId),
+      )
+    )
+      continue;
+    const userId = context.professionalUsers.get(source.professionalId),
+      rule = selectCommissionRule(
+        [
+          ...context.commissionRules.filter(
+            (item) => item.clinicId === clinicId,
+          ),
+          ...context.userCommissionRules.filter(
+            (item) => item.clinicId === clinicId,
+          ),
+        ],
+        source.professionalId,
+        userId,
+        source.serviceId,
+        date,
+      ),
+      service = context.services.find(
+        (item) => item.clinicId === clinicId && item.id === source.serviceId,
+      );
+    if (!rule || !service) continue;
+    candidates.push({ source, rule, service });
+  }
+  return candidates;
+}
 export function createCommissionOperationsRepository(
   context: MemoryRepositoryContext,
 ) {
@@ -63,85 +155,11 @@ export function createCommissionOperationsRepository(
       return { ...rule };
     },
     async generateCommissions(clinicId: string, competence: string) {
-      const individual = context.appointments
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.patientId &&
-            item.status === "completed",
-        )
-        .map((item) => ({
-          appointmentId: item.id,
-          professionalId: item.professionalId,
-          professionalName: item.professionalName,
-          serviceId: item.serviceId,
-          startsAt: item.startsAt,
-        }));
-      const collective = context.groupAttendance
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            (item.status === "present" || item.outcome === "present"),
-        )
-        .flatMap((item) => {
-          const meeting = context.groupSessions.find(
-              (entry) =>
-                entry.clinicId === clinicId &&
-                entry.id === item.sessionId &&
-                entry.status !== "cancelled",
-            ),
-            group = context.groupClasses.find(
-              (entry) =>
-                entry.clinicId === clinicId && entry.id === meeting?.groupId,
-            );
-          return meeting && group
-            ? [
-                {
-                  groupAttendanceId: item.id,
-                  professionalId: meeting.professionalId,
-                  professionalName: meeting.professionalName,
-                  serviceId: group.serviceId,
-                  startsAt: meeting.startsAt,
-                },
-              ]
-            : [];
-        });
-      for (const source of [...individual, ...collective]) {
-        const date = clinicDateOf(
-          new Date(source.startsAt),
-          context.clinicSettings.timezone,
-        );
-        if (
-          date.slice(0, 7) !== competence ||
-          context.commissions.some(
-            (item) =>
-              item.clinicId === clinicId &&
-              ("appointmentId" in source
-                ? item.appointmentId === source.appointmentId
-                : item.groupAttendanceId === source.groupAttendanceId),
-          )
-        )
-          continue;
-        const userId = context.professionalUsers.get(source.professionalId),
-          rule = selectCommissionRule(
-            [
-              ...context.commissionRules.filter(
-                (item) => item.clinicId === clinicId,
-              ),
-              ...context.userCommissionRules.filter(
-                (item) => item.clinicId === clinicId,
-              ),
-            ],
-            source.professionalId,
-            userId,
-            source.serviceId,
-            date,
-          ),
-          service = context.services.find(
-            (item) =>
-              item.clinicId === clinicId && item.id === source.serviceId,
-          );
-        if (!rule || !service) continue;
+      for (const { source, rule, service } of commissionCandidates(
+        context,
+        clinicId,
+        competence,
+      )) {
         const snapshot: AdminUserCommissionInput = {
           percentage: rule.percentage,
           effectiveFrom: rule.effectiveFrom,

@@ -17,6 +17,7 @@ const additionalPermissions = new Set([
   "finance.suppliers_manage",
   "patients.products_update",
   "reports.dre",
+  "reports.team_finance",
   "communications.templates",
   "communications.campaigns",
 ]);
@@ -139,6 +140,7 @@ const operations = {
   reports: {
     dre: "Consultar DRE por competência",
     management: "Consultar relatório gerencial",
+    team_finance: "Consultar desempenho financeiro da equipe",
     retention: "Consultar retenção",
     clients: "Consultar relatório de clientes",
     sales: "Consultar vendas",
@@ -201,6 +203,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
           const legacyEdit: AppModule[] = module === "reports" ? [] : [module];
           if (key === "finance.external_records_manage")
             dependencies.push("finance.external_records_view");
+          if (key === "reports.team_finance")
+            dependencies.push("reports.management");
           if (key === "patients.timeline") {
             dependencies.push("crm.view");
             legacyView.push("crm");
