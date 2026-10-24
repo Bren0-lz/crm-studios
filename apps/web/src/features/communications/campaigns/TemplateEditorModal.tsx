@@ -6,26 +6,16 @@ import {
   type MessageTemplate,
   type MessageTemplateInput,
 } from "@crm/contracts";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bold,
-  ImagePlus,
-  Italic,
-  Strikethrough,
-  UserRound,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, ImagePlus, X } from "lucide-react";
 import { useId, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { api } from "../../../api";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { useTemplateImages } from "./images";
+import { MessageBodyEditor } from "./MessageBodyEditor";
 import {
   formatBytes,
-  insertAtSelection,
   templateDraft,
-  wrapSelection,
   type EditorImage,
   type TemplateDraft,
 } from "./model";
@@ -58,7 +48,6 @@ export function TemplateEditorModal({
   onSaved: (template: MessageTemplate) => void;
 }) {
   const formId = useId();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<TemplateDraft>(
     () => initial ?? templateDraft(template),
@@ -72,37 +61,6 @@ export function TemplateEditorModal({
     draft.images.flatMap((image) => ("id" in image ? [image.id] : [])),
   );
   const remaining = MESSAGE_TEMPLATE_MAX_IMAGES - draft.images.length;
-
-  function setBody(body: string, selection?: [number, number]) {
-    setDraft((current) => ({ ...current, body }));
-    if (!selection) return;
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(...selection);
-    });
-  }
-
-  function insertCode(code: string) {
-    const element = textareaRef.current;
-    const next = insertAtSelection(
-      draft.body,
-      code,
-      element?.selectionStart ?? draft.body.length,
-      element?.selectionEnd ?? draft.body.length,
-    );
-    setBody(next.text, [next.cursor, next.cursor]);
-  }
-
-  function format(marker: string) {
-    const element = textareaRef.current;
-    const next = wrapSelection(
-      draft.body,
-      marker,
-      element?.selectionStart ?? draft.body.length,
-      element?.selectionEnd ?? draft.body.length,
-    );
-    setBody(next.text, [next.selectionStart, next.selectionEnd]);
-  }
 
   async function addFiles(files: File[]) {
     setImageError("");
@@ -232,64 +190,17 @@ export function TemplateEditorModal({
             />
           </label>
           <div className="template-body-field">
-            <label htmlFor={`${formId}-body`}>Mensagem</label>
-            <div
-              className="template-toolbar"
-              role="toolbar"
-              aria-label="Personalizar mensagem"
-            >
-              {messageVariables.map((variable) => (
-                <button
-                  key={variable.code}
-                  type="button"
-                  className="variable-chip"
-                  onClick={() => insertCode(variable.code)}
-                  title={`Insere ${variable.code}: vira "${variable.example}" na mensagem`}
-                >
-                  <UserRound size={14} aria-hidden="true" />
-                  Inserir {variable.label.toLowerCase()}
-                </button>
-              ))}
-              <span className="template-toolbar-divider" aria-hidden="true" />
-              <button
-                type="button"
-                className="icon-button format-button"
-                aria-label="Negrito"
-                title="Negrito (*texto*)"
-                onClick={() => format("*")}
-              >
-                <Bold size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="icon-button format-button"
-                aria-label="Itálico"
-                title="Itálico (_texto_)"
-                onClick={() => format("_")}
-              >
-                <Italic size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="icon-button format-button"
-                aria-label="Riscado"
-                title="Riscado (~texto~)"
-                onClick={() => format("~")}
-              >
-                <Strikethrough size={15} aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              id={`${formId}-body`}
-              ref={textareaRef}
-              required
-              rows={8}
-              maxLength={1000}
+            <span className="template-body-label" id={`${formId}-body`}>
+              Mensagem
+            </span>
+            <MessageBodyEditor
+              labelId={`${formId}-body`}
               value={draft.body}
+              maxLength={1000}
               placeholder={
                 "Olá, {{nome}}! Tudo bem?\nTemos uma novidade especial para você…"
               }
-              onChange={(event) => setBody(event.target.value)}
+              onChange={(body) => setDraft((current) => ({ ...current, body }))}
             />
             <span className="field-hint template-counter">
               {draft.body.length}/1000
