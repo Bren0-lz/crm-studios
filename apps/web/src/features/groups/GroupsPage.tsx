@@ -768,9 +768,9 @@ export function GroupsPage() {
               onClose={closeGroupDialogs}
             >
               <div className="group-modal-sections">
-                <section className="group-modal-section">
+                <section className="group-modal-section group-summary">
                   <h3>Dados da turma</h3>
-                  <dl className="patient-detail-fields">
+                  <dl className="group-summary-fields">
                     <div>
                       <dt>Serviço</dt>
                       <dd>{selectedGroup.serviceName}</dd>
@@ -783,23 +783,40 @@ export function GroupsPage() {
                       <dt>Sala</dt>
                       <dd>{selectedGroup.roomName}</dd>
                     </div>
+                  </dl>
+                  <dl className="group-summary-details">
                     <div>
                       <dt>Horário</dt>
                       <dd>
-                        {(selectedGroup.weeklySlots ?? []).length
-                          ? selectedGroup.weeklySlots
-                              .map((slot) => groupSlotLabel(slot, weekDayNames))
-                              .join(", ")
-                          : "Horários ainda não definidos"}
+                        {(selectedGroup.weeklySlots ?? []).length ? (
+                          <ul className="group-summary-slots">
+                            {selectedGroup.weeklySlots.map((slot) => (
+                              <li key={`${slot.weekday}-${slot.startTime}`}>
+                                <span>{weekDayNames[slot.weekday]}</span>{" "}
+                                <span>
+                                  {slot.startTime}–{slot.endTime}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "Horários ainda não definidos"
+                        )}
                       </dd>
                     </div>
-                    <div>
+                    <div className="group-summary-occupancy">
                       <dt>Matriculados</dt>
                       <dd>
-                        {groupSeatsLabel(
-                          selectedGroup.activeEnrollments,
-                          selectedGroup.capacity,
-                        )}
+                        <strong>
+                          {groupSeatsLabel(
+                            selectedGroup.activeEnrollments,
+                            selectedGroup.capacity,
+                          )}
+                        </strong>
+                        <span className="group-summary-capacity">
+                          Capacidade: {selectedGroup.capacity}{" "}
+                          {selectedGroup.capacity === 1 ? "pessoa" : "pessoas"}
+                        </span>
                       </dd>
                     </div>
                   </dl>
