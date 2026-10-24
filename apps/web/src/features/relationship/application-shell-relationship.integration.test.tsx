@@ -120,20 +120,41 @@ describe("application shell", () => {
       within(helenaCard).getByText("Plano termina em 3 dias"),
     ).toBeInTheDocument();
     expect(within(helenaCard).getByText("(11) 98765-4321")).toBeInTheDocument();
-    const whatsapp = within(helenaCard).getByRole("link", { name: /WhatsApp/ });
+    expect(
+      within(helenaCard).queryByRole("link", { name: /WhatsApp/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(helenaCard);
+    const helenaDetails = screen.getByRole("dialog", {
+      name: "Pendências de Helena",
+    });
+    const whatsapp = within(helenaDetails).getByRole("link", {
+      name: /WhatsApp/,
+    });
     expect(whatsapp).toHaveAttribute(
       "href",
       `https://wa.me/5511911112222?text=${encodeURIComponent("Oi Helena, seu plano está acabando.")}`,
     );
     expect(whatsapp).toHaveAttribute("target", "_blank");
-    expect(whatsapp).toHaveClass("whatsapp-button", "button-sm");
+    expect(whatsapp).toHaveClass("whatsapp-button");
     expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
+    fireEvent.click(
+      within(helenaDetails).getByRole("button", { name: "Fechar" }),
+    );
     const brunoCard = screen.getByText("Bruno Souza").closest("article")!;
+    fireEvent.click(
+      within(brunoCard).getByText("Veio uma vez há 70 dias e não voltou"),
+    );
+    const brunoDetails = screen.getByRole("dialog", {
+      name: "Pendências de Bruno",
+    });
     expect(
-      within(brunoCard).getByRole("link", { name: /WhatsApp/ }),
+      within(brunoDetails).getByRole("link", { name: /WhatsApp/ }),
     ).toHaveAttribute(
       "href",
       `https://wa.me/5511955556666?text=${encodeURIComponent("Oi Bruno, sentimos sua falta.")}`,
+    );
+    fireEvent.click(
+      within(brunoDetails).getByRole("button", { name: "Fechar" }),
     );
 
     const filters = screen.getByRole("group", { name: "Situação" });
@@ -147,7 +168,14 @@ describe("application shell", () => {
     fireEvent.click(within(filters).getByRole("button", { name: /Todas/ }));
 
     fireEvent.click(
-      within(helenaCard).getByRole("button", { name: "Registrar contato" }),
+      within(helenaCard).getByRole("button", {
+        name: "Ver pendências de Helena Almeida",
+      }),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Pendências de Helena" }),
+      ).getByRole("button", { name: "Registrar contato" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Registrar contato" });
     expect(

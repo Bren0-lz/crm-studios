@@ -179,7 +179,13 @@ describe("client pending details from suggested contacts", () => {
       within(dialog).getByRole("link", { name: "Abrir ficha do cliente" }),
     ).toHaveAttribute("href", `/clientes/${patientId}`);
 
-    fireEvent.click(within(dialog).getByText("Fechar", { selector: "button" }));
+    expect(within(dialog).getByRole("link", { name: /WhatsApp/ })).toHaveClass(
+      "whatsapp-button",
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Registrar contato" }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -193,7 +199,10 @@ describe("client pending details from suggested contacts", () => {
     );
     await screen.findByText("Helena Almeida");
     const card = screen.getByText("Helena Almeida").closest("article")!;
-    fireEvent.click(within(card).getByRole("button", { name: "Pendências" }));
+    expect(
+      within(card).queryByRole("button", { name: "Pendências" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(card);
     const dialog = screen.getByRole("dialog", {
       name: "Pendências de Helena",
     });

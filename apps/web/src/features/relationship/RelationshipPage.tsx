@@ -8,7 +8,6 @@ import {
   type RelationshipSettings,
   whatsappLink,
 } from "@crm/contracts";
-import { ListChecks, MessageCircle, PhoneCall } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -71,6 +70,11 @@ export function RelationshipPage() {
     (item) => !contextPatientId || item.patientId === contextPatientId,
   );
 
+  function openDetails(group: ContactSuggestion[]) {
+    setNotice("");
+    setDetails(group);
+  }
+
   function messageFor(suggestion: ContactSuggestion) {
     const template = settings?.messages[suggestion.reason] ?? "";
     return fillPatientMessage(template, suggestion.patientName);
@@ -90,6 +94,7 @@ export function RelationshipPage() {
       setReasonFilter("all");
     }
     setRecording(null);
+    setDetails(null);
     setNotice(`Contato com ${suggestion.patientName} registrado.`);
   }
 
@@ -181,9 +186,12 @@ export function RelationshipPage() {
             <div className="plans-grid">
               {visibleGroups.map((group) => {
                 const suggestion = group[0]!;
-                const contactPhone = suggestion.whatsapp || suggestion.phone;
                 return (
-                  <article className="plan-card" key={suggestion.patientId}>
+                  <article
+                    className="plan-card suggestion-card"
+                    key={suggestion.patientId}
+                    onClick={() => openDetails(group)}
+                  >
                     <div className="plan-card-head suggestion-reasons">
                       {group.map((item) => (
                         <span
@@ -206,7 +214,6 @@ export function RelationshipPage() {
                         type="button"
                         className="suggestion-name-button"
                         aria-label={`Ver pendências de ${suggestion.patientName}`}
-                        onClick={() => setDetails(group)}
                       >
                         {suggestion.patientName}
                       </button>
@@ -218,41 +225,6 @@ export function RelationshipPage() {
                       <span>Telefone</span>
                       <strong>{formatPhone(suggestion.phone)}</strong>
                     </div>
-                    <div className="plan-actions">
-                      <a
-                        className="whatsapp-button button-sm"
-                        href={whatsappLink(
-                          contactPhone,
-                          messageFor(suggestion),
-                        )}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MessageCircle size={15} aria-hidden="true" />
-                        WhatsApp
-                      </a>
-                      <button
-                        type="button"
-                        className="secondary-button button-sm"
-                        onClick={() => setDetails(group)}
-                      >
-                        <ListChecks size={15} aria-hidden="true" />
-                        Pendências
-                      </button>
-                      {canEdit("relationship") &&
-                        can("relationship.activities_create") && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() => {
-                              setNotice("");
-                              setRecording(group);
-                            }}
-                          >
-                            <PhoneCall size={15} />
-                            Registrar contato
-                          </button>
-                        )}
-                    </div>
                   </article>
                 );
               })}
@@ -263,6 +235,15 @@ export function RelationshipPage() {
       {details && (
         <ClientPendingModal
           suggestions={details}
+          whatsappHref={whatsappLink(
+            details[0]!.whatsapp || details[0]!.phone,
+            messageFor(details[0]!),
+          )}
+          onRecord={
+            canEdit("relationship") && can("relationship.activities_create")
+              ? () => setRecording(details)
+              : undefined
+          }
           onClose={() => setDetails(null)}
         />
       )}

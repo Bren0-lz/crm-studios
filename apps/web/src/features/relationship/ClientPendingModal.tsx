@@ -6,7 +6,7 @@ import {
   isTabCreditPlan,
   patientFirstName,
 } from "@crm/contracts";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, MessageCircle, PhoneCall } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { allBranches, api } from "../../api";
@@ -66,9 +66,15 @@ function planStatus(plan: PatientPlan, today: string) {
 /** O que o cliente tem em aberto no sistema, aberto a partir de um contato sugerido. */
 export function ClientPendingModal({
   suggestions,
+  whatsappHref,
+  onRecord,
   onClose,
 }: {
   suggestions: ContactSuggestion[];
+  /** Link do WhatsApp com a mensagem da situação principal já preenchida. */
+  whatsappHref: string;
+  /** Ausente quando o perfil não pode registrar contato. */
+  onRecord?: (() => void) | undefined;
   onClose: () => void;
 }) {
   const suggestion = suggestions[0]!;
@@ -214,9 +220,21 @@ export function ClientPendingModal({
             Abrir ficha do cliente
           </Link>
         )}
-        <button type="button" className="primary-button" onClick={onClose}>
-          Fechar
-        </button>
+        {onRecord && (
+          <button type="button" className="secondary-button" onClick={onRecord}>
+            <PhoneCall size={16} aria-hidden="true" />
+            Registrar contato
+          </button>
+        )}
+        <a
+          className="whatsapp-button"
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <MessageCircle size={16} aria-hidden="true" />
+          WhatsApp
+        </a>
       </div>
     </Modal>
   );
