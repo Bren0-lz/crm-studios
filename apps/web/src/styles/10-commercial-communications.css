@@ -415,11 +415,113 @@
 
 .lead-analysis {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
-.lead-analysis h3 {
+.lead-analysis-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: var(--space-3);
+}
+
+.lead-analysis-kpis article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+}
+
+.lead-analysis-kpis article:first-child {
+  border-color: var(--mint);
+  background: var(--mint);
+}
+
+.lead-analysis-kpis span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.lead-analysis-kpis strong {
+  color: var(--ink);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.lead-analysis-kpis small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.lead-analysis-kpis small.is-warning {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.lead-analysis-section h3 {
   margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.lead-analysis-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.lead-analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.lead-analysis-table th,
+.lead-analysis-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.lead-analysis-table thead th {
+  background: var(--cream);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.lead-analysis-table tbody th {
+  width: 100%;
+  font-weight: 600;
+}
+
+.lead-analysis-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.lead-analysis-table .numeric-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.lead-analysis-rate {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.lead-analysis-empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  color: var(--muted);
   font-size: var(--text-md);
 }
 
