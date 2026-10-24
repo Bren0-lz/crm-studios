@@ -240,10 +240,6 @@
     grid-template-columns: 1fr;
   }
 
-  .communications-layout {
-    grid-template-columns: 1fr;
-  }
-
   .documents-layout {
     grid-template-columns: 1fr;
   }
@@ -329,7 +325,7 @@
   .receipt-content dl,
   .commercial-metrics,
   .activity-form,
-  .communications-layout,
+  .communication-form,
   .documents-layout,
   .report-grid,
   .dre-section,
@@ -475,10 +471,6 @@
   .message-list article > .message-row-foot {
     justify-content: flex-start;
     max-width: none;
-  }
-
-  .communication-history .message-list {
-    max-height: none;
   }
 
   .message-queue-toolbar > label:not(.checkbox-field) {
