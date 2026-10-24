@@ -193,24 +193,28 @@ export function MessageQueue({
                     onChange={() => toggle(message.id)}
                   />
                 )}
-                <strong>{message.patientName}</strong>
-                <span>
-                  {queueKindLabels[message.kind]} ·{" "}
-                  {message.channel === "whatsapp"
-                    ? "WhatsApp"
-                    : broadcastChannelLabels[message.channel]}
-                </span>
+                <div className="message-row-title">
+                  <strong>{message.patientName}</strong>
+                  <span>
+                    {queueKindLabels[message.kind]} ·{" "}
+                    {message.channel === "whatsapp"
+                      ? "WhatsApp"
+                      : broadcastChannelLabels[message.channel]}
+                  </span>
+                </div>
                 <span className={`status-pill ${message.status}`}>
                   {queueStatusLabels[message.status]}
                 </span>
               </div>
-              <p>{message.body}</p>
-              <NpsResponseAction message={message} onChanged={onChanged} />
-              <ManualMessageActions
-                message={message}
-                allowed={allowed(message.patientId, message.channel)}
-                onChanged={onChanged}
-              />
+              <p className="message-body">{message.body}</p>
+              <div className="message-row-foot">
+                <NpsResponseAction message={message} onChanged={onChanged} />
+                <ManualMessageActions
+                  message={message}
+                  allowed={allowed(message.patientId, message.channel)}
+                  onChanged={onChanged}
+                />
+              </div>
             </article>
           ))}
         </div>

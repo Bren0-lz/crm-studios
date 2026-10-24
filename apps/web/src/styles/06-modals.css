@@ -816,8 +816,6 @@ p.field-hint {
 /* Rodapé de formulário fora de modal: botão em tamanho normal, alinhado à direita. */
 .clinical-form > .modal-actions,
 .receipt-content > .modal-actions,
-.communication-compose form > .modal-actions,
-.reminder-generator > .modal-actions,
 .document-form > .modal-actions,
 .activity-form > .modal-actions {
   margin-top: 0;

@@ -526,71 +526,80 @@
   font-weight: 700;
 }
 
+/* Aba "Fila e lembretes": a fila à esquerda; mensagem individual e lembretes ao lado;
+   comunicado segmentado na largura toda, abaixo. */
 .communications-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(280px, 0.7fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  align-items: start;
+  gap: calc(var(--space-4) + 2px);
 }
 
-.communication-compose,
-.reminder-generator,
+.communications-layout.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.communication-side {
+  display: grid;
+  gap: calc(var(--space-4) + 2px);
+}
+
 .communication-broadcast {
-  padding: 23px;
+  grid-column: 1 / -1;
 }
 
-.communication-compose h2,
-.reminder-generator h2,
-.communication-broadcast h2 {
-  margin: 4px 0 16px;
-  font-size: var(--text-xl);
-}
-
-.communication-compose form,
-.reminder-generator {
+.communication-form {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: var(--space-4);
+  padding: calc(var(--space-5) - 3px) calc(var(--space-5) - 1px)
+    calc(var(--space-5) - 1px);
 }
 
-.communication-compose label,
-.reminder-generator label {
+.communication-form > label {
   display: grid;
-  gap: 7px;
+  gap: calc(var(--space-2) - 1px);
   color: #4d5b55;
-  font-size: var(--text-xs);
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
-.preference-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
+.communication-form .patient-picker {
+  margin-bottom: 0;
 }
 
-.preference-row label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: #f8f7f2;
-  font-size: var(--text-xs);
+.communication-group {
+  display: grid;
+  gap: var(--space-2);
 }
 
-.reminder-generator > p {
-  margin: 0 0 3px;
+.communication-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+
+.communication-options .checkbox-field {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.communication-options .checkbox-field:has(input:disabled) {
   color: var(--muted);
-  font-size: var(--text-xs);
-  line-height: 1.6;
+}
+
+.communication-form > .modal-actions {
+  margin-top: 0;
 }
 
 .outbox-note {
   display: flex;
-  gap: 9px;
-  margin-top: 5px;
-  padding: 11px;
-  border-radius: 10px;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-4) calc(var(--space-5) - 1px) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
   background: #f1efe8;
   color: var(--muted);
   font-size: var(--text-xs);
@@ -602,23 +611,35 @@
   color: var(--green-2);
 }
 
-.communication-history {
-  grid-column: 1 / -1;
+.broadcast-confirm .outbox-note {
+  margin: 0;
 }
 
-.communication-broadcast {
-  grid-column: 1 / -1;
+/* Comunicado: "Quem recebe" e "Mensagem" lado a lado. */
+.broadcast-form {
   display: grid;
-  align-content: start;
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
+  padding: calc(var(--space-5) - 3px) calc(var(--space-5) - 1px)
+    calc(var(--space-5) - 1px);
 }
 
-.communication-broadcast h2 {
-  margin-bottom: 0;
+.broadcast-step {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 
-.communication-broadcast .outbox-note {
-  margin-top: 0;
+.broadcast-form .filter-group > summary {
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.broadcast-form .filter-group > .form-grid {
+  margin-top: var(--space-3);
 }
 
 .broadcast-tags {
@@ -629,12 +650,14 @@
 .broadcast-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
 .broadcast-preview {
   display: grid;
   gap: var(--space-3);
+  margin: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -698,35 +721,27 @@
   margin: 0;
 }
 
-.message-list article {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) calc(var(--space-5) - 2px);
-  border-bottom: 1px solid var(--line);
-}
-
-/* Linha compacta da fila: nome, tipo e situação na mesma linha. */
-.message-row-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.message-row-head .status-pill {
-  margin-left: auto;
-}
-
-.message-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
+/* Fila: filtros, ações em lote e as mensagens. */
 .message-queue-toolbar {
   flex-wrap: wrap;
   align-items: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.message-queue-toolbar > label:not(.checkbox-field) {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 180px;
+  color: #4d5b55;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.message-queue-toolbar > .checkbox-field {
+  margin-left: auto;
+  font-size: var(--text-sm);
 }
 
 .message-bulk-bar {
@@ -734,23 +749,114 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) calc(var(--space-5) - 2px);
+  padding: var(--space-3) calc(var(--space-5) - 1px);
   border-bottom: 1px solid var(--line);
   background: var(--mint);
+}
+
+.message-bulk-bar > strong {
+  margin-right: auto;
+  font-size: var(--text-sm);
+}
+
+/* Lista com rolagem própria: uma fila longa não empurra o comunicado para longe. */
+.communication-history .message-list {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+/* Linha: nome e situação em cima; texto à esquerda e ações à direita. */
+.message-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) calc(var(--space-5) - 1px);
+  border-bottom: 1px solid var(--line);
+}
+
+.message-list article > .message-row-head {
+  grid-column: 1 / -1;
+}
+
+.message-list article > .message-row-foot {
+  justify-content: flex-end;
+  max-width: 260px;
+}
+
+.message-list article > .message-body:has(+ .message-row-foot:empty) {
+  grid-column: 1 / -1;
 }
 
 .message-list article:last-child {
   border-bottom: 0;
 }
 
-.message-row-head strong {
-  font-size: var(--text-sm);
+.message-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
-.message-row-head > span:not(.status-pill),
-.message-list article p {
+.message-row-head > input {
+  margin-top: calc(var(--space-1) - 1px);
+}
+
+.message-row-title {
+  display: grid;
+  flex: 1 1 auto;
+  gap: calc(var(--space-1) - 2px);
+  min-width: 0;
+}
+
+.message-row-title strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.message-row-title span {
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+.message-row-head .status-pill {
+  flex: 0 0 auto;
+}
+
+.message-list article .message-body {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #f8f7f2;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.message-row-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.message-row-foot:empty {
+  display: none;
+}
+
+.message-row-foot small,
+.message-row-foot .muted-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .documents-layout {
