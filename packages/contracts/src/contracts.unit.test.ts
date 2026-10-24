@@ -4,6 +4,7 @@ import {
   receivableContactMessage,
   planServiceValueForSessions,
   fillCampaignMessage,
+  usesAppointmentVariables,
   imageDataUrlInfo,
   messageTemplateInputSchema,
   whatsappCampaignAudienceSchema,
@@ -1357,6 +1358,18 @@ describe("campanhas de WhatsApp", () => {
         "  Ana   Paula Souza ",
       ),
     ).toBe("Oi, Ana! Ana Paula Souza {{x}}");
+  });
+
+  it("preenche data e hora do atendimento só quando informadas", () => {
+    const body = "{{nome}}, até {{data_atendimento}} às {{ hora_atendimento }}";
+    expect(usesAppointmentVariables(body)).toBe(true);
+    expect(usesAppointmentVariables("Oi, {{nome}}")).toBe(false);
+    expect(
+      fillCampaignMessage(body, "Ana Souza", { date: "23/10", time: "09:00" }),
+    ).toBe("Ana, até 23/10 às 09:00");
+    expect(fillCampaignMessage(body, "Ana Souza")).toBe(
+      "Ana, até {{data_atendimento}} às {{ hora_atendimento }}",
+    );
   });
 
   it("limita a 3 imagens válidas e calcula o tamanho decodificado", () => {

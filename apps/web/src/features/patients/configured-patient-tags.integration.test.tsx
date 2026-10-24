@@ -461,53 +461,6 @@ describe("configured patient tags", () => {
     expect(cpf).not.toHaveAttribute("aria-invalid");
   });
 
-  it("shows the configured tags with their colors in the segmented broadcast", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", storedUser(admin));
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/patient-tags"))
-        return jsonResponse([
-          patientTag("Pilates", "#276749", 1),
-          patientTag("VIP", "#7c3aed", 0),
-        ]);
-      if (url.includes("/communications"))
-        return jsonResponse({
-          deliveryMode: "outbox_only",
-          preferences: [],
-          messages: [],
-        });
-      return jsonResponse([
-        {
-          id: "99999999-9999-4999-8999-999999999999",
-          fullName: "Helena Almeida",
-          tags: ["Pilates"],
-        },
-      ]);
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(await screen.findByRole("tab", { name: "Comunicado" }));
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    const group = await within(panel).findByRole("group", {
-      name: "Etiquetas (qualquer uma)",
-    });
-    expect(
-      within(group)
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["Pilates1", "VIP0"]);
-    const vip = within(group).getByRole("button", { name: /^VIP/ });
-    expect(vip.style.getPropertyValue("--tag-color")).toBe("#7c3aed");
-    fireEvent.click(vip);
-    expect(vip).toHaveAttribute("aria-pressed", "true");
-  });
-
   describe("in the appointment details (Agenda › Dados do cliente)", () => {
     const patientId = "99999999-9999-4999-8999-999999999999";
     function mockAgenda(patientTags: string[], tagsResponse: () => Response) {

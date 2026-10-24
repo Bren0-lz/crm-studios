@@ -5,7 +5,7 @@ import {
   type ClinicCatalogEntry,
   type ClinicCatalogKind,
 } from "@crm/contracts";
-import { Activity, Megaphone, Package, Plus, Truck, Users } from "lucide-react";
+import { Activity, Megaphone, Package, Plus, Truck } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -17,24 +17,20 @@ import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ReportTabs, type ReportTab } from "../reports/index";
 
-type Group = "clients" | "commercial" | "products" | "suppliers" | "clinical";
+type Group = "commercial" | "products" | "suppliers" | "clinical";
 const groups: ReportTab<Group>[] = [
-  { key: "clients", label: "Clientes", icon: Users },
   { key: "commercial", label: "Comercial", icon: Megaphone },
   { key: "products", label: "Produtos", icon: Package },
   { key: "suppliers", label: "Fornecedores", icon: Truck },
   { key: "clinical", label: "Clínico", icon: Activity },
 ];
 const groupKinds: Record<Group, ClinicCatalogKind[]> = {
-  clients: ["interest", "level"],
   commercial: ["lead_source", "lead_channel", "lead_lost_reason"],
   products: ["product_category", "product_brand"],
   suppliers: [],
   clinical: ["muscle_group"],
 };
-const kindHints: Record<ClinicCatalogKind, string> = {
-  interest: "Modalidades e objetivos marcados no cadastro do cliente.",
-  level: "Níveis de condicionamento usados nas turmas e no acompanhamento.",
+const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
   product_category: "Agrupam os produtos do estoque; aceitam subcategorias.",
   product_brand: "Fabricantes dos produtos vendidos ou usados na clínica.",
   muscle_group: "Usados nos exercícios e nas evoluções clínicas.",

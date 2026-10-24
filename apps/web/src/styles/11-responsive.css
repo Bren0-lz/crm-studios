@@ -85,11 +85,6 @@
   line-height: 1.6;
 }
 
-.message-list article p {
-  margin: 0;
-  line-height: 1.5;
-}
-
 @media (max-width: 1080px) {
   .metric-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -325,7 +320,6 @@
   .receipt-content dl,
   .commercial-metrics,
   .activity-form,
-  .communication-form,
   .documents-layout,
   .report-grid,
   .dre-section,
@@ -458,28 +452,6 @@
   .selection-bar {
     flex-wrap: wrap;
   }
-
-  .broadcast-form {
-    grid-template-columns: 1fr;
-    gap: var(--space-5);
-  }
-
-  .message-list article {
-    grid-template-columns: 1fr;
-  }
-
-  .message-list article > .message-row-foot {
-    justify-content: flex-start;
-    max-width: none;
-  }
-
-  .message-queue-toolbar > label:not(.checkbox-field) {
-    flex: 1 1 100%;
-  }
-
-  .message-queue-toolbar > .checkbox-field {
-    margin-left: 0;
-  }
 }
 
 @media (max-width: 560px) {
@@ -583,11 +555,6 @@
 
   .modal-actions button {
     width: 100%;
-  }
-
-  .message-list article,
-  .message-bulk-bar {
-    padding: var(--space-3) var(--space-4);
   }
 
   /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */
