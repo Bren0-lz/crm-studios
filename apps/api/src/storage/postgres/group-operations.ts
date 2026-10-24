@@ -6,6 +6,7 @@ import {
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
+import { assertProfessionalServesGroup } from "../../modules/groups/service-professional.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
   groupEnrollmentCoversSessionSql,
@@ -402,6 +403,14 @@ export function createGroupOperationsRepository(
             "Profissional não encontrado.",
             404,
           );
+        const service = await client.query<{
+          name: string;
+          professionalIds: string[];
+        }>(
+          `SELECT s.name,s.professional_ids::text[] AS "professionalIds" FROM group_classes g JOIN services s ON s.id=g.service_id AND s.clinic_id=g.clinic_id WHERE g.clinic_id=$1 AND g.id=$2`,
+          [clinicId, meeting.rows[0].groupId],
+        );
+        assertProfessionalServesGroup(service.rows[0], professionalId);
         await context.resourceBranch(client, clinicId, {
           professionalId,
           groupId: meeting.rows[0].groupId,

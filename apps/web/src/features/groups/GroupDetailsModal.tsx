@@ -1,4 +1,9 @@
-import type { GroupClass, GroupWorkspace, Professional } from "@crm/contracts";
+import type {
+  GroupClass,
+  GroupWorkspace,
+  Professional,
+  Service,
+} from "@crm/contracts";
 import { describeGroupSchedule } from "@crm/contracts";
 import { useId, useState, type ReactNode } from "react";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -18,6 +23,7 @@ export function GroupDetailsModal({
   group,
   workspace,
   professionals,
+  service,
   busy,
   dirty,
   error,
@@ -30,6 +36,7 @@ export function GroupDetailsModal({
   group: GroupClass;
   workspace: GroupWorkspace;
   professionals: Professional[];
+  service?: Service | undefined;
   busy: boolean;
   dirty: boolean;
   error: string;
@@ -137,6 +144,7 @@ export function GroupDetailsModal({
           meeting={meeting}
           workspace={workspace}
           professionals={professionals}
+          service={service}
           busy={saving}
           refreshError={error}
           onBusyChange={setOperationsBusy}

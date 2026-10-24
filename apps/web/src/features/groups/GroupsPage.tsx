@@ -13,6 +13,7 @@ import {
   groupClassRenameSchema,
   patientFirstName,
   saoPauloToday,
+  serviceAvailableFor,
 } from "@crm/contracts";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
@@ -289,6 +290,11 @@ export function GroupsPage() {
   const newGroupService = services.find(
     (item) => item.id === groupForm.serviceId,
   );
+  // Só quem atende o serviço escolhido (Configurações → "Profissionais que atendem").
+  const groupProfessionals = professionals.filter(
+    (item) =>
+      !newGroupService || serviceAvailableFor(newGroupService, item.id, ""),
+  );
   const nextGroupSequence =
     Math.max(
       0,
@@ -472,12 +478,24 @@ export function GroupsPage() {
                           <select
                             required
                             value={groupForm.serviceId}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const service = services.find(
+                                (item) => item.id === event.target.value,
+                              );
                               setGroupForm({
                                 ...groupForm,
                                 serviceId: event.target.value,
-                              })
-                            }
+                                professionalId:
+                                  service &&
+                                  !serviceAvailableFor(
+                                    service,
+                                    groupForm.professionalId,
+                                    "",
+                                  )
+                                    ? ""
+                                    : groupForm.professionalId,
+                              });
+                            }}
                           >
                             <option value="">Selecione</option>
                             {services.map((item) => (
@@ -500,7 +518,7 @@ export function GroupsPage() {
                             }
                           >
                             <option value="">Selecione</option>
-                            {professionals.map((item) => (
+                            {groupProfessionals.map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.fullName}
                               </option>
@@ -793,6 +811,9 @@ export function GroupsPage() {
               group={selectedGroup}
               workspace={workspace}
               professionals={professionals}
+              service={services.find(
+                (item) => item.id === selectedGroup.serviceId,
+              )}
               initialSessionId={initialSessionId}
               calendar={{
                 month: calendarMonth,
