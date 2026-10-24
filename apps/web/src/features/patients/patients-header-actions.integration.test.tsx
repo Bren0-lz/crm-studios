@@ -31,14 +31,12 @@ describe("clients header", () => {
       await screen.findByRole("button", { name: /Novo cliente/ }),
     ).toHaveClass("primary-button");
     for (const name of [
-      "Mesclar clientes",
       "Inativar antigos",
       "Importar",
       "Exportar",
     ])
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     expect(moreActionNames()).toEqual([
-      "Mesclar clientes",
       "Inativar antigos",
       "Importar",
       "Exportar",
