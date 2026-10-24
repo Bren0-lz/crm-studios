@@ -163,7 +163,7 @@ export function ClinicalResourcesPanel({
   const { can } = useAuthorization();
   const toast = useToast();
   const timezone = useClinicTimezone();
-  const [opened, setOpened] = useState(false),
+  const [opened, setOpened] = useState(catalogOnly),
     [kind, setKind] = useState<ClinicalResourceKind>(
       catalogOnly ? "equipment" : "evolution",
     ),
@@ -203,9 +203,11 @@ export function ClinicalResourcesPanel({
     if (!opened) return;
     let alive = true;
     Promise.all([
-      api.clinicalResources(patientId),
-      api.clinicalSources(patientId),
-      api.professionals(),
+      catalogOnly
+        ? api.clinicalResourceCatalog()
+        : api.clinicalResources(patientId),
+      catalogOnly ? Promise.resolve([]) : api.clinicalSources(patientId),
+      catalogOnly ? Promise.resolve([]) : api.professionals(),
       api.clinicCatalog("muscle_group"),
     ])
       .then(([items, sourceData, professionalData, muscleData]) => {
@@ -290,6 +292,239 @@ export function ClinicalResourcesPanel({
       setError((cause as Error).message);
     }
   }
+  // No catálogo (sub-aba de Cadastros) a lista já aparece aberta, sem o bloco recolhível.
+  const body = opened && (
+    <div className="clinical-resource-body">
+      {error && <ErrorBanner error={error} />}
+      <div className="list-toolbar">
+        <label>
+          Seção
+          <select
+            value={kind}
+            onChange={(event) =>
+              setKind(event.target.value as ClinicalResourceKind)
+            }
+          >
+            {Object.entries(clinicalResourceLabels)
+              .filter(
+                ([key]) =>
+                  !catalogOnly ||
+                  ["equipment", "exercise", "evolution_template"].includes(key),
+              )
+              .map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+          </select>
+        </label>
+        {canManage && (
+          <button
+            className="primary-button"
+            onClick={() => setEditor({ kind })}
+          >
+            Novo registro
+          </button>
+        )}
+        {!catalogOnly && can("clinical.export") && (
+          <button className="secondary-button" onClick={() => void print()}>
+            Imprimir período
+          </button>
+        )}
+      </div>
+      {!catalogOnly && (
+        <div className="form-grid">
+          <label>
+            Data inicial
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+          <label>
+            Data final
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </label>
+        </div>
+      )}
+      {!resources ? (
+        !error && <LoadingBlock />
+      ) : !visible.length ? (
+        <EmptyState
+          title="Nenhum registro nesta seção"
+          copy={
+            catalogOnly
+              ? "Os aparelhos, exercícios e modelos compartilhados da clínica aparecem aqui."
+              : "Os registros clínicos e treinos do cliente aparecerão aqui."
+          }
+        />
+      ) : (
+        visible.map((item) => (
+          <article className="clinical-resource-card" key={item.id}>
+            <h3>{item.name}</h3>
+            <p>
+              {item.status === "finalized"
+                ? "Finalizado"
+                : item.status === "published"
+                  ? "Publicado"
+                  : item.status === "draft"
+                    ? "Rascunho"
+                    : item.status === "inactive"
+                      ? "Inativo"
+                      : "Ativo"}{" "}
+              · versão {item.version} · {item.authorName}
+            </p>
+            <div className="page-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setView(item)}
+              >
+                Visualizar
+              </button>
+              {item.status !== "finalized" &&
+                (item.kind === "evolution" || item.kind === "clinical_document"
+                  ? can("clinical.records_update")
+                  : item.kind === "evolution_template"
+                    ? can("clinical.templates_create")
+                    : can("clinical.resources_manage")) && (
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      setEditor({ kind: item.kind, resource: item })
+                    }
+                  >
+                    Editar
+                  </button>
+                )}
+              {item.kind === "training" && can("clinical.resources_manage") && (
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    setEditor({
+                      kind: "training",
+                      resource: item,
+                      copy: true,
+                    })
+                  }
+                >
+                  Copiar treino
+                </button>
+              )}
+              {["evolution", "clinical_document"].includes(item.kind) &&
+                item.status !== "finalized" &&
+                can("clinical.finalize") && (
+                  <button
+                    className="primary-button"
+                    onClick={() => setFinalizing(item)}
+                  >
+                    Finalizar
+                  </button>
+                )}
+            </div>
+          </article>
+        ))
+      )}
+      {editor && (
+        <ClinicalResourceEditor
+          kind={editor.kind}
+          resource={editor.resource}
+          copy={editor.copy ?? false}
+          patientId={patientId}
+          patients={patients}
+          professionals={professionals}
+          sources={sources}
+          resources={resources ?? []}
+          muscleGroups={muscles}
+          onClose={() => setEditor(null)}
+          onSaved={load}
+        />
+      )}
+      {view && (
+        <Modal
+          title={view.name}
+          subtitle={`${view.authorName} · versão ${view.version}`}
+          onClose={() => setView(null)}
+          wide
+        >
+          <ResourceContent
+            data={view.data}
+            resources={resources ?? []}
+            templateSnapshot={view.templateSnapshot}
+          />
+          {view.history.length > 0 && (
+            <details>
+              <summary>Histórico de alterações</summary>
+              {view.history.map((entry) => (
+                <section key={entry.version}>
+                  <h3>
+                    Versão {entry.version} · {entry.authorName}
+                  </h3>
+                  <ResourceContent
+                    data={entry.data}
+                    resources={resources ?? []}
+                    templateSnapshot={view.templateSnapshot}
+                  />
+                </section>
+              ))}
+            </details>
+          )}
+        </Modal>
+      )}
+      {finalizing && (
+        <Modal
+          title="Finalizar registro clínico"
+          subtitle="Após finalizar, o conteúdo será preservado sem permitir alterações."
+          busy={busy}
+          onClose={() => setFinalizing(null)}
+        >
+          {error && <ErrorBanner error={error} />}
+          <div className="modal-actions">
+            <button
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => setFinalizing(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              className="primary-button"
+              disabled={busy}
+              onClick={() => void finalize()}
+            >
+              Confirmar finalização
+            </button>
+          </div>
+        </Modal>
+      )}
+      {printing &&
+        createPortal(
+          <section className="clinical-print-sheet">
+            <h1>{patients.find((item) => item.id === patientId)?.fullName}</h1>
+            <h2>{clinicalResourceLabels[kind]}</h2>
+            {printing.map((item) => (
+              <article key={item.id}>
+                <h3>{item.name}</h3>
+                <p>
+                  {item.authorName} · versão {item.version}
+                </p>
+                <ResourceContent
+                  data={item.data}
+                  resources={resources ?? []}
+                  templateSnapshot={item.templateSnapshot}
+                />
+              </article>
+            ))}
+          </section>,
+          document.body,
+        )}
+    </div>
+  );
+  if (catalogOnly) return body;
   return (
     <details
       className="clinical-resource-panel"
@@ -297,248 +532,8 @@ export function ClinicalResourcesPanel({
         if (event.currentTarget.open) setOpened(true);
       }}
     >
-      <summary>
-        {catalogOnly
-          ? "Aparelhos, exercícios e modelos de evolução"
-          : "Modelos, evoluções e treinos"}
-      </summary>
-      {opened && (
-        <div className="clinical-resource-body">
-          {error && <ErrorBanner error={error} />}
-          <div className="list-toolbar">
-            <label>
-              Seção
-              <select
-                value={kind}
-                onChange={(event) =>
-                  setKind(event.target.value as ClinicalResourceKind)
-                }
-              >
-                {Object.entries(clinicalResourceLabels)
-                  .filter(
-                    ([key]) =>
-                      !catalogOnly ||
-                      ["equipment", "exercise", "evolution_template"].includes(
-                        key,
-                      ),
-                  )
-                  .map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {canManage && (
-              <button
-                className="primary-button"
-                onClick={() => setEditor({ kind })}
-              >
-                Novo registro
-              </button>
-            )}
-            {!catalogOnly && can("clinical.export") && (
-              <button className="secondary-button" onClick={() => void print()}>
-                Imprimir período
-              </button>
-            )}
-          </div>
-          {!catalogOnly && (
-            <div className="form-grid">
-              <label>
-                Data inicial
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(event) => setFrom(event.target.value)}
-                />
-              </label>
-              <label>
-                Data final
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(event) => setTo(event.target.value)}
-                />
-              </label>
-            </div>
-          )}
-          {!resources ? (
-            !error && <LoadingBlock />
-          ) : !visible.length ? (
-            <EmptyState
-              title="Nenhum registro nesta seção"
-              copy={
-                catalogOnly
-                  ? "Os aparelhos, exercícios e modelos compartilhados da clínica aparecem aqui."
-                  : "Os registros clínicos e treinos do cliente aparecerão aqui."
-              }
-            />
-          ) : (
-            visible.map((item) => (
-              <article className="clinical-resource-card" key={item.id}>
-                <h3>{item.name}</h3>
-                <p>
-                  {item.status === "finalized"
-                    ? "Finalizado"
-                    : item.status === "published"
-                      ? "Publicado"
-                      : item.status === "draft"
-                        ? "Rascunho"
-                        : item.status === "inactive"
-                          ? "Inativo"
-                          : "Ativo"}{" "}
-                  · versão {item.version} · {item.authorName}
-                </p>
-                <div className="page-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => setView(item)}
-                  >
-                    Visualizar
-                  </button>
-                  {item.status !== "finalized" &&
-                    (item.kind === "evolution" ||
-                    item.kind === "clinical_document"
-                      ? can("clinical.records_update")
-                      : item.kind === "evolution_template"
-                        ? can("clinical.templates_create")
-                        : can("clinical.resources_manage")) && (
-                      <button
-                        className="secondary-button"
-                        onClick={() =>
-                          setEditor({ kind: item.kind, resource: item })
-                        }
-                      >
-                        Editar
-                      </button>
-                    )}
-                  {item.kind === "training" &&
-                    can("clinical.resources_manage") && (
-                      <button
-                        className="secondary-button"
-                        onClick={() =>
-                          setEditor({
-                            kind: "training",
-                            resource: item,
-                            copy: true,
-                          })
-                        }
-                      >
-                        Copiar treino
-                      </button>
-                    )}
-                  {["evolution", "clinical_document"].includes(item.kind) &&
-                    item.status !== "finalized" &&
-                    can("clinical.finalize") && (
-                      <button
-                        className="primary-button"
-                        onClick={() => setFinalizing(item)}
-                      >
-                        Finalizar
-                      </button>
-                    )}
-                </div>
-              </article>
-            ))
-          )}
-          {editor && (
-            <ClinicalResourceEditor
-              kind={editor.kind}
-              resource={editor.resource}
-              copy={editor.copy ?? false}
-              patientId={patientId}
-              patients={patients}
-              professionals={professionals}
-              sources={sources}
-              resources={resources ?? []}
-              muscleGroups={muscles}
-              onClose={() => setEditor(null)}
-              onSaved={load}
-            />
-          )}
-          {view && (
-            <Modal
-              title={view.name}
-              subtitle={`${view.authorName} · versão ${view.version}`}
-              onClose={() => setView(null)}
-              wide
-            >
-              <ResourceContent
-                data={view.data}
-                resources={resources ?? []}
-                templateSnapshot={view.templateSnapshot}
-              />
-              {view.history.length > 0 && (
-                <details>
-                  <summary>Histórico de alterações</summary>
-                  {view.history.map((entry) => (
-                    <section key={entry.version}>
-                      <h3>
-                        Versão {entry.version} · {entry.authorName}
-                      </h3>
-                      <ResourceContent
-                        data={entry.data}
-                        resources={resources ?? []}
-                        templateSnapshot={view.templateSnapshot}
-                      />
-                    </section>
-                  ))}
-                </details>
-              )}
-            </Modal>
-          )}
-          {finalizing && (
-            <Modal
-              title="Finalizar registro clínico"
-              subtitle="Após finalizar, o conteúdo será preservado sem permitir alterações."
-              busy={busy}
-              onClose={() => setFinalizing(null)}
-            >
-              {error && <ErrorBanner error={error} />}
-              <div className="modal-actions">
-                <button
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => setFinalizing(null)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={busy}
-                  onClick={() => void finalize()}
-                >
-                  Confirmar finalização
-                </button>
-              </div>
-            </Modal>
-          )}
-          {printing &&
-            createPortal(
-              <section className="clinical-print-sheet">
-                <h1>
-                  {patients.find((item) => item.id === patientId)?.fullName}
-                </h1>
-                <h2>{clinicalResourceLabels[kind]}</h2>
-                {printing.map((item) => (
-                  <article key={item.id}>
-                    <h3>{item.name}</h3>
-                    <p>
-                      {item.authorName} · versão {item.version}
-                    </p>
-                    <ResourceContent
-                      data={item.data}
-                      resources={resources ?? []}
-                      templateSnapshot={item.templateSnapshot}
-                    />
-                  </article>
-                ))}
-              </section>,
-              document.body,
-            )}
-        </div>
-      )}
+      <summary>Modelos, evoluções e treinos</summary>
+      {body}
     </details>
   );
 }
