@@ -10,6 +10,7 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type {
+  ReceivableContact,
   PaymentTiming,
   FinancialDatesInput,
   SettlementAdjustments,
@@ -245,6 +246,8 @@ export const financeApi = {
         body: JSON.stringify({ amountInCents, reason }),
       },
     ),
+  receivableContact: (id: string) =>
+    request<ReceivableContact>(`/finance/receivables/${id}/contact`),
   paymentReceipt: (id: string) =>
     request<PaymentReceipt>(`/finance/receivables/${id}/receipt`),
   financialWorkspace: () => request<FinancialWorkspace>("/finance/workspace"),
