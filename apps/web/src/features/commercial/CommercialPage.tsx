@@ -612,7 +612,6 @@ export function CommercialPage() {
       {convertingLead && (
         <LeadConvertModal
           lead={convertingLead}
-          columnLabel={stageLabel("won")}
           onClose={() => setConvertingLead(null)}
           onConfirm={(input) => convert(convertingLead, input)}
         />
