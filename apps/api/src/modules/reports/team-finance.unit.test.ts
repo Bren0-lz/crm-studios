@@ -99,17 +99,47 @@ describe("buildTeamFinanceReport", () => {
     expect(report.byService[0]).toMatchObject({ averageTicketInCents: 7000 });
     expect(report.byGroup).toEqual([
       expect.objectContaining({
-        id: "vazia",
-        occupancyRate: 0,
-        monthlyRevenueInCents: 0,
-        potentialRevenueInCents: 3 * 8 * 8000,
-      }),
-      expect.objectContaining({
         id: "cheia",
         occupancyRate: 100,
         monthlyRevenueInCents: 8 * 6000,
         idleRevenueInCents: 0,
       }),
+      expect.objectContaining({
+        id: "vazia",
+        occupancyRate: 0,
+        monthlyRevenueInCents: 0,
+        potentialRevenueInCents: 3 * 8 * 8000,
+      }),
+    ]);
+  });
+
+  it("breaks revenue ties by name", () => {
+    const session = (professionalName: string) => ({
+      professionalId: professionalName,
+      professionalName,
+      serviceId: "s1",
+      serviceName: "Pilates",
+    });
+    const report = buildTeamFinanceReport({
+      from: "2039-01-01",
+      to: "2039-01-31",
+      sources: {
+        sessions: [session("Carla"), session("Ana")],
+        commissions: [],
+        pendingCommissions: [],
+      },
+      plans: [],
+      services: [service],
+      groups: [group("Turma B", 2), group("Turma A", 2)],
+      enrollments: [],
+    });
+    expect(report.byProfessional.map((item) => item.name)).toEqual([
+      "Ana",
+      "Carla",
+    ]);
+    expect(report.byGroup.map((item) => item.id)).toEqual([
+      "Turma A",
+      "Turma B",
     ]);
   });
 });

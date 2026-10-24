@@ -13,6 +13,14 @@ const competences = (months: string[]) =>
     .map((month) => competenceLabel.format(new Date(`${month}-01T12:00:00Z`)))
     .join(", ");
 
+// Maior receita primeiro; empate pelo nome.
+const byRevenue = (
+  a: { name: string; generatedInCents: number },
+  b: { name: string; generatedInCents: number },
+) =>
+  b.generatedInCents - a.generatedInCents ||
+  a.name.localeCompare(b.name, "pt-BR");
+
 function commissionDetail(
   commission: TeamFinanceReport["byProfessional"][number]["commission"],
 ) {
@@ -51,7 +59,7 @@ export function TeamFinanceTables({
           totalInCents: 0,
         },
       })),
-  ];
+  ].sort(byRevenue);
   const received = new Map(
     report.profitability.byService.map((item) => [
       item.id,
@@ -73,7 +81,12 @@ export function TeamFinanceTables({
         generatedInCents: 0,
         averageTicketInCents: 0,
       })),
-  ];
+  ].sort(
+    (a, b) =>
+      b.generatedInCents - a.generatedInCents ||
+      (received.get(b.id) ?? 0) - (received.get(a.id) ?? 0) ||
+      byRevenue(a, b),
+  );
   const months = competences(team.commissionMonths);
 
   return (
