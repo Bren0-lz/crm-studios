@@ -230,29 +230,28 @@ describe("header menus", () => {
     ).toBe(false);
   });
 
-  it("opens the user menu with profile data, settings and logout", async () => {
+  it("keeps profile, settings and logout in the sidebar", async () => {
     login();
     vi.mocked(fetch).mockImplementation(
       async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
     );
     renderApp();
+    const header = await screen.findByRole("banner");
+    expect(
+      within(header).queryByRole("button", { name: "Menu do usuário" }),
+    ).not.toBeInTheDocument();
+    const sidebar = screen.getByRole("complementary");
+    expect(
+      within(sidebar).getByRole("link", { name: "Meu perfil" }),
+    ).toHaveAttribute("href", "/perfil");
     fireEvent.click(
-      await screen.findByRole("button", { name: "Menu do usuário" }),
-    );
-    const panel = screen.getByRole("dialog", { name: "Menu do usuário" });
-    expect(panel).toHaveTextContent("admin@movimenta.local");
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Configurações" }),
+      within(sidebar).getByRole("link", { name: "Configurações" }),
     );
     expect(
       await screen.findByRole("heading", { level: 1, name: /Configurações/ }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Menu do usuário" }));
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Menu do usuário" })).getByRole(
-        "button",
-        { name: "Sair" },
-      ),
+      within(sidebar).getByRole("button", { name: "Sair: Aryana Dutra" }),
     );
     await vi.waitFor(() =>
       expect(localStorage.getItem("crm.auth.token")).toBeNull(),

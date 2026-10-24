@@ -18,7 +18,7 @@ import type { NavigationGuard } from "../shared/lib/types";
 import { installInlineValidation } from "../shared/feedback/inline-validation";
 import { BRANCH_CHANGED_EVENT, getStoredBranchId } from "../api";
 import { BranchSelector } from "./BranchSelector";
-import { NotificationsMenu, UserMenu } from "./HeaderMenus";
+import { NotificationsMenu } from "./HeaderMenus";
 import { navGroups } from "./navItems";
 
 export function Shell({
@@ -161,11 +161,6 @@ export function Shell({
             <BranchSelector />
             <EmergencyButton />
             <NotificationsMenu onNavigate={guardedNavigate} />
-            <UserMenu
-              user={user}
-              onNavigate={guardedNavigate}
-              onLogout={onLogout}
-            />
           </div>
         </header>
         <div className="page-content" key={branchKey}>

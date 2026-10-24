@@ -370,20 +370,21 @@ test("sidebar stays visible at every breakpoint while only navigation scrolls", 
     await expect(page.getByRole("button", { name: "Fechar menu" })).toHaveCount(
       0,
     );
-    for (const name of ["Notificações", "Menu do usuário"]) {
-      const trigger = page.getByRole("banner").getByRole("button", {
-        name: name === "Notificações" ? /^Notificações/ : name,
-      });
-      await expect(trigger).toBeInViewport();
-      await trigger.click();
-      const menu = page.getByRole("dialog", { name, exact: true });
-      await expect(menu).toBeInViewport({ ratio: 1 });
-      const box = (await menu.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(mobile ? 72 : 232);
-      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
-      await page.keyboard.press("Escape");
-      await expect(trigger).toBeFocused();
-    }
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Menu do usuário" }),
+    ).toHaveCount(0);
+    const trigger = page.getByRole("banner").getByRole("button", {
+      name: /^Notificações/,
+    });
+    await expect(trigger).toBeInViewport();
+    await trigger.click();
+    const menu = page.getByRole("dialog", { name: "Notificações", exact: true });
+    await expect(menu).toBeInViewport({ ratio: 1 });
+    const box = (await menu.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(mobile ? 72 : 232);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
     await expect
       .poll(async () => (await page.locator(".sidebar").boundingBox())?.x)
       .toBe(0);
