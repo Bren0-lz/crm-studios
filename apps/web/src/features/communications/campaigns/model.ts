@@ -55,34 +55,6 @@ export function usesVariables(text: string) {
   return messageParts(text, true).some((part) => part.kind === "code");
 }
 
-/** Insere `snippet` no lugar da seleção; devolve o texto e onde o cursor fica. */
-export function insertAtSelection(
-  text: string,
-  snippet: string,
-  start = text.length,
-  end = start,
-) {
-  return {
-    text: text.slice(0, start) + snippet + text.slice(end),
-    cursor: start + snippet.length,
-  };
-}
-
-/** Envolve a seleção com o marcador do WhatsApp (`*`, `_`, `~`). */
-export function wrapSelection(
-  text: string,
-  marker: string,
-  start: number,
-  end: number,
-) {
-  const selected = text.slice(start, end) || "texto";
-  return {
-    text: text.slice(0, start) + marker + selected + marker + text.slice(end),
-    selectionStart: start + marker.length,
-    selectionEnd: start + marker.length + selected.length,
-  };
-}
-
 export function campaignHandled(campaign: WhatsappCampaign) {
   return campaign.sent + campaign.skipped;
 }

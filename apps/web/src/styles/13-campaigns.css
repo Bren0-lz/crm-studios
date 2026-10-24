@@ -352,15 +352,51 @@
   gap: var(--space-2);
 }
 
-.template-body-field label {
+.template-body-label {
   font-weight: 700;
 }
 
-.template-body-field textarea {
+.message-body-editor {
+  position: relative;
+}
+
+.message-body-editor .tiptap {
   min-height: calc(var(--space-8) * 3);
+  max-height: 60vh;
+  overflow-y: auto;
   resize: vertical;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: white;
   font-size: var(--text-md);
-  line-height: 1.5;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-body-editor .tiptap:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
+.message-body-editor .tiptap p {
+  margin: 0;
+}
+
+.message-body-editor .document-field {
+  white-space: nowrap;
+}
+
+.message-body-placeholder {
+  position: absolute;
+  z-index: 1;
+  inset: calc(var(--space-3) + 1px);
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: 1.7;
+  white-space: pre-line;
+  pointer-events: none;
 }
 
 .template-toolbar {
