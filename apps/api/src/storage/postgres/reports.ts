@@ -6,10 +6,13 @@ import {
   type ReceivedPayment,
   type SaleMovement,
   type SalesReport,
+  type SalesPeriodReport,
   allocatePlanRevenue,
 } from "@crm/contracts";
 import {
   buildSalesReport,
+  buildSalesPeriodReport,
+  salesPeriodBounds,
   salesReportBounds,
 } from "../../modules/reports/sales-report.js";
 import type { PostgresRepositoryContext } from "./context.js";
@@ -24,6 +27,194 @@ import {
 export function createReportsRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
+  async function salesSources(
+    clinicId: string,
+    input: string | { from: string; to: string },
+  ) {
+    const asOf = new Date();
+    const bounds =
+      typeof input === "string"
+        ? salesReportBounds(input, asOf)
+        : salesPeriodBounds(input.from, input.to, asOf);
+    const branchIds = repositoryContext.branchReadIds();
+    const client = await repositoryContext.pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const planResult = await client.query<{
+        id: string;
+        patientId: string;
+        patientName: string;
+        name: string;
+        serviceName: string;
+        totalValueInCents: number;
+        cancelledValueInCents: number;
+        createdAt: Date;
+        cancelledAt: Date | null;
+      }>(
+        `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
+                pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
+                pp.total_value_in_cents AS "totalValueInCents",
+                pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+         FROM patient_plans pp
+         JOIN patients p ON p.id=pp.patient_id
+         JOIN services s ON s.id=pp.service_id
+         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 4)} AND (
+           (pp.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+           OR (pp.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+         )`,
+        [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
+      );
+      const productResult = await client.query<{
+        id: string;
+        tabId: string;
+        patientId: string;
+        patientName: string;
+        productName: string;
+        sourceType: "product" | "service";
+        quantity: number;
+        amountInCents: number;
+        closedAt: Date;
+        cancelledAt: Date | null;
+        receivableId: string | null;
+      }>(
+        `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
+                p.full_name AS "patientName", pr.name AS "productName",
+                i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
+                t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
+                t.receivable_id AS "receivableId"
+         FROM patient_tab_items i
+         JOIN patient_tabs t ON t.id=i.tab_id
+         JOIN patients p ON p.id=t.patient_id
+         JOIN products pr ON pr.id=i.product_id
+         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
+           (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+           OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
+        [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
+      );
+      const paymentResult = await client.query<{
+        id: string;
+        receivableId: string;
+        kind: "payment" | "payment_reversal";
+        patientId: string;
+        patientName: string;
+        planId: string | null;
+        tabId: string | null;
+        description: string;
+        amountInCents: number;
+        occurredAt: Date;
+        paymentMethod: ReceivedPayment["paymentMethod"] | null;
+      }>(
+        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+                r.patient_id AS "patientId", p.full_name AS "patientName",
+                r.plan_id AS "planId", t.id AS "tabId", r.description,
+                fe.amount_in_cents AS "amountInCents", coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",
+                fe.metadata->>'paymentMethod' AS "paymentMethod"
+         FROM financial_events fe
+         LEFT JOIN LATERAL (SELECT occurred_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
+         JOIN receivables r ON r.id=fe.receivable_id
+         JOIN patients p ON p.id=r.patient_id
+         LEFT JOIN patient_tabs t ON t.receivable_id=r.id
+         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND ${branchClause("r.branch_id", 4)} AND
+           (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
+        [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
+      );
+      const appointmentResult = await client.query<AppointmentRow>(
+        `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
+         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
+           (a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)
+           OR (a.status IN ('scheduled','confirmed') AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date)
+         )`,
+        [
+          clinicId,
+          bounds.previousFrom,
+          bounds.currentTo,
+          bounds.today,
+          branchIds,
+        ],
+      );
+      await client.query("COMMIT");
+      const sales: SaleMovement[] = [];
+      for (const plan of planResult.rows) {
+        const base = {
+          sourceId: plan.id,
+          sourceType: "plan" as const,
+          patientId: plan.patientId,
+          patientName: plan.patientName,
+          itemName: `${plan.name} (${plan.serviceName})`,
+          quantity: 1,
+        };
+        sales.push({
+          ...base,
+          id: `${plan.id}:sale`,
+          kind: "sale",
+          occurredAt: plan.createdAt.toISOString(),
+          amountInCents: plan.totalValueInCents,
+        });
+        if (plan.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${plan.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: plan.cancelledAt.toISOString(),
+            amountInCents: -plan.cancelledValueInCents,
+          });
+      }
+      for (const item of productResult.rows) {
+        const base = {
+          sourceId: item.tabId,
+          sourceType: item.sourceType,
+          patientId: item.patientId,
+          patientName: item.patientName,
+          itemName: item.productName,
+          quantity: item.quantity,
+          ...(item.receivableId ? { receivableId: item.receivableId } : {}),
+        };
+        sales.push({
+          ...base,
+          id: `${item.id}:sale`,
+          kind: "sale",
+          occurredAt: item.closedAt.toISOString(),
+          amountInCents: item.amountInCents,
+        });
+        if (item.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${item.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: item.cancelledAt.toISOString(),
+            amountInCents: -item.amountInCents,
+          });
+      }
+      const payments: ReceivedPayment[] = paymentResult.rows.map((item) => ({
+        id: item.id,
+        receivableId: item.receivableId,
+        kind: item.kind === "payment" ? "payment" : "reversal",
+        ...(item.planId || item.tabId
+          ? { sourceId: item.planId ?? item.tabId! }
+          : {}),
+        occurredAt: item.occurredAt.toISOString(),
+        patientId: item.patientId,
+        patientName: item.patientName,
+        description: item.description,
+        amountInCents: item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      }));
+      return {
+        sales,
+        payments,
+        appointments: appointmentResult.rows.map(mapAppointment),
+        asOf,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   return {
     async getDashboard(
       clinicId: string,
@@ -119,186 +310,29 @@ export function createReportsRepository(
       clinicId: string,
       month: string,
     ): Promise<SalesReport> {
-      const asOf = new Date();
-      const bounds = salesReportBounds(month, asOf);
-      const branchIds = repositoryContext.branchReadIds();
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const planResult = await client.query<{
-          id: string;
-          patientId: string;
-          patientName: string;
-          name: string;
-          serviceName: string;
-          totalValueInCents: number;
-          cancelledValueInCents: number;
-          createdAt: Date;
-          cancelledAt: Date | null;
-        }>(
-          `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
-                pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
-                pp.total_value_in_cents AS "totalValueInCents",
-                pp.cancelled_value_in_cents AS "cancelledValueInCents",
-                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
-         FROM patient_plans pp
-         JOIN patients p ON p.id=pp.patient_id
-         JOIN services s ON s.id=pp.service_id
-         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 4)} AND (
-           (pp.created_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-           OR (pp.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-         )`,
-          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
-        );
-        const productResult = await client.query<{
-          id: string;
-          tabId: string;
-          patientId: string;
-          patientName: string;
-          productName: string;
-          sourceType: "product" | "service";
-          quantity: number;
-          amountInCents: number;
-          closedAt: Date;
-          cancelledAt: Date | null;
-          receivableId: string | null;
-        }>(
-          `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
-                p.full_name AS "patientName", pr.name AS "productName",
-                i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
-                t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
-                t.receivable_id AS "receivableId"
-         FROM patient_tab_items i
-         JOIN patient_tabs t ON t.id=i.tab_id
-         JOIN patients p ON p.id=t.patient_id
-         JOIN products pr ON pr.id=i.product_id
-         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
-           (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-           OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
-          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
-        );
-        const paymentResult = await client.query<{
-          id: string;
-          receivableId: string;
-          kind: "payment" | "payment_reversal";
-          patientId: string;
-          patientName: string;
-          planId: string | null;
-          tabId: string | null;
-          description: string;
-          amountInCents: number;
-          occurredAt: Date;
-          paymentMethod: ReceivedPayment["paymentMethod"] | null;
-        }>(
-          `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
-                r.patient_id AS "patientId", p.full_name AS "patientName",
-                r.plan_id AS "planId", t.id AS "tabId", r.description,
-                fe.amount_in_cents AS "amountInCents", coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",
-                fe.metadata->>'paymentMethod' AS "paymentMethod"
-         FROM financial_events fe
-         LEFT JOIN LATERAL (SELECT occurred_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
-         JOIN receivables r ON r.id=fe.receivable_id
-         JOIN patients p ON p.id=r.patient_id
-         LEFT JOIN patient_tabs t ON t.receivable_id=r.id
-         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND ${branchClause("r.branch_id", 4)} AND
-           (coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date`,
-          [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
-        );
-        const appointmentResult = await client.query<AppointmentRow>(
-          `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
-           (a.status='completed' AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)
-           OR (a.status IN ('scheduled','confirmed') AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date >= $4::date)
-         )`,
-          [
-            clinicId,
-            bounds.previousFrom,
-            bounds.currentTo,
-            bounds.today,
-            branchIds,
-          ],
-        );
-        await client.query("COMMIT");
-        const sales: SaleMovement[] = [];
-        for (const plan of planResult.rows) {
-          const base = {
-            sourceId: plan.id,
-            sourceType: "plan" as const,
-            patientId: plan.patientId,
-            patientName: plan.patientName,
-            itemName: `${plan.name} (${plan.serviceName})`,
-            quantity: 1,
-          };
-          sales.push({
-            ...base,
-            id: `${plan.id}:sale`,
-            kind: "sale",
-            occurredAt: plan.createdAt.toISOString(),
-            amountInCents: plan.totalValueInCents,
-          });
-          if (plan.cancelledAt)
-            sales.push({
-              ...base,
-              id: `${plan.id}:cancellation`,
-              kind: "cancellation",
-              occurredAt: plan.cancelledAt.toISOString(),
-              amountInCents: -plan.cancelledValueInCents,
-            });
-        }
-        for (const item of productResult.rows) {
-          const base = {
-            sourceId: item.tabId,
-            sourceType: item.sourceType,
-            patientId: item.patientId,
-            patientName: item.patientName,
-            itemName: item.productName,
-            quantity: item.quantity,
-            ...(item.receivableId ? { receivableId: item.receivableId } : {}),
-          };
-          sales.push({
-            ...base,
-            id: `${item.id}:sale`,
-            kind: "sale",
-            occurredAt: item.closedAt.toISOString(),
-            amountInCents: item.amountInCents,
-          });
-          if (item.cancelledAt)
-            sales.push({
-              ...base,
-              id: `${item.id}:cancellation`,
-              kind: "cancellation",
-              occurredAt: item.cancelledAt.toISOString(),
-              amountInCents: -item.amountInCents,
-            });
-        }
-        const payments: ReceivedPayment[] = paymentResult.rows.map((item) => ({
-          id: item.id,
-          receivableId: item.receivableId,
-          kind: item.kind === "payment" ? "payment" : "reversal",
-          ...(item.planId || item.tabId
-            ? { sourceId: item.planId ?? item.tabId! }
-            : {}),
-          occurredAt: item.occurredAt.toISOString(),
-          patientId: item.patientId,
-          patientName: item.patientName,
-          description: item.description,
-          amountInCents: item.amountInCents,
-          ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
-        }));
-        return buildSalesReport(
-          month,
-          sales,
-          payments,
-          appointmentResult.rows.map(mapAppointment),
-          asOf,
-        );
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      const data = await salesSources(clinicId, month);
+      return buildSalesReport(
+        month,
+        data.sales,
+        data.payments,
+        data.appointments,
+        data.asOf,
+      );
+    },
+    async getSalesPeriodReport(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<SalesPeriodReport> {
+      const data = await salesSources(clinicId, { from, to });
+      return buildSalesPeriodReport(
+        from,
+        to,
+        data.sales,
+        data.payments,
+        data.appointments,
+        data.asOf,
+      );
     },
 
     async getManagementReport(

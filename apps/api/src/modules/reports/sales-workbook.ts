@@ -1,4 +1,8 @@
-import { salesChangePercent, type SalesReport } from "@crm/contracts";
+import {
+  salesChangePercent,
+  type SalesReport,
+  type SalesPeriodReport,
+} from "@crm/contracts";
 import ExcelJS from "exceljs";
 
 const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
@@ -18,69 +22,94 @@ function heading(sheet: ExcelJS.Worksheet) {
   };
 }
 
-export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
+export async function salesReportToXlsx(
+  report: SalesReport | SalesPeriodReport,
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Studios Aryana";
   workbook.created = new Date(report.generatedAt);
 
   const summary = workbook.addWorksheet("Resumo");
-  summary.columns = [
-    { header: "Indicador", key: "metric", width: 42 },
-    { header: "Mês selecionado", key: "current", width: 24 },
-    { header: "Mês anterior comparável", key: "previous", width: 28 },
-  ];
-  heading(summary);
-  summary.addRow([
-    "Período",
-    `${report.current.from} a ${report.current.to}`,
-    `${report.previousComparable.from} a ${report.previousComparable.to}`,
-  ]);
-  summary.addRow([
-    "Vendas brutas",
-    report.current.grossSalesInCents / 100,
-    report.previousComparable.grossSalesInCents / 100,
-  ]);
-  summary.addRow([
-    "Cancelamentos",
-    report.current.cancelledSalesInCents / 100,
-    report.previousComparable.cancelledSalesInCents / 100,
-  ]);
-  summary.addRow([
-    "Vendas líquidas",
-    report.current.netSalesInCents / 100,
-    report.previousComparable.netSalesInCents / 100,
-  ]);
-  summary.addRow([
-    "Recebido",
-    report.current.receivedInCents / 100,
-    report.previousComparable.receivedInCents / 100,
-  ]);
-  summary.addRow([
-    "Clientes atendidos",
-    report.current.attendedPatients,
-    report.previousComparable.attendedPatients,
-  ]);
-  summary.addRow(["Variação de vendas (R$)", report.changeInCents / 100, null]);
-  const changePercent = salesChangePercent(
-    report.current.netSalesInCents,
-    report.previousComparable.netSalesInCents,
-  );
-  summary.addRow([
-    "Variação de vendas (%)",
-    changePercent === null ? "Sem base de comparação" : changePercent / 100,
-    null,
-  ]);
-  summary.addRow([
-    "Clientes do mês anterior sem retorno",
-    report.patientsWithoutReturn.length,
-    null,
-  ]);
-  for (const rowNumber of [3, 4, 5, 6, 8]) {
-    summary.getCell(`B${rowNumber}`).numFmt = currencyFormat;
-    summary.getCell(`C${rowNumber}`).numFmt = currencyFormat;
+  if ("summary" in report) {
+    summary.columns = [
+      { header: "Indicador", width: 42 },
+      { header: "Período selecionado", width: 30 },
+    ];
+    heading(summary);
+    summary.addRows([
+      ["Período", report.from + " a " + report.to],
+      ["Vendas brutas", report.summary.grossSalesInCents / 100],
+      ["Cancelamentos", report.summary.cancelledSalesInCents / 100],
+      ["Vendas líquidas", report.summary.netSalesInCents / 100],
+      ["Recebido", report.summary.receivedInCents / 100],
+      ["Clientes atendidos", report.summary.attendedPatients],
+      ["Clientes sem retorno", report.patientsWithoutReturn.length],
+    ]);
+    for (const row of [3, 4, 5, 6])
+      summary.getCell("B" + row).numFmt = currencyFormat;
+  } else {
+    summary.columns = [
+      { header: "Indicador", key: "metric", width: 42 },
+      { header: "Mês selecionado", key: "current", width: 24 },
+      { header: "Mês anterior comparável", key: "previous", width: 28 },
+    ];
+    heading(summary);
+    summary.addRow([
+      "Período",
+      `${report.current.from} a ${report.current.to}`,
+      `${report.previousComparable.from} a ${report.previousComparable.to}`,
+    ]);
+    summary.addRow([
+      "Vendas brutas",
+      report.current.grossSalesInCents / 100,
+      report.previousComparable.grossSalesInCents / 100,
+    ]);
+    summary.addRow([
+      "Cancelamentos",
+      report.current.cancelledSalesInCents / 100,
+      report.previousComparable.cancelledSalesInCents / 100,
+    ]);
+    summary.addRow([
+      "Vendas líquidas",
+      report.current.netSalesInCents / 100,
+      report.previousComparable.netSalesInCents / 100,
+    ]);
+    summary.addRow([
+      "Recebido",
+      report.current.receivedInCents / 100,
+      report.previousComparable.receivedInCents / 100,
+    ]);
+    summary.addRow([
+      "Clientes atendidos",
+      report.current.attendedPatients,
+      report.previousComparable.attendedPatients,
+    ]);
+    summary.addRow([
+      "Variação de vendas (R$)",
+      report.changeInCents / 100,
+      null,
+    ]);
+    const changePercent = salesChangePercent(
+      report.current.netSalesInCents,
+      report.previousComparable.netSalesInCents,
+    );
+    summary.addRow([
+      "Variação de vendas (%)",
+      changePercent === null ? "Sem base de comparação" : changePercent / 100,
+      null,
+    ]);
+    summary.addRow([
+      "Clientes do mês anterior sem retorno",
+      report.patientsWithoutReturn.length,
+      null,
+    ]);
+    for (const rowNumber of [3, 4, 5, 6, 8]) {
+      summary.getCell(`B${rowNumber}`).numFmt = currencyFormat;
+      summary.getCell(`C${rowNumber}`).numFmt = currencyFormat;
+    }
+    summary.getCell("B9").numFmt = "0.0%";
+    summary.getRow(5).font = { bold: true };
   }
-  summary.getCell("B9").numFmt = "0.0%";
-  summary.getRow(5).font = { bold: true };
 
   const sales = workbook.addWorksheet("Vendas");
   sales.columns = [
@@ -204,6 +233,26 @@ export async function salesReportToXlsx(report: SalesReport): Promise<Buffer> {
       "IDs nas abas de detalhe apontam para plano, comanda, conta e cliente no CRM.",
     ],
   ]);
+
+  if ("summary" in report) {
+    for (let row = definitions.rowCount; row >= 2; row--) {
+      const label = definitions.getCell(row, 1).value;
+      if (label === "Mês anterior comparável" || label === "Sem retorno")
+        definitions.spliceRows(row, 1);
+    }
+    definitions.addRow([
+      "Sem retorno",
+      "Clientes atendidos de " +
+        report.returnReference.from +
+        " a " +
+        report.returnReference.to +
+        ", sem atendimento concluído de " +
+        report.from +
+        " a " +
+        report.to +
+        ".",
+    ]);
+  }
 
   const output = await workbook.xlsx.writeBuffer();
   return Buffer.from(output);

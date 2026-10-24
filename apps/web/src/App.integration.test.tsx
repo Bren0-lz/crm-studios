@@ -1556,7 +1556,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the monthly summary readable and opens detailed lists on demand", async () => {
+  it("navigates the management report tabs", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -1617,21 +1617,17 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
-    expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
-    expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
-    const details = screen.getByText("Ver vendas e clientes do mês")
-      .parentElement as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-    fireEvent.click(screen.getByText("Ver vendas e clientes do mês"));
-    expect(details.open).toBe(true);
-    expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(
-      (
-        screen.getByText("Ver outros indicadores da clínica")
-          .parentElement as HTMLDetailsElement
-      ).open,
-    ).toBe(false);
+      await screen.findByRole("heading", { name: "Relatórios gerenciais" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Clientes" }));
+    expect(
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
+    ).toBeInTheDocument();
   });
 
   it("shows monthly sales and patients without return directly on the manager dashboard", async () => {
@@ -4213,6 +4209,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
@@ -4378,6 +4375,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
