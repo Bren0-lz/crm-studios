@@ -123,7 +123,10 @@ function report(withValues: boolean): ManagementReport {
   };
 }
 
-async function openTeamTab(withValues: boolean) {
+async function openTeamTab(
+  withValues: boolean,
+  data: ManagementReport = report(withValues),
+) {
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
     "crm.auth.user",
@@ -139,7 +142,7 @@ async function openTeamTab(withValues: boolean) {
       ? ({
           ok: true,
           status: 200,
-          json: async () => report(withValues),
+          json: async () => data,
         } as Response)
       : ({
           ok: false,
@@ -200,5 +203,66 @@ describe("team finance report", () => {
         name: "Rendimento mensal e potencial por turma",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("lists professionals and services from the highest revenue to the lowest", async () => {
+    const data = report(true);
+    const team = data.teamFinance!;
+    const commission = team.byProfessional[0]!.commission;
+    team.byProfessional = [
+      {
+        id: "p2",
+        name: "Ana Souza",
+        completedSessions: 2,
+        generatedInCents: 20000,
+        commission,
+      },
+      ...team.byProfessional,
+    ];
+    data.byProfessional = [
+      ...data.byProfessional,
+      { ...professional, id: "p3", name: "Zeca Agenda", completed: 0 },
+    ];
+    team.byService = [
+      {
+        id: "s2",
+        name: "Avaliação",
+        completedSessions: 1,
+        generatedInCents: 5000,
+        averageTicketInCents: 5000,
+      },
+      ...team.byService,
+    ];
+    data.profitability.byService = [
+      ...data.profitability.byService,
+      {
+        id: "s3",
+        name: "Depilação",
+        completedAppointments: 0,
+        revenueInCents: 3000,
+        commissionsInCents: 0,
+        contributionInCents: 3000,
+        contributionMargin: 100,
+      },
+    ];
+    await openTeamTab(true, data);
+    const names = (table: HTMLElement) =>
+      within(table)
+        .getAllByRole("rowheader")
+        .map((cell) => cell.firstChild?.textContent);
+    expect(
+      names(
+        await screen.findByRole("table", {
+          name: "Produção e comissão por profissional no período",
+        }),
+      ),
+    ).toEqual(["Beatriz Lima", "Ana Souza", "Zeca Agenda"]);
+    expect(
+      names(
+        screen.getByRole("table", {
+          name: "Produção e recebimento por serviço no período",
+        }),
+      ),
+    ).toEqual(["Pilates individual", "Avaliação", "Depilação"]);
   });
 });
