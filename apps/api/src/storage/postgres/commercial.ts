@@ -11,11 +11,11 @@ import {
   type LeadFilterOptions,
   type LeadInsightGroup,
   type LeadPage,
-  type LeadStageLabel,
-  type LeadStageLabelsInput,
+  type LeadStagesInput,
   type LeadStagePage,
   emailMatchKey,
-  resolveLeadStageLabels,
+  resolveLeadStages,
+  firstOpenLeadStage,
   findLeadDuplicates,
   phoneMatchKey,
   type ContactDuplicateCandidate,
@@ -32,7 +32,13 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
 } from "@crm/contracts";
+import {
+  planLeadStages,
+  stageNotEmptyError,
+  stageNotFoundError,
+} from "../../modules/commercial/stages.js";
 import { DomainError } from "../../repository.js";
+import type { Pool, PoolClient } from "pg";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
   ensurePatientTags,
@@ -109,6 +115,13 @@ function leadFilterSql(
   return { where: conditions.join(" AND "), params, param };
 }
 
+/** Funil salvo da clínica, na ordem (sem linhas = etapas padrão). */
+const listStages = (db: Pool | PoolClient, clinicId: string) =>
+  db.query<{ stage: string; label: string }>(
+    "SELECT stage, label FROM lead_stages WHERE clinic_id = $1 ORDER BY position",
+    [clinicId],
+  );
+
 export function createCommercialRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
@@ -171,11 +184,16 @@ export function createCommercialRepository(
             404,
           );
       }
+      const stage = firstOpenLeadStage(
+        resolveLeadStages(
+          (await listStages(repositoryContext.pool, clinicId)).rows,
+        ),
+      );
       const result = await repositoryContext.pool.query<{ id: string }>(
         `INSERT INTO leads
          (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags,profile,contact_method,branch_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)
+          responsible_user_id, tags,profile,contact_method,branch_id,stage)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
        RETURNING id`,
         [
           clinicId,
@@ -190,6 +208,7 @@ export function createCommercialRepository(
           JSON.stringify(leadPatientProfile(input)),
           input.contactMethod ?? null,
           repositoryContext.branchWriteId(),
+          stage,
         ],
       );
       return (await repositoryContext.findLead(
@@ -300,6 +319,12 @@ export function createCommercialRepository(
             409,
           );
         }
+        if (
+          !resolveLeadStages((await listStages(client, clinicId)).rows).some(
+            (item) => item.stage === stage,
+          )
+        )
+          throw stageNotFoundError();
         await client.query(
           `UPDATE leads SET stage = $3, lost_reason = $4, updated_at = now()
          WHERE clinic_id = $1 AND id = $2`,
@@ -722,26 +747,50 @@ export function createCommercialRepository(
       };
     },
 
-    async listLeadStageLabels(clinicId: string) {
-      const result = await repositoryContext.pool.query<LeadStageLabel>(
-        "SELECT stage, label FROM lead_stage_labels WHERE clinic_id = $1",
-        [clinicId],
+    async listLeadStages(clinicId: string) {
+      return resolveLeadStages(
+        (await listStages(repositoryContext.pool, clinicId)).rows,
       );
-      return resolveLeadStageLabels(result.rows);
     },
 
-    async saveLeadStageLabels(clinicId: string, input: LeadStageLabelsInput) {
-      await repositoryContext.inTransaction(async (client) => {
-        for (const item of input.stages)
-          await client.query(
-            `INSERT INTO lead_stage_labels (clinic_id, stage, label)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (clinic_id, stage)
-             DO UPDATE SET label = EXCLUDED.label, updated_at = now()`,
-            [clinicId, item.stage, item.label],
-          );
+    async saveLeadStages(clinicId: string, input: LeadStagesInput) {
+      return repositoryContext.inTransaction(async (client) => {
+        // Uma edição do funil por vez na clínica; trava os leads das etapas afetadas.
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [`lead_stages:${clinicId}`],
+        );
+        const plan = planLeadStages(
+          resolveLeadStages((await listStages(client, clinicId)).rows),
+          input,
+        );
+        for (const item of plan.mustBeEmpty) {
+          const leads = (
+            await client.query<{ total: number }>(
+              `SELECT COUNT(*)::int AS total FROM (
+                 SELECT 1 FROM leads WHERE clinic_id = $1 AND stage = $2 FOR UPDATE
+               ) locked`,
+              [clinicId, item.stage],
+            )
+          ).rows[0]!.total;
+          if (leads) throw stageNotEmptyError(item, leads);
+        }
+        await client.query("DELETE FROM lead_stages WHERE clinic_id = $1", [
+          clinicId,
+        ]);
+        await client.query(
+          `INSERT INTO lead_stages (clinic_id, stage, label, position)
+           SELECT $1, item.stage, item.label, item.position - 1
+           FROM unnest($2::text[], $3::text[]) WITH ORDINALITY
+             AS item(stage, label, position)`,
+          [
+            clinicId,
+            plan.stages.map((item) => item.stage),
+            plan.stages.map((item) => item.label),
+          ],
+        );
+        return resolveLeadStages(plan.stages);
       });
-      return resolveLeadStageLabels(input.stages);
     },
   };
 }
