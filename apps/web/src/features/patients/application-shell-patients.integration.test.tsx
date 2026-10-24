@@ -648,6 +648,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;

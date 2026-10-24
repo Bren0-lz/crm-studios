@@ -10,6 +10,7 @@ import type {
   NotificationsSummary,
   RetentionReport,
   SalesReport,
+  SalesPeriodReport,
 } from "@crm/contracts";
 import { request, requestBlob } from "../transport";
 
@@ -53,6 +54,14 @@ export const reportsApi = {
   clientReport: (from: string, to: string) =>
     request<ClientReport>(
       `/reports/clients?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  salesPeriodReport: (from: string, to: string) =>
+    request<SalesPeriodReport>(
+      `/reports/sales/period?${new URLSearchParams({ from, to })}`,
+    ),
+  salesPeriodReportXlsx: (from: string, to: string) =>
+    requestBlob(
+      `/reports/sales/period.xlsx?${new URLSearchParams({ from, to })}`,
     ),
   salesReport: (month: string) =>
     request<SalesReport>(`/reports/sales?month=${encodeURIComponent(month)}`),

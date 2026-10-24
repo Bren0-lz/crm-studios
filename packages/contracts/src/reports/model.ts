@@ -15,6 +15,8 @@ export const salesReportFilterSchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
 });
 
+export const salesPeriodReportFilterSchema = managementReportFilterSchema;
+
 /**
  * Query de `GET /reports/retention`. Parâmetros vazios contam como ausentes:
  * `to` ausente = hoje (fuso da clínica); `from` ausente = 1º dia do mês cinco

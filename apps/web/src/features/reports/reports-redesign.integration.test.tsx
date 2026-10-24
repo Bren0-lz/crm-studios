@@ -1,0 +1,286 @@
+﻿import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import type { PermissionKey, SalesPeriodReport } from "@crm/contracts";
+import App from "../../App";
+import { api } from "../../api";
+import {
+  storedUser,
+  withPermissions,
+} from "../../test-support/legacy-fixtures";
+import "../../test-support/legacy-setup";
+
+function session(permissions?: PermissionKey[]) {
+  localStorage.setItem("crm.auth.token", "test-token");
+  localStorage.setItem(
+    "crm.auth.user",
+    permissions
+      ? JSON.stringify(
+          withPermissions({
+            id: "22222222-2222-4222-8222-222222222222",
+            fullName: "Gestora",
+            email: "gestora@example.com",
+            role: "user",
+            modules: ["reports"],
+            editModules: [],
+            permissions,
+          }),
+        )
+      : storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+  );
+  vi.mocked(fetch).mockResolvedValue({
+    ok: false,
+    status: 503,
+    json: async () => ({ message: "Dados indisponíveis" }),
+  } as Response);
+}
+function sales(from: string, to: string, value = 120000): SalesPeriodReport {
+  return {
+    from,
+    to,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      from,
+      to,
+      grossSalesInCents: value,
+      netSalesInCents: value,
+      cancelledSalesInCents: 0,
+      receivedInCents: value,
+      attendedPatients: 14,
+    },
+    sales: [
+      {
+        id: "sale-1",
+        sourceId: "plan-1",
+        sourceType: "plan",
+        patientId: "p1",
+        patientName: "Helena Almeida",
+        itemName: "Plano de fisioterapia",
+        kind: "sale",
+        occurredAt: `${from}T12:00:00Z`,
+        amountInCents: value,
+        quantity: 1,
+      },
+    ],
+    payments: [],
+    patientsWithoutReturn: [
+      {
+        patientId: "p2",
+        patientName: "Cliente sem retorno",
+        lastCompletedAt: "2026-08-20T15:00:00Z",
+      },
+    ],
+    returnReference: { from: "2026-08-01", to: "2026-08-31" },
+  };
+}
+function open(path = "/relatorios") {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+function apply(from: string, to: string) {
+  fireEvent.change(screen.getByLabelText("De"), { target: { value: from } });
+  fireEvent.change(screen.getByLabelText("Até"), { target: { value: to } });
+  fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+}
+
+describe("management reports redesign", () => {
+  it("opens overview, loads other tabs on demand, preserves filters and supports keyboard navigation", async () => {
+    session();
+    const load = vi
+      .spyOn(api, "salesPeriodReport")
+      .mockImplementation(async (from, to) => sales(from, to));
+    const clients = vi
+      .spyOn(api, "clientDetailsReport")
+      .mockRejectedValue(new Error("Indisponível"));
+    const dre = vi
+      .spyOn(api, "dreReport")
+      .mockRejectedValue(new Error("Indisponível"));
+    open();
+    await screen.findByText("Vendido líquido");
+    expect(clients).not.toHaveBeenCalled();
+    expect(dre).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(/frente ao mês anterior|Comparação mensal/),
+    ).not.toBeInTheDocument();
+    const overview = screen.getByRole("tab", { name: "Visão geral" });
+    fireEvent.keyDown(overview, { key: "ArrowRight" });
+    const clientsTab = screen.getByRole("tab", { name: "Clientes" });
+    expect(clientsTab).toHaveFocus();
+    expect(clientsTab).toHaveAttribute("aria-selected", "true");
+    const search = await screen.findByLabelText("Buscar cliente");
+    fireEvent.change(search, { target: { value: "Helena" } });
+    fireEvent.click(overview);
+    fireEvent.click(clientsTab);
+    expect(screen.getByLabelText("Buscar cliente")).toHaveValue("Helena");
+    expect(load).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(clientsTab, { key: "End" });
+    expect(screen.getByRole("tab", { name: "DRE" })).toHaveFocus();
+    await waitFor(() => expect(dre).toHaveBeenCalledTimes(1));
+  });
+  it("keeps edits pending until Apply and ignores late results from the previous range", async () => {
+    session();
+    let resolveOld!: (value: SalesPeriodReport) => void;
+    const load = vi
+      .spyOn(api, "salesPeriodReport")
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockImplementation(async (from, to) => sales(from, to, 99000));
+    open();
+    await screen.findByRole("heading", { name: "Relatórios gerenciais" });
+    fireEvent.change(screen.getByLabelText("De"), {
+      target: { value: "2026-01-01" },
+    });
+    expect(load).toHaveBeenCalledTimes(1);
+    apply("2026-01-01", "2026-01-15");
+    await within(
+      (await screen.findByText("Vendido líquido")).closest("article")!,
+    ).findByText(/^R\$\s990,00$/);
+    await act(async () => {
+      resolveOld(sales("2026-02-01", "2026-02-15", 888888));
+    });
+    expect(screen.queryByText(/8\.888,88/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("De")).toHaveValue("2026-01-01");
+    apply("2026-02-01", "2026-01-01");
+    expect(screen.getByRole("button", { name: "Atualizar" })).toBeDisabled();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+  it("opens the direct no-return link with the full list and criterion", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({
+      ...sales(from, to),
+      patientsWithoutReturn: Array.from({ length: 15 }, (_, i) => ({
+        patientId: String(i),
+        patientName: `Cliente Sem Retorno ${i + 1}`,
+        lastCompletedAt: "2026-08-20T15:00:00Z",
+      })),
+    }));
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      value: scroll,
+      configurable: true,
+    });
+    open("/relatorios?secao=sem-retorno");
+    await screen.findByText("Cliente Sem Retorno 15");
+    expect(screen.getByRole("tab", { name: "Clientes" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getAllByText(/^Cliente Sem Retorno \d+$/)).toHaveLength(15);
+    expect(
+      screen.getByText(/Atendidos de 01\/08\/2026 a 31\/08\/2026/),
+    ).toBeInTheDocument();
+    expect(scroll).toHaveBeenCalled();
+  });
+  it("exports the applied range even when the draft has changed and exposes chart values by keyboard", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) =>
+      sales(from, to),
+    );
+    const exporting = vi
+      .spyOn(api, "salesPeriodReportXlsx")
+      .mockResolvedValue(new Blob(["xlsx"]));
+    const originalCreate = URL.createObjectURL,
+      originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:download");
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      open();
+      await screen.findByText("Vendido líquido");
+      apply("2026-01-01", "2026-01-15");
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Exportar Excel detalhado" }),
+        ).toBeEnabled(),
+      );
+      fireEvent.change(screen.getByLabelText("Até"), {
+        target: { value: "2026-02-15" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Exportar Excel detalhado" }),
+      );
+      await waitFor(() =>
+        expect(exporting).toHaveBeenCalledWith("2026-01-01", "2026-01-15"),
+      );
+      const point = screen.getByRole("img", {
+        name: /01\/01\/2026: Vendas líquidas/,
+      });
+      fireEvent.focus(point);
+      expect(document.querySelector(".report-chart-readout")).toHaveTextContent(
+        /01\/01\/2026: Vendas líquidas: R\$\s1\.200,00 · Recebimentos:/,
+      );
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+  it("only renders and queries permitted tabs", async () => {
+    session(["reports.view", "reports.dre"]);
+    const dre = vi
+      .spyOn(api, "dreReport")
+      .mockRejectedValue(new Error("DRE indisponível"));
+    const load = vi.spyOn(api, "salesPeriodReport");
+    open();
+    await screen.findByText("DRE indisponível");
+    expect(screen.getAllByRole("tab")).toHaveLength(1);
+    expect(screen.getByRole("tab", { name: "DRE" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(dre).toHaveBeenCalledTimes(1);
+    expect(load).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Exportar DRE" }),
+    ).not.toBeInTheDocument();
+  });
+  it("shows the no-access state without requesting reports", async () => {
+    session(["reports.view"]);
+    const load = vi.spyOn(api, "salesPeriodReport");
+    open();
+    await screen.findByText("Nenhum relatório foi liberado para seu usuário.");
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(load).not.toHaveBeenCalled();
+  });
+  it("recovers from a failed query and shows empty periods without a fictitious graph", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport")
+      .mockRejectedValueOnce(new Error("Vendas indisponíveis"))
+      .mockImplementation(async (from, to) => ({
+        ...sales(from, to, 0),
+        sales: [],
+        payments: [],
+      }));
+    open();
+    await screen.findByText("Vendas indisponíveis");
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    await screen.findByText("Sem movimentações no período");
+    expect(screen.queryByText("Vendas indisponíveis")).not.toBeInTheDocument();
+    const panel = screen
+      .getByRole("heading", { name: "Vendas e recebimentos" })
+      .closest("section")!;
+    expect(
+      within(panel).queryByRole("group", {
+        name: "Vendas líquidas e recebimentos no período",
+      }),
+    ).not.toBeInTheDocument();
+  });
+});

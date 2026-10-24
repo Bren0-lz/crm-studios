@@ -298,6 +298,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.updateAppointmentStatus = this.agenda.updateAppointmentStatus;
     this.getDashboard = this.reports.getDashboard;
     this.getSalesReport = this.reports.getSalesReport;
+    this.getSalesPeriodReport = this.reports.getSalesPeriodReport;
     this.getManagementReport = this.reports.getManagementReport;
     this.listPatients = this.patients.listPatients;
     this.createPatient = this.patients.createPatient;
@@ -746,6 +747,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getDashboard: ReturnType<
     typeof createReportsRepository
   >["getDashboard"];
+
+  readonly getSalesPeriodReport: ReturnType<
+    typeof createReportsRepository
+  >["getSalesPeriodReport"];
 
   readonly getSalesReport: ReturnType<
     typeof createReportsRepository

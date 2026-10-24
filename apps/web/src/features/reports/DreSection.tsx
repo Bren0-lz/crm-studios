@@ -6,40 +6,28 @@ import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
-import {
-  currency,
-  formatIsoDate,
-  localIsoDate,
-} from "../../shared/lib/formatting";
+import { currency, formatIsoDate } from "../../shared/lib/formatting";
+import { ReportChart } from "./ReportChart";
+import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 import { dreGroupLabels } from "../finance/index";
 
-export function DreSection() {
+export function DreSection({ period }: { period: ReportPeriod }) {
   const { can } = useAuthorization();
-  const [open, setOpen] = useState(false),
-    [filter, setFilter] = useState({
-      from: `${localIsoDate().slice(0, 7)}-01`,
-      to: localIsoDate(),
-    }),
-    [report, setReport] = useState<DreReport | null>(null),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [printed, setPrinted] = useState<DreReport | null>(null);
-  async function load() {
-    setBusy(true);
-    setError("");
-    setReport(null);
-    try {
-      setReport(await api.dreReport(filter.from, filter.to));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {
+    data: report,
+    error: queryError,
+    loading,
+  } = useReportQuery(period, api.dreReport);
+  const [exporting, setBusy] = useState(false);
+  const [exportError, setExportError] = useState({ period, message: "" });
+  const [printed, setPrinted] = useState<DreReport | null>(null);
+  const busy = exporting || loading;
+  const error =
+    queryError || (exportError.period === period ? exportError.message : "");
   async function exportReport(print = false) {
     if (!report) return;
     setBusy(true);
-    setError("");
+    setExportError({ period, message: "" });
     try {
       const data = await api.dreReport(report.from, report.to, undefined, true);
       if (print) {
@@ -92,7 +80,7 @@ export function DreSection() {
         URL.revokeObjectURL(url);
       }
     } catch (cause) {
-      setError((cause as Error).message);
+      setExportError({ period, message: (cause as Error).message });
     } finally {
       setBusy(false);
     }
@@ -109,7 +97,7 @@ export function DreSection() {
             <tr>
               <th scope="col">Composição</th>
               {data.months.map((item) => (
-                <th scope="col" key={item.month}>
+                <th scope="col" className="numeric-value" key={item.month}>
                   {item.month.split("-").reverse().join("/")}
                 </th>
               ))}
@@ -134,7 +122,7 @@ export function DreSection() {
                 .map(([key, label]) => [
                   label,
                   (m: DreReport["months"][number]) =>
-                    -m.expenses[key as keyof typeof m.expenses],
+                    -m.expenses[key as keyof typeof m.expenses] || 0,
                 ]),
               [
                 "Resultado",
@@ -158,92 +146,108 @@ export function DreSection() {
     );
   }
   return (
-    <section className="panel">
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open && !open) {
-            setOpen(true);
-            void load();
-          }
-        }}
-      >
-        <summary className="panel-head">DRE por competência</summary>
-        {open && (
-          <div className="inventory-body">
-            <p className="muted-copy">
-              Composição mensal por competência, incluindo valores ainda não
-              pagos. O caixa apresenta os pagamentos e os estornos.
-            </p>
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void load();
-              }}
-            >
-              <label>
-                De
-                <input
-                  type="date"
-                  required
-                  value={filter.from}
-                  onChange={(event) =>
-                    setFilter({ ...filter, from: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Até
-                <input
-                  type="date"
-                  required
-                  min={filter.from}
-                  value={filter.to}
-                  onChange={(event) =>
-                    setFilter({ ...filter, to: event.target.value })
-                  }
-                />
-              </label>
-              <button className="primary-button" disabled={busy}>
-                Consultar
-              </button>
-            </form>
-            {error && <ErrorBanner error={error} />}
-            {busy && <LoadingBlock />}
-            {report && (
-              <>
-                {report.totals.revenueInCents === 0 &&
-                report.totals.expensesInCents === 0 ? (
-                  <EmptyState
-                    title="Nenhum lançamento no período"
-                    copy="Classifique os lançamentos no Financeiro para compor o resultado."
-                  />
-                ) : (
-                  table(report)
-                )}
-                {can("reports.export") && (
-                  <div className="page-actions">
-                    <button
-                      disabled={busy}
-                      className="secondary-button"
-                      onClick={() => void exportReport()}
-                    >
-                      Exportar DRE
-                    </button>
-                    <button
-                      disabled={busy}
-                      className="secondary-button"
-                      onClick={() => void exportReport(true)}
-                    >
-                      Imprimir DRE
-                    </button>
-                  </div>
-                )}
-              </>
+    <section className="panel reports-dre">
+      <div className="panel-head">
+        <div>
+          <h2>DRE por competência</h2>
+          <p className="panel-context">
+            Composição dos meses abrangidos pelo período, incluindo valores
+            ainda não pagos. O caixa apresenta os pagamentos e os estornos.
+          </p>
+        </div>
+      </div>
+      <div className="reports-body">
+        {error && <ErrorBanner error={error} />}
+        {loading && <LoadingBlock />}
+        {report && (
+          <>
+            <div className="reports-kpis">
+              <article>
+                <span>Receitas</span>
+                <strong>
+                  {currency.format(report.totals.revenueInCents / 100)}
+                </strong>
+                <small>Por competência</small>
+              </article>
+              <article>
+                <span>Despesas</span>
+                <strong>
+                  {currency.format(report.totals.expensesInCents / 100)}
+                </strong>
+                <small>Por competência</small>
+              </article>
+              <article>
+                <span>Resultado</span>
+                <strong>
+                  {currency.format(report.totals.resultInCents / 100)}
+                </strong>
+                <small>Receitas menos despesas</small>
+              </article>
+            </div>
+            {(report.totals.revenueInCents !== 0 ||
+              report.totals.expensesInCents !== 0) && (
+              <ReportChart
+                title="Resultado por competência"
+                bars
+                points={report.months.map((item) => ({
+                  label: item.month.split("-").reverse().join("/"),
+                  values: [
+                    item.serviceRevenueInCents +
+                      item.productRevenueInCents +
+                      item.otherRevenueInCents,
+                    item.serviceRevenueInCents +
+                      item.productRevenueInCents +
+                      item.otherRevenueInCents -
+                      item.resultInCents,
+                    item.resultInCents,
+                  ],
+                }))}
+                series={[
+                  {
+                    label: "Receitas",
+                    format: (v) => currency.format(v / 100),
+                  },
+                  {
+                    label: "Despesas",
+                    format: (v) => currency.format(v / 100),
+                  },
+                  {
+                    label: "Resultado",
+                    format: (v) => currency.format(v / 100),
+                  },
+                ]}
+              />
             )}
-          </div>
+            {report.totals.revenueInCents === 0 &&
+            report.totals.expensesInCents === 0 ? (
+              <EmptyState
+                title="Nenhum lançamento no período"
+                copy="Classifique os lançamentos no Financeiro para compor o resultado."
+              />
+            ) : (
+              table(report)
+            )}
+            {can("reports.export") && (
+              <div className="page-actions">
+                <button
+                  disabled={busy}
+                  className="secondary-button"
+                  onClick={() => void exportReport()}
+                >
+                  Exportar DRE
+                </button>
+                <button
+                  disabled={busy}
+                  className="secondary-button"
+                  onClick={() => void exportReport(true)}
+                >
+                  Imprimir DRE
+                </button>
+              </div>
+            )}
+          </>
         )}
-      </details>
+      </div>
       {printed &&
         createPortal(
           <div className="clinical-print-sheet">
