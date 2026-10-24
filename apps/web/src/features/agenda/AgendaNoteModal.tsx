@@ -203,8 +203,8 @@ export function AgendaNoteModal({
           </label>
         )}
         {form.repeat && (
-          <>
-            <label>
+          <div className="span-2 agenda-note-repeat">
+            <label className="agenda-note-until">
               Repetir até
               <input
                 type="date"
@@ -216,32 +216,37 @@ export function AgendaNoteModal({
                 }
               />
             </label>
-            <fieldset className="span-2 agenda-note-weekdays">
+            <fieldset className="agenda-note-weekdays">
               <legend>Dias da semana</legend>
-              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(
-                (day, index) => (
-                  <label className="checkbox-field" key={day}>
-                    <input
-                      type="checkbox"
-                      checked={form.weekdays.includes(index)}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          weekdays: event.target.checked
-                            ? [...form.weekdays, index]
-                            : form.weekdays.filter((value) => value !== index),
-                        })
-                      }
-                    />
-                    {day}
-                  </label>
-                ),
-              )}
+              <div className="agenda-note-days">
+                {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(
+                  (day, index) => (
+                    <label className="agenda-note-day" key={day}>
+                      <input
+                        className="sr-only"
+                        type="checkbox"
+                        checked={form.weekdays.includes(index)}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            weekdays: event.target.checked
+                              ? [...form.weekdays, index]
+                              : form.weekdays.filter(
+                                  (value) => value !== index,
+                                ),
+                          })
+                        }
+                      />
+                      {day}
+                    </label>
+                  ),
+                )}
+              </div>
             </fieldset>
-            <p className="span-2">
+            <p className="field-hint">
               Até 120 ocorrências, incluindo a primeira nota.
             </p>
-          </>
+          </div>
         )}
         {note?.seriesId && (
           <NoteScopeSelect value={scope} onChange={setScope} />
