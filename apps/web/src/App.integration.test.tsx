@@ -12004,13 +12004,16 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByText(/Bruna Lead passa a ser cliente/),
+        within(dialog).getByText(/os dados do lead já vieram preenchidos/),
       ).toBeInTheDocument();
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // O CPF é obrigatório e recebe o foco inicial.
-      expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
+      // Mesmo cadastro do "Novo cliente": o nome do lead vem preenchido e recebe o foco.
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Bruna Lead",
+      );
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
@@ -12024,13 +12027,13 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       ).toBeDisabled();
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       await vi.waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -12038,15 +12041,12 @@ describe("action modals instead of browser dialogs", () => {
       expect(writes()).toHaveLength(1);
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
-      expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
+      expect(JSON.parse(String(writes()[0]![1]?.body))).toMatchObject({
         cpf: "52998224725",
+        fullName: "Bruna Lead",
+        phone: "11987654321",
         emergencyContactName: "",
-        emergencyContactPhone: "",
-        postalCode: "",
         address: "",
-        neighborhood: "",
-        city: "",
-        state: "",
       });
     });
 
@@ -12089,7 +12089,7 @@ describe("action modals instead of browser dialogs", () => {
         target: { value: "52998224725" },
       });
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       expect(
         await within(dialog).findByText(
