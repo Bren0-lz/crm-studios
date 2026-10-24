@@ -317,7 +317,12 @@ describe("campanhas de WhatsApp", () => {
         templateId: template.id,
         audience: {
           mode: "segment",
-          segment: { tags: [], birthdayMonth: false, appointmentDate: day },
+          segment: {
+            tags: [],
+            birthdayMonth: false,
+            appointmentFrom: day,
+            appointmentTo: day,
+          },
         },
       },
     });

@@ -1705,6 +1705,19 @@
   gap: var(--space-2);
 }
 
+.campaign-period {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.campaign-range {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
 .campaign-exclude-tags .tag-choice[aria-pressed="true"] {
   text-decoration: line-through;
 }
@@ -1718,7 +1731,8 @@
 }
 
 @media (max-width: 700px) {
-  .campaign-age {
+  .campaign-age,
+  .campaign-range {
     grid-template-columns: 1fr;
   }
 }

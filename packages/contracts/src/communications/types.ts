@@ -4,6 +4,7 @@ import {
   broadcastInputSchema,
   broadcastSegmentSchema,
   broadcastSkipReasons,
+  campaignAppointmentStatusSchema,
   campaignRecipientStatusSchema,
   communicationChannelSchema,
   communicationKindSchema,
@@ -196,6 +197,10 @@ export interface CampaignRecipientUpdate {
   campaign: WhatsappCampaign;
   recipient: WhatsappCampaignRecipient;
 }
+
+export type CampaignAppointmentStatus = z.infer<
+  typeof campaignAppointmentStatusSchema
+>;
 
 /** Filtros da campanha como o formulário monta (os padrões ficam por conta do schema). */
 export type WhatsappCampaignSegment = Partial<
