@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clinicalResourceInputSchema,
@@ -23,6 +24,7 @@ describe("client detail reports", () => {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente relatório detalhado",
       phone: "11988887777",
       tags: [],
@@ -31,6 +33,7 @@ describe("client detail reports", () => {
       interests: ["Pilates"],
     });
     await repository.createPatient("99999999-9999-4999-8999-999999999999", {
+      cpf: nextTestCpf(),
       fullName: "Cliente relatório detalhado externo",
       phone: "11988887777",
       tags: [],

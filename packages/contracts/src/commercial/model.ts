@@ -7,13 +7,16 @@ import {
 } from "../patients/model.js";
 
 export const leadPatientProfileSchema = patientProfileSchema.extend(
-  patientInputSchema.pick({
-    cpf: true,
-    whatsapp: true,
-    birthDate: true,
-    emergencyContactName: true,
-    emergencyContactPhone: true,
-  }).shape,
+  patientInputSchema
+    .pick({
+      cpf: true,
+      whatsapp: true,
+      birthDate: true,
+      emergencyContactName: true,
+      emergencyContactPhone: true,
+    })
+    .extend({ cpf: patientInputSchema.shape.cpf.optional().or(z.literal("")) })
+    .shape,
 );
 export function leadPatientProfile(
   input: z.infer<typeof leadPatientProfileSchema>,
@@ -45,7 +48,8 @@ export const leadConversionInputSchema = leadPatientProfileSchema
     city: true,
     state: true,
   })
-  .partial();
+  .partial()
+  .extend({ cpf: patientInputSchema.shape.cpf });
 
 export const leadMoveSchema = z
   .object({

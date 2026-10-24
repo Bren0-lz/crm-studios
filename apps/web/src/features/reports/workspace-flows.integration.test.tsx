@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -12,6 +13,7 @@ describe("client reports through real HTTP handlers", () => {
   it("filters a client report, selects export columns and downloads a CSV", async () => {
     const { repository } = await setupApi();
     await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente do relatório",
       phone: "11988887777",
       tags: [],

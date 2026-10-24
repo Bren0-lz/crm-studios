@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { parseSequenceNumber, patientInputSchema } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -86,9 +87,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         [legacy.map((item) => item.id)],
       );
       const byId = new Map(rows.rows.map((row) => [row.id, row.recordNumber]));
-      expect(byId.get(legacy[1]!.id)).toBe(`PAC-${String(top + 1).padStart(5, "0")}`);
-      expect(byId.get(legacy[0]!.id)).toBe(`PAC-${String(top + 2).padStart(5, "0")}`);
-      expect(byId.get(legacy[2]!.id)).toBe(`PAC-${String(top + 3).padStart(5, "0")}`);
+      expect(byId.get(legacy[1]!.id)).toBe(
+        `PAC-${String(top + 1).padStart(5, "0")}`,
+      );
+      expect(byId.get(legacy[0]!.id)).toBe(
+        `PAC-${String(top + 2).padStart(5, "0")}`,
+      );
+      expect(byId.get(legacy[2]!.id)).toBe(
+        `PAC-${String(top + 3).padStart(5, "0")}`,
+      );
       const leftover = await pool.query(
         "SELECT 1 FROM patients WHERE record_number = 'PAC-' || upper(left(id::text, 8))",
       );
@@ -101,6 +108,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
           repository.createPatient(
             clinicId,
             patientInputSchema.parse({
+              cpf: nextTestCpf(),
               fullName: `Cliente Paralelo ${index}`,
               phone: `1198888000${index}`,
             }),

@@ -69,14 +69,10 @@ export const patientInputSchema = z.object({
   ...patientProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
   cpf: z
-    .string()
+    .string({ error: "Informe um CPF válido." })
     .trim()
     .transform(cpfDigits)
-    .refine(
-      (value) => value === "" || isValidCpf(value),
-      "Informe um CPF válido.",
-    )
-    .optional(),
+    .refine((value) => isValidCpf(value), "Informe um CPF válido."),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
   whatsapp: optionalPhoneSchema,

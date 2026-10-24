@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import type { ManagementReport } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
@@ -22,6 +23,7 @@ async function setup() {
     ),
     [service] = await repository.listServices(clinicId);
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Cliente turma métricas",
     phone: "11988887777",
     tags: [],

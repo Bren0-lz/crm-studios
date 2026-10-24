@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import type { AdminAuditPage } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
@@ -20,6 +21,7 @@ describe("history without duplicates", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Teste Histórico",
           phone: "11955554444",
           tags: [],

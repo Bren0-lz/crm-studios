@@ -91,6 +91,7 @@ describe("readXlsxRows", () => {
       "Data de nascimento",
       "E-mail",
       "Tags",
+      "CPF",
     ]);
     sheet.addRow([
       "Carla Mendes",
@@ -98,9 +99,17 @@ describe("readXlsxRows", () => {
       new Date(Date.UTC(1990, 4, 20)),
       { text: "carla@example.com", hyperlink: "mailto:carla@example.com" },
       "pilates",
+      "52998224725",
     ]);
     sheet.addRow([]);
-    sheet.addRow(["Davi Lima", "(21) 3333-4444", "05/06/1985", null, null]);
+    sheet.addRow([
+      "Davi Lima",
+      "(21) 3333-4444",
+      "05/06/1985",
+      null,
+      null,
+      "98765432100",
+    ]);
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
     const rows = await readXlsxRows(buffer);
@@ -110,6 +119,7 @@ describe("readXlsxRows", () => {
       "Data de nascimento",
       "E-mail",
       "Tags",
+      "CPF",
     ]);
     expect(rows[1]).toEqual([
       "Carla Mendes",
@@ -117,6 +127,7 @@ describe("readXlsxRows", () => {
       "1990-05-20",
       "carla@example.com",
       "pilates",
+      "52998224725",
     ]);
     expect(rows[2]?.every((cell) => cell === "")).toBe(true);
     expect(rows[3]?.slice(0, 3)).toEqual([
@@ -171,7 +182,17 @@ describe("validatePatientImport", () => {
           "Prefere manhã",
           "x",
         ],
-        ["Bruno Alves", "", "1133334444", "", "", "1979-02-03", "", "", ""],
+        [
+          "Bruno Alves",
+          "52998224725",
+          "1133334444",
+          "",
+          "",
+          "1979-02-03",
+          "",
+          "",
+          "",
+        ],
       ],
       [],
     );
@@ -195,6 +216,7 @@ describe("validatePatientImport", () => {
     });
     expect(analysis.rows[1]?.input).toEqual({
       fullName: "Bruno Alves",
+      cpf: "52998224725",
       phone: "1133334444",
       birthDate: "1979-02-03",
       tags: [],
@@ -211,6 +233,7 @@ describe("validatePatientImport", () => {
           "E-mail",
           "Tags",
           "Obs",
+          "CPF",
         ],
         [
           "Célia Rocha",
@@ -219,6 +242,7 @@ describe("validatePatientImport", () => {
           "celia@example.com",
           "dança",
           "nota",
+          "52998224725",
         ],
       ],
       [],
@@ -277,9 +301,13 @@ describe("validatePatientImport", () => {
       ]),
     );
     expect(second?.line).toBe(4);
-    expect(second?.errors).toEqual(["Linha 4: telefone é obrigatório."]);
+    expect(second?.errors).toEqual([
+      "Linha 4: CPF é obrigatório.",
+      "Linha 4: telefone é obrigatório.",
+    ]);
     expect(third?.errors).toEqual([
       expect.stringMatching(/^Linha 5: data de nascimento/),
+      "Linha 5: CPF é obrigatório.",
     ]);
     expect(first?.input).toBeUndefined();
   });
@@ -290,11 +318,11 @@ describe("validatePatientImport", () => {
       [
         ["Nome", "CPF", "Telefone"],
         ["Maria Nova", "12345678909", "11911112222"],
-        ["Outra Pessoa", "", "(11) 98888-7777"],
+        ["Outra Pessoa", "98765432100", "(11) 98888-7777"],
         ["Pedro Primeiro", "529.982.247-25", "11922223333"],
-        ["Pedro Segundo", "", "11 92222-3333"],
+        ["Pedro Segundo", "11144477735", "11 92222-3333"],
         ["Pedro Terceiro", "52998224725", "11944445555"],
-        ["Pessoa Única", "", "11955556666"],
+        ["Pessoa Única", "39053344705", "11955556666"],
       ],
       [existing],
     );

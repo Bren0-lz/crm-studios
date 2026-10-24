@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { buildApp } from "../../app.js";
@@ -14,6 +15,7 @@ describe("financial dates", () => {
     vi.setSystemTime(new Date("2039-05-31T18:00:00Z"));
     const repository = new MemoryClinicRepository(),
       patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente datas mensais",
         phone: "11988887777",
         tags: [],

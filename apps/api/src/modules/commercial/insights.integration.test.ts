@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -228,7 +229,9 @@ describe("commercial filters and conversion", () => {
         })
       ).statusCode,
     ).toBe(403);
-    await repository.convertLead(clinicId, actorId, lead.id);
+    await repository.convertLead(clinicId, actorId, lead.id, {
+      cpf: lead.cpf ?? nextTestCpf(),
+    });
     expect(
       (
         await app.inject({
@@ -243,6 +246,7 @@ describe("commercial filters and conversion", () => {
   it("transfers optional registration fields and tags, preserving existing choices and avoiding duplicate customers", async () => {
     const repository = new MemoryClinicRepository(),
       patient = await repository.createPatient(clinicId, {
+        cpf: "52998224725",
         fullName: "Cliente existente",
         phone: "11955554444",
         tags: [],
@@ -265,7 +269,9 @@ describe("commercial filters and conversion", () => {
         tags: ["Indicação comercial"],
       }),
     );
-    const converted = await repository.convertLead(clinicId, actorId, lead.id);
+    const converted = await repository.convertLead(clinicId, actorId, lead.id, {
+      cpf: lead.cpf ?? nextTestCpf(),
+    });
     expect(converted).toMatchObject({
       reusedExisting: true,
       lead: { stage: "won" },
@@ -282,7 +288,9 @@ describe("commercial filters and conversion", () => {
     expect(converted!.patient.tags).toContain("Indicação comercial");
     expect(converted!.patient.interests).toEqual(["Mobilidade", "Pilates"]);
     expect(
-      (await repository.convertLead(clinicId, actorId, lead.id))!.patient.id,
+      (await repository.convertLead(clinicId, actorId, lead.id, {
+        cpf: lead.cpf ?? nextTestCpf(),
+      }))!.patient.id,
     ).toBe(patient.id);
     expect(
       (await repository.listPatients(clinicId)).filter(

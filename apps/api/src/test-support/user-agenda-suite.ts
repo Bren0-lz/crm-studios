@@ -1,3 +1,4 @@
+import { nextTestCpf } from "./cpf.js";
 import { randomUUID } from "node:crypto";
 import {
   adminUserInputSchema,
@@ -57,6 +58,7 @@ export function userAgendaSuite(repository: () => ClinicRepository) {
       });
       expect(professional.branchId).toBeTruthy();
       const patient = await repo.createPatient(clinic, {
+        cpf: nextTestCpf(),
         fullName: "Cliente unificado",
         phone: "11999991234",
         tags: [],

@@ -31,6 +31,7 @@ const professionalId = "33333333-3333-4333-8333-333333333333";
 const roomId = "55555555-5555-4555-8555-555555555555";
 const timestamp = "2026-10-10T12:00:00Z";
 const patient: Patient = {
+  cpf: "52998224725",
   id: "99999999-9999-4999-8999-999999999999",
   clinicId,
   fullName: "Nova Cliente",
@@ -237,6 +238,9 @@ async function openCreation(permissions?: PermissionKey[]) {
   const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
   fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
     target: { value: patient.fullName },
+  });
+  fireEvent.change(within(dialog).getByLabelText("CPF"), {
+    target: { value: "52998224725" },
   });
   const contact = within(dialog).getByRole("group", { name: /^Contato$/ });
   fireEvent.change(within(contact).getByLabelText("Telefone"), {

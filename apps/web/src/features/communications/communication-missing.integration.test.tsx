@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { clinicId, setupApi } from "../../test-support/api-server";
@@ -7,6 +8,7 @@ describe("communication buttons list what is missing (QM14)", () => {
   it("keeps 'Adicionar à fila' disabled until the client and the message are filled", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente da fila",
       phone: "11988887777",
       tags: [],

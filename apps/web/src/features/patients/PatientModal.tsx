@@ -141,6 +141,7 @@ export function PatientModal({
   const guidedPlan = step === "plan" ? planForm : singleForm;
   const missing = useMissingFields([
     ...(form.fullName.trim() ? [] : ["Nome completo"]),
+    ...(form.cpf.trim() ? [] : ["CPF"]),
     ...(form.phone.trim() ? [] : ["Telefone"]),
     ...(step === "demonstration"
       ? [
@@ -193,7 +194,7 @@ export function PatientModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (submitting.current) return;
-    if (form.cpf && !isValidCpf(form.cpf)) {
+    if (!isValidCpf(form.cpf)) {
       setError("Informe um CPF válido.");
       return;
     }
@@ -204,7 +205,9 @@ export function PatientModal({
       setLoading(true);
       try {
         const saved = await api.updatePatient(patient.id, form);
-        toast.success(`Cadastro de ${patientFirstName(saved.fullName)} atualizado.`);
+        toast.success(
+          `Cadastro de ${patientFirstName(saved.fullName)} atualizado.`,
+        );
         onSaved(saved);
       } catch (cause) {
         setError((cause as Error).message);
@@ -225,7 +228,9 @@ export function PatientModal({
     try {
       if (input.next === "none") {
         const created = await api.createPatient(form);
-        toast.success(`Cadastro de ${patientFirstName(created.fullName)} criado.`);
+        toast.success(
+          `Cadastro de ${patientFirstName(created.fullName)} criado.`,
+        );
         onSaved(created);
         return;
       }
@@ -264,6 +269,14 @@ export function PatientModal({
             value={form.fullName}
             onChange={(e) => field("fullName", e.target.value)}
             autoFocus
+          />
+        </label>
+        <label className="span-2">
+          CPF
+          <CpfInput
+            required
+            value={form.cpf}
+            onChange={(digits) => field("cpf", digits)}
           />
         </label>
         <fieldset className="form-fieldset span-2">
@@ -313,14 +326,12 @@ export function PatientModal({
         <details className="more-info span-2" open={Boolean(patient)}>
           <summary>Mais informações</summary>
           <div className="form-grid">
-            <label>
-              CPF
-              <CpfInput
-                value={form.cpf ?? ""}
-                onChange={(digits) => field("cpf", digits)}
-              />
-            </label>
-            <PatientProfileFields form={form} onChange={field} />
+            <PatientProfileFields
+              form={form}
+              onChange={(key, value) =>
+                setForm((current) => ({ ...current, [key]: value }))
+              }
+            />
             <fieldset className="form-fieldset emergency-fieldset span-2">
               <legend>Contato de emergência</legend>
               <div className="form-fieldset-grid">

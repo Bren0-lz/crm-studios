@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { patientInputSchema } from "@crm/contracts";
@@ -21,6 +22,7 @@ describe("individual document preparation", () => {
     const patient = await repository.createPatient(
       clinicId,
       patientInputSchema.parse({
+        cpf: nextTestCpf(),
         fullName: "Cliente do contrato",
         phone: "11999991234",
       }),
@@ -103,6 +105,7 @@ describe("individual document preparation", () => {
     const patient = await repository.createPatient(
       clinicId,
       patientInputSchema.parse({
+        cpf: nextTestCpf(),
         fullName: "Cliente das etapas",
         phone: "11999991234",
       }),
@@ -151,6 +154,7 @@ describe("individual document preparation", () => {
     const patient = await repository.createPatient(
       clinicId,
       patientInputSchema.parse({
+        cpf: nextTestCpf(),
         fullName: "Cliente da revisão",
         phone: "11999991234",
       }),

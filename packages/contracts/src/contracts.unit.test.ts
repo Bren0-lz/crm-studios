@@ -257,6 +257,7 @@ describe("shared contracts", () => {
 
   it("normalizes a valid patient", () => {
     const result = patientInputSchema.parse({
+      cpf: "52998224725",
       fullName: "  Maria da Silva  ",
       phone: "(11) 99999-9999",
       tags: ["Pilates"],
@@ -266,6 +267,7 @@ describe("shared contracts", () => {
     expect(result.phone).toBe("11999999999");
     expect(
       patientInputSchema.parse({
+        cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "11999999999",
         whatsapp: "(11) 3333-4444",
@@ -273,6 +275,7 @@ describe("shared contracts", () => {
     ).toBe("1133334444");
     expect(() =>
       patientInputSchema.parse({
+        cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "11999999999",
         whatsapp: "3333-4444",
@@ -281,12 +284,14 @@ describe("shared contracts", () => {
     expect(result.tags).toEqual(["Pilates"]);
     expect(() =>
       patientInputSchema.parse({
+        cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "9999-9999",
       }),
     ).toThrow();
     expect(
       patientInputSchema.parse({
+        cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "11 3333 4444",
         emergencyContactPhone: "",
@@ -789,7 +794,11 @@ describe("patient export filter", () => {
 });
 
 describe("guided patient creation", () => {
-  const patient = { fullName: "Ana Souza", phone: "11999990000" };
+  const patient = {
+    fullName: "Ana Souza",
+    phone: "11999990000",
+    cpf: "52998224725",
+  };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {
     services: [

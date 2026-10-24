@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import ExcelJS from "exceljs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
@@ -27,6 +28,7 @@ describe("client management", () => {
       url: "/patients",
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: "Cliente completo",
         phone: "11988887777",
         city: "São Paulo",
@@ -42,7 +44,11 @@ describe("client management", () => {
       method: "PUT",
       url: `/patients/${patient.id}`,
       headers,
-      payload: { fullName: "Cliente atualizado", phone: "11988887777" },
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "Cliente atualizado",
+        phone: "11988887777",
+      },
     });
     expect(edit.statusCode).toBe(200);
     expect(edit.json()).toMatchObject({
@@ -69,11 +75,13 @@ describe("client management", () => {
   it("merges two clients only after resolving conflicting fields and preserves appointment history", async () => {
     const { app, repository, headers } = await setup();
     const source = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cadastro duplicado",
       phone: "11988887777",
       tags: ["origem"],
     });
     const target = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cadastro principal",
       phone: "11999998888",
       tags: ["destino"],
@@ -150,7 +158,7 @@ describe("client management", () => {
   it("keeps accents from an imported Excel CSV in the CSV and XLSX exports", async () => {
     const { app, headers } = await setup();
     const sample =
-      "Nome;Telefone;Observações\r\nJoão Conceição Araújo;(11) 97777-1234;Prefere manhã\r\n";
+      "Nome;Telefone;Observações;CPF\r\nJoão Conceição Araújo;(11) 97777-1234;Prefere manhã;52998224725\r\n";
     const imported = await app.inject({
       method: "POST",
       url: "/patients/import",
@@ -194,6 +202,7 @@ describe("client management", () => {
   it("returns only name and phone in the SOS emergency contact lookup", async () => {
     const { app, repository, headers } = await setup();
     const withContact = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente com contato",
       phone: "11988887777",
       emergencyContactName: "Maria Souza (mãe)",
@@ -201,6 +210,7 @@ describe("client management", () => {
       tags: [],
     });
     const withoutContact = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente sem contato",
       phone: "11999998888",
       tags: [],
@@ -243,11 +253,13 @@ describe("client management", () => {
   it("moves the plan, balance and receivables of the duplicate to the merged client", async () => {
     const { app, repository, headers } = await setup();
     const source = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Plano duplicado",
       phone: "11988887777",
       tags: [],
     });
     const target = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Plano principal",
       phone: "11999998888",
       tags: [],
@@ -326,11 +338,13 @@ describe("client management", () => {
     vi.setSystemTime(new Date("2039-01-10T12:00:00Z"));
     const { app, repository } = await setup();
     const old = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente antigo",
       phone: "11988887777",
       tags: [],
     });
     const protectedPatient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente agendado",
       phone: "11999998888",
       tags: [],

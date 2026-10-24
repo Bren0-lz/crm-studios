@@ -11,10 +11,10 @@ import { DomainError } from "../../repository.js";
 /** Junta ao lead os dados informados na conversão (campos vazios não apagam nada). */
 export function withConversionInput(
   lead: Lead,
-  input: LeadConversionInput = {},
+  input?: LeadConversionInput,
 ): Lead {
   const filled = Object.fromEntries(
-    Object.entries(input).filter(
+    Object.entries(input ?? {}).filter(
       ([, value]) => typeof value === "string" && value.trim() !== "",
     ),
   );

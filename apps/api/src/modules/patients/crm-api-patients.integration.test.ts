@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   type Appointment,
   type Lead,
@@ -144,7 +145,12 @@ describe("CRM API", () => {
       method: "POST",
       url: "/patients",
       headers,
-      payload: { fullName: "Rita Sequência", phone: "11999990001", tags: [] },
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "Rita Sequência",
+        phone: "11999990001",
+        tags: [],
+      },
     });
     expect(next.json().recordNumber).toBe("PAC-00125");
     const [professional, room, service] = await Promise.all([
@@ -200,7 +206,12 @@ describe("CRM API", () => {
         method: "POST",
         url: "/patients",
         headers,
-        payload: { fullName: "Outra Pessoa", phone: "11911112222", tags: [] },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Outra Pessoa",
+          phone: "11911112222",
+          tags: [],
+        },
       })
     ).json();
     const duplicate = await app.inject({
@@ -665,6 +676,7 @@ describe("CRM API", () => {
     });
 
     const converted = await app.inject({
+      payload: { cpf: nextTestCpf() },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -734,6 +746,7 @@ describe("CRM API", () => {
     const ids = [trial.json().id as string, evaluation.json().id as string];
 
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf() },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -872,6 +885,7 @@ describe("CRM API", () => {
     expect(appointment.statusCode).toBe(201);
 
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf() },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -1057,6 +1071,7 @@ describe("CRM API", () => {
     });
     expect(moved.json().stage).toBe("contacted");
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf() },
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,
@@ -1089,6 +1104,7 @@ describe("CRM API", () => {
       url: `/patients/${patient.id}`,
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "(11) 90000-1234",
@@ -1116,6 +1132,7 @@ describe("CRM API", () => {
       url: `/patients/${patient.id}`,
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "",
@@ -1504,7 +1521,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { fullName, phone, birthDate, tags: [] },
+          payload: { cpf: nextTestCpf(), fullName, phone, birthDate, tags: [] },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;
@@ -2199,6 +2216,7 @@ describe("CRM API", () => {
           url: "/patients",
           headers,
           payload: {
+            cpf: nextTestCpf(),
             fullName: "Rita Relacionamento",
             phone: "11955554444",
             birthDate: "1990-10-10",
@@ -2423,6 +2441,7 @@ describe("CRM API", () => {
           url: "/patients",
           headers: headers(),
           payload: {
+            cpf: nextTestCpf(),
             fullName: "Nair Detratora",
             phone: "11944443333",
             tags: [],
@@ -2514,6 +2533,7 @@ describe("CRM API", () => {
             url: "/patients",
             headers,
             payload: {
+              cpf: nextTestCpf(),
               fullName,
               phone: "11955554444",
               whatsapp: "11966665555",
@@ -3012,11 +3032,11 @@ describe("CRM API", () => {
     expect(existing.statusCode).toBe(201);
     const csv = [
       "Nome;Telefone;CPF;E-mail",
-      "Ana Importada;(21) 98888-1111;;ana@example.com",
+      "Ana Importada;(21) 98888-1111;52998224725;ana@example.com",
       "Bruno Importado;21988882222;123.456.789-09;",
       "X;;;",
-      "Outra Existente;21 97777-6666;;",
-      "Ana Repetida;21988881111;;",
+      "Outra Existente;21 97777-6666;11144477735;",
+      "Ana Repetida;21988881111;39053344705;",
     ].join("\n");
     const file = {
       fileName: "clientes.CSV",
@@ -3094,9 +3114,14 @@ describe("CRM API", () => {
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Clientes");
-    sheet.addRow(["Nome completo", "Celular", "Data de nascimento"]);
-    sheet.addRow(["Carla Planilha", "(31) 99999-0001", "05/06/1985"]);
-    sheet.addRow(["Ana Importada", "21988881111", null]);
+    sheet.addRow(["Nome completo", "Celular", "Data de nascimento", "CPF"]);
+    sheet.addRow([
+      "Carla Planilha",
+      "(31) 99999-0001",
+      "05/06/1985",
+      "01234567890",
+    ]);
+    sheet.addRow(["Ana Importada", "21988881111", null, "39053344705"]);
     const xlsx = {
       fileName: "clientes.xlsx",
       contentBase64: Buffer.from(await workbook.xlsx.writeBuffer()).toString(
@@ -3348,6 +3373,7 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
           tags: ["Gestante T062", "Inventada", "Outra"],
@@ -3364,6 +3390,7 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
           tags: ["gestante t062", "GESTANTE T062"],
@@ -3377,6 +3404,7 @@ describe("CRM API", () => {
         url: `/patients/${patientId}`,
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
           tags: ["Inventada"],
@@ -3482,7 +3510,12 @@ describe("CRM API", () => {
         method: "PUT",
         url: `/patients/${patientId}`,
         headers,
-        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: [] },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Gabi Gestante",
+          phone: "11933330001",
+          tags: [],
+        },
       });
       expect(cleared.statusCode).toBe(200);
       const deleted = await app.inject({
@@ -3554,6 +3587,7 @@ describe("CRM API", () => {
       });
       expect(lead.statusCode).toBe(201);
       const converted = await app.inject({
+        payload: { cpf: nextTestCpf() },
         method: "POST",
         url: `/leads/${lead.json().id}/convert`,
         headers,
@@ -3569,6 +3603,7 @@ describe("CRM API", () => {
         url: `/patients/${patientId}`,
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Lia Convertida",
           phone: "11933330009",
           tags: ["Convertido do CRM"],
@@ -3582,9 +3617,9 @@ describe("CRM API", () => {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
       const csv = [
-        "Nome;Telefone;Etiquetas",
-        "Iara Importada;21966660001;pos-operatorio, ESPORTIVO",
-        "Ivo Importado;21966660002;Pós-operatório, Desconhecida",
+        "Nome;Telefone;Etiquetas;CPF",
+        "Iara Importada;21966660001;pos-operatorio, ESPORTIVO;52998224725",
+        "Ivo Importado;21966660002;Pós-operatório, Desconhecida;98765432100",
       ].join("\n");
       const file = {
         fileName: "clientes.csv",
@@ -3646,10 +3681,14 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload,
+          payload: { cpf: nextTestCpf(), ...payload },
         });
         expect(response.statusCode).toBe(201);
-        return response.json() as { id: string; recordNumber: string };
+        return response.json() as {
+          id: string;
+          recordNumber: string;
+          cpf: string;
+        };
       };
       const ana = await create({
         fullName: 'Ana; "Exportada"',
@@ -3704,7 +3743,7 @@ describe("CRM API", () => {
         "nome;prontuário;cpf;telefone;whatsapp;email;nascimento;etiquetas;situação;contato de emergência;telefone de emergência;observações;cadastrado em",
       );
       expect(all.body).toContain(
-        `\r\n"Ana; ""Exportada""";${ana.recordNumber};;11911110001;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;"Linha 1\nLinha 2";`,
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11911110001;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;"Linha 1\nLinha 2";`,
       );
 
       const chosen = await app.inject({
@@ -3943,7 +3982,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload,
+          payload: { cpf: nextTestCpf(), ...payload },
         });
         expect(response.statusCode).toBe(201);
         return response.json() as { id: string; fullName: string };
@@ -4214,6 +4253,7 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Maximiliano Comunicado",
           phone: "11922220005",
           tags: [tag],
@@ -4338,6 +4378,7 @@ describe("CRM API", () => {
           headers: as,
           payload: {
             ...payload,
+            patient: { cpf: nextTestCpf(), ...(payload.patient as object) },
             ...(payload.plan
               ? {
                   plan: {
@@ -4767,6 +4808,7 @@ describe("CRM API", () => {
         await setup();
       const groupId = await createGroup(SERVICE_ID);
       const patient = (name: string) => ({
+        cpf: nextTestCpf(),
         fullName: name,
         phone: "11988880001",
       });

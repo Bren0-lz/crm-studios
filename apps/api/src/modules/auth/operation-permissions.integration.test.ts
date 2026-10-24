@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   legacyPermissions,
   permissionCatalog,
@@ -285,6 +286,7 @@ describe("per-operation API authorization", () => {
     expect(
       (
         await app.inject({
+          payload: { cpf: nextTestCpf() },
           method: "POST",
           url: `/leads/${lead.id}/convert`,
           headers,
@@ -301,6 +303,7 @@ describe("per-operation API authorization", () => {
     expect(
       (
         await app.inject({
+          payload: { cpf: nextTestCpf() },
           method: "POST",
           url: `/leads/${lead.id}/convert`,
           headers,

@@ -765,6 +765,9 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -850,6 +853,9 @@ describe("appointment client search and creation", () => {
     const client = screen.getByRole("dialog", { name: "Novo cliente" });
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
+    });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
     });
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),
@@ -2096,6 +2102,9 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Nome completo"), {
       target: { value: "Helena Pereira" },
+    });
+    fireEvent.change(screen.getByLabelText("CPF"), {
+      target: { value: "52998224725" },
     });
     fireEvent.change(screen.getByLabelText("WhatsApp"), {
       target: { value: "11 90000-1234" },
@@ -11970,7 +11979,7 @@ describe("action modals instead of browser dialogs", () => {
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // Os dados opcionais da conversão começam pelo CPF.
+      // O CPF é obrigatório e recebe o foco inicial.
       expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -11984,6 +11993,12 @@ describe("action modals instead of browser dialogs", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
       );
@@ -11994,7 +12009,7 @@ describe("action modals instead of browser dialogs", () => {
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
       expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
-        cpf: "",
+        cpf: "52998224725",
         emergencyContactName: "",
         emergencyContactPhone: "",
         postalCode: "",
@@ -12039,6 +12054,9 @@ describe("action modals instead of browser dialogs", () => {
       );
       const dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
+      });
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
       });
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
@@ -12701,6 +12719,7 @@ describe("configured patient tags", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(admin));
     const patient = {
+      cpf: "52998224725",
       id: "99999999-9999-4999-8999-999999999999",
       recordNumber: "PAC-00001",
       fullName: "Helena Almeida",
@@ -13185,6 +13204,9 @@ describe("guided client registration", () => {
     const dialog = screen.getByRole("dialog", { name: "Novo cliente" });
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Marina Costa" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
     });
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
