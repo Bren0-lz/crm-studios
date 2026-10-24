@@ -1,15 +1,9 @@
-import type { InventoryWorkspace, PatientOption } from "@crm/contracts";
-import { patientFirstName } from "@crm/contracts";
+import type { InventoryWorkspace } from "@crm/contracts";
 import { ClipboardList, Plus } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../../api";
+import { useState } from "react";
 import { useAuthorization } from "../../authorization-context";
-import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { useToast } from "../../shared/feedback/toast-context";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PatientTabModal } from "./PatientTabModal";
 import { saleItemsLabel } from "./model";
 
@@ -22,56 +16,12 @@ export function OpenTabsSection({
   onChanged: () => Promise<void>;
 }) {
   const { can } = useAuthorization();
-  const toast = useToast();
-  const [selected, setSelected] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
-  const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [patientId, setPatientId] = useState("");
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const dirty = useFormDirty({ patientId, notes }, opening);
-  useEffect(() => {
-    if (!opening) return;
-    let alive = true;
-    api
-      .patientOptions()
-      .then((items) => {
-        if (alive) setPatients(items);
-      })
-      .catch((cause: Error) => {
-        if (alive) setError(cause.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [opening]);
+  // `null`: modal fechado; `{}`: comanda nova; `{ id }`: comanda existente.
+  const [modal, setModal] = useState<{ id?: string } | null>(null);
   const tabs = workspace.tabs
     .filter((tab) => tab.status === "open")
     .sort((left, right) => right.openedAt.localeCompare(left.openedAt));
-  const selectedTab = workspace.tabs.find((item) => item.id === selected);
-  function startOpening() {
-    setPatientId("");
-    setNotes("");
-    setError("");
-    setOpening(true);
-  }
-  async function openTab(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const tab = await api.openPatientTab({ patientId, notes });
-      toast.success(`Comanda de ${patientFirstName(tab.patientName)} aberta.`);
-      await onChanged();
-      setOpening(false);
-      setSelected(tab.id);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const selectedTab = workspace.tabs.find((item) => item.id === modal?.id);
   return (
     <section className="panel" aria-label="Comandas abertas">
       <div className="panel-head">
@@ -80,7 +30,7 @@ export function OpenTabsSection({
           <button
             type="button"
             className="secondary-button"
-            onClick={startOpening}
+            onClick={() => setModal({})}
           >
             <Plus size={18} /> Abrir comanda
           </button>
@@ -130,7 +80,7 @@ export function OpenTabsSection({
                       type="button"
                       className="secondary-button"
                       aria-label={`Continuar comanda de ${tab.patientName}`}
-                      onClick={() => setSelected(tab.id)}
+                      onClick={() => setModal({ id: tab.id })}
                     >
                       Continuar
                     </button>
@@ -141,44 +91,12 @@ export function OpenTabsSection({
           </table>
         </div>
       )}
-      {opening && (
-        <Modal
-          title="Abrir comanda"
-          subtitle="Selecione o cliente para agrupar produtos e serviços."
-          busy={busy}
-          dirty={dirty}
-          onClose={() => setOpening(false)}
-        >
-          <form className="clinical-form" onSubmit={openTab}>
-            {error && <p className="form-error">{error}</p>}
-            <PatientPicker
-              patients={patients}
-              value={patientId}
-              onChange={setPatientId}
-              required
-            />
-            <label>
-              Observações
-              <textarea
-                maxLength={500}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </label>
-            <div className="modal-actions">
-              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={busy || !patientId}>
-                Abrir comanda
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {selectedTab && (
+      {modal && (
         <PatientTabModal
           tab={selectedTab}
           products={workspace.products}
-          onClose={() => setSelected(null)}
+          onOpened={(tab) => setModal({ id: tab.id })}
+          onClose={() => setModal(null)}
           onChanged={onChanged}
         />
       )}

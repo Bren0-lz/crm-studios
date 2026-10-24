@@ -1,4 +1,5 @@
 import type {
+  PatientOption,
   PatientTab,
   Product,
   PatientTabCloseInput,
@@ -7,18 +8,160 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
-import { useEffect, useId, useState } from "react";
+import { patientFirstName } from "@crm/contracts";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { PatientPicker } from "../../PatientPicker";
 import { ActionModal } from "../../shared/components/ActionModal";
+import { FixedPatient } from "../../shared/components/FixedPatient";
 import { useMissingFields } from "../../shared/components/MissingFields";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { CurrencyField } from "../../shared/components/CurrencyField";
+import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate, shortDate } from "../../shared/lib/formatting";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { AppointmentForm } from "../agenda/index";
 
+type AddMode = "product" | "service" | "appointment";
+
+const statusLabel: Record<PatientTab["status"], string> = {
+  open: "Aberta",
+  closed: "Fechada",
+  cancelled: "Cancelada",
+};
+
+/**
+ * Comanda em um modal só: sem `tab`, começa escolhendo o cliente e, ao abrir, segue no
+ * mesmo modal para lançar produtos e atendimentos e fechar a cobrança.
+ */
 export function PatientTabModal({
+  tab,
+  products,
+  fixedPatient,
+  onOpened,
+  onClose,
+  onChanged,
+}: {
+  tab?: PatientTab | undefined;
+  products: Product[];
+  /** Ficha do cliente: a comanda nova já vem com o cliente definido. */
+  fixedPatient?: PatientOption | undefined;
+  onOpened?: (tab: PatientTab) => void;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [created, setCreated] = useState<PatientTab | null>(null);
+  const current = tab ?? created;
+  return current ? (
+    <TabEditor
+      tab={current}
+      products={products}
+      onClose={onClose}
+      onChanged={onChanged}
+    />
+  ) : (
+    <TabOpening
+      fixedPatient={fixedPatient}
+      onClose={onClose}
+      onOpened={async (opened) => {
+        setCreated(opened);
+        onOpened?.(opened);
+        await onChanged();
+      }}
+    />
+  );
+}
+
+function TabOpening({
+  fixedPatient,
+  onClose,
+  onOpened,
+}: {
+  fixedPatient: PatientOption | undefined;
+  onClose: () => void;
+  onOpened: (tab: PatientTab) => Promise<void>;
+}) {
+  const toast = useToast();
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [patientId, setPatientId] = useState(fixedPatient?.id ?? "");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = useFormDirty({ patientId, notes });
+  useEffect(() => {
+    if (fixedPatient) return;
+    let alive = true;
+    api
+      .patientOptions()
+      .then((items) => {
+        if (alive) setPatients(items);
+      })
+      .catch((cause: Error) => {
+        if (alive) setError(cause.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [fixedPatient]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const opened = await api.openPatientTab({ patientId, notes });
+      toast.success(
+        `Comanda de ${patientFirstName(opened.patientName)} aberta.`,
+      );
+      await onOpened(opened);
+    } catch (cause) {
+      setError((cause as Error).message);
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title="Nova comanda"
+      subtitle="Junte produtos e atendimentos do cliente e cobre tudo de uma vez no fechamento."
+      busy={busy}
+      dirty={dirty}
+      onClose={onClose}
+    >
+      <form className="clinical-form" onSubmit={submit}>
+        {error && <ErrorBanner error={error} />}
+        {fixedPatient ? (
+          <FixedPatient patient={fixedPatient} />
+        ) : (
+          <PatientPicker
+            patients={patients}
+            value={patientId}
+            onChange={setPatientId}
+            required
+          />
+        )}
+        <label>
+          Observações
+          <textarea
+            maxLength={500}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </label>
+        <div className="modal-actions">
+          <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
+          <button className="primary-button" disabled={busy || !patientId}>
+            Abrir comanda
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function TabEditor({
   tab,
   products,
   onClose,
@@ -40,9 +183,8 @@ export function PatientTabModal({
   const closeFormId = useId();
   const closeMissingId = useId();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [mode, setMode] = useState<
-      "items" | "services" | "appointment" | "close"
-    >("items"),
+  const [adding, setAdding] = useState<AddMode>("product"),
+    [closing, setClosing] = useState(false),
     [options, setOptions] = useState<TabAppointmentOption[]>([]),
     [appointmentId, setAppointmentId] = useState("");
   const [dates, setDates] = useState(() => ({
@@ -82,6 +224,8 @@ export function PatientTabModal({
   );
   const serviceMissing = useMissingFields(appointmentId ? [] : ["Atendimento"]);
   const editable = tab.status === "open" && can("patients.tabs_items");
+  const services = tab.services ?? [];
+  const hasLines = tab.items.length > 0 || services.length > 0;
   async function act(action: () => Promise<unknown>, message: string) {
     if (busy) return;
     setBusy(true);
@@ -92,18 +236,24 @@ export function PatientTabModal({
       await onChanged();
       setNotice(message);
       setEditing(null);
-      setMode("items");
+      setClosing(false);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
       setBusy(false);
     }
   }
+  function startEditing(item: PatientTab["items"][number]) {
+    setClosing(false);
+    setEditing(item.id);
+    setQuantity(item.quantity);
+    setPrice(item.unitPriceInCents);
+  }
   useEffect(() => {
-    if (mode !== "services" && mode !== "appointment") return;
+    if (adding === "product") return;
     let alive = true;
     const load =
-      mode === "services"
+      adding === "service"
         ? api
             .tabAppointmentOptions(
               tab.id,
@@ -124,66 +274,122 @@ export function PatientTabModal({
     return () => {
       alive = false;
     };
-  }, [mode, tab.id, dates.from, dates.to]);
+  }, [adding, tab.id, dates.from, dates.to]);
   return (
     <Modal
       title={`Comanda · ${tab.patientName}`}
-      subtitle={`${tab.status === "open" ? "Aberta" : tab.status === "closed" ? "Fechada" : "Cancelada"} · Total ${currency.format(tab.totalInCents / 100)}`}
+      subtitle={`Aberta em ${shortDate.format(new Date(tab.openedAt))}`}
       busy={busy}
       onClose={onClose}
     >
-      {/* Área de avisos sempre presente, com altura reservada: avisos não deslocam os botões (QM5). */}
-      <div className="tab-messages" aria-live="polite">
-        {error && <ErrorBanner error={error} />}
-        {notice && <p role="status">{notice}</p>}
-      </div>
-      <div className="clinical-form">
-        <fieldset disabled={busy} className="form-fields">
-          <h3>Produtos</h3>
-          {tab.items.map((item) => (
-            <div className="table-row" key={item.id}>
-              <strong>{item.productName}</strong>
-              <span>
-                {item.quantity} × {currency.format(item.unitPriceInCents / 100)}
-              </span>
-              <span className="numeric-value">
-                {currency.format(item.totalInCents / 100)}
-              </span>
-              {editable && (
-                <>
-                  <button
-                    className="secondary-button"
-                    onClick={() => {
-                      setEditing(item.id);
-                      setQuantity(item.quantity);
-                      setPrice(item.unitPriceInCents);
-                    }}
-                  >
-                    Ajustar item
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={() =>
-                      void act(
-                        () => api.removePatientTabItem(tab.id, item.id),
-                        "Item removido; estoque restituído.",
-                      )
-                    }
-                  >
-                    Remover
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
-          {editing && (
+      <fieldset disabled={busy} className="form-fields tab-sheet">
+        <section className="tab-section" aria-label="Itens da comanda">
+          <div className="tab-section-head">
+            <h3>Itens</h3>
+            <span
+              className={`status-pill ${tab.status === "open" ? "scheduled" : tab.status === "closed" ? "completed" : "cancelled"}`}
+            >
+              {statusLabel[tab.status]}
+            </span>
+          </div>
+          {tab.notes && <p className="tab-notes">{tab.notes}</p>}
+          {hasLines ? (
+            <ul className="patient-tab-items">
+              {tab.items.map((item) => (
+                <li key={item.id}>
+                  <div className="patient-tab-item-main">
+                    <strong>{item.productName}</strong>
+                    <span>
+                      Produto · {item.quantity} ×{" "}
+                      {currency.format(item.unitPriceInCents / 100)}
+                    </span>
+                  </div>
+                  <div className="patient-tab-item-side">
+                    <span className="patient-tab-amount">
+                      {currency.format(item.totalInCents / 100)}
+                    </span>
+                    {editable && (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-button button-sm"
+                          aria-label="Ajustar item"
+                          title="Ajustar item"
+                          onClick={() => startEditing(item)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button button-sm"
+                          aria-label="Remover"
+                          title="Remover"
+                          onClick={() =>
+                            void act(
+                              () => api.removePatientTabItem(tab.id, item.id),
+                              "Item removido; estoque restituído.",
+                            )
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+              {services.map((item) => (
+                <li key={item.id}>
+                  <div className="patient-tab-item-main">
+                    <strong>{item.serviceName}</strong>
+                    <span>Atendimento · {item.professionalName}</span>
+                  </div>
+                  <div className="patient-tab-item-side">
+                    <span className="patient-tab-amount">
+                      {currency.format(item.amountInCents / 100)}
+                    </span>
+                    {editable && (
+                      <button
+                        type="button"
+                        className="icon-button button-sm"
+                        aria-label="Remover serviço"
+                        title="Remover serviço"
+                        onClick={() =>
+                          void act(
+                            () => api.removePatientTabService(tab.id, item.id),
+                            "Serviço removido. O atendimento permanece na agenda.",
+                          )
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="tab-empty">
+              {editable
+                ? "Nenhum item ainda. Adicione produtos do estoque ou atendimentos da agenda abaixo."
+                : "Nenhum item lançado."}
+            </p>
+          )}
+          <p className="tab-total">
+            Total <strong>{currency.format(tab.totalInCents / 100)}</strong>
+          </p>
+        </section>
+
+        {editable && editingItem && (
+          <section className="tab-section tab-box">
+            <h3>Ajustar {editingItem.productName}</h3>
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
                 void act(
                   () =>
-                    api.updatePatientTabItem(tab.id, editing, {
+                    api.updatePatientTabItem(tab.id, editingItem.id, {
                       quantity,
                       unitPriceInCents: price,
                     }),
@@ -208,209 +414,213 @@ export function PatientTabModal({
                 onChange={setPrice}
               />
               {editMissing.hint}
-              <button
-                className="primary-button"
-                disabled={editMissing.blocked}
-                aria-describedby={editMissing.describedBy}
-              >
-                Salvar item
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setEditing(null)}
-              >
-                Cancelar ajuste
-              </button>
+              <div className="tab-form-actions span-2">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setEditing(null)}
+                >
+                  Cancelar ajuste
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={editMissing.blocked}
+                  aria-describedby={editMissing.describedBy}
+                >
+                  Salvar item
+                </button>
+              </div>
             </form>
-          )}
-          <h3>Serviços</h3>
-          {tab.services?.map((item) => (
-            <div className="table-row" key={item.id}>
-              <strong>{item.serviceName}</strong>
-              <span>{item.professionalName}</span>
-              <span className="numeric-value">
-                {currency.format(item.amountInCents / 100)}
-              </span>
-              {editable && (
+          </section>
+        )}
+
+        {editable && !editingItem && !closing && (
+          <section className="tab-section tab-box">
+            <div className="tab-section-head">
+              <h3>Adicionar</h3>
+              <div className="segmented" role="group" aria-label="Tipo de item">
                 <button
-                  className="secondary-button"
-                  onClick={() =>
-                    void act(
-                      () => api.removePatientTabService(tab.id, item.id),
-                      "Serviço removido. O atendimento permanece na agenda.",
-                    )
-                  }
+                  type="button"
+                  className="segment-button"
+                  aria-pressed={adding === "product"}
+                  onClick={() => setAdding("product")}
                 >
-                  Remover serviço
+                  Produto
                 </button>
-              )}
-            </div>
-          ))}
-          {editable && !editing && (
-            <div className="page-actions">
-              <button
-                className="secondary-button"
-                onClick={() => setMode("items")}
-              >
-                Adicionar produto
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => setMode("services")}
-              >
-                Vincular atendimento
-              </button>
-              {can("agenda.create") && (
                 <button
-                  className="secondary-button"
-                  onClick={() => setMode("appointment")}
+                  type="button"
+                  className="segment-button"
+                  aria-pressed={adding === "service"}
+                  onClick={() => setAdding("service")}
                 >
-                  Agendar serviço avulso
+                  Atendimento agendado
                 </button>
-              )}
+                {can("agenda.create") && (
+                  <button
+                    type="button"
+                    className="segment-button"
+                    aria-pressed={adding === "appointment"}
+                    onClick={() => setAdding("appointment")}
+                  >
+                    Novo agendamento
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-          {editable && mode === "items" && !editing && (
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void act(
-                  () => api.addPatientTabItem(tab.id, { productId, quantity }),
-                  "Produto reservado na comanda.",
-                );
-              }}
-            >
-              <label>
-                Produto
-                <select
-                  required
-                  value={productId}
-                  onChange={(event) => setProductId(event.target.value)}
-                >
-                  <option value="">Selecione</option>
-                  {products
-                    .filter((item) => item.active)
-                    .map((item) => (
-                      <option
-                        key={item.id}
-                        value={item.id}
-                        disabled={item.currentStock <= 0}
-                      >
-                        {item.name} ·{" "}
-                        {item.currentStock > 0
-                          ? `${item.currentStock} em estoque`
-                          : "sem estoque"}
+            {adding === "product" && (
+              <form
+                className="form-grid tab-product-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void act(
+                    () =>
+                      api.addPatientTabItem(tab.id, { productId, quantity }),
+                    "Produto reservado na comanda.",
+                  );
+                }}
+              >
+                <label>
+                  Produto
+                  <select
+                    required
+                    value={productId}
+                    onChange={(event) => setProductId(event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {products
+                      .filter((item) => item.active)
+                      .map((item) => (
+                        <option
+                          key={item.id}
+                          value={item.id}
+                          disabled={item.currentStock <= 0}
+                        >
+                          {item.name} ·{" "}
+                          {item.currentStock > 0
+                            ? `${item.currentStock} em estoque`
+                            : "sem estoque"}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Quantidade
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={productId ? stockOf(productId) : undefined}
+                    value={quantity}
+                    onChange={(event) =>
+                      setQuantity(Number(event.target.value))
+                    }
+                  />
+                </label>
+                {productMissing.hint}
+                <div className="tab-form-actions span-2">
+                  <button
+                    className="secondary-button"
+                    disabled={productMissing.blocked}
+                    aria-describedby={productMissing.describedBy}
+                  >
+                    <Plus size={18} /> Adicionar produto
+                  </button>
+                </div>
+              </form>
+            )}
+            {adding === "service" && (
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void act(
+                    () => api.addPatientTabService(tab.id, { appointmentId }),
+                    "Serviço adicionado à comanda.",
+                  );
+                }}
+              >
+                <label>
+                  De
+                  <input
+                    type="date"
+                    value={dates.from}
+                    onChange={(event) =>
+                      setDates({ ...dates, from: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Até
+                  <input
+                    type="date"
+                    min={dates.from}
+                    value={dates.to}
+                    onChange={(event) =>
+                      setDates({ ...dates, to: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="span-2">
+                  Atendimento
+                  <select
+                    required
+                    value={appointmentId}
+                    onChange={(event) => setAppointmentId(event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {options.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {shortDate.format(new Date(item.startsAt))} ·{" "}
+                        {item.serviceName} · {item.professionalName}
                       </option>
                     ))}
-                </select>
-              </label>
-              <label>
-                Quantidade
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  max={productId ? stockOf(productId) : undefined}
-                  value={quantity}
-                  onChange={(event) => setQuantity(Number(event.target.value))}
-                />
-              </label>
-              {productMissing.hint}
-              <button
-                className="primary-button"
-                disabled={productMissing.blocked}
-                aria-describedby={productMissing.describedBy}
-              >
-                Adicionar produto
-              </button>
-            </form>
-          )}
-          {editable && mode === "services" && (
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void act(
-                  () => api.addPatientTabService(tab.id, { appointmentId }),
-                  "Serviço adicionado à comanda.",
-                );
-              }}
-            >
-              <label>
-                De
-                <input
-                  type="date"
-                  value={dates.from}
-                  onChange={(event) =>
-                    setDates({ ...dates, from: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Até
-                <input
-                  type="date"
-                  min={dates.from}
-                  value={dates.to}
-                  onChange={(event) =>
-                    setDates({ ...dates, to: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Atendimento
-                <select
-                  required
-                  value={appointmentId}
-                  onChange={(event) => setAppointmentId(event.target.value)}
-                >
-                  <option value="">Selecione</option>
-                  {options.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {shortDate.format(new Date(item.startsAt))} ·{" "}
-                      {item.serviceName} · {item.professionalName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="muted">
-                Serviços cobertos por plano vigente não podem ser cobrados
-                novamente.
-              </p>
-              {serviceMissing.hint}
-              <button
-                className="primary-button"
-                disabled={serviceMissing.blocked}
-                aria-describedby={serviceMissing.describedBy}
-              >
-                Vincular atendimento
-              </button>
-            </form>
-          )}
-          {mode === "appointment" && references && (
-            <AppointmentForm
-              {...references}
-              patients={[]}
-              fixedPatient={{
-                id: tab.patientId,
-                fullName: tab.patientName,
-                tags: [],
-              }}
-              onCancel={() => setMode("items")}
-              onBusyChange={setBusy}
-              onSubmit={async (input, recurrence) => {
-                if (recurrence)
-                  throw new Error("Agende um atendimento por item da comanda.");
-                await api.createPatientTabAppointment(tab.id, input);
-                await onChanged();
-                setMode("items");
-                setNotice("Atendimento agendado e adicionado à comanda.");
-              }}
-            />
-          )}
-          {mode === "close" && (
+                  </select>
+                </label>
+                <p className="field-hint span-2">
+                  Atendimentos cobertos por plano vigente não podem ser cobrados
+                  novamente.
+                </p>
+                {serviceMissing.hint}
+                <div className="tab-form-actions span-2">
+                  <button
+                    className="secondary-button"
+                    disabled={serviceMissing.blocked}
+                    aria-describedby={serviceMissing.describedBy}
+                  >
+                    <Plus size={18} /> Vincular atendimento
+                  </button>
+                </div>
+              </form>
+            )}
+            {adding === "appointment" && references && (
+              <AppointmentForm
+                {...references}
+                patients={[]}
+                fixedPatient={{
+                  id: tab.patientId,
+                  fullName: tab.patientName,
+                  tags: [],
+                }}
+                onCancel={() => setAdding("product")}
+                onBusyChange={setBusy}
+                onSubmit={async (input, recurrence) => {
+                  if (recurrence)
+                    throw new Error(
+                      "Agende um atendimento por item da comanda.",
+                    );
+                  await api.createPatientTabAppointment(tab.id, input);
+                  await onChanged();
+                  setAdding("product");
+                  setNotice("Atendimento agendado e adicionado à comanda.");
+                }}
+              />
+            )}
+          </section>
+        )}
+
+        {closing && (
+          <section className="tab-section tab-box">
+            <h3>Fechamento</h3>
             <form
               id={closeFormId}
               className="form-grid"
@@ -474,13 +684,26 @@ export function PatientTabModal({
                   </select>
                 </label>
               )}
+              <p className="field-hint span-2">
+                {closeInput.settlement === "paid"
+                  ? `Registra ${currency.format(tab.totalInCents / 100)} como recebido no Financeiro.`
+                  : `Gera uma conta a receber de ${currency.format(tab.totalInCents / 100)} no Financeiro.`}
+              </p>
               {closeMissing.length > 0 && (
                 <p className="field-hint span-2" id={closeMissingId}>
                   Falta: {closeMissing.join(", ")}.
                 </p>
               )}
             </form>
-          )}
+          </section>
+        )}
+
+        <div className="tab-bottom">
+          {/* Avisos com altura reservada logo acima do rodapé: não deslocam os botões (QM5). */}
+          <div className="tab-messages" aria-live="polite">
+            {error && <ErrorBanner error={error} />}
+            {notice && <p role="status">{notice}</p>}
+          </div>
           {/* Rodapé fixo: destrutivo à esquerda, ação principal sempre por último à direita (QM5). */}
           <div className="modal-actions tab-footer">
             <div className="tab-footer-danger">
@@ -495,12 +718,12 @@ export function PatientTabModal({
               )}
             </div>
             <div className="tab-footer-main">
-              {mode === "close" ? (
+              {closing ? (
                 <>
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => setMode("items")}
+                    onClick={() => setClosing(false)}
                   >
                     Voltar
                   </button>
@@ -522,7 +745,10 @@ export function PatientTabModal({
                   <button
                     type="button"
                     className="primary-button"
-                    onClick={() => setMode("close")}
+                    onClick={() => {
+                      setEditing(null);
+                      setClosing(true);
+                    }}
                   >
                     Fechar comanda
                   </button>
@@ -530,8 +756,8 @@ export function PatientTabModal({
               )}
             </div>
           </div>
-        </fieldset>
-      </div>
+        </div>
+      </fieldset>
       {confirmingCancel && (
         <ActionModal
           eyebrow="Comanda"
@@ -547,7 +773,7 @@ export function PatientTabModal({
             await api.cancelPatientTab(tab.id);
             setConfirmingCancel(false);
             setEditing(null);
-            setMode("items");
+            setClosing(false);
             try {
               await onChanged();
               setNotice("Comanda cancelada; estoque restituído.");

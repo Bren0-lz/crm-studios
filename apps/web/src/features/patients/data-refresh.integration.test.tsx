@@ -51,9 +51,7 @@ describe("dados atualizados sem recarregar após mutações (QC6)", () => {
     });
     await within(inventory).findByText("Aberta");
     fireEvent.click(
-      within(inventory)
-        .getAllByRole("button", { name: "Abrir comanda" })
-        .at(-1)!,
+      within(inventory).getByRole("button", { name: /^Ver comanda de/ }),
     );
     const dialog = await screen.findByRole("dialog", {
       name: `Comanda · ${patient.fullName}`,
