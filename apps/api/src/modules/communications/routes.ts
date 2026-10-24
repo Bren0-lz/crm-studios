@@ -37,6 +37,20 @@ export function registerCommunicationsRoutes(context: RouteContext) {
     repository.getCommunicationCenter(request.user.clinicId),
   );
 
+  app.get(
+    "/communications/preferences",
+    { preHandler: authenticate },
+    async (request) => {
+      const { patientId } = z
+        .object({ patientId: z.uuid() })
+        .parse(request.query);
+      const center = await repository.getCommunicationCenter(
+        request.user.clinicId,
+      );
+      return center.preferences.filter((item) => item.patientId === patientId);
+    },
+  );
+
   app.put(
     "/communications/preferences",
     { preHandler: authenticate },

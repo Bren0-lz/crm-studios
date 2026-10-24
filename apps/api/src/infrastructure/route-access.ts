@@ -268,6 +268,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "communications.messages",
   ),
   "GET /communications": view("communications"),
+  "GET /communications/preferences": view("communications"),
   "PUT /communications/preferences": operation("communications.preferences"),
   "POST /communications/messages": operation("communications.messages"),
   "POST /communications/broadcast/preview": operation(
