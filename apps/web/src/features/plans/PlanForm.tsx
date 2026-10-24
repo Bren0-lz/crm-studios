@@ -243,49 +243,51 @@ export function PlanForm({
                     onChange={(patientId) => setForm({ ...form, patientId })}
                   />
                 )}
-                <label>
-                  Modelo
-                  <select
-                    autoFocus={Boolean(fixedPatient)}
-                    value={form.kind}
-                    onChange={(e) => {
-                      const kind = e.target.value as PatientPlan["kind"];
-                      const entries =
-                        kind === "single"
-                          ? form.services
-                          : form.services.map((item) => {
-                              const reference = references.find(
-                                (entry) => entry.serviceId === item.serviceId,
-                              );
-                              return reference
-                                ? {
-                                    ...item,
-                                    totalSessions: reference.totalSessions,
-                                    totalValueInCents:
-                                      reference.totalValueInCents,
-                                  }
-                                : item;
-                            });
-                      setForm({
-                        ...form,
-                        kind,
-                        services: entries,
-                        totalValueInCents: servicesTotal(entries),
-                        // Recorrente: uma cobrança por ciclo.
-                        installments:
-                          kind === "recurring" ? 1 : form.installments,
-                        autoRenew: kind === "recurring",
-                      });
-                      if (kind === "single") setGroupId("");
-                    }}
-                  >
-                    {Object.entries(planKindLabels).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {!catalogKind && (
+                  <label>
+                    Modelo
+                    <select
+                      autoFocus={Boolean(fixedPatient)}
+                      value={form.kind}
+                      onChange={(e) => {
+                        const kind = e.target.value as PatientPlan["kind"];
+                        const entries =
+                          kind === "single"
+                            ? form.services
+                            : form.services.map((item) => {
+                                const reference = references.find(
+                                  (entry) => entry.serviceId === item.serviceId,
+                                );
+                                return reference
+                                  ? {
+                                      ...item,
+                                      totalSessions: reference.totalSessions,
+                                      totalValueInCents:
+                                        reference.totalValueInCents,
+                                    }
+                                  : item;
+                              });
+                        setForm({
+                          ...form,
+                          kind,
+                          services: entries,
+                          totalValueInCents: servicesTotal(entries),
+                          // Recorrente: uma cobrança por ciclo.
+                          installments:
+                            kind === "recurring" ? 1 : form.installments,
+                          autoRenew: kind === "recurring",
+                        });
+                        if (kind === "single") setGroupId("");
+                      }}
+                    >
+                      {Object.entries(planKindLabels).map(([value, label]) => (
+                        <option value={value} key={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </>
             )}
             {renewing ? (
@@ -303,6 +305,7 @@ export function PlanForm({
                   Plano cadastrado
                   <select
                     required
+                    autoFocus={Boolean(catalogKind)}
                     value={form.planTemplateId}
                     disabled={!templates?.length || loading}
                     onChange={(event) => {
