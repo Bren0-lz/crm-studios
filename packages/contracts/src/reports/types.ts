@@ -157,6 +157,80 @@ export interface ClientReport {
   ageDistribution: ClientAgeBandCount[];
 }
 
+/**
+ * Produção da equipe no período, lida pelo repositório (`listTeamProduction`): sessões
+ * concluídas (atendimento individual com cliente ou presença em turma) e comissões das
+ * competências que o período toca.
+ */
+export interface TeamProductionSources {
+  sessions: Array<{
+    professionalId: string;
+    professionalName: string;
+    serviceId: string;
+    serviceName: string;
+    /** Plano que teve a sessão consumida, quando houver. */
+    planId?: string;
+  }>;
+  /** Comissões geradas nas competências do período. */
+  commissions: Array<{
+    professionalId: string;
+    professionalName: string;
+    competence: string;
+    amountInCents: number;
+    status: "open" | "paid";
+  }>;
+  /** Previsão para sessões das competências que ainda não tiveram comissão gerada. */
+  pendingCommissions: Array<{
+    professionalId: string;
+    professionalName: string;
+    amountInCents: number;
+  }>;
+}
+
+export interface TeamFinanceCommission {
+  paidInCents: number;
+  openInCents: number;
+  /** Previsto para sessões concluídas ainda sem comissão gerada. */
+  pendingInCents: number;
+  totalInCents: number;
+}
+
+/** Valores da equipe, serviços e turmas (permissão `reports.team_finance`). */
+export interface TeamFinanceReport {
+  /** Competências (AAAA-MM) somadas na comissão. */
+  commissionMonths: string[];
+  byProfessional: Array<{
+    id: string;
+    name: string;
+    completedSessions: number;
+    generatedInCents: number;
+    commission: TeamFinanceCommission;
+  }>;
+  byService: Array<{
+    id: string;
+    name: string;
+    completedSessions: number;
+    generatedInCents: number;
+    averageTicketInCents: number;
+  }>;
+  byGroup: Array<{
+    id: string;
+    name: string;
+    serviceName: string;
+    professionalName: string;
+    capacity: number;
+    activeEnrollments: number;
+    /** % inteiro de vagas ocupadas. */
+    occupancyRate: number;
+    /** Aulas por mês (horários semanais × 4). */
+    monthlySessions: number;
+    monthlyRevenueInCents: number;
+    /** Quanto renderia com todas as vagas ocupadas. */
+    potentialRevenueInCents: number;
+    idleRevenueInCents: number;
+  }>;
+}
+
 export interface ManagementReport {
   from: string;
   to: string;
@@ -202,6 +276,8 @@ export interface ManagementReport {
   byProfessional: AppointmentReportBreakdown[];
   byService: AppointmentReportBreakdown[];
   bySource: CommercialSourceBreakdown[];
+  /** Só para quem tem `reports.team_finance`. */
+  teamFinance?: TeamFinanceReport;
   profitability: {
     dre: {
       serviceRevenueInCents: number;

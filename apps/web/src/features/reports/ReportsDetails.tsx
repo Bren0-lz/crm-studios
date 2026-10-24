@@ -11,6 +11,7 @@ import { ProfitTables } from "./ProfitTables";
 import { ReportBreakdown } from "./ReportBreakdown";
 import { ReportTabs } from "./ReportTabs";
 import { SalesInsights } from "./SalesInsights";
+import { TeamFinanceTables } from "./TeamFinanceTables";
 
 export function ReportsDetails({ period }: { period: ReportPeriod }) {
   const { can, canView } = useAuthorization();
@@ -123,16 +124,22 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
           managementBody((data) => (
             <>
               <div className="report-grid">
-                <ReportBreakdown
-                  title="Por profissional"
-                  items={data.byProfessional}
-                  empty="Sem atendimentos de profissionais no período."
-                />
-                <ReportBreakdown
-                  title="Por serviço"
-                  items={data.byService}
-                  empty="Sem serviços realizados no período."
-                />
+                {data.teamFinance && can("reports.team_finance") ? (
+                  <TeamFinanceTables report={data} team={data.teamFinance} />
+                ) : (
+                  <>
+                    <ReportBreakdown
+                      title="Por profissional"
+                      items={data.byProfessional}
+                      empty="Sem atendimentos de profissionais no período."
+                    />
+                    <ReportBreakdown
+                      title="Por serviço"
+                      items={data.byService}
+                      empty="Sem serviços realizados no período."
+                    />
+                  </>
+                )}
                 <section className="panel report-table source-report">
                   <div className="panel-head">
                     <div>
@@ -183,6 +190,18 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
                 Presença = concluídos ÷ (concluídos + faltas não justificadas).
                 Conversão = ganhos atuais ÷ leads criados no período
                 selecionado.
+                {data.teamFinance && can("reports.team_finance") && (
+                  <>
+                    {" "}
+                    Gerado = sessões concluídas (atendimentos e presenças em
+                    turma) pelo valor da sessão no plano do cliente ou, sem
+                    plano, pelo preço do serviço. Comissão = comissões geradas
+                    nas competências do período mais a previsão das sessões
+                    ainda sem comissão. Turmas: alunos ativos × valor da sessão
+                    × aulas por mês (horários semanais × 4); potencial =
+                    capacidade × valor médio por vaga.
+                  </>
+                )}
               </p>
             </>
           ))

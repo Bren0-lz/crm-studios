@@ -300,6 +300,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.getSalesReport = this.reports.getSalesReport;
     this.getSalesPeriodReport = this.reports.getSalesPeriodReport;
     this.getManagementReport = this.reports.getManagementReport;
+    this.listTeamProduction = this.reports.listTeamProduction;
     this.listPatients = this.patients.listPatients;
     this.createPatient = this.patients.createPatient;
     this.createPatientWithNextStep = this.patients.createPatientWithNextStep;
@@ -759,6 +760,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getManagementReport: ReturnType<
     typeof createReportsRepository
   >["getManagementReport"];
+
+  readonly listTeamProduction: ReturnType<
+    typeof createReportsRepository
+  >["listTeamProduction"];
 
   readonly listPatients: ReturnType<
     typeof createPatientsRepository
