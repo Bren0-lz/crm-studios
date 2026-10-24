@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import "../../test-support/legacy-setup.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   leadInputSchema,
   type LeadBoard,
@@ -165,7 +166,9 @@ describe("configurable lead funnel", () => {
   it("chooses another final stage, carrying the converted leads", async () => {
     const { app, admin, save, list, repository, createLead } = await setup();
     const converted = await createLead("Lead convertido");
-    await repository.convertLead(clinicId, actorId, converted.id);
+    await repository.convertLead(clinicId, actorId, converted.id, {
+      cpf: nextTestCpf(),
+    });
     const open = await createLead("Lead aberto");
     await repository.moveLead(clinicId, actorId, open.id, "proposal");
 
