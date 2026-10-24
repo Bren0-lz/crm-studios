@@ -353,6 +353,7 @@ export class MemoryRepositoryContext {
   readonly relationshipSettings = new Map<string, RelationshipSettings>();
 
   readonly agendaNotes: import("@crm/contracts").AgendaNote[] = [];
+  readonly waitlistEntries: import("./waitlist.js").WaitlistRow[] = [];
   readonly holidays = new Map<string, Holiday[]>();
 
   readonly contactActivities: ContactActivity[] = [];

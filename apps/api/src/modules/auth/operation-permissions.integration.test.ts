@@ -326,12 +326,13 @@ describe("per-operation API authorization", () => {
     ];
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
-        // History was introduced after 0045 and must not be backfilled into old users.
+        // History and waitlist came after 0045; waitlist has its own grant in 0097.
         .filter(
           (item) =>
             !item.legacyAdmin &&
             !item.explicitGrantOnly &&
-            item.module !== "history",
+            item.module !== "history" &&
+            item.module !== "waitlist",
         )
         .map((item) => item.key)
         .sort(),

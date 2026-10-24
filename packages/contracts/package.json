@@ -59,6 +59,10 @@
     "./branches": {
       "types": "./src/branches/index.ts",
       "default": "./src/branches/index.ts"
+    },
+    "./waitlist": {
+      "types": "./src/waitlist/index.ts",
+      "default": "./src/waitlist/index.ts"
     }
   },
   "scripts": {
