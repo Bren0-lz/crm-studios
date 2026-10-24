@@ -3,6 +3,7 @@ import type {
   PatientProfileFilter,
   PatientSegmentSummary,
 } from "@crm/contracts";
+import { IdCard } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -19,6 +20,7 @@ export function PatientProfileFilters({
   onSegments: (items: PatientSegmentSummary[]) => void;
 }) {
   const { can } = useAuthorization();
+  const activeCount = Object.values(value).filter(Boolean).length;
   const [opened, setOpened] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -35,7 +37,7 @@ export function PatientProfileFilters({
   }
   return (
     <details
-      className="filter-group"
+      className="profile-filters"
       onToggle={(event) => {
         if (event.currentTarget.open && !opened) {
           setOpened(true);
@@ -43,8 +45,14 @@ export function PatientProfileFilters({
         }
       }}
     >
-      <summary>Dados cadastrais e segmentos</summary>
-      <div className="form-grid">
+      <summary>
+        <span className="profile-filters-icon" aria-hidden="true">
+          <IdCard size={16} />
+        </span>
+        Dados cadastrais e segmentos
+        {activeCount > 0 && <span className="filter-badge">{activeCount}</span>}
+      </summary>
+      <div className="form-grid profile-filters-grid">
         {(
           [
             ["city", "Cidade"],
@@ -138,7 +146,7 @@ export function PatientProfileFilters({
           </select>
         </label>
         {error && (
-          <>
+          <div className="profile-filters-error">
             <ErrorBanner error={error} />
             <button
               type="button"
@@ -147,7 +155,7 @@ export function PatientProfileFilters({
             >
               Tentar novamente
             </button>
-          </>
+          </div>
         )}
       </div>
     </details>
