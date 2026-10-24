@@ -19,10 +19,10 @@ export type DataDomain =
 const mutationRules: [RegExp, DataDomain[]][] = [
   // Consultas feitas por POST (prévias) e sessão não alteram dados.
   [/\/preview(?:$|[/?])|^\/auth\//, []],
-  // Fechar/cancelar comanda gera cobrança, baixa estoque, cria crédito de sessão e
-  // vincula atendimentos.
+  // Fechar/cancelar comanda (ou registrar venda de produtos) gera cobrança, baixa estoque,
+  // cria crédito de sessão e vincula atendimentos.
   [
-    /^\/patient-tabs(?:\/|$)/,
+    /^\/(?:patient-tabs|product-sales)(?:\/|$)/,
     ["inventory", "finance", "plans", "agenda", "history"],
   ],
   [/^\/inventory\//, ["inventory"]],

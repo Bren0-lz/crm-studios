@@ -117,6 +117,36 @@ export const patientTabItemUpdateSchema = z.object({
   quantity: z.number().int().min(1).max(10000),
   unitPriceInCents: z.number().int().min(0).max(2147483647),
 });
+/** Venda de produtos em uma etapa: abre, preenche e fecha a comanda na mesma transação. */
+export const productSaleInputSchema = z
+  .object({
+    patientId: z.uuid(),
+    notes: z.string().trim().max(500).optional().or(z.literal("")),
+    items: z
+      .array(
+        z.object({
+          productId: z.uuid(),
+          quantity: z.number().int().min(1).max(10_000),
+          unitPriceInCents: z.number().int().min(0).max(2147483647).optional(),
+        }),
+      )
+      .min(1, "Adicione ao menos um produto.")
+      .max(50)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => item.productId)).size === items.length,
+        { message: "Cada produto entra uma vez só na venda." },
+      ),
+    costCenterId: z.uuid().optional(),
+    categoryId: z.uuid().optional(),
+    settlement: z.enum(["paid", "receivable"]),
+    paymentMethod: paymentMethodSchema.optional(),
+    dueDate: z.iso.date(),
+  })
+  .refine(
+    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
+  );
 export const patientTabServiceInputSchema = z.object({
   appointmentId: z.uuid(),
   amountInCents: z.number().int().min(0).max(2147483647).optional(),

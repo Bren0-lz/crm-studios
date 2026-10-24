@@ -16,7 +16,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
-import { PatientTabModal } from "./PatientTabModal";
+import { PatientTabModal } from "../sales";
 
 /**
  * Comandas do cliente (QM9). Produtos e estoque ficam na aba "Estoque" do Financeiro;

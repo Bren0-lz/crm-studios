@@ -1,0 +1,1 @@
+export { PatientTabModal } from "./PatientTabModal";
