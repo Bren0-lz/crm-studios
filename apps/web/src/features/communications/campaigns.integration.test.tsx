@@ -14,6 +14,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import { appointmentPeriodPresets } from "./campaigns/model";
 import {
   documentEditor,
   installDocumentBrowserMocks,
@@ -528,8 +529,14 @@ describe("campanhas de WhatsApp", () => {
     fireEvent.change(within(filters).getByLabelText("Sumidos"), {
       target: { value: "60" },
     });
-    fireEvent.change(within(filters).getByLabelText(/^Atendimento no dia/), {
+    fireEvent.change(within(filters).getByLabelText("Até"), {
+      target: { value: "2026-10-31" },
+    });
+    fireEvent.change(within(filters).getByLabelText("De"), {
       target: { value: "2026-10-25" },
+    });
+    fireEvent.change(within(filters).getByLabelText("Quais atendimentos"), {
+      target: { value: "any" },
     });
     fireEvent.click(within(filters).getByText("Evitar repetição"));
     fireEvent.change(
@@ -546,7 +553,9 @@ describe("campanhas de WhatsApp", () => {
             city: "Campinas",
             serviceIds: ["s1"],
             absentDays: 60,
-            appointmentDate: "2026-10-25",
+            appointmentFrom: "2026-10-25",
+            appointmentTo: "2026-10-31",
+            appointmentStatus: "any",
             excludeContactedDays: 7,
             status: "active",
           },
@@ -638,5 +647,18 @@ describe("campanhas de WhatsApp", () => {
       "href",
       `https://wa.me/5521988887777?text=${encodeURIComponent("Olá, Bruno!")}`,
     );
+  });
+});
+
+describe("atalhos do período de atendimento", () => {
+  it("calcula hoje, amanhã, semana e meses a partir do dia", () => {
+    expect(appointmentPeriodPresets("2026-01-31")).toEqual([
+      { label: "Hoje", from: "2026-01-31", to: "2026-01-31" },
+      { label: "Amanhã", from: "2026-02-01", to: "2026-02-01" },
+      { label: "Próximos 7 dias", from: "2026-01-31", to: "2026-02-06" },
+      { label: "Este mês", from: "2026-01-01", to: "2026-01-31" },
+      { label: "Mês passado", from: "2025-12-01", to: "2025-12-31" },
+      { label: "Últimos 30 dias", from: "2026-01-02", to: "2026-01-31" },
+    ]);
   });
 });

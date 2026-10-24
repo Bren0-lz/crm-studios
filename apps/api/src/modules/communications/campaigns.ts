@@ -49,13 +49,39 @@ export function segmentNeedsAppointments(segment: CampaignSegment) {
     segment.professionalIds.length ||
     segment.absentDays ||
     segment.visitedWithinDays ||
-    segment.appointmentDate ||
+    segment.appointmentFrom ||
+    segment.appointmentTo ||
     segment.noUpcomingAppointment,
   );
 }
 
 const isOpenAppointment = (item: Appointment) =>
   item.status === "scheduled" || item.status === "confirmed";
+
+/** Algum limite do período de atendimento está preenchido. */
+function hasAppointmentPeriod(segment: CampaignSegment) {
+  return Boolean(segment.appointmentFrom || segment.appointmentTo);
+}
+
+/**
+ * O atendimento cai no período (dia no fuso da clínica, limites inclusive) e
+ * tem a situação escolhida (padrão: agendado ou confirmado).
+ */
+function inAppointmentPeriod(
+  item: Appointment,
+  segment: CampaignSegment,
+  timeZone: string,
+) {
+  const status = segment.appointmentStatus ?? "open";
+  if (item.status === "cancelled") return false;
+  if (status === "open" && !isOpenAppointment(item)) return false;
+  if (status === "completed" && item.status !== "completed") return false;
+  const day = clinicDateOf(item.startsAt, timeZone);
+  return (
+    (!segment.appointmentFrom || day >= segment.appointmentFrom) &&
+    (!segment.appointmentTo || day <= segment.appointmentTo)
+  );
+}
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -135,14 +161,21 @@ export function filterCampaignSegment(
     }
     if (!segmentNeedsAppointments(segment)) return true;
     const appointments = byPatient.get(patient.id) ?? [];
+    // Com período, serviço e profissional valem só para os atendimentos dele.
+    const inPeriod = hasAppointmentPeriod(segment)
+      ? appointments.filter((item) =>
+          inAppointmentPeriod(item, segment, data.timezone),
+        )
+      : appointments;
+    if (hasAppointmentPeriod(segment) && !inPeriod.length) return false;
     if (
       segment.serviceIds.length &&
-      !appointments.some((item) => segment.serviceIds.includes(item.serviceId))
+      !inPeriod.some((item) => segment.serviceIds.includes(item.serviceId))
     )
       return false;
     if (
       segment.professionalIds.length &&
-      !appointments.some((item) =>
+      !inPeriod.some((item) =>
         segment.professionalIds.includes(item.professionalId),
       )
     )
@@ -161,15 +194,6 @@ export function filterCampaignSegment(
     if (
       segment.visitedWithinDays &&
       lastVisit < now - segment.visitedWithinDays * dayMs
-    )
-      return false;
-    if (
-      segment.appointmentDate &&
-      !appointments.some(
-        (item) =>
-          isOpenAppointment(item) &&
-          clinicDateOf(item.startsAt, data.timezone) === segment.appointmentDate,
-      )
     )
       return false;
     if (
@@ -203,21 +227,30 @@ function matchesPlanFilters(
 
 /**
  * Atendimento que preenche `{{data_atendimento}}`/`{{hora_atendimento}}`: o
- * primeiro do dia filtrado ou, sem esse filtro, o próximo agendado.
+ * primeiro do período filtrado (com serviço/profissional escolhidos, um deles)
+ * ou, sem esse filtro, o próximo agendado.
  */
 export function campaignAppointment(
   data: CampaignFilterData,
   patientId: string,
-  appointmentDate?: string,
+  segment?: CampaignSegment,
 ): Appointment | undefined {
-  return data.appointments
-    .filter((item) => item.patientId === patientId && isOpenAppointment(item))
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-    .find((item) =>
-      appointmentDate
-        ? clinicDateOf(item.startsAt, data.timezone) === appointmentDate
-        : Date.parse(item.startsAt) > data.now.getTime(),
+  const sorted = data.appointments
+    .filter((item) => item.patientId === patientId)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  if (segment && hasAppointmentPeriod(segment))
+    return sorted.find(
+      (item) =>
+        inAppointmentPeriod(item, segment, data.timezone) &&
+        (!segment.serviceIds.length ||
+          segment.serviceIds.includes(item.serviceId)) &&
+        (!segment.professionalIds.length ||
+          segment.professionalIds.includes(item.professionalId)),
     );
+  return sorted.find(
+    (item) =>
+      isOpenAppointment(item) && Date.parse(item.startsAt) > data.now.getTime(),
+  );
 }
 
 function appointmentValues(appointment: Appointment, timeZone: string) {
@@ -270,8 +303,7 @@ export function buildCampaignAudience(
       .map((item) => item.patientId),
   );
   const withAppointment = usesAppointmentVariables(body);
-  const appointmentDate =
-    audience.mode === "segment" ? audience.segment.appointmentDate : undefined;
+  const segment = audience.mode === "segment" ? audience.segment : undefined;
   const drafts: WhatsappCampaignRecipientDraft[] = [];
   const skipped: BroadcastSkippedPatient[] = [];
   for (const patient of chosen) {
@@ -291,7 +323,7 @@ export function buildCampaignAudience(
       continue;
     }
     const appointment = withAppointment
-      ? campaignAppointment(data, patient.id, appointmentDate)
+      ? campaignAppointment(data, patient.id, segment)
       : undefined;
     if (withAppointment && !appointment) {
       skip("no_appointment");
