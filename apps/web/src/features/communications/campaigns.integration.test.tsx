@@ -4,6 +4,7 @@ import type {
   WhatsappCampaignRecipient,
 } from "@crm/contracts";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -13,6 +14,11 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import {
+  documentEditor,
+  installDocumentBrowserMocks,
+  setDocumentText,
+} from "../../test-support/document-editor";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
@@ -137,13 +143,18 @@ describe("mensagens padrão", () => {
     fireEvent.change(within(dialog).getByLabelText("Título (só a equipe vê)"), {
       target: { value: "Volta às aulas" },
     });
-    const body = within(dialog).getByLabelText("Mensagem");
-    fireEvent.change(body, { target: { value: "Olá, " } });
-    (body as HTMLTextAreaElement).setSelectionRange(5, 5);
+    installDocumentBrowserMocks();
+    const body = within(dialog).getByRole("textbox", { name: "Mensagem" });
+    setDocumentText(body, "Olá, ");
+    act(() => {
+      documentEditor(body).commands.focus("end");
+    });
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Inserir nome" }),
     );
-    expect(body).toHaveValue("Olá, {{nome}}");
+    // O código aparece como etiqueta verde, e não como `{{nome}}` cru.
+    expect(body).toHaveTextContent("Olá, Nome");
+    expect(within(body).getByText("Nome")).toHaveClass("document-field");
     const preview = within(dialog).getByRole("figure", {
       name: "Prévia no WhatsApp",
     });
@@ -197,6 +208,50 @@ describe("mensagens padrão", () => {
     expect(
       await screen.findByRole("heading", { name: "Volta às aulas" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("editor da mensagem", () => {
+  it("mostra os códigos da mensagem salva como etiquetas e salva o texto com os códigos", async () => {
+    const { calls } = setup("/comunicacoes?aba=mensagens", (url, init) => {
+      if (url.endsWith("/communications/templates")) return [template];
+      if (init?.method === "PATCH" || init?.method === "PUT")
+        return { ...template, ...JSON.parse(String(init.body)) };
+      return undefined;
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Mais ações da mensagem Volta às aulas",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Editar mensagem padrão",
+    });
+    installDocumentBrowserMocks();
+    const body = within(dialog).getByRole("textbox", { name: "Mensagem" });
+    expect(body).toHaveTextContent("Olá, Nome! Temos turma nova.");
+    expect(within(body).getByText("Nome")).toHaveAttribute(
+      "data-message-variable",
+      "{{nome}}",
+    );
+    act(() => {
+      documentEditor(body).commands.focus("end");
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Inserir nome completo" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar mensagem" }),
+    );
+    await waitFor(() =>
+      expect(
+        calls.find((call) => call.url.includes(`/templates/${template.id}`))
+          ?.body,
+      ).toMatchObject({
+        body: "Olá, {{nome}}! Temos turma nova.{{nome_completo}}",
+      }),
+    );
   });
 });
 
