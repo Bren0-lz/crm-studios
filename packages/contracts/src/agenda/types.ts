@@ -7,6 +7,7 @@ import {
   appointmentVisitTypeSchema,
   groupAttendanceInputSchema,
   groupClassInputSchema,
+  groupClassRenameSchema,
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   groupWeeklySlotsSchema,
@@ -42,6 +43,8 @@ export type ScheduleBlockInput = z.infer<typeof scheduleBlockInputSchema>;
 export type GroupWeeklySlot = z.infer<typeof groupWeeklySlotsSchema>[number];
 
 export type GroupClassInput = z.infer<typeof groupClassInputSchema>;
+
+export type GroupClassRenameInput = z.infer<typeof groupClassRenameSchema>;
 
 export type GroupClassUpdateInput = z.infer<typeof groupClassUpdateSchema>;
 

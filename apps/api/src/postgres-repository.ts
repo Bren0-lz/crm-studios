@@ -289,6 +289,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.getGroupWorkspace = this.agenda.getGroupWorkspace;
     this.createGroupClass = this.agenda.createGroupClass;
     this.updateGroupClass = this.agenda.updateGroupClass;
+    this.renameGroupClass = this.agenda.renameGroupClass;
     this.createGroupEnrollment = this.agenda.createGroupEnrollment;
     this.cancelGroupEnrollment = this.agenda.cancelGroupEnrollment;
     this.listGroupSessions = this.agenda.listGroupSessions;
@@ -707,6 +708,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly updateGroupClass: ReturnType<
     typeof createAgendaRepository
   >["updateGroupClass"];
+
+  readonly renameGroupClass: ReturnType<
+    typeof createAgendaRepository
+  >["renameGroupClass"];
 
   readonly createGroupEnrollment: ReturnType<
     typeof createAgendaRepository

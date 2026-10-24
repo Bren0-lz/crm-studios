@@ -780,6 +780,11 @@ export interface ClinicRepository {
     groupId: string,
     input: GroupClassUpdateInput,
   ): Promise<GroupClass | null>;
+  renameGroupClass(
+    clinicId: string,
+    groupId: string,
+    name: string,
+  ): Promise<GroupClass | null>;
   createGroupEnrollment(
     clinicId: string,
     input: GroupEnrollmentInput,

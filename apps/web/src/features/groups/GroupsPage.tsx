@@ -10,6 +10,7 @@ import {
   type Service,
   describeGroupSchedule,
   groupClassName,
+  groupClassRenameSchema,
   patientFirstName,
   saoPauloToday,
 } from "@crm/contracts";
@@ -139,11 +140,14 @@ export function GroupsPage() {
     string | undefined
   >();
   const linkedSessionId = searchParams.get("sessionId") ?? undefined;
+  const [editingName, setEditingName] = useState("");
+  const [renameError, setRenameError] = useState("");
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>(
     [],
   );
   const [groupForm, setGroupForm] = useState({
+    name: "",
     serviceId: "",
     professionalId: "",
     roomId: "",
@@ -204,7 +208,11 @@ export function GroupsPage() {
     setError("");
     const request = ++workspaceRequest.current;
     try {
-      applyGroupsData(await fetchGroupsData(calendarMonth), calendarMonth, request);
+      applyGroupsData(
+        await fetchGroupsData(calendarMonth),
+        calendarMonth,
+        request,
+      );
     } finally {
       setLoading(false);
     }
@@ -288,10 +296,13 @@ export function GroupsPage() {
         .filter((item) => item.serviceId === groupForm.serviceId)
         .map((item) => item.sequence),
     ) + 1;
+  const suggestedName = newGroupService
+    ? groupClassName(newGroupService.name, nextGroupSequence)
+    : "Selecione o serviço para ver o nome da turma";
   const groupOptionLabel = (group: GroupClass) =>
     `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
   const editDirty = useFormDirty(
-    { editingCapacity, editingSlots },
+    { editingName, editingCapacity, editingSlots },
     Boolean(selectedGroup),
   );
   // Sincroniza uma nova URL com os dados carregados, sem reabrir após gravações.
@@ -312,6 +323,8 @@ export function GroupsPage() {
         setInitialSessionId(linkedSessionId);
         setSelectedGroupId(group.id);
         setEditingCapacity(group.capacity);
+        setEditingName(group.name);
+        setRenameError("");
         setEditingSlots(group.weeklySlots ?? []);
       }
     }
@@ -321,6 +334,8 @@ export function GroupsPage() {
     setInitialSessionId(undefined);
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
+    setEditingName(group.name);
+    setRenameError("");
     setEditingSlots(group.weeklySlots ?? []);
   }
   function closeGroupDialogs() {
@@ -356,7 +371,9 @@ export function GroupsPage() {
           )
         }
       />
-      {!canManage && <ReadOnlyNotice module="groups" />}
+      {!canManage && !can("groups.rename") && (
+        <ReadOnlyNotice module="groups" />
+      )}
       {error && !selectedGroup && !groupDialog && <ErrorBanner error={error} />}
       {loading && !workspace ? (
         <LoadingBlock />
@@ -390,6 +407,7 @@ export function GroupsPage() {
             <GroupModal
               title="Nova turma"
               subtitle="Configure os dados e horários fixos."
+              initialFocus="select"
               busy={saving}
               dirty={createDirty}
               onClose={closeGroupDialogs}
@@ -402,8 +420,15 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       void run(async () => {
-                        const created = await api.createGroupClass(groupForm);
+                        const { name, ...input } = groupForm;
+                        const created = await api.createGroupClass({
+                          ...input,
+                          ...(can("groups.rename") && name.trim()
+                            ? { name: name.trim() }
+                            : {}),
+                        });
                         setGroupForm({
+                          name: "",
                           serviceId: "",
                           professionalId: "",
                           roomId: "",
@@ -422,6 +447,26 @@ export function GroupsPage() {
                         número de vagas.
                       </p>
                       <div className="group-modal-field-grid">
+                        {can("groups.rename") && (
+                          <label>
+                            Nome da turma
+                            <input
+                              value={groupForm.name}
+                              maxLength={120}
+                              placeholder={suggestedName}
+                              disabled={saving}
+                              onChange={(event) =>
+                                setGroupForm({
+                                  ...groupForm,
+                                  name: event.target.value,
+                                })
+                              }
+                            />
+                            <span className="field-hint">
+                              Opcional. Deixe vazio para usar o nome automático.
+                            </span>
+                          </label>
+                        )}
                         <label>
                           Serviço
                           <select
@@ -518,16 +563,11 @@ export function GroupsPage() {
                     <section className="group-modal-section">
                       <h3>Resumo da turma</h3>
                       <div className="group-next-session" aria-live="polite">
-                        {newGroupService ? (
-                          <strong>
-                            {groupClassName(
-                              newGroupService.name,
-                              nextGroupSequence,
-                            )}
-                          </strong>
-                        ) : (
-                          "Selecione o serviço para ver o nome da turma"
-                        )}
+                        <strong>
+                          {can("groups.rename") && groupForm.name.trim()
+                            ? groupForm.name.trim()
+                            : suggestedName}
+                        </strong>
                         <br />
                         {describeGroupSchedule(groupForm.weeklySlots)}
                       </div>
@@ -770,6 +810,79 @@ export function GroupsPage() {
               <div className="group-modal-sections">
                 <section className="group-modal-section group-summary">
                   <h3>Dados da turma</h3>
+                  {can("groups.rename") ? (
+                    <form
+                      className="group-modal-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const parsed = groupClassRenameSchema.safeParse({
+                          name: editingName,
+                        });
+                        if (!parsed.success) {
+                          setRenameError(parsed.error.issues[0]!.message);
+                          return;
+                        }
+                        setRenameError("");
+                        setSaving(true);
+                        void api
+                          .renameGroupClass(selectedGroup.id, parsed.data)
+                          .then(async (updated) => {
+                            toast.success(
+                              `Nome da turma alterado para ${updated.name}.`,
+                            );
+                            closeGroupDialogs();
+                            await load();
+                          })
+                          .catch((cause: unknown) => {
+                            setRenameError((cause as Error).message);
+                          })
+                          .finally(() => setSaving(false));
+                      }}
+                    >
+                      <label>
+                        Nome da turma
+                        <input
+                          required
+                          maxLength={120}
+                          value={editingName}
+                          disabled={saving}
+                          aria-invalid={Boolean(renameError)}
+                          aria-describedby={
+                            renameError ? `${tabsId}-rename-error` : undefined
+                          }
+                          onChange={(event) =>
+                            setEditingName(event.target.value)
+                          }
+                        />
+                      </label>
+                      {renameError && (
+                        <p
+                          className="form-error"
+                          role="alert"
+                          id={`${tabsId}-rename-error`}
+                        >
+                          {renameError}
+                        </p>
+                      )}
+                      <div className="modal-actions">
+                        <button
+                          className="primary-button"
+                          disabled={
+                            saving || editingName.trim() === selectedGroup.name
+                          }
+                        >
+                          Salvar nome
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <dl className="group-summary-fields">
+                      <div>
+                        <dt>Nome da turma</dt>
+                        <dd>{selectedGroup.name}</dd>
+                      </div>
+                    </dl>
+                  )}
                   <dl className="group-summary-fields">
                     <div>
                       <dt>Serviço</dt>
