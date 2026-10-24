@@ -67,24 +67,23 @@ function TemplateCard({
             <WhatsappText text={template.body} codes />
           </p>
         </div>
-        {canManage && (
-          <div className="template-card-menu">
-            <ActionMenu
-              label={`Mais ações da mensagem ${template.title}`}
-              iconOnly
-              align="end"
-              items={[
-                { label: "Editar", onSelect: onEdit },
-                { label: "Duplicar", onSelect: onDuplicate },
-                {
-                  label: template.archivedAt ? "Reativar" : "Arquivar",
-                  onSelect: onArchive,
-                },
-              ]}
-            />
-          </div>
-        )}
       </div>
+      {canManage && (
+        <div className="template-card-menu">
+          <ActionMenu
+            label={`Mais ações da mensagem ${template.title}`}
+            iconOnly
+            items={[
+              { label: "Editar", onSelect: onEdit },
+              { label: "Duplicar", onSelect: onDuplicate },
+              {
+                label: template.archivedAt ? "Reativar" : "Arquivar",
+                onSelect: onArchive,
+              },
+            ]}
+          />
+        </div>
+      )}
       <div className="template-card-body">
         <h3>{template.title}</h3>
         <div className="template-card-meta">
