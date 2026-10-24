@@ -12,7 +12,6 @@ import { leadStages } from "../relationship/index";
 
 export interface LeadCardPermissions {
   manage: boolean;
-  drag: boolean;
   stage: boolean;
   update: boolean;
   convert: boolean;
@@ -38,11 +37,8 @@ function leadAlert(lead: Lead) {
 /** Cartão denso do funil: nome e tempo, origem/interesse, contato e ações em ícones. */
 export function LeadCard({
   lead,
-  dragging,
   permissions,
   stages = leadStages,
-  onDragStart,
-  onDragEnd,
   onMove,
   onActivity,
   onEdit,
@@ -50,12 +46,9 @@ export function LeadCard({
   onSchedule,
 }: {
   lead: Lead;
-  dragging: boolean;
   permissions: LeadCardPermissions;
   /** Etapas com os nomes da clínica (seletor "Mover etapa"). */
   stages?: ReadonlyArray<{ value: LeadStage; label: string }>;
-  onDragStart: () => void;
-  onDragEnd: () => void;
   onMove: (stage: LeadStage) => void;
   onActivity: () => void;
   onEdit: () => void;
@@ -66,16 +59,7 @@ export function LeadCard({
   const alert = leadAlert(lead);
   const taskLabel = `${lead.openTasks} tarefa(s)${lead.overdueTasks > 0 ? ` · ${lead.overdueTasks} atrasada(s)` : ""}`;
   return (
-    <article
-      className={`lead-card${alert ? ` alert-${alert.tone}` : ""}${dragging ? " dragging" : ""}`}
-      draggable={permissions.drag && open}
-      onDragStart={(event) => {
-        event.dataTransfer?.setData("text/plain", lead.id);
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
-    >
+    <article className={`lead-card${alert ? ` alert-${alert.tone}` : ""}`}>
       {alert && (
         <span
           className="lead-card-badge"
