@@ -7,7 +7,10 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
-import { InlineClassificationCreate } from "./InlineClassificationCreate";
+import {
+  CREATE_OPTION_VALUE,
+  InlineClassificationCreate,
+} from "./InlineClassificationCreate";
 
 export function RecurringPayableModal({
   workspace,
@@ -41,6 +44,9 @@ export function RecurringPayableModal({
     endMonth: "",
   });
   const [error, setError] = useState("");
+  const [creating, setCreating] = useState<"category" | "costCenter" | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
   const missing = useMissingFields(
@@ -118,9 +124,12 @@ export function RecurringPayableModal({
               <select
                 required
                 value={form.categoryId}
-                onChange={(event) =>
-                  setForm({ ...form, categoryId: event.target.value })
-                }
+                className="select-opens-down"
+                onChange={(event) => {
+                  if (event.target.value === CREATE_OPTION_VALUE)
+                    setCreating("category");
+                  else setForm({ ...form, categoryId: event.target.value });
+                }}
               >
                 {expenseCategories.length === 0 && (
                   <option value="">Nenhuma categoria cadastrada</option>
@@ -130,27 +139,34 @@ export function RecurringPayableModal({
                     {item.name}
                   </option>
                 ))}
+                {can("finance.categories_create") && (
+                  <option value={CREATE_OPTION_VALUE}>+ Nova categoria</option>
+                )}
               </select>
             </label>
-            {expenseCategories.length === 0 && (
-              <InlineClassificationCreate
-                emptyLabel="Nenhuma categoria de despesa"
-                createLabel="Criar categoria"
-                canCreate={can("finance.categories_create")}
-                onCreate={async (name) => {
-                  const created = await api.createFinancialCategory({
-                    name,
-                    kind: "expense",
-                  });
-                  setExpenseCategories((items) => [...items, created]);
-                  toast.success(`Categoria “${created.name}” criada.`);
-                  setForm((current) => ({
-                    ...current,
-                    categoryId: created.id,
-                  }));
-                }}
-              />
-            )}
+            <InlineClassificationCreate
+              open={creating === "category"}
+              onOpenChange={(open) => setCreating(open ? "category" : null)}
+              emptyLabel={
+                expenseCategories.length === 0
+                  ? "Nenhuma categoria de despesa"
+                  : undefined
+              }
+              createLabel="Criar categoria"
+              canCreate={can("finance.categories_create")}
+              onCreate={async (name) => {
+                const created = await api.createFinancialCategory({
+                  name,
+                  kind: "expense",
+                });
+                setExpenseCategories((items) => [...items, created]);
+                toast.success(`Categoria “${created.name}” criada.`);
+                setForm((current) => ({
+                  ...current,
+                  categoryId: created.id,
+                }));
+              }}
+            />
           </div>
           <div className="field-with-hint">
             <label>
@@ -158,9 +174,12 @@ export function RecurringPayableModal({
               <select
                 required
                 value={form.costCenterId}
-                onChange={(event) =>
-                  setForm({ ...form, costCenterId: event.target.value })
-                }
+                className="select-opens-down"
+                onChange={(event) => {
+                  if (event.target.value === CREATE_OPTION_VALUE)
+                    setCreating("costCenter");
+                  else setForm({ ...form, costCenterId: event.target.value });
+                }}
               >
                 {costCenters.length === 0 && (
                   <option value="">Nenhum centro de custo cadastrado</option>
@@ -170,24 +189,31 @@ export function RecurringPayableModal({
                     {item.name}
                   </option>
                 ))}
+                {can("finance.cost_centers_create") && (
+                  <option value={CREATE_OPTION_VALUE}>
+                    + Novo centro de custo
+                  </option>
+                )}
               </select>
             </label>
-            {costCenters.length === 0 && (
-              <InlineClassificationCreate
-                emptyLabel="Nenhum centro de custo"
-                createLabel="Criar centro de custo"
-                canCreate={can("finance.cost_centers_create")}
-                onCreate={async (name) => {
-                  const created = await api.createCostCenter({ name });
-                  setCostCenters((items) => [...items, created]);
-                  toast.success(`Centro de custo “${created.name}” criado.`);
-                  setForm((current) => ({
-                    ...current,
-                    costCenterId: created.id,
-                  }));
-                }}
-              />
-            )}
+            <InlineClassificationCreate
+              open={creating === "costCenter"}
+              onOpenChange={(open) => setCreating(open ? "costCenter" : null)}
+              emptyLabel={
+                costCenters.length === 0 ? "Nenhum centro de custo" : undefined
+              }
+              createLabel="Criar centro de custo"
+              canCreate={can("finance.cost_centers_create")}
+              onCreate={async (name) => {
+                const created = await api.createCostCenter({ name });
+                setCostCenters((items) => [...items, created]);
+                toast.success(`Centro de custo “${created.name}” criado.`);
+                setForm((current) => ({
+                  ...current,
+                  costCenterId: created.id,
+                }));
+              }}
+            />
           </div>
           <label>
             Dia do vencimento
