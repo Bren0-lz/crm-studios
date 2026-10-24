@@ -1,6 +1,8 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   allocatePlanRevenue,
   defaultContractTemplateBody,
+  formatCpf,
   guidedPatientInputSchema,
   patientPlanInputSchema,
   planRenewalInputSchema,
@@ -172,6 +174,7 @@ for (const backend of ["memory", "postgres"] as const) {
           }),
         );
         const patient = await repository.createPatient(clinicId, {
+          cpf: nextTestCpf(),
           fullName: marker,
           phone: "11999991234",
           tags: [],
@@ -295,7 +298,7 @@ for (const backend of ["memory", "postgres"] as const) {
         );
       });
       it("fills the standard contract with the plan terms and the clinic and client data", async () => {
-        const { plan } = await setup();
+        const { plan, patient } = await setup();
         const clinic = (await repository.getClinicSettings(clinicId))!;
         const documentTemplate = await repository.createDocumentTemplate(
           clinicId,
@@ -325,7 +328,7 @@ for (const backend of ["memory", "postgres"] as const) {
           `CONTRATADA: ${clinic.legalName || clinic.name}, nome fantasia ${clinic.name}`,
         );
         expect(document.snapshotBody).toContain(
-          "inscrito(a) no CPF sob o nº não informado, residente em não informado.",
+          `inscrito(a) no CPF sob o nº ${formatCpf(patient.cpf ?? "")}, residente em não informado.`,
         );
         expect(document.snapshotBody).toContain(
           `o valor total de ${value}, em 3 parcela(s).`,
@@ -512,6 +515,7 @@ for (const backend of ["memory", "postgres"] as const) {
           guidedPatientInputSchema.parse({
             next: "plan",
             patient: {
+              cpf: nextTestCpf(),
               fullName: `multiservice-${randomUUID()}`,
               phone: "11999991235",
             },

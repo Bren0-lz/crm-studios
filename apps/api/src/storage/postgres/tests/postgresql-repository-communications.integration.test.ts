@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runMigrations, seedDemoData } from "../../../database.js";
@@ -338,6 +339,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     await cleanup();
     try {
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente Comunicado PG",
         phone: broadcastPhone,
         email: "comunicado.pg@example.com",

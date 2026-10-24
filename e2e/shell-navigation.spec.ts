@@ -1,4 +1,5 @@
 import { test, expect, login, selectPatient } from "./fixtures.js";
+import { nextTestCpf } from "../apps/api/src/test-support/cpf.js";
 
 test("SOS search and contact remain usable with long names on desktop and a small viewport", async ({
   page,
@@ -11,6 +12,7 @@ test("SOS search and contact remain usable with long names on desktop and a smal
   for (let index = 0; index < 24; index++) {
     const response = await api.post("/patients", {
       data: {
+        cpf: nextTestCpf(),
         fullName:
           index === 23
             ? longName
@@ -197,6 +199,7 @@ test("SOS keeps its bounds during contact loading, missing contact, errors and r
   ]) {
     const response = await api.post("/patients", {
       data: {
+        cpf: nextTestCpf(),
         fullName: name,
         phone: "11999991234",
         tags: [],
@@ -280,6 +283,7 @@ test("SOS stays in the header after scrolling and opens over the entire viewport
 }) => {
   const created = await api.post("/patients", {
     data: {
+      cpf: nextTestCpf(),
       fullName: "Cliente de teste do SOS",
       phone: "11999991234",
       tags: [],
@@ -378,7 +382,10 @@ test("sidebar stays visible at every breakpoint while only navigation scrolls", 
     });
     await expect(trigger).toBeInViewport();
     await trigger.click();
-    const menu = page.getByRole("dialog", { name: "Notificações", exact: true });
+    const menu = page.getByRole("dialog", {
+      name: "Notificações",
+      exact: true,
+    });
     await expect(menu).toBeInViewport({ ratio: 1 });
     const box = (await menu.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(mobile ? 72 : 232);

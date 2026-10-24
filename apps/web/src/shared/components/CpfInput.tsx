@@ -3,14 +3,17 @@ import { cpfDigits, formatCpf, isValidCpf } from "@crm/contracts";
 export function CpfInput({
   value,
   onChange,
+  required = false,
 }: {
   value: string;
   onChange: (digits: string) => void;
+  required?: boolean;
 }) {
   const invalid = cpfDigits(value).length === 11 && !isValidCpf(value);
   return (
     <>
       <input
+        required={required}
         inputMode="numeric"
         autoComplete="off"
         placeholder="000.000.000-00"

@@ -30,6 +30,44 @@ async function openNewClient() {
 }
 
 describe("quick client registration", () => {
+  it("requires CPF and blocks an invalid CPF before sending the registration", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Cliente CPF obrigatório" },
+    });
+    fireEvent.change(
+      within(
+        within(dialog).getByRole("group", { name: "Contato" }),
+      ).getByLabelText("Telefone"),
+      { target: { value: "11999998888" } },
+    );
+    const save = within(dialog).getByRole("button", { name: "Salvar cliente" });
+    expect(save).toBeDisabled();
+    expect(within(dialog).getByText("Falta: CPF.")).toBeVisible();
+    const cpf = within(dialog).getByLabelText("CPF");
+    fireEvent.change(cpf, {
+      target: { value: "11111111111" },
+    });
+    fireEvent.submit(save.closest("form")!);
+    expect(
+      await within(dialog).findByText("Informe um CPF válido.", {
+        selector: ".form-error",
+      }),
+    ).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([, options]) => options?.method === "POST"),
+    ).toBe(false);
+    fireEvent.change(cpf, {
+      target: { value: "52998224725" },
+    });
+    expect(save).toBeEnabled();
+  });
   it("keeps the essentials visible and collapses the rest under Mais informações", async () => {
     login();
     vi.mocked(fetch).mockImplementation(
@@ -38,6 +76,7 @@ describe("quick client registration", () => {
     const dialog = await openNewClient();
     for (const label of [
       "Nome completo",
+      "CPF",
       "Telefone",
       "E-mail",
       "Data de nascimento",
@@ -47,7 +86,7 @@ describe("quick client registration", () => {
       .getByText("Mais informações")
       .closest("details")!;
     expect(more).not.toHaveAttribute("open");
-    expect(more).toContainElement(within(dialog).getByLabelText("CPF"));
+    expect(within(dialog).getByLabelText("CPF")).toBeRequired();
     expect(more).toContainElement(within(dialog).getByLabelText("Observações"));
   });
 

@@ -3,9 +3,28 @@ import { patientInputSchema, patientProfile } from "./model.js";
 import { mergedPatientInput, patientMergeSchema } from "./management.js";
 import type { Patient } from "./types.js";
 describe("optional client profile", () => {
-  it("keeps legacy registrations valid and rejects invalid new fields", () => {
+  it.each([undefined, null, "", "   ", "11111111111", "52998224724"])(
+    "rejects a registration with CPF %s",
+    (cpf) => {
+      const result = patientInputSchema.safeParse({
+        fullName: "Cliente",
+        phone: "11999998888",
+        cpf,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success)
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ["cpf"],
+            message: "Informe um CPF válido.",
+          }),
+        );
+    },
+  );
+  it("accepts a complete registration and rejects invalid profile fields", () => {
     expect(
       patientInputSchema.parse({
+        cpf: "52998224725",
         fullName: "Cliente antigo",
         phone: "11999998888",
       }),
@@ -15,6 +34,7 @@ describe("optional client profile", () => {
     });
     expect(
       patientInputSchema.safeParse({
+        cpf: "52998224725",
         fullName: "Cliente",
         phone: "11999998888",
         gender: "invalid",
@@ -22,6 +42,7 @@ describe("optional client profile", () => {
     ).toBe(false);
     expect(
       patientInputSchema.safeParse({
+        cpf: "52998224725",
         fullName: "Cliente",
         phone: "11999998888",
         guardianPhone: "12",
@@ -37,6 +58,7 @@ describe("optional client profile", () => {
       interests: ["Postura"],
     } as Patient;
     const target = {
+      cpf: "52998224725",
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Destino",
       phone: "11999998888",

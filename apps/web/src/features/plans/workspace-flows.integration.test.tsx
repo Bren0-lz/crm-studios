@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { saoPauloToday } from "@crm/contracts";
@@ -8,6 +9,7 @@ describe("integrated plan purchase", () => {
   it("creates one plan, invoice, group enrollment and issued contract and records attendance", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente da contratação",
       phone: "11988887777",
       tags: [],

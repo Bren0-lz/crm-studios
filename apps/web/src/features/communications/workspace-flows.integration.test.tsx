@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -9,6 +10,7 @@ describe("manual communication workflows", () => {
     async (channel) => {
       const { repository } = await setupApi();
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente de mensagens",
         phone: "11988887777",
         email: "cliente@example.com",

@@ -268,6 +268,7 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
   await client
     .getByLabel("Nome completo", { exact: true })
     .fill("Cliente Inédito");
+  await client.getByLabel("CPF", { exact: true }).fill("52998224725");
   await client
     .getByRole("group", { name: "Contato", exact: true })
     .getByLabel("Telefone", { exact: true })

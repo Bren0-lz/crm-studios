@@ -56,7 +56,11 @@ describe("CRM API", () => {
         headers: { authorization: `Bearer ${login.json().token as string}` },
       };
     }
-    const newPatient = { fullName: "Cliente Permissão", phone: "11977770000" };
+    const newPatient = {
+      fullName: "Cliente Permissão",
+      phone: "11977770000",
+      cpf: "52998224725",
+    };
 
     it("lets a reception user with the finance module use /finance", async () => {
       const { app, token } = await authenticatedApp();

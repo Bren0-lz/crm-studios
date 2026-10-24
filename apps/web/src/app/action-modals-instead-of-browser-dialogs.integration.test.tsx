@@ -162,7 +162,7 @@ describe("action modals instead of browser dialogs", () => {
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // Os dados opcionais da conversão (U19) vêm primeiro: o foco abre no CPF.
+      // O CPF é obrigatório e recebe o foco inicial.
       expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -176,6 +176,12 @@ describe("action modals instead of browser dialogs", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Confirmar" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),
       );
@@ -185,12 +191,9 @@ describe("action modals instead of browser dialogs", () => {
       expect(writes()).toHaveLength(1);
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
-      // Sem dados opcionais preenchidos: campos vazios, que a API ignora.
-      expect(
-        Object.values(JSON.parse(String(writes()[0]![1]?.body))).every(
-          (value) => value === "",
-        ),
-      ).toBe(true);
+      expect(JSON.parse(String(writes()[0]![1]?.body))).toMatchObject({
+        cpf: "52998224725",
+      });
     });
 
     it("keeps the modal open with the API error", async () => {
@@ -227,6 +230,9 @@ describe("action modals instead of browser dialogs", () => {
       );
       const dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
+      });
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
       });
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Confirmar" }),

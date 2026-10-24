@@ -104,9 +104,9 @@ export function PatientImportModal({
               onChange={(event) => void selectFile(event.target.files?.[0])}
             />
             <span className="field-hint" id="patient-import-hint">
-              Colunas aceitas: nome, cpf, telefone, whatsapp, email, nascimento
-              (dd/mm/aaaa), etiquetas (separadas por vírgula) e observações. Até
-              2 MB.
+              Colunas obrigatórias: nome, CPF e telefone. Também são aceitas:
+              whatsapp, email, nascimento (dd/mm/aaaa), etiquetas (separadas por
+              vírgula) e observações. Até 2 MB.
             </span>
           </div>
           <a
