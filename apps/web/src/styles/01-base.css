@@ -424,6 +424,17 @@ select option:disabled {
   select option:disabled {
     cursor: not-allowed;
   }
+  /* Lista sempre abaixo do campo (sem inverter para cima), limitada ao espaço até o fim da tela. */
+  select.select-opens-down::picker(select) {
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: none;
+    max-block-size: min(calc(var(--space-8) * 5), calc(100% - var(--space-2)));
+  }
+  select option[value="__create__"] {
+    border-top: 1px solid var(--line);
+    color: var(--green);
+    font-weight: 600;
+  }
 }
 
 .date-button,

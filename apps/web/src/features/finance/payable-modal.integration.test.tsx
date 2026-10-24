@@ -77,9 +77,9 @@ describe("PayableModal without categories", () => {
       target: { value: "Limpeza" },
     });
     expect(screen.getByRole("button", { name: "Criar" })).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: "Criar" }),
-    ).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("button", { name: "Criar" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Criar" }));
     expect(
       await screen.findByRole("option", { name: "Limpeza" }),
@@ -94,7 +94,9 @@ describe("PayableModal without categories", () => {
     });
     expect(
       screen.getByRole("button", { name: "Cadastrar despesa" }),
-    ).toHaveAccessibleDescription("Falta: Descrição (pelo menos 3 caracteres).");
+    ).toHaveAccessibleDescription(
+      "Falta: Descrição (pelo menos 3 caracteres).",
+    );
     fireEvent.change(screen.getByLabelText("Descrição"), {
       target: { value: "Material de limpeza" },
     });
@@ -120,5 +122,75 @@ describe("PayableModal without categories", () => {
       url: expect.stringContaining("/finance/categories"),
       body: { name: "Limpeza", kind: "expense" },
     });
+  });
+});
+
+describe("PayableModal with existing classifications", () => {
+  it("creates a cost center from the option at the end of the list", async () => {
+    vi.mocked(fetch).mockImplementation(async (input, options) => {
+      if (options?.method === "POST")
+        return jsonResponse(
+          {
+            id: "d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2",
+            clinicId: "x",
+            active: true,
+            ...JSON.parse(String(options.body)),
+          },
+          201,
+        );
+      return jsonResponse([]);
+    });
+    const workspace = {
+      categories: [
+        { id: categoryId, name: "Aluguel", kind: "expense", active: true },
+      ],
+      costCenters: [
+        {
+          id: "e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3",
+          name: "Pilates",
+          active: true,
+        },
+      ],
+      commissions: [],
+      payables: [],
+    } as unknown as FinancialWorkspace;
+    render(
+      <AuthorizationContext.Provider value={authorization}>
+        <PayableModal
+          workspace={workspace}
+          onClose={() => undefined}
+          onCreated={() => undefined}
+        />
+      </AuthorizationContext.Provider>,
+    );
+    expect(
+      screen.getByRole("option", { name: "+ Nova categoria" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: /Centro de custo/ }),
+      {
+        target: { value: "__create__" },
+      },
+    );
+    fireEvent.change(screen.getByLabelText("Criar centro de custo"), {
+      target: { value: "Depilação" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    expect(
+      await screen.findByRole("option", { name: "Depilação" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: /Centro de custo/ }),
+    ).toHaveValue("d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2");
+    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Categoria"), {
+      target: { value: "__create__" },
+    });
+    expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByLabelText("Criar categoria")).toBeNull();
   });
 });
