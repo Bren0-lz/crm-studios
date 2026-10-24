@@ -1,213 +1,240 @@
-import type { SalesReport } from "@crm/contracts";
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   formatIsoDate,
-  localIsoDate,
   shortDate,
 } from "../../shared/lib/formatting";
+import { ReportChart } from "./ReportChart";
+import { salesChartPoints } from "./model";
+import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
-export function SalesInsights() {
+const money = (value: number) => currency.format(value / 100);
+export function SalesInsights({
+  period,
+  mode,
+  focusNoReturn = false,
+}: {
+  period: ReportPeriod;
+  mode: "overview" | "clients";
+  focusNoReturn?: boolean;
+}) {
   const { can } = useAuthorization();
-  const [searchParams] = useSearchParams();
-  // "Ver todos" do painel abre direto a lista de clientes sem retorno.
-  const focusNoReturn = searchParams.get("secao") === "sem-retorno";
-  const [month, setMonth] = useState(localIsoDate().slice(0, 7));
-  const [report, setReport] = useState<SalesReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: report,
+    error,
+    loading,
+  } = useReportQuery(period, api.salesPeriodReport);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState("");
-  const currentMovements =
-    report?.sales.filter(
-      (item) =>
-        new Date(item.occurredAt)
-          .toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
-          .slice(0, 7) === month,
-    ) ?? [];
-
-  useEffect(() => {
-    let active = true;
-    api
-      .salesReport(month)
-      .then((data) => active && setReport(data))
-      .catch((cause: Error) => active && setError(cause.message))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [month]);
+  const [exportError, setExportError] = useState({ period, message: "" });
   useEffect(() => {
     if (focusNoReturn && report)
       document
         .getElementById("sales-no-return")
         ?.scrollIntoView?.({ block: "start" });
   }, [focusNoReturn, report]);
-
   async function exportXlsx() {
     setExporting(true);
-    setError("");
+    setExportError({ period, message: "" });
     try {
-      const blob = await api.salesReportXlsx(month);
+      const blob = await api.salesPeriodReportXlsx(period.from, period.to);
       const url = URL.createObjectURL(blob);
-      const anchor = window.document.createElement("a");
+      const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `vendas-${month}.xlsx`;
+      anchor.download = `vendas-${period.from}-${period.to}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (cause) {
-      setError((cause as Error).message);
+      setExportError({ period, message: (cause as Error).message });
     } finally {
       setExporting(false);
     }
   }
-
-  return (
-    <section className="panel sales-report">
-      <div className="panel-head">
-        <div>
-          <h2>Comparação mensal</h2>
-        </div>
-        <div className="sales-report-actions">
-          <label>
-            Mês{" "}
-            <input
-              type="month"
-              value={month}
-              max={localIsoDate().slice(0, 7)}
-              onChange={(event) => {
-                setLoading(true);
-                setReport(null);
-                setError("");
-                setMonth(event.target.value);
-              }}
-            />
-          </label>
-          {can("reports.sales", "reports.export") && (
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={!report || exporting || loading}
-              onClick={() => void exportXlsx()}
-            >
-              {exporting ? "Exportando…" : "Exportar Excel detalhado"}
-            </button>
+  if (mode === "clients")
+    return (
+      <section className="panel" id="sales-no-return">
+        <div className="panel-head">
+          <div>
+            <h2>Clientes sem retorno</h2>
+            <p className="panel-context">
+              Acompanhamento dos clientes que ainda não voltaram no período.
+            </p>
+          </div>
+          {report && (
+            <span className="status-pill">
+              {report.patientsWithoutReturn.length} clientes
+            </span>
           )}
         </div>
+        {error && <ErrorBanner error={error} />}
+        {loading && <LoadingBlock />}
+        {report && (
+          <div className="reports-body">
+            <p className="muted-copy">
+              Atendidos de {formatIsoDate(report.returnReference.from)} a{" "}
+              {formatIsoDate(report.returnReference.to)}, sem atendimento
+              concluído de {formatIsoDate(report.from)} a{" "}
+              {formatIsoDate(report.to)}. Próximo agendamento considera as datas
+              a partir de hoje.
+            </p>
+            {!report.patientsWithoutReturn.length ? (
+              <EmptyState
+                title="Nenhum cliente nessa situação."
+                copy="Todos os clientes do intervalo de referência retornaram ou não houve atendimentos."
+              />
+            ) : (
+              <div className="table-scroll">
+                <table className="dre-table">
+                  <caption>Clientes sem retorno no período</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Cliente</th>
+                      <th scope="col">Último atendimento</th>
+                      <th scope="col">Próximo agendamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.patientsWithoutReturn.map((item) => (
+                      <tr key={item.patientId}>
+                        <th scope="row">{item.patientName}</th>
+                        <td>
+                          {shortDate.format(new Date(item.lastCompletedAt))}
+                        </td>
+                        <td>
+                          {item.nextAppointmentAt
+                            ? shortDate.format(new Date(item.nextAppointmentAt))
+                            : "Sem agendamento"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  const chart = report ? salesChartPoints(report) : null;
+  return (
+    <section className="panel reports-sales">
+      <div className="panel-head">
+        <div>
+          <h2>Vendas e recebimentos</h2>
+          <p className="panel-context">
+            Vendas realizadas e pagamentos registrados no período selecionado.
+          </p>
+        </div>
+        {can("reports.sales", "reports.export") && (
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!report || exporting}
+            onClick={() => void exportXlsx()}
+          >
+            <Download size={16} aria-hidden="true" />
+            {exporting ? "Exportando…" : "Exportar Excel detalhado"}
+          </button>
+        )}
       </div>
       {error && <ErrorBanner error={error} />}
-      {loading ? (
-        <LoadingBlock />
-      ) : report ? (
-        <>
-          <p className="sales-period">
-            {formatIsoDate(report.current.from)} a{" "}
-            {formatIsoDate(report.current.to)}
-            {" · "}Comparado com {formatIsoDate(report.previousComparable.from)}{" "}
-            a {formatIsoDate(report.previousComparable.to)}.{" "}
-            {report.current.attendedPatients} clientes atendidos neste mês.
-          </p>
-          <div className="sales-metrics">
+      {exportError.period === period && exportError.message && (
+        <ErrorBanner error={exportError.message} />
+      )}
+      {loading && <LoadingBlock />}
+      {report && (
+        <div className="reports-body">
+          <div className="reports-kpis">
             <article>
               <span>Vendido líquido</span>
-              <strong>
-                {currency.format(report.current.netSalesInCents / 100)}
-              </strong>
-              <TrendBadge
-                changePercent={report.changePercent}
-                changeInCents={report.changeInCents}
-                hasCurrentValue={report.current.netSalesInCents !== 0}
-                comparison="frente ao mês anterior"
-              />
-              {report.current.cancelledSalesInCents > 0 && (
-                <small>
-                  Antes dos estornos:{" "}
-                  {currency.format(report.current.grossSalesInCents / 100)}
-                  {" · "}Estornos:{" "}
-                  {currency.format(report.current.cancelledSalesInCents / 100)}
-                </small>
-              )}
+              <strong>{money(report.summary.netSalesInCents)}</strong>
+              <small>
+                {money(report.summary.grossSalesInCents)} em vendas ·{" "}
+                {money(report.summary.cancelledSalesInCents)} em estornos
+              </small>
             </article>
             <article>
               <span>Dinheiro recebido</span>
-              <strong>
-                {currency.format(report.current.receivedInCents / 100)}
-              </strong>
+              <strong>{money(report.summary.receivedInCents)}</strong>
               <small>Pagamentos registrados, após estornos</small>
             </article>
             <article>
-              <span>Clientes sem retorno</span>
-              <strong>{report.patientsWithoutReturn.length}</strong>
-              <small>
-                Atendidos no mês anterior, sem consulta concluída neste mês
-              </small>
+              <span>Clientes atendidos</span>
+              <strong>{report.summary.attendedPatients}</strong>
+              <small>Clientes com atendimento concluído</small>
             </article>
           </div>
-          <details
-            className="report-disclosure sales-details"
-            open={focusNoReturn || undefined}
-          >
-            <summary>Ver vendas e clientes do mês</summary>
-            <div className="sales-detail-grid">
-              <div>
-                <h3>Movimentos deste mês</h3>
-                {currentMovements.length === 0 ? (
-                  <p>Nenhuma venda ou cancelamento.</p>
-                ) : (
-                  <div className="sales-detail-list">
-                    {currentMovements.slice(0, 12).map((item) => (
-                      <div key={item.id}>
-                        <span>
-                          <strong>{item.itemName}</strong>
-                          <small>
-                            {item.patientName} ·{" "}
-                            {item.kind === "sale" ? "Venda" : "Cancelamento"}
+          <div className="reports-chart-heading">
+            <h3>Evolução no período</h3>
+            <span className="panel-context">{chart?.grouping}</span>
+          </div>
+          {!report.sales.length && !report.payments.length ? (
+            <EmptyState
+              title="Sem movimentações no período"
+              copy="Não houve vendas, cancelamentos ou recebimentos entre as datas selecionadas."
+            />
+          ) : (
+            <ReportChart
+              title="Vendas líquidas e recebimentos no período"
+              points={chart!.points}
+              series={[
+                { label: "Vendas líquidas", format: money },
+                { label: "Recebimentos", format: money },
+              ]}
+            />
+          )}
+          <details className="report-data-disclosure">
+            <summary>Ver movimentos do período</summary>
+            {!report.sales.length ? (
+              <EmptyState title="Nenhuma venda ou cancelamento." copy="" />
+            ) : (
+              <div className="table-scroll">
+                <table className="dre-table">
+                  <caption>Movimentos do período</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Data</th>
+                      <th scope="col">Item / cliente</th>
+                      <th scope="col">Movimento</th>
+                      <th scope="col" className="numeric-value">
+                        Valor
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.sales.map((item) => (
+                      <tr key={item.id}>
+                        <td>{shortDate.format(new Date(item.occurredAt))}</td>
+                        <th scope="row">
+                          {item.itemName}
+                          <small className="reports-cell-detail">
+                            {item.patientName}
                           </small>
-                        </span>
-                        <b>{currency.format(item.amountInCents / 100)}</b>
-                      </div>
+                        </th>
+                        <td>
+                          {item.kind === "sale" ? "Venda" : "Cancelamento"}
+                        </td>
+                        <td className="numeric-value">
+                          {money(item.amountInCents)}
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-              <div id="sales-no-return">
-                <h3>Clientes sem retorno</h3>
-                {report.patientsWithoutReturn.length === 0 ? (
-                  <p>Nenhum cliente nessa situação.</p>
-                ) : (
-                  <div className="sales-detail-list">
-                    {report.patientsWithoutReturn.map((item) => (
-                      <div key={item.patientId}>
-                        <span>
-                          <strong>{item.patientName}</strong>
-                          <small>
-                            Último atendimento:{" "}
-                            {shortDate.format(new Date(item.lastCompletedAt))}
-                          </small>
-                        </span>
-                        <small>
-                          {item.nextAppointmentAt
-                            ? `Agendado: ${shortDate.format(new Date(item.nextAppointmentAt))}`
-                            : "Sem agendamento"}
-                        </small>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </details>
-          <p className="sales-help">
-            A planilha traz cada venda, pagamento e cliente sem retorno dos dois
-            períodos comparados.
+          <p className="muted-copy">
+            A planilha traz cada venda, pagamento e cliente sem retorno
+            referentes ao período selecionado.
           </p>
-        </>
-      ) : null}
+        </div>
+      )}
     </section>
   );
 }

@@ -6,7 +6,7 @@ import {
   clinicId,
   setupApi,
 } from "../../test-support/api-server";
-import { open, change, expand } from "../../test-support/workflow-ui";
+import { open, change } from "../../test-support/workflow-ui";
 
 describe("client reports through real HTTP handlers", () => {
   it("filters a client report, selects export columns and downloads a CSV", async () => {
@@ -26,7 +26,13 @@ describe("client reports through real HTTP handlers", () => {
     const downloads = captureDownloads();
     open("/relatorios");
     await screen.findByRole("heading", { name: "Relatórios gerenciais" });
-    const panel = expand("Clientes, frequência, aparelhos e produtos");
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
+    const panel = (
+      await screen.findByRole("heading", {
+        name: "Clientes, frequência, aparelhos e produtos",
+      })
+    ).closest("section")!;
+    fireEvent.click(within(panel).getByText("Filtros avançados"));
     await within(panel).findByRole("link", { name: "Cliente do relatório" });
     for (const [label, value] of [
       ["Cidade", "São Paulo"],
@@ -47,9 +53,40 @@ describe("client reports through real HTTP handlers", () => {
       name: "Exportar clientes",
     });
     await waitFor(() => expect(exportButton).toBeEnabled());
+    const columnPicker = within(panel)
+      .getByText("Selecionar colunas")
+      .closest("details")!;
+    fireEvent.click(within(panel).getByText("Selecionar colunas"));
+    fireEvent.click(
+      within(columnPicker).getByRole("checkbox", { name: "Cidade" }),
+    );
     fireEvent.click(exportButton);
     await waitFor(() => expect(downloads).toHaveLength(1));
     expect(downloads[0]!.type).toContain("text/csv");
+    const exportCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) =>
+        String(input).includes("/reports/clients/details/export?"),
+      );
+    expect(
+      new URL(String(exportCall?.[0]), "http://localhost").searchParams
+        .get("columns")
+        ?.split(","),
+    ).not.toContain("city");
+    let printedHead = "";
+    vi.spyOn(window, "print").mockImplementation(() => {
+      printedHead =
+        document.querySelector(".clinical-print-sheet thead")?.textContent ??
+        "";
+    });
+    const printButton = within(panel).getByRole("button", {
+      name: "Imprimir clientes",
+    });
+    await waitFor(() => expect(printButton).toBeEnabled());
+    fireEvent.click(printButton);
+    await waitFor(() => expect(window.print).toHaveBeenCalled());
+    expect(printedHead).toContain("Cliente");
+    expect(printedHead).not.toContain("Cidade");
     change("Buscar cliente", "Inexistente", panel);
     fireEvent.submit(
       within(panel).getByLabelText("Buscar cliente").closest("form")!,
@@ -74,13 +111,15 @@ describe("client reports through real HTTP handlers", () => {
     const downloads = captureDownloads();
     open("/relatorios");
     await screen.findByRole("heading", { name: "Relatórios gerenciais" });
-    const panel = expand("DRE por competência");
-    await within(panel).findByLabelText("De");
-    change("De", "2040-06-01", panel);
-    change("Até", "2040-06-30", panel);
-    fireEvent.submit(within(panel).getByLabelText("De").closest("form")!);
-    await waitFor(() =>
-      expect(within(panel).queryByText("Carregando…")).not.toBeInTheDocument(),
+    change("De", "2040-06-01");
+    change("Até", "2040-06-30");
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "DRE" }));
+    const panel = (
+      await screen.findByRole("heading", { name: "DRE por competência" })
+    ).closest("section")!;
+    await within(panel).findByText(
+      "DRE por competência · 01/06/2040 a 30/06/2040",
     );
     fireEvent.click(
       await within(panel).findByRole("button", { name: "Exportar DRE" }),

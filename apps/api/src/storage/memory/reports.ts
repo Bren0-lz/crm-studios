@@ -4,15 +4,102 @@ import {
   type ManagementReport,
   type SaleMovement,
   type SalesReport,
+  type SalesPeriodReport,
   allocatePlanRevenue,
 } from "@crm/contracts";
-import { buildSalesReport } from "../../modules/reports/sales-report.js";
+import {
+  buildSalesReport,
+  buildSalesPeriodReport,
+} from "../../modules/reports/sales-report.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { localDate, now, today } from "./helpers.js";
 
 export function createReportsRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  async function salesSources(clinicId: string) {
+    const sales: SaleMovement[] = [];
+    for (const plan of repositoryContext
+      .scoped(repositoryContext.patientPlans)
+      .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
+      const base = {
+        sourceId: plan.id,
+        sourceType: "plan" as const,
+        patientId: plan.patientId,
+        patientName: plan.patientName,
+        itemName: `${plan.name} (${plan.serviceName})`,
+        quantity: 1,
+      };
+      sales.push({
+        ...base,
+        id: `${plan.id}:sale`,
+        kind: "sale",
+        occurredAt: plan.createdAt,
+        amountInCents: plan.totalValueInCents,
+      });
+      if (plan.cancelledAt)
+        sales.push({
+          ...base,
+          id: `${plan.id}:cancellation`,
+          kind: "cancellation",
+          occurredAt: plan.cancelledAt,
+          amountInCents: -(
+            plan.cancelledValueInCents ?? plan.totalValueInCents
+          ),
+        });
+    }
+    for (const tab of repositoryContext
+      .scoped(repositoryContext.patientTabs)
+      .filter((item) => item.clinicId === clinicId && item.closedAt)) {
+      const items = [
+        ...tab.items.map((item) => ({
+          ...item,
+          sourceType: "product" as const,
+        })),
+        ...(tab.services ?? []).map((item) => ({
+          id: item.id,
+          productName: item.serviceName,
+          quantity: 1,
+          totalInCents: item.amountInCents,
+          sourceType: "service" as const,
+        })),
+      ];
+      for (const item of items) {
+        const base = {
+          sourceId: tab.id,
+          sourceType: item.sourceType,
+          patientId: tab.patientId,
+          patientName: tab.patientName,
+          itemName: item.productName,
+          quantity: item.quantity,
+          ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
+        };
+        sales.push({
+          ...base,
+          id: `${item.id}:sale`,
+          kind: "sale",
+          occurredAt: tab.closedAt!,
+          amountInCents: item.totalInCents,
+        });
+        if (tab.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${item.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: tab.cancelledAt,
+            amountInCents: -item.totalInCents,
+          });
+      }
+    }
+    return {
+      sales,
+      payments: repositoryContext.receivedPayments(clinicId),
+      appointments: repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter((item) => item.clinicId === clinicId),
+    };
+  }
+
   return {
     async getDashboard(
       clinicId: string,
@@ -66,86 +153,26 @@ export function createReportsRepository(
       clinicId: string,
       month: string,
     ): Promise<SalesReport> {
-      const sales: SaleMovement[] = [];
-      for (const plan of repositoryContext
-        .scoped(repositoryContext.patientPlans)
-        .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
-        const base = {
-          sourceId: plan.id,
-          sourceType: "plan" as const,
-          patientId: plan.patientId,
-          patientName: plan.patientName,
-          itemName: `${plan.name} (${plan.serviceName})`,
-          quantity: 1,
-        };
-        sales.push({
-          ...base,
-          id: `${plan.id}:sale`,
-          kind: "sale",
-          occurredAt: plan.createdAt,
-          amountInCents: plan.totalValueInCents,
-        });
-        if (plan.cancelledAt)
-          sales.push({
-            ...base,
-            id: `${plan.id}:cancellation`,
-            kind: "cancellation",
-            occurredAt: plan.cancelledAt,
-            amountInCents: -(
-              plan.cancelledValueInCents ?? plan.totalValueInCents
-            ),
-          });
-      }
-      for (const tab of repositoryContext
-        .scoped(repositoryContext.patientTabs)
-        .filter((item) => item.clinicId === clinicId && item.closedAt)) {
-        const items = [
-          ...tab.items.map((item) => ({
-            ...item,
-            sourceType: "product" as const,
-          })),
-          ...(tab.services ?? []).map((item) => ({
-            id: item.id,
-            productName: item.serviceName,
-            quantity: 1,
-            totalInCents: item.amountInCents,
-            sourceType: "service" as const,
-          })),
-        ];
-        for (const item of items) {
-          const base = {
-            sourceId: tab.id,
-            sourceType: item.sourceType,
-            patientId: tab.patientId,
-            patientName: tab.patientName,
-            itemName: item.productName,
-            quantity: item.quantity,
-            ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
-          };
-          sales.push({
-            ...base,
-            id: `${item.id}:sale`,
-            kind: "sale",
-            occurredAt: tab.closedAt!,
-            amountInCents: item.totalInCents,
-          });
-          if (tab.cancelledAt)
-            sales.push({
-              ...base,
-              id: `${item.id}:cancellation`,
-              kind: "cancellation",
-              occurredAt: tab.cancelledAt,
-              amountInCents: -item.totalInCents,
-            });
-        }
-      }
+      const data = await salesSources(clinicId);
       return buildSalesReport(
         month,
-        sales,
-        repositoryContext.receivedPayments(clinicId),
-        repositoryContext
-          .scoped(repositoryContext.appointments)
-          .filter((item) => item.clinicId === clinicId),
+        data.sales,
+        data.payments,
+        data.appointments,
+      );
+    },
+    async getSalesPeriodReport(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<SalesPeriodReport> {
+      const data = await salesSources(clinicId);
+      return buildSalesPeriodReport(
+        from,
+        to,
+        data.sales,
+        data.payments,
+        data.appointments,
       );
     },
 

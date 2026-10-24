@@ -5,6 +5,7 @@ import {
   managementReportFilterSchema,
   retentionReportFilterSchema,
   salesReportFilterSchema,
+  salesPeriodReportFilterSchema,
   saoPauloToday,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -131,6 +132,32 @@ export function registerReportsRoutes(context: RouteContext) {
       timeZone,
     );
   });
+
+  for (const path of [
+    "/reports/sales/period",
+    "/reports/sales/period.xlsx",
+  ] as const) {
+    app.get(path, { preHandler: authenticate }, async (request, reply) => {
+      const { from, to } = salesPeriodReportFilterSchema.parse(request.query);
+      const report = await repository.getSalesPeriodReport(
+        request.user.clinicId,
+        from,
+        to,
+      );
+      if (path.endsWith(".xlsx"))
+        return reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            'attachment; filename="vendas-' + from + "-" + to + '.xlsx"',
+          )
+          .send(await salesReportToXlsx(report));
+      return report;
+    });
+  }
 
   app.get("/reports/sales", { preHandler: authenticate }, async (request) => {
     const { month } = salesReportFilterSchema.parse(request.query);
