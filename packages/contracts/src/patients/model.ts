@@ -1,4 +1,7 @@
-import { patientProfileFilterSchema } from "./segments.js";
+import {
+  patientActivityFilterSchema,
+  patientProfileFilterSchema,
+} from "./segments.js";
 import { z } from "zod";
 import { leadAppointmentInputSchema } from "../agenda/model.js";
 import {
@@ -250,6 +253,7 @@ export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
  */
 export const patientExportFilterSchema = z.object({
   ...patientProfileFilterSchema.shape,
+  ...patientActivityFilterSchema.shape,
   format: z.preprocess(
     emptyQueryToUndefined,
     z
@@ -347,6 +351,7 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
  */
 export const patientListQuerySchema = z.object({
   ...patientProfileFilterSchema.shape,
+  ...patientActivityFilterSchema.shape,
   search: z.preprocess(
     emptyQueryToUndefined,
     z.string().trim().max(160).optional(),

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  matchesPatientActivity,
   matchesPatientProfile,
   matchesPatientSegment,
+  patientActivityFilterSchema,
   patientProfileFilterSchema,
   type PatientSegmentSummary,
 } from "./segments.js";
@@ -38,7 +40,7 @@ describe("client profile and segments", () => {
       matchesPatientProfile(profile, {
         interest: "Pilates",
         gender: "female",
-            record: "with_email",
+        record: "with_email",
       }),
     ).toBe(true);
     expect(matchesPatientProfile(profile, { interest: "Postura" })).toBe(false);
@@ -92,6 +94,66 @@ describe("client profile and segments", () => {
     expect(
       matchesPatientSegment({ ...summary, activePlans: 0 }, "no_plan"),
     ).toBe(true);
+  });
+
+  it("filters by services, groups, professionals and visits from the summary", () => {
+    const today = "2040-06-30";
+    const active: PatientSegmentSummary = {
+      ...summary,
+      services: ["Pilates"],
+      groups: ["Pilates manhã"],
+      professionals: ["Marina"],
+      lastVisitOn: "2040-06-10",
+      nextAppointmentAt: "2040-07-02T13:00:00.000Z",
+    };
+    expect(matchesPatientActivity(undefined, {}, today)).toBe(true);
+    expect(
+      matchesPatientActivity(undefined, { service: "Pilates" }, today),
+    ).toBe(false);
+    expect(
+      matchesPatientActivity(
+        active,
+        {
+          service: "Pilates",
+          group: "Pilates manhã",
+          professional: "Marina",
+          lastVisit: "last_30",
+          nextAppointment: "scheduled",
+        },
+        today,
+      ),
+    ).toBe(true);
+    expect(
+      matchesPatientActivity(active, { service: "Depilação" }, today),
+    ).toBe(false);
+    expect(
+      matchesPatientActivity(summary, { group: "Pilates manhã" }, today),
+    ).toBe(false);
+    expect(
+      matchesPatientActivity(active, { lastVisit: "over_30" }, today),
+    ).toBe(false);
+    const old = { ...active, lastVisitOn: "2040-03-01" };
+    expect(matchesPatientActivity(old, { lastVisit: "over_30" }, today)).toBe(
+      true,
+    );
+    expect(matchesPatientActivity(old, { lastVisit: "over_90" }, today)).toBe(
+      true,
+    );
+    expect(matchesPatientActivity(summary, { lastVisit: "never" }, today)).toBe(
+      true,
+    );
+    expect(
+      matchesPatientActivity(summary, { lastVisit: "over_90" }, today),
+    ).toBe(false);
+    expect(
+      matchesPatientActivity(summary, { nextAppointment: "none" }, today),
+    ).toBe(true);
+    expect(
+      patientActivityFilterSchema.parse({ service: "", lastVisit: "" }),
+    ).toMatchObject({ service: undefined, lastVisit: undefined });
+    expect(
+      patientActivityFilterSchema.safeParse({ lastVisit: "yesterday" }).success,
+    ).toBe(false);
   });
 
   it("validates report periods and requested columns before exporting", () => {

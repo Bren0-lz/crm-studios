@@ -1,6 +1,8 @@
 import {
+  type PatientActivityFilter,
   type PatientProfileFilter,
   type PatientSegmentSummary,
+  matchesPatientActivity,
   matchesPatientProfile,
   matchesPatientSegment,
   patientProfileLabels,
@@ -65,7 +67,7 @@ export function defaultGuidedDemonstration(): GuidedDemonstrationForm {
 }
 
 export const defaultPatientFilters = {
-  profile: {} as PatientProfileFilter,
+  profile: {} as PatientProfileFilter & PatientActivityFilter,
   status: "all" as PatientStatusFilter,
   record: "all" as PatientRecordFilter,
   tags: [] as string[],
@@ -104,15 +106,16 @@ export function filterPatients(
   segments: PatientSegmentSummary[] = [],
 ) {
   const currentMonth = new Date().getMonth() + 1;
+  const today = localIsoDate();
   return patients
-    .filter(
-      (patient) =>
+    .filter((patient) => {
+      const summary = segments.find((item) => item.patientId === patient.id);
+      return (
         matchesPatientProfile(patient, filters.profile) &&
-        matchesPatientSegment(
-          segments.find((item) => item.patientId === patient.id),
-          filters.profile.segment,
-        ),
-    )
+        matchesPatientSegment(summary, filters.profile.segment) &&
+        matchesPatientActivity(summary, filters.profile, today)
+      );
+    })
     .filter(
       (patient) =>
         filters.status === "all" || patient.status === filters.status,

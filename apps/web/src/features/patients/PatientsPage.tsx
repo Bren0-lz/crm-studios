@@ -429,6 +429,7 @@ export function PatientsPage() {
             )}
             <PatientProfileFilters
               patients={patients}
+              segments={segments}
               value={filters.profile}
               onSegments={setSegments}
               onChange={(profile) =>
