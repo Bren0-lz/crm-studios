@@ -8,7 +8,7 @@ import {
   type RelationshipSettings,
   whatsappLink,
 } from "@crm/contracts";
-import { MessageCircle, PhoneCall } from "lucide-react";
+import { ListChecks, MessageCircle, PhoneCall } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -18,6 +18,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { shortDate } from "../../shared/lib/formatting";
 import { BirthdaysMonthPanel } from "./BirthdaysMonthPanel";
+import { ClientPendingModal } from "./ClientPendingModal";
 import { ContactActivityModal } from "./ContactActivityModal";
 import {
   contactReasonLabels,
@@ -35,6 +36,7 @@ export function RelationshipPage() {
     "all",
   );
   const [recording, setRecording] = useState<ContactSuggestion[] | null>(null);
+  const [details, setDetails] = useState<ContactSuggestion[] | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -199,7 +201,16 @@ export function RelationshipPage() {
                         </span>
                       )}
                     </div>
-                    <h3>{suggestion.patientName}</h3>
+                    <h3>
+                      <button
+                        type="button"
+                        className="suggestion-name-button"
+                        aria-label={`Ver pendências de ${suggestion.patientName}`}
+                        onClick={() => setDetails(group)}
+                      >
+                        {suggestion.patientName}
+                      </button>
+                    </h3>
                     {group.map((item) => (
                       <p key={suggestionKey(item)}>{item.detail}</p>
                     ))}
@@ -220,6 +231,14 @@ export function RelationshipPage() {
                         <MessageCircle size={15} aria-hidden="true" />
                         WhatsApp
                       </a>
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        onClick={() => setDetails(group)}
+                      >
+                        <ListChecks size={15} aria-hidden="true" />
+                        Pendências
+                      </button>
                       {canEdit("relationship") &&
                         can("relationship.activities_create") && (
                           <button
@@ -240,6 +259,12 @@ export function RelationshipPage() {
             </div>
           )}
         </section>
+      )}
+      {details && (
+        <ClientPendingModal
+          suggestions={details}
+          onClose={() => setDetails(null)}
+        />
       )}
       {recording && (
         <ContactActivityModal
