@@ -1025,3 +1025,16 @@
   color: var(--muted);
   font-size: var(--text-sm);
 }
+
+/* Rótulo com ajuda em campo obrigatório: o "*" fica na mesma linha, logo após o ícone. */
+.form-grid
+  label:has(
+    > :is(
+        input:not([type="checkbox"], [type="radio"]),
+        select,
+        textarea
+      ):required
+  )
+  > .label-with-help:first-child {
+  grid-column: 1;
+}
