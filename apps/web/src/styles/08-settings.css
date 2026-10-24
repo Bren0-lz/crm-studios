@@ -1435,7 +1435,8 @@
   gap: var(--space-2) var(--space-4);
 }
 
-.registry-settings {
+.registry-settings,
+.registry-settings-list {
   display: grid;
   gap: var(--space-4);
 }
