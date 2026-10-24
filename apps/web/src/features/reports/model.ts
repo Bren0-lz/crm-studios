@@ -68,3 +68,27 @@ export function salesChartPoints(report: SalesPeriodReport): {
     })),
   };
 }
+
+/** Traduz a nota NPS (−100 a 100) numa palavra que a equipe entende. */
+export function satisfactionLabel(nps: number | null) {
+  if (nps === null) return "—";
+  if (nps > 75) return "Excelente";
+  if (nps > 50) return "Boa";
+  if (nps > 0) return "Razoável";
+  return "Precisa de atenção";
+}
+
+/** Tempo médio até a primeira resposta, em texto curto ("12 min", "2 h 5 min"). */
+export function responseTimeLabel(minutes: number) {
+  const rounded = Math.round(minutes);
+  if (rounded < 1) return "menos de 1 min";
+  if (rounded < 60) return `${rounded} min`;
+  const hours = Math.floor(rounded / 60);
+  const rest = rounded % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+/** Quantidade com a palavra no singular ou plural ("1 cliente", "2 clientes"). */
+export function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
