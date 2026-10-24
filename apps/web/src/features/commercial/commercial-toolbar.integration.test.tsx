@@ -155,5 +155,12 @@ describe("commercial toolbar", () => {
       within(analysis).getByText("Conversão por origem"),
     ).toBeInTheDocument();
     expect(within(analysis).getByText("Achou caro")).toBeInTheDocument();
+    expect(within(analysis).getByText("Leads no filtro")).toBeInTheDocument();
+    const bySource = within(analysis).getByRole("table", {
+      name: "Conversão por origem",
+    });
+    expect(
+      within(bySource).getByRole("columnheader", { name: "Conversão" }),
+    ).toBeInTheDocument();
   });
 });
