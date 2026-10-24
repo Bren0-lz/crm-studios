@@ -197,16 +197,99 @@ describe("filtros da campanha", () => {
       appointment("c", "2026-10-23T13:00:00Z", { status: "confirmed" }),
       appointment("d", "2026-10-22T12:00:00Z", { status: "confirmed" }),
     ];
-    expect(ids(list, { appointmentDate: "2026-10-22" }, { appointments })).toEqual(
-      ["a", "d"],
-    );
+    expect(
+      ids(
+        list,
+        { appointmentFrom: "2026-10-22", appointmentTo: "2026-10-22" },
+        { appointments },
+      ),
+    ).toEqual(["a", "d"]);
+  });
+
+  it("filtra atendimentos num período, pela situação escolhida", () => {
+    const list = [patient("a"), patient("b"), patient("c"), patient("d")];
+    const appointments = [
+      appointment("a", "2026-09-05T13:00:00Z", { status: "completed" }),
+      appointment("b", "2026-09-30T13:00:00Z", { status: "no_show" }),
+      appointment("c", "2026-10-01T13:00:00Z", { status: "completed" }),
+      appointment("d", "2026-10-25T13:00:00Z", { status: "scheduled" }),
+      appointment("d", "2026-09-10T13:00:00Z", { status: "cancelled" }),
+    ];
+    const september = {
+      appointmentFrom: "2026-09-01",
+      appointmentTo: "2026-09-30",
+    };
+    expect(ids(list, september, { appointments })).toEqual([]);
+    expect(
+      ids(
+        list,
+        { ...september, appointmentStatus: "completed" },
+        { appointments },
+      ),
+    ).toEqual(["a"]);
+    expect(
+      ids(list, { ...september, appointmentStatus: "any" }, { appointments }),
+    ).toEqual(["a", "b"]);
+    // Só início: a partir do dia; só fim: até o dia.
+    expect(
+      ids(
+        list,
+        { appointmentFrom: "2026-10-01", appointmentStatus: "any" },
+        { appointments },
+      ),
+    ).toEqual(["c", "d"]);
+    expect(
+      ids(
+        list,
+        { appointmentTo: "2026-09-05", appointmentStatus: "any" },
+        { appointments },
+      ),
+    ).toEqual(["a"]);
+  });
+
+  it("com período, serviço e profissional valem só para os atendimentos dele", () => {
+    const list = [patient("a"), patient("b")];
+    const pilates = "00000000-0000-4000-8000-000000000001";
+    const danca = "00000000-0000-4000-8000-000000000002";
+    const appointments = [
+      // a: Pilates em setembro; b: Pilates só em agosto, outro serviço em setembro.
+      appointment("a", "2026-09-05T13:00:00Z", { serviceId: pilates }),
+      appointment("b", "2026-08-05T13:00:00Z", { serviceId: pilates }),
+      appointment("b", "2026-09-05T13:00:00Z", { serviceId: danca }),
+    ];
+    expect(
+      ids(
+        list,
+        {
+          appointmentFrom: "2026-09-01",
+          appointmentTo: "2026-09-30",
+          appointmentStatus: "completed",
+          serviceIds: [pilates],
+        },
+        { appointments },
+      ),
+    ).toEqual(["a"]);
+    expect(ids(list, { serviceIds: [pilates] }, { appointments })).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("recusa período com fim antes do início", () => {
+    expect(
+      whatsappCampaignSegmentSchema.safeParse({
+        appointmentFrom: "2026-10-10",
+        appointmentTo: "2026-10-01",
+      }).success,
+    ).toBe(false);
   });
 });
 
 describe("mensagem da campanha com data e hora do atendimento", () => {
-  const body = "Oi, {{nome}}! Até {{data_atendimento}} às {{hora_atendimento}}.";
+  const body =
+    "Oi, {{nome}}! Até {{data_atendimento}} às {{hora_atendimento}}.";
 
-  it("usa o atendimento do dia filtrado e pula quem não tem atendimento", () => {
+  it("usa o atendimento do período filtrado e pula quem não tem atendimento", () => {
     const plan = buildCampaignAudience(
       [patient("a", { fullName: "Ana Souza" }), patient("b")],
       data({
@@ -236,7 +319,8 @@ describe("mensagem da campanha com data e hora do atendimento", () => {
       {
         mode: "segment",
         segment: whatsappCampaignSegmentSchema.parse({
-          appointmentDate: "2026-10-23",
+          appointmentFrom: "2026-10-23",
+          appointmentTo: "2026-10-23",
         }),
       },
       body,

@@ -154,7 +154,7 @@ export function filterGroupCounts(
       segment.professionalIds,
       segment.absentDays,
       segment.visitedWithinDays,
-      segment.appointmentDate,
+      segment.appointmentFrom || segment.appointmentTo,
       segment.noUpcomingAppointment,
     ),
     plans: count(
@@ -165,6 +165,43 @@ export function filterGroupCounts(
     ),
     repeat: count(segment.excludeContactedDays),
   };
+}
+
+function shiftIsoDate(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function monthBounds(isoDate: string, offset: number) {
+  const [year, month] = isoDate.split("-").map(Number) as [number, number];
+  const first = new Date(Date.UTC(year, month - 1 + offset, 1));
+  const last = new Date(Date.UTC(year, month + offset, 0));
+  return {
+    from: first.toISOString().slice(0, 10),
+    to: last.toISOString().slice(0, 10),
+  };
+}
+
+export interface AppointmentPeriodPreset {
+  label: string;
+  from: string;
+  to: string;
+}
+
+/** Atalhos do filtro de período de atendimento, a partir de `today` (aaaa-mm-dd). */
+export function appointmentPeriodPresets(
+  today: string,
+): AppointmentPeriodPreset[] {
+  const tomorrow = shiftIsoDate(today, 1);
+  return [
+    { label: "Hoje", from: today, to: today },
+    { label: "Amanhã", from: tomorrow, to: tomorrow },
+    { label: "Próximos 7 dias", from: today, to: shiftIsoDate(today, 6) },
+    { label: "Este mês", ...monthBounds(today, 0) },
+    { label: "Mês passado", ...monthBounds(today, -1) },
+    { label: "Últimos 30 dias", from: shiftIsoDate(today, -29), to: today },
+  ];
 }
 
 export function activeFilterCount(segment: WhatsappCampaignSegment) {

@@ -208,42 +208,70 @@ export function fillCampaignMessage(
 
 const optionalDays = z.number().int().min(1).max(3650).optional();
 
+/** Atendimentos que contam no filtro de período: em aberto, realizados ou qualquer um não cancelado. */
+export const campaignAppointmentStatusSchema = z.enum([
+  "open",
+  "completed",
+  "any",
+]);
+
+export const campaignAppointmentStatusLabels = {
+  open: "Agendados ou confirmados",
+  completed: "Realizados",
+  any: "Qualquer um (menos cancelados)",
+} as const;
+
 /**
  * Filtros da campanha: os do comunicado (perfil, etiquetas, situação, plano) e
  * outros para atingir grupos bem específicos. Tudo opcional e combinado com "e".
  */
-export const whatsappCampaignSegmentSchema = broadcastSegmentSchema.extend({
-  /** `all`: precisa ter todas as etiquetas escolhidas (padrão: qualquer uma). */
-  tagMode: z.enum(["any", "all"]).default("any"),
-  /** Tira quem tem alguma destas etiquetas. */
-  excludeTags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
-  ageMin: z.number().int().min(0).max(120).optional(),
-  ageMax: z.number().int().min(0).max(120).optional(),
-  /** Aniversariantes de um mês específico (1–12). */
-  birthMonth: z.number().int().min(1).max(12).optional(),
-  /** Cliente desde (ou cadastrado) nos últimos N dias. */
-  newClientDays: optionalDays,
-  /** Teve atendimento (não cancelado) em algum destes serviços. */
-  serviceIds: z.array(z.uuid()).max(50).default([]),
-  /** Foi atendido por algum destes profissionais. */
-  professionalIds: z.array(z.uuid()).max(50).default([]),
-  /** Último atendimento realizado há pelo menos N dias (ou nunca veio). */
-  absentDays: optionalDays,
-  /** Teve atendimento realizado nos últimos N dias. */
-  visitedWithinDays: optionalDays,
-  /** Tem atendimento agendado ou confirmado neste dia (lembrete de atendimento). */
-  appointmentDate: z.iso.date().optional(),
-  /** Sem nenhum atendimento futuro agendado. */
-  noUpcomingAppointment: z.boolean().default(false),
-  /** Plano ativo que vence nos próximos N dias. */
-  planExpiringDays: optionalDays,
-  /** Plano ativo com até N sessões restantes. */
-  maxRemainingSessions: z.number().int().min(0).max(500).optional(),
-  /** Com parcela vencida (exige acesso ao financeiro). */
-  overdue: z.boolean().default(false),
-  /** Tira quem recebeu alguma campanha nos últimos N dias. */
-  excludeContactedDays: optionalDays,
-});
+export const whatsappCampaignSegmentSchema = broadcastSegmentSchema
+  .extend({
+    /** `all`: precisa ter todas as etiquetas escolhidas (padrão: qualquer uma). */
+    tagMode: z.enum(["any", "all"]).default("any"),
+    /** Tira quem tem alguma destas etiquetas. */
+    excludeTags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+    ageMin: z.number().int().min(0).max(120).optional(),
+    ageMax: z.number().int().min(0).max(120).optional(),
+    /** Aniversariantes de um mês específico (1–12). */
+    birthMonth: z.number().int().min(1).max(12).optional(),
+    /** Cliente desde (ou cadastrado) nos últimos N dias. */
+    newClientDays: optionalDays,
+    /** Teve atendimento (não cancelado) em algum destes serviços. */
+    serviceIds: z.array(z.uuid()).max(50).default([]),
+    /** Foi atendido por algum destes profissionais. */
+    professionalIds: z.array(z.uuid()).max(50).default([]),
+    /** Último atendimento realizado há pelo menos N dias (ou nunca veio). */
+    absentDays: optionalDays,
+    /** Teve atendimento realizado nos últimos N dias. */
+    visitedWithinDays: optionalDays,
+    /** Tem atendimento a partir deste dia (no fuso da clínica). */
+    appointmentFrom: z.iso.date().optional(),
+    /** Tem atendimento até este dia, inclusive (com `appointmentFrom`, um período). */
+    appointmentTo: z.iso.date().optional(),
+    /** Quais atendimentos do período contam (padrão: agendados ou confirmados). */
+    appointmentStatus: campaignAppointmentStatusSchema.optional(),
+    /** Sem nenhum atendimento futuro agendado. */
+    noUpcomingAppointment: z.boolean().default(false),
+    /** Plano ativo que vence nos próximos N dias. */
+    planExpiringDays: optionalDays,
+    /** Plano ativo com até N sessões restantes. */
+    maxRemainingSessions: z.number().int().min(0).max(500).optional(),
+    /** Com parcela vencida (exige acesso ao financeiro). */
+    overdue: z.boolean().default(false),
+    /** Tira quem recebeu alguma campanha nos últimos N dias. */
+    excludeContactedDays: optionalDays,
+  })
+  .refine(
+    (segment) =>
+      !segment.appointmentFrom ||
+      !segment.appointmentTo ||
+      segment.appointmentFrom <= segment.appointmentTo,
+    {
+      message: "O fim do período não pode ser antes do início.",
+      path: ["appointmentTo"],
+    },
+  );
 
 /** Público da campanha: um segmento (filtros) ou clientes escolhidos. */
 export const whatsappCampaignAudienceSchema = z.discriminatedUnion("mode", [
