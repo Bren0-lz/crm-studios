@@ -5,7 +5,6 @@ import {
   patientTagDisplayColor,
 } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
-import { InventoryPanel } from "./InventoryPanel";
 import { PatientManagementModal } from "./PatientManagementModal";
 import {
   type Patient,
@@ -633,7 +632,6 @@ export function PatientsPage() {
           onClose={() => setExportOpen(false)}
         />
       )}
-      <InventoryPanel />
     </>
   );
 }

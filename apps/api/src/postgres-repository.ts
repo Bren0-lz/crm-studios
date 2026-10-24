@@ -1,4 +1,5 @@
 import { createAgendaNotesRepository } from "./storage/postgres/agenda-notes.js";
+import { createWaitlistRepository } from "./storage/postgres/waitlist.js";
 import { createBranchesRepository } from "./storage/postgres/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
@@ -31,6 +32,11 @@ import { createRelationshipRepository } from "./storage/postgres/relationship.js
 import { createReportsRepository } from "./storage/postgres/reports.js";
 
 export class PostgresClinicRepository implements ClinicRepository {
+  readonly listWaitlist: ClinicRepository["listWaitlist"];
+  readonly createWaitlistEntry: ClinicRepository["createWaitlistEntry"];
+  readonly updateWaitlistEntry: ClinicRepository["updateWaitlistEntry"];
+  readonly deleteWaitlistEntry: ClinicRepository["deleteWaitlistEntry"];
+
   readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
   readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
   readonly updateAgendaNote: ClinicRepository["updateAgendaNote"];
@@ -170,6 +176,11 @@ export class PostgresClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const waitlist = createWaitlistRepository(this.context);
+    this.listWaitlist = waitlist.listWaitlist;
+    this.createWaitlistEntry = waitlist.createWaitlistEntry;
+    this.updateWaitlistEntry = waitlist.updateWaitlistEntry;
+    this.deleteWaitlistEntry = waitlist.deleteWaitlistEntry;
     const agendaNotes = createAgendaNotesRepository(this.context);
     this.listAgendaNotes = agendaNotes.listAgendaNotes;
     this.createAgendaNotes = agendaNotes.createAgendaNotes;

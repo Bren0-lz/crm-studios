@@ -13,6 +13,7 @@ export type DataDomain =
   | "clinical"
   | "contracts"
   | "relationship"
+  | "waitlist"
   | "crm";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
@@ -26,6 +27,7 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     ["inventory", "finance", "plans", "agenda", "history"],
   ],
   [/^\/inventory\//, ["inventory"]],
+  [/^\/waitlist(?:\/|$)/, ["waitlist", "history"]],
   [/^\/plans(?:\/|$|\?)/, ["plans", "finance", "history"]],
   [/^\/plan-(?:catalog|templates)(?:\/|$)/, ["plans"]],
   [/^\/finance\//, ["finance", "history"]],

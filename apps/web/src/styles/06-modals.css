@@ -784,17 +784,7 @@ p.field-hint {
   grid-column: 1 / -1;
 }
 
-/* Comanda (QM5): avisos com altura reservada e rodapé com o destrutivo separado à esquerda. */
-.tab-messages {
-  display: grid;
-  gap: var(--space-2);
-  min-height: var(--space-5);
-}
-
-.tab-messages > p {
-  margin: 0;
-}
-
+/* Rodapé com o destrutivo separado à esquerda (QM5). */
 .tab-footer {
   flex-wrap: wrap;
   justify-content: space-between;
