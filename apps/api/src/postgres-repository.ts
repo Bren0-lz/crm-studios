@@ -80,6 +80,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listClinicalSources: ClinicRepository["listClinicalSources"];
   readonly updateProduct: ClinicRepository["updateProduct"];
   readonly updatePatientTabItem: ClinicRepository["updatePatientTabItem"];
+  readonly createProductSale: ClinicRepository["createProductSale"];
   readonly addPatientTabService: ClinicRepository["addPatientTabService"];
   readonly removePatientTabService: ClinicRepository["removePatientTabService"];
   readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
@@ -234,6 +235,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.createProductSale = this.finance.createProductSale;
     this.getFinancialSummary = this.finance.getFinancialSummary;
     this.settleReceivable = this.finance.settleReceivable;
     this.reverseReceivablePayment = this.finance.reverseReceivablePayment;

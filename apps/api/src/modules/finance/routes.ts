@@ -12,6 +12,7 @@ import {
   paymentInputSchema,
   receivableSettlementSchema,
   productInputSchema,
+  productSaleInputSchema,
   receivableAdjustmentInputSchema,
   receivableRenegotiationInputSchema,
   recurringPayableInputSchema,
@@ -114,6 +115,21 @@ export function registerFinanceRoutes(context: RouteContext) {
         });
       return tab;
     },
+  );
+
+  app.post(
+    "/product-sales",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createProductSale(
+            request.user.clinicId,
+            request.user.sub,
+            productSaleInputSchema.parse(request.body),
+          ),
+        ),
   );
 
   app.post(

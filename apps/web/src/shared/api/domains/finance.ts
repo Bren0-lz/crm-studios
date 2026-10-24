@@ -28,6 +28,7 @@ import type {
   PatientTabItemUpdate,
   PatientTabServiceInput,
   PatientTabCloseInput,
+  ProductSaleInput,
   TabAppointmentOption,
   AppointmentInput,
   Supplier,
@@ -178,6 +179,12 @@ export const financeApi = {
     }),
   cancelPatientTab: (id: string) =>
     request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  /** Venda de produtos em uma etapa (abre, preenche e fecha a comanda). */
+  createProductSale: (input: ProductSaleInput) =>
+    request<PatientTab>("/product-sales", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   suppliers: () => request<Supplier[]>("/finance/suppliers"),
   saveSupplier: (input: SupplierInput, id?: string) =>
     request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
