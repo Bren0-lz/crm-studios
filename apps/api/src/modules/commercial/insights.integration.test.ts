@@ -158,6 +158,56 @@ describe("commercial filters and conversion", () => {
     await app.close();
   });
 
+  it("applies the client registration fields reviewed on conversion without erasing blank ones", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Lead Revisado",
+        phone: "11966665555",
+        email: "lead@exemplo.com",
+        source: "Indicação",
+        interest: "Pilates",
+        notes: "Prefere manhã",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const converted = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: {
+        cpf: "52998224725",
+        fullName: "Lead Revisado Silva",
+        phone: "11966665555",
+        email: "",
+        whatsapp: "11955554444",
+        birthDate: "1990-05-10",
+        occupation: "Professora",
+        gender: "female",
+        imageConsent: true,
+        notes: "",
+      },
+    });
+    expect(converted.statusCode).toBe(200);
+    expect(converted.json().patient).toMatchObject({
+      fullName: "Lead Revisado Silva",
+      phone: "11966665555",
+      email: "lead@exemplo.com",
+      whatsapp: "11955554444",
+      birthDate: "1990-05-10",
+      occupation: "Professora",
+      gender: "female",
+      imageConsent: true,
+      source: "Indicação",
+      notes: "Prefere manhã",
+    });
+    expect(converted.json().lead).toMatchObject({ stage: "won" });
+    await app.close();
+  });
   it("edits unconverted leads with explicit permission and preserves their activity", async () => {
     const repository = new MemoryClinicRepository(),
       app = await buildApp({ repository, logger: false });

@@ -15,7 +15,9 @@ export function withConversionInput(
 ): Lead {
   const filled = Object.fromEntries(
     Object.entries(input ?? {}).filter(
-      ([, value]) => typeof value === "string" && value.trim() !== "",
+      ([, value]) =>
+        typeof value === "boolean" ||
+        (typeof value === "string" && value.trim() !== ""),
     ),
   );
   return { ...lead, ...filled };
