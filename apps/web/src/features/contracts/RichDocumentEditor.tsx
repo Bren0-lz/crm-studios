@@ -6,7 +6,7 @@ import {
   documentTemplateVariables,
   type DocumentContent,
 } from "@crm/contracts";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type Ref } from "react";
 
 const DocumentField = Node.create({
   name: "documentField",
@@ -51,11 +51,14 @@ export function RichDocumentEditor({
   onChange,
   disabled = false,
   fields = true,
+  canvasRef,
 }: {
   value: DocumentContent;
   onChange: (content: DocumentContent) => void;
   disabled?: boolean;
   fields?: boolean;
+  /** Com ela, o texto fica numa folha sobre o fundo cinza, como a prévia do documento. */
+  canvasRef?: Ref<HTMLDivElement> | undefined;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -315,7 +318,15 @@ export function RichDocumentEditor({
           </div>
         </details>
       )}
-      <EditorContent editor={editor} />
+      {canvasRef ? (
+        <div className="document-paper-canvas" ref={canvasRef}>
+          <div className="document-paper document-paper-editor">
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+      ) : (
+        <EditorContent editor={editor} />
+      )}
     </div>
   );
 }
