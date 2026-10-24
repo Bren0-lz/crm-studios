@@ -35,7 +35,11 @@ import {
   useConfirmDiscard,
   useModalDirty,
 } from "../../shared/workflows/ModalGuardContext";
-import { planKindLabels } from "./model";
+import {
+  planKindLabels,
+  planTemplateCatalogKind,
+  type PlanCatalogKind,
+} from "./model";
 
 export function PlanForm({
   patients,
@@ -49,6 +53,7 @@ export function PlanForm({
   renderAdditional,
   additionalDirty = false,
   registerCloseGuard,
+  catalogKind,
 }: {
   patients: PatientOption[];
   services: Service[];
@@ -61,6 +66,8 @@ export function PlanForm({
   renderAdditional?: ((input: PatientPlanInput) => ReactNode) | undefined;
   additionalDirty?: boolean;
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
+  /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
+  catalogKind?: PlanCatalogKind | undefined;
 }) {
   const { can, canView } = useAuthorization();
   const currentDate = localIsoDate();
@@ -72,7 +79,7 @@ export function PlanForm({
         planTemplateId: "",
         patientId: fixedPatient?.id ?? "",
         name: "",
-        kind: "fixed_package",
+        kind: catalogKind === "single" ? "single" : "fixed_package",
         services: [],
         validFrom: currentDate,
         validUntil: localIsoDate(nextYear),
@@ -132,7 +139,12 @@ export function PlanForm({
       .then((items) => {
         if (active)
           setTemplates(
-            items.filter((item) => item.active && item.services.length > 0),
+            items.filter(
+              (item) =>
+                item.active &&
+                item.services.length > 0 &&
+                (!catalogKind || planTemplateCatalogKind(item) === catalogKind),
+            ),
           );
       })
       .catch((cause: Error) => {
@@ -141,7 +153,7 @@ export function PlanForm({
     return () => {
       active = false;
     };
-  }, [renewing, catalogAttempt]);
+  }, [renewing, catalogAttempt, catalogKind]);
   async function save() {
     if (submitting.current)
       throw new Error("Aguarde o salvamento em andamento.");
@@ -368,8 +380,10 @@ export function PlanForm({
                   <LoadingBlock />
                 ) : templates.length === 0 ? (
                   <p className="muted-copy">
-                    Nenhum plano ativo cadastrado. Cadastre um plano em
-                    Configurações › Planos.
+                    {catalogKind
+                      ? `Nenhum plano ${catalogKind === "single" ? "avulso" : "recorrente"} ativo cadastrado.`
+                      : "Nenhum plano ativo cadastrado."}{" "}
+                    Cadastre um plano em Configurações › Planos.
                     {canView("settings") && (
                       <>
                         {" "}
