@@ -650,6 +650,67 @@ describe("campanhas de WhatsApp", () => {
       `https://wa.me/5521988887777?text=${encodeURIComponent("Olá, Bruno!")}`,
     );
   });
+
+  it("com uma imagem, o mesmo clique copia a imagem e abre a conversa", async () => {
+    const image = {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      fileName: "arte.png",
+      mimeType: "image/png",
+      sizeBytes: 68,
+    };
+    const detail = {
+      ...campaign([
+        recipient({ id: "r1", patientName: "Ana Lima", message: "Olá, Ana!" }),
+      ]),
+      images: [image],
+    };
+    const write = vi.fn().mockResolvedValue(undefined);
+    // O conteúdo da imagem chega como promessa; aqui só importa que a cópia foi pedida.
+    Object.defineProperty(globalThis, "ClipboardItem", {
+      configurable: true,
+      value: class {
+        constructor(items: Record<string, Promise<Blob>>) {
+          Object.values(items).forEach((item) => void item.catch(() => {}));
+        }
+      },
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { write, writeText: vi.fn() },
+    });
+    try {
+      setup(`/comunicacoes/campanhas/${detail.id}`, (url, init) => {
+        if (url.includes("/communications/template-images/"))
+          return { ...image, dataUrl: png };
+        if (
+          url.includes(`/communications/campaigns/${detail.id}`) &&
+          !init?.method
+        )
+          return detail;
+        return undefined;
+      });
+      const open = await screen.findByRole("link", {
+        name: "Copiar imagem e abrir conversa",
+      });
+      expect(screen.queryByText("Copie a imagem")).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: "Abrir conversa no WhatsApp" }),
+      ).toBeNull();
+      expect(open).toHaveAttribute(
+        "href",
+        `https://wa.me/5511999990000?text=${encodeURIComponent("Olá, Ana!")}`,
+      );
+      fireEvent.click(open);
+      expect(write).toHaveBeenCalledTimes(1);
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(
+        await screen.findByRole("dialog", { name: "Enviou para Ana Lima?" }),
+      ).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(globalThis, "ClipboardItem");
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
 });
 
 describe("atalhos do período de atendimento", () => {

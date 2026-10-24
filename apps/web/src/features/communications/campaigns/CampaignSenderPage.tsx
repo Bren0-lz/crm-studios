@@ -146,6 +146,11 @@ export function CampaignSenderPage() {
     readyImages.length === imageList.length && readyImages.length > 0
       ? shareFiles(readyImages)
       : null;
+  // Com uma imagem só, um clique copia a imagem e abre a conversa: basta colar e enviar.
+  const combinedImage =
+    canSend && canCopyImages() && imageList.length === 1 && !imageError
+      ? imageList[0]
+      : null;
   const term = search.trim().toLocaleLowerCase("pt-BR");
   const listed = campaign.recipients
     .map((item, index) => ({ item, index }))
@@ -350,7 +355,7 @@ export function CampaignSenderPage() {
                 <div className="sender-steps">
                   {recipient.status === "pending" ? (
                     <ol>
-                      {imageList.length > 0 && (
+                      {imageList.length > 0 && !combinedImage && (
                         <li>
                           <strong>Copie a imagem</strong>
                           <span className="step-hint">
@@ -420,11 +425,44 @@ export function CampaignSenderPage() {
                       <li>
                         <strong>Abra a conversa</strong>
                         <span className="step-hint">
-                          O WhatsApp abre com o texto pronto para{" "}
-                          {recipient.patientName.split(" ")[0]}.
+                          {combinedImage
+                            ? `A imagem é copiada e o WhatsApp abre com o texto pronto para ${recipient.patientName.split(" ")[0]}. Na conversa, cole (Ctrl+V) e envie: o texto vira a legenda.`
+                            : `O WhatsApp abre com o texto pronto para ${recipient.patientName.split(" ")[0]}.`}
                         </span>
                         <div className="sender-open">
-                          {canSend ? (
+                          {combinedImage ? (
+                            combinedImage.dataUrl ? (
+                              <a
+                                className="whatsapp-button"
+                                href={whatsappLink(
+                                  recipient.phone,
+                                  recipient.message,
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                  // A cópia começa ainda dentro do clique, antes de a aba trocar.
+                                  void copyImage(
+                                    combinedImage.id,
+                                    combinedImage.dataUrl ?? "",
+                                  );
+                                  setAwaitingReturn(true);
+                                }}
+                              >
+                                <MessageCircle size={18} aria-hidden="true" />
+                                Copiar imagem e abrir conversa
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                className="whatsapp-button"
+                                disabled
+                              >
+                                <MessageCircle size={18} aria-hidden="true" />
+                                Preparando imagem…
+                              </button>
+                            )
+                          ) : canSend ? (
                             <a
                               className="whatsapp-button"
                               href={whatsappLink(
@@ -453,6 +491,22 @@ export function CampaignSenderPage() {
                             <Copy size={16} aria-hidden="true" />
                             Copiar texto
                           </button>
+                          {combinedImage?.dataUrl && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                combinedImage.dataUrl &&
+                                downloadDataUrl(
+                                  combinedImage.dataUrl,
+                                  combinedImage.fileName,
+                                )
+                              }
+                            >
+                              <Download size={16} aria-hidden="true" />
+                              Baixar imagem
+                            </button>
+                          )}
                           {canSend && shareable && (
                             <button
                               type="button"
