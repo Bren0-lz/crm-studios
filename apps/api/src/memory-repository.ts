@@ -350,6 +350,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listLeadStagePage = this.commercial.listLeadStagePage;
     this.summarizeLeads = this.commercial.summarizeLeads;
     this.listLeadFilterOptions = this.commercial.listLeadFilterOptions;
+    this.listLeadStageLabels = this.commercial.listLeadStageLabels;
+    this.saveLeadStageLabels = this.commercial.saveLeadStageLabels;
     this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
     this.updateLead = this.commercial.updateLead;
@@ -940,6 +942,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listLeadStagePage: ClinicRepository["listLeadStagePage"];
   readonly summarizeLeads: ClinicRepository["summarizeLeads"];
   readonly listLeadFilterOptions: ClinicRepository["listLeadFilterOptions"];
+  readonly listLeadStageLabels: ClinicRepository["listLeadStageLabels"];
+  readonly saveLeadStageLabels: ClinicRepository["saveLeadStageLabels"];
   readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
   readonly createLead: ReturnType<

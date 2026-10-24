@@ -11,8 +11,11 @@ import {
   type LeadFilterOptions,
   type LeadInsightGroup,
   type LeadPage,
+  type LeadStageLabel,
+  type LeadStageLabelsInput,
   type LeadStagePage,
   emailMatchKey,
+  resolveLeadStageLabels,
   findLeadDuplicates,
   phoneMatchKey,
   type ContactDuplicateCandidate,
@@ -717,6 +720,28 @@ export function createCommercialRepository(
           a.name.localeCompare(b.name, "pt-BR"),
         ),
       };
+    },
+
+    async listLeadStageLabels(clinicId: string) {
+      const result = await repositoryContext.pool.query<LeadStageLabel>(
+        "SELECT stage, label FROM lead_stage_labels WHERE clinic_id = $1",
+        [clinicId],
+      );
+      return resolveLeadStageLabels(result.rows);
+    },
+
+    async saveLeadStageLabels(clinicId: string, input: LeadStageLabelsInput) {
+      await repositoryContext.inTransaction(async (client) => {
+        for (const item of input.stages)
+          await client.query(
+            `INSERT INTO lead_stage_labels (clinic_id, stage, label)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (clinic_id, stage)
+             DO UPDATE SET label = EXCLUDED.label, updated_at = now()`,
+            [clinicId, item.stage, item.label],
+          );
+      });
+      return resolveLeadStageLabels(input.stages);
     },
   };
 }

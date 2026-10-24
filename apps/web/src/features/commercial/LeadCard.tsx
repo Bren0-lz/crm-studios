@@ -40,6 +40,7 @@ export function LeadCard({
   lead,
   dragging,
   permissions,
+  stages = leadStages,
   onDragStart,
   onDragEnd,
   onMove,
@@ -51,6 +52,8 @@ export function LeadCard({
   lead: Lead;
   dragging: boolean;
   permissions: LeadCardPermissions;
+  /** Etapas com os nomes da clínica (seletor "Mover etapa"). */
+  stages?: ReadonlyArray<{ value: LeadStage; label: string }>;
   onDragStart: () => void;
   onDragEnd: () => void;
   onMove: (stage: LeadStage) => void;
@@ -131,7 +134,7 @@ export function LeadCard({
               disabled={!permissions.stage}
               onChange={(event) => onMove(event.target.value as LeadStage)}
             >
-              {leadStages
+              {stages
                 .filter((item) => item.value !== "won")
                 .map((item) => (
                   <option value={item.value} key={item.value}>

@@ -17,10 +17,13 @@ import { formatCep, lookupCep } from "../../shared/lib/cep";
  */
 export function LeadConvertModal({
   lead,
+  columnLabel = "Ganhos",
   onClose,
   onConfirm,
 }: {
   lead: Lead;
+  /** Nome atual da coluna de ganhos (a clínica pode renomear). */
+  columnLabel?: string;
   onClose: () => void;
   onConfirm: (input: LeadConversionInput) => Promise<void>;
 }) {
@@ -73,7 +76,7 @@ export function LeadConvertModal({
       eyebrow="CRM comercial"
       title="Converter lead em cliente"
       subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
-      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna Ganhos. Os dados abaixo são opcionais e completam o cadastro.`}
+      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna ${columnLabel}. Os dados abaixo são opcionais e completam o cadastro.`}
       validate={() =>
         form.cpf && !isValidCpf(form.cpf) ? "Informe um CPF válido." : ""
       }
