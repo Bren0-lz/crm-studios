@@ -157,8 +157,8 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByText(/os dados do lead já vieram preenchidos/),
-      ).toBeInTheDocument();
+        within(dialog).queryByText(/os dados do lead já vieram preenchidos/),
+      ).not.toBeInTheDocument();
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
