@@ -2,9 +2,6 @@ import type {
   GuidedPatientInput,
   GuidedPatientResult,
   GroupClass,
-  Professional,
-  Room,
-  Service,
 } from "@crm/contracts";
 import { guidedPlanKinds } from "./model";
 
@@ -28,12 +25,6 @@ export type GuidedSingleForm = Extract<
   GuidedPatientInput,
   { next: "single" }
 >["plan"];
-
-export type NextStepResources = {
-  services: Service[];
-  professionals: Professional[];
-  rooms: Room[];
-};
 
 export type PatientRecordFilter =
   "all" | "with_email" | "without_email" | "birthday_month";
