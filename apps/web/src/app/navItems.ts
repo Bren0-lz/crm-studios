@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   PackageOpen,
   Settings,
+  ShoppingBag,
   Stethoscope,
   UserRound,
   Users,
@@ -79,6 +80,12 @@ export const navGroups: Array<{ label: string; items: NavItem[] }> = [
         label: "Contratos",
         icon: FileText,
         module: "contracts",
+      },
+      {
+        to: "/vendas",
+        label: "Vendas de produtos",
+        icon: ShoppingBag,
+        module: "patients",
       },
       {
         to: "/financeiro",

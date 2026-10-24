@@ -80,6 +80,7 @@ describe("shell navigation", () => {
       Relacionamento: ["CRM comercial", "Contatos sugeridos", "Comunicações"],
       Gestão: [
         "Contratos",
+        "Vendas de produtos",
         "Financeiro",
         "Relatórios",
         "Histórico",

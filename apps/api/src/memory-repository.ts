@@ -25,6 +25,7 @@ import { createCommunicationsRepository } from "./storage/memory/communications.
 import { MemoryRepositoryContext } from "./storage/memory/context.js";
 import { createContractsRepository } from "./storage/memory/contracts.js";
 import { createFinanceRepository } from "./storage/memory/finance.js";
+import { createProductSalesRepository } from "./storage/memory/product-sales.js";
 import { createPatientsRepository } from "./storage/memory/patients.js";
 import { createPlansRepository } from "./storage/memory/plans.js";
 import { createRelationshipRepository } from "./storage/memory/relationship.js";
@@ -80,6 +81,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listClinicalSources: ClinicRepository["listClinicalSources"];
   readonly updateProduct: ClinicRepository["updateProduct"];
   readonly updatePatientTabItem: ClinicRepository["updatePatientTabItem"];
+  readonly createProductSale: ClinicRepository["createProductSale"];
   readonly addPatientTabService: ClinicRepository["addPatientTabService"];
   readonly removePatientTabService: ClinicRepository["removePatientTabService"];
   readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
@@ -234,6 +236,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.createProductSale = createProductSalesRepository(this.context, {
+      openPatientTab: this.finance.openPatientTab,
+      addPatientTabItem: this.finance.addPatientTabItem,
+      updatePatientTabItem: financeOperations.updatePatientTabItem,
+      closePatientTab: this.finance.closePatientTab,
+    }).createProductSale;
     this.getFinancialSummary = this.finance.getFinancialSummary;
     this.settleReceivable = this.finance.settleReceivable;
     this.reverseReceivablePayment = this.finance.reverseReceivablePayment;

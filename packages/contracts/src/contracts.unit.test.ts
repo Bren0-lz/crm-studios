@@ -62,6 +62,7 @@ import {
   patientListQuerySchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
+  productSaleInputSchema,
   patientTagInputSchema,
   patientTagKey,
   patientTagUpdateSchema,
@@ -538,6 +539,40 @@ describe("shared contracts", () => {
         dueDate: "2026-09-12",
       }).settlement,
     ).toBe("receivable");
+  });
+
+  it("validates a one-step product sale", () => {
+    const productId = "22222222-2222-4222-8222-222222222222";
+    const base = {
+      patientId: "11111111-1111-4111-8111-111111111111",
+      settlement: "receivable" as const,
+      dueDate: "2026-09-12",
+    };
+    expect(() => productSaleInputSchema.parse({ ...base, items: [] })).toThrow(
+      "Adicione ao menos um produto.",
+    );
+    expect(() =>
+      productSaleInputSchema.parse({
+        ...base,
+        items: [
+          { productId, quantity: 1 },
+          { productId, quantity: 2 },
+        ],
+      }),
+    ).toThrow("Cada produto entra uma vez só na venda.");
+    expect(() =>
+      productSaleInputSchema.parse({
+        ...base,
+        settlement: "paid",
+        items: [{ productId, quantity: 1 }],
+      }),
+    ).toThrow("Informe a forma de pagamento.");
+    expect(
+      productSaleInputSchema.parse({
+        ...base,
+        items: [{ productId, quantity: 2, unitPriceInCents: 1500 }],
+      }).items[0],
+    ).toEqual({ productId, quantity: 2, unitPriceInCents: 1500 });
   });
 });
 

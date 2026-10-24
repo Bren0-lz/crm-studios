@@ -207,6 +207,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+  "POST /product-sales": operation(
+    "patients.tabs_create",
+    "patients.tabs_items",
+    "patients.tabs_close",
+  ),
 
   "GET /plan-templates": viewAny("settings", "plans"),
   "POST /plan-templates": operation("settings.plans_create"),

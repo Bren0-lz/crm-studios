@@ -17,6 +17,9 @@ describe("versão dos dados por domínio", () => {
         "history",
       ]),
     );
+    expect(domainsForMutation("POST", "/product-sales")).toEqual(
+      expect.arrayContaining(["finance", "inventory", "history"]),
+    );
     expect(domainsForMutation("POST", "/plans")).toEqual(
       expect.arrayContaining(["plans", "finance", "history"]),
     );
