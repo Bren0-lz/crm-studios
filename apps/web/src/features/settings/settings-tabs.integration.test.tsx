@@ -267,6 +267,20 @@ describe("settings tabs", () => {
     expect(
       within(catalogs).queryByText("Serviços, salas e profissionais"),
     ).not.toBeInTheDocument();
+    expect(
+      within(catalogs)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Clientes", "Comercial", "Produtos", "Fornecedores", "Clínico"]);
+    expect(
+      within(catalogs).getByRole("tab", { name: "Clientes" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(catalogs).findByRole("region", { name: "Interesses" }),
+    ).toBeInTheDocument();
+    expect(
+      within(catalogs).getByRole("region", { name: "Níveis" }),
+    ).toBeInTheDocument();
   });
 
   it("masks the clinic CPF/CNPJ and refuses invalid check digits before saving", async () => {

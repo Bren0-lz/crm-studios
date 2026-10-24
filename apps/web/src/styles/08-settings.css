@@ -1441,6 +1441,88 @@
   gap: var(--space-4);
 }
 
+/* Cadastros da clínica: sub-abas por grupo, um cartão por lista. */
+.catalog-settings,
+.catalog-groups {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.catalog-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+}
+.catalog-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.catalog-section-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.catalog-section-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.catalog-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.table-row.catalog-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--space-7) + var(--space-1));
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.table-row.catalog-row:last-child {
+  border-bottom: 0;
+}
+.table-row.catalog-row:hover {
+  background: var(--paper);
+}
+.catalog-row > strong {
+  flex: 1;
+  font-weight: 500;
+}
+.catalog-row > span:not(.status-pill) {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.catalog-parent {
+  color: var(--muted);
+  font-weight: 400;
+}
+.catalog-section .empty-state {
+  padding: var(--space-4) 0;
+}
+.catalog-section .empty-state-icon {
+  display: none;
+}
+.catalog-section .clinical-resource-body {
+  padding-top: 0;
+  gap: var(--space-3);
+}
+.catalog-section .list-toolbar {
+  flex-wrap: wrap;
+  padding: 0 0 var(--space-3);
+}
+
 .plans-toolbar {
   flex-wrap: wrap;
 }
