@@ -1,5 +1,10 @@
 ﻿import { describe, expect, it } from "vitest";
-import { salesChartPoints } from "./model";
+import {
+  plural,
+  responseTimeLabel,
+  salesChartPoints,
+  satisfactionLabel,
+} from "./model";
 import type { SalesPeriodReport } from "@crm/contracts/reports";
 
 function report(from: string, to: string): SalesPeriodReport {
@@ -45,5 +50,28 @@ describe("sales chart aggregation", () => {
       [-1000, 0],
       [5000, -300],
     ]);
+  });
+});
+
+describe("textos simples dos indicadores", () => {
+  it("traduz a nota NPS em palavras", () => {
+    expect(satisfactionLabel(null)).toBe("—");
+    expect(satisfactionLabel(-20)).toBe("Precisa de atenção");
+    expect(satisfactionLabel(0)).toBe("Precisa de atenção");
+    expect(satisfactionLabel(25)).toBe("Razoável");
+    expect(satisfactionLabel(60)).toBe("Boa");
+    expect(satisfactionLabel(90)).toBe("Excelente");
+  });
+
+  it("escreve o tempo de resposta em minutos ou horas", () => {
+    expect(responseTimeLabel(0)).toBe("menos de 1 min");
+    expect(responseTimeLabel(12.4)).toBe("12 min");
+    expect(responseTimeLabel(120)).toBe("2 h");
+    expect(responseTimeLabel(125)).toBe("2 h 5 min");
+  });
+
+  it("usa singular e plural", () => {
+    expect(plural(1, "cliente", "clientes")).toBe("1 cliente");
+    expect(plural(0, "cliente", "clientes")).toBe("0 clientes");
   });
 });
