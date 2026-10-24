@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import "../../test-support/legacy-setup.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import {

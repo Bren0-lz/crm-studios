@@ -249,6 +249,119 @@ for (const storage of ["memory", "postgres"] as const) {
         });
       });
 
+      it("renames groups without changing sessions, attendance, enrollments or sequence", async () => {
+        await atInstant("2055-01-01T12:00:00Z", async () => {
+          const professional = await repository.createProfessional(clinicId, {
+            fullName: "Profissional nome " + randomUUID(),
+            crefito: "",
+            specialty: "Pilates",
+            color: "#336699",
+          });
+          const room = await repository.createRoom(clinicId, {
+            name: "Sala nome " + randomUUID(),
+            capacity: 4,
+          });
+          const input = {
+            serviceId,
+            professionalId: professional.id,
+            roomId: room.id,
+            capacity: 2,
+            weeklySlots: [{ weekday: 3, startTime: "06:00", endTime: "07:00" }],
+          };
+          const group = await repository.createGroupClass(clinicId, {
+            ...input,
+            name: "Personalizada",
+          });
+          const original = structuredClone(group);
+          const client = await patient("Nome da turma");
+          await repository.createGroupEnrollment(clinicId, {
+            groupId: group.id,
+            patientId: client.id,
+          });
+          const from = "2055-01-01T00:00:00Z",
+            to = "2055-02-01T00:00:00Z";
+          const initial = await repository.getGroupWorkspace(
+            clinicId,
+            from,
+            to,
+          );
+          const session = initial.sessions.find(
+            (item) => item.groupId === group.id,
+          )!;
+          expect(session).toBeDefined();
+          await repository.recordGroupAttendance(
+            clinicId,
+            actorId,
+            session.id,
+            client.id,
+            { status: "excused_absence" },
+          );
+          const before = structuredClone(
+            await repository.getGroupWorkspace(clinicId, from, to),
+          );
+          const renamed = await repository.renameGroupClass(
+            clinicId,
+            group.id,
+            "Novo nome",
+          );
+          expect(renamed).toMatchObject({
+            ...original,
+            name: "Novo nome",
+            activeEnrollments: 1,
+          });
+          const after = await repository.getGroupWorkspace(clinicId, from, to);
+          expect(
+            after.sessions.filter((item) => item.groupId === group.id),
+          ).toEqual(
+            before.sessions
+              .filter((item) => item.groupId === group.id)
+              .map((item) => ({ ...item, groupName: "Novo nome" })),
+          );
+          expect(after.enrollments).toEqual(before.enrollments);
+          expect(after.attendance).toEqual(before.attendance);
+          expect(after.replacementCredits).toEqual(before.replacementCredits);
+          expect(
+            (await repository.listGroupSessions(clinicId, from, to)).find(
+              (item) => item.id === session.id,
+            )?.groupName,
+          ).toBe("Novo nome");
+          expect(
+            await repository.renameGroupClass(
+              "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              group.id,
+              "Outra clínica",
+            ),
+          ).toBeNull();
+          expect(
+            await repository.renameGroupClass(
+              clinicId,
+              "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "Inexistente",
+            ),
+          ).toBeNull();
+          const branch = (await repository.saveBranch(clinicId, actorId, {
+            name: "Nome filial " + randomUUID(),
+          }))!;
+          await expect(
+            repository.branchScope.run(
+              { branchIds: [branch.id], writeBranchId: branch.id },
+              () =>
+                repository.renameGroupClass(clinicId, group.id, "Outra filial"),
+            ),
+          ).rejects.toMatchObject({
+            code: "BRANCH_ACCESS_DENIED",
+            statusCode: 403,
+          });
+          const next = await repository.createGroupClass(clinicId, {
+            ...input,
+            name: "Novo nome",
+            weeklySlots: [{ weekday: 4, startTime: "06:00", endTime: "07:00" }],
+          });
+          expect(next.name).toBe("Novo nome");
+          expect(next.sequence).toBe(original.sequence + 1);
+        });
+      });
+
       it("keeps each credit's source group outside the workspace period", async () => {
         await atInstant("2055-01-01T12:00:00Z", async () => {
           const client = await patient("Parity Créditos por turma");

@@ -138,6 +138,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /groups/workspace": view("groups"),
   "POST /groups": operation("groups.create"),
   "PUT /groups/:id": operation("groups.update"),
+  "PATCH /groups/:id/name": operation("groups.rename"),
   "POST /group-enrollments": operation("groups.enroll"),
   "POST /group-enrollments/:id/cancel": operation("groups.cancel_enrollment"),
   "PUT /group-sessions/:sessionId/attendance/:patientId":
