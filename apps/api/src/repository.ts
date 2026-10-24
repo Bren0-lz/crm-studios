@@ -1,4 +1,9 @@
 import type {
+  WaitlistEntry,
+  WaitlistEntryData,
+  WaitlistEntryUpdate,
+} from "@crm/contracts";
+import type {
   AgendaNote,
   AgendaNoteInput,
   AgendaNoteUpdate,
@@ -236,6 +241,21 @@ export interface AuthenticatedUser extends UserSummary {
 }
 
 export interface ClinicRepository {
+  /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
+  listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
+  createWaitlistEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: WaitlistEntryData,
+  ): Promise<WaitlistEntry>;
+  updateWaitlistEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: WaitlistEntryUpdate,
+  ): Promise<WaitlistEntry | null>;
+  deleteWaitlistEntry(clinicId: string, id: string): Promise<boolean>;
+
   listAgendaNotes(
     clinicId: string,
     from: string,

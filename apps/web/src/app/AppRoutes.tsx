@@ -21,6 +21,7 @@ import { PatientsPage } from "../features/patients/PatientsPage";
 import { PlansPage } from "../features/plans/PlansPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { RelationshipPage } from "../features/relationship/RelationshipPage";
+import { WaitlistPage } from "../features/waitlist/WaitlistPage";
 import { ReportsPage } from "../features/reports/ReportsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { LoadingBlock } from "../shared/components/LoadingBlock";
@@ -107,6 +108,10 @@ export function AppRoutes() {
                 <Route
                   path="/relacionamento"
                   element={allow("relationship", <RelationshipPage />)}
+                />
+                <Route
+                  path="/lista-de-espera"
+                  element={allow("waitlist", <WaitlistPage />)}
                 />
                 <Route
                   path="/comunicacoes"

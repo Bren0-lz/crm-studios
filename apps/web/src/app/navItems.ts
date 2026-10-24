@@ -9,6 +9,7 @@ import {
   FileClock,
   FileText,
   HeartHandshake,
+  Hourglass,
   LayoutDashboard,
   PackageOpen,
   Settings,
@@ -63,6 +64,12 @@ export const navGroups: Array<{ label: string; items: NavItem[] }> = [
         label: "Contatos sugeridos",
         icon: HeartHandshake,
         module: "relationship",
+      },
+      {
+        to: "/lista-de-espera",
+        label: "Lista de espera",
+        icon: Hourglass,
+        module: "waitlist",
       },
       {
         to: "/comunicacoes",
