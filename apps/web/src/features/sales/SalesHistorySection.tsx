@@ -1,5 +1,5 @@
 import type { InventoryWorkspace, PatientTab } from "@crm/contracts";
-import { ReceiptText } from "lucide-react";
+import { Eye, ReceiptText, Search } from "lucide-react";
 import { useState } from "react";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -33,13 +33,29 @@ export function SalesHistorySection({
   const [selected, setSelected] = useState<string | null>(null);
   const sales = productSales(workspace.tabs, period, search);
   const selectedTab = workspace.tabs.find((item) => item.id === selected);
+  const totalInCents = sales.reduce(
+    (sum, tab) => sum + productsTotalInCents(tab),
+    0,
+  );
   return (
     <section className="panel" aria-label="Vendas realizadas">
       <div className="panel-head">
-        <h2>Vendas realizadas</h2>
+        <div>
+          <h2>Vendas realizadas</h2>
+          <p className="panel-context">
+            {sales.length === 1 ? "1 venda" : `${sales.length} vendas`} no
+            período
+          </p>
+        </div>
+        {sales.length > 0 && (
+          <p className="sales-history-total">
+            <span>Total no período</span>
+            <strong>{currency.format(totalInCents / 100)}</strong>
+          </p>
+        )}
       </div>
       <div className="list-toolbar sales-toolbar">
-        <label>
+        <label className="sales-date-field">
           De
           <input
             type="date"
@@ -49,7 +65,7 @@ export function SalesHistorySection({
             }
           />
         </label>
-        <label>
+        <label className="sales-date-field">
           Até
           <input
             type="date"
@@ -59,14 +75,17 @@ export function SalesHistorySection({
             }
           />
         </label>
-        <label>
+        <label className="sales-search-field">
           Cliente
-          <input
-            type="search"
-            placeholder="Buscar pelo nome"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <span className="sales-search-input">
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Buscar pelo nome"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </span>
         </label>
       </div>
       {!sales.length ? (
@@ -76,9 +95,9 @@ export function SalesHistorySection({
           copy="As vendas de produtos registradas aparecem aqui."
         />
       ) : (
-        <div className="table-scroll sales-table">
-          <table className="dre-table">
-            <caption>Vendas de produtos no período</caption>
+        <div className="table-scroll">
+          <table className="dre-table sales-history-table">
+            <caption className="sr-only">Vendas de produtos no período</caption>
             <thead>
               <tr>
                 <th scope="col">Data</th>
@@ -88,7 +107,7 @@ export function SalesHistorySection({
                 <th scope="col" className="numeric-value">
                   Total
                 </th>
-                <th scope="col">
+                <th scope="col" className="table-actions-head">
                   <span className="sr-only">Ações</span>
                 </th>
               </tr>
@@ -96,11 +115,11 @@ export function SalesHistorySection({
             <tbody>
               {sales.map((tab) => (
                 <tr key={tab.id}>
-                  <td>
+                  <td className="sales-date-cell">
                     {shortDate.format(new Date(tab.closedAt ?? tab.openedAt))}
                   </td>
                   <th scope="row">{tab.patientName}</th>
-                  <td>{saleItemsLabel(tab)}</td>
+                  <td className="sales-items-cell">{saleItemsLabel(tab)}</td>
                   <td>
                     <span className={`status-pill ${statusClass(tab)}`}>
                       {saleStatusLabel(tab)}
@@ -109,13 +128,14 @@ export function SalesHistorySection({
                   <td className="numeric-value">
                     {currency.format(productsTotalInCents(tab) / 100)}
                   </td>
-                  <td>
+                  <td className="table-actions-cell">
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="secondary-button button-sm"
                       aria-label={`Ver venda de ${tab.patientName}`}
                       onClick={() => setSelected(tab.id)}
                     >
+                      <Eye size={15} aria-hidden="true" />
                       Ver
                     </button>
                   </td>
