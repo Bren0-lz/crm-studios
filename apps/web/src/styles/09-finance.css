@@ -965,6 +965,11 @@
   font-size: var(--text-xs);
 }
 
+.entry-classification > .status-pill {
+  display: inline-flex;
+  margin-bottom: 0;
+}
+
 .entry-classification > :not(.status-pill) {
   overflow: hidden;
   max-width: 100%;
