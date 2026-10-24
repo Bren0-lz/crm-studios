@@ -117,8 +117,15 @@ describe("settings workflows through real HTTP handlers", () => {
       const section = screen.getByRole("tabpanel", {
         name: "Serviços e salas",
       });
-      await within(section).findByLabelText("Cadastro");
-      change("Cadastro", kind, section);
+      fireEvent.click(
+        within(section).getByRole("tab", {
+          name: {
+            service: "Serviços",
+            room: "Salas",
+            professional: "Profissionais",
+          }[kind],
+        }),
+      );
       const edit = await within(section).findAllByRole("button", {
         name: "Editar cadastro",
       });
