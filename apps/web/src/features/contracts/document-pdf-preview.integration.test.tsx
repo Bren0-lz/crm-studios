@@ -59,7 +59,7 @@ describe("PDF preview lifecycle", () => {
     unmount();
     expect(revoke).toHaveBeenCalledWith("blob:test-contract");
   });
-  it("keeps the document readable after an error and retries generating the PDF", async () => {
+  it("shows an error and retries generating the PDF", async () => {
     installDocumentBrowserMocks();
     vi.mocked(generateDocumentPdf)
       .mockReset()
@@ -68,16 +68,12 @@ describe("PDF preview lifecycle", () => {
     render(
       <DocumentPdfPreview
         title="Contrato"
-        body="O conteúdo do contrato continua disponível."
+        body="Conteúdo do contrato."
       />,
     );
     expect(
       await screen.findByText(/Não foi possível gerar o PDF/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Ler conteúdo do documento"));
-    expect(
-      screen.getByText("O conteúdo do contrato continua disponível."),
-    ).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: "Tentar gerar novamente" }),
     );

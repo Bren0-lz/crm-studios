@@ -1374,9 +1374,6 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
-.document-accessible-preview > .document-paper {
-  margin-top: var(--space-4);
-}
 .document-actions {
   flex-wrap: wrap;
 }
