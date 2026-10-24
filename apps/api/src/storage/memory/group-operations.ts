@@ -8,6 +8,7 @@ import {
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import { DomainError } from "../../repository.js";
 import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
+import { assertProfessionalServesGroup } from "../../modules/groups/service-professional.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 
@@ -392,7 +393,16 @@ export function createGroupOperationsRepository(
       const group = context.groupClasses.find(
         (item) => item.id === meeting.groupId,
       );
-      if (group) context.resourceBranch(group, professional);
+      if (group) {
+        assertProfessionalServesGroup(
+          context.services.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === group.serviceId,
+          ),
+          professionalId,
+        );
+        context.resourceBranch(group, professional);
+      }
       const overlap = (start: string, end: string) =>
         start < meeting.endsAt && end > meeting.startsAt;
       if (

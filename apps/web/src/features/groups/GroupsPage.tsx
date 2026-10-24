@@ -811,6 +811,9 @@ export function GroupsPage() {
               group={selectedGroup}
               workspace={workspace}
               professionals={professionals}
+              service={services.find(
+                (item) => item.id === selectedGroup.serviceId,
+              )}
               initialSessionId={initialSessionId}
               calendar={{
                 month: calendarMonth,
