@@ -1,6 +1,7 @@
 import {
   fillCampaignMessage,
   imageDataUrlInfo,
+  usesAppointmentVariables,
   MESSAGE_TEMPLATE_IMAGE_MAX_BYTES,
   type Appointment,
   type BroadcastSkippedPatient,
@@ -12,6 +13,7 @@ import {
   type WhatsappCampaignRecipientDraft,
 } from "@crm/contracts";
 import { DomainError, type MessageTemplateWrite } from "../../repository.js";
+import { clinicDateOf } from "../finance/daily-cash.js";
 import { filterPatientsForExport } from "../patients/patient-export.js";
 import { destination } from "./broadcast.js";
 
@@ -36,6 +38,8 @@ export interface CampaignFilterData {
   /** Quem recebeu campanha no período de `excludeContactedDays`. */
   contactedPatientIds: ReadonlySet<string>;
   now: Date;
+  /** Fuso da clínica: dia do atendimento no filtro e data/hora na mensagem. */
+  timezone: string;
 }
 
 /** Filtros de agenda que pedem a lista de atendimentos. */
@@ -45,9 +49,13 @@ export function segmentNeedsAppointments(segment: CampaignSegment) {
     segment.professionalIds.length ||
     segment.absentDays ||
     segment.visitedWithinDays ||
+    segment.appointmentDate ||
     segment.noUpcomingAppointment,
   );
 }
+
+const isOpenAppointment = (item: Appointment) =>
+  item.status === "scheduled" || item.status === "confirmed";
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -156,11 +164,18 @@ export function filterCampaignSegment(
     )
       return false;
     if (
+      segment.appointmentDate &&
+      !appointments.some(
+        (item) =>
+          isOpenAppointment(item) &&
+          clinicDateOf(item.startsAt, data.timezone) === segment.appointmentDate,
+      )
+    )
+      return false;
+    if (
       segment.noUpcomingAppointment &&
       appointments.some(
-        (item) =>
-          (item.status === "scheduled" || item.status === "confirmed") &&
-          Date.parse(item.startsAt) > now,
+        (item) => isOpenAppointment(item) && Date.parse(item.startsAt) > now,
       )
     )
       return false;
@@ -187,8 +202,44 @@ function matchesPlanFilters(
 }
 
 /**
+ * Atendimento que preenche `{{data_atendimento}}`/`{{hora_atendimento}}`: o
+ * primeiro do dia filtrado ou, sem esse filtro, o próximo agendado.
+ */
+export function campaignAppointment(
+  data: CampaignFilterData,
+  patientId: string,
+  appointmentDate?: string,
+): Appointment | undefined {
+  return data.appointments
+    .filter((item) => item.patientId === patientId && isOpenAppointment(item))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .find((item) =>
+      appointmentDate
+        ? clinicDateOf(item.startsAt, data.timezone) === appointmentDate
+        : Date.parse(item.startsAt) > data.now.getTime(),
+    );
+}
+
+function appointmentValues(appointment: Appointment, timeZone: string) {
+  const startsAt = new Date(appointment.startsAt);
+  return {
+    date: new Intl.DateTimeFormat("pt-BR", {
+      timeZone,
+      day: "2-digit",
+      month: "2-digit",
+    }).format(startsAt),
+    time: new Intl.DateTimeFormat("pt-BR", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(startsAt),
+  };
+}
+
+/**
  * Monta os destinatários da campanha: filtros ou clientes escolhidos; pula
- * quem bloqueou WhatsApp ou não tem número válido e personaliza a mensagem.
+ * quem bloqueou WhatsApp, não tem número válido ou, se a mensagem usa data/hora
+ * do atendimento, não tem atendimento; e personaliza a mensagem.
  */
 export function buildCampaignAudience(
   patients: Patient[],
@@ -218,6 +269,9 @@ export function buildCampaignAudience(
       .filter((item) => item.channel === "whatsapp" && !item.allowed)
       .map((item) => item.patientId),
   );
+  const withAppointment = usesAppointmentVariables(body);
+  const appointmentDate =
+    audience.mode === "segment" ? audience.segment.appointmentDate : undefined;
   const drafts: WhatsappCampaignRecipientDraft[] = [];
   const skipped: BroadcastSkippedPatient[] = [];
   for (const patient of chosen) {
@@ -236,11 +290,22 @@ export function buildCampaignAudience(
       skip("no_destination");
       continue;
     }
+    const appointment = withAppointment
+      ? campaignAppointment(data, patient.id, appointmentDate)
+      : undefined;
+    if (withAppointment && !appointment) {
+      skip("no_appointment");
+      continue;
+    }
     drafts.push({
       patientId: patient.id,
       patientName: patient.fullName,
       phone,
-      message: fillCampaignMessage(body, patient.fullName),
+      message: fillCampaignMessage(
+        body,
+        patient.fullName,
+        appointment && appointmentValues(appointment, data.timezone),
+      ),
     });
   }
   return { matched: chosen.length, drafts, skipped };

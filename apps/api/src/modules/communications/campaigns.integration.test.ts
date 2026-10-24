@@ -8,6 +8,7 @@ import type {
   WhatsappCampaignPreview,
 } from "@crm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 
@@ -270,6 +271,89 @@ describe("campanhas de WhatsApp", () => {
       await app.inject({ url: "/communications/campaigns", headers })
     ).json<WhatsappCampaign[]>();
     expect(list.map((item) => item.id)).toEqual([campaign.id]);
+  });
+
+  it("lembrete de atendimento: filtra pelo dia e preenche data e hora", async () => {
+    const { app, repository, headers } = await setup();
+    const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Clara Lembrete",
+      phone: "11988887777",
+      tags: [],
+    });
+    const [professional] = await repository.listProfessionals(clinicId),
+      [room] = await repository.listRooms(clinicId),
+      [service] = await repository.listServices(clinicId);
+    // Daqui a 2 dias, 12:30 UTC = 09:30 em São Paulo (fuso padrão da clínica).
+    const day = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    await repository.createAppointment(clinicId, {
+      patientId: patient.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      serviceId: service!.id,
+      startsAt: `${day}T12:30:00Z`,
+      visitType: "trial",
+      notes: "",
+    });
+    const template = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/templates",
+        headers,
+        payload: {
+          title: "Lembrete",
+          body: "Oi, {{nome}}! Seu atendimento é {{data_atendimento}} às {{hora_atendimento}}.",
+          images: [],
+        },
+      })
+    ).json<MessageTemplate>();
+    const preview = await app.inject({
+      method: "POST",
+      url: "/communications/campaigns/preview",
+      headers,
+      payload: {
+        templateId: template.id,
+        audience: {
+          mode: "segment",
+          segment: { tags: [], birthdayMonth: false, appointmentDate: day },
+        },
+      },
+    });
+    expect(preview.statusCode).toBe(200);
+    const body = preview.json<WhatsappCampaignPreview>();
+    expect(body.recipients).toBe(1);
+    expect(body.sample?.message).toBe(
+      `Oi, Clara! Seu atendimento é ${day.slice(8, 10)}/${day.slice(5, 7)} às 09:30.`,
+    );
+  });
+
+  it("lista as preferências de canal de um cliente", async () => {
+    const { app, repository, headers } = await setup();
+    const [ana, bruno] = await repository.listPatients(clinicId);
+    await repository.setCommunicationPreference(clinicId, {
+      patientId: ana!.id,
+      channel: "email",
+      allowed: false,
+    });
+    await repository.setCommunicationPreference(clinicId, {
+      patientId: bruno!.id,
+      channel: "whatsapp",
+      allowed: false,
+    });
+    const response = await app.inject({
+      url: `/communications/preferences?patientId=${ana!.id}`,
+      headers,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      expect.objectContaining({
+        patientId: ana!.id,
+        channel: "email",
+        allowed: false,
+      }),
+    ]);
   });
 
   it("aceita segmento por etiqueta e recusa modelo arquivado", async () => {

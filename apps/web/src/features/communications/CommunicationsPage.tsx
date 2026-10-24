@@ -1,31 +1,22 @@
 import type { MessageTemplate } from "@crm/contracts";
-import {
-  ListChecks,
-  Megaphone,
-  MessageSquareText,
-  type LucideIcon,
-} from "lucide-react";
+import { Megaphone, MessageSquareText, type LucideIcon } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
-import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { CampaignsTab } from "./campaigns/CampaignsTab";
 import { TemplatesTab } from "./campaigns/TemplatesTab";
-import { QueueAndRemindersTab } from "./QueueAndRemindersTab";
 
-type TabKey = "campanhas" | "mensagens" | "fila";
+type TabKey = "campanhas" | "mensagens";
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
   { key: "campanhas", label: "Campanhas", icon: Megaphone },
   { key: "mensagens", label: "Mensagens padrão", icon: MessageSquareText },
-  { key: "fila", label: "Fila e lembretes", icon: ListChecks },
 ];
 
-function initialTab(value: string | null, contextPatient: string): TabKey {
-  if (tabs.some((tab) => tab.key === value)) return value as TabKey;
-  // Vindo da ficha do cliente (`?patientId=`), o assunto é a fila daquele cliente.
-  return contextPatient ? "fila" : "campanhas";
+function initialTab(value: string | null): TabKey {
+  // Endereços antigos (`?aba=fila`) caem em Campanhas.
+  return tabs.some((tab) => tab.key === value) ? (value as TabKey) : "campanhas";
 }
 
 /**
@@ -34,11 +25,10 @@ function initialTab(value: string | null, contextPatient: string): TabKey {
  */
 export function CommunicationsPage() {
   const { canEdit } = useAuthorization();
-  const contextPatientId = usePatientContext();
   const [searchParams] = useSearchParams();
   const baseId = useId();
   const [active, setActive] = useState<TabKey>(() =>
-    initialTab(searchParams.get("aba"), contextPatientId),
+    initialTab(searchParams.get("aba")),
   );
   const [visited, setVisited] = useState<TabKey[]>([active]);
   const [templateToUse, setTemplateToUse] = useState<MessageTemplate | null>(
@@ -69,7 +59,7 @@ export function CommunicationsPage() {
     <>
       <PageHeader
         title="Central de comunicações"
-        description="Campanhas de WhatsApp com mensagens prontas, lembretes e a fila de envios manuais."
+        description="Campanhas de WhatsApp com mensagens prontas, inclusive lembretes de atendimento."
       />
       {!canEdit("communications") && <ReadOnlyNotice module="communications" />}
       <div
@@ -111,15 +101,13 @@ export function CommunicationsPage() {
                   onTemplateUsed={() => setTemplateToUse(null)}
                   onOpenTemplates={() => select("mensagens")}
                 />
-              ) : tab.key === "mensagens" ? (
+              ) : (
                 <TemplatesTab
                   onUseTemplate={(template) => {
                     setTemplateToUse(template);
                     select("campanhas");
                   }}
                 />
-              ) : (
-                <QueueAndRemindersTab />
               )}
             </div>
           ),

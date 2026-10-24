@@ -271,16 +271,16 @@ describe("settings tabs", () => {
       within(catalogs)
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Clientes", "Comercial", "Produtos", "Fornecedores", "Clínico"]);
+    ).toEqual(["Comercial", "Produtos", "Fornecedores", "Clínico"]);
     expect(
-      within(catalogs).getByRole("tab", { name: "Clientes" }),
+      within(catalogs).getByRole("tab", { name: "Comercial" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      await within(catalogs).findByRole("region", { name: "Interesses" }),
+      await within(catalogs).findByRole("region", { name: "Origens" }),
     ).toBeInTheDocument();
     expect(
-      within(catalogs).getByRole("region", { name: "Níveis" }),
-    ).toBeInTheDocument();
+      within(catalogs).queryByRole("region", { name: "Interesses" }),
+    ).not.toBeInTheDocument();
   });
 
   it("masks the clinic CPF/CNPJ and refuses invalid check digits before saving", async () => {
