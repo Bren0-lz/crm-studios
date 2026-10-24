@@ -2,9 +2,10 @@ import type {
   Appointment,
   DashboardViewSummary,
   GroupSession,
+  Professional,
   SalesReport,
 } from "@crm/contracts";
-import { CalendarDays, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronRight, Plus, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, getStoredUser } from "../../api";
@@ -25,6 +26,12 @@ import type { DashboardAppointmentAction } from "../../shared/lib/types";
 import { BirthdayDashboardCard } from "./BirthdayDashboardCard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { appointmentStatusToast } from "../agenda/index";
+import {
+  agendaViewLabel,
+  storeAgendaView,
+  storedAgendaView,
+} from "./agenda-view";
+import { DashboardAgendaViewModal } from "./DashboardAgendaViewModal";
 import { DashboardAppointmentDialog } from "./DashboardAppointmentDialog";
 import { DashboardGroupSessionRow } from "./DashboardGroupSessionRow";
 
@@ -48,7 +55,7 @@ function appointmentCounts(appointment: Appointment, date: string) {
 }
 
 export function DashboardPage() {
-  const { can, canView } = useAuthorization();
+  const { can, canView, user } = useAuthorization();
   const [data, setData] = useState<DashboardViewSummary | null>(null);
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
@@ -69,8 +76,61 @@ export function DashboardPage() {
   const canSeeSales = can("reports.sales");
   const canSeeRelationship = canView("relationship");
   const canSeeAgenda = canView("agenda");
+  // Sem "ver todos", a API já devolve só a agenda do profissional ligado ao usuário.
+  const canChooseAgenda = canSeeAgenda && can("agenda.view_all");
+  const [agendaView, setAgendaView] = useState<string[]>(() =>
+    canChooseAgenda ? storedAgendaView(user?.id) : [],
+  );
+  const agendaViewQuery = agendaView.join(",");
+  const [agendaViewOpen, setAgendaViewOpen] = useState(false);
+  const [professionals, setProfessionals] = useState<Professional[] | null>(
+    null,
+  );
+  const [professionalsError, setProfessionalsError] = useState("");
+  const [ownProfessionalId, setOwnProfessionalId] = useState<string | null>(
+    null,
+  );
+  const agendaViewButton = useRef<HTMLButtonElement>(null);
   // Mutações na agenda, no financeiro e nos planos refazem o painel em silêncio (QC6).
   const dataVersion = useDataVersion("agenda", "finance", "plans");
+
+  useEffect(() => {
+    if (!canChooseAgenda) return;
+    let active = true;
+    Promise.all([
+      api.professionals(),
+      user?.role === "admin" ? Promise.resolve(null) : api.ownProfile(),
+    ])
+      .then(([items, profile]) => {
+        if (!active) return;
+        const available = items.filter((item) => item.active);
+        setProfessionals(available);
+        setOwnProfessionalId(profile?.professional?.id ?? null);
+        // Profissional desativado ou excluído sai da escolha lembrada.
+        setAgendaView((current) => {
+          const kept = current.filter((id) =>
+            available.some((item) => item.id === id),
+          );
+          if (kept.length === current.length) return current;
+          storeAgendaView(user?.id, kept);
+          return kept;
+        });
+      })
+      .catch(() => {
+        if (active)
+          setProfessionalsError("Não foi possível carregar os profissionais.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [canChooseAgenda, user?.id, user?.role]);
+
+  function applyAgendaView(ids: string[]) {
+    setAgendaView(ids);
+    storeAgendaView(user?.id, ids);
+    setAgendaViewOpen(false);
+    requestAnimationFrame(() => agendaViewButton.current?.focus());
+  }
 
   // Aulas de turma de hoje (não canceladas) entram na "Agenda de hoje" junto dos
   // atendimentos; mudanças em turmas também incrementam a versão da agenda.
@@ -110,7 +170,7 @@ export function DashboardPage() {
     let active = true;
     const version = ++summaryRequest.current;
     api
-      .dashboard(today)
+      .dashboard(today, agendaViewQuery ? agendaViewQuery.split(",") : [])
       .then((summary) => {
         if (active && summaryRequest.current === version) setData(summary);
       })
@@ -121,7 +181,7 @@ export function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [today]);
+  }, [today, agendaViewQuery]);
 
   useEffect(() => {
     if (!canSeeSales) return;
@@ -167,7 +227,7 @@ export function DashboardPage() {
     const summaryVersion = ++summaryRequest.current;
     const salesVersion = ++salesRequest.current;
     const [summary, report] = await Promise.allSettled([
-      api.dashboard(today),
+      api.dashboard(today, agendaView),
       canSeeSales ? api.salesReport(today.slice(0, 7)) : Promise.resolve(null),
     ]);
     if (
@@ -232,6 +292,14 @@ export function DashboardPage() {
     // `refreshDashboard` muda a cada render; só a versão dispara o recarregamento.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataVersion]);
+
+  const shownGroupSessions =
+    agendaView.length > 0
+      ? groupSessions.filter((session) =>
+          agendaView.includes(session.professionalId),
+        )
+      : groupSessions;
+  const agendaViewSummary = agendaViewLabel(agendaView, professionals ?? []);
 
   const toast = useToast();
   async function changeDashboardStatus(
@@ -369,16 +437,37 @@ export function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <h2>Agenda de hoje</h2>
+                    {agendaView.length > 0 && (
+                      <p className="panel-context">
+                        Mostrando: {agendaViewSummary}
+                      </p>
+                    )}
                   </div>
-                  {canView("agenda") && (
-                    <NavLink
-                      to="/agenda"
-                      className="text-link"
-                      ref={agendaLink}
-                    >
-                      Ver agenda <ChevronRight size={16} />
-                    </NavLink>
-                  )}
+                  <div className="schedule-panel-actions">
+                    {canChooseAgenda && (
+                      <button
+                        type="button"
+                        className="secondary-button agenda-view-button"
+                        ref={agendaViewButton}
+                        aria-label={`Visualização da agenda: ${agendaViewSummary}`}
+                        onClick={() => setAgendaViewOpen(true)}
+                      >
+                        <Users size={15} />
+                        <span>
+                          {agendaView.length > 0 ? agendaViewSummary : "Todos"}
+                        </span>
+                      </button>
+                    )}
+                    {canView("agenda") && (
+                      <NavLink
+                        to="/agenda"
+                        className="text-link"
+                        ref={agendaLink}
+                      >
+                        Ver agenda <ChevronRight size={16} />
+                      </NavLink>
+                    )}
+                  </div>
                 </div>
                 {groupSessionsError && (
                   <div className="dashboard-schedule-error">
@@ -386,7 +475,7 @@ export function DashboardPage() {
                   </div>
                 )}
                 {data.nextAppointments.length === 0 &&
-                groupSessions.length === 0 ? (
+                shownGroupSessions.length === 0 ? (
                   <EmptyState
                     title={
                       data.appointmentsToday === 0
@@ -407,7 +496,7 @@ export function DashboardPage() {
                         startsAt: item.startsAt,
                         item,
                       })),
-                      ...groupSessions.map((session) => ({
+                      ...shownGroupSessions.map((session) => ({
                         kind: "group" as const,
                         startsAt: session.startsAt,
                         session,
@@ -487,6 +576,19 @@ export function DashboardPage() {
         </>
       )}
       {canSeeRelationship && <BirthdayDashboardCard />}
+      {agendaViewOpen && (
+        <DashboardAgendaViewModal
+          professionals={professionals}
+          loadError={professionalsError}
+          selected={agendaView}
+          ownProfessionalId={ownProfessionalId}
+          onApply={applyAgendaView}
+          onClose={() => {
+            setAgendaViewOpen(false);
+            requestAnimationFrame(() => agendaViewButton.current?.focus());
+          }}
+        />
+      )}
       {appointmentAction && (
         <DashboardAppointmentDialog
           key={`${appointmentAction.appointment.id}:${appointmentAction.kind}`}

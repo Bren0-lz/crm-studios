@@ -8,9 +8,14 @@ import {
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import {
+  agendaProfessionalScope,
+  inProfessionalScope,
+} from "../agenda/professional-scope.js";
 
 export function registerGroupsRoutes(context: RouteContext) {
   const { app, authenticate, repository } = context;
+  const professionalScope = agendaProfessionalScope(context);
   app.put(
     "/group-replacements/:id/attendance",
     { preHandler: authenticate },
@@ -133,10 +138,13 @@ export function registerGroupsRoutes(context: RouteContext) {
         "DATE_RANGE_REQUIRED",
         "Informe o período da agenda.",
       );
-    return repository.listGroupSessions(
-      request.user.clinicId,
-      query.from,
-      query.to,
+    return inProfessionalScope(
+      await repository.listGroupSessions(
+        request.user.clinicId,
+        query.from,
+        query.to,
+      ),
+      await professionalScope(request),
     );
   });
 

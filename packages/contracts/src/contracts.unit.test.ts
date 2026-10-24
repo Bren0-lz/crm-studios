@@ -76,6 +76,9 @@ import {
   whatsappLink,
   historyActions,
   permissionCatalog,
+  legacyPermissions,
+  normalizePermissions,
+  effectivePermissions,
   tabReceivableDescription,
   formatSequenceNumber,
   parseSequenceNumber,
@@ -1267,6 +1270,22 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
       permissionCatalog.find((item) => item.key === "patients.stock_move")
         ?.name,
     ).toBe("Ajustar estoque");
+  });
+
+  it("só concede 'ver agenda de todos' por escolha explícita, com a agenda", () => {
+    const item = permissionCatalog.find(
+      (entry) => entry.key === "agenda.view_all",
+    );
+    expect(item).toMatchObject({
+      name: "Ver agenda de todos os profissionais",
+      dependencies: ["agenda.view"],
+      explicitGrantOnly: true,
+    });
+    expect(legacyPermissions("user", ["agenda"], ["agenda"])).not.toContain(
+      "agenda.view_all",
+    );
+    expect(normalizePermissions(["agenda.view_all"])).toEqual([]);
+    expect(effectivePermissions("admin")).toContain("agenda.view_all");
   });
 
   it("formata e lê números sequenciais de prontuário e recibo", () => {

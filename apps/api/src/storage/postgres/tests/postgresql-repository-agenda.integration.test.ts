@@ -577,6 +577,18 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           "scheduled",
           "confirmed",
         ]);
+        // Visualização da agenda por profissional: contadores e lista acompanham o filtro.
+        const own = await repository.getDashboard(clinicId, date, [
+          "33333333-3333-4333-8333-333333333333",
+        ]);
+        expect(own.appointmentsToday).toBe(7);
+        expect(own.nextAppointments).toHaveLength(2);
+        const other = await repository.getDashboard(clinicId, date, [
+          "99999999-9999-4999-8999-999999999998",
+        ]);
+        expect(other.appointmentsToday).toBe(0);
+        expect(other.pendingToday).toBe(0);
+        expect(other.nextAppointments).toEqual([]);
       }
     } finally {
       await pool.query("DELETE FROM appointments WHERE id = ANY($1::uuid[])", [
