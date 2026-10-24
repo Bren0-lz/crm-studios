@@ -14,6 +14,7 @@ import type {
   LeadDuplicateQuery,
   LeadInput,
   LeadStage,
+  LeadStageLabel,
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
@@ -42,6 +43,13 @@ export const commercialApi = {
   leadInsights: (filter: LeadFilter = {}) =>
     request<LeadInsights>(`/leads/insights${leadQuery(filter)}`),
   leadFilterOptions: () => request<LeadFilterOptions>("/leads/filter-options"),
+  /** Nomes das etapas do funil (padrão onde a clínica não renomeou). */
+  leadStageLabels: () => request<LeadStageLabel[]>("/leads/stages"),
+  saveLeadStageLabels: (stages: LeadStageLabel[]) =>
+    request<LeadStageLabel[]>("/leads/stages", {
+      method: "PUT",
+      body: JSON.stringify({ stages }),
+    }),
   /** Clientes e leads com o mesmo telefone, e-mail ou CPF (só id e nome). */
   leadDuplicates: (query: LeadDuplicateQuery) => {
     const params = new URLSearchParams();

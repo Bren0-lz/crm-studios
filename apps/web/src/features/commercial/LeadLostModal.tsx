@@ -6,10 +6,13 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 export function LeadLostModal({
   lead,
+  columnLabel = "Perdidos",
   onClose,
   onConfirm,
 }: {
   lead: Lead;
+  /** Nome atual da coluna de perdidos (a clínica pode renomear). */
+  columnLabel?: string;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }) {
@@ -20,7 +23,7 @@ export function LeadLostModal({
       eyebrow="CRM comercial"
       title="Marcar lead como perdido"
       subtitle={lead.fullName}
-      effect={`${lead.fullName} sai das oportunidades abertas e vai para a coluna Perdidos, com o motivo registrado no cartão.`}
+      effect={`${lead.fullName} sai das oportunidades abertas e vai para a coluna ${columnLabel}, com o motivo registrado no cartão.`}
       danger
       missing={reason.trim() ? [] : ["Motivo da perda"]}
       onConfirm={() => onConfirm(reason.trim())}

@@ -7,6 +7,7 @@ const additionalPermissions = new Set([
   "agenda.notes",
   "finance.commissions_reconcile",
   "crm.update",
+  "crm.stages_manage",
   "finance.external_records_view",
   "finance.external_records_manage",
   "plans.purchase",
@@ -79,6 +80,7 @@ const operations = {
     tasks_create: "Criar tarefa",
     appointments_create: "Agendar atendimento do lead",
     tasks_status: "Alterar situação da tarefa",
+    stages_manage: "Renomear etapas do funil",
   },
   relationship: { activities_create: "Registrar contato com cliente" },
   communications: {

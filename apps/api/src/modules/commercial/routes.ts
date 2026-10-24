@@ -9,6 +9,7 @@ import {
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
+  leadStageLabelsInputSchema,
   leadStageParamSchema,
   leadStageSchema,
   parseLeadPageQuery,
@@ -81,6 +82,17 @@ export function registerCommercialRoutes(context: RouteContext) {
     "/leads/filter-options",
     { preHandler: authenticate },
     async (request) => repository.listLeadFilterOptions(request.user.clinicId),
+  );
+
+  // Nomes das etapas do funil (a clínica pode renomeá-los; a chave da etapa não muda).
+  app.get("/leads/stages", { preHandler: authenticate }, async (request) =>
+    repository.listLeadStageLabels(request.user.clinicId),
+  );
+  app.put("/leads/stages", { preHandler: authenticate }, async (request) =>
+    repository.saveLeadStageLabels(
+      request.user.clinicId,
+      leadStageLabelsInputSchema.parse(request.body),
+    ),
   );
 
   app.get(
