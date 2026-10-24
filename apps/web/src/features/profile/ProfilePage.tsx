@@ -1,4 +1,4 @@
-import { strongPasswordSchema, type OwnProfile } from "@crm/contracts";
+import { passwordSchema, type OwnProfile } from "@crm/contracts";
 import { KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -355,9 +355,9 @@ function PasswordPanel() {
     if (saving) return;
     setError("");
     setNotice("");
-    const strength = strongPasswordSchema.safeParse(newPassword);
-    if (!strength.success) {
-      setError(strength.error.issues[0]?.message ?? "Revise a nova senha.");
+    const parsed = passwordSchema.safeParse(newPassword);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Revise a nova senha.");
       return;
     }
     if (newPassword !== confirmation) {
@@ -438,8 +438,7 @@ function PasswordPanel() {
             </label>
           </div>
           <p id="profile-password-help" className="profile-hint">
-            Use letra maiúscula, letra minúscula e número. Ao alterar, as
-            sessões abertas em outros aparelhos são encerradas.
+            Ao alterar, as sessões abertas em outros aparelhos são encerradas.
           </p>
         </fieldset>
         {error && (

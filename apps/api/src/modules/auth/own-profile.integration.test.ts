@@ -118,8 +118,9 @@ it("changes the own password only with the current one and renews the session", 
     const same = await change("Admin@123", "Admin@123");
     expect(same.json().code).toBe("SAME_PASSWORD");
 
-    const weak = await change("Admin@123", "semmaiuscula1");
-    expect(weak.statusCode).toBe(400);
+    const empty = await change("Admin@123", "");
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().message).toBe("Nova senha: Informe a senha.");
 
     const changed = await change("Admin@123", "Nova@123");
     expect(changed.statusCode).toBe(200);

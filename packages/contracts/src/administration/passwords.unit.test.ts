@@ -12,8 +12,8 @@ describe("password validation", () => {
     role: "user",
   };
 
-  it.each(["Aa1", "Abc1234", "Abc12345", "Abc123456"])(
-    "accepts the short password %s on creation, reset and login",
+  it.each(["Aa1", "aa1", "AA1", "Aa", "1234", "senha"])(
+    "accepts the password %s on creation, reset and login, without composition rules",
     (password) => {
       expect(adminUserInputSchema.parse({ ...user, password }).password).toBe(
         password,
@@ -25,8 +25,8 @@ describe("password validation", () => {
     },
   );
 
-  it.each(["", "aa1", "AA1", "Aa", `Aa1${"x".repeat(126)}`])(
-    "preserves the other creation and reset restrictions for %s",
+  it.each(["", `Aa1${"x".repeat(126)}`])(
+    "rejects the empty or too long password %s on creation and reset",
     (password) => {
       expect(
         adminUserInputSchema.safeParse({ ...user, password }).success,
