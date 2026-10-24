@@ -293,101 +293,97 @@ export function PatientsPage() {
         </div>
         {filtersOpen && (
           <div className="patient-filters" id="patient-filters">
-            <PatientProfileFilters
-              patients={patients}
-              value={filters.profile}
-              onSegments={setSegments}
-              onChange={(profile) =>
-                updateFilters((current) => ({ ...current, profile }))
-              }
-            />
-            <div className="filter-group">
-              <span className="filter-label" id="patient-status-filter">
-                Situação
-              </span>
-              <div
-                className="segmented"
-                role="group"
-                aria-labelledby="patient-status-filter"
-              >
-                {(
-                  [
-                    ["all", "Todos"],
-                    ["active", "Ativos"],
-                    ["inactive", "Inativos"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    className="segment-button"
-                    type="button"
-                    key={value}
-                    aria-pressed={filters.status === value}
-                    onClick={() =>
-                      updateFilters((current) => ({
-                        ...current,
-                        status: value,
-                      }))
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="patient-filters-row">
+              <div className="filter-group">
+                <span className="filter-label" id="patient-status-filter">
+                  Situação
+                </span>
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-labelledby="patient-status-filter"
+                >
+                  {(
+                    [
+                      ["all", "Todos"],
+                      ["active", "Ativos"],
+                      ["inactive", "Inativos"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      className="segment-button"
+                      type="button"
+                      key={value}
+                      aria-pressed={filters.status === value}
+                      onClick={() =>
+                        updateFilters((current) => ({
+                          ...current,
+                          status: value,
+                        }))
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <label className="filter-group">
-              <span className="filter-label">Cadastro</span>
-              <select
-                value={filters.record}
-                onChange={(event) =>
-                  updateFilters((current) => ({
-                    ...current,
-                    record: event.target.value as PatientRecordFilter,
-                  }))
-                }
-              >
-                <option value="all">Todos</option>
-                <option value="with_email">Com e-mail</option>
-                <option value="without_email">Sem e-mail</option>
-                <option value="birthday_month">Aniversariantes do mês</option>
-              </select>
-            </label>
-            <div className="filter-group">
-              <span className="filter-label">Turmas</span>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={filters.withoutGroup}
-                  onChange={(event) => toggleWithoutGroup(event.target.checked)}
-                />
-                Assinantes sem turma vinculada
+              <label className="filter-group">
+                <span className="filter-label">Cadastro</span>
+                <select
+                  value={filters.record}
+                  onChange={(event) =>
+                    updateFilters((current) => ({
+                      ...current,
+                      record: event.target.value as PatientRecordFilter,
+                    }))
+                  }
+                >
+                  <option value="all">Todos</option>
+                  <option value="with_email">Com e-mail</option>
+                  <option value="without_email">Sem e-mail</option>
+                  <option value="birthday_month">Aniversariantes do mês</option>
+                </select>
               </label>
+              <div className="filter-group">
+                <span className="filter-label">Turmas</span>
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={filters.withoutGroup}
+                    onChange={(event) =>
+                      toggleWithoutGroup(event.target.checked)
+                    }
+                  />
+                  Assinantes sem turma vinculada
+                </label>
+              </div>
+              <label className="filter-group">
+                <span className="filter-label">Ordenar por</span>
+                <select
+                  value={filters.sort}
+                  onChange={(event) =>
+                    updateFilters((current) => ({
+                      ...current,
+                      sort: event.target.value as PatientSort,
+                    }))
+                  }
+                >
+                  <option value="name_asc">Nome (A–Z)</option>
+                  <option value="name_desc">Nome (Z–A)</option>
+                  <option value="newest">Cadastro mais recente</option>
+                  <option value="oldest">Cadastro mais antigo</option>
+                </select>
+              </label>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  className="text-button button-sm clear-filters"
+                  onClick={clearFilters}
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
-            <label className="filter-group">
-              <span className="filter-label">Ordenar por</span>
-              <select
-                value={filters.sort}
-                onChange={(event) =>
-                  updateFilters((current) => ({
-                    ...current,
-                    sort: event.target.value as PatientSort,
-                  }))
-                }
-              >
-                <option value="name_asc">Nome (A–Z)</option>
-                <option value="name_desc">Nome (Z–A)</option>
-                <option value="newest">Cadastro mais recente</option>
-                <option value="oldest">Cadastro mais antigo</option>
-              </select>
-            </label>
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                className="text-button button-sm clear-filters"
-                onClick={clearFilters}
-              >
-                Limpar filtros
-              </button>
-            )}
             {configuredTags.error ? (
               <div className="filter-group filter-tags">
                 <span className="filter-label">Etiquetas</span>
@@ -431,6 +427,14 @@ export function PatientsPage() {
                 </div>
               )
             )}
+            <PatientProfileFilters
+              patients={patients}
+              value={filters.profile}
+              onSegments={setSegments}
+              onChange={(profile) =>
+                updateFilters((current) => ({ ...current, profile }))
+              }
+            />
           </div>
         )}
         {loading ? (
