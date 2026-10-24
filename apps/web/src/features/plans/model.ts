@@ -5,8 +5,10 @@ import {
   patientTagKey,
   planDisplayStatus,
   planDisplayStatusLabels,
+  planTypeKind,
   tabCreditAwaitingLabel,
   type PatientPlan,
+  type PlanTemplate,
 } from "@crm/contracts";
 import { shortDate } from "../../shared/lib/formatting";
 
@@ -16,6 +18,18 @@ export const planKindLabels: Record<PatientPlan["kind"], string> = {
   recurring: "Recorrente",
   custom: "Personalizado",
 };
+
+/** Atalho da ficha do cliente: avulso (sessões soltas) ou recorrente (pacotes e períodos). */
+export type PlanCatalogKind = "single" | "recurring";
+
+export function planTemplateCatalogKind(
+  template: PlanTemplate,
+): PlanCatalogKind {
+  const kind = template.planType
+    ? planTypeKind(template.planType)
+    : template.kind;
+  return kind === "single" ? "single" : "recurring";
+}
 
 export type PlanListFilter =
   | "all"

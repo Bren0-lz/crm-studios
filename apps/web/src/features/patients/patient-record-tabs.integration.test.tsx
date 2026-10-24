@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -103,5 +109,127 @@ describe("client record", () => {
     expect(
       within(panel).getByRole("link", { name: "Abrir em Planos" }),
     ).toHaveAttribute("href", `/planos?patientId=${patient.id}`);
+  });
+
+  it("links the client to a recurring or single plan from the Plans tab", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const patient = {
+      id: "99999999-9999-4999-8999-999999999999",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      recordNumber: "PAC-00001",
+      fullName: "Helena Almeida",
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+      createdAt: "2026-01-01T12:00:00.000Z",
+      updatedAt: "2026-01-01T12:00:00.000Z",
+    };
+    const serviceId = "88888888-8888-4888-8888-888888888888";
+    const templates = [
+      {
+        id: "aa000000-0000-4000-8000-000000000001",
+        name: "Pilates mensal",
+        kind: "recurring",
+        totalValueInCents: 45000,
+        services: [{ serviceId, totalSessions: 8, totalValueInCents: 45000 }],
+        active: true,
+      },
+      {
+        id: "aa000000-0000-4000-8000-000000000002",
+        name: "Sessão avulsa",
+        kind: "single",
+        totalValueInCents: 12000,
+        services: [{ serviceId, totalSessions: 1, totalValueInCents: 12000 }],
+        active: true,
+      },
+    ];
+    const writes: Record<string, unknown>[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/plans")) {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        writes.push(body);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            ...body,
+            id: "p1",
+            patientName: patient.fullName,
+            remainingSessions: 1,
+            totalSessions: 1,
+            status: "active",
+          }),
+        } as Response;
+      }
+      const body = url.endsWith(`/patients/${patient.id}`)
+        ? patient
+        : url.includes("/plan-templates")
+          ? templates
+          : url.includes("/services")
+            ? [{ id: serviceId, name: "Pilates", active: true }]
+            : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/clientes/${patient.id}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    const panel = screen.getByRole("tabpanel");
+    await within(panel).findByText("Nenhum plano contratado.");
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Plano recorrente" }),
+    );
+    let dialog = await screen.findByRole("dialog", {
+      name: "Novo plano recorrente",
+    });
+    const recurring = await within(dialog).findByRole("option", {
+      name: /Pilates mensal/,
+    });
+    expect(recurring).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("option", { name: /Sessão avulsa/ }),
+    ).not.toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Helena Almeida");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Plano avulso" }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Novo plano avulso" });
+    await within(dialog).findByRole("option", { name: /Sessão avulsa/ });
+    expect(
+      within(dialog).queryByRole("option", { name: /Pilates mensal/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
+      target: { value: templates[1]!.id },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      patientId: patient.id,
+      planTemplateId: templates[1]!.id,
+      kind: "single",
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 });
