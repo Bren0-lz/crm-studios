@@ -345,10 +345,20 @@ describe("users and permissions", () => {
     prompt.mockRestore();
   });
 
-  it("explains what the initial password is missing without calling the API", async () => {
+  it("accepts a simple initial password, without uppercase or numbers", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-    mockAdmin(() => undefined, [adminUser, customUser]);
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...customUser,
+              id: "55555555-5555-4555-8555-555555555555",
+              fullName: "Breno Luiz",
+            }
+          : undefined,
+      [adminUser, customUser],
+    );
     render(
       <MemoryRouter initialEntries={["/configuracoes"]}>
         <App />
@@ -372,13 +382,9 @@ describe("users and permissions", () => {
       within(dialog).getByLabelText("Nome completo").closest("form")!,
     );
     expect(
-      await within(dialog).findByText(
-        "Senha inicial: Inclua uma letra maiúscula. Inclua um número.",
-      ),
+      await screen.findByText("Usuário Breno Luiz criado."),
     ).toBeInTheDocument();
-    expect(
-      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST"),
-    ).toBe(false);
+    expect(lastCall("POST").body).toMatchObject({ password: "senhafraca" });
   });
 
   it("copies permissions from another common user when creating, still editable before saving", async () => {

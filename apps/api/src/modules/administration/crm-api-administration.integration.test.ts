@@ -678,10 +678,7 @@ describe("CRM API", () => {
           },
         });
       const cases: [Record<string, unknown>, string][] = [
-        [
-          { password: "senhafraca" },
-          "Senha: Inclua uma letra maiúscula. Inclua um número.",
-        ],
+        [{ password: "" }, "Senha: Informe a senha."],
         [{ email: "breno" }, "E-mail: Informe um e-mail válido."],
         [{ fullName: "Br" }, "Nome: Use pelo menos 3 caracteres."],
         [
@@ -708,6 +705,8 @@ describe("CRM API", () => {
         expect(response.statusCode).toBe(400);
         expect(response.json()).toEqual({ code: "VALIDATION_ERROR", message });
       }
+      // Senha sem exigência de maiúscula, minúscula ou número.
+      expect((await create({ password: "1234" })).statusCode).toBe(201);
     });
 
     it("never lets the clinic lose its last active admin", async () => {

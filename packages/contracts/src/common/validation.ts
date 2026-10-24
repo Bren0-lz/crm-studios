@@ -2,7 +2,7 @@ import type { z } from "zod";
 
 /**
  * Mensagens pt-BR para as regras padrão do zod (`z.config({ customError })`). Mensagens
- * escritas no próprio schema ("Inclua uma letra maiúscula.") têm prioridade e não passam aqui.
+ * escritas no próprio schema ("Informe a senha.") têm prioridade e não passam aqui.
  */
 export function ptBrValidationError(issue: z.core.$ZodRawIssue): string {
   switch (issue.code) {
@@ -78,7 +78,7 @@ const fieldLabels: Record<string, string> = {
 
 /**
  * Resume a validação que falhou numa frase para o usuário: o campo do primeiro problema e
- * todas as regras dele ("Senha: Inclua uma letra maiúscula. Inclua um número.").
+ * todas as regras dele ("Comissão (%): Informe um valor de até 100.").
  */
 export function validationErrorMessage(
   issues: readonly { path: readonly PropertyKey[]; message: string }[],
