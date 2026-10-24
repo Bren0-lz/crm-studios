@@ -201,4 +201,116 @@
   .sales-toolbar .sales-date-field input {
     width: 100%;
   }
+
+  .sales-ranking .sales-share {
+    display: none;
+  }
+}
+
+/* Resumo: período no cabeçalho do painel, ao lado do título. */
+.sales-summary-head {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.sales-summary-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.sales-summary-filters label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.sales-summary-metrics {
+  padding-top: var(--space-5);
+}
+
+/* Resumo: ranking de produtos no mesmo padrão da tabela de Vendas realizadas. */
+.sales-ranking {
+  font-size: var(--text-md);
+}
+
+.sales-ranking th,
+.sales-ranking td {
+  border-bottom: 1px solid var(--line);
+}
+
+.sales-ranking thead {
+  background: var(--cream);
+}
+
+.sales-ranking thead th {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.sales-ranking tbody th {
+  font-weight: 500;
+}
+
+.sales-ranking .numeric-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-ranking tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.sales-ranking .sales-rank {
+  width: var(--space-6);
+  color: var(--muted);
+}
+
+.sales-ranking .sales-share {
+  width: 28%;
+}
+
+.sales-share-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sales-share-cell > span {
+  min-width: calc(var(--space-6) + 12px);
+  text-align: right;
+}
+
+.sales-share-cell meter {
+  flex: 1;
+  min-width: var(--space-8);
+  height: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+  appearance: none;
+}
+
+.sales-share-cell meter::-webkit-meter-bar {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+
+.sales-share-cell meter::-webkit-meter-optimum-value {
+  border-radius: var(--radius-sm);
+  background: var(--green);
+}
+
+.sales-share-cell meter::-moz-meter-bar {
+  border-radius: var(--radius-sm);
+  background: var(--green);
 }
