@@ -464,6 +464,18 @@ export interface FinanceForecast {
   };
 }
 
+/**
+ * Contato do cliente de uma parcela (`GET /finance/receivables/:id/contact`): só o necessário
+ * para cobrar, sem exigir acesso ao módulo Clientes.
+ */
+export interface ReceivableContact {
+  receivableId: string;
+  patientId: string;
+  patientName: string;
+  phone: string;
+  whatsapp?: string | undefined;
+}
+
 export interface PaymentReceipt {
   receiptNumber: string;
   patientName: string;

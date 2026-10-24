@@ -647,6 +647,80 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("returns the client contact of a receivable to finance users only", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    await seedRoleUsers(app);
+    const headersAs = (role: UserRole) => ({
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
+    });
+    const [patientsResponse, servicesResponse] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const patient = patientsResponse.json()[0];
+    const service = servicesResponse.json()[0];
+    const date = saoPauloToday();
+    const plan = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: await configuredPlan(app, {
+        services: [
+          { serviceId: service.id, totalSessions: 1, totalValueInCents: 9_000 },
+        ],
+        patientId: patient.id,
+        serviceId: service.id,
+        name: "Plano para cobrança",
+        kind: "fixed_package",
+        totalSessions: 1,
+        validFrom: date,
+        totalValueInCents: 9_000,
+        installments: 1,
+        firstDueDate: date,
+      }),
+    });
+    expect(plan.statusCode).toBe(201);
+    const workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const receivable = workspace
+      .json()
+      .summary.receivables.find(
+        (item: { patientId: string }) => item.patientId === patient.id,
+      );
+    const contact = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/contact`,
+      headers: headersAs("finance"),
+    });
+    expect(contact.statusCode).toBe(200);
+    expect(contact.json()).toEqual({
+      receivableId: receivable.id,
+      patientId: patient.id,
+      patientName: patient.fullName,
+      phone: patient.phone,
+      ...(patient.whatsapp ? { whatsapp: patient.whatsapp } : {}),
+    });
+    const missing = await app.inject({
+      method: "GET",
+      url: "/finance/receivables/99999999-9999-4999-8999-999999999999/contact",
+      headers,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().code).toBe("RECEIVABLE_NOT_FOUND");
+    const denied = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/contact`,
+      headers: headersAs("physiotherapist"),
+    });
+    expect(denied.statusCode).toBe(403);
+    await app.close();
+  });
+
   it("operates receivables, payables, receipts and monthly cash flow", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
