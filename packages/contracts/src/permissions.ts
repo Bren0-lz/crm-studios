@@ -80,7 +80,7 @@ const operations = {
     tasks_create: "Criar tarefa",
     appointments_create: "Agendar atendimento do lead",
     tasks_status: "Alterar situação da tarefa",
-    stages_manage: "Renomear etapas do funil",
+    stages_manage: "Editar etapas do funil",
   },
   relationship: { activities_create: "Registrar contato com cliente" },
   communications: {

@@ -15,7 +15,6 @@ import type { Supplier } from "@crm/contracts";
 import type {
   ClinicalResource,
   ClinicCatalogEntry,
-  LeadStageLabel,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -646,8 +645,11 @@ export class MemoryRepositoryContext {
   }
   readonly clinicalResources: ClinicalResource[] = [];
   readonly clinicCatalogEntries: ClinicCatalogEntry[] = [];
-  /** Etapas do funil renomeadas, por clínica. */
-  readonly leadStageLabels = new Map<string, LeadStageLabel[]>();
+  /** Funil editado, por clínica (sem entrada = etapas padrão). */
+  readonly leadStages = new Map<
+    string,
+    Array<{ stage: string; label: string }>
+  >();
   readonly groupAttendance: GroupAttendance[] = [];
 
   readonly replacementCredits: ReplacementCredit[] = [];

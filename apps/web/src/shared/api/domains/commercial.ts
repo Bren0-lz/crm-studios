@@ -14,7 +14,8 @@ import type {
   LeadDuplicateQuery,
   LeadInput,
   LeadStage,
-  LeadStageLabel,
+  LeadStageConfig,
+  LeadStagesInput,
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
@@ -43,10 +44,11 @@ export const commercialApi = {
   leadInsights: (filter: LeadFilter = {}) =>
     request<LeadInsights>(`/leads/insights${leadQuery(filter)}`),
   leadFilterOptions: () => request<LeadFilterOptions>("/leads/filter-options"),
-  /** Nomes das etapas do funil (padrão onde a clínica não renomeou). */
-  leadStageLabels: () => request<LeadStageLabel[]>("/leads/stages"),
-  saveLeadStageLabels: (stages: LeadStageLabel[]) =>
-    request<LeadStageLabel[]>("/leads/stages", {
+  /** Etapas do funil da clínica, na ordem, com a etapa final (`won`) e a de perdidos. */
+  leadStages: () => request<LeadStageConfig[]>("/leads/stages"),
+  /** Salva o funil inteiro (nomes, etapas novas/removidas e etapa final). */
+  saveLeadStages: (stages: LeadStagesInput["stages"]) =>
+    request<LeadStageConfig[]>("/leads/stages", {
       method: "PUT",
       body: JSON.stringify({ stages }),
     }),

@@ -9,13 +9,13 @@ import {
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
-  leadStageLabelsInputSchema,
+  leadStagesInputSchema,
   leadStageParamSchema,
-  leadStageSchema,
   parseLeadPageQuery,
   type LeadBoard,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { stageNotFoundError } from "./stages.js";
 
 export function registerCommercialRoutes(context: RouteContext) {
   const { app, authenticate, repository } = context;
@@ -44,10 +44,11 @@ export function registerCommercialRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request): Promise<LeadBoard> => {
       const { filter, page } = parseLeadPageQuery(request.query),
-        settings = await repository.getClinicSettings(request.user.clinicId);
+        settings = await repository.getClinicSettings(request.user.clinicId),
+        stages = await repository.listLeadStages(request.user.clinicId);
       return {
         columns: await Promise.all(
-          leadStageSchema.options.map((stage) =>
+          stages.map(({ stage }) =>
             repository.listLeadStagePage(
               request.user.clinicId,
               stage,
@@ -68,6 +69,12 @@ export function registerCommercialRoutes(context: RouteContext) {
       const { stage } = leadStageParamSchema.parse(request.params),
         { filter, page } = parseLeadPageQuery(request.query),
         settings = await repository.getClinicSettings(request.user.clinicId);
+      if (
+        !(await repository.listLeadStages(request.user.clinicId)).some(
+          (item) => item.stage === stage,
+        )
+      )
+        throw stageNotFoundError();
       return repository.listLeadStagePage(
         request.user.clinicId,
         stage,
@@ -84,14 +91,14 @@ export function registerCommercialRoutes(context: RouteContext) {
     async (request) => repository.listLeadFilterOptions(request.user.clinicId),
   );
 
-  // Nomes das etapas do funil (a clínica pode renomeá-los; a chave da etapa não muda).
+  // Etapas do funil da clínica: nomes, etapas novas e removidas e a etapa final.
   app.get("/leads/stages", { preHandler: authenticate }, async (request) =>
-    repository.listLeadStageLabels(request.user.clinicId),
+    repository.listLeadStages(request.user.clinicId),
   );
   app.put("/leads/stages", { preHandler: authenticate }, async (request) =>
-    repository.saveLeadStageLabels(
+    repository.saveLeadStages(
       request.user.clinicId,
-      leadStageLabelsInputSchema.parse(request.body),
+      leadStagesInputSchema.parse(request.body),
     ),
   );
 

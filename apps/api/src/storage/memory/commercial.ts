@@ -6,12 +6,13 @@ import {
   buildLeadFilterOptions,
   buildLeadInsights,
   findLeadDuplicates,
+  firstOpenLeadStage,
   matchesLead,
-  resolveLeadStageLabels,
+  resolveLeadStages,
   type LeadDuplicateQuery,
   type LeadFilter,
   type LeadPage,
-  type LeadStageLabelsInput,
+  type LeadStagesInput,
   type LeadStagePage,
 } from "@crm/contracts";
 import type {
@@ -27,6 +28,11 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
 } from "@crm/contracts";
+import {
+  planLeadStages,
+  stageNotEmptyError,
+  stageNotFoundError,
+} from "../../modules/commercial/stages.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
@@ -115,7 +121,7 @@ export function createCommercialRepository(
         branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
-        stage: "new_contact",
+        stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
         ...(responsibleName ? { responsibleName } : {}),
         openTasks: 0,
         overdueTasks: 0,
@@ -193,6 +199,12 @@ export function createCommercialRepository(
           "Use a conversão para marcar o lead como ganho.",
         );
       }
+      if (
+        !(await repository.listLeadStages(clinicId)).some(
+          (item) => item.stage === stage,
+        )
+      )
+        throw stageNotFoundError();
       lead.stage = stage;
       if (stage === "lost" && lostReason) lead.lostReason = lostReason;
       else delete lead.lostReason;
@@ -417,18 +429,26 @@ export function createCommercialRepository(
       return buildLeadFilterOptions(await repository.listLeads(clinicId));
     },
 
-    async listLeadStageLabels(clinicId: string) {
-      return resolveLeadStageLabels(
-        repositoryContext.leadStageLabels.get(clinicId) ?? [],
+    async listLeadStages(clinicId: string) {
+      return resolveLeadStages(
+        repositoryContext.leadStages.get(clinicId) ?? [],
       );
     },
 
-    async saveLeadStageLabels(clinicId: string, input: LeadStageLabelsInput) {
-      repositoryContext.leadStageLabels.set(
-        clinicId,
-        input.stages.map((item) => ({ ...item })),
+    async saveLeadStages(clinicId: string, input: LeadStagesInput) {
+      const plan = planLeadStages(
+        await repository.listLeadStages(clinicId),
+        input,
       );
-      return repository.listLeadStageLabels(clinicId);
+      // Etapas valem para a rede: conta os leads de todas as filiais.
+      for (const item of plan.mustBeEmpty) {
+        const leads = repositoryContext.leads.filter(
+          (lead) => lead.clinicId === clinicId && lead.stage === item.stage,
+        ).length;
+        if (leads) throw stageNotEmptyError(item, leads);
+      }
+      repositoryContext.leadStages.set(clinicId, plan.stages);
+      return repository.listLeadStages(clinicId);
     },
   };
   return repository;

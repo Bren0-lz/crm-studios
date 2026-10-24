@@ -3,7 +3,7 @@ import {
   buildLeadInsights,
   leadContactInputSchema,
   leadInputSchema,
-  leadStageSchema,
+  defaultLeadStageKeys,
   matchesLead,
   type LeadFilter,
 } from "@crm/contracts";
@@ -128,7 +128,7 @@ for (const storage of ["memory", "postgres"] as const) {
           const expected = all.filter((lead) =>
             matchesLead(lead, filter, timezone),
           );
-          for (const stage of leadStageSchema.options) {
+          for (const stage of defaultLeadStageKeys) {
             const inStage = expected.filter((lead) => lead.stage === stage);
             const pages = [];
             for (let offset = 0; offset < inStage.length + 3; offset += 3) {
