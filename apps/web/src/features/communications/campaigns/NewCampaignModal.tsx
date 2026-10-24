@@ -67,7 +67,7 @@ function SamplePreview({
   );
 }
 
-/** Lista ao vivo de quem o filtro encontrou: quem recebe e quem será pulado. */
+/** Lista ao vivo de quem o filtro encontrou e vai receber a campanha. */
 function FilterResults({
   loading,
   error,
@@ -80,15 +80,7 @@ function FilterResults({
   const [search, setSearch] = useState("");
   const term = search.trim().toLocaleLowerCase("pt-BR");
   const rows = preview
-    ? [
-        ...preview.included.map((item) => ({ ...item, reason: "" })),
-        ...preview.skipped.map((item) => ({
-          patientId: item.patientId,
-          patientName: item.patientName,
-          phone: "",
-          reason: broadcastSkipReasonLabels[item.reason],
-        })),
-      ]
+    ? [...preview.included]
         .sort((a, b) => a.patientName.localeCompare(b.patientName, "pt-BR"))
         .filter(
           (row) =>
@@ -130,29 +122,29 @@ function FilterResults({
         )}
       </header>
       {error && <p className="form-error">{error}</p>}
-      {preview && preview.matched > 0 && (
+      {preview && preview.recipients > 0 && (
         <>
-          {preview.matched > 8 && (
+          {preview.recipients > 8 && (
             <label className="campaign-search">
               <Search size={16} aria-hidden="true" />
               <input
                 type="search"
-                aria-label="Buscar entre os clientes encontrados"
-                placeholder="Buscar entre os encontrados"
+                aria-label="Buscar entre os clientes que vão receber"
+                placeholder="Buscar entre os que vão receber"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </label>
           )}
-          <ul className="campaign-filter-list">
+          <ul className="campaign-filter-list" aria-label="Vão receber">
             {rows.map((row) => (
-              <li key={row.patientId} className={row.reason ? "skipped" : ""}>
+              <li key={row.patientId}>
                 <span className="campaign-filter-avatar" aria-hidden="true">
                   {row.patientName.trim().charAt(0).toUpperCase()}
                 </span>
                 <span>
                   <strong>{row.patientName}</strong>
-                  <small>{row.reason || formatPhone(row.phone)}</small>
+                  <small>{formatPhone(row.phone)}</small>
                 </span>
               </li>
             ))}
@@ -161,6 +153,11 @@ function FilterResults({
             )}
           </ul>
         </>
+      )}
+      {preview && preview.matched > 0 && preview.recipients === 0 && (
+        <p className="field-hint">
+          Nenhum dos clientes encontrados tem WhatsApp liberado.
+        </p>
       )}
       {preview && preview.matched === 0 && (
         <p className="field-hint">
