@@ -235,6 +235,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /leads/board": view("crm"),
   "GET /leads/board/:stage": view("crm"),
   "GET /leads/filter-options": view("crm"),
+  "GET /leads/stages": view("crm"),
+  "PUT /leads/stages": operation("crm.stages_manage"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),

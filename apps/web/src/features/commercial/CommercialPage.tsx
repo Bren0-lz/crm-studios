@@ -6,9 +6,10 @@ import {
   type LeadFilterOptions,
   type LeadInsights,
   type LeadStage,
+  type LeadStageLabel,
   type LeadStagePage,
 } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -31,6 +32,7 @@ import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadFiltersModal } from "./LeadFiltersModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
+import { LeadStagesModal } from "./LeadStagesModal";
 import { useToast } from "../../shared/feedback/toast-context";
 
 type Columns = Partial<Record<LeadStage, LeadStagePage>>;
@@ -99,6 +101,17 @@ export function CommercialPage() {
   const [analysisOpen, setAnalysisOpen] = useState(false);
   // Esconde a coluna Perdidos no quadro (só na tela; não muda a consulta).
   const [hideLost, setHideLost] = useState(false);
+  // Nomes das etapas definidos pela clínica; até carregar (ou se falhar), os padrões.
+  const [stageLabels, setStageLabels] = useState<LeadStageLabel[]>([]);
+  const [renamingStages, setRenamingStages] = useState(false);
+  const stages = leadStages.map((stage) => ({
+    ...stage,
+    label:
+      stageLabels.find((item) => item.stage === stage.value)?.label ??
+      stage.label,
+  }));
+  const stageLabel = (stage: LeadStage) =>
+    stages.find((item) => item.value === stage)?.label ?? stage;
   const canManage = canEdit("crm");
   const toast = useToast();
   // Arrastar e soltar (desktop): o select de etapa continua no cartão para o celular.
@@ -151,6 +164,12 @@ export function CommercialPage() {
   useEffect(() => {
     refreshOptions();
   }, [refreshOptions]);
+  useEffect(() => {
+    api
+      .leadStageLabels()
+      .then(setStageLabels)
+      .catch(() => {});
+  }, []);
   const firstLoad = useRef(true);
   useEffect(() => {
     const delay = firstLoad.current ? 0 : FILTER_DEBOUNCE_MS;
@@ -264,8 +283,18 @@ export function CommercialPage() {
         title="CRM comercial"
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={
-          canManage
-            ? can("crm.create") && (
+          can("crm.stages_manage") || (canManage && can("crm.create")) ? (
+            <div className="page-actions">
+              {can("crm.stages_manage") && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setRenamingStages(true)}
+                >
+                  <Pencil size={16} />
+                  Renomear etapas
+                </button>
+              )}
+              {canManage && can("crm.create") && (
                 <button
                   className="primary-button"
                   onClick={() => setModalOpen(true)}
@@ -273,8 +302,9 @@ export function CommercialPage() {
                   <Plus size={18} />
                   Novo lead
                 </button>
-              )
-            : undefined
+              )}
+            </div>
+          ) : undefined
         }
       />
       {!canManage && <ReadOnlyNotice module="crm" />}
@@ -295,6 +325,7 @@ export function CommercialPage() {
             insights={insights}
             {...(user ? { userId: user.id } : {})}
             hideLost={hideLost}
+            stages={stages}
             onSearch={(value) =>
               setFilter((current) => {
                 const next = { ...current };
@@ -342,7 +373,7 @@ export function CommercialPage() {
             )
           ) : (
             <div className="kanban-board">
-              {leadStages
+              {stages
                 .filter((stage) => !hideLost || stage.value !== "lost")
                 .map((stage) => {
                   const column = columns[stage.value] ?? {
@@ -402,6 +433,7 @@ export function CommercialPage() {
                             lead={lead}
                             dragging={draggingId === lead.id}
                             permissions={permissions}
+                            stages={stages}
                             onDragStart={() => setDraggingId(lead.id)}
                             onDragEnd={() => {
                               setDraggingId(null);
@@ -436,10 +468,25 @@ export function CommercialPage() {
           )}
         </>
       )}
+      {renamingStages && (
+        <LeadStagesModal
+          stages={stages.map((stage) => ({
+            stage: stage.value,
+            label: stage.label,
+          }))}
+          onClose={() => setRenamingStages(false)}
+          onConfirm={async (next) => {
+            setStageLabels(await api.saveLeadStageLabels(next));
+            setRenamingStages(false);
+            toast.success("Nomes das etapas atualizados.");
+          }}
+        />
+      )}
       {filtersOpen && (
         <LeadFiltersModal
           filter={filter}
           options={options}
+          stages={stages}
           onApply={(next) => {
             setFilter(next);
             setFiltersOpen(false);
@@ -479,6 +526,7 @@ export function CommercialPage() {
       {losingLead && (
         <LeadLostModal
           lead={losingLead}
+          columnLabel={stageLabel("lost")}
           onClose={() => setLosingLead(null)}
           onConfirm={(reason) => markLost(losingLead, reason)}
         />
@@ -486,6 +534,7 @@ export function CommercialPage() {
       {convertingLead && (
         <LeadConvertModal
           lead={convertingLead}
+          columnLabel={stageLabel("won")}
           onClose={() => setConvertingLead(null)}
           onConfirm={(input) => convert(convertingLead, input)}
         />

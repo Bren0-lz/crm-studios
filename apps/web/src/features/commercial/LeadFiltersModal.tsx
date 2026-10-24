@@ -19,11 +19,13 @@ const listFilters = [
 export function LeadFiltersModal({
   filter,
   options,
+  stages = leadStages,
   onApply,
   onClose,
 }: {
   filter: LeadFilter;
   options: LeadFilterOptions;
+  stages?: ReadonlyArray<{ value: string; label: string }>;
   onApply: (filter: LeadFilter) => void;
   onClose: () => void;
 }) {
@@ -60,7 +62,7 @@ export function LeadFiltersModal({
               onChange={(event) => patch("stage", event.target.value)}
             >
               <option value="">Todas as etapas</option>
-              {leadStages.map((stage) => (
+              {stages.map((stage) => (
                 <option value={stage.value} key={stage.value}>
                   {stage.label}
                 </option>

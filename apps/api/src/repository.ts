@@ -145,6 +145,8 @@ import type {
   LeadDuplicateMatch,
   LeadFilter,
   LeadFilterOptions,
+  LeadStageLabel,
+  LeadStageLabelsInput,
   LeadInsights,
   LeadPage,
   LeadStagePage,
@@ -1115,6 +1117,13 @@ export interface ClinicRepository {
   ): Promise<LeadInsights>;
   /** Valores distintos de origem, interesse, contato, motivo de perda e responsável. */
   listLeadFilterOptions(clinicId: string): Promise<LeadFilterOptions>;
+  /** Nomes das etapas do funil da clínica (padrão onde não foram renomeadas), na ordem. */
+  listLeadStageLabels(clinicId: string): Promise<LeadStageLabel[]>;
+  /** Renomeia as etapas do funil da clínica (vale para todas as filiais). */
+  saveLeadStageLabels(
+    clinicId: string,
+    input: LeadStageLabelsInput,
+  ): Promise<LeadStageLabel[]>;
   /**
    * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
    * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
