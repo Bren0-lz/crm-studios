@@ -337,6 +337,9 @@ describe("searchable client selection across modules", () => {
   it("requires a valid client for messages and preferences and retains remote selection after reload", async () => {
     const queue = vi.spyOn(api, "queueMessage");
     page("/comunicacoes?aba=fila");
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Mensagem individual" }),
+    );
     const panel = (
       await screen.findByRole("heading", { name: "Adicionar à fila" })
     ).closest("section")!;
