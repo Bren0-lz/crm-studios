@@ -39,7 +39,6 @@ import {
   planSubtitle,
   type PlanCatalogKind,
 } from "../plans/index";
-import { InventoryPanel } from "./InventoryPanel";
 import { PatientPlanModal } from "./PatientPlanModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
@@ -48,7 +47,6 @@ type TabKey =
   | "plans"
   | "finance"
   | "contracts"
-  | "tabs"
   | "clinical"
   | "history";
 
@@ -226,7 +224,6 @@ export function PatientRecordTabs({
       visible: canView("finance") && can("finance.view"),
     },
     { key: "contracts", label: "Contratos", visible: canView("contracts") },
-    { key: "tabs", label: "Comandas", visible: true },
     { key: "clinical", label: "Prontuário", visible: canView("clinical") },
     { key: "history", label: "Histórico", visible: can("patients.timeline") },
   ];
@@ -550,7 +547,6 @@ export function PatientRecordTabs({
                 )}
               />
             )}
-            {active === "tabs" && <InventoryPanel patient={patientOption} />}
             {active === "clinical" && (
               <ClinicalWorkspacePanel
                 key={id}

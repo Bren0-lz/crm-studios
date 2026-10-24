@@ -120,14 +120,15 @@ describe("página Vendas de produtos", () => {
     );
   });
 
-  it("lista vendas realizadas, comandas abertas e o resumo do período", async () => {
+  it("lista vendas realizadas, abre os detalhes e mostra o resumo do período", async () => {
     const { repository, patient, cream, oil } = await seed();
     await sell(repository, patient.id, cream.id, 2);
     await sell(repository, patient.id, oil.id, 1);
-    const openButton = await repository.openPatientTab(clinicId, actorId, {
+    // Comanda aberta (dado antigo) não entra no histórico de vendas.
+    const openTab = await repository.openPatientTab(clinicId, actorId, {
       patientId: patient.id,
     });
-    await repository.addPatientTabItem(clinicId, actorId, openButton.id, {
+    await repository.addPatientTabItem(clinicId, actorId, openTab.id, {
       productId: cream.id,
       quantity: 1,
     });
@@ -147,23 +148,22 @@ describe("página Vendas de produtos", () => {
       within(history).getByText("Nenhuma venda no período"),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Comandas abertas/ }));
-    const openTabs = screen.getByRole("region", { name: "Comandas abertas" });
+    fireEvent.change(within(history).getByLabelText("Cliente"), {
+      target: { value: "" },
+    });
     fireEvent.click(
-      within(openTabs).getByRole("button", {
-        name: `Continuar comanda de ${patient.fullName}`,
-      }),
+      within(history).getAllByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
+      })[0]!,
     );
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
+    });
+    // As duas vendas podem ter o mesmo horário: a ordem entre elas não é garantida.
     expect(
-      await screen.findByRole("dialog", {
-        name: `Comanda · ${patient.fullName}`,
-      }),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      within(
-        screen.getByRole("dialog", { name: `Comanda · ${patient.fullName}` }),
-      ).getByRole("button", { name: "Fechar" }),
-    );
+      within(details).getAllByText(/^(Óleo de massagem|Creme relaxante)$/),
+    ).toHaveLength(1);
+    fireEvent.click(within(details).getByRole("button", { name: "Fechar" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Resumo" }));
     const summary = await screen.findByRole("region", {
@@ -182,7 +182,7 @@ describe("página Vendas de produtos", () => {
     expect(within(first!).getByText("Creme relaxante")).toBeInTheDocument();
   });
 
-  it("não oferece produto sem estoque e limita a comanda aberta ao saldo", async () => {
+  it("não oferece produto sem estoque e conta o que está reservado", async () => {
     const { repository, patient, cream, oil } = await seed();
     await sell(repository, patient.id, oil.id, 2);
     const tab = await repository.openPatientTab(clinicId, actorId, {
@@ -202,127 +202,43 @@ describe("página Vendas de produtos", () => {
     expect(
       within(panel).getByRole("option", { name: "Creme relaxante · 4 un" }),
     ).toBeEnabled();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /Comandas abertas/ }));
+  it("cancela uma venda pelo histórico e devolve o estoque", async () => {
+    const { repository, patient, cream } = await seed();
+    await sell(repository, patient.id, cream.id, 2);
+    open("/vendas?aba=vendas");
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
     fireEvent.click(
-      within(
-        screen.getByRole("region", { name: "Comandas abertas" }),
-      ).getByRole("button", {
-        name: `Continuar comanda de ${patient.fullName}`,
+      within(history).getByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
       }),
     );
-    const dialog = await screen.findByRole("dialog", {
-      name: `Comanda · ${patient.fullName}`,
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
     });
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar venda" }),
+    );
+    const confirm = await screen.findByRole("dialog", {
+      name: "Cancelar venda",
+    });
+    fireEvent.submit(
+      within(confirm)
+        .getByRole("button", { name: "Cancelar venda" })
+        .closest("form")!,
+    );
+    await within(details).findByText("Venda cancelada; estoque restituído.");
     expect(
-      within(dialog).getByRole("option", {
-        name: "Óleo de massagem · sem estoque",
-      }),
-    ).toBeDisabled();
-    const add = within(dialog)
-      .getAllByRole("button", { name: "Adicionar produto" })
-      .at(-1)!;
-    fireEvent.change(within(dialog).getByLabelText("Produto"), {
-      target: { value: cream.id },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
-      target: { value: "5" },
-    });
-    expect(add).toBeDisabled();
-    expect(add).toHaveAccessibleDescription(
-      "Falta: quantidade dentro do estoque (4 disponível).",
-    );
-
-    // No ajuste, o que já está reservado no item conta como disponível (1 + 4).
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Ajustar item" }),
-    );
-    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
-      target: { value: "6" },
-    });
-    const saveItem = within(dialog).getByRole("button", {
-      name: "Salvar item",
-    });
-    expect(saveItem).toHaveAccessibleDescription(
-      "Falta: quantidade dentro do estoque (5 disponível).",
-    );
-    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
-      target: { value: "5" },
-    });
-    expect(saveItem).toBeEnabled();
-    fireEvent.click(saveItem);
-    await within(dialog).findByText("Item atualizado.");
+      within(details).queryByRole("button", { name: "Cancelar venda" }),
+    ).not.toBeInTheDocument();
     expect(
       (await repository.getInventoryWorkspace(clinicId)).products.find(
         (item) => item.id === cream.id,
       )?.currentStock,
-    ).toBe(0);
-  });
-
-  it("abre a comanda e segue no mesmo modal para lançar e fechar", async () => {
-    const { repository, patient, cream } = await seed();
-    open("/vendas");
-    await screen.findByRole("region", { name: "Nova venda" });
-    fireEvent.click(screen.getByRole("button", { name: /Comandas abertas/ }));
-    const section = screen.getByRole("region", { name: "Comandas abertas" });
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Abrir comanda" }),
-    );
-    const dialog = await screen.findByRole("dialog", { name: "Nova comanda" });
-    const openButton = within(dialog).getByRole("button", {
-      name: "Abrir comanda",
-    });
-    expect(openButton).toBeDisabled();
-    await choosePatient(patient.fullName, dialog);
-    fireEvent.submit(openButton.closest("form")!);
-    // O mesmo modal passa a mostrar a comanda, sem itens e com o total zerado.
-    expect(
-      await screen.findByRole("dialog", {
-        name: `Comanda · ${patient.fullName}`,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("dialog", { name: "Nova comanda" }),
-    ).not.toBeInTheDocument();
-    const editor = screen.getByRole("dialog", {
-      name: `Comanda · ${patient.fullName}`,
-    });
-    expect(within(editor).getByText(/Nenhum item ainda/)).toBeInTheDocument();
-    expect(
-      within(editor).getByRole("button", { name: "Produto" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    fireEvent.change(within(editor).getByLabelText("Produto"), {
-      target: { value: cream.id },
-    });
-    fireEvent.submit(
-      within(editor)
-        .getByRole("button", { name: "Adicionar produto" })
-        .closest("form")!,
-    );
-    await within(editor).findByText("Produto reservado na comanda.");
-    expect(within(editor).getByText("Creme relaxante")).toBeInTheDocument();
-    expect(
-      within(editor).getByText("Total").querySelector("strong")?.textContent,
-    ).toMatch(/40,00/);
-    fireEvent.click(
-      within(editor).getByRole("button", { name: "Fechar comanda" }),
-    );
-    expect(
-      within(editor).getByText(/Gera uma conta a receber de R\$\s*40,00/),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      within(editor).getByRole("button", { name: "Confirmar fechamento" }),
-    );
-    await within(editor).findByText(
-      "Comanda fechada com cobrança consolidada.",
-    );
-    await waitFor(async () =>
-      expect(
-        (await repository.getInventoryWorkspace(clinicId)).tabs.find(
-          (item) => item.patientId === patient.id,
-        )?.status,
-      ).toBe("closed"),
-    );
+    ).toBe(5);
   });
 
   it("esconde a nova venda de quem não pode fechar comandas", async () => {

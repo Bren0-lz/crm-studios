@@ -34,7 +34,7 @@ const october = { from: "2026-10-01", to: "2026-10-31" };
 describe("vendas de produtos", () => {
   it("reconhece só as sub-abas conhecidas de ?aba=", () => {
     expect(salesTabFromParam("resumo")).toBe("summary");
-    expect(salesTabFromParam("comandas")).toBe("open");
+    expect(salesTabFromParam("comandas")).toBeNull();
     expect(salesTabFromParam("outra")).toBeNull();
     expect(salesTabFromParam(null)).toBeNull();
   });

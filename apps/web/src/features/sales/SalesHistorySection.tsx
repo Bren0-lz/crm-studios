@@ -3,7 +3,7 @@ import { Eye, ReceiptText, Search } from "lucide-react";
 import { useState } from "react";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { PatientTabModal } from "./PatientTabModal";
+import { SaleDetailsModal } from "./SaleDetailsModal";
 import {
   monthPeriod,
   productSales,
@@ -20,7 +20,7 @@ const statusClass = (tab: PatientTab) =>
       ? "completed"
       : "scheduled";
 
-/** Sub-aba "Vendas realizadas": comandas fechadas com produtos, filtradas por período. */
+/** Sub-aba "Vendas realizadas": vendas de produtos filtradas por período. */
 export function SalesHistorySection({
   workspace,
   onChanged,
@@ -146,9 +146,8 @@ export function SalesHistorySection({
         </div>
       )}
       {selectedTab && (
-        <PatientTabModal
-          tab={selectedTab}
-          products={workspace.products}
+        <SaleDetailsModal
+          sale={selectedTab}
           onClose={() => setSelected(null)}
           onChanged={onChanged}
         />
