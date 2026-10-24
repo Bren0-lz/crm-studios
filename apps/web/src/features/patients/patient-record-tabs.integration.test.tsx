@@ -203,6 +203,8 @@ describe("client record", () => {
       within(dialog).queryByRole("option", { name: /Sessão avulsa/ }),
     ).not.toBeInTheDocument();
     expect(dialog).toHaveTextContent("Helena Almeida");
+    // O tipo vem do botão: não há como trocar o modelo e fugir do filtro.
+    expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -212,6 +214,7 @@ describe("client record", () => {
       within(panel).getByRole("button", { name: "Plano avulso" }),
     );
     dialog = await screen.findByRole("dialog", { name: "Novo plano avulso" });
+    expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
     await within(dialog).findByRole("option", { name: /Sessão avulsa/ });
     expect(
       within(dialog).queryByRole("option", { name: /Pilates mensal/ }),
