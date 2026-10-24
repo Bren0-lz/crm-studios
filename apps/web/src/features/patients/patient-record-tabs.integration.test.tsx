@@ -30,6 +30,7 @@ describe("client record", () => {
       fullName: "Helena Almeida",
       phone: "11987654321",
       email: "helena@example.com",
+      birthDate: "1950-01-01",
       tags: ["VIP"],
       status: "active",
       createdAt: "2026-01-01T12:00:00.000Z",
@@ -80,6 +81,8 @@ describe("client record", () => {
     });
     expect(overview).toHaveTextContent("(11) 98765-4321");
     expect(overview).toHaveTextContent("helena@example.com");
+    expect(overview).toHaveTextContent("Nascimento01/01/1950");
+    expect(screen.queryByText("Ver também")).toBeNull();
     expect(overview).toHaveTextContent("VIP");
     expect(await within(overview).findByText("Pilates 2x")).toBeInTheDocument();
     expect(overview).toHaveTextContent("5 sessões restantes de 8");

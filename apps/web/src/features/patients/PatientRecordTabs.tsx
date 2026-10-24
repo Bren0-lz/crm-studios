@@ -6,6 +6,8 @@ import {
   type Receivable,
   formatPhone,
   isTabCreditPlan,
+  patientProfileLabels,
+  patientProfileValueLabels,
 } from "@crm/contracts";
 import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -111,6 +113,41 @@ function dateTime(value: string) {
       ? ""
       : ` de ${date.getFullYear()}`;
   return `${appointmentDay.format(date)}${year} · ${timeLabel.format(date)}`;
+}
+
+/** Campos do cadastro preenchidos, já formatados: [chave, rótulo, valor]. */
+function profileFields(patient: Patient) {
+  const fields: [string, string, string][] = [];
+  if (patient.birthDate)
+    fields.push(["birthDate", "Nascimento", formatIsoDate(patient.birthDate)]);
+  if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
+  for (const [key, label] of Object.entries(patientProfileLabels)) {
+    const value = patient[key as keyof typeof patientProfileLabels];
+    if (
+      value === undefined ||
+      value === "" ||
+      (Array.isArray(value) && !value.length)
+    )
+      continue;
+    fields.push([
+      key,
+      label,
+      Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "boolean"
+          ? value
+            ? "Sim"
+            : "Não"
+          : key === "gender"
+            ? (patientProfileValueLabels[
+                value as keyof typeof patientProfileValueLabels
+              ] ?? value)
+            : key === "clientSince"
+              ? formatIsoDate(value)
+              : value,
+    ]);
+  }
+  return fields;
 }
 
 function countLabel(count: number, singular: string, plural: string) {
@@ -232,6 +269,12 @@ export function PatientRecordTabs({
             <dt>Contato de emergência</dt>
             <dd>{emergency || "Não informado"}</dd>
           </div>
+          {profileFields(patient).map(([key, label, value]) => (
+            <div key={key}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
         </dl>
         {(canView("plans") || canView("agenda")) && (
           <dl className="patient-overview-highlights">
