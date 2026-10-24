@@ -1,41 +1,3 @@
-.patient-detail-body {
-  padding: var(--space-5) calc(var(--space-5) - 1px);
-}
-.patient-detail-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-4) var(--space-5);
-  margin: 0;
-}
-.patient-detail-fields dt {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-.patient-detail-fields dd {
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-md);
-  overflow-wrap: anywhere;
-}
-.patient-detail-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-md);
-}
-.patient-detail-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) calc(var(--space-5) - 1px);
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-.patient-detail-links > span {
-  margin-right: var(--space-1);
-}
-
 .group-operations-body {
   padding: var(--space-5);
   display: flex;
@@ -241,9 +203,6 @@
   margin: 0;
   font-size: var(--text-md);
 }
-.group-modal-section .patient-detail-fields {
-  margin: 0;
-}
 
 @media (max-width: 700px) {
   .group-operations-panel > .panel-head {
@@ -369,39 +328,4 @@
   max-width: 100%;
   height: calc(var(--space-8) * 2);
   object-fit: contain;
-}
-
-/* Resumo "Ver também" da ficha (turmas, contatos sugeridos, comunicações). */
-.patient-related-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.patient-related-list > li {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-md);
-}
-.patient-related-list > li:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-.patient-related-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.patient-related-detail {
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-.patient-related-list p {
-  margin: 0;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
 }
