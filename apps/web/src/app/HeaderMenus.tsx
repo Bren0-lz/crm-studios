@@ -1,5 +1,13 @@
 import type { NotificationsSummary } from "@crm/contracts";
-import { Bell, Cake, CalendarClock, WalletCards } from "lucide-react";
+import {
+  Bell,
+  Cake,
+  CalendarClock,
+  ListTodo,
+  PauseCircle,
+  PhoneCall,
+  WalletCards,
+} from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuthorization } from "../authorization-context";
@@ -68,6 +76,9 @@ function HeaderPopover({
   );
 }
 
+type NotificationModule =
+  "relationship" | "finance" | "agenda" | "crm" | "plans";
+
 interface NotificationGroup {
   key: string;
   label: string;
@@ -79,12 +90,14 @@ interface NotificationGroup {
 
 /**
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
- * (Relacionamento), parcelas vencidas (Financeiro) e atendimentos a finalizar (Agenda).
- * Grupos zerados não aparecem.
+ * (Relacionamento), parcelas vencidas (Financeiro), atendimentos a finalizar (Agenda) e
+ * os retornos combinados: tarefas comerciais vencidas (Comercial), contatos adiados que
+ * voltaram (Relacionamento) e pausas com retorno previsto (Planos). Grupos zerados não
+ * aparecem.
  */
 function notificationGroups(
   summary: NotificationsSummary | null,
-  canView: (module: "relationship" | "finance" | "agenda") => boolean,
+  canView: (module: NotificationModule) => boolean,
 ): NotificationGroup[] {
   if (!summary) return [];
   const groups: NotificationGroup[] = [];
@@ -115,6 +128,33 @@ function notificationGroups(
       to: "/agenda/a-finalizar",
       icon: <CalendarClock size={16} aria-hidden="true" />,
     });
+  if (canView("crm") && (summary.overdueLeadTasks ?? 0) > 0)
+    groups.push({
+      key: "lead-tasks",
+      label: "Tarefas comerciais vencidas",
+      detail: "Retornos de leads com o horário já passado",
+      count: summary.overdueLeadTasks ?? 0,
+      to: "/comercial",
+      icon: <ListTodo size={16} aria-hidden="true" />,
+    });
+  if (canView("relationship") && (summary.snoozedContactsDue ?? 0) > 0)
+    groups.push({
+      key: "snoozed",
+      label: "Contatos adiados para retomar",
+      detail: "O prazo do adiamento terminou",
+      count: summary.snoozedContactsDue ?? 0,
+      to: "/relacionamento",
+      icon: <PhoneCall size={16} aria-hidden="true" />,
+    });
+  if (canView("plans") && (summary.pauseReturnsDue ?? 0) > 0)
+    groups.push({
+      key: "pause-returns",
+      label: "Retornos de pausa previstos",
+      detail: "Planos pausados com retorno previsto até hoje",
+      count: summary.pauseReturnsDue ?? 0,
+      to: "/planos",
+      icon: <PauseCircle size={16} aria-hidden="true" />,
+    });
   return groups;
 }
 
@@ -124,14 +164,18 @@ export function NotificationsMenu({
   onNavigate: (to: string) => void;
 }) {
   const { canView } = useAuthorization();
-  const watched =
-    canView("relationship") || canView("finance") || canView("agenda");
-  // Recarga silenciosa quando agenda, financeiro, clientes ou contatos mudam (QC6).
+  const watched = (
+    ["relationship", "finance", "agenda", "crm", "plans"] as const
+  ).some((module) => canView(module));
+  // Recarga silenciosa quando agenda, financeiro, clientes, contatos, leads ou planos
+  // mudam (QC6).
   const version = useDataVersion(
     "agenda",
     "finance",
     "patients",
     "relationship",
+    "crm",
+    "plans",
   );
   const [summary, setSummary] = useState<NotificationsSummary | null>(null);
   const [error, setError] = useState("");

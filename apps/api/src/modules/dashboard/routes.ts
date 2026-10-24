@@ -80,8 +80,10 @@ export function registerDashboardRoutes(context: RouteContext) {
   /**
    * Sino do cabeçalho (QM13): só contagens, cada grupo apenas com o módulo correspondente.
    * Aniversariantes do dia ainda sem parabéns (relacionamento), parcelas vencidas em aberto
-   * (financeiro, mesma regra da etiqueta "Pagamento atrasado") e atendimentos a finalizar
-   * (agenda).
+   * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), atendimentos a finalizar
+   * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
+   * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
+   * até hoje (planos).
    */
   app.get("/notifications", { preHandler: authenticate }, async (request) => {
     const { clinicId } = request.user;
@@ -91,23 +93,46 @@ export function registerDashboardRoutes(context: RouteContext) {
       new Date(),
       settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     );
-    const [birthdays, finance, pending] = await Promise.all([
-      modules.includes("relationship")
-        ? repository.listBirthdays(clinicId, date.slice(0, 7))
-        : undefined,
-      modules.includes("finance")
-        ? repository.getFinancialSummary(clinicId)
-        : undefined,
-      modules.includes("agenda")
-        ? Promise.all([
-            repository.listPendingFinalizationAppointments(
-              clinicId,
-              new Date().toISOString(),
-            ),
-            professionalScope(request),
-          ]).then(([items, scope]) => inProfessionalScope(items, scope))
-        : undefined,
-    ]);
+    const [birthdays, finance, pending, leads, snoozed, plans] =
+      await Promise.all([
+        modules.includes("relationship")
+          ? repository.listBirthdays(clinicId, date.slice(0, 7))
+          : undefined,
+        modules.includes("finance")
+          ? repository.getFinancialSummary(clinicId)
+          : undefined,
+        modules.includes("agenda")
+          ? Promise.all([
+              repository.listPendingFinalizationAppointments(
+                clinicId,
+                new Date().toISOString(),
+              ),
+              professionalScope(request),
+            ]).then(([items, scope]) => inProfessionalScope(items, scope))
+          : undefined,
+        modules.includes("crm") ? repository.listLeads(clinicId) : undefined,
+        modules.includes("relationship")
+          ? Promise.all([
+              repository.listContactSuggestions(clinicId, modules),
+              repository.listContactActivities(clinicId),
+            ]).then(([suggestions, activities]) => {
+              // Sugestão visível com "Adiar contato" registrado: o adiamento acabou.
+              const returned = suggestions.filter((suggestion) =>
+                activities.some(
+                  (activity) =>
+                    activity.outcome === "snoozed" &&
+                    activity.patientId === suggestion.patientId &&
+                    activity.reason === suggestion.reason &&
+                    activity.referenceKey === suggestion.referenceKey,
+                ),
+              );
+              return new Set(returned.map((item) => item.patientId)).size;
+            })
+          : undefined,
+        modules.includes("plans")
+          ? repository.listPatientPlans(clinicId)
+          : undefined,
+      ]);
     return {
       date,
       ...(birthdays
@@ -125,6 +150,24 @@ export function registerDashboardRoutes(context: RouteContext) {
           }
         : {}),
       ...(pending ? { pendingFinalization: pending.length } : {}),
+      ...(leads
+        ? {
+            overdueLeadTasks: leads
+              .filter((lead) => !["won", "lost"].includes(lead.stage))
+              .reduce((sum, lead) => sum + lead.overdueTasks, 0),
+          }
+        : {}),
+      ...(snoozed !== undefined ? { snoozedContactsDue: snoozed } : {}),
+      ...(plans
+        ? {
+            pauseReturnsDue: plans.filter(
+              (plan) =>
+                plan.status === "paused" &&
+                plan.pauseExpectedReturn !== undefined &&
+                plan.pauseExpectedReturn <= date,
+            ).length,
+          }
+        : {}),
     } satisfies NotificationsSummary;
   });
 }

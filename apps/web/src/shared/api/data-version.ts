@@ -12,7 +12,8 @@ export type DataDomain =
   | "history"
   | "clinical"
   | "contracts"
-  | "relationship";
+  | "relationship"
+  | "crm";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
 const mutationRules: [RegExp, DataDomain[]][] = [
@@ -41,7 +42,9 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     /^\/(?:appointments|group-sessions|group-replacements|group-enrollments|groups|schedule-blocks|holidays)(?:\/|$)/,
     ["agenda", "plans", "finance", "history"],
   ],
-  [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history"]],
+  [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history", "crm"]],
+  // Tarefas e etapas dos leads alimentam o sino (tarefas comerciais vencidas).
+  [/^\/(?:leads|lead-tasks)(?:\/|$|\?)/, ["crm"]],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
   [
     /^\/(?:clinical-[a-z-]+|therapeutic-goals|treatment-closures|assessment-templates)(?:\/|$)/,
