@@ -81,6 +81,12 @@ export interface NotificationsSummary {
   overdueReceivables?: number | undefined;
   /** Atendimentos passados ainda agendados/confirmados (módulo agenda). */
   pendingFinalization?: number | undefined;
+  /** Tarefas comerciais em aberto já vencidas, de leads em andamento (módulo crm). */
+  overdueLeadTasks?: number | undefined;
+  /** Clientes cujo contato adiado voltou para a lista (módulo relationship). */
+  snoozedContactsDue?: number | undefined;
+  /** Planos pausados com retorno previsto até hoje (módulo plans). */
+  pauseReturnsDue?: number | undefined;
 }
 
 export interface DashboardSummary {
