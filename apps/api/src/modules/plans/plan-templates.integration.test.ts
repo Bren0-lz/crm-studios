@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   guidedPatientInputSchema,
   patientPlanInputSchema,
@@ -113,7 +114,11 @@ describe("plan catalog", () => {
       expect(
         guidedPatientInputSchema.safeParse({
           next,
-          patient: { fullName: "Cliente teste", phone: "11988887777" },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Cliente teste",
+            phone: "11988887777",
+          },
           plan: terms,
         }).success,
       ).toBe(false);
@@ -296,7 +301,11 @@ describe("plan catalog", () => {
       headers,
       payload: {
         next: "plan",
-        patient: { fullName: "Cliente sem plano válido", phone: "11987651234" },
+        patient: {
+          cpf: nextTestCpf(),
+          fullName: "Cliente sem plano válido",
+          phone: "11987651234",
+        },
         plan: { ...terms, planTemplateId: foreign.id },
       },
     });
@@ -312,6 +321,7 @@ describe("plan catalog", () => {
       repository.createPatientWithNextStep(clinicId, ownerId, {
         next: "single",
         patient: {
+          cpf: nextTestCpf(),
           fullName: "Cliente sem serviço",
           phone: "11987651235",
           tags: [],

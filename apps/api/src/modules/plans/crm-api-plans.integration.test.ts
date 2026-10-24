@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   type UserRole,
@@ -185,6 +186,7 @@ describe("CRM API", () => {
     try {
       vi.setSystemTime(new Date("2032-03-08T15:00:00.000Z"));
       const conversion = await app.inject({
+        payload: { cpf: nextTestCpf() },
         method: "POST",
         url: `/leads/${convertedLead}/convert`,
         headers: {
@@ -707,7 +709,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { fullName, phone, tags: [] },
+          payload: { cpf: nextTestCpf(), fullName, phone, tags: [] },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;

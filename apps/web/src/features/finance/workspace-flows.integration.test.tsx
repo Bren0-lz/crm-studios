@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
@@ -280,6 +281,7 @@ describe("finance workflows through real HTTP handlers", () => {
   it("creates a contextual receivable, reclassifies it and changes dates without losing its value", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente financeiro",
       phone: "11988887777",
       tags: [],
@@ -336,6 +338,7 @@ describe("finance workflows through real HTTP handlers", () => {
   it("registers external proof without changing the linked invoice", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente fiscal",
       phone: "11988887777",
       tags: [],

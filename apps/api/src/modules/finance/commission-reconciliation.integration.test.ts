@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
@@ -14,6 +15,7 @@ async function setup() {
   vi.setSystemTime(new Date("2039-06-05T18:00:00Z"));
   const repository = new MemoryClinicRepository(),
     patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente conciliação",
       phone: "11988887777",
       tags: [],

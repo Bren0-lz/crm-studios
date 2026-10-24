@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { leadInputSchema, patientInputSchema } from "@crm/contracts";
 import { buildApp } from "../../app.js";
@@ -96,6 +97,7 @@ describe("lead duplicates", () => {
     await repository.createPatient(
       otherClinicId,
       patientInputSchema.parse({
+        cpf: nextTestCpf(),
         fullName: "Outra Clínica",
         phone: "31955554444",
       }),

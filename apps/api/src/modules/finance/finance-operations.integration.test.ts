@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -98,6 +99,7 @@ describe("mixed tabs and financial classification", () => {
   it("adds a service in the same operation as scheduling and rolls back a conflicting reservation", async () => {
     const { repository } = await setup();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente avulso",
       phone: "11999999999",
       tags: [],

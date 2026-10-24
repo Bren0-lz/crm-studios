@@ -72,7 +72,9 @@ export interface PatientWithoutReturn {
   whatsapp?: string;
 }
 
-export interface Patient extends PatientInput {
+export interface Patient extends Omit<PatientInput, "cpf"> {
+  /** Cadastros antigos e duplicados já mesclados podem não ter CPF. */
+  cpf?: string | undefined;
   inactiveAt?: string;
   mergedIntoPatientId?: string;
   id: string;

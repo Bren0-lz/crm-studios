@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { OVERDUE_PAYMENT_TAG } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -28,7 +29,7 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
             method: "POST",
             url: "/patients",
             headers,
-            payload: { fullName, phone, tags: [] },
+            payload: { cpf: nextTestCpf(), fullName, phone, tags: [] },
           })
         ).json() as { id: string };
       const late = await createPatient("Lara Atrasada", "11955550001");
@@ -122,6 +123,7 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
         url: `/patients/${onTime.id}`,
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Otávio Em Dia",
           phone: "11955550002",
           tags: ["pagamento atrasado"],
@@ -133,7 +135,12 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
         method: "PUT",
         url: `/patients/${late.id}`,
         headers,
-        payload: { fullName: "Lara Atrasada", phone: "11955550001", tags: [] },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Lara Atrasada",
+          phone: "11955550001",
+          tags: [],
+        },
       });
       expect(keptLate.json().tags).toEqual([OVERDUE_PAYMENT_TAG]);
 

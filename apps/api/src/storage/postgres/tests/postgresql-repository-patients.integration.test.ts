@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { legacyPermissions, saoPauloToday } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -823,7 +824,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         visitType: "evaluation",
       },
     );
-    const conversion = await repository.convertLead(clinicId, ownerId, lead.id);
+    const conversion = await repository.convertLead(
+      clinicId,
+      ownerId,
+      lead.id,
+      { cpf: lead.cpf ?? nextTestCpf() },
+    );
     expect(conversion).toMatchObject({
       reusedExisting: false,
       lead: { stage: "won" },
@@ -861,6 +867,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
 
     // Cliente reaproveitado pelo telefone.
     const existing = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente Já Cadastrado",
       phone: leadConversionPhones[1]!,
       tags: [],
@@ -885,6 +892,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       clinicId,
       ownerId,
       secondLead.id,
+      { cpf: secondLead.cpf ?? nextTestCpf() },
     );
     expect(reused).toMatchObject({
       reusedExisting: true,
@@ -1254,6 +1262,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           tags: [],
         },
         {
+          cpf: nextTestCpf(),
           fullName: "Importada PG Dois",
           phone: phones[1]!,
           tags: ["importada"],
@@ -1270,14 +1279,24 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       );
 
       const again = await repository.importPatients(clinicId, [
-        { fullName: "Importada PG Um", phone: phones[0]!, tags: [] },
+        {
+          cpf: nextTestCpf(),
+          fullName: "Importada PG Um",
+          phone: phones[0]!,
+          tags: [],
+        },
         {
           fullName: "Mesmo CPF",
           phone: phones[2]!,
           cpf: "123.456.785-77",
           tags: [],
         },
-        { fullName: "Importada PG Dois", phone: "11 95550-1002", tags: [] },
+        {
+          cpf: nextTestCpf(),
+          fullName: "Importada PG Dois",
+          phone: "11 95550-1002",
+          tags: [],
+        },
       ]);
       expect(again).toEqual({ created: 0, skipped: 3 });
       expect(await repository.importPatients(clinicId, [])).toEqual({
@@ -1422,6 +1441,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       ).rejects.toMatchObject({ code: "PATIENT_TAG_DUPLICATE" });
 
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente Etiqueta PG",
         phone,
         tags: [names[0]!, "Outra coisa"],
@@ -1487,6 +1507,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         details: { patientCount: 1 },
       });
       await repository.updatePatient(clinicId, patient.id, {
+        cpf: nextTestCpf(),
         fullName: patient.fullName,
         phone,
         tags: [],
@@ -1605,7 +1626,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ownerId,
         {
           next: "demonstration",
-          patient: { fullName: "Guiada PG Demo", phone: phones[0]!, tags: [] },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Guiada PG Demo",
+            phone: phones[0]!,
+            tags: [],
+          },
           appointment,
         },
       );
@@ -1619,6 +1645,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         repository.createPatientWithNextStep(clinicId, ownerId, {
           next: "demonstration",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Guiada PG Conflito",
             phone: phones[1]!,
             tags: [],
@@ -1641,7 +1668,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ownerId,
         {
           next: "plan",
-          patient: { fullName: "Guiada PG Turma", phone: phones[2]!, tags: [] },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Guiada PG Turma",
+            phone: phones[2]!,
+            tags: [],
+          },
           plan: { ...terms, kind: "recurring" },
           groupId,
         },
@@ -1662,6 +1694,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         {
           next: "plan",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Guiada PG Sem Turma",
             phone: phones[3]!,
             tags: [],
@@ -1675,6 +1708,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         {
           next: "single",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Guiada PG Avulso",
             phone: phones[4]!,
             tags: [],
@@ -1708,6 +1742,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         repository.createPatientWithNextStep(clinicId, ownerId, {
           next: "plan",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Guiada PG Desfeita",
             phone: phones[5]!,
             tags: [],
@@ -1733,6 +1768,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         repository.createPatientWithNextStep(clinicId, ownerId, {
           next: "single",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Guiada PG Desfeita",
             phone: phones[5]!,
             tags: [],
@@ -1891,11 +1927,13 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     };
     try {
       const source = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Mescla PG duplicado",
         phone: phones[0]!,
         tags: [],
       });
       const target = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Mescla PG principal",
         phone: phones[1]!,
         tags: [],

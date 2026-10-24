@@ -294,6 +294,9 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("Nome completo"), {
       target: { value: "Helena Pereira" },
     });
+    fireEvent.change(screen.getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
     fireEvent.change(screen.getByLabelText("WhatsApp"), {
       target: { value: "11 90000-1234" },
     });

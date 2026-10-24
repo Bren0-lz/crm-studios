@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { api } from "../../api";
@@ -8,6 +9,7 @@ async function openTabWithProduct(
   repository: Awaited<ReturnType<typeof setupApi>>["repository"],
 ) {
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Renata Figueiredo",
     phone: "11977776666",
     tags: [],

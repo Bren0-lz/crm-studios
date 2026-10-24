@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { randomUUID } from "node:crypto";
 import {
   professionalInputSchema,
@@ -16,6 +17,7 @@ async function setup(balance = 2) {
     [room] = await repository.listRooms(clinicId),
     [service] = await repository.listServices(clinicId);
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Cliente turma",
     phone: "11988887777",
     tags: [],

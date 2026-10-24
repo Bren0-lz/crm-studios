@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -8,11 +9,13 @@ describe("client management through real HTTP handlers", () => {
   it("resolves conflicting fields before merging two client histories", async () => {
     const { repository } = await setupApi();
     const source = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cadastro duplicado de teste",
       phone: "11988887777",
       tags: [],
     });
     const target = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cadastro principal de teste",
       phone: "11999998888",
       tags: [],
@@ -49,7 +52,7 @@ describe("client management through real HTTP handlers", () => {
       name: "Confirmar mesclagem",
     });
     expect(confirm).toBeDisabled();
-    expect(confirm).toHaveAccessibleDescription("Falta: Nome, Telefone.");
+    expect(confirm).toHaveAccessibleDescription("Falta: Nome, CPF, Telefone.");
     for (const select of within(dialog).getAllByRole("combobox"))
       fireEvent.change(select, { target: { value: "target" } });
     expect(confirm).toBeEnabled();
@@ -77,6 +80,7 @@ describe("client management through real HTTP handlers", () => {
     vi.setSystemTime(new Date("2039-01-10T12:00:00Z"));
     const { repository, app } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cadastro antigo de teste",
       phone: "11988887777",
       tags: [],
@@ -192,6 +196,7 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
   it("sells a registered product in the client's tab and requires reversal before cancellation", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente de produtos",
       phone: "11988887777",
       tags: [],

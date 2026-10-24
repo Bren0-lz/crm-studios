@@ -325,6 +325,7 @@ describe("configured patient tags", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(admin));
     const patient = {
+      cpf: "52998224725",
       id: "99999999-9999-4999-8999-999999999999",
       recordNumber: "PAC-00001",
       fullName: "Helena Almeida",

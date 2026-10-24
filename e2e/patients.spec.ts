@@ -19,6 +19,10 @@ test("creates, searches and edits a client through the interface", async ({
     .getByLabel("Telefone", { exact: true })
     .fill("11988887777");
   await dialog.getByLabel("Só cadastrar por enquanto", { exact: true }).check();
+  await expect(
+    dialog.getByRole("button", { name: "Salvar cliente", exact: true }),
+  ).toBeDisabled();
+  await dialog.getByLabel("CPF", { exact: true }).fill("52998224725");
   await dialog
     .getByRole("button", { name: "Salvar cliente", exact: true })
     .click();

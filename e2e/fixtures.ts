@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import { buildApp } from "../apps/api/src/app.js";
 import { MemoryClinicRepository } from "../apps/api/src/memory-repository.js";
+import { nextTestCpf } from "../apps/api/src/test-support/cpf.js";
 
 type ApiServer = { url: string };
 
@@ -75,7 +76,12 @@ export async function login(
 
 export async function seedPatient(api: APIRequestContext, name: string) {
   const response = await api.post("/patients", {
-    data: { fullName: name, phone: "11999991234", tags: [] },
+    data: {
+      fullName: name,
+      cpf: nextTestCpf(),
+      phone: "11999991234",
+      tags: [],
+    },
   });
   expect(response.status()).toBe(201);
   return response.json();

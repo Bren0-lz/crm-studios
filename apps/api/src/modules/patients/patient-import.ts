@@ -379,7 +379,9 @@ export function validatePatientImport(
         errors.push(
           field === "phone" && phone === ""
             ? `Linha ${line}: telefone é obrigatório.`
-            : `Linha ${line}: ${issueMessage(field)}`,
+            : field === "cpf" && !value("cpf")
+              ? `Linha ${line}: CPF é obrigatório.`
+              : `Linha ${line}: ${issueMessage(field)}`,
         );
       }
     }

@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
@@ -10,7 +11,12 @@ describe("patient search", () => {
       method: "POST",
       url: "/patients",
       headers,
-      payload: { fullName: "André Conceição", phone: "11955550000", tags: [] },
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "André Conceição",
+        phone: "11955550000",
+        tags: [],
+      },
     });
     expect(created.statusCode).toBe(201);
     for (const term of ["andre", "ANDRÉ", "conceicao"]) {

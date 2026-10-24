@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SaleMovement, SalesPeriodReport } from "@crm/contracts";
 import { buildApp } from "../../app.js";
@@ -24,6 +25,7 @@ describe("clientes sem retorno: contato e histórico de contratações", () => {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente sem retorno",
       phone: "11988887777",
       whatsapp: "11977776666",
@@ -31,7 +33,12 @@ describe("clientes sem retorno: contato e histórico de contratações", () => {
     });
     const other = await repository.createPatient(
       "99999999-9999-4999-8999-999999999999",
-      { fullName: "Cliente de outra clínica", phone: "11911112222", tags: [] },
+      {
+        cpf: nextTestCpf(),
+        fullName: "Cliente de outra clínica",
+        phone: "11911112222",
+        tags: [],
+      },
     );
     const [professional] = await repository.listProfessionals(clinicId),
       [room] = await repository.listRooms(clinicId),

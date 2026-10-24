@@ -13,7 +13,7 @@ import { formatCep, lookupCep } from "../../shared/lib/cep";
 
 /**
  * Conversão do lead: CPF, contato de emergência e endereço (que o lead não guarda) são
- * pedidos aqui, todos opcionais.
+ * pedidos aqui; o CPF é obrigatório para cadastrar o cliente.
  */
 export function LeadConvertModal({
   lead,
@@ -76,10 +76,9 @@ export function LeadConvertModal({
       eyebrow="CRM comercial"
       title="Converter lead em cliente"
       subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
-      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna ${columnLabel}. Os dados abaixo são opcionais e completam o cadastro.`}
-      validate={() =>
-        form.cpf && !isValidCpf(form.cpf) ? "Informe um CPF válido." : ""
-      }
+      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna ${columnLabel}. O CPF é obrigatório; os demais dados abaixo são opcionais e completam o cadastro.`}
+      validate={() => (!isValidCpf(form.cpf) ? "Informe um CPF válido." : "")}
+      missing={form.cpf.trim() ? [] : ["CPF"]}
       dirty={dirty}
       onConfirm={() => onConfirm(form)}
       onClose={onClose}
@@ -87,6 +86,7 @@ export function LeadConvertModal({
       <label>
         CPF
         <CpfInput
+          required
           value={form.cpf ?? ""}
           onChange={(cpf) => field("cpf", cpf)}
         />

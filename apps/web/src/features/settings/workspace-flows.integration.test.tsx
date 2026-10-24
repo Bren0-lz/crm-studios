@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { clinicId, setupApi } from "../../test-support/api-server";
@@ -83,6 +84,7 @@ describe("settings workflows through real HTTP handlers", () => {
     change("Nome", "Reabilitação", screen.getByRole("dialog"));
     await save("Novo cadastro");
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente do catálogo",
       phone: "11988887777",
       tags: [],
