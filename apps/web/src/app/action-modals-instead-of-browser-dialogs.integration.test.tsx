@@ -157,13 +157,16 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByText(/Bruna Lead passa a ser cliente/),
+        within(dialog).getByText(/os dados do lead já vieram preenchidos/),
       ).toBeInTheDocument();
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // O CPF é obrigatório e recebe o foco inicial.
-      expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
+      // Mesmo cadastro do "Novo cliente": o nome do lead vem preenchido e recebe o foco.
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Bruna Lead",
+      );
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
@@ -177,13 +180,13 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       ).toBeDisabled();
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       await vi.waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -235,7 +238,7 @@ describe("action modals instead of browser dialogs", () => {
         target: { value: "52998224725" },
       });
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       expect(
         await within(dialog).findByText(

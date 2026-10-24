@@ -243,11 +243,11 @@ export function createCommercialRepository(
       let patient = repositoryContext.patients.find(
         (item) =>
           item.clinicId === clinicId &&
-          (item.phone === lead.phone ||
+          (item.phone === source.phone ||
             Boolean(
-              lead.email &&
+              source.email &&
               item.email?.toLocaleLowerCase() ===
-                lead.email.toLocaleLowerCase(),
+                source.email.toLocaleLowerCase(),
             ) ||
             Boolean(source.cpf && item.cpf === source.cpf)),
       );

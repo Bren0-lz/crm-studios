@@ -16,7 +16,7 @@ import {
 } from "../../test-support/lead-board";
 
 describe("lean lead form", () => {
-  it("creates a lead with name and phone and asks CPF, emergency contact and address on conversion", async () => {
+  it("creates a lead with name and phone and converts it with the client registration form prefilled", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -103,19 +103,36 @@ describe("lean lead form", () => {
     const convert = screen.getByRole("dialog", {
       name: "Converter lead em cliente",
     });
+    // Mesmo cadastro do "Novo cliente", já preenchido com o que o lead tem.
+    expect(within(convert).getByLabelText("Nome completo")).toHaveValue(
+      "Lead Enxuto",
+    );
+    const contact = within(convert).getByRole("group", { name: "Contato" });
+    expect(within(contact).getByLabelText("Telefone")).toHaveValue(
+      "(11) 97777-6666",
+    );
+    expect(within(convert).getByLabelText("E-mail")).toHaveValue("");
+    expect(within(convert).getByLabelText("CPF")).toHaveValue("");
     fireEvent.change(within(convert).getByLabelText("CPF"), {
       target: { value: "529.982.247-25" },
     });
-    fireEvent.change(within(convert).getByLabelText("Contato de emergência"), {
+    const emergency = within(convert).getByRole("group", {
+      name: "Contato de emergência",
+    });
+    fireEvent.change(within(emergency).getByLabelText("Nome"), {
       target: { value: "Joana Mãe" },
     });
     fireEvent.change(within(convert).getByLabelText("Endereço"), {
       target: { value: "Rua das Flores, 10" },
     });
-    fireEvent.click(within(convert).getByRole("button", { name: "Confirmar" }));
+    fireEvent.click(
+      within(convert).getByRole("button", { name: "Converter em cliente" }),
+    );
     await waitFor(() => expect(posts).toHaveLength(2));
     expect(posts[1]!.url).toMatch(/\/convert$/);
     expect(posts[1]!.body).toMatchObject({
+      fullName: "Lead Enxuto",
+      phone: "11977776666",
       cpf: "52998224725",
       emergencyContactName: "Joana Mãe",
       address: "Rua das Flores, 10",
