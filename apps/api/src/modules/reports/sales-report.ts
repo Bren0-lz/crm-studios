@@ -115,6 +115,34 @@ export function buildSalesPeriodReport(
   };
 }
 
+export type PatientContact = { phone: string; whatsapp?: string | undefined };
+
+/** Completa a lista de clientes sem retorno com o telefone do cadastro. */
+export function withPatientContacts<
+  T extends { patientsWithoutReturn: PatientWithoutReturn[] },
+>(report: T, contacts: ReadonlyMap<string, PatientContact>): T {
+  return {
+    ...report,
+    patientsWithoutReturn: report.patientsWithoutReturn.map((item) => {
+      const contact = contacts.get(item.patientId);
+      return contact
+        ? {
+            ...item,
+            phone: contact.phone,
+            ...(contact.whatsapp ? { whatsapp: contact.whatsapp } : {}),
+          }
+        : item;
+    }),
+  };
+}
+
+/** Compras do cliente (vendas e estornos), mais recentes primeiro. */
+export function patientSalesHistory(sales: SaleMovement[], patientId: string) {
+  return sales
+    .filter((item) => item.patientId === patientId)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+}
+
 function buildReport(
   month: string,
   sales: SaleMovement[],

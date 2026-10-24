@@ -198,6 +198,7 @@ import type {
   ReplacementCredit,
   Room,
   RoomInput,
+  SaleMovement,
   SalesReport,
   SalesPeriodReport,
   SatisfactionSurvey,
@@ -1303,6 +1304,11 @@ export interface ClinicRepository {
     to: string,
   ): Promise<SalesPeriodReport>;
   getSalesReport(clinicId: string, month: string): Promise<SalesReport>;
+  /** Todas as vendas/estornos do cliente, mais recentes primeiro; null se não existir. */
+  listPatientSales(
+    clinicId: string,
+    patientId: string,
+  ): Promise<SaleMovement[] | null>;
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
   /**
