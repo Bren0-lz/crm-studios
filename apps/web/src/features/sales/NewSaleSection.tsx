@@ -177,10 +177,16 @@ export function NewSaleSection({
                           value={item.id}
                           disabled={
                             item.id !== line.productId &&
-                            lines.some((other) => other.productId === item.id)
+                            (item.currentStock <= 0 ||
+                              lines.some(
+                                (other) => other.productId === item.id,
+                              ))
                           }
                         >
-                          {item.name} · {item.currentStock} {item.unit}
+                          {item.name} ·{" "}
+                          {item.currentStock > 0
+                            ? `${item.currentStock} ${item.unit}`
+                            : "sem estoque"}
                         </option>
                       ))}
                     </select>

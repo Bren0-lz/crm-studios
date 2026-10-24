@@ -6,8 +6,9 @@ import type {
   ProductUpdateInput,
   StockMovementInput,
 } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { CurrencyField } from "../../shared/components/CurrencyField";
@@ -38,8 +39,14 @@ const emptyAdjustment: StockMovementInput = {
 
 /** Aba "Estoque" do Financeiro (QM9): produtos, saldo e ajustes de estoque. */
 export function InventorySection() {
-  const { can } = useAuthorization();
+  const { can, canView } = useAuthorization();
   const toast = useToast();
+  // Mesmas permissões da sub-aba "Nova venda" (a venda baixa o estoque destes produtos).
+  const canSell =
+    canView("patients") &&
+    can("patients.tabs_create") &&
+    can("patients.tabs_items") &&
+    can("patients.tabs_close");
   const [data, setData] = useState<InventoryWorkspace | null>(null),
     [error, setError] = useState(""),
     [categories, setCategories] = useState<ClinicCatalogEntry[]>([]),
@@ -146,6 +153,11 @@ export function InventorySection() {
           </div>
           {data && (
             <div className="page-actions">
+              {canSell && (
+                <Link className="secondary-button" to="/vendas?aba=nova-venda">
+                  <ShoppingCart size={18} /> Registrar venda
+                </Link>
+              )}
               {can("patients.stock_move") && (
                 <button className="secondary-button" onClick={openAdjustment}>
                   Ajustar estoque

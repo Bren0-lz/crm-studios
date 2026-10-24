@@ -61,7 +61,25 @@ export function PatientTabModal({
   });
   // O que falta para fechar: "Confirmar fechamento" fica desativado listando os campos.
   const closeMissing = closeInput.dueDate ? [] : ["Vencimento"];
-  const productMissing = useMissingFields(productId ? [] : ["Produto"]);
+  // Comanda reserva estoque: não deixa pedir mais do que o saldo (no ajuste, o que já está
+  // reservado no item volta a contar como disponível).
+  const stockOf = (id: string) =>
+    products.find((item) => item.id === id)?.currentStock ?? 0;
+  const editingItem = tab.items.find((item) => item.id === editing);
+  const editStock = editingItem
+    ? editingItem.quantity + stockOf(editingItem.productId)
+    : 0;
+  const productMissing = useMissingFields([
+    ...(productId ? [] : ["Produto"]),
+    ...(productId && quantity > stockOf(productId)
+      ? [`quantidade dentro do estoque (${stockOf(productId)} disponível)`]
+      : []),
+  ]);
+  const editMissing = useMissingFields(
+    editingItem && quantity > editStock
+      ? [`quantidade dentro do estoque (${editStock} disponível)`]
+      : [],
+  );
   const serviceMissing = useMissingFields(appointmentId ? [] : ["Atendimento"]);
   const editable = tab.status === "open" && can("patients.tabs_items");
   async function act(action: () => Promise<unknown>, message: string) {
@@ -178,7 +196,7 @@ export function PatientTabModal({
                 <input
                   type="number"
                   min={1}
-                  max={10000}
+                  max={editStock}
                   required
                   value={quantity}
                   onChange={(event) => setQuantity(Number(event.target.value))}
@@ -189,7 +207,14 @@ export function PatientTabModal({
                 value={price}
                 onChange={setPrice}
               />
-              <button className="primary-button">Salvar item</button>
+              {editMissing.hint}
+              <button
+                className="primary-button"
+                disabled={editMissing.blocked}
+                aria-describedby={editMissing.describedBy}
+              >
+                Salvar item
+              </button>
               <button
                 type="button"
                 className="secondary-button"
@@ -268,8 +293,15 @@ export function PatientTabModal({
                   {products
                     .filter((item) => item.active)
                     .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} · {item.currentStock} em estoque
+                      <option
+                        key={item.id}
+                        value={item.id}
+                        disabled={item.currentStock <= 0}
+                      >
+                        {item.name} ·{" "}
+                        {item.currentStock > 0
+                          ? `${item.currentStock} em estoque`
+                          : "sem estoque"}
                       </option>
                     ))}
                 </select>
@@ -280,7 +312,7 @@ export function PatientTabModal({
                   type="number"
                   required
                   min={1}
-                  max={10000}
+                  max={productId ? stockOf(productId) : undefined}
                   value={quantity}
                   onChange={(event) => setQuantity(Number(event.target.value))}
                 />
