@@ -1576,27 +1576,15 @@
   font-weight: 600;
 }
 
-.campaign-filter-list li.skipped strong {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.campaign-filter-list li.skipped small {
-  color: #886b29;
-}
-
-.campaign-filter-list li.skipped .campaign-filter-avatar {
-  background: #fff0cf;
-  color: #886b29;
-}
-
 .campaign-filter-empty {
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
+/* Na etapa de clientes a lista cresce inteira; quem rola é o modal. */
 .campaign-audience .campaign-filter-list {
-  max-height: calc(var(--space-8) * 6);
+  max-height: none;
+  overflow: visible;
 }
 
 .campaign-filters {

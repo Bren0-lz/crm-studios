@@ -468,9 +468,11 @@ describe("campanhas de WhatsApp", () => {
     ).toBeInTheDocument();
     expect(within(results).getByText("Carla Souza")).toBeInTheDocument();
     expect(within(results).getByText("(21) 98888-7777")).toBeInTheDocument();
+    // A lista mostra só quem vai receber; os pulados ficam só na contagem.
+    expect(within(results).queryByText("Bruno Costa")).toBeNull();
     expect(
-      within(results).getByText("Não autorizou mensagens neste canal"),
-    ).toBeInTheDocument();
+      within(results).queryByText("Não autorizou mensagens neste canal"),
+    ).toBeNull();
     // Os filtros ficam num modal próprio, sobre a "Nova campanha".
     fireEvent.click(within(dialog).getByRole("button", { name: /^Filtros/ }));
     let filters = await screen.findByRole("dialog", {
