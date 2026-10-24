@@ -249,6 +249,54 @@ for (const storage of ["memory", "postgres"] as const) {
         });
       });
 
+      it("refuses a meeting professional who does not serve the group's service", async () => {
+        await atInstant("2056-01-01T12:00:00Z", async () => {
+          const [linked, other] = await Promise.all(
+            ["Vinculada", "Avulsa"].map((name) =>
+              repository.createProfessional(clinicId, {
+                fullName: `Profissional ${name} ${randomUUID()}`,
+                crefito: "",
+                specialty: "Pilates",
+                color: "#336699",
+              }),
+            ),
+          );
+          const service = await repository.createService(clinicId, {
+            name: "Serviço restrito " + randomUUID(),
+            durationMinutes: 60,
+            priceInCents: 0,
+            color: "#336699",
+            professionalIds: [linked!.id],
+          });
+          const room = await repository.createRoom(clinicId, {
+            name: "Sala restrita " + randomUUID(),
+            capacity: 4,
+          });
+          const group = await repository.createGroupClass(clinicId, {
+            serviceId: service.id,
+            professionalId: linked!.id,
+            roomId: room.id,
+            capacity: 2,
+            weeklySlots: [{ weekday: 3, startTime: "06:00", endTime: "07:00" }],
+          });
+          const { sessions } = await repository.getGroupWorkspace(
+            clinicId,
+            "2056-01-01T00:00:00Z",
+            "2056-02-01T00:00:00Z",
+          );
+          const session = sessions.find((item) => item.groupId === group.id)!;
+          expect(session).toBeDefined();
+          await expect(
+            repository.updateGroupSessionProfessional(
+              clinicId,
+              actorId,
+              session.id,
+              other!.id,
+            ),
+          ).rejects.toMatchObject({ code: "SERVICE_NOT_AVAILABLE" });
+        });
+      });
+
       it("renames groups without changing sessions, attendance, enrollments or sequence", async () => {
         await atInstant("2055-01-01T12:00:00Z", async () => {
           const professional = await repository.createProfessional(clinicId, {

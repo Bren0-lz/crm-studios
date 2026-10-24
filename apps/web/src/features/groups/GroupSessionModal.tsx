@@ -6,6 +6,8 @@ import {
   type GroupSession,
   type GroupWorkspace,
   type Professional,
+  type Service,
+  serviceAvailableFor,
 } from "@crm/contracts";
 import { CheckCheck } from "lucide-react";
 import { useId, useState } from "react";
@@ -23,6 +25,7 @@ export function GroupSessionModal({
   meeting,
   workspace,
   professionals,
+  service,
   busy,
   refreshError,
   onBusyChange,
@@ -32,6 +35,8 @@ export function GroupSessionModal({
   meeting: GroupSession;
   workspace: GroupWorkspace;
   professionals: Professional[];
+  /** Serviço da turma: só quem o atende pode conduzir o encontro. */
+  service?: Service | undefined;
   busy: boolean;
   refreshError: string;
   onBusyChange: (busy: boolean) => void;
@@ -57,6 +62,13 @@ export function GroupSessionModal({
       onBusyChange(false);
     }
   }
+  // O profissional atual fica na lista mesmo que tenha deixado de atender o serviço.
+  const meetingProfessionals = professionals.filter(
+    (item) =>
+      item.id === meeting.professionalId ||
+      !service ||
+      serviceAvailableFor(service, item.id, ""),
+  );
   const attendance = meeting
     ? workspace.attendance.filter(
         (item) =>
@@ -160,7 +172,7 @@ export function GroupSessionModal({
                   )
                 }
               >
-                {professionals.map((item) => (
+                {meetingProfessionals.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.fullName}
                   </option>

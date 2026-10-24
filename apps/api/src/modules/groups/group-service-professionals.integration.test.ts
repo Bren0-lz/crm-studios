@@ -38,7 +38,14 @@ async function setup() {
     capacity: 1,
     weeklySlots: [{ weekday: 2, startTime: "06:00", endTime: "07:00" }],
   };
-  return { app, headers, input, other: second!.id, openServiceId: open.id };
+  return {
+    app,
+    repository,
+    headers,
+    input,
+    other: second!.id,
+    openServiceId: open.id,
+  };
 }
 
 describe("group professional must serve the service", () => {
@@ -75,5 +82,25 @@ describe("group professional must serve the service", () => {
       },
     });
     expect(unrestricted.statusCode).toBe(201);
+  });
+
+  it("refuses a meeting professional who does not serve the group's service", async () => {
+    const { app, repository, headers, input, other } = await setup();
+    const group = await repository.createGroupClass(clinicId, input);
+    const [meeting] = (
+      await repository.listGroupSessions(
+        clinicId,
+        "2000-01-01T00:00:00Z",
+        "2100-01-01T00:00:00Z",
+      )
+    ).filter((item) => item.groupId === group.id);
+    const response = await app.inject({
+      method: "PUT",
+      url: `/group-sessions/${meeting!.id}/professional`,
+      headers,
+      payload: { professionalId: other },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe("SERVICE_NOT_AVAILABLE");
   });
 });
