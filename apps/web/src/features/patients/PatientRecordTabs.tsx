@@ -7,7 +7,7 @@ import {
   formatPhone,
   isTabCreditPlan,
 } from "@crm/contracts";
-import { ArrowUpRight, FileClock } from "lucide-react";
+import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { allBranches, api } from "../../api";
@@ -26,11 +26,18 @@ import {
   emergencyContactLabel,
 } from "../../shared/lib/formatting";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
+import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
-import { PlanCard, SessionMovementsModal, planSubtitle } from "../plans/index";
+import {
+  PlanCard,
+  SessionMovementsModal,
+  planSubtitle,
+  type PlanCatalogKind,
+} from "../plans/index";
 import { InventoryPanel } from "./InventoryPanel";
+import { PatientPlanModal } from "./PatientPlanModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
 type TabKey =
@@ -121,7 +128,7 @@ export function PatientRecordTabs({
   patient: Patient;
   canEditClinical: boolean;
 }) {
-  const { can, canView } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
   const id = patient.id;
   const tags = usePatientTags(patient.tags.length > 0);
   const tagColor = tagColorLookup(tags.tags);
@@ -188,11 +195,15 @@ export function PatientRecordTabs({
   const visibleTabs = tabs.filter((tab) => tab.visible);
   const [selected, setSelected] = useState<TabKey | null>(null);
   const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
+  const [newPlanKind, setNewPlanKind] = useState<PlanCatalogKind | null>(null);
+  const toast = useToast();
+  const canCreatePlan = canEdit("plans") && can("plans.create");
   const active = selected ?? visibleTabs[0]?.key ?? null;
   const moduleLink = (to: string) =>
     `${to}?patientId=${encodeURIComponent(id)}`;
 
   const emergency = emergencyContactLabel(patient);
+  const patientOption = { id, fullName: patient.fullName, tags: patient.tags };
 
   return (
     <>
@@ -369,6 +380,28 @@ export function PatientRecordTabs({
                   )
                 }
                 link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
+                actions={
+                  canCreatePlan && (
+                    <>
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        onClick={() => setNewPlanKind("recurring")}
+                      >
+                        <Repeat size={15} aria-hidden="true" />
+                        Plano recorrente
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        onClick={() => setNewPlanKind("single")}
+                      >
+                        <Plus size={15} aria-hidden="true" />
+                        Plano avulso
+                      </button>
+                    </>
+                  )
+                }
                 render={(items: PatientPlan[]) => (
                   <div className="plans-grid">
                     {items.map((plan) => (
@@ -482,6 +515,17 @@ export function PatientRecordTabs({
           </div>
         </section>
       )}
+      {newPlanKind && (
+        <PatientPlanModal
+          patient={patientOption}
+          kind={newPlanKind}
+          onClose={() => setNewPlanKind(null)}
+          onSaved={(plan) => {
+            setNewPlanKind(null);
+            toast.success(`Plano ${plan.name} vinculado.`);
+          }}
+        />
+      )}
       {movementPlan && (
         <SessionMovementsModal
           plan={movementPlan}
@@ -516,22 +560,27 @@ function TabList<T>({
   empty,
   summary,
   link,
+  actions,
   render,
 }: {
   state: { data: T[] | null; error: string; loading: boolean };
   empty: string;
   summary: (items: T[]) => string;
   link: { to: string; label: string };
+  actions?: ReactNode;
   render: (items: T[]) => ReactNode;
 }) {
   return (
     <div className="patient-tab-list">
       <div className="patient-tab-toolbar">
         <span>{state.data?.length ? summary(state.data) : ""}</span>
-        <Link className="text-button button-sm" to={link.to}>
-          {link.label}
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
+        <div className="patient-tab-toolbar-actions">
+          {actions}
+          <Link className="text-button button-sm" to={link.to}>
+            {link.label}
+            <ArrowUpRight size={16} aria-hidden="true" />
+          </Link>
+        </div>
       </div>
       {state.error ? (
         <ErrorBanner error={state.error} />
