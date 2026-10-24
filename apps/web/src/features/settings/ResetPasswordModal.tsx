@@ -18,9 +18,7 @@ export function ResetPasswordModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(password);
-  const missing = useMissingFields(
-    password ? [] : ["Nova senha"],
-  );
+  const missing = useMissingFields(password ? [] : ["Nova senha"]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -54,9 +52,6 @@ export function ResetPasswordModal({
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <p className="muted-copy span-2">
-          A senha precisa de letra maiúscula, minúscula e número.
-        </p>
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">

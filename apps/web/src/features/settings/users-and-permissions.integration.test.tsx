@@ -345,6 +345,48 @@ describe("users and permissions", () => {
     prompt.mockRestore();
   });
 
+  it("accepts a simple initial password, without uppercase or numbers", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...customUser,
+              id: "55555555-5555-4555-8555-555555555555",
+              fullName: "Breno Luiz",
+            }
+          : undefined,
+      [adminUser, customUser],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senhafraca" },
+    });
+    fireEvent.submit(
+      within(dialog).getByLabelText("Nome completo").closest("form")!,
+    );
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ password: "senhafraca" });
+  });
+
   it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
