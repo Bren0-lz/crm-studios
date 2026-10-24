@@ -8,7 +8,13 @@ import type {
   PatientOption,
   ReminderGenerationOptions,
 } from "@crm/contracts";
-import { LockKeyhole } from "lucide-react";
+import {
+  BellRing,
+  Inbox,
+  LockKeyhole,
+  Megaphone,
+  MessageSquarePlus,
+} from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -21,9 +27,21 @@ import {
   missingLabels,
   useMissingFields,
 } from "../../shared/components/MissingFields";
+import { ReportTabs, type ReportTab } from "../reports/index";
 import { BroadcastPanel } from "./BroadcastPanel";
 
-/** Aba "Fila e lembretes": mensagem individual, lembretes, comunicado segmentado e a fila. */
+type Section = "fila" | "individual" | "lembretes" | "comunicado";
+const sections: ReportTab<Section>[] = [
+  { key: "fila", label: "Fila de mensagens", icon: Inbox },
+  { key: "individual", label: "Mensagem individual", icon: MessageSquarePlus },
+  { key: "lembretes", label: "Lembretes", icon: BellRing },
+  { key: "comunicado", label: "Comunicado", icon: Megaphone },
+];
+
+/**
+ * Aba "Fila e lembretes" em sub-abas: a fila de envios, mensagem individual, geração de
+ * lembretes e comunicado segmentado. Os avisos de sucesso/erro ficam acima das sub-abas.
+ */
 export function QueueAndRemindersTab() {
   const { can, canEdit } = useAuthorization();
   const toast = useToast();
@@ -192,212 +210,230 @@ export function QueueAndRemindersTab() {
       {loading || !center ? (
         <LoadingBlock />
       ) : (
-        <div className={`communications-layout${canManage ? "" : " single"}`}>
-          <section className="panel communication-history">
-            <div className="panel-head">
-              <div>
-                <h2>Fila de mensagens</h2>
-                <p className="panel-context">
-                  {queuedCount === 1
-                    ? "1 mensagem aguardando envio"
-                    : `${queuedCount} mensagens aguardando envio`}
-                </p>
-              </div>
-              <span className="list-count">
-                <strong>{visibleMessages.length}</strong>
-                <span>no total</span>
-              </span>
-            </div>
-            <div className="outbox-note">
-              <LockKeyhole size={17} aria-hidden="true" />
-              <span>
-                A equipe realiza o envio externamente e registra a conclusão
-                manual. Abrir um link não registra o envio.
-              </span>
-            </div>
-            <MessageQueue
-              messages={visibleMessages}
-              allowed={allowed}
-              onChanged={load}
-              onNotice={(message) => {
-                setError("");
-                setNotice(message);
-              }}
-            />
-          </section>
-          {canManage && (
-            <div className="communication-side">
-              <section className="panel communication-compose">
-                <div className="panel-head">
-                  <div>
-                    <h2>Adicionar à fila</h2>
-                    <p className="panel-context">
-                      Mensagem individual para um cliente.
-                    </p>
+        <div className="communication-sections">
+          <ReportTabs
+            sub
+            label="Seções da fila e lembretes"
+            tabs={sections.filter(
+              (section) => canManage || section.key === "fila",
+            )}
+          >
+            {(section) =>
+              section === "fila" ? (
+                <section className="panel communication-history">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Fila de mensagens</h2>
+                      <p className="panel-context">
+                        {queuedCount === 1
+                          ? "1 mensagem aguardando envio"
+                          : `${queuedCount} mensagens aguardando envio`}
+                      </p>
+                    </div>
+                    <span className="list-count">
+                      <strong>{visibleMessages.length}</strong>
+                      <span>no total</span>
+                    </span>
                   </div>
-                </div>
-                {(can("communications.messages") ||
-                  can("communications.preferences")) && (
-                  <form className="communication-form" onSubmit={queueMessage}>
-                    <PatientPicker
-                      required
-                      patients={patients}
-                      value={patientId}
-                      onChange={setPatientId}
-                    />
+                  <div className="outbox-note">
+                    <LockKeyhole size={17} aria-hidden="true" />
+                    <span>
+                      A equipe realiza o envio externamente e registra a
+                      conclusão manual. Abrir um link não registra o envio.
+                    </span>
+                  </div>
+                  <MessageQueue
+                    messages={visibleMessages}
+                    allowed={allowed}
+                    onChanged={load}
+                    onNotice={(message) => {
+                      setError("");
+                      setNotice(message);
+                    }}
+                  />
+                </section>
+              ) : section === "individual" ? (
+                <section className="panel communication-compose">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Adicionar à fila</h2>
+                      <p className="panel-context">
+                        Mensagem individual para um cliente.
+                      </p>
+                    </div>
+                  </div>
+                  {(can("communications.messages") ||
+                    can("communications.preferences")) && (
+                    <form
+                      className="communication-form"
+                      onSubmit={queueMessage}
+                    >
+                      <PatientPicker
+                        className="communication-picker"
+                        required
+                        patients={patients}
+                        value={patientId}
+                        onChange={setPatientId}
+                      />
+                      <label>
+                        Canal
+                        <select
+                          value={channel}
+                          onChange={(event) =>
+                            setChannel(
+                              event.target.value as CommunicationChannel,
+                            )
+                          }
+                        >
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="email">E-mail</option>
+                        </select>
+                      </label>
+                      <div
+                        className="communication-group span-2"
+                        role="group"
+                        aria-labelledby="communication-preferences-label"
+                      >
+                        <span
+                          className="filter-label"
+                          id="communication-preferences-label"
+                        >
+                          Canais autorizados pelo cliente
+                        </span>
+                        <div className="communication-options">
+                          {(["whatsapp", "email"] as const).map((item) => (
+                            <label key={item} className="checkbox-field">
+                              <input
+                                type="checkbox"
+                                checked={allowed(patientId, item)}
+                                disabled={
+                                  !can("communications.preferences") ||
+                                  !patientId
+                                }
+                                onChange={() => void togglePreference(item)}
+                              />
+                              {item === "whatsapp"
+                                ? "WhatsApp permitido"
+                                : "E-mail permitido"}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <label className="span-2">
+                        Mensagem administrativa
+                        <textarea
+                          required
+                          maxLength={500}
+                          rows={4}
+                          value={body}
+                          onChange={(event) => setBody(event.target.value)}
+                          placeholder="Não inclua diagnósticos ou informações clínicas."
+                        />
+                      </label>
+                      {messageMissing.hint}
+                      <div className="modal-actions">
+                        <button
+                          className="primary-button"
+                          disabled={
+                            !can("communications.messages") ||
+                            messageMissing.blocked
+                          }
+                          aria-describedby={messageMissing.describedBy}
+                        >
+                          Adicionar à fila
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </section>
+              ) : section === "lembretes" ? (
+                <section className="panel reminder-generator">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Gerar lembretes</h2>
+                      <p className="panel-context">
+                        Repetir a operação não duplica mensagens.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="communication-form">
+                    <label>
+                      Data de referência
+                      <input
+                        type="date"
+                        value={referenceDate}
+                        onChange={(event) =>
+                          setReferenceDate(event.target.value)
+                        }
+                      />
+                    </label>
                     <div
                       className="communication-group"
                       role="group"
-                      aria-labelledby="communication-preferences-label"
+                      aria-labelledby="reminder-kinds-label"
                     >
-                      <span
-                        className="filter-label"
-                        id="communication-preferences-label"
-                      >
-                        Canais autorizados pelo cliente
+                      <span className="filter-label" id="reminder-kinds-label">
+                        Tipos de lembrete
                       </span>
                       <div className="communication-options">
-                        {(["whatsapp", "email"] as const).map((item) => (
-                          <label key={item} className="checkbox-field">
+                        {(
+                          [
+                            ["appointments", "Atendimentos"],
+                            ["payments", "Parcelas vencidas"],
+                            ["birthdays", "Aniversários"],
+                            ["satisfaction", "Acompanhamento de NPS"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <label key={key} className="checkbox-field">
                             <input
                               type="checkbox"
-                              checked={allowed(patientId, item)}
                               disabled={
-                                !can("communications.preferences") || !patientId
+                                working ||
+                                (key === "payments" && !can("finance.view"))
                               }
-                              onChange={() => void togglePreference(item)}
+                              checked={Boolean(reminderOptions[key])}
+                              onChange={(event) =>
+                                setReminderOptions((current) => ({
+                                  ...current,
+                                  [key]: event.target.checked,
+                                }))
+                              }
                             />
-                            {item === "whatsapp"
-                              ? "WhatsApp permitido"
-                              : "E-mail permitido"}
+                            {label}
                           </label>
                         ))}
                       </div>
                     </div>
-                    <label>
-                      Canal
-                      <select
-                        value={channel}
-                        onChange={(event) =>
-                          setChannel(event.target.value as CommunicationChannel)
-                        }
-                      >
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="email">E-mail</option>
-                      </select>
-                    </label>
-                    <label>
-                      Mensagem administrativa
-                      <textarea
-                        required
-                        maxLength={500}
-                        rows={4}
-                        value={body}
-                        onChange={(event) => setBody(event.target.value)}
-                        placeholder="Não inclua diagnósticos ou informações clínicas."
-                      />
-                    </label>
-                    {messageMissing.hint}
-                    <div className="modal-actions">
-                      <button
-                        className="primary-button"
-                        disabled={
-                          !can("communications.messages") ||
-                          messageMissing.blocked
-                        }
-                        aria-describedby={messageMissing.describedBy}
-                      >
-                        Adicionar à fila
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </section>
-              <section className="panel reminder-generator">
-                <div className="panel-head">
-                  <div>
-                    <h2>Gerar lembretes</h2>
-                    <p className="panel-context">
-                      Repetir a operação não duplica mensagens.
-                    </p>
+                    {can("communications.reminders") && reminderMissing.hint}
+                    {can("communications.reminders") && (
+                      <div className="modal-actions">
+                        <button
+                          className="primary-button"
+                          disabled={working || reminderMissing.blocked}
+                          aria-describedby={reminderMissing.describedBy}
+                          onClick={() => void generate()}
+                        >
+                          Gerar lembretes
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="communication-form">
-                  <label>
-                    Data de referência
-                    <input
-                      type="date"
-                      value={referenceDate}
-                      onChange={(event) => setReferenceDate(event.target.value)}
-                    />
-                  </label>
-                  <div
-                    className="communication-group"
-                    role="group"
-                    aria-labelledby="reminder-kinds-label"
-                  >
-                    <span className="filter-label" id="reminder-kinds-label">
-                      Tipos de lembrete
-                    </span>
-                    <div className="communication-options">
-                      {(
-                        [
-                          ["appointments", "Atendimentos"],
-                          ["payments", "Parcelas vencidas"],
-                          ["birthdays", "Aniversários"],
-                          ["satisfaction", "Acompanhamento de NPS"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <label key={key} className="checkbox-field">
-                          <input
-                            type="checkbox"
-                            disabled={
-                              working ||
-                              (key === "payments" && !can("finance.view"))
-                            }
-                            checked={Boolean(reminderOptions[key])}
-                            onChange={(event) =>
-                              setReminderOptions((current) => ({
-                                ...current,
-                                [key]: event.target.checked,
-                              }))
-                            }
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  {can("communications.reminders") && reminderMissing.hint}
-                  {can("communications.reminders") && (
-                    <div className="modal-actions">
-                      <button
-                        className="primary-button"
-                        disabled={working || reminderMissing.blocked}
-                        aria-describedby={reminderMissing.describedBy}
-                        onClick={() => void generate()}
-                      >
-                        Gerar lembretes
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-          )}
-          {canManage && (
-            <BroadcastPanel
-              patients={patients}
-              outboxOnly={center.deliveryMode === "outbox_only"}
-              onQueued={(result) => {
-                setError("");
-                setNotice(
-                  `${result.queued} mensagem(ns) do comunicado adicionada(s) à fila; ${result.skipped.length} cliente(s) pulado(s).`,
-                );
-                load().catch((cause: Error) => setError(cause.message));
-              }}
-            />
-          )}
+                </section>
+              ) : (
+                <BroadcastPanel
+                  patients={patients}
+                  outboxOnly={center.deliveryMode === "outbox_only"}
+                  onQueued={(result) => {
+                    setError("");
+                    setNotice(
+                      `${result.queued} mensagem(ns) do comunicado adicionada(s) à fila; ${result.skipped.length} cliente(s) pulado(s).`,
+                    );
+                    load().catch((cause: Error) => setError(cause.message));
+                  }}
+                />
+              )
+            }
+          </ReportTabs>
         </div>
       )}
     </>
