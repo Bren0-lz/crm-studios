@@ -847,6 +847,12 @@ export interface ClinicRepository {
     actorUserId: string,
     tabId: string,
   ): Promise<PatientTab | null>;
+  /** Venda de produtos em uma etapa: abre, preenche e fecha a comanda de forma atômica. */
+  createProductSale(
+    clinicId: string,
+    actorUserId: string,
+    input: import("@crm/contracts").ProductSaleInput,
+  ): Promise<PatientTab>;
   createAbsenceSuccessor(
     clinicId: string,
     actorUserId: string,

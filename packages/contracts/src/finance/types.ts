@@ -4,6 +4,7 @@ import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
   patientTabServiceInputSchema,
+  productSaleInputSchema,
   supplierInputSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
@@ -11,6 +12,7 @@ import {
 } from "./model.js";
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type PatientTabItemUpdate = z.infer<typeof patientTabItemUpdateSchema>;
+export type ProductSaleInput = z.infer<typeof productSaleInputSchema>;
 export type PatientTabServiceInput = z.infer<
   typeof patientTabServiceInputSchema
 >;

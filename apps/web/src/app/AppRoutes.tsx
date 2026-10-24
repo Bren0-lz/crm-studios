@@ -14,6 +14,7 @@ import { CommunicationsPage } from "../features/communications/CommunicationsPag
 import { DocumentsPage } from "../features/contracts/DocumentsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FinancePage } from "../features/finance/FinancePage";
+import { SalesPage } from "../features/sales/SalesPage";
 import { GroupsPage } from "../features/groups/GroupsPage";
 import { HistoryPage } from "../features/history/HistoryPage";
 import { PatientsPage } from "../features/patients/PatientsPage";
@@ -126,6 +127,10 @@ export function AppRoutes() {
                 <Route
                   path="/prontuarios"
                   element={allow("clinical", <ClinicalRecordsPage />)}
+                />
+                <Route
+                  path="/vendas"
+                  element={allow("patients", <SalesPage />)}
                 />
                 <Route
                   path="/financeiro"

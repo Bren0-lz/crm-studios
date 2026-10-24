@@ -25,6 +25,7 @@ import {
   type PatientTabCloseInput,
   type PatientTabInput,
   type PatientTabItemInput,
+  type ProductSaleInput,
   type PayableInput,
   type PaymentMethod,
   type PaymentReceipt,
@@ -45,6 +46,7 @@ import {
   buildDailyCash,
   DEFAULT_CLINIC_TIMEZONE,
 } from "../../modules/finance/daily-cash.js";
+import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -71,6 +73,194 @@ import {
   type StockMovementRow,
   branchClause,
 } from "./helpers.js";
+
+/** Insere um produto na comanda (reserva estoque); `false` se a comanda não existe. */
+async function addTabItem(
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  tabId: string,
+  input: PatientTabItemInput & { unitPriceInCents?: number | undefined },
+) {
+  const tab = await client.query<{ patientName: string; status: string }>(
+    `SELECT p.full_name AS "patientName",t.status FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.id=$2 AND t.clinic_id=$1 FOR UPDATE OF t`,
+    [clinicId, tabId],
+  );
+  if (!tab.rows[0]) return false;
+  if (tab.rows[0].status !== "open")
+    throw new DomainError(
+      "PATIENT_TAB_NOT_OPEN",
+      "Somente comandas abertas podem receber itens.",
+      409,
+    );
+  const product = await client.query<{
+    id: string;
+    name: string;
+    currentStock: number;
+    salePriceInCents: number;
+    costInCents: number;
+    sameBranch: boolean;
+  }>(
+    `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
+    [clinicId, input.productId, tabId],
+  );
+  const productRow = product.rows[0];
+  if (!productRow)
+    throw new DomainError("PRODUCT_NOT_FOUND", "Produto não encontrado.", 404);
+  if (!productRow.sameBranch)
+    throw new DomainError(
+      "BRANCH_MISMATCH",
+      "O produto é de outra filial que não a da comanda.",
+      409,
+    );
+  if (productRow.currentStock < input.quantity)
+    throw new DomainError(
+      "INSUFFICIENT_STOCK",
+      "O estoque disponível é insuficiente.",
+      409,
+    );
+  await client.query(
+    `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(tab_id,product_id) DO UPDATE SET quantity=patient_tab_items.quantity+EXCLUDED.quantity`,
+    [
+      clinicId,
+      tabId,
+      productRow.id,
+      input.quantity,
+      input.unitPriceInCents ?? productRow.salePriceInCents,
+      productRow.costInCents,
+    ],
+  );
+  const balance = productRow.currentStock - input.quantity;
+  await client.query(
+    `UPDATE products SET current_stock=$2,updated_at=now() WHERE id=$1`,
+    [productRow.id, balance],
+  );
+  await client.query(
+    `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale',$4,$5,$6,$7)`,
+    [
+      clinicId,
+      productRow.id,
+      tabId,
+      -input.quantity,
+      balance,
+      `Reserva na comanda de ${tab.rows[0].patientName}`,
+      actorUserId,
+    ],
+  );
+  await client.query(
+    `UPDATE patient_tabs SET total_in_cents=(SELECT coalesce(sum(quantity*unit_price_in_cents),0) FROM patient_tab_items WHERE tab_id=$1)+(SELECT coalesce(sum(amount_in_cents),0) FROM patient_tab_services WHERE tab_id=$1 AND clinic_id=$2) WHERE id=$1 AND clinic_id=$2`,
+    [tabId, clinicId],
+  );
+  return true;
+}
+
+/** Fecha a comanda gerando a conta a receber; `false` se a comanda não existe. */
+async function closeTab(
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  tabId: string,
+  input: PatientTabCloseInput,
+) {
+  const tab = await client.query<{
+    patientId: string;
+    status: string;
+    totalInCents: number;
+    patientName: string;
+    openedOn: string;
+  }>(
+    `SELECT t.patient_id AS "patientId",t.status,t.total_in_cents AS "totalInCents",p.full_name AS "patientName",to_char(t.opened_at AT TIME ZONE c.timezone,'YYYY-MM-DD') AS "openedOn"
+     FROM patient_tabs t
+     JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id
+     JOIN clinics c ON c.id=t.clinic_id
+     WHERE t.id=$2 AND t.clinic_id=$1 FOR UPDATE OF t`,
+    [clinicId, tabId],
+  );
+  const row = tab.rows[0];
+  if (!row) return false;
+  if (row.status !== "open" || row.totalInCents === 0)
+    throw new DomainError(
+      "PATIENT_TAB_CANNOT_CLOSE",
+      "A comanda precisa estar aberta e conter ao menos um item.",
+      409,
+    );
+  if (
+    (input.categoryId &&
+      !(
+        await client.query(
+          "SELECT id FROM financial_categories WHERE clinic_id=$1 AND id=$2",
+          [clinicId, input.categoryId],
+        )
+      ).rowCount) ||
+    (input.costCenterId &&
+      !(
+        await client.query(
+          "SELECT id FROM cost_centers WHERE clinic_id=$1 AND id=$2",
+          [clinicId, input.costCenterId],
+        )
+      ).rowCount)
+  )
+    throw new DomainError(
+      "FINANCE_CONTEXT_NOT_FOUND",
+      "Categoria ou centro de custo não encontrado.",
+      404,
+    );
+  await createTabServiceCredits(client, clinicId, actorUserId, tabId);
+  const paid = input.settlement === "paid";
+  const receivable = await client.query<{ id: string }>(
+    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9)) RETURNING id`,
+    [
+      clinicId,
+      row.patientId,
+      tabReceivableDescription(row.patientName, row.openedOn),
+      input.dueDate,
+      row.totalInCents,
+      paid ? "paid" : "open",
+      paid ? new Date() : null,
+      paid ? input.paymentMethod : null,
+      tabId,
+    ],
+  );
+  const receivableId = receivable.rows[0]!.id;
+  await client.query(
+    "UPDATE receivables SET category_id=$3,cost_center_id=$4 WHERE clinic_id=$1 AND id=$2",
+    [
+      clinicId,
+      receivableId,
+      input.categoryId ?? null,
+      input.costCenterId ?? null,
+    ],
+  );
+  await client.query(
+    `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'created',$4,$5)`,
+    [
+      clinicId,
+      receivableId,
+      actorUserId,
+      row.totalInCents,
+      JSON.stringify({ source: "patient_tab", tabId }),
+    ],
+  );
+  if (paid)
+    await client.query(
+      `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'payment',$4,$5)`,
+      [
+        clinicId,
+        receivableId,
+        actorUserId,
+        row.totalInCents,
+        JSON.stringify({
+          paymentMethod: input.paymentMethod,
+          source: "patient_tab",
+        }),
+      ],
+    );
+  await client.query(
+    `UPDATE patient_tabs SET status='closed',payment_status=$2,receivable_id=$3,closed_at=now() WHERE id=$1`,
+    [tabId, input.settlement, receivableId],
+  );
+  return true;
+}
 
 export function createFinanceRepository(
   repositoryContext: PostgresRepositoryContext,
@@ -312,102 +502,15 @@ export function createFinanceRepository(
       tabId: string,
       input: PatientTabItemInput,
     ) {
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("BEGIN");
+      return repositoryContext.inTransaction(async (client) => {
         await client.query(
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
           [clinicId],
         );
-        const tab = await client.query<{ patientName: string; status: string }>(
-          `SELECT p.full_name AS "patientName",t.status FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.id=$2 AND t.clinic_id=$1 FOR UPDATE OF t`,
-          [clinicId, tabId],
-        );
-        if (!tab.rows[0]) {
-          await client.query("ROLLBACK");
+        if (!(await addTabItem(client, clinicId, actorUserId, tabId, input)))
           return null;
-        }
-        if (tab.rows[0].status !== "open")
-          throw new DomainError(
-            "PATIENT_TAB_NOT_OPEN",
-            "Somente comandas abertas podem receber itens.",
-            409,
-          );
-        const product = await client.query<{
-          id: string;
-          name: string;
-          currentStock: number;
-          salePriceInCents: number;
-          costInCents: number;
-          sameBranch: boolean;
-        }>(
-          `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
-          [clinicId, input.productId, tabId],
-        );
-        const productRow = product.rows[0];
-        if (!productRow)
-          throw new DomainError(
-            "PRODUCT_NOT_FOUND",
-            "Produto não encontrado.",
-            404,
-          );
-        if (!productRow.sameBranch)
-          throw new DomainError(
-            "BRANCH_MISMATCH",
-            "O produto é de outra filial que não a da comanda.",
-            409,
-          );
-        if (productRow.currentStock < input.quantity)
-          throw new DomainError(
-            "INSUFFICIENT_STOCK",
-            "O estoque disponível é insuficiente.",
-            409,
-          );
-        await client.query(
-          `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(tab_id,product_id) DO UPDATE SET quantity=patient_tab_items.quantity+EXCLUDED.quantity`,
-          [
-            clinicId,
-            tabId,
-            productRow.id,
-            input.quantity,
-            productRow.salePriceInCents,
-            productRow.costInCents,
-          ],
-        );
-        const balance = productRow.currentStock - input.quantity;
-        await client.query(
-          `UPDATE products SET current_stock=$2,updated_at=now() WHERE id=$1`,
-          [productRow.id, balance],
-        );
-        await client.query(
-          `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale',$4,$5,$6,$7)`,
-          [
-            clinicId,
-            productRow.id,
-            tabId,
-            -input.quantity,
-            balance,
-            `Reserva na comanda de ${tab.rows[0].patientName}`,
-            actorUserId,
-          ],
-        );
-        await client.query(
-          `UPDATE patient_tabs SET total_in_cents=(SELECT coalesce(sum(quantity*unit_price_in_cents),0) FROM patient_tab_items WHERE tab_id=$1)+(SELECT coalesce(sum(amount_in_cents),0) FROM patient_tab_services WHERE tab_id=$1 AND clinic_id=$2) WHERE id=$1 AND clinic_id=$2`,
-          [tabId, clinicId],
-        );
-        const updated = await repositoryContext.findPatientTab(
-          clinicId,
-          tabId,
-          client,
-        );
-        await client.query("COMMIT");
-        return updated;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+        return repositoryContext.findPatientTab(clinicId, tabId, client);
+      });
     },
 
     async closePatientTab(
@@ -416,126 +519,61 @@ export function createFinanceRepository(
       tabId: string,
       input: PatientTabCloseInput,
     ) {
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("BEGIN");
+      return repositoryContext.inTransaction(async (client) => {
         await client.query(
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
           [clinicId],
         );
-        const tab = await client.query<{
-          patientId: string;
-          status: string;
-          totalInCents: number;
-          patientName: string;
-          openedOn: string;
-        }>(
-          `SELECT t.patient_id AS "patientId",t.status,t.total_in_cents AS "totalInCents",p.full_name AS "patientName",to_char(t.opened_at AT TIME ZONE c.timezone,'YYYY-MM-DD') AS "openedOn"
-           FROM patient_tabs t
-           JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id
-           JOIN clinics c ON c.id=t.clinic_id
-           WHERE t.id=$2 AND t.clinic_id=$1 FOR UPDATE OF t`,
-          [clinicId, tabId],
-        );
-        const row = tab.rows[0];
-        if (!row) {
-          await client.query("ROLLBACK");
+        if (!(await closeTab(client, clinicId, actorUserId, tabId, input)))
           return null;
-        }
-        if (row.status !== "open" || row.totalInCents === 0)
+        return repositoryContext.findPatientTab(clinicId, tabId, client);
+      });
+    },
+
+    async createProductSale(
+      clinicId: string,
+      actorUserId: string,
+      input: ProductSaleInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [clinicId],
+        );
+        const opened = await client.query<{ id: string }>(
+          `INSERT INTO patient_tabs(clinic_id,patient_id,notes,opened_by_user_id,branch_id) SELECT $1,p.id,$3,$4,$5 FROM patients p WHERE p.id=$2 AND p.clinic_id=$1 AND p.status='active' RETURNING id`,
+          [
+            clinicId,
+            input.patientId,
+            input.notes || null,
+            actorUserId,
+            repositoryContext.branchWriteId(),
+          ],
+        );
+        const tabId = opened.rows[0]?.id;
+        if (!tabId)
           throw new DomainError(
-            "PATIENT_TAB_CANNOT_CLOSE",
-            "A comanda precisa estar aberta e conter ao menos um item.",
-            409,
-          );
-        if (
-          (input.categoryId &&
-            !(
-              await client.query(
-                "SELECT id FROM financial_categories WHERE clinic_id=$1 AND id=$2",
-                [clinicId, input.categoryId],
-              )
-            ).rowCount) ||
-          (input.costCenterId &&
-            !(
-              await client.query(
-                "SELECT id FROM cost_centers WHERE clinic_id=$1 AND id=$2",
-                [clinicId, input.costCenterId],
-              )
-            ).rowCount)
-        )
-          throw new DomainError(
-            "FINANCE_CONTEXT_NOT_FOUND",
-            "Categoria ou centro de custo não encontrado.",
+            "PATIENT_NOT_FOUND",
+            "Cliente não encontrado.",
             404,
           );
-        await createTabServiceCredits(client, clinicId, actorUserId, tabId);
-        const paid = input.settlement === "paid";
-        const receivable = await client.query<{ id: string }>(
-          `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9)) RETURNING id`,
-          [
-            clinicId,
-            row.patientId,
-            tabReceivableDescription(row.patientName, row.openedOn),
-            input.dueDate,
-            row.totalInCents,
-            paid ? "paid" : "open",
-            paid ? new Date() : null,
-            paid ? input.paymentMethod : null,
-            tabId,
-          ],
-        );
-        const receivableId = receivable.rows[0]!.id;
-        await client.query(
-          "UPDATE receivables SET category_id=$3,cost_center_id=$4 WHERE clinic_id=$1 AND id=$2",
-          [
-            clinicId,
-            receivableId,
-            input.categoryId ?? null,
-            input.costCenterId ?? null,
-          ],
-        );
-        await client.query(
-          `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'created',$4,$5)`,
-          [
-            clinicId,
-            receivableId,
-            actorUserId,
-            row.totalInCents,
-            JSON.stringify({ source: "patient_tab", tabId }),
-          ],
-        );
-        if (paid)
-          await client.query(
-            `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'payment',$4,$5)`,
-            [
-              clinicId,
-              receivableId,
-              actorUserId,
-              row.totalInCents,
-              JSON.stringify({
-                paymentMethod: input.paymentMethod,
-                source: "patient_tab",
-              }),
-            ],
-          );
-        await client.query(
-          `UPDATE patient_tabs SET status='closed',payment_status=$2,receivable_id=$3,closed_at=now() WHERE id=$1`,
-          [tabId, input.settlement, receivableId],
-        );
-        const updated = await repositoryContext.findPatientTab(
+        for (const item of input.items)
+          await addTabItem(client, clinicId, actorUserId, tabId, item);
+        await closeTab(client, clinicId, actorUserId, tabId, {
+          settlement: input.settlement,
+          dueDate: input.dueDate,
+          ...(input.paymentMethod
+            ? { paymentMethod: input.paymentMethod }
+            : {}),
+          ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+          ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
+        });
+        return (await repositoryContext.findPatientTab(
           clinicId,
           tabId,
           client,
-        );
-        await client.query("COMMIT");
-        return updated;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+        ))!;
+      });
     },
 
     async cancelPatientTab(
