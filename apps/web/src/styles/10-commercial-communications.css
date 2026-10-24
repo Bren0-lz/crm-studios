@@ -1261,22 +1261,90 @@
   min-height: 70vh;
 }
 
+/* Editor e prévia na mesma moldura: colunas da altura da tela (abaixo da barra do topo),
+   folhas rolando por dentro. */
+.template-studio > .template-body-input,
 .template-studio .template-preview {
   position: sticky;
-  top: var(--space-4);
+  top: calc(var(--space-8) + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--space-8) * 2);
+}
+
+.template-studio > .template-body-input {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+}
+
+.template-studio > .template-body-input[hidden] {
+  display: none;
+}
+
+.template-studio .rich-document-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.template-studio .document-editor-toolbar {
+  padding: 0;
+  border: 0;
+}
+
+.template-studio .document-field-menu {
+  background: white;
+}
+
+.template-studio .document-field-menu .template-fields {
+  max-height: 30vh;
+  overflow: auto;
 }
 
 .template-studio .document-paper-canvas {
-  max-height: calc(100vh - var(--space-8) * 2);
+  flex: 1;
+  min-height: calc(var(--space-8) * 4);
+  max-height: none;
   padding: var(--space-5);
 }
 
+.template-studio.preview-only .template-preview {
+  position: static;
+  height: auto;
+}
+
 .template-studio.preview-only .document-paper-canvas {
-  max-height: none;
+  flex: none;
 }
 
 .template-studio .document-paper {
   padding: var(--space-8) var(--space-7);
+}
+
+/* A folha do editor é o próprio campo de texto. */
+.document-paper-editor:focus-within {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
+.rich-document-editor .document-paper-editor .tiptap {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.rich-document-editor .document-paper-editor .tiptap:focus-visible {
+  outline: none;
+}
+
+.document-paper-editor .tiptap > :first-child {
+  margin-top: 0;
 }
 
 .template-studio-meta {
@@ -1308,8 +1376,15 @@
     grid-template-columns: 1fr;
   }
 
+  .template-studio > .template-body-input,
   .template-studio .template-preview {
     position: static;
+    height: auto;
+  }
+
+  .template-studio .document-paper-canvas {
+    flex: none;
+    max-height: 60vh;
   }
 
   .document-paper,
