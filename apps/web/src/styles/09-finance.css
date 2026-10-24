@@ -791,6 +791,58 @@
   font-weight: 600;
 }
 
+/* Nome do cliente no card abre as pendências. */
+.suggestion-name-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestion-name-button:hover {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.suggestion-name-button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Pendências do cliente (modal aberto a partir do contato sugerido). */
+.client-pending {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.client-pending .patient-tab-group + .patient-tab-group {
+  margin-top: 0;
+}
+
+.client-pending-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.client-pending-head h3 {
+  margin: 0;
+}
+
+.client-pending-context {
+  margin: 0 0 var(--space-2);
+  color: var(--red);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 /* Baixa de parcela (U39): valor final calculado. */
 .settle-summary {
   display: grid;
