@@ -99,8 +99,11 @@ describe("grouped suggested contacts", () => {
       within(filters).getByRole("button", { name: /Todas\s*2/ }),
     ).toBeInTheDocument();
 
+    fireEvent.click(card);
     fireEvent.click(
-      within(card).getByRole("button", { name: "Registrar contato" }),
+      within(
+        screen.getByRole("dialog", { name: "Pendências de Helena" }),
+      ).getByRole("button", { name: "Registrar contato" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Registrar contato" });
     expect(dialog).toHaveTextContent("vale para os 2 motivos");
@@ -110,6 +113,7 @@ describe("grouped suggested contacts", () => {
     await waitFor(() =>
       expect(screen.queryByText("Helena Almeida")).not.toBeInTheDocument(),
     );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(activities).toEqual([
       expect.objectContaining({
         reason: "plan_expiring",
