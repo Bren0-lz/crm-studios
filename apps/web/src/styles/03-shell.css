@@ -175,7 +175,6 @@
 }
 
 .avatar,
-.top-avatar,
 .patient-avatar {
   display: grid;
   flex: 0 0 auto;
@@ -278,14 +277,6 @@
 .topbar .icon-button:focus-visible {
   outline: 2px solid var(--green-2);
   outline-offset: 2px;
-}
-
-.top-avatar {
-  width: 34px;
-  height: 34px;
-  background: var(--mint);
-  color: var(--green);
-  font-size: var(--text-xs);
 }
 
 .page-content {
@@ -426,13 +417,9 @@
   color: #3d866e;
 }
 
-/* Notificações e menu do usuário no cabeçalho. */
+/* Notificações no cabeçalho. */
 .header-popover {
   position: relative;
-}
-button.top-avatar {
-  border: 0;
-  cursor: pointer;
 }
 .header-popover-panel {
   position: absolute;
@@ -483,19 +470,9 @@ button.top-avatar {
   display: grid;
   gap: calc(var(--space-1) / 2);
 }
-.header-notifications small,
-.header-user small {
+.header-notifications small {
   color: var(--muted);
   font-size: var(--text-xs);
-}
-.header-user {
-  display: grid;
-  gap: calc(var(--space-1) / 2);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--line);
-}
-.header-user-actions {
-  display: grid;
 }
 
 /* Sino (QM13): contador no ícone, grupos com contagem e skeleton ao carregar. */

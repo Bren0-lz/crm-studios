@@ -13,7 +13,7 @@ function pngFile() {
 }
 
 describe("own profile through real HTTP handlers", () => {
-  it("opens from the user menu and saves name, photo and agenda name", async () => {
+  it("opens from the sidebar and saves name, photo and agenda name", async () => {
     const { repository } = await setupApi();
     await repository.setAdminUserProfessional(
       clinicId,
@@ -23,9 +23,8 @@ describe("own profile through real HTTP handlers", () => {
     );
     open("/");
     fireEvent.click(
-      await screen.findByRole("button", { name: "Menu do usuário" }),
+      await screen.findByRole("link", { name: "Meu perfil" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Meu perfil/ }));
     await screen.findByRole("heading", { name: "Meu perfil" });
     const data = await screen.findByRole("region", { name: "Dados pessoais" });
     expect(within(data).getByLabelText("E-mail de acesso")).toHaveValue(
@@ -52,9 +51,10 @@ describe("own profile through real HTTP handlers", () => {
       avatarDataUrl: `data:image/png;base64,${PNG_BASE64}`,
       professional: { fullName: "Aryana" },
     });
-    // O cabeçalho passa a mostrar a foto no lugar das iniciais.
-    const menu = screen.getByRole("button", { name: "Menu do usuário" });
-    expect(menu.querySelector("img")).not.toBeNull();
+    expect(within(data).getByRole("img", { name: "Sua foto" })).toHaveAttribute(
+      "src",
+      `data:image/png;base64,${PNG_BASE64}`,
+    );
   });
 
   it("explains when the user has no professional in the agenda", async () => {

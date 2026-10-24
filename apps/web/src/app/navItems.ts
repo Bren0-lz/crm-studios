@@ -13,6 +13,7 @@ import {
   PackageOpen,
   Settings,
   Stethoscope,
+  UserRound,
   Users,
 } from "lucide-react";
 
@@ -103,6 +104,7 @@ export const navGroups: Array<{ label: string; items: NavItem[] }> = [
         icon: Settings,
         module: "settings",
       },
+      { to: "/perfil", label: "Meu perfil", icon: UserRound },
     ],
   },
 ];

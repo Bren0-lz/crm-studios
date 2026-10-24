@@ -1,18 +1,9 @@
-import type { NotificationsSummary, UserSummary } from "@crm/contracts";
-import {
-  Bell,
-  Cake,
-  CalendarClock,
-  LogOut,
-  Settings,
-  UserRound,
-  WalletCards,
-} from "lucide-react";
+import type { NotificationsSummary } from "@crm/contracts";
+import { Bell, Cake, CalendarClock, WalletCards } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuthorization } from "../authorization-context";
 import { useDataVersion } from "../shared/hooks/useDataVersion";
-import { initials, roleLabels } from "../shared/lib/formatting";
 
 /** Painel suspenso do cabeçalho: fecha com Esc, clique fora ou ao escolher um item. */
 function HeaderPopover({
@@ -241,77 +232,6 @@ export function NotificationsMenu({
           ) : (
             !error && <p className="muted-copy">Nada pendente.</p>
           )}
-        </>
-      )}
-    </HeaderPopover>
-  );
-}
-
-export function UserMenu({
-  user,
-  onNavigate,
-  onLogout,
-}: {
-  user: UserSummary;
-  onNavigate: (to: string) => void;
-  onLogout: () => void;
-}) {
-  const { canView } = useAuthorization();
-  return (
-    <HeaderPopover
-      label="Menu do usuário"
-      triggerClassName={
-        user.avatarDataUrl ? "top-avatar has-photo" : "top-avatar"
-      }
-      trigger={
-        user.avatarDataUrl ? (
-          <img src={user.avatarDataUrl} alt="" />
-        ) : (
-          initials(user.fullName)
-        )
-      }
-    >
-      {(close) => (
-        <>
-          <div className="header-user">
-            <strong>{user.fullName}</strong>
-            <small>{user.email}</small>
-            <small>{user.jobTitle ?? roleLabels[user.role]}</small>
-          </div>
-          <div className="header-user-actions">
-            <button
-              type="button"
-              className="action-menu-item"
-              onClick={() => {
-                close();
-                onNavigate("/perfil");
-              }}
-            >
-              <UserRound size={16} /> Meu perfil
-            </button>
-            {canView("settings") && (
-              <button
-                type="button"
-                className="action-menu-item"
-                onClick={() => {
-                  close();
-                  onNavigate("/configuracoes");
-                }}
-              >
-                <Settings size={16} /> Configurações
-              </button>
-            )}
-            <button
-              type="button"
-              className="action-menu-item"
-              onClick={() => {
-                close();
-                onLogout();
-              }}
-            >
-              <LogOut size={16} /> Sair
-            </button>
-          </div>
         </>
       )}
     </HeaderPopover>
