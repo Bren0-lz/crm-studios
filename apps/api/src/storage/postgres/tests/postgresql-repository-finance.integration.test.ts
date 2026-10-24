@@ -1324,7 +1324,26 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "2097-05-20T17:00:00.000Z",
       );
 
+      const sum = (items: Array<{ amountInCents: number }>) =>
+        items.reduce((total, item) => total + item.amountInCents, 0);
+      const forecast = await repository.listTeamProduction(
+        clinicId,
+        "2097-05-01",
+        "2097-05-31",
+      );
+      expect(forecast.sessions.length).toBeGreaterThanOrEqual(3);
       const first = await repository.generateCommissions(clinicId, "2097-05");
+      // A previsão do relatório usa a mesma regra da geração.
+      expect(sum(forecast.pendingCommissions) + sum(forecast.commissions)).toBe(
+        sum(first),
+      );
+      const generated = await repository.listTeamProduction(
+        clinicId,
+        "2097-05-01",
+        "2097-05-31",
+      );
+      expect(generated.pendingCommissions).toEqual([]);
+      expect(sum(generated.commissions)).toBe(sum(first));
       const byAppointment = new Map(
         first.map((item) => [item.appointmentId, item]),
       );

@@ -214,6 +214,21 @@ export function allocatePlanRevenue(
   return shares;
 }
 
+/**
+ * Valor de uma sessão: o do serviço no plano do cliente (valor ÷ sessões contratadas) ou,
+ * sem plano, o preço de tabela do serviço.
+ */
+export function sessionValueInCents(
+  planService:
+    | Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">
+    | undefined,
+  priceInCents: number,
+): number {
+  return planService && planService.totalSessions > 0
+    ? Math.round(planService.totalValueInCents / planService.totalSessions)
+    : priceInCents;
+}
+
 export const planStatusSchema = z.enum([
   "active",
   "paused",

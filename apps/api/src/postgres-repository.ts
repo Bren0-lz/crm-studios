@@ -311,6 +311,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.getSalesReport = this.reports.getSalesReport;
     this.getSalesPeriodReport = this.reports.getSalesPeriodReport;
     this.getManagementReport = this.reports.getManagementReport;
+    this.listTeamProduction = this.reports.listTeamProduction;
     this.listPlanTemplates = this.plans.listPlanTemplates;
     this.createPlanTemplate = this.plans.createPlanTemplate;
     this.updatePlanTemplate = this.plans.updatePlanTemplate;
@@ -791,6 +792,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly getManagementReport: ReturnType<
     typeof createReportsRepository
   >["getManagementReport"];
+
+  readonly listTeamProduction: ReturnType<
+    typeof createReportsRepository
+  >["listTeamProduction"];
 
   readonly listPlanTemplates: ReturnType<
     typeof createPlansRepository

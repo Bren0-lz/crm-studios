@@ -5,8 +5,12 @@ import {
   type SaleMovement,
   type SalesReport,
   type SalesPeriodReport,
+  type TeamProductionSources,
   allocatePlanRevenue,
 } from "@crm/contracts";
+import { commissionAmount } from "../../modules/finance/commission-calculation.js";
+import { competencesBetween } from "../../modules/reports/team-finance.js";
+import { commissionCandidates } from "./commission-operations.js";
 import {
   buildSalesReport,
   buildSalesPeriodReport,
@@ -101,6 +105,111 @@ export function createReportsRepository(
   }
 
   return {
+    async listTeamProduction(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<TeamProductionSources> {
+      const inPeriod = (value: string) => {
+        const date = localDate(new Date(value));
+        return date >= from && date <= to;
+      };
+      const consumedPlan = (
+        match: (
+          movement: (typeof repositoryContext.sessionMovements)[number],
+        ) => boolean,
+      ) =>
+        repositoryContext.sessionMovements.find(
+          (movement) => movement.kind === "consumption" && match(movement),
+        )?.planId;
+      const individual = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.patientId &&
+            item.status === "completed" &&
+            inPeriod(item.startsAt),
+        )
+        .map((item) => {
+          const planId = consumedPlan(
+            (movement) => movement.appointmentId === item.id,
+          );
+          return {
+            professionalId: item.professionalId,
+            professionalName: item.professionalName,
+            serviceId: item.serviceId,
+            serviceName: item.serviceName,
+            ...(planId ? { planId } : {}),
+          };
+        });
+      const collective = repositoryContext.groupAttendance
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            (item.status === "present" || item.outcome === "present"),
+        )
+        .flatMap((item) => {
+          const meeting = repositoryContext.groupSessions.find(
+              (entry) =>
+                entry.clinicId === clinicId &&
+                entry.id === item.sessionId &&
+                entry.status !== "cancelled" &&
+                inPeriod(entry.startsAt),
+            ),
+            group = repositoryContext
+              .scoped(repositoryContext.groupClasses)
+              .find(
+                (entry) =>
+                  entry.clinicId === clinicId && entry.id === meeting?.groupId,
+              );
+          if (!meeting || !group) return [];
+          const planId = consumedPlan(
+            (movement) => movement.groupAttendanceId === item.id,
+          );
+          return [
+            {
+              professionalId: meeting.professionalId,
+              professionalName: meeting.professionalName,
+              serviceId: group.serviceId,
+              serviceName: group.serviceName,
+              ...(planId ? { planId } : {}),
+            },
+          ];
+        });
+      const competences = competencesBetween(from, to);
+      return {
+        sessions: [...individual, ...collective],
+        commissions: repositoryContext
+          .scopedCommissions()
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              competences.includes(item.competence),
+          )
+          .map((item) => ({
+            professionalId: item.professionalId,
+            professionalName: item.professionalName,
+            competence: item.competence,
+            amountInCents: item.amountInCents,
+            status: item.status,
+          })),
+        pendingCommissions: competences.flatMap((competence) =>
+          commissionCandidates(repositoryContext, clinicId, competence)
+            .filter(({ source }) =>
+              repositoryContext.professionalInBranchScope(
+                source.professionalId,
+              ),
+            )
+            .map(({ source, rule, service }) => ({
+              professionalId: source.professionalId,
+              professionalName: source.professionalName,
+              amountInCents: commissionAmount(rule, service.priceInCents),
+            })),
+        ),
+      };
+    },
+
     async getDashboard(
       clinicId: string,
       date: string,
