@@ -1,8 +1,49 @@
-﻿import { useId, useState } from "react";
+﻿import { useCallback, useId, useState } from "react";
 import { EmptyState } from "../../shared/components/EmptyState";
 
-type Series = { label: string; format?: (value: number) => string };
-export type ChartPoint = { label: string; values: (number | null)[] };
+type Series = {
+  label: string;
+  format?: (value: number) => string;
+  /** Formato curto para o eixo vertical (ex.: "R$ 1,2 mil"). */
+  axisFormat?: (value: number) => string;
+};
+export type ChartPoint = {
+  label: string;
+  /** Rótulo curto no eixo horizontal; o `label` completo fica na leitura. */
+  axisLabel?: string;
+  values: (number | null)[];
+};
+
+const PADDING = { top: 16, right: 16, bottom: 36 };
+const BAR_MAX = 24;
+const BAR_GAP = 2;
+const RADIUS = 4;
+
+/** Divisões "redondas" (1, 2, 2,5 ou 5 × 10ⁿ) cobrindo o intervalo. */
+function niceTicks(min: number, max: number, count = 4) {
+  if (min === max) max = min + 1;
+  const raw = (max - min) / count;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const step =
+    [1, 2, 2.5, 5, 10].map((m) => m * power).find((v) => v >= raw) ??
+    10 * power;
+  const start = Math.floor(min / step) * step;
+  const end = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let v = start; v <= end + step / 2; v += step)
+    ticks.push(Math.round(v / step) * step);
+  return ticks;
+}
+
+/** Barra com a ponta de dado arredondada e a base reta. */
+function barPath(x: number, width: number, top: number, base: number) {
+  const height = Math.abs(base - top);
+  const r = Math.min(RADIUS, width / 2, height);
+  if (top <= base)
+    return `M${x},${base}V${top + r}Q${x},${top} ${x + r},${top}H${x + width - r}Q${x + width},${top} ${x + width},${top + r}V${base}Z`;
+  return `M${x},${base}V${top - r}Q${x},${top} ${x + r},${top}H${x + width - r}Q${x + width},${top} ${x + width},${top - r}V${base}Z`;
+}
+
 export function ReportChart({
   title,
   points,
@@ -18,6 +59,18 @@ export function ReportChart({
 }) {
   const id = useId();
   const [focused, setFocused] = useState<number | null>(null);
+  const [width, setWidth] = useState(720);
+  const measure = useCallback((element: HTMLDivElement | null) => {
+    if (!element) return;
+    const update = () => {
+      if (element.clientWidth) setWidth(element.clientWidth);
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const values = points.flatMap((p) =>
     p.values.filter((v): v is number => v !== null),
   );
@@ -28,135 +81,212 @@ export function ReportChart({
         copy="Os valores estarão disponíveis quando houver dados no período."
       />
     );
-  const min = Math.min(0, ...values),
-    max = Math.max(0, ...values);
-  const extent = max - min || 1;
-  const y = (v: number) => 12 + ((max - v) / extent) * 170;
-  const x = (i: number) => 28 + ((i + 0.5) / points.length) * 744;
-  const barStep = Math.min(48, 600 / points.length / series.length);
-  const barWidth = barStep * 0.75;
   const format = (v: number, index: number) =>
     series[index]?.format?.(v) ?? String(v);
+  const axisFormat = (v: number) => series[0]?.axisFormat?.(v) ?? format(v, 0);
+  const ticks = niceTicks(Math.min(0, ...values), Math.max(0, ...values));
+  const min = ticks[0]!,
+    max = ticks[ticks.length - 1]!;
+  const compact = width < 480;
+  const height = compact ? 220 : 280;
+  const left =
+    Math.max(...ticks.map((tick) => axisFormat(tick).length)) * 7 + 12;
+  const plotWidth = Math.max(width - left - PADDING.right, 40);
+  const plotHeight = height - PADDING.top - PADDING.bottom;
+  const band = plotWidth / points.length;
+  const y = (v: number) =>
+    PADDING.top + ((max - v) / (max - min || 1)) * plotHeight;
+  const x = (i: number) => left + (i + 0.5) * band;
+  const barWidth = Math.max(
+    2,
+    Math.min(
+      BAR_MAX,
+      (band * 0.72 - (series.length - 1) * BAR_GAP) / series.length,
+    ),
+  );
+  const groupWidth = barWidth * series.length + BAR_GAP * (series.length - 1);
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(points.length / Math.max(1, Math.floor(plotWidth / 96))),
+  );
+  const showDots = !bars && band >= 14;
   const description = (point: ChartPoint) =>
     `${point.label}: ${point.values.map((v, i) => `${series[i]?.label}: ${v === null ? "Sem base de cálculo" : format(v, i)}`).join(" · ")}`;
   const highlighted = focused === null ? null : points[focused];
   return (
-    <div className="report-chart">
-      <ul className="report-chart-legend" aria-label="Legenda">
-        {series.map((s, i) => (
-          <li key={s.label} data-series={i}>
-            <span aria-hidden="true" />
-            {s.label}
-          </li>
-        ))}
-      </ul>
+    <div className="report-chart" data-kind={bars ? "bars" : "lines"}>
+      {series.length > 1 && (
+        <ul className="report-chart-legend" aria-label="Legenda">
+          {series.map((s, i) => (
+            <li key={s.label} data-series={i}>
+              <span aria-hidden="true" />
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="report-chart-readout" aria-live="polite">
-        {highlighted
-          ? description(highlighted)
-          : "Passe sobre o gráfico ou navegue pelos pontos com Tab para consultar os valores."}
+        {highlighted ? (
+          <>
+            <strong>{highlighted.label}</strong>
+            <ul aria-label={description(highlighted)}>
+              {highlighted.values.map((v, i) => (
+                <li key={i} data-series={i}>
+                  <span aria-hidden="true" />
+                  <b>{v === null ? "Sem base de cálculo" : format(v, i)}</b>
+                  {series[i]?.label}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          "Passe sobre o gráfico ou navegue pelos pontos com Tab para consultar os valores."
+        )}
       </div>
-      <svg
-        className="report-chart-plot"
-        viewBox="0 0 800 200"
-        preserveAspectRatio="none"
-        role="group"
-        aria-labelledby={id}
-      >
-        <title id={id}>{title}</title>
-        {[0, 0.5, 1].map((tick) => (
-          <line
-            key={tick}
-            x1="12"
-            x2="788"
-            y1={12 + tick * 170}
-            y2={12 + tick * 170}
-            className="report-chart-grid"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-        <line
-          x1="12"
-          x2="788"
-          y1={y(0)}
-          y2={y(0)}
-          className="report-chart-zero"
-          vectorEffect="non-scaling-stroke"
-        />
-        {!bars &&
-          series.map((s, si) => (
-            <path
-              key={s.label}
-              data-series={si}
-              className="report-chart-line"
-              vectorEffect="non-scaling-stroke"
-              d={points
+      <div className="report-chart-frame" ref={measure}>
+        <svg
+          className="report-chart-plot"
+          viewBox={`0 0 ${width} ${height}`}
+          width={width}
+          height={height}
+          role="group"
+          aria-labelledby={id}
+        >
+          <title id={id}>{title}</title>
+          {ticks.map((tick) => (
+            <g key={tick} className="report-chart-tick">
+              <line
+                x1={left}
+                x2={left + plotWidth}
+                y1={y(tick)}
+                y2={y(tick)}
+                className={
+                  tick === 0 ? "report-chart-zero" : "report-chart-grid"
+                }
+              />
+              <text x={left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
+                {axisFormat(tick)}
+              </text>
+            </g>
+          ))}
+          {points.map((point, i) =>
+            i % labelEvery === 0 ? (
+              <text
+                key={point.label}
+                className="report-chart-xlabel"
+                x={
+                  points.length > 1 && i === 0
+                    ? left + 4
+                    : points.length > 1 && i === points.length - 1
+                      ? left + plotWidth - 4
+                      : x(i)
+                }
+                y={height - 12}
+                textAnchor={
+                  points.length === 1
+                    ? "middle"
+                    : i === 0
+                      ? "start"
+                      : i === points.length - 1
+                        ? "end"
+                        : "middle"
+                }
+              >
+                {point.axisLabel ?? point.label}
+              </text>
+            ) : null,
+          )}
+          {focused !== null && !bars && (
+            <line
+              className="report-chart-crosshair"
+              x1={x(focused)}
+              x2={x(focused)}
+              y1={PADDING.top}
+              y2={PADDING.top + plotHeight}
+            />
+          )}
+          {!bars &&
+            series.map((s, si) => {
+              const line = points
                 .map((p, i) =>
                   p.values[si] === null
                     ? ""
                     : `${i === 0 || points[i - 1]!.values[si] === null ? "M" : "L"}${x(i)},${y(p.values[si]!)}`,
                 )
-                .join(" ")}
-            />
+                .join(" ");
+              const defined = points
+                .map((p, i) => (p.values[si] === null ? null : i))
+                .filter((i): i is number => i !== null);
+              const continuous =
+                defined.length > 1 &&
+                defined[defined.length - 1]! - defined[0]! ===
+                  defined.length - 1;
+              return (
+                <g key={s.label}>
+                  {series.length === 1 && continuous && (
+                    <path
+                      data-series={si}
+                      className="report-chart-area"
+                      d={`${line} L${x(defined[defined.length - 1]!)},${y(0)} L${x(defined[0]!)},${y(0)} Z`}
+                    />
+                  )}
+                  <path
+                    data-series={si}
+                    className="report-chart-line"
+                    d={line}
+                  />
+                </g>
+              );
+            })}
+          {points.map((point, i) => (
+            <g
+              key={point.label}
+              tabIndex={0}
+              role="img"
+              aria-label={description(point)}
+              className="report-chart-point"
+              data-active={focused === i || undefined}
+              onFocus={() => setFocused(i)}
+              onBlur={() => setFocused(null)}
+              onMouseEnter={() => setFocused(i)}
+              onMouseLeave={() => setFocused(null)}
+            >
+              <title>{description(point)}</title>
+              <rect
+                x={left + i * band}
+                y={PADDING.top}
+                width={band}
+                height={plotHeight}
+                className="report-chart-hit"
+              />
+              {point.values.map((v, si) =>
+                v === null ? null : bars ? (
+                  <path
+                    key={si}
+                    data-series={si}
+                    className="report-chart-bar"
+                    d={barPath(
+                      x(i) - groupWidth / 2 + si * (barWidth + BAR_GAP),
+                      barWidth,
+                      y(v),
+                      y(0),
+                    )}
+                  />
+                ) : showDots || focused === i ? (
+                  <circle
+                    key={si}
+                    data-series={si}
+                    className="report-chart-dot"
+                    cx={x(i)}
+                    cy={y(v)}
+                    r={focused === i ? 5 : 4}
+                  />
+                ) : null,
+              )}
+            </g>
           ))}
-        {points.map((point, i) => (
-          <g
-            key={point.label}
-            tabIndex={0}
-            role="img"
-            aria-label={description(point)}
-            className="report-chart-point"
-            onFocus={() => setFocused(i)}
-            onBlur={() => setFocused(null)}
-            onMouseEnter={() => setFocused(i)}
-            onMouseLeave={() => setFocused(null)}
-          >
-            <title>{description(point)}</title>
-            <rect
-              x={x(i) - Math.min(24, 350 / points.length)}
-              y="0"
-              width={Math.min(48, 700 / points.length)}
-              height="200"
-              className="report-chart-hit"
-            />
-            {point.values.map((v, si) =>
-              v === null ? null : bars ? (
-                <rect
-                  key={si}
-                  data-series={si}
-                  className="report-chart-bar"
-                  x={
-                    x(i) +
-                    (si - (series.length - 1) / 2) * barStep -
-                    barWidth / 2
-                  }
-                  width={barWidth}
-                  y={Math.min(y(v), y(0))}
-                  height={Math.abs(y(v) - y(0))}
-                />
-              ) : (
-                <circle
-                  key={si}
-                  data-series={si}
-                  className="report-chart-dot"
-                  cx={x(i)}
-                  cy={y(v)}
-                  r="4"
-                />
-              ),
-            )}
-          </g>
-        ))}
-      </svg>
-      <div className="report-chart-axis">
-        <span>{points[0]?.label}</span>
-        {points.length > 2 && (
-          <span>{points[Math.floor(points.length / 2)]?.label}</span>
-        )}
-        <span>{points.length > 1 ? points[points.length - 1]?.label : ""}</span>
+        </svg>
       </div>
-      <p className="report-chart-scale">
-        Escala: {format(min, 0)} a {format(max, 0)}
-      </p>
       {showTable && (
         <details className="report-data-disclosure">
           <summary>Ver dados do gráfico</summary>

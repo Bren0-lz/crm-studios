@@ -657,6 +657,9 @@ describe("application shell", () => {
         "A retenção aceita no máximo 24 meses.",
       ),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(await screen.findByText("1. Helena Almeida")).toBeInTheDocument();
     expect(screen.getByText("30 sessões")).toBeInTheDocument();
     expect(screen.getByText("Relatórios gerenciais")).toBeInTheDocument();
