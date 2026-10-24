@@ -1,7 +1,12 @@
-import type { PatientExportColumn, PatientProfileFilter } from "@crm/contracts";
+import type {
+  PatientActivityFilter,
+  PatientExportColumn,
+  PatientProfileFilter,
+} from "@crm/contracts";
 
 /** Filtros e opções da exportação de clientes (`GET /patients/export`). */
-export interface PatientExportParams extends PatientProfileFilter {
+export interface PatientExportParams
+  extends PatientProfileFilter, PatientActivityFilter {
   format: "csv" | "xlsx";
   columns: PatientExportColumn[];
   search?: string;
@@ -31,6 +36,11 @@ export function patientExportQuery(params: PatientExportParams) {
     "gender",
     "segment",
     "record",
+    "service",
+    "group",
+    "professional",
+    "lastVisit",
+    "nextAppointment",
   ] as const)
     if (params[key]) query.set(key, params[key]!);
   if (params.withoutGroup) query.set("withoutGroup", "true");

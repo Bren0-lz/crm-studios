@@ -4,6 +4,8 @@ import {
   matchesPatientProfile,
   matchesPatientSegment,
   guidedPatientInputSchema,
+  hasPatientActivityFilter,
+  matchesPatientActivity,
   isAutomaticPatientTag,
   OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
@@ -69,24 +71,26 @@ export function registerPatientsRoutes(context: RouteContext) {
     const clinicId = request.user.clinicId;
     if (query.segment === "pending" || query.segment === "overdue")
       assertPermissions(request, "finance.view");
-    const summary = query.segment
-      ? await clientSegments(
-          repository,
-          clinicId,
-          requestAccess.get(request)?.permissions.includes("finance.view"),
-        )
-      : [];
+    const summary =
+      query.segment || hasPatientActivityFilter(query)
+        ? await clientSegments(
+            repository,
+            clinicId,
+            requestAccess.get(request)?.permissions.includes("finance.view"),
+          )
+        : [];
     const tag = await taggerFor(request);
+    const today = saoPauloToday();
     const patients = (await repository.listPatients(clinicId, query.search))
       .map(tag)
-      .filter(
-      (patient) =>
-        matchesPatientProfile(patient, query) &&
-        matchesPatientSegment(
-          summary.find((item) => item.patientId === patient.id),
-          query.segment,
-        ),
-    );
+      .filter((patient) => {
+        const item = summary.find((entry) => entry.patientId === patient.id);
+        return (
+          matchesPatientProfile(patient, query) &&
+          matchesPatientSegment(item, query.segment) &&
+          matchesPatientActivity(item, query, today)
+        );
+      });
     if (!query.withoutGroup) return patients;
     const ids = new Set(
       await repository.listSubscriberIdsWithoutGroup(clinicId),
@@ -125,13 +129,14 @@ export function registerPatientsRoutes(context: RouteContext) {
       const today = saoPauloToday();
       if (filters.segment === "pending" || filters.segment === "overdue")
         assertPermissions(request, "finance.view");
-      const segments = filters.segment
-        ? await clientSegments(
-            repository,
-            clinicId,
-            requestAccess.get(request)?.permissions.includes("finance.view"),
-          )
-        : [];
+      const segments =
+        filters.segment || hasPatientActivityFilter(filters)
+          ? await clientSegments(
+              repository,
+              clinicId,
+              requestAccess.get(request)?.permissions.includes("finance.view"),
+            )
+          : [];
       const [patients, plans, withoutGroupIds, tag] = await Promise.all([
         repository.listPatients(clinicId, filters.search),
         filters.activePlan === undefined
@@ -143,12 +148,13 @@ export function registerPatientsRoutes(context: RouteContext) {
         taggerFor(request),
       ]);
       const filtered = filterPatientsForExport(
-        patients.map(tag).filter((patient) =>
-          matchesPatientSegment(
-            segments.find((item) => item.patientId === patient.id),
-            filters.segment,
-          ),
-        ),
+        patients.map(tag).filter((patient) => {
+          const item = segments.find((entry) => entry.patientId === patient.id);
+          return (
+            matchesPatientSegment(item, filters.segment) &&
+            matchesPatientActivity(item, filters, today)
+          );
+        }),
         plans,
         { format, columns, ...filters },
         today,
