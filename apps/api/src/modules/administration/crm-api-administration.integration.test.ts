@@ -661,6 +661,55 @@ describe("CRM API", () => {
       await app.close();
     });
 
+    it("says which field and rule failed when a new user is invalid", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const create = (payload: Record<string, unknown>) =>
+        app.inject({
+          method: "POST",
+          url: "/admin/users",
+          headers: owner,
+          payload: {
+            fullName: "Breno Luiz",
+            email: "breno@teste.local",
+            password: "SenhaForte123",
+            role: "user",
+            ...payload,
+          },
+        });
+      const cases: [Record<string, unknown>, string][] = [
+        [
+          { password: "senhafraca" },
+          "Senha: Inclua uma letra maiúscula. Inclua um número.",
+        ],
+        [{ email: "breno" }, "E-mail: Informe um e-mail válido."],
+        [{ fullName: "Br" }, "Nome: Use pelo menos 3 caracteres."],
+        [
+          {
+            professional: {
+              mode: "create",
+              data: {
+                fullName: "Breno Luiz",
+                crefito: "123",
+                specialty: "Fisioterapia",
+                color: "#ee2222",
+              },
+            },
+          },
+          "Registro profissional: Use pelo menos 4 caracteres.",
+        ],
+        [
+          { commission: { percentage: 140, effectiveFrom: "2026-10-24" } },
+          "Comissão (%): Informe um valor de até 100.",
+        ],
+      ];
+      for (const [payload, message] of cases) {
+        const response = await create(payload);
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toEqual({ code: "VALIDATION_ERROR", message });
+      }
+    });
+
     it("never lets the clinic lose its last active admin", async () => {
       const { app, token } = await authenticatedApp();
       const owner = { authorization: `Bearer ${token}` };

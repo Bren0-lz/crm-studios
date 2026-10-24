@@ -3,6 +3,7 @@ import { useUserAgenda } from "./useUserAgenda";
 import {
   legacyPermissions,
   saoPauloToday,
+  strongPasswordSchema,
   userRoleSchema,
   type AdminUser,
   type Branch,
@@ -162,11 +163,21 @@ export function UserFormModal({
     return "";
   }
 
+  /** Regras da senha inicial, as mesmas da API, com o nome do campo para o balão ir até ele. */
+  function passwordError() {
+    if (current || !password) return "";
+    const issues = strongPasswordSchema.safeParse(password).error?.issues;
+    return issues
+      ? `Senha inicial: ${issues.map((issue) => issue.message).join(" ")}`
+      : "";
+  }
+
   // O servidor grava todo o formulário em uma única transação.
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
     const invalid =
+      passwordError() ||
       commissionError() ||
       (choosesBranches && !allBranches && branchIds.length === 0
         ? "Selecione ao menos uma filial."
@@ -265,6 +276,7 @@ export function UserFormModal({
               <input
                 type="password"
                 required
+                maxLength={128}
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

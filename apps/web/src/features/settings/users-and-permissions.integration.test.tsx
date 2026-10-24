@@ -345,6 +345,42 @@ describe("users and permissions", () => {
     prompt.mockRestore();
   });
 
+  it("explains what the initial password is missing without calling the API", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(() => undefined, [adminUser, customUser]);
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senhafraca" },
+    });
+    fireEvent.submit(
+      within(dialog).getByLabelText("Nome completo").closest("form")!,
+    );
+    expect(
+      await within(dialog).findByText(
+        "Senha inicial: Inclua uma letra maiúscula. Inclua um número.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(false);
+  });
+
   it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
