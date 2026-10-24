@@ -3892,13 +3892,13 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "4 respostas · 2 promotores · 1 neutros · 1 detratores",
+        "2 de 4 respostas recomendariam o estúdio · 1 insatisfeito",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
-    expect(within(card).getByText("25")).toBeInTheDocument();
+    expect(within(card).getByText("Razoável")).toBeInTheDocument();
     const first = vi
       .mocked(fetch)
       .mock.calls.find(([input]) => String(input).includes("/satisfaction?"));
@@ -3913,12 +3913,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText(
-        "0 respostas · 0 promotores · 0 neutros · 0 detratores",
-      ),
+      await screen.findByText("Nenhuma pesquisa respondida no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
     expect(
@@ -4038,11 +4036,11 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "6 agendadas · 4 concluídas · 3 viraram plano em até 30 dias",
+        "3 de 4 fecharam plano em até 30 dias · 6 agendadas",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(card).getByText("75%")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("De"), {
@@ -4053,10 +4051,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText("2 agendadas · nenhuma concluída no período"),
+      await screen.findByText("2 agendadas · nenhuma realizada no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
   });

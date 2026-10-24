@@ -189,6 +189,111 @@
   font-size: var(--text-sm);
   line-height: 1.6;
 }
+.reports-page .clinic-indicators {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.reports-page .clinic-indicators-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
+}
+.indicator-card > .panel-head strong {
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.indicator-card .positive {
+  color: var(--green-2);
+}
+.indicator-card .negative {
+  color: var(--red);
+}
+.cash-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+.cash-summary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+}
+.cash-summary p {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+.cash-summary progress {
+  width: 100%;
+  height: var(--space-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  appearance: none;
+}
+.cash-summary progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.cash-summary progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--green-2);
+}
+.cash-summary progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--green-2);
+}
+.occupancy-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+.occupancy-line strong {
+  white-space: nowrap;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.indicator-lines {
+  display: grid;
+  margin: 0;
+}
+.indicator-lines > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-md);
+}
+.indicator-lines > div:last-child {
+  border-bottom: 0;
+}
+.indicator-lines dt {
+  color: var(--muted);
+}
+.indicator-lines dd {
+  margin: 0;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.indicator-lines .indicator-group dt,
+.indicator-lines .indicator-group dd {
+  color: var(--ink);
+  font-weight: 600;
+}
+.indicator-group ~ div:not(.indicator-group) dt {
+  padding-left: var(--space-3);
+}
 .reports-page .dre-section,
 .reports-page .profit-grid,
 .reports-page .report-grid {
@@ -524,6 +629,12 @@
   .reports-kpis strong {
     font-size: var(--text-2xl);
   }
+  .reports-page .clinic-indicators {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reports-page .clinic-indicators-panels {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 700px) {
   .reports-page {
@@ -542,6 +653,8 @@
     grid-template-columns: 1fr;
   }
   .reports-kpis,
+  .reports-page .clinic-indicators,
+  .reports-page .clinic-indicators-panels,
   .reports-page .dre-section,
   .reports-page .profit-grid,
   .reports-page .report-grid,
