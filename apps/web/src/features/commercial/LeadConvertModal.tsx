@@ -17,13 +17,10 @@ import { PatientProfileFields } from "../patients/index";
  */
 export function LeadConvertModal({
   lead,
-  columnLabel = "Ganhos",
   onClose,
   onConfirm,
 }: {
   lead: Lead;
-  /** Nome atual da coluna de ganhos (a clínica pode renomear). */
-  columnLabel?: string;
   onClose: () => void;
   onConfirm: (input: LeadConversionInput) => Promise<void>;
 }) {
@@ -64,7 +61,6 @@ export function LeadConvertModal({
       eyebrow="CRM comercial"
       title="Converter lead em cliente"
       subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
-      effect={`Confira o cadastro: os dados do lead já vieram preenchidos. Se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. O lead vai para a coluna ${columnLabel}.`}
       confirmLabel="Converter em cliente"
       validate={() => (!isValidCpf(form.cpf) ? "Informe um CPF válido." : "")}
       missing={missing}

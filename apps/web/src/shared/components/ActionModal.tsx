@@ -19,7 +19,8 @@ export function ActionModal({
   eyebrow: string;
   title: string;
   subtitle: string;
-  effect: ReactNode;
+  /** Explicação do efeito; omitida quando o formulário já basta. */
+  effect?: ReactNode;
   confirmLabel?: string;
   danger?: boolean;
   validate?: () => string;
@@ -75,7 +76,7 @@ export function ActionModal({
         noValidate
         onSubmit={(event) => void submit(event)}
       >
-        <p className="span-2">{effect}</p>
+        {effect && <p className="span-2">{effect}</p>}
         {children}
         {error && (
           <div className="form-error span-2" role="alert">
