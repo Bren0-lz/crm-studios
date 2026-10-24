@@ -1,9 +1,4 @@
-import {
-  type Patient,
-  patientFirstName,
-  patientProfileLabels,
-  patientProfileValueLabels,
-} from "@crm/contracts";
+import { type Patient, patientFirstName } from "@crm/contracts";
 import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -14,24 +9,18 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
-import { formatIsoDate } from "../../shared/lib/formatting";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
-import {
-  PatientRelatedModal,
-  type PatientRelatedModule,
-} from "./PatientRelatedModal";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { can, canView, canEdit } = useAuthorization();
+  const { can, canEdit } = useAuthorization();
   const toast = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [related, setRelated] = useState<PatientRelatedModule | null>(null);
   const tags = usePatientTags();
   useEffect(() => {
     let alive = true;
@@ -70,15 +59,6 @@ export function PatientDetailPage() {
       setBusy(false);
     }
   }
-  // Agenda, planos, financeiro e contratos ficam nas abas da ficha (U14).
-  // "Ver também" abre um resumo em modal; o módulo completo fica a um clique no rodapé.
-  const links = [
-    { module: "groups", label: "Turmas" },
-    { module: "relationship", label: "Contatos sugeridos" },
-    { module: "communications", label: "Comunicações" },
-  ] as const;
-  const visibleLinks = links.filter((item) => canView(item.module));
-  const fields = patient ? detailFields(patient) : [];
   return (
     <>
       <PageHeader
@@ -122,50 +102,6 @@ export function PatientDetailPage() {
             patient={patient}
             canEditClinical={canEdit("clinical")}
           />
-          <section className="panel" aria-labelledby="patient-details-title">
-            <div className="panel-head">
-              <h2 id="patient-details-title">Dados cadastrais</h2>
-            </div>
-            <div className="patient-detail-body">
-              {fields.length ? (
-                <dl className="patient-detail-fields">
-                  {fields.map(([key, label, value]) => (
-                    <div key={key}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="patient-detail-empty">
-                  Nenhum dado complementar cadastrado.
-                </p>
-              )}
-            </div>
-            {visibleLinks.length > 0 && (
-              <div className="patient-detail-links">
-                <span>Ver também</span>
-                {visibleLinks.map((item) => (
-                  <button
-                    type="button"
-                    className="secondary-button button-sm"
-                    key={item.module}
-                    onClick={() => setRelated(item.module)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-          {related && (
-            <PatientRelatedModal
-              module={related}
-              patientId={patient.id}
-              patientName={patient.fullName}
-              onClose={() => setRelated(null)}
-            />
-          )}
           {editing && (
             <PatientModal
               patient={patient}
@@ -181,39 +117,4 @@ export function PatientDetailPage() {
       )}
     </>
   );
-}
-
-/** Campos do cadastro preenchidos, já formatados: [chave, rótulo, valor]. */
-function detailFields(patient: Patient) {
-  const fields: [string, string, string][] = [];
-  if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
-  if (patient.birthDate)
-    fields.push(["birthDate", "Nascimento", formatIsoDate(patient.birthDate)]);
-  for (const [key, label] of Object.entries(patientProfileLabels)) {
-    const value = patient[key as keyof typeof patientProfileLabels];
-    if (
-      value === undefined ||
-      value === "" ||
-      (Array.isArray(value) && !value.length)
-    )
-      continue;
-    fields.push([
-      key,
-      label,
-      Array.isArray(value)
-        ? value.join(", ")
-        : typeof value === "boolean"
-          ? value
-            ? "Sim"
-            : "Não"
-          : key === "gender"
-            ? (patientProfileValueLabels[
-                value as keyof typeof patientProfileValueLabels
-              ] ?? value)
-            : key === "clientSince"
-              ? formatIsoDate(value)
-              : value,
-    ]);
-  }
-  return fields;
 }
