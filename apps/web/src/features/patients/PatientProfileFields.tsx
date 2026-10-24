@@ -2,11 +2,7 @@ import {
   patientProfileLabels,
   type PatientInput,
 } from "@crm/contracts/patients";
-import { useEffect, useState } from "react";
-import type { ClinicCatalogEntry } from "@crm/contracts";
-import { api } from "../../api";
-import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { useState } from "react";
 import { formatCep, lookupCep } from "../../shared/lib/cep";
 
 type PatientProfileInput = Pick<
@@ -27,26 +23,6 @@ export function PatientProfileFields({
     value: PatientProfileInput[K],
   ) => void;
 }) {
-  const [opened, setOpened] = useState(false);
-  const [catalogs, setCatalogs] = useState<{
-    interests: ClinicCatalogEntry[];
-    levels: ClinicCatalogEntry[];
-  } | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!opened) return;
-    let alive = true;
-    Promise.all([api.clinicCatalog("interest"), api.clinicCatalog("level")])
-      .then(([interests, levels]) => {
-        if (alive) setCatalogs({ interests, levels });
-      })
-      .catch((cause: Error) => {
-        if (alive) setError(cause.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [opened]);
   const [cepStatus, setCepStatus] = useState("");
   async function changeCep(value: string) {
     const formatted = formatCep(value);
@@ -145,60 +121,6 @@ export function PatientProfileFields({
           Autoriza uso de imagem
         </label>
       </div>
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open) setOpened(true);
-        }}
-      >
-        <summary>Interesses e nível</summary>
-        {error ? (
-          <ErrorBanner error={error} />
-        ) : !catalogs ? (
-          <LoadingBlock />
-        ) : (
-          <>
-            <label>
-              Nível
-              <select
-                value={form.level ?? ""}
-                onChange={(event) => onChange("level", event.target.value)}
-              >
-                <option value="">Não informado</option>
-                {catalogs.levels
-                  .filter((item) => item.active || item.name === form.level)
-                  .map((item) => (
-                    <option key={item.id} value={item.name}>
-                      {item.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {catalogs.interests
-              .filter(
-                (item) => item.active || form.interests?.includes(item.name),
-              )
-              .map((item) => (
-                <label className="checkbox-field" key={item.id}>
-                  <input
-                    type="checkbox"
-                    checked={form.interests?.includes(item.name) ?? false}
-                    onChange={(event) =>
-                      onChange(
-                        "interests",
-                        event.target.checked
-                          ? [...(form.interests ?? []), item.name]
-                          : (form.interests?.filter(
-                              (name) => name !== item.name,
-                            ) ?? []),
-                      )
-                    }
-                  />
-                  {item.name}
-                </label>
-              ))}
-          </>
-        )}
-      </details>
     </fieldset>
   );
 }

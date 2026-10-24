@@ -327,6 +327,11 @@
   gap: 14px;
 }
 
+/* Alinha a caixa com a base dos campos vizinhos, que têm rótulo acima. */
+.form-fieldset-grid > .checkbox-field {
+  align-self: end;
+}
+
 .field-with-hint {
   display: grid;
   gap: 5px;
