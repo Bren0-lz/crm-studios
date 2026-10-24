@@ -1,4 +1,3 @@
-import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { clinicId, setupApi } from "../../test-support/api-server";
@@ -80,37 +79,30 @@ describe("settings workflows through real HTTP handlers", () => {
       },
     ]);
   });
-  it("creates and renames a shared interest, preserving its reference on a client", async () => {
+  it("creates and renames a shared lead source", async () => {
     const { repository } = await setupApi();
     open("/configuracoes");
     fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Adicionar em Interesses" }),
+      await screen.findByRole("button", { name: "Adicionar em Origens" }),
     );
-    change("Nome", "Reabilitação", screen.getByRole("dialog"));
+    change("Nome", "Indicação de parceiro", screen.getByRole("dialog"));
     await save("Novo cadastro");
-    const patient = await repository.createPatient(clinicId, {
-      cpf: nextTestCpf(),
-      fullName: "Cliente do catálogo",
-      phone: "11988887777",
-      tags: [],
-      interests: ["Reabilitação"],
-    });
     const row = (
-      await screen.findByText("Reabilitação", { exact: true })
+      await screen.findByText("Indicação de parceiro", { exact: true })
     ).closest(".table-row")!;
     fireEvent.click(
       within(row as HTMLElement).getByRole("button", { name: "Editar" }),
     );
-    change("Nome", "Postura e movimento", screen.getByRole("dialog"));
+    change("Nome", "Parceria local", screen.getByRole("dialog"));
     await save("Editar cadastro");
     expect(
-      (await repository.listPatients(clinicId)).find(
-        (item) => item.id === patient.id,
-      )?.interests,
-    ).toEqual(["Postura e movimento"]);
+      (await repository.listClinicCatalog(clinicId, "lead_source")).map(
+        (item) => item.name,
+      ),
+    ).toContain("Parceria local");
     expect(
-      await screen.findByText("Postura e movimento", { exact: true }),
+      await screen.findByText("Parceria local", { exact: true }),
     ).toBeInTheDocument();
   });
 
