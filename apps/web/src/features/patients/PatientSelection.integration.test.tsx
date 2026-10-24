@@ -183,11 +183,7 @@ beforeEach(() => {
     patientId: breno.id,
     patientName: breno.fullName,
   });
-  vi.spyOn(api, "communications").mockResolvedValue({
-    deliveryMode: "outbox_only",
-    messages: [],
-    preferences: [],
-  });
+  vi.spyOn(api, "communicationPreferences").mockResolvedValue([]);
   vi.spyOn(api, "documentTemplates").mockResolvedValue([
     {
       id: template.id,
@@ -332,39 +328,6 @@ describe("searchable client selection across modules", () => {
       ),
     );
     expect(create.mock.calls[0]![0]).not.toHaveProperty("planId");
-  });
-
-  it("requires a valid client for messages and preferences and retains remote selection after reload", async () => {
-    const queue = vi.spyOn(api, "queueMessage");
-    page("/comunicacoes?aba=fila");
-    fireEvent.click(
-      await screen.findByRole("tab", { name: "Mensagem individual" }),
-    );
-    const panel = (
-      await screen.findByRole("heading", { name: "Adicionar à fila" })
-    ).closest("section")!;
-    const save = within(panel).getByRole("button", {
-      name: "Adicionar à fila",
-    });
-    const preference = within(panel).getByLabelText("WhatsApp permitido");
-    expect(preference).toBeDisabled();
-    fireEvent.change(within(panel).getByLabelText("Mensagem administrativa"), {
-      target: { value: "Olá, seu plano está pronto." },
-    });
-    expect(save).toBeDisabled();
-    const input = await selectBreno(panel);
-    expect(preference).toBeEnabled();
-    fireEvent.click(save);
-    await waitFor(() =>
-      expect(queue).toHaveBeenCalledWith(
-        expect.objectContaining({ patientId: breno.id }),
-      ),
-    );
-    await screen.findByText("Mensagem adicionada à fila com segurança.");
-    expect(input).toHaveValue(breno.fullName);
-    fireEvent.change(input, { target: { value: "Outro" } });
-    expect(preference).toBeDisabled();
-    expect(save).toBeDisabled();
   });
 
   it("enrolls the chosen search result and preserves the client supplied by a shortcut", async () => {

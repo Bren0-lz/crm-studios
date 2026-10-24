@@ -5,6 +5,7 @@ import {
   messageTemplateInputSchema,
   whatsappCampaignInputSchema,
   whatsappCampaignPreviewInputSchema,
+  usesAppointmentVariables,
   type CampaignFilterOptions,
   type WhatsappCampaignPreview,
 } from "@crm/contracts";
@@ -50,10 +51,8 @@ export function registerCampaignRoutes(context: RouteContext) {
     if (segment?.overdue) assertPermissions(request, "finance.view");
     const now = new Date();
     const settings = await repository.getClinicSettings(clinicId);
-    const today = clinicDateOf(
-      now,
-      settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
-    );
+    const timezone = settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE;
+    const today = clinicDateOf(now, timezone);
     const needsPlans = Boolean(
       segment &&
       (segment.activePlan !== undefined ||
@@ -65,7 +64,8 @@ export function registerCampaignRoutes(context: RouteContext) {
         repository.listPatients(clinicId),
         needsPlans ? repository.listPatientPlans(clinicId) : [],
         repository.getCommunicationCenter(clinicId),
-        segment && segmentNeedsAppointments(segment)
+        (segment && segmentNeedsAppointments(segment)) ||
+        usesAppointmentVariables(template.body)
           ? repository.listAppointments(
               clinicId,
               new Date(now.getTime() - 3 * 365 * dayMs).toISOString(),
@@ -91,6 +91,7 @@ export function registerCampaignRoutes(context: RouteContext) {
         overduePatientIds: new Set(overdue),
         contactedPatientIds: new Set(contacted),
         now,
+        timezone,
       },
       input.audience,
       template.body,

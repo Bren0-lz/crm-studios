@@ -433,6 +433,20 @@ export function CampaignFilters({
         icon={Stethoscope}
         count={counts.agenda}
       >
+        <label>
+          Atendimento no dia
+          <input
+            type="date"
+            value={value.appointmentDate ?? ""}
+            onChange={(event) =>
+              set("appointmentDate", event.target.value || undefined)
+            }
+          />
+          <small className="field-hint">
+            Para lembrete: use os códigos de data e hora do atendimento na
+            mensagem.
+          </small>
+        </label>
         {(options?.services.length ?? 0) > 0 && (
           <>
             <span className="span-2 filter-label" id="campaign-services">
