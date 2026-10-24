@@ -15,20 +15,8 @@ import {
   leadBoardResponse,
 } from "../../test-support/lead-board";
 
-function dataTransfer() {
-  return { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
-}
-
-function dragTo(card: HTMLElement, column: HTMLElement) {
-  const transfer = dataTransfer();
-  fireEvent.dragStart(card, { dataTransfer: transfer });
-  fireEvent.dragOver(column, { dataTransfer: transfer });
-  fireEvent.drop(column, { dataTransfer: transfer });
-  fireEvent.dragEnd(card, { dataTransfer: transfer });
-}
-
-describe("commercial board drag and drop", () => {
-  it("moves a lead by drag and drop, selector and loss without success notices and keeps required modals", async () => {
+describe("commercial board stage moves", () => {
+  it("moves a lead only by the card selector, without success notices, and asks the loss reason", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -78,16 +66,19 @@ describe("commercial board drag and drop", () => {
     const column = (name: string) =>
       screen.getByRole("region", { name }) as HTMLElement;
     await screen.findByText("Bruna Lead");
-    expect(card()).toHaveAttribute("draggable", "true");
-
-    // A coluna sob o cursor fica destacada.
-    fireEvent.dragStart(card(), { dataTransfer: dataTransfer() });
-    fireEvent.dragOver(column("Proposta"), { dataTransfer: dataTransfer() });
-    expect(column("Proposta")).toHaveClass("drag-over");
-    fireEvent.dragEnd(card(), { dataTransfer: dataTransfer() });
+    // O cartão não é mais arrastável: soltar sobre outra coluna não muda a etapa.
+    expect(card()).not.toHaveAttribute("draggable");
+    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    fireEvent.dragStart(card(), { dataTransfer: transfer });
+    fireEvent.dragOver(column("Proposta"), { dataTransfer: transfer });
+    fireEvent.drop(column("Proposta"), { dataTransfer: transfer });
     expect(column("Proposta")).not.toHaveClass("drag-over");
+    expect(moves).toEqual([]);
+    expect(within(column("Novos")).getByText("Bruna Lead")).toBeInTheDocument();
 
-    dragTo(card(), column("Em contato"));
+    fireEvent.change(screen.getByLabelText("Etapa de Bruna Lead"), {
+      target: { value: "contacted" },
+    });
     await waitFor(() => expect(moves).toEqual([{ stage: "contacted" }]));
     await waitFor(() =>
       expect(
@@ -119,29 +110,6 @@ describe("commercial board drag and drop", () => {
       "Proposta1",
     );
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-
-    dragTo(card(), column("Perdidos"));
-    expect(
-      screen.getByRole("dialog", { name: "Marcar lead como perdido" }),
-    ).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Marcar lead como perdido" }),
-      ).not.toBeInTheDocument(),
-    );
-
-    dragTo(card(), column("Ganhos"));
-    expect(
-      screen.getByRole("dialog", { name: "Converter lead em cliente" }),
-    ).toBeInTheDocument();
-    expect(moves).toHaveLength(2);
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Converter lead em cliente" }),
-      ).not.toBeInTheDocument(),
-    );
 
     fireEvent.change(screen.getByLabelText("Etapa de Bruna Lead"), {
       target: { value: "lost" },
