@@ -9,6 +9,7 @@ import type {
   ManagementReport,
   NotificationsSummary,
   RetentionReport,
+  SaleMovement,
   SalesReport,
   SalesPeriodReport,
 } from "@crm/contracts";
@@ -67,6 +68,10 @@ export const reportsApi = {
   salesPeriodReportXlsx: (from: string, to: string) =>
     requestBlob(
       `/reports/sales/period.xlsx?${new URLSearchParams({ from, to })}`,
+    ),
+  patientSalesHistory: (patientId: string) =>
+    request<SaleMovement[]>(
+      `/reports/sales/patients/${encodeURIComponent(patientId)}`,
     ),
   salesReport: (month: string) =>
     request<SalesReport>(`/reports/sales?month=${encodeURIComponent(month)}`),
