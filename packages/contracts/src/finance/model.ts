@@ -352,3 +352,27 @@ export function settlementBreakdown(
     };
   return result;
 }
+
+/**
+ * Mensagem pronta para falar com o cliente sobre uma parcela em aberto: em atraso, avisa e
+ * pergunta se aconteceu algo; a vencer, só lembra. A equipe pode editar antes de enviar.
+ */
+export function receivableContactMessage(input: {
+  patientName: string;
+  description: string;
+  amountInCents: number;
+  dueDate: string;
+  overdue: boolean;
+}): string {
+  const [year, month, day] = input.dueDate.split("-");
+  const amount = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(input.amountInCents / 100);
+  const installment = `a parcela "${input.description}" de ${amount}`;
+  const due = `${day}/${month}/${year}`;
+  const greeting = `Olá, ${patientFirstName(input.patientName)}! Tudo bem?`;
+  return input.overdue
+    ? `${greeting} Notamos que ${installment}, com vencimento em ${due}, ainda está em aberto. Aconteceu alguma coisa? Se precisar, podemos combinar juntos a melhor forma de pagamento.`
+    : `${greeting} Passando para lembrar que ${installment} vence em ${due}. Qualquer dúvida, estamos à disposição.`;
+}

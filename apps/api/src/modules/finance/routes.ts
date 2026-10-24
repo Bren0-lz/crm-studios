@@ -17,6 +17,7 @@ import {
   recurringPayableInputSchema,
   saoPauloToday,
   stockMovementInputSchema,
+  type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
@@ -213,6 +214,33 @@ export function registerFinanceRoutes(context: RouteContext) {
           message: "Conta a receber não encontrada.",
         });
       return receipt;
+    },
+  );
+
+  app.get(
+    "/finance/receivables/:id/contact",
+    { preHandler: authenticate },
+    async (request, reply): Promise<ReceivableContact | undefined> => {
+      const { id } = request.params as { id: string };
+      const { clinicId } = request.user;
+      const receivable = (
+        await repository.getFinancialSummary(clinicId)
+      ).receivables.find((item) => item.id === id);
+      const patient =
+        receivable &&
+        (await repository.getPatient(clinicId, receivable.patientId));
+      if (!receivable || !patient)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return {
+        receivableId: receivable.id,
+        patientId: patient.id,
+        patientName: patient.fullName,
+        phone: patient.phone,
+        whatsapp: patient.whatsapp || undefined,
+      };
     },
   );
 

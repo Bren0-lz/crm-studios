@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cpfMatchKey,
+  receivableContactMessage,
   planServiceValueForSessions,
   fillCampaignMessage,
   imageDataUrlInfo,
@@ -1469,5 +1470,32 @@ describe("clinical alerts", () => {
       { severity: "info", createdAt: "2026-10-03T10:00:00.000Z" },
       { severity: "info", createdAt: "2026-10-02T10:00:00.000Z" },
     ]);
+  });
+});
+
+describe("receivableContactMessage", () => {
+  const installment = {
+    patientName: "Bruno Lima",
+    description: "Dançaterapia · parcela 2/3",
+    amountInCents: 18000,
+    dueDate: "2026-10-19",
+  };
+  it("informs the delay and asks whether something happened", () => {
+    expect(
+      receivableContactMessage({ ...installment, overdue: true }).replace(
+        /\u00a0/g,
+        " ",
+      ),
+    ).toBe(
+      'Olá, Bruno! Tudo bem? Notamos que a parcela "Dançaterapia · parcela 2/3" de R$ 180,00, com vencimento em 19/10/2026, ainda está em aberto. Aconteceu alguma coisa? Se precisar, podemos combinar juntos a melhor forma de pagamento.',
+    );
+  });
+  it("only reminds the due date when the installment is not overdue", () => {
+    const message = receivableContactMessage({
+      ...installment,
+      overdue: false,
+    });
+    expect(message).toContain("vence em 19/10/2026");
+    expect(message).not.toContain("Aconteceu alguma coisa?");
   });
 });

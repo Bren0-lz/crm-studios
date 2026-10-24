@@ -374,6 +374,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/dre": view("finance"),
   "GET /finance/summary": view("finance"),
   "GET /finance/receivables/:id/receipt": view("finance"),
+  "GET /finance/receivables/:id/contact": view("finance"),
   "GET /finance/workspace": view("finance"),
   "GET /finance/daily-cash": view("finance"),
   "GET /finance/forecast": view("finance"),
