@@ -246,12 +246,20 @@ describe("settings tabs", () => {
     expect(
       await screen.findByRole("tab", { name: "Serviços e salas" }),
     ).toHaveAttribute("aria-selected", "true");
-    const panel = screen.getByRole("tabpanel");
+    const panel = screen.getByRole("tabpanel", { name: "Serviços e salas" });
     expect(
       within(panel).getByRole("heading", {
         name: "Serviços, salas e profissionais",
       }),
     ).toBeInTheDocument();
+    expect(
+      within(panel)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Serviços", "Salas", "Profissionais"]);
+    expect(
+      within(panel).getByRole("tab", { name: "Serviços" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(
       await within(panel).findByText("Pilates em grupo"),
     ).toBeInTheDocument();
