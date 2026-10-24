@@ -4,6 +4,7 @@ import type {
   ReceivedPayment,
   SaleMovement,
   SalesReport,
+  SalesPeriodReport,
   SalesReportPeriod,
 } from "@crm/contracts";
 import { salesChangePercent } from "@crm/contracts";
@@ -56,12 +57,77 @@ export function buildSalesReport(
   allAppointments: Appointment[],
   asOf = new Date(),
 ): SalesReport {
+  return buildReport(
+    month,
+    sales,
+    payments,
+    allAppointments,
+    asOf,
+    salesReportBounds(month, asOf),
+  );
+}
+
+/** Dias civis, inclusivos; o intervalo de referência termina na véspera. */
+export function salesPeriodBounds(from: string, to: string, asOf = new Date()) {
+  const day = 86_400_000;
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const duration = Date.parse(`${to}T00:00:00Z`) - start + day;
+  return {
+    currentFrom: from,
+    currentTo: to,
+    previousFrom: new Date(start - duration).toISOString().slice(0, 10),
+    previousFullTo: new Date(start - day).toISOString().slice(0, 10),
+    previousComparableTo: new Date(start - day).toISOString().slice(0, 10),
+    today: clinicDate(asOf),
+  };
+}
+
+export function buildSalesPeriodReport(
+  from: string,
+  to: string,
+  sales: SaleMovement[],
+  payments: ReceivedPayment[],
+  appointments: Appointment[],
+  asOf = new Date(),
+): SalesPeriodReport {
+  const bounds = salesPeriodBounds(from, to, asOf);
+  const data = buildReport(
+    from.slice(0, 7),
+    sales,
+    payments,
+    appointments,
+    asOf,
+    bounds,
+  );
+  const selected = (item: { occurredAt: string }) => {
+    const date = clinicDate(item.occurredAt);
+    return date >= from && date <= to;
+  };
+  return {
+    from,
+    to,
+    generatedAt: data.generatedAt,
+    summary: data.current,
+    sales: data.sales.filter(selected),
+    payments: data.payments.filter(selected),
+    patientsWithoutReturn: data.patientsWithoutReturn,
+    returnReference: { from: bounds.previousFrom, to: bounds.previousFullTo },
+  };
+}
+
+function buildReport(
+  month: string,
+  sales: SaleMovement[],
+  payments: ReceivedPayment[],
+  allAppointments: Appointment[],
+  asOf: Date,
+  bounds: ReturnType<typeof salesReportBounds>,
+): SalesReport {
   // Atendimentos de lead (sem cliente) ficam fora de vendas e de retorno.
   const appointments = allAppointments.filter(
     (item): item is Appointment & { patientId: string } =>
       item.patientId !== undefined,
   );
-  const bounds = salesReportBounds(month, asOf);
   const inRange = (occurredAt: string, from: string, to: string) => {
     const date = clinicDate(occurredAt);
     return date >= from && date <= to;

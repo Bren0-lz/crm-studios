@@ -49,6 +49,19 @@ export interface SalesReport {
   patientsWithoutReturn: PatientWithoutReturn[];
 }
 
+/** Vendas entre datas inclusivas, sem comparação financeira. */
+export interface SalesPeriodReport {
+  from: string;
+  to: string;
+  generatedAt: string;
+  summary: SalesReportPeriod;
+  sales: SaleMovement[];
+  payments: ReceivedPayment[];
+  patientsWithoutReturn: PatientWithoutReturn[];
+  /** Base exclusiva da lista de clientes sem retorno. */
+  returnReference: { from: string; to: string };
+}
+
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
   Partial<Omit<DashboardSummary, "date">> & {
     /** Atendimentos passados ainda agendados/confirmados (qualquer data). */

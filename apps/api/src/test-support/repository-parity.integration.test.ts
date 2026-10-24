@@ -113,6 +113,52 @@ for (const storage of ["memory", "postgres"] as const) {
         );
       }
 
+      it("filters period sales by inclusive dates and clinic in both repositories", async () => {
+        const client = await patient("Vendas por período");
+        const inside = await atInstant("2062-12-31T03:00:00Z", () =>
+          plan(client.id),
+        );
+        const outside = await atInstant("2063-01-02T03:00:00Z", () =>
+          plan(client.id),
+        );
+        const report = await repository.getSalesPeriodReport(
+          clinicId,
+          "2062-12-31",
+          "2063-01-01",
+        );
+        expect(
+          report.sales
+            .filter((item) => item.patientId === client.id)
+            .map((item) => item.sourceId),
+        ).toEqual([inside.id]);
+        expect(report.sales.map((item) => item.sourceId)).not.toContain(
+          outside.id,
+        );
+        expect(report.summary.netSalesInCents).toBeGreaterThanOrEqual(20000);
+        const branch = await repository.saveBranch(clinicId, actorId, {
+          name: "Relatórios " + randomUUID(),
+        });
+        const scope = { branchIds: [branch!.id], writeBranchId: branch!.id };
+        const branchPlan = await atInstant("2062-12-31T12:00:00Z", () =>
+          repository.branchScope.run(scope, () => plan(client.id)),
+        );
+        const scopedReport = await repository.branchScope.run(scope, () =>
+          repository.getSalesPeriodReport(clinicId, "2062-12-31", "2063-01-01"),
+        );
+        expect(scopedReport.sales.map((item) => item.sourceId)).toEqual([
+          branchPlan.id,
+        ]);
+        expect(scopedReport.summary.netSalesInCents).toBe(20000);
+        const foreign = await repository.getSalesPeriodReport(
+          "99999999-9999-4999-8999-999999999999",
+          "2062-12-31",
+          "2063-01-01",
+        );
+        expect(foreign.sales).toEqual([]);
+        expect(foreign.payments).toEqual([]);
+        expect(foreign.patientsWithoutReturn).toEqual([]);
+      });
+
       it("preserves visual contracts, individual drafts and frozen branding", async () => {
         const client = await patient("Contrato visual");
         const content = documentContentFromText(

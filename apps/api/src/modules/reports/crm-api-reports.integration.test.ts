@@ -93,6 +93,45 @@ describe("CRM API", () => {
       headers: { authorization: `Bearer ${receptionToken}` },
     });
     expect(deniedSales.statusCode).toBe(403);
+    for (const suffix of ["", ".xlsx"]) {
+      const route =
+        "/reports/sales/period" + suffix + "?from=" + date + "&to=" + date;
+      const response = await app.inject({ url: route, headers });
+      expect(response.statusCode).toBe(200);
+      const deniedPeriod = await app.inject({
+        url: route,
+        headers: { authorization: "Bearer " + receptionToken },
+      });
+      expect(deniedPeriod.statusCode).toBe(403);
+      const unauthenticated = await app.inject({ url: route });
+      expect(unauthenticated.statusCode).toBe(401);
+      if (!suffix)
+        expect(response.json()).toMatchObject({
+          from: date,
+          to: date,
+          summary: { from: date, to: date },
+        });
+      else {
+        const periodWorkbook = new ExcelJS.Workbook();
+        await periodWorkbook.xlsx.load(
+          response.rawPayload as unknown as ExcelJS.Buffer,
+        );
+        expect(periodWorkbook.getWorksheet("Resumo")!.columnCount).toBe(2);
+        expect(response.headers["content-disposition"]).toContain(
+          "vendas-" + date + "-" + date + ".xlsx",
+        );
+      }
+    }
+    for (const query of [
+      "from=2026-01-01",
+      "from=2026-02-01&to=2026-01-01",
+      "from=2026-02-30&to=2026-03-01",
+    ]) {
+      expect(
+        (await app.inject({ url: "/reports/sales/period?" + query, headers }))
+          .statusCode,
+      ).toBe(400);
+    }
     await app.close();
   });
 });

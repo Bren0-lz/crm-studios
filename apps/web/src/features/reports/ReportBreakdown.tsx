@@ -1,4 +1,4 @@
-import type { ManagementReport } from "@crm/contracts";
+﻿import type { ManagementReport } from "@crm/contracts";
 import { EmptyState } from "../../shared/components/EmptyState";
 
 export function ReportBreakdown({
@@ -13,22 +13,39 @@ export function ReportBreakdown({
   return (
     <section className="panel report-table">
       <div className="panel-head">
-        <div>
-          <h2>{title}</h2>
-        </div>
+        <h2>{title}</h2>
       </div>
-      {items.length === 0 ? (
+      {!items.length ? (
         <EmptyState title="Sem movimento" copy={empty} />
       ) : (
-        <div className="report-rows">
-          {items.map((item) => (
-            <div key={item.id}>
-              <strong>{item.name}</strong>
-              <span>{item.appointments} atendimentos</span>
-              <span>{item.noShows} faltas</span>
-              <b>{item.attendanceRate}%</b>
-            </div>
-          ))}
+        <div className="table-scroll">
+          <table className="dre-table">
+            <caption>{title} no período</caption>
+            <thead>
+              <tr>
+                <th scope="col">Nome</th>
+                <th scope="col" className="numeric-value">
+                  Atendimentos
+                </th>
+                <th scope="col" className="numeric-value">
+                  Faltas
+                </th>
+                <th scope="col" className="numeric-value">
+                  Presença
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <th scope="row">{item.name}</th>
+                  <td className="numeric-value">{item.appointments}</td>
+                  <td className="numeric-value">{item.noShows}</td>
+                  <td className="numeric-value">{item.attendanceRate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </section>

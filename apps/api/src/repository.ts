@@ -198,6 +198,7 @@ import type {
   Room,
   RoomInput,
   SalesReport,
+  SalesPeriodReport,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
   ScheduleBlock,
@@ -1281,6 +1282,11 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ManagementReport>;
+  getSalesPeriodReport(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<SalesPeriodReport>;
   getSalesReport(clinicId: string, month: string): Promise<SalesReport>;
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
