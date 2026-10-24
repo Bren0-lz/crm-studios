@@ -18,6 +18,12 @@
   padding-bottom: var(--space-2);
 }
 
+/* Durante a troca de ordem das etapas, sem encaixe: o navegador não "segue" a coluna
+   encaixada até o novo lugar (a rolagem fica onde estava). */
+.kanban-board.reordering {
+  scroll-snap-type: none;
+}
+
 .kanban-column {
   display: flex;
   min-height: 0;

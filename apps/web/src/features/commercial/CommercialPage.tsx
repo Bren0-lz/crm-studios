@@ -35,6 +35,7 @@ import { LeadFiltersModal } from "./LeadFiltersModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
 import { LeadStageModal } from "./LeadStageModal";
+import { useBoardReorder } from "./useBoardReorder";
 import { useToast } from "../../shared/feedback/toast-context";
 
 type Columns = Record<LeadStage, LeadStagePage>;
@@ -129,6 +130,11 @@ export function CommercialPage() {
   const [draggingStage, setDraggingStage] = useState<LeadStage | null>(null);
   const [overStage, setOverStage] = useState<LeadStage | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const {
+    boardRef,
+    reordering,
+    capture: captureBoard,
+  } = useBoardReorder(stageConfig);
   // Só a resposta da consulta mais recente vale (filtros mudando rápido).
   const requestId = useRef(0);
   const filterRef = useRef(filter);
@@ -256,6 +262,7 @@ export function CommercialPage() {
     const to = next.findIndex((item) => item.stage === target);
     if (from < 0 || to < 0) return;
     next.splice(to, 0, ...next.splice(from, 1));
+    captureBoard();
     setStageConfig(next);
     setSavingOrder(true);
     try {
@@ -265,6 +272,7 @@ export function CommercialPage() {
         ),
       );
     } catch (cause) {
+      captureBoard();
       setStageConfig(previous);
       toast.error((cause as Error).message);
     } finally {
@@ -276,6 +284,8 @@ export function CommercialPage() {
     action: "saved" | "removed",
   ) {
     const saved = await api.saveLeadStages(next);
+    // A posição pode ter mudado pelo modal: mesma animação, sem pulo na rolagem.
+    captureBoard();
     setStageConfig(saved);
     setStageForm(null);
     toast.success(
@@ -400,7 +410,10 @@ export function CommercialPage() {
               </section>
             )
           ) : (
-            <div className="kanban-board">
+            <div
+              ref={boardRef}
+              className={`kanban-board${reordering ? " reordering" : ""}`}
+            >
               {stages
                 .filter((stage) => !hideLost || stage.value !== "lost")
                 .map((stage) => {
