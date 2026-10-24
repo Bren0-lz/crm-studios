@@ -4,13 +4,22 @@ import {
   type NotificationsSummary,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
-import { clinicDateOf, DEFAULT_CLINIC_TIMEZONE } from "../finance/daily-cash.js";
+import {
+  agendaProfessionalScope,
+  inProfessionalScope,
+  professionalIdsQuery,
+} from "../agenda/professional-scope.js";
+import {
+  clinicDateOf,
+  DEFAULT_CLINIC_TIMEZONE,
+} from "../finance/daily-cash.js";
 
 export function registerDashboardRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess } = context;
+  const professionalScope = agendaProfessionalScope(context);
 
   app.get("/dashboard", { preHandler: authenticate }, async (request) => {
-    const query = request.query as { date?: string };
+    const query = request.query as { date?: string; professionalIds?: string };
     const date =
       query.date ??
       new Intl.DateTimeFormat("en-CA", {
@@ -26,13 +35,25 @@ export function registerDashboardRoutes(context: RouteContext) {
       !access.modules.includes("patients")
     )
       return { date } satisfies DashboardViewSummary;
-    const summary = await repository.getDashboard(request.user.clinicId, date);
+    // Escolha "Visualização da agenda" do painel; sem "ver todos", só o próprio profissional.
+    const scope = access.modules.includes("agenda")
+      ? await professionalScope(
+          request,
+          professionalIdsQuery.parse(query.professionalIds),
+        )
+      : undefined;
+    const summary = await repository.getDashboard(
+      request.user.clinicId,
+      date,
+      scope,
+    );
     const pendingFinalization = access.modules.includes("agenda")
-      ? (
+      ? inProfessionalScope(
           await repository.listPendingFinalizationAppointments(
             request.user.clinicId,
             new Date().toISOString(),
-          )
+          ),
+          scope,
         ).length
       : undefined;
     return {
@@ -78,10 +99,13 @@ export function registerDashboardRoutes(context: RouteContext) {
         ? repository.getFinancialSummary(clinicId)
         : undefined,
       modules.includes("agenda")
-        ? repository.listPendingFinalizationAppointments(
-            clinicId,
-            new Date().toISOString(),
-          )
+        ? Promise.all([
+            repository.listPendingFinalizationAppointments(
+              clinicId,
+              new Date().toISOString(),
+            ),
+            professionalScope(request),
+          ]).then(([items, scope]) => inProfessionalScope(items, scope))
         : undefined,
     ]);
     return {
