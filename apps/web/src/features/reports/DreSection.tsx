@@ -7,6 +7,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
+import { compactMoney } from "./model";
 import { ReportChart } from "./ReportChart";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 import { dreGroupLabels } from "../finance/index";
@@ -206,14 +207,17 @@ export function DreSection({ period }: { period: ReportPeriod }) {
                   {
                     label: "Receitas",
                     format: (v) => currency.format(v / 100),
+                    axisFormat: compactMoney,
                   },
                   {
                     label: "Despesas",
                     format: (v) => currency.format(v / 100),
+                    axisFormat: compactMoney,
                   },
                   {
                     label: "Resultado",
                     format: (v) => currency.format(v / 100),
+                    axisFormat: compactMoney,
                   },
                 ]}
               />

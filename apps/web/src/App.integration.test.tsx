@@ -1625,6 +1625,7 @@ describe("application shell", () => {
       "true",
     );
     fireEvent.click(screen.getByRole("tab", { name: "Clientes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Sem retorno" }));
     expect(
       await screen.findByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
@@ -3888,6 +3889,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
         "4 respostas · 2 promotores · 1 neutros · 1 detratores",
@@ -4033,6 +4035,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
         "6 agendadas · 4 concluídas · 3 viraram plano em até 30 dias",
@@ -4225,9 +4228,12 @@ describe("application shell", () => {
       ),
     ).toBeInTheDocument();
 
-    const sessions = screen
-      .getByRole("heading", { name: "Mais sessões concluídas" })
-      .closest("section") as HTMLElement;
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
+    const sessions = (
+      await screen.findByRole("heading", { name: "Mais sessões concluídas" })
+    ).closest("section") as HTMLElement;
     expect(
       await within(sessions).findByText("1. Helena Almeida"),
     ).toBeInTheDocument();
@@ -4277,10 +4283,14 @@ describe("application shell", () => {
       target: { value: "2026-01-31" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Retenção" }));
     const january = (
       await screen.findByRole("rowheader", { name: "01/2026" })
     ).closest("tr") as HTMLElement;
     expect(within(january).getByText("—")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(
       await screen.findByText(
         "Nenhum cliente com sessão concluída no período.",
@@ -4384,6 +4394,9 @@ describe("application shell", () => {
         "A retenção aceita no máximo 24 meses.",
       ),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(await screen.findByText("1. Helena Almeida")).toBeInTheDocument();
     expect(screen.getByText("30 sessões")).toBeInTheDocument();
     expect(screen.getByText("Relatórios gerenciais")).toBeInTheDocument();
@@ -4413,6 +4426,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText("Não foi possível carregar as experimentais."),
     ).toBeInTheDocument();
