@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DocumentPdfInput } from "./document-pdf";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { DocumentPaper } from "./DocumentPaper";
 
 export function DocumentPdfPreview({
   title,
@@ -111,10 +110,6 @@ export function DocumentPdfPreview({
           />
         </>
       )}
-      <details className="document-accessible-preview">
-        <summary>Ler conteúdo do documento</summary>
-        <DocumentPaper body={body} content={content} branding={branding} />
-      </details>
     </div>
   );
 }
