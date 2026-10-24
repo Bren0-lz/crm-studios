@@ -219,7 +219,9 @@ export function createReportsRepository(
     async getDashboard(
       clinicId: string,
       date: string,
+      professionalIds?: readonly string[],
     ): Promise<DashboardSummary> {
+      const scope = professionalIds ? [...professionalIds] : null;
       const branchIds = repositoryContext.branchReadIds();
       const [totals, patients, nextAppointments] = await Promise.all([
         repositoryContext.pool.query<{
@@ -263,10 +265,11 @@ export function createReportsRepository(
             )::int AS "noShowsThisMonth"
           FROM clinics c
           LEFT JOIN appointments a ON a.clinic_id = c.id AND ${branchClause("a.branch_id", 3)}
+            AND ($4::uuid[] IS NULL OR a.professional_id = ANY($4::uuid[]))
           WHERE c.id = $1
           GROUP BY c.id
         `,
-          [clinicId, date, branchIds],
+          [clinicId, date, branchIds, scope],
         ),
         repositoryContext.pool.query<{ count: number }>(
           "SELECT count(*)::int AS count FROM patients WHERE clinic_id = $1 AND status = 'active'",
@@ -283,10 +286,11 @@ export function createReportsRepository(
             AND a.starts_at >= ($2::date::timestamp AT TIME ZONE c.timezone)
             AND a.starts_at < (($2::date + 1)::timestamp AT TIME ZONE c.timezone)
             AND a.status IN ('scheduled', 'confirmed')
+            AND ($4::uuid[] IS NULL OR a.professional_id = ANY($4::uuid[]))
           ORDER BY a.starts_at
           LIMIT 5
         `,
-          [clinicId, date, branchIds],
+          [clinicId, date, branchIds, scope],
         ),
       ]);
 

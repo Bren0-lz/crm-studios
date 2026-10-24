@@ -1,4 +1,9 @@
-import type { Appointment, DashboardViewSummary } from "@crm/contracts";
+import {
+  legacyPermissions,
+  type Appointment,
+  type AppModule,
+  type DashboardViewSummary,
+} from "@crm/contracts";
 import {
   fireEvent,
   render,
@@ -53,6 +58,15 @@ function signIn(modules: string[], editModules: string[]) {
       role: "user",
       modules,
       editModules,
+      // A recepção vê a agenda de todos (concedido pela migração 0094).
+      permissions: [
+        ...legacyPermissions(
+          "user",
+          modules as AppModule[],
+          editModules as AppModule[],
+        ),
+        "agenda.view_all",
+      ],
     }),
   );
 }

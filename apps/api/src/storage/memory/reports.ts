@@ -104,13 +104,17 @@ export function createReportsRepository(
     async getDashboard(
       clinicId: string,
       date: string,
+      professionalIds?: readonly string[],
     ): Promise<DashboardSummary> {
       const month = date.slice(0, 7);
+      const inScope = (item: { professionalId: string }) =>
+        !professionalIds || professionalIds.includes(item.professionalId);
       const appointmentsToday = repositoryContext
         .scoped(repositoryContext.appointments)
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            inScope(item) &&
             localDate(new Date(item.startsAt)) === date,
         );
       return {
@@ -136,6 +140,7 @@ export function createReportsRepository(
           .filter(
             (item) =>
               item.clinicId === clinicId &&
+              inScope(item) &&
               item.startsAt.startsWith(month) &&
               item.status === "no_show",
           ).length,

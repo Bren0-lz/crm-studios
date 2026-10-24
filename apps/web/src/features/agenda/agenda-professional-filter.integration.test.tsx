@@ -1,20 +1,30 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
-function renderAgenda() {
+function renderAgenda(restricted = false) {
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
     "crm.auth.user",
-    storedUser({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Aryana Dutra",
-      email: "admin@movimenta.local",
-      role: "owner",
-    }),
+    restricted
+      ? JSON.stringify({
+          id: "33333333-3333-4333-8333-333333333333",
+          fullName: "Clara Mendes",
+          email: "clara@movimenta.local",
+          role: "user",
+          modules: ["agenda"],
+          editModules: [],
+          permissions: ["agenda.view"],
+        })
+      : storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
   );
   const at = (hour: number) => {
     const date = new Date();
@@ -38,7 +48,8 @@ function renderAgenda() {
     const body = url.includes("/appointments?")
       ? [
           appointment("a1", "Helena Almeida", "p1"),
-          appointment("a2", "Lucas Ribeiro", "p2"),
+          // Sem "ver todos", a API devolve só a agenda do profissional ligado.
+          ...(restricted ? [] : [appointment("a2", "Lucas Ribeiro", "p2")]),
         ]
       : url.includes("/group-sessions?")
         ? [
@@ -61,7 +72,9 @@ function renderAgenda() {
               { id: "p1", fullName: "Clara Mendes", color: "#9a6bc4" },
               { id: "p2", fullName: "Bia Souza", color: "#3f7fbf" },
             ]
-          : [];
+          : url.endsWith("/profile")
+            ? { professional: { id: "p1", fullName: "Clara Mendes" } }
+            : [];
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   render(
@@ -120,6 +133,25 @@ describe("agenda by professional", () => {
     await screen.findByRole("button", { name: /Detalhes de Helena Almeida/ });
     expect(
       screen.queryByRole("columnheader", { name: /Bia Souza/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("without seeing every agenda, hides the filter and shows only the own professional", async () => {
+    renderAgenda(true);
+    fireEvent.click(await screen.findByRole("button", { name: "Dia" }));
+    expect(
+      await screen.findByRole("columnheader", { name: /Clara Mendes/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: /Bia Souza/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Profissional" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Legenda dos profissionais")).queryByText(
+        "Bia Souza",
+      ),
     ).not.toBeInTheDocument();
   });
 });

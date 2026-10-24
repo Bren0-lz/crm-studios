@@ -599,7 +599,12 @@ export interface ClinicRepository {
     clinicId: string,
     patientId: string,
   ): Promise<PatientTimelineEntry[] | null>;
-  getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
+  /** `professionalIds`: só a agenda desses profissionais (ausente = todos). */
+  getDashboard(
+    clinicId: string,
+    date: string,
+    professionalIds?: readonly string[],
+  ): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
   /**
