@@ -96,7 +96,7 @@ describe("página Lista de espera", () => {
 
   it("ordena pela maior fila, filtra pelo item e tira da fila quem foi atendido", async () => {
     const { repository, ana, bruno, carla, pilates, product } = await seed();
-    for (const patient of [ana, bruno])
+    for (const patient of [ana, bruno]) {
       await repository.createWaitlistEntry(clinicId, actorId, {
         patientId: patient.id,
         kind: "service",
@@ -104,6 +104,9 @@ describe("página Lista de espera", () => {
         productId: null,
         notes: "",
       });
+      // A posição desempata pelo id (aleatório) quando o createdAt coincide.
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
     await repository.createWaitlistEntry(clinicId, actorId, {
       patientId: carla.id,
       kind: "product",
