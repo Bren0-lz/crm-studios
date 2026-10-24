@@ -1680,6 +1680,11 @@
   padding: 0 var(--space-4) var(--space-4);
 }
 
+.campaign-filter-group[data-group="plans"] .checkbox-field {
+  align-self: end;
+  min-height: calc(var(--space-6) + var(--space-2));
+}
+
 .campaign-filter-row {
   display: flex;
   flex-wrap: wrap;
