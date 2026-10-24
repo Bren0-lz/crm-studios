@@ -313,6 +313,62 @@ describe("configurable lead funnel", () => {
     ]);
   });
 
+  it("keeps the horizontal scroll and slides the columns to their new place", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Proposta" });
+    // jsdom não tem layout: cada coluna fica 200px à direita da anterior.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const index = this.classList.contains("kanban-column")
+          ? [...(this.parentElement?.children ?? [])].indexOf(this)
+          : 0;
+        return { left: index * 200 } as DOMRect;
+      });
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }));
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    });
+    try {
+      const board = document.querySelector(".kanban-board") as HTMLElement;
+      board.scrollLeft = 300;
+      const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+      fireEvent.dragStart(
+        within(screen.getByRole("region", { name: "Novos" })).getByRole(
+          "banner",
+        ),
+        { dataTransfer: transfer },
+      );
+      fireEvent.drop(screen.getByRole("region", { name: "Avaliação" }), {
+        dataTransfer: transfer,
+      });
+      expect(board).toHaveClass("reordering");
+      expect(board.scrollLeft).toBe(300);
+      expect(columns().slice(0, 3)).toEqual([
+        "Em contato",
+        "Avaliação",
+        "Novos",
+      ]);
+      // Novos sai de 0 para 400px; Em contato e Avaliação voltam 200px cada.
+      expect(animate).toHaveBeenCalledTimes(3);
+      expect(animate).toHaveBeenCalledWith(
+        [{ transform: "translateX(-400px)" }, { transform: "translateX(0)" }],
+        expect.objectContaining({ duration: 220 }),
+      );
+      expect(animate).toHaveBeenCalledWith(
+        [{ transform: "translateX(200px)" }, { transform: "translateX(0)" }],
+        expect.objectContaining({ duration: 220 }),
+      );
+      await waitFor(() => expect(board).not.toHaveClass("reordering"));
+      await waitFor(() => expect(puts).toHaveLength(1));
+      expect(board.scrollLeft).toBe(300);
+    } finally {
+      rect.mockRestore();
+      delete (HTMLElement.prototype as { animate?: unknown }).animate;
+    }
+  });
+
   it("restores the previous order when saving the new order fails", async () => {
     setup("owner", "Etapa do funil não encontrada.");
     await screen.findByRole("region", { name: "Proposta" });
