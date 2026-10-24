@@ -76,6 +76,47 @@
 .reports-tab-panel[hidden] {
   display: none;
 }
+.reports-subtabs {
+  display: flex;
+  gap: var(--space-1);
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--line);
+}
+.reports-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  min-height: var(--space-7);
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.reports-subtab:hover {
+  color: var(--green);
+}
+.reports-subtab[aria-selected="true"] {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+.reports-subtab:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
 .reports-body {
   display: grid;
   gap: var(--space-5);
@@ -279,105 +320,167 @@
   margin-bottom: var(--space-4);
 }
 .report-chart {
+  --chart-1: #147a5c;
+  --chart-2: #5b6fc0;
+  --chart-3: #d0704a;
+  display: grid;
+  gap: var(--space-3);
   min-width: 0;
 }
 .report-chart-legend {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-5);
   padding: 0;
-  margin: 0 0 var(--space-3);
+  margin: 0;
   font-size: var(--text-sm);
+  color: var(--ink);
 }
 .report-chart-legend li {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
-.report-chart-legend span {
+.report-chart-legend span,
+.report-chart-readout li span {
+  width: var(--space-4);
+  height: calc(var(--space-1) - 1px);
+  border-radius: var(--radius-sm);
+  background: var(--chart-1);
+}
+.report-chart[data-kind="bars"] .report-chart-legend span {
   width: var(--space-3);
   height: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--green);
+  border-radius: calc(var(--space-1) - 1px);
 }
-.report-chart-legend [data-series="1"] span {
-  background: var(--terracotta);
+.report-chart-legend [data-series="1"] span,
+.report-chart-readout [data-series="1"] span {
+  background: var(--chart-2);
 }
-.report-chart-legend [data-series="2"] span {
-  background: var(--amber);
+.report-chart-legend [data-series="2"] span,
+.report-chart-readout [data-series="2"] span {
+  background: var(--chart-3);
 }
 .report-chart-readout {
-  min-height: var(--space-7);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  min-height: calc(var(--space-7) + var(--space-3));
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 1px solid var(--line);
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--muted);
-  padding: var(--space-2) 0;
+}
+.report-chart-readout strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.report-chart-readout ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+}
+.report-chart-readout li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.report-chart-readout b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.report-chart-frame {
+  min-width: 0;
+  width: 100%;
 }
 .report-chart-plot {
+  display: block;
   width: 100%;
-  height: calc(var(--space-8) * 3 + var(--space-6));
+  height: auto;
   overflow: visible;
+}
+.report-chart-plot text {
+  fill: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 .report-chart-grid {
   stroke: var(--line);
-  stroke-dasharray: 4 4;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
 }
 .report-chart-zero {
+  stroke: #c9c5ba;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.report-chart-crosshair {
   stroke: var(--muted);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  pointer-events: none;
 }
 .report-chart-line {
-  stroke: var(--green);
+  stroke: var(--chart-1);
   fill: none;
   stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
 }
 .report-chart-line[data-series="1"] {
-  stroke: var(--terracotta);
-  stroke-dasharray: 6 3;
+  stroke: var(--chart-2);
 }
-.report-chart-dot,
+.report-chart-area {
+  fill: var(--chart-1);
+  opacity: 0.1;
+  pointer-events: none;
+}
+.report-chart-dot {
+  fill: var(--chart-1);
+  stroke: white;
+  stroke-width: 2;
+  pointer-events: none;
+}
 .report-chart-bar {
-  fill: var(--green);
+  fill: var(--chart-1);
+  pointer-events: none;
+  transition: opacity 0.15s;
 }
 .report-chart-dot[data-series="1"],
 .report-chart-bar[data-series="1"] {
-  fill: var(--terracotta);
+  fill: var(--chart-2);
 }
 .report-chart-dot[data-series="2"],
 .report-chart-bar[data-series="2"] {
-  fill: var(--amber);
+  fill: var(--chart-3);
 }
 .report-chart-hit {
   fill: transparent;
 }
+.report-chart-point {
+  cursor: pointer;
+}
 .report-chart-point:focus {
   outline: none;
 }
-.report-chart-point:focus .report-chart-hit,
-.report-chart-point:hover .report-chart-hit {
-  fill: var(--mint);
-  opacity: 0.55;
-  stroke: var(--green);
-  vector-effect: non-scaling-stroke;
+.report-chart[data-kind="bars"]
+  .report-chart-point[data-active]
+  .report-chart-hit {
+  fill: var(--cream);
 }
-.report-chart-axis {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-.report-chart-axis span {
-  max-width: 32%;
-  overflow-wrap: anywhere;
-}
-.report-chart-axis span:last-child {
-  text-align: right;
-}
-.report-chart-scale {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  margin: var(--space-3) 0;
+.report-chart-point:focus-visible .report-chart-hit {
+  stroke: var(--green-2);
+  stroke-width: 2;
 }
 .report-age-chart {
   display: grid;
@@ -471,6 +574,10 @@
   }
   .report-chart-readout {
     min-height: var(--space-8);
+  }
+  .reports-subtab {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
   }
 }
 

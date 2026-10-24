@@ -122,11 +122,23 @@ describe("management reports redesign", () => {
     const clientsTab = screen.getByRole("tab", { name: "Clientes" });
     expect(clientsTab).toHaveFocus();
     expect(clientsTab).toHaveAttribute("aria-selected", "true");
+    const noReturnTab = screen.getByRole("tab", { name: "Sem retorno" });
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Retenção" }), {
+      key: "End",
+    });
+    const detailsTab = screen.getByRole("tab", {
+      name: "Consulta de clientes",
+    });
+    expect(detailsTab).toHaveFocus();
+    expect(detailsTab).toHaveAttribute("aria-selected", "true");
     const search = await screen.findByLabelText("Buscar cliente");
     fireEvent.change(search, { target: { value: "Helena" } });
     fireEvent.click(overview);
     fireEvent.click(clientsTab);
     expect(screen.getByLabelText("Buscar cliente")).toHaveValue("Helena");
+    expect(load).toHaveBeenCalledTimes(1);
+    fireEvent.click(noReturnTab);
+    await screen.findByText("Cliente sem retorno");
     expect(load).toHaveBeenCalledTimes(2);
     fireEvent.keyDown(clientsTab, { key: "End" });
     expect(screen.getByRole("tab", { name: "DRE" })).toHaveFocus();
@@ -184,6 +196,10 @@ describe("management reports redesign", () => {
       "aria-selected",
       "true",
     );
+    expect(screen.getByRole("tab", { name: "Sem retorno" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(screen.getAllByText(/^Cliente Sem Retorno \d+$/)).toHaveLength(15);
     expect(
       screen.getByText(/Atendidos de 01\/08\/2026 a 31\/08\/2026/),
@@ -225,9 +241,16 @@ describe("management reports redesign", () => {
         name: /01\/01\/2026: Vendas líquidas/,
       });
       fireEvent.focus(point);
-      expect(document.querySelector(".report-chart-readout")).toHaveTextContent(
-        /01\/01\/2026: Vendas líquidas: R\$\s1\.200,00 · Recebimentos:/,
-      );
+      const readout = document.querySelector(
+        ".report-chart-readout",
+      ) as HTMLElement;
+      expect(
+        within(readout).getByRole("list", {
+          name: /01\/01\/2026: Vendas líquidas: R\$\s1\.200,00 · Recebimentos:/,
+        }),
+      ).toBeInTheDocument();
+      expect(within(readout).getByText("01/01/2026")).toBeInTheDocument();
+      expect(within(readout).getByText(/^R\$\s1\.200,00$/)).toBeInTheDocument();
     } finally {
       URL.createObjectURL = originalCreate;
       URL.revokeObjectURL = originalRevoke;

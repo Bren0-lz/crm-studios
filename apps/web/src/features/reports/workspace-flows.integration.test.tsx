@@ -27,6 +27,9 @@ describe("client reports through real HTTP handlers", () => {
     open("/relatorios");
     await screen.findByRole("heading", { name: "Relatórios gerenciais" });
     fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Consulta de clientes" }),
+    );
     const panel = (
       await screen.findByRole("heading", {
         name: "Clientes, frequência, aparelhos e produtos",

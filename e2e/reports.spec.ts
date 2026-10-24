@@ -78,6 +78,15 @@ test("reports share a custom period across tabs, charts and downloads", async ({
   await expect(
     page.getByRole("heading", { name: "Retenção mês a mês", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("group", {
+      name: "Evolução da retenção mensal",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("tab", { name: "Consulta de clientes", exact: true })
+    .click();
   const search = page.getByLabel("Buscar cliente", { exact: true });
   await search.fill(patient.fullName);
   await page
@@ -85,12 +94,6 @@ test("reports share a custom period across tabs, charts and downloads", async ({
     .click();
   await expect(
     page.getByRole("link", { name: patient.fullName, exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("group", {
-      name: "Evolução da retenção mensal",
-      exact: true,
-    }),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("reports-clients.png"),
