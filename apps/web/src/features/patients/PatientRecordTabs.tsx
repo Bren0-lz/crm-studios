@@ -550,7 +550,7 @@ export function PatientRecordTabs({
                 )}
               />
             )}
-            {active === "tabs" && <InventoryPanel patientId={id} />}
+            {active === "tabs" && <InventoryPanel patient={patientOption} />}
             {active === "clinical" && (
               <ClinicalWorkspacePanel
                 key={id}

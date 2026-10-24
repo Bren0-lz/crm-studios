@@ -136,13 +136,13 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     const panel = screen.getByRole("region", { name: "Comandas do cliente" });
     await within(panel).findByText("Aberta");
     fireEvent.click(
-      within(panel).getAllByRole("button", { name: "Abrir comanda" }).at(-1)!,
+      within(panel).getByRole("button", { name: /^Ver comanda de/ }),
     );
     const dialog = await screen.findByRole("dialog", {
       name: `Comanda · ${patient!.fullName}`,
     });
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Vincular atendimento" }),
+      within(dialog).getByRole("button", { name: "Atendimento agendado" }),
     );
     change("Até", "2040-06-30", dialog);
     change("De", "2040-06-01", dialog);
@@ -223,7 +223,7 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     fireEvent.click(
       within(panel).getByRole("button", { name: "Abrir comanda" }),
     );
-    await save("Abrir comanda", "Abrir comanda");
+    await save("Nova comanda", "Abrir comanda");
     const dialog = await screen.findByRole("dialog", {
       name: `Comanda · ${patient.fullName}`,
     });
@@ -250,7 +250,7 @@ describe("inventory and tab workflows through real HTTP handlers", () => {
     ).toBe(10);
     const productRow = within(dialog)
       .getByText("Faixa terapêutica", { exact: true })
-      .closest<HTMLElement>(".table-row")!;
+      .closest<HTMLElement>("li")!;
     fireEvent.click(
       within(productRow).getByRole("button", { name: "Ajustar item" }),
     );
