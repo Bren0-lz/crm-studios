@@ -174,7 +174,9 @@ describe("header menus", () => {
         "Não foi possível carregar as notificações.",
       ),
     ).toBeVisible();
-    fireEvent.click(within(panel).getByRole("button", { name: "Tentar novamente" }));
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Tentar novamente" }),
+    );
     expect(
       await within(panel).findByRole("button", {
         name: /Atendimentos a finalizar/,
@@ -183,6 +185,63 @@ describe("header menus", () => {
     expect(
       within(panel).queryByText("Não foi possível carregar as notificações."),
     ).not.toBeInTheDocument();
+  });
+
+  it("reminds of scheduled callbacks: lead tasks, snoozed contacts and pause returns", async () => {
+    login();
+    mockApi(() =>
+      json({
+        date: "2026-10-16",
+        birthdaysToday: 0,
+        overdueReceivables: 0,
+        pendingFinalization: 0,
+        overdueLeadTasks: 2,
+        snoozedContactsDue: 1,
+        pauseReturnsDue: 3,
+      }),
+    );
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 6 pendências",
+    });
+    fireEvent.click(bell);
+    const panel = screen.getByRole("dialog", { name: "Notificações" });
+    expect(
+      within(panel).getByRole("button", {
+        name: /Contatos adiados para retomar/,
+      }),
+    ).toHaveTextContent("1");
+    expect(
+      within(panel).getByRole("button", {
+        name: /Retornos de pausa previstos/,
+      }),
+    ).toHaveTextContent("3");
+    const tasks = within(panel).getByRole("button", {
+      name: /Tarefas comerciais vencidas/,
+    });
+    expect(tasks).toHaveTextContent("2");
+    fireEvent.click(tasks);
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/comercial",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Notificações/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Notificações" })).getByRole(
+        "button",
+        { name: /Contatos adiados para retomar/ },
+      ),
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/relacionamento");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Notificações/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Notificações" })).getByRole(
+        "button",
+        { name: /Retornos de pausa previstos/ },
+      ),
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/planos");
   });
 
   it("only shows the groups of the modules the user can see", async () => {
@@ -194,6 +253,9 @@ describe("header menus", () => {
         birthdaysToday: 5,
         overdueReceivables: 7,
         pendingFinalization: 1,
+        overdueLeadTasks: 4,
+        snoozedContactsDue: 2,
+        pauseReturnsDue: 6,
       }),
     );
     renderApp();
@@ -209,6 +271,9 @@ describe("header menus", () => {
     ).toBeVisible();
     expect(panel).not.toHaveTextContent("Parcelas vencidas");
     expect(panel).not.toHaveTextContent("Aniversariantes");
+    expect(panel).not.toHaveTextContent("Tarefas comerciais");
+    expect(panel).not.toHaveTextContent("Contatos adiados");
+    expect(panel).not.toHaveTextContent("Retornos de pausa");
   });
 
   it("does not ask for notifications without agenda, finance or relationship", async () => {
