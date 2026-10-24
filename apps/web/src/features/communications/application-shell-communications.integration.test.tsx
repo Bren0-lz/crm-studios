@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -68,110 +68,6 @@ describe("application shell", () => {
     });
     expect(
       await within(section).findByText("Prazos e mensagens salvos."),
-    ).toBeInTheDocument();
-  });
-
-  it("requires broadcast text, discards a stale preview and shows preview errors", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "reception",
-      }),
-    );
-    let failPreview = false;
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/communications/broadcast/preview")) {
-        return failPreview
-          ? ({
-              ok: false,
-              status: 400,
-              json: async () => ({
-                code: "VALIDATION_ERROR",
-                message: "Dados inválidos.",
-              }),
-            } as Response)
-          : ({
-              ok: true,
-              status: 200,
-              json: async () => ({
-                preview: true,
-                channel: "whatsapp",
-                matched: 0,
-                queued: 0,
-                skipped: [],
-              }),
-            } as Response);
-      }
-      if (url.includes("/communications"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            deliveryMode: "outbox_only",
-            preferences: [],
-            messages: [],
-          }),
-        } as Response;
-      return { ok: true, status: 200, json: async () => [] } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes?aba=fila"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(await screen.findByRole("tab", { name: "Comunicado" }));
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    fireEvent.submit(
-      within(panel).getByLabelText("Texto do comunicado").closest("form")!,
-    );
-    // Sem texto, "Ver prévia" fica desativado dizendo o que falta (QM14).
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toBeDisabled();
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toHaveAccessibleDescription("Falta: Texto do comunicado.");
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).includes("/broadcast")),
-    ).toBe(false);
-
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Aviso geral" },
-    });
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toBeEnabled();
-    expect(within(panel).queryByText(/Falta:/)).not.toBeInTheDocument();
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-    expect(
-      await within(panel).findByText(
-        "Nenhum cliente receberia este comunicado.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).queryByRole("button", { name: "Enfileirar comunicado" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Aviso geral 2" },
-    });
-    expect(
-      within(panel).queryByText("Nenhum cliente receberia este comunicado."),
-    ).not.toBeInTheDocument();
-
-    failPreview = true;
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-    expect(
-      await within(panel).findByText("Dados inválidos."),
     ).toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   ageOn,
+  buildCampaignAudience,
   filterCampaignSegment,
   type CampaignFilterData,
 } from "./campaigns.js";
@@ -54,6 +55,7 @@ const data = (
   overduePatientIds: new Set(),
   contactedPatientIds: new Set(),
   now,
+  timezone: "America/Sao_Paulo",
   ...overrides,
 });
 
@@ -184,5 +186,78 @@ describe("filtros da campanha", () => {
         { contactedPatientIds: new Set(["a"]) },
       ),
     ).toEqual(["b", "c"]);
+  });
+
+  it("filtra quem tem atendimento aberto no dia, no fuso da clínica", () => {
+    const list = [patient("a"), patient("b"), patient("c"), patient("d")];
+    const appointments = [
+      // 22/10 às 23:30 em São Paulo = 23/10 02:30 UTC: conta como dia 22.
+      appointment("a", "2026-10-23T02:30:00Z", { status: "scheduled" }),
+      appointment("b", "2026-10-22T13:00:00Z", { status: "cancelled" }),
+      appointment("c", "2026-10-23T13:00:00Z", { status: "confirmed" }),
+      appointment("d", "2026-10-22T12:00:00Z", { status: "confirmed" }),
+    ];
+    expect(ids(list, { appointmentDate: "2026-10-22" }, { appointments })).toEqual(
+      ["a", "d"],
+    );
+  });
+});
+
+describe("mensagem da campanha com data e hora do atendimento", () => {
+  const body = "Oi, {{nome}}! Até {{data_atendimento}} às {{hora_atendimento}}.";
+
+  it("usa o atendimento do dia filtrado e pula quem não tem atendimento", () => {
+    const plan = buildCampaignAudience(
+      [patient("a", { fullName: "Ana Souza" }), patient("b")],
+      data({
+        appointments: [
+          appointment("a", "2026-10-22T18:00:00Z", { status: "scheduled" }),
+          appointment("a", "2026-10-22T12:30:00Z", { status: "confirmed" }),
+          appointment("b", "2026-10-23T12:00:00Z", { status: "scheduled" }),
+        ],
+      }),
+      { mode: "patients", patientIds: ["a", "b"] },
+      body,
+      today,
+    );
+    expect(plan.drafts.map((item) => item.message)).toEqual([
+      "Oi, Ana! Até 22/10 às 09:30.",
+      "Oi, Cliente! Até 23/10 às 09:00.",
+    ]);
+
+    const filtered = buildCampaignAudience(
+      [patient("a", { fullName: "Ana Souza" })],
+      data({
+        appointments: [
+          appointment("a", "2026-10-22T18:00:00Z", { status: "scheduled" }),
+          appointment("a", "2026-10-23T12:30:00Z", { status: "confirmed" }),
+        ],
+      }),
+      {
+        mode: "segment",
+        segment: whatsappCampaignSegmentSchema.parse({
+          appointmentDate: "2026-10-23",
+        }),
+      },
+      body,
+      today,
+    );
+    expect(filtered.drafts[0]?.message).toBe("Oi, Ana! Até 23/10 às 09:30.");
+
+    const none = buildCampaignAudience(
+      [patient("c")],
+      data({
+        appointments: [
+          appointment("c", "2026-10-01T12:00:00Z", { status: "completed" }),
+        ],
+      }),
+      { mode: "patients", patientIds: ["c"] },
+      body,
+      today,
+    );
+    expect(none.drafts).toEqual([]);
+    expect(none.skipped).toEqual([
+      { patientId: "c", patientName: "Cliente c", reason: "no_appointment" },
+    ]);
   });
 });

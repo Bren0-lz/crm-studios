@@ -32,6 +32,7 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
+import { PatientMessagePreferences } from "../communications/index";
 import {
   PlanCard,
   SessionMovementsModal,
@@ -335,6 +336,9 @@ export function PatientRecordTabs({
             <span className="is-empty">Sem etiquetas</span>
           )}
         </div>
+        {canView("communications") && (
+          <PatientMessagePreferences patientId={id} />
+        )}
       </section>
       {visibleTabs.length > 0 && active && (
         <section className="panel patient-record-tabs">

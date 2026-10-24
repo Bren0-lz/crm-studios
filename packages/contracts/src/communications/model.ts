@@ -59,12 +59,14 @@ export const broadcastSkipReasons = [
   "opt_out",
   "no_destination",
   "message_too_long",
+  "no_appointment",
 ] as const;
 
 export const broadcastSkipReasonLabels: Record<BroadcastSkipReason, string> = {
   opt_out: "Não autorizou mensagens neste canal",
   no_destination: "Sem contato cadastrado para o canal",
   message_too_long: "Mensagem passa de 500 caracteres com o nome",
+  no_appointment: "Sem atendimento agendado",
 };
 
 export const messageTemplateSchema = z
@@ -109,7 +111,28 @@ export function fillMessageTemplate(
 export const messageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Maria" },
   { code: "{{nome_completo}}", label: "Nome completo", example: "Maria Souza" },
+  {
+    code: "{{data_atendimento}}",
+    label: "Data do atendimento",
+    example: "23/10",
+  },
+  {
+    code: "{{hora_atendimento}}",
+    label: "Hora do atendimento",
+    example: "09:00",
+  },
 ] as const;
+
+/** Data e hora do atendimento que entram em `{{data_atendimento}}`/`{{hora_atendimento}}`. */
+export interface CampaignAppointmentValues {
+  date: string;
+  time: string;
+}
+
+/** A mensagem usa algum código do atendimento (data ou hora). */
+export function usesAppointmentVariables(body: string): boolean {
+  return /\{\{\s*(data|hora)_atendimento\s*\}\}/.test(body);
+}
 
 export const MESSAGE_TEMPLATE_MAX_IMAGES = 3;
 export const MESSAGE_TEMPLATE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
@@ -163,10 +186,23 @@ export function imageDataUrlInfo(dataUrl: string) {
   };
 }
 
-/** Preenche a mensagem padrão: `{{nome}}` = primeiro nome; `{{nome_completo}}`. */
-export function fillCampaignMessage(body: string, fullName: string): string {
+/**
+ * Preenche a mensagem padrão: `{{nome}}` = primeiro nome; `{{nome_completo}}`;
+ * com `appointment`, também `{{data_atendimento}}` e `{{hora_atendimento}}`.
+ */
+export function fillCampaignMessage(
+  body: string,
+  fullName: string,
+  appointment?: CampaignAppointmentValues,
+): string {
   return fillPatientMessage(body, fullName, {
     nome_completo: fullName.trim().replace(/\s+/g, " "),
+    ...(appointment
+      ? {
+          data_atendimento: appointment.date,
+          hora_atendimento: appointment.time,
+        }
+      : {}),
   });
 }
 
@@ -195,6 +231,8 @@ export const whatsappCampaignSegmentSchema = broadcastSegmentSchema.extend({
   absentDays: optionalDays,
   /** Teve atendimento realizado nos últimos N dias. */
   visitedWithinDays: optionalDays,
+  /** Tem atendimento agendado ou confirmado neste dia (lembrete de atendimento). */
+  appointmentDate: z.iso.date().optional(),
   /** Sem nenhum atendimento futuro agendado. */
   noUpcomingAppointment: z.boolean().default(false),
   /** Plano ativo que vence nos próximos N dias. */

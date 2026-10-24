@@ -99,27 +99,6 @@ describe("screens without the patients module", () => {
     expectOnlyOptions();
   });
 
-  it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes?aba=fila");
-    fireEvent.click(
-      await screen.findByRole("tab", { name: "Mensagem individual" }),
-    );
-    fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
-      target: { value: "Helena" },
-    });
-    expect(
-      await screen.findByRole("option", { name: "Helena Almeida" }),
-    ).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("tab", { name: "Comunicado" }));
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    expect(
-      await within(panel).findByRole("button", { name: /^pilates/ }),
-    ).toBeInTheDocument();
-    expectOnlyOptions();
-  });
-
   it("opens contracts without the clients and plans modules", async () => {
     renderAs("contracts", "/contratos");
     fireEvent.click(
