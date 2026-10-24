@@ -6,7 +6,9 @@ import {
   type LeadFilterOptions,
   type LeadInsights,
   type LeadStage,
-  type LeadStageLabel,
+  type LeadStageConfig,
+  type LeadStagesInput,
+  resolveLeadStages,
   type LeadStagePage,
 } from "@crm/contracts";
 import { Pencil, Plus } from "lucide-react";
@@ -32,10 +34,12 @@ import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadFiltersModal } from "./LeadFiltersModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
-import { LeadStagesModal } from "./LeadStagesModal";
+import { LeadStageModal } from "./LeadStageModal";
 import { useToast } from "../../shared/feedback/toast-context";
 
-type Columns = Partial<Record<LeadStage, LeadStagePage>>;
+type Columns = Record<LeadStage, LeadStagePage>;
+
+const defaultStages = resolveLeadStages([]);
 
 const emptyOptions: LeadFilterOptions = {
   sources: [],
@@ -101,14 +105,19 @@ export function CommercialPage() {
   const [analysisOpen, setAnalysisOpen] = useState(false);
   // Esconde a coluna Perdidos no quadro (só na tela; não muda a consulta).
   const [hideLost, setHideLost] = useState(false);
-  // Nomes das etapas definidos pela clínica; até carregar (ou se falhar), os padrões.
-  const [stageLabels, setStageLabels] = useState<LeadStageLabel[]>([]);
-  const [renamingStages, setRenamingStages] = useState(false);
-  const stages = leadStages.map((stage) => ({
-    ...stage,
-    label:
-      stageLabels.find((item) => item.stage === stage.value)?.label ??
-      stage.label,
+  // Funil da clínica (etapas, nomes e etapa final); até carregar (ou se falhar), o padrão.
+  const [stageConfig, setStageConfig] =
+    useState<LeadStageConfig[]>(defaultStages);
+  // Etapa em edição pelo lápis da coluna, ou "new" para incluir uma etapa.
+  const [stageForm, setStageForm] = useState<LeadStageConfig | "new" | null>(
+    null,
+  );
+  const stages = stageConfig.map((item) => ({
+    value: item.stage,
+    label: item.label,
+    hint:
+      leadStages.find((stage) => stage.value === item.stage)?.hint ??
+      "Mova para cá os leads que estão nesta etapa.",
   }));
   const stageLabel = (stage: LeadStage) =>
     stages.find((item) => item.value === stage)?.label ?? stage;
@@ -166,8 +175,10 @@ export function CommercialPage() {
   }, [refreshOptions]);
   useEffect(() => {
     api
-      .leadStageLabels()
-      .then(setStageLabels)
+      .leadStages()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) setStageConfig(list);
+      })
       .catch(() => {});
   }, []);
   const firstLoad = useRef(true);
@@ -255,6 +266,19 @@ export function CommercialPage() {
       toast.error((cause as Error).message);
     }
   }
+  async function saveStages(
+    next: LeadStagesInput["stages"],
+    action: "saved" | "removed",
+  ) {
+    const saved = await api.saveLeadStages(next);
+    setStageConfig(saved);
+    setStageForm(null);
+    toast.success(
+      action === "removed" ? "Etapa removida do funil." : "Funil atualizado.",
+    );
+    // A etapa final pode ter mudado de coluna: recarrega o quadro com as etapas novas.
+    void loadBoard(filterRef.current);
+  }
   async function markLost(lead: Lead, reason: string) {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
@@ -288,10 +312,10 @@ export function CommercialPage() {
               {can("crm.stages_manage") && (
                 <button
                   className="secondary-button"
-                  onClick={() => setRenamingStages(true)}
+                  onClick={() => setStageForm("new")}
                 >
-                  <Pencil size={16} />
-                  Renomear etapas
+                  <Plus size={18} />
+                  Adicionar etapa
                 </button>
               )}
               {canManage && can("crm.create") && (
@@ -416,6 +440,23 @@ export function CommercialPage() {
                       <header>
                         <i className="kanban-stage-dot" aria-hidden="true" />
                         <strong>{stage.label}</strong>
+                        {can("crm.stages_manage") && (
+                          <button
+                            type="button"
+                            className="icon-button button-sm kanban-stage-edit"
+                            aria-label={`Editar etapa ${stage.label}`}
+                            title="Editar etapa"
+                            onClick={() =>
+                              setStageForm(
+                                stageConfig.find(
+                                  (item) => item.stage === stage.value,
+                                ) ?? null,
+                              )
+                            }
+                          >
+                            <Pencil size={13} aria-hidden="true" />
+                          </button>
+                        )}
                         <span>{column.total}</span>
                       </header>
                       {column.overdue > 0 && (
@@ -468,18 +509,12 @@ export function CommercialPage() {
           )}
         </>
       )}
-      {renamingStages && (
-        <LeadStagesModal
-          stages={stages.map((stage) => ({
-            stage: stage.value,
-            label: stage.label,
-          }))}
-          onClose={() => setRenamingStages(false)}
-          onConfirm={async (next) => {
-            setStageLabels(await api.saveLeadStageLabels(next));
-            setRenamingStages(false);
-            toast.success("Nomes das etapas atualizados.");
-          }}
+      {stageForm && (
+        <LeadStageModal
+          stages={stageConfig}
+          {...(stageForm === "new" ? {} : { editing: stageForm })}
+          onClose={() => setStageForm(null)}
+          onSave={(next, action) => saveStages(next, action)}
         />
       )}
       {filtersOpen && (

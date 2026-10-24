@@ -50,6 +50,27 @@
   text-align: center;
 }
 
+/* Lápis de editar a etapa (só com a permissão de editar o funil), discreto ao lado do nome. */
+.kanban-column > header .kanban-stage-edit {
+  min-width: var(--space-5);
+  min-height: var(--space-5);
+  flex-shrink: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.kanban-column > header .kanban-stage-edit:hover:not(:disabled) {
+  border-color: var(--line);
+  background: white;
+  color: var(--ink);
+}
+
+/* Remover etapa fica à esquerda, separado de Voltar/Salvar. */
+.modal-actions > .lead-stage-remove {
+  margin-right: auto;
+}
+
 /* Ponto colorido por etapa no cabeçalho da coluna. */
 .kanban-stage-dot {
   width: var(--space-2);

@@ -358,14 +358,20 @@ export const patientListQuerySchema = z.object({
   withoutGroup: queryBoolean,
 });
 
-export const leadStageSchema = z.enum([
+/** Etapas padrão do funil, na ordem. A clínica pode renomear, incluir e remover etapas;
+ * `won` (ganhos, só por conversão) e `lost` (perdidos, com motivo) são etapas de sistema. */
+export const defaultLeadStageKeys = [
   "new_contact",
   "contacted",
   "evaluation",
   "proposal",
   "won",
   "lost",
-]);
+] as const;
+/** Chave da etapa: as padrão acima ou `stage_<código>` para as criadas pela clínica. */
+export const leadStageSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{0,39}$/, "Etapa do funil inválida.");
 
 /** Faixas etárias do relatório de clientes (`unknown` = sem data de nascimento). */
 export const clientAgeBandSchema = z.enum([
