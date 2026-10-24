@@ -1,5 +1,7 @@
 import {
+  campaignAppointmentStatusLabels,
   patientTagDisplayColor,
+  type CampaignAppointmentStatus,
   type CampaignFilterOptions,
   type PatientOption,
   type WhatsappCampaignSegment,
@@ -18,9 +20,10 @@ import {
 import type { ReactNode } from "react";
 import { TagChoice } from "../../../shared/components/TagChoice";
 import { usePatientTags } from "../../../shared/hooks/usePatientTags";
-import { tagCounts } from "../../../shared/lib/formatting";
+import { localIsoDate, tagCounts } from "../../../shared/lib/formatting";
 import {
   activeFilterCount,
+  appointmentPeriodPresets,
   emptyCampaignSegment,
   filterGroupCounts,
   type CampaignFilterGroup,
@@ -142,6 +145,111 @@ function DaysSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Período de atendimento (de/até, com atalhos) e quais atendimentos contam.
+ * Mantém o início antes do fim ajustando o outro limite.
+ */
+function AppointmentPeriod({
+  value,
+  onChange,
+}: {
+  value: WhatsappCampaignSegment;
+  onChange: (value: WhatsappCampaignSegment) => void;
+}) {
+  const from = value.appointmentFrom;
+  const to = value.appointmentTo;
+  const update = (
+    nextFrom: string | undefined,
+    nextTo: string | undefined,
+    status = value.appointmentStatus,
+  ) => {
+    const copy = { ...value };
+    delete copy.appointmentFrom;
+    delete copy.appointmentTo;
+    delete copy.appointmentStatus;
+    if (nextFrom) copy.appointmentFrom = nextFrom;
+    if (nextTo) copy.appointmentTo = nextTo;
+    if ((nextFrom || nextTo) && status && status !== "open")
+      copy.appointmentStatus = status;
+    onChange(copy);
+  };
+  const hasPeriod = Boolean(from || to);
+  return (
+    <div className="span-2 campaign-period">
+      <span className="filter-label" id="campaign-period">
+        Com atendimento no período
+      </span>
+      <div
+        className="campaign-segmented compact"
+        role="group"
+        aria-labelledby="campaign-period"
+      >
+        {appointmentPeriodPresets(localIsoDate()).map((preset) => (
+          <button
+            key={preset.label}
+            type="button"
+            className="text-button"
+            aria-pressed={from === preset.from && to === preset.to}
+            onClick={() => update(preset.from, preset.to)}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+      <div className="campaign-range">
+        <label>
+          De
+          <input
+            type="date"
+            value={from ?? ""}
+            onChange={(event) => {
+              const next = event.target.value || undefined;
+              update(next, next && to && to < next ? next : to);
+            }}
+          />
+        </label>
+        <label>
+          Até
+          <input
+            type="date"
+            value={to ?? ""}
+            onChange={(event) => {
+              const next = event.target.value || undefined;
+              update(next && from && from > next ? next : from, next);
+            }}
+          />
+        </label>
+        <label>
+          Quais atendimentos
+          <select
+            value={value.appointmentStatus ?? "open"}
+            disabled={!hasPeriod}
+            onChange={(event) =>
+              update(from, to, event.target.value as CampaignAppointmentStatus)
+            }
+          >
+            {(
+              Object.entries(campaignAppointmentStatusLabels) as [
+                CampaignAppointmentStatus,
+                string,
+              ][]
+            ).map(([status, label]) => (
+              <option key={status} value={status}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <small className="field-hint">
+        {hasPeriod
+          ? "Serviços e profissionais escolhidos abaixo valem só para os atendimentos do período. Na mensagem, os códigos de data e hora usam o primeiro atendimento do período."
+          : "Só o início ou só o fim também vale. Para lembrete, use os códigos de data e hora do atendimento na mensagem."}
+      </small>
+    </div>
   );
 }
 
@@ -433,20 +541,7 @@ export function CampaignFilters({
         icon={Stethoscope}
         count={counts.agenda}
       >
-        <label>
-          Atendimento no dia
-          <input
-            type="date"
-            value={value.appointmentDate ?? ""}
-            onChange={(event) =>
-              set("appointmentDate", event.target.value || undefined)
-            }
-          />
-          <small className="field-hint">
-            Para lembrete: use os códigos de data e hora do atendimento na
-            mensagem.
-          </small>
-        </label>
+        <AppointmentPeriod value={value} onChange={onChange} />
         {(options?.services.length ?? 0) > 0 && (
           <>
             <span className="span-2 filter-label" id="campaign-services">
