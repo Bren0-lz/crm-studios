@@ -361,6 +361,9 @@
 .reports-page .dre-table thead th {
   font-size: var(--text-xs);
 }
+.reports-page .dre-table .table-actions-head {
+  text-align: right;
+}
 .reports-page .dre-table .numeric-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
