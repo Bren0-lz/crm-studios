@@ -451,48 +451,79 @@ describe("campanhas de WhatsApp", () => {
       name: "Clientes encontrados",
     });
     expect(
-      await within(results).findByText("3 clientes encontrados"),
+      await within(results).findByText("clientes vão receber esta campanha"),
+    ).toBeInTheDocument();
+    expect(
+      within(results).getByText(/3 clientes encontrados · 1 será pulado/),
     ).toBeInTheDocument();
     expect(within(results).getByText("Carla Souza")).toBeInTheDocument();
     expect(within(results).getByText("(21) 98888-7777")).toBeInTheDocument();
     expect(
       within(results).getByText("Não autorizou mensagens neste canal"),
     ).toBeInTheDocument();
+    // Os filtros ficam num modal próprio, sobre a "Nova campanha".
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Filtros/ }));
+    let filters = await screen.findByRole("dialog", {
+      name: "Filtros da campanha",
+    });
     fireEvent.click(
       await within(
-        within(dialog).getByRole("group", { name: "Com as etiquetas" }),
+        within(filters).getByRole("group", { name: "Com as etiquetas" }),
       ).findByRole("button", { name: /Pilates/ }),
     );
+    await waitFor(() =>
+      expect(within(filters).getByRole("status").textContent).toBe(
+        "1 cliente vai receber",
+      ),
+    );
+    // Só aplica ao confirmar: a lista da campanha ainda tem a Carla.
+    expect(within(results).getByText("Carla Souza")).toBeInTheDocument();
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Aplicar filtros" }),
+    );
     expect(
-      await within(results).findByText("2 clientes encontrados"),
+      screen.queryByRole("dialog", { name: "Filtros da campanha" }),
+    ).toBeNull();
+    expect(
+      await within(results).findByText(/2 clientes encontrados/),
     ).toBeInTheDocument();
     expect(within(results).queryByText("Carla Souza")).toBeNull();
     expect(previews.at(-1)).toMatchObject({
       audience: { mode: "segment", segment: { tags: ["Pilates"] } },
     });
+    expect(
+      within(
+        within(dialog).getByRole("list", { name: "Filtros ligados" }),
+      ).getByText("Etiquetas"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Filtros/ }));
+    filters = await screen.findByRole("dialog", {
+      name: "Filtros da campanha",
+    });
 
     // Filtros novos: "Todas" as etiquetas, cidade, serviço, sumidos e repetição.
-    fireEvent.click(within(dialog).getByRole("button", { name: "Todas" }));
-    fireEvent.change(within(dialog).getByLabelText("Cidade"), {
+    fireEvent.click(within(filters).getByRole("button", { name: "Todas" }));
+    fireEvent.change(within(filters).getByLabelText("Cidade"), {
       target: { value: "Campinas" },
     });
-    fireEvent.click(within(dialog).getByText("Atendimentos e frequência"));
+    fireEvent.click(within(filters).getByText("Atendimentos e frequência"));
     fireEvent.click(
       within(
-        within(dialog).getByRole("group", {
+        within(filters).getByRole("group", {
           name: "Fez algum destes serviços",
         }),
       ).getByRole("button", { name: /Dançaterapia/ }),
     );
-    fireEvent.change(within(dialog).getByLabelText("Sumidos"), {
+    fireEvent.change(within(filters).getByLabelText("Sumidos"), {
       target: { value: "60" },
     });
-    fireEvent.click(within(dialog).getByText("Evitar repetição"));
+    fireEvent.click(within(filters).getByText("Evitar repetição"));
     fireEvent.change(
-      within(dialog).getByLabelText("Tirar quem já recebeu campanha"),
+      within(filters).getByLabelText("Tirar quem já recebeu campanha"),
       { target: { value: "7" } },
     );
-    expect(within(dialog).getByText("6 filtros ligados")).toBeInTheDocument();
+    expect(within(filters).getByText("6 filtros ligados")).toBeInTheDocument();
     await waitFor(() =>
       expect(previews.at(-1)).toMatchObject({
         audience: {
@@ -509,9 +540,17 @@ describe("campanhas de WhatsApp", () => {
       }),
     );
     fireEvent.click(
+      within(filters).getByRole("button", { name: "Aplicar filtros" }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: /^Filtros/ }),
+    ).toHaveTextContent("Filtros6");
+    fireEvent.click(
       within(dialog).getByRole("button", { name: "Limpar filtros" }),
     );
-    expect(within(dialog).getByText("1 filtro ligado")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: /^Filtros/ }),
+    ).toHaveTextContent("Filtros1");
   });
 
   it("abre o WhatsApp com o texto pronto e, ao voltar, registra o envio e passa ao próximo", async () => {

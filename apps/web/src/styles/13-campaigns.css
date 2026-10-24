@@ -1406,22 +1406,110 @@
   background: white;
 }
 
-.campaign-filter-results header {
+/* Total da campanha: quantos clientes vão receber, em destaque */
+.campaign-audience-total {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
 }
 
-.campaign-filter-results header strong {
+.campaign-audience-total strong {
+  color: var(--green);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.campaign-audience-total > span:last-child {
+  display: grid;
+  gap: calc(var(--space-1) / 2);
+}
+
+.campaign-audience-total small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.campaign-audience-number {
+  min-width: var(--space-7);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+}
+
+/* Barra de filtros: botão que abre o modal + resumo do que está ligado */
+.campaign-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.campaign-filter-bar .campaign-filter-badge {
+  margin-left: var(--space-1);
+}
+
+.campaign-filter-summary {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.campaign-filter-summary li {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  color: #59665f;
+  font-size: var(--text-sm);
+}
+
+.campaign-chosen-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+}
+
+.campaign-chosen-count strong {
   color: var(--green);
   font-size: var(--text-lg);
 }
 
-.campaign-filter-results header span {
+/* Modal de filtros: contagem ao vivo à esquerda do rodapé */
+.campaign-filters-modal-actions {
+  position: sticky;
+  z-index: 1;
+  bottom: calc(var(--modal-scroll-inset) - var(--modal-content-padding));
+  align-items: center;
+  margin: var(--space-4)
+    calc(var(--modal-scroll-inset) - var(--modal-content-padding))
+    calc(var(--modal-scroll-inset) - var(--modal-content-padding));
+  padding: var(--space-4)
+    calc(var(--modal-content-padding) - var(--modal-scroll-inset));
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.campaign-filters-modal-count {
+  margin: 0 auto 0 0;
   color: var(--muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+}
+
+.campaign-filters-modal-count strong {
+  color: var(--green);
+  font-size: var(--text-lg);
 }
 
 .campaign-filter-results .campaign-search {
@@ -1501,21 +1589,7 @@
   font-size: var(--text-sm);
 }
 
-/* Nova campanha › Por filtros: filtros à esquerda, clientes encontrados à direita */
-.campaign-filter-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.campaign-filter-layout .campaign-filter-results {
-  position: sticky;
-  top: 0;
-}
-
-.campaign-filter-layout .campaign-filter-list {
-  grid-template-columns: 1fr;
+.campaign-audience .campaign-filter-list {
   max-height: calc(var(--space-8) * 6);
 }
 
@@ -1632,18 +1706,7 @@
   margin: 0;
 }
 
-@media (max-width: 900px) {
-  .campaign-filter-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .campaign-filter-layout .campaign-filter-results {
-    position: static;
-  }
-}
-
 @media (max-width: 700px) {
-  .campaign-filter-layout,
   .campaign-age {
     grid-template-columns: 1fr;
   }

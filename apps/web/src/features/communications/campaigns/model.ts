@@ -172,3 +172,12 @@ export function activeFilterCount(segment: WhatsappCampaignSegment) {
     0,
   );
 }
+
+export const filterGroupLabels: Record<CampaignFilterGroup, string> = {
+  tags: "Etiquetas",
+  profile: "Perfil do cliente",
+  dates: "Aniversário e cadastro",
+  agenda: "Atendimentos e frequência",
+  plans: "Planos e financeiro",
+  repeat: "Evitar repetição",
+};
