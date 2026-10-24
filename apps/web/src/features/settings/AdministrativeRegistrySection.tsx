@@ -12,12 +12,19 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
+import { ReportTabs, type ReportTab } from "../reports/index";
 type Editor = { id?: string; input: AdministrativeRegistryInput };
+type Kind = AdministrativeRegistryInput["kind"];
+const kinds: ReportTab<Kind>[] = [
+  { key: "service", label: "Serviços" },
+  { key: "room", label: "Salas" },
+  { key: "professional", label: "Profissionais" },
+];
 export function AdministrativeRegistrySection() {
   const { can } = useAuthorization();
-  const [kind, setKind] =
-      useState<AdministrativeRegistryInput["kind"]>("service"),
-    [data, setData] = useState<AdministrativeRegistryWorkspace | null>(null),
+  const [data, setData] = useState<AdministrativeRegistryWorkspace | null>(
+      null,
+    ),
     [error, setError] = useState(""),
     [editor, setEditor] = useState<Editor | null>(null);
   async function load() {
@@ -38,19 +45,7 @@ export function AdministrativeRegistrySection() {
       active = false;
     };
   }, []);
-  const entries =
-    kind === "service"
-      ? data?.services
-      : kind === "room"
-        ? data?.rooms
-        : data?.professionals;
-  const createPermission =
-    kind === "service"
-      ? "agenda.services_create"
-      : kind === "room"
-        ? "agenda.rooms_create"
-        : "agenda.professionals_create";
-  function create() {
+  function create(kind: Kind) {
     setEditor({
       input:
         kind === "professional"
@@ -78,58 +73,68 @@ export function AdministrativeRegistrySection() {
               },
     });
   }
+  function list(kind: Kind) {
+    const entries =
+      kind === "service"
+        ? data?.services
+        : kind === "room"
+          ? data?.rooms
+          : data?.professionals;
+    const createPermission =
+      kind === "service"
+        ? "agenda.services_create"
+        : kind === "room"
+          ? "agenda.rooms_create"
+          : "agenda.professionals_create";
+    return (
+      <div className="registry-settings-list">
+        {can(createPermission) && (
+          <div className="page-actions">
+            <button className="primary-button" onClick={() => create(kind)}>
+              Novo cadastro
+            </button>
+          </div>
+        )}
+        {!data ? (
+          !error && <LoadingBlock />
+        ) : !entries?.length ? (
+          <EmptyState
+            title="Nenhum cadastro"
+            copy="Cadastre os recursos utilizados na agenda."
+          />
+        ) : (
+          entries.map((item) => (
+            <div className="table-row" key={item.id}>
+              <strong>{"fullName" in item ? item.fullName : item.name}</strong>
+              <span>{item.active ? "Ativo" : "Inativo"}</span>
+              {can("settings.registry_manage") && (
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    setEditor({
+                      id: item.id,
+                      input: {
+                        kind,
+                        data: item,
+                      } as AdministrativeRegistryInput,
+                    })
+                  }
+                >
+                  Editar cadastro
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    );
+  }
   return (
     <div className="settings-panel-body registry-settings">
       {error && <ErrorBanner error={error} />}
-      <div className="form-grid">
-        <label>
-          Cadastro
-          <select
-            value={kind}
-            onChange={(event) => setKind(event.target.value as typeof kind)}
-          >
-            <option value="service">Serviços</option>
-            <option value="room">Salas</option>
-            <option value="professional">Profissionais</option>
-          </select>
-        </label>
-        {can(createPermission) && (
-          <button className="primary-button" onClick={create}>
-            Novo cadastro
-          </button>
-        )}
-      </div>
-      {!data ? (
-        !error && <LoadingBlock />
-      ) : !entries?.length ? (
-        <EmptyState
-          title="Nenhum cadastro"
-          copy="Cadastre os recursos utilizados na agenda."
-        />
-      ) : (
-        entries.map((item) => (
-          <div className="table-row" key={item.id}>
-            <strong>{"fullName" in item ? item.fullName : item.name}</strong>
-            <span>{item.active ? "Ativo" : "Inativo"}</span>
-            {can("settings.registry_manage") && (
-              <button
-                className="secondary-button"
-                onClick={() =>
-                  setEditor({
-                    id: item.id,
-                    input: {
-                      kind,
-                      data: item,
-                    } as AdministrativeRegistryInput,
-                  })
-                }
-              >
-                Editar cadastro
-              </button>
-            )}
-          </div>
-        ))
-      )}
+      <ReportTabs sub label="Tipos de cadastro" tabs={kinds}>
+        {list}
+      </ReportTabs>
       {editor && (
         <RegistryEditor
           key={editor.id ?? editor.input.kind}
