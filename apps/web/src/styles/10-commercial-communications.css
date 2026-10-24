@@ -1432,11 +1432,18 @@
   }
 }
 
-.lead-card[draggable="true"] {
+/* Reordenar o funil: a coluna é arrastada pelo cabeçalho (com a permissão de editar o funil). */
+.kanban-column > header[draggable="true"] {
   cursor: grab;
 }
 
-.lead-card.dragging {
+.kanban-stage-grip {
+  flex-shrink: 0;
+  margin-right: calc(var(--space-1) * -1);
+  color: var(--muted);
+}
+
+.kanban-column.dragging {
   opacity: 0.55;
 }
 

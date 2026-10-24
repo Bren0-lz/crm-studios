@@ -11,7 +11,7 @@ import {
   resolveLeadStages,
   type LeadStagePage,
 } from "@crm/contracts";
-import { Pencil, Plus } from "lucide-react";
+import { GripVertical, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -123,13 +123,12 @@ export function CommercialPage() {
     stages.find((item) => item.value === stage)?.label ?? stage;
   const canManage = canEdit("crm");
   const toast = useToast();
-  // Arrastar e soltar (desktop): o select de etapa continua no cartão para o celular.
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Reordenar o funil arrastando a coluna pelo cabeçalho (desktop). O lead muda de etapa só
+  // pelo seletor do cartão; no celular, a posição da etapa fica no modal "Editar etapa".
+  const canReorder = can("crm.stages_manage");
+  const [draggingStage, setDraggingStage] = useState<LeadStage | null>(null);
   const [overStage, setOverStage] = useState<LeadStage | null>(null);
-  const canDrag = canManage && can("crm.stage");
-  const draggingLead = Object.values(columns)
-    .flatMap((column) => column.leads)
-    .find((lead) => lead.id === draggingId);
+  const [savingOrder, setSavingOrder] = useState(false);
   // Só a resposta da consulta mais recente vale (filtros mudando rápido).
   const requestId = useRef(0);
   const filterRef = useRef(filter);
@@ -245,25 +244,31 @@ export function CommercialPage() {
       setError((cause as Error).message);
     }
   }
-  async function drop(stage: LeadStage) {
-    const lead = draggingLead;
-    setDraggingId(null);
+  /** Solta a etapa arrastada no lugar da coluna de destino e salva a nova ordem. */
+  async function dropStage(target: LeadStage) {
+    const source = draggingStage;
+    setDraggingStage(null);
     setOverStage(null);
-    if (!lead || lead.stage === stage) return;
-    // Etapas que pedem dados abrem o modal em vez de mover direto.
-    if (stage === "lost") {
-      setLosingLead(lead);
-      return;
-    }
-    if (stage === "won") {
-      if (can("crm.convert", "patients.create")) setConvertingLead(lead);
-      else toast.error("Você não tem permissão para converter leads.");
-      return;
-    }
+    if (!source || source === target) return;
+    const previous = stageConfig;
+    const next = [...previous];
+    const from = next.findIndex((item) => item.stage === source);
+    const to = next.findIndex((item) => item.stage === target);
+    if (from < 0 || to < 0) return;
+    next.splice(to, 0, ...next.splice(from, 1));
+    setStageConfig(next);
+    setSavingOrder(true);
     try {
-      replaceLead(await api.moveLead(lead.id, stage));
+      setStageConfig(
+        await api.saveLeadStages(
+          next.map(({ stage, label }) => ({ stage, label })),
+        ),
+      );
     } catch (cause) {
+      setStageConfig(previous);
       toast.error((cause as Error).message);
+    } finally {
+      setSavingOrder(false);
     }
   }
   async function saveStages(
@@ -295,7 +300,6 @@ export function CommercialPage() {
   const filtering = Object.keys(filter).length > 0;
   const permissions = {
     manage: canManage,
-    drag: canDrag,
     stage: can("crm.stage"),
     update: can("crm.update"),
     convert: can("crm.convert", "patients.create"),
@@ -409,12 +413,12 @@ export function CommercialPage() {
                   const remaining = column.total - column.leads.length;
                   return (
                     <section
-                      className={`kanban-column${overStage === stage.value ? " drag-over" : ""}`}
+                      className={`kanban-column${overStage === stage.value ? " drag-over" : ""}${draggingStage === stage.value ? " dragging" : ""}`}
                       key={stage.value}
                       data-stage={stage.value}
                       aria-label={stage.label}
                       onDragOver={(event) => {
-                        if (!draggingLead || draggingLead.stage === stage.value)
+                        if (!draggingStage || draggingStage === stage.value)
                           return;
                         event.preventDefault();
                         if (event.dataTransfer)
@@ -434,10 +438,42 @@ export function CommercialPage() {
                       }}
                       onDrop={(event) => {
                         event.preventDefault();
-                        void drop(stage.value);
+                        void dropStage(stage.value);
                       }}
                     >
-                      <header>
+                      <header
+                        draggable={canReorder && !savingOrder}
+                        title={
+                          canReorder
+                            ? "Arraste para mudar a posição da etapa"
+                            : undefined
+                        }
+                        onDragStart={(event) => {
+                          if (event.dataTransfer) {
+                            event.dataTransfer.setData(
+                              "text/plain",
+                              stage.value,
+                            );
+                            event.dataTransfer.effectAllowed = "move";
+                            // A imagem arrastada é a coluna inteira, não só o cabeçalho.
+                            const column = event.currentTarget.parentElement;
+                            if (column && event.dataTransfer.setDragImage)
+                              event.dataTransfer.setDragImage(column, 24, 16);
+                          }
+                          setDraggingStage(stage.value);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingStage(null);
+                          setOverStage(null);
+                        }}
+                      >
+                        {canReorder && (
+                          <GripVertical
+                            className="kanban-stage-grip"
+                            size={14}
+                            aria-hidden="true"
+                          />
+                        )}
                         <i className="kanban-stage-dot" aria-hidden="true" />
                         <strong>{stage.label}</strong>
                         {can("crm.stages_manage") && (
@@ -472,14 +508,8 @@ export function CommercialPage() {
                           <LeadCard
                             key={lead.id}
                             lead={lead}
-                            dragging={draggingId === lead.id}
                             permissions={permissions}
                             stages={stages}
-                            onDragStart={() => setDraggingId(lead.id)}
-                            onDragEnd={() => {
-                              setDraggingId(null);
-                              setOverStage(null);
-                            }}
                             onMove={(next) => void move(lead, next)}
                             onActivity={() => setActivityLead(lead)}
                             onEdit={() => setEditingLead(lead)}
