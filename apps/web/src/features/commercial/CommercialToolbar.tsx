@@ -36,6 +36,7 @@ export function CommercialToolbar({
   insights,
   userId,
   hideLost,
+  stages,
   onSearch,
   onChange,
   onOpenFilters,
@@ -48,6 +49,8 @@ export function CommercialToolbar({
   insights: LeadInsights | null;
   userId?: string;
   hideLost: boolean;
+  /** Etapas com os nomes da clínica (chip do filtro de etapa). */
+  stages?: ReadonlyArray<{ value: string; label: string }>;
   onSearch: (value: string) => void;
   onChange: (filter: LeadFilter) => void;
   onOpenFilters: () => void;
@@ -162,7 +165,7 @@ export function CommercialToolbar({
               onClick={() => remove(key)}
             >
               {modalFilterLabels[key]}:{" "}
-              <strong>{filterValueLabel(key, filter, options)}</strong>
+              <strong>{filterValueLabel(key, filter, options, stages)}</strong>
               <X size={12} aria-hidden="true" />
             </button>
           ))}

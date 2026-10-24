@@ -40,10 +40,11 @@ export function filterValueLabel(
   key: ModalFilterKey,
   filter: LeadFilter,
   options: LeadFilterOptions,
+  stages: ReadonlyArray<{ value: string; label: string }> = leadStages,
 ) {
   const value = filter[key] ?? "";
   if (key === "stage")
-    return leadStages.find((stage) => stage.value === value)?.label ?? value;
+    return stages.find((stage) => stage.value === value)?.label ?? value;
   if (key === "responsibleUserId")
     return (
       options.responsibles.find((item) => item.id === value)?.name ??

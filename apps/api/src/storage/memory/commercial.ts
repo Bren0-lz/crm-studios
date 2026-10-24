@@ -7,9 +7,11 @@ import {
   buildLeadInsights,
   findLeadDuplicates,
   matchesLead,
+  resolveLeadStageLabels,
   type LeadDuplicateQuery,
   type LeadFilter,
   type LeadPage,
+  type LeadStageLabelsInput,
   type LeadStagePage,
 } from "@crm/contracts";
 import type {
@@ -413,6 +415,20 @@ export function createCommercialRepository(
 
     async listLeadFilterOptions(clinicId: string) {
       return buildLeadFilterOptions(await repository.listLeads(clinicId));
+    },
+
+    async listLeadStageLabels(clinicId: string) {
+      return resolveLeadStageLabels(
+        repositoryContext.leadStageLabels.get(clinicId) ?? [],
+      );
+    },
+
+    async saveLeadStageLabels(clinicId: string, input: LeadStageLabelsInput) {
+      repositoryContext.leadStageLabels.set(
+        clinicId,
+        input.stages.map((item) => ({ ...item })),
+      );
+      return repository.listLeadStageLabels(clinicId);
     },
   };
   return repository;
