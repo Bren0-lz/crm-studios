@@ -170,6 +170,18 @@ describe("notes in the agenda", () => {
         name: "Detalhes da nota: Lembrete",
       }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Detalhes da nota: Lembrete",
+      }),
+    );
+    // A nota abre sozinha, sem ficar atrás da agenda do dia.
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("dialog")).getByRole("heading", {
+        name: "Detalhes da nota",
+      }),
+    ).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("checkbox", { name: "Mostrar notas" }));
     expect(

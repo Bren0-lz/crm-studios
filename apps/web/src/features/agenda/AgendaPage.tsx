@@ -1205,7 +1205,10 @@ export function AgendaPage() {
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
-          onOpenNote={setSelectedNote}
+          onOpenNote={(note) => {
+            setEventsDay(null);
+            setSelectedNote(note);
+          }}
           holidayName={holidayNames.get(localIsoDate(eventsDay))}
           appointments={visibleAppointments.filter(
             (item) =>
