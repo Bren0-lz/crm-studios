@@ -94,6 +94,11 @@ describe("lean lead form", () => {
     const card = (await screen.findByText("Lead Enxuto")).closest(
       "article",
     ) as HTMLElement;
+    const createdNotice = await screen.findByRole("status");
+    expect(createdNotice).toHaveTextContent("Lead Lead Enxuto cadastrado.");
+    fireEvent.click(
+      within(createdNotice).getByRole("button", { name: "Fechar aviso" }),
+    );
     fireEvent.click(within(card).getByRole("button", { name: "Converter" }));
     const convert = screen.getByRole("dialog", {
       name: "Converter lead em cliente",
@@ -115,5 +120,17 @@ describe("lean lead form", () => {
       emergencyContactName: "Joana Mãe",
       address: "Rua das Flores, 10",
     });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Converter lead em cliente" }),
+      ).not.toBeInTheDocument(),
+    );
+    const won = screen.getByRole("region", { name: "Ganhos" });
+    expect(within(won).getByText("Lead Enxuto")).toBeInTheDocument();
+    expect(within(won).getByRole("banner")).toHaveTextContent("Ganhos1");
+    expect(
+      within(screen.getByRole("region", { name: "Novos" })).getByRole("banner"),
+    ).toHaveTextContent("Novos0");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
