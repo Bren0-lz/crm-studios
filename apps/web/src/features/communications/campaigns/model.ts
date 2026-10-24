@@ -154,6 +154,7 @@ export function filterGroupCounts(
       segment.professionalIds,
       segment.absentDays,
       segment.visitedWithinDays,
+      segment.appointmentDate,
       segment.noUpcomingAppointment,
     ),
     plans: count(

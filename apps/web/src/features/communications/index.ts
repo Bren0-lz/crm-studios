@@ -1,5 +1,1 @@
-export {
-  broadcastChannelLabels,
-  queueKindLabels,
-  queueStatusLabels,
-} from "./model";
+export { PatientMessagePreferences } from "./PatientMessagePreferences";

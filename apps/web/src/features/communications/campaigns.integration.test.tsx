@@ -242,6 +242,15 @@ describe("editor da mensagem", () => {
       within(dialog).getByRole("button", { name: "Inserir nome completo" }),
     );
     fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Inserir hora do atendimento",
+      }),
+    );
+    // A prévia preenche a hora do atendimento com o exemplo.
+    expect(dialog.querySelector(".template-editor-preview")).toHaveTextContent(
+      "Olá, Maria! Temos turma nova.Maria Souza09:00",
+    );
+    fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar mensagem" }),
     );
     await waitFor(() =>
@@ -249,7 +258,7 @@ describe("editor da mensagem", () => {
         calls.find((call) => call.url.includes(`/templates/${template.id}`))
           ?.body,
       ).toMatchObject({
-        body: "Olá, {{nome}}! Temos turma nova.{{nome_completo}}",
+        body: "Olá, {{nome}}! Temos turma nova.{{nome_completo}}{{hora_atendimento}}",
       }),
     );
   });
@@ -502,7 +511,8 @@ describe("campanhas de WhatsApp", () => {
       name: "Filtros da campanha",
     });
 
-    // Filtros novos: "Todas" as etiquetas, cidade, serviço, sumidos e repetição.
+    // Filtros novos: "Todas" as etiquetas, cidade, serviço, sumidos, dia do
+    // atendimento (lembrete) e repetição.
     fireEvent.click(within(filters).getByRole("button", { name: "Todas" }));
     fireEvent.change(within(filters).getByLabelText("Cidade"), {
       target: { value: "Campinas" },
@@ -518,12 +528,15 @@ describe("campanhas de WhatsApp", () => {
     fireEvent.change(within(filters).getByLabelText("Sumidos"), {
       target: { value: "60" },
     });
+    fireEvent.change(within(filters).getByLabelText(/^Atendimento no dia/), {
+      target: { value: "2026-10-25" },
+    });
     fireEvent.click(within(filters).getByText("Evitar repetição"));
     fireEvent.change(
       within(filters).getByLabelText("Tirar quem já recebeu campanha"),
       { target: { value: "7" } },
     );
-    expect(within(filters).getByText("6 filtros ligados")).toBeInTheDocument();
+    expect(within(filters).getByText("7 filtros ligados")).toBeInTheDocument();
     await waitFor(() =>
       expect(previews.at(-1)).toMatchObject({
         audience: {
@@ -533,6 +546,7 @@ describe("campanhas de WhatsApp", () => {
             city: "Campinas",
             serviceIds: ["s1"],
             absentDays: 60,
+            appointmentDate: "2026-10-25",
             excludeContactedDays: 7,
             status: "active",
           },
@@ -544,7 +558,7 @@ describe("campanhas de WhatsApp", () => {
     );
     expect(
       within(dialog).getByRole("button", { name: /^Filtros/ }),
-    ).toHaveTextContent("Filtros6");
+    ).toHaveTextContent("Filtros7");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Limpar filtros" }),
     );

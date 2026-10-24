@@ -11,7 +11,13 @@ import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { messageVariables } from "@crm/contracts";
-import { Bold, Italic, Strikethrough, UserRound } from "lucide-react";
+import {
+  Bold,
+  CalendarClock,
+  Italic,
+  Strikethrough,
+  UserRound,
+} from "lucide-react";
 import { useEffect } from "react";
 
 const variablePattern = new RegExp(
@@ -238,7 +244,11 @@ export function MessageBodyEditor({
             onClick={() => insertCode(variable.code)}
             title={`Insere ${variable.code}: vira "${variable.example}" na mensagem`}
           >
-            <UserRound size={14} aria-hidden="true" />
+            {variable.code.includes("atendimento") ? (
+              <CalendarClock size={14} aria-hidden="true" />
+            ) : (
+              <UserRound size={14} aria-hidden="true" />
+            )}
             Inserir {variable.label.toLowerCase()}
           </button>
         ))}

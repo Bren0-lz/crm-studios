@@ -23,6 +23,10 @@ import { WhatsappBubble } from "./WhatsappBubble";
 
 const acceptedTypes = ["image/png", "image/jpeg", "image/webp"];
 const exampleName = messageVariables[1].example;
+const exampleAppointment = {
+  date: messageVariables[2].example,
+  time: messageVariables[3].example,
+};
 
 function readDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -304,7 +308,11 @@ export function TemplateEditorModal({
           <span className="filter-label">Como {exampleName} vai receber</span>
           <WhatsappBubble
             contactName={exampleName}
-            text={fillCampaignMessage(draft.body, exampleName)}
+            text={fillCampaignMessage(
+              draft.body,
+              exampleName,
+              exampleAppointment,
+            )}
             images={previewImages}
           />
         </aside>
