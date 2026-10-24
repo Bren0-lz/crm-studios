@@ -108,202 +108,234 @@ export function BroadcastPanel({
   return (
     <>
       <section className="panel communication-broadcast">
-        <h2>Comunicado segmentado</h2>
+        <div className="panel-head">
+          <div>
+            <h2>Comunicado segmentado</h2>
+            <p className="panel-context">
+              O mesmo texto para um grupo de clientes, filtrado por etiquetas,
+              situação e cadastro.
+            </p>
+          </div>
+        </div>
         {outboxWarning && (
           <div className="outbox-note">
-            <LockKeyhole size={17} />
+            <LockKeyhole size={17} aria-hidden="true" />
             <span>{outboxWarning}</span>
           </div>
         )}
         {can("communications.broadcast") && (
           <form
-            className="form-grid"
+            className="broadcast-form"
             onSubmit={(event) => void requestPreview(event)}
             noValidate
           >
-            {configuredTags.error ? (
-              <p className="form-error span-2">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
-            ) : (
-              tagOptions.length > 0 && (
-                <div className="span-2 broadcast-tags">
-                  <span className="filter-label" id="broadcast-tag-filter">
-                    Etiquetas (qualquer uma)
-                  </span>
-                  <div
-                    className="tag-filter-list"
-                    role="group"
-                    aria-labelledby="broadcast-tag-filter"
-                  >
-                    {tagOptions.map((tag) => (
-                      <TagChoice
-                        key={tag.id}
-                        name={tag.name}
-                        color={patientTagDisplayColor(tag)}
-                        count={countTag(tag.name)}
-                        pressed={tags.includes(tag.name)}
-                        onToggle={() =>
+            <div
+              className="form-grid broadcast-segment"
+              role="group"
+              aria-labelledby="broadcast-segment-label"
+            >
+              <span
+                className="span-2 broadcast-step"
+                id="broadcast-segment-label"
+              >
+                Quem recebe
+              </span>
+              {configuredTags.error ? (
+                <p className="form-error span-2">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+              ) : (
+                tagOptions.length > 0 && (
+                  <div className="span-2 broadcast-tags">
+                    <span className="filter-label" id="broadcast-tag-filter">
+                      Etiquetas (qualquer uma)
+                    </span>
+                    <div
+                      className="tag-filter-list"
+                      role="group"
+                      aria-labelledby="broadcast-tag-filter"
+                    >
+                      {tagOptions.map((tag) => (
+                        <TagChoice
+                          key={tag.id}
+                          name={tag.name}
+                          color={patientTagDisplayColor(tag)}
+                          count={countTag(tag.name)}
+                          pressed={tags.includes(tag.name)}
+                          onToggle={() =>
+                            change(() =>
+                              setTags((current) =>
+                                current.includes(tag.name)
+                                  ? current.filter((item) => item !== tag.name)
+                                  : [...current, tag.name],
+                              ),
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
+              <label>
+                Situação
+                <select
+                  value={status}
+                  onChange={(event) =>
+                    change(() => setStatus(event.target.value as typeof status))
+                  }
+                >
+                  <option value="">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+              </label>
+              <label>
+                Plano
+                <select
+                  value={activePlan}
+                  onChange={(event) =>
+                    change(() =>
+                      setActivePlan(event.target.value as typeof activePlan),
+                    )
+                  }
+                >
+                  <option value="">Todos</option>
+                  <option value="with">Com plano ativo</option>
+                  <option value="without">Sem plano ativo</option>
+                </select>
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={birthdayMonth}
+                  onChange={(event) =>
+                    change(() => setBirthdayMonth(event.target.checked))
+                  }
+                />
+                Só aniversariantes do mês
+              </label>
+              <details className="span-2 filter-group">
+                <summary>Dados cadastrais do segmento</summary>
+                <div className="form-grid">
+                  {(
+                    [
+                      ["city", "Cidade"],
+                      ["neighborhood", "Bairro"],
+                      ["occupation", "Profissão"],
+                      ["source", "Origem"],
+                      ["level", "Nível"],
+                      ["interest", "Interesse"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key}>
+                      {label}
+                      <input
+                        maxLength={
+                          key === "level" || key === "interest" ? 80 : 120
+                        }
+                        value={profile[key] ?? ""}
+                        onChange={(event) =>
                           change(() =>
-                            setTags((current) =>
-                              current.includes(tag.name)
-                                ? current.filter((item) => item !== tag.name)
-                                : [...current, tag.name],
-                            ),
+                            setProfile((current) => ({
+                              ...current,
+                              [key]: event.target.value || undefined,
+                            })),
                           )
                         }
                       />
-                    ))}
-                  </div>
-                </div>
-              )
-            )}
-            <label>
-              Situação
-              <select
-                value={status}
-                onChange={(event) =>
-                  change(() => setStatus(event.target.value as typeof status))
-                }
-              >
-                <option value="">Todos</option>
-                <option value="active">Ativos</option>
-                <option value="inactive">Inativos</option>
-              </select>
-            </label>
-            <label>
-              Plano
-              <select
-                value={activePlan}
-                onChange={(event) =>
-                  change(() =>
-                    setActivePlan(event.target.value as typeof activePlan),
-                  )
-                }
-              >
-                <option value="">Todos</option>
-                <option value="with">Com plano ativo</option>
-                <option value="without">Sem plano ativo</option>
-              </select>
-            </label>
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={birthdayMonth}
-                onChange={(event) =>
-                  change(() => setBirthdayMonth(event.target.checked))
-                }
-              />
-              Só aniversariantes do mês
-            </label>
-            <details className="span-2 filter-group">
-              <summary>Dados cadastrais do segmento</summary>
-              <div className="form-grid">
-                {(
-                  [
-                    ["city", "Cidade"],
-                    ["neighborhood", "Bairro"],
-                    ["occupation", "Profissão"],
-                    ["source", "Origem"],
-                    ["level", "Nível"],
-                    ["interest", "Interesse"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key}>
-                    {label}
-                    <input
-                      maxLength={
-                        key === "level" || key === "interest" ? 80 : 120
-                      }
-                      value={profile[key] ?? ""}
+                    </label>
+                  ))}
+                  <label>
+                    Gênero
+                    <select
+                      value={profile.gender ?? ""}
                       onChange={(event) =>
                         change(() =>
                           setProfile((current) => ({
                             ...current,
-                            [key]: event.target.value || undefined,
+                            gender: event.target
+                              .value as PatientProfileFilter["gender"],
                           })),
                         )
                       }
-                    />
+                    >
+                      <option value="">Todos</option>
+                      <option value="female">Feminino</option>
+                      <option value="male">Masculino</option>
+                      <option value="other">Outro</option>
+                      <option value="undisclosed">Prefere não informar</option>
+                    </select>
                   </label>
-                ))}
-                <label>
-                  Gênero
-                  <select
-                    value={profile.gender ?? ""}
-                    onChange={(event) =>
-                      change(() =>
-                        setProfile((current) => ({
-                          ...current,
-                          gender: event.target
-                            .value as PatientProfileFilter["gender"],
-                        })),
-                      )
-                    }
-                  >
-                    <option value="">Todos</option>
-                    <option value="female">Feminino</option>
-                    <option value="male">Masculino</option>
-                    <option value="other">Outro</option>
-                    <option value="undisclosed">Prefere não informar</option>
-                  </select>
-                </label>
-              </div>
-            </details>
-            <label>
-              Canal do comunicado
-              <select
-                value={channel}
-                onChange={(event) =>
-                  change(() =>
-                    setChannel(event.target.value as CommunicationChannel),
-                  )
-                }
+                </div>
+              </details>
+            </div>
+            <div
+              className="form-grid broadcast-message"
+              role="group"
+              aria-labelledby="broadcast-message-label"
+            >
+              <span
+                className="span-2 broadcast-step"
+                id="broadcast-message-label"
               >
-                <option value="whatsapp">WhatsApp</option>
-                <option value="email">E-mail</option>
-              </select>
-            </label>
-            <label className="span-2">
-              Texto do comunicado
-              <textarea
-                maxLength={500}
-                rows={4}
-                value={body}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  change(() => setBody(value));
-                }}
-                placeholder="Use {{nome}} para o primeiro nome. Não inclua informações clínicas."
-              />
-            </label>
-            {error && (
-              <div className="form-error span-2" role="alert">
-                {error}
+                Mensagem
+              </span>
+              <label className="span-2">
+                Canal do comunicado
+                <select
+                  value={channel}
+                  onChange={(event) =>
+                    change(() =>
+                      setChannel(event.target.value as CommunicationChannel),
+                    )
+                  }
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">E-mail</option>
+                </select>
+              </label>
+              <label className="span-2">
+                Texto do comunicado
+                <textarea
+                  maxLength={500}
+                  rows={5}
+                  value={body}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    change(() => setBody(value));
+                  }}
+                  placeholder="Use {{nome}} para o primeiro nome. Não inclua informações clínicas."
+                />
+              </label>
+              {error && (
+                <div className="form-error span-2" role="alert">
+                  {error}
+                </div>
+              )}
+              {bodyMissing.hint}
+              <div className="span-2 broadcast-actions">
+                <button
+                  type="submit"
+                  className="secondary-button"
+                  disabled={previewing || bodyMissing.blocked}
+                  aria-describedby={bodyMissing.describedBy}
+                >
+                  {previewing ? "Calculando…" : "Ver prévia"}
+                </button>
+                {preview &&
+                  preview.queued > 0 &&
+                  can("communications.broadcast") && (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        setSendError("");
+                        setConfirming(true);
+                      }}
+                    >
+                      Enfileirar comunicado
+                    </button>
+                  )}
               </div>
-            )}
-            {bodyMissing.hint}
-            <div className="span-2 broadcast-actions">
-              <button
-                type="submit"
-                className="secondary-button"
-                disabled={previewing || bodyMissing.blocked}
-                aria-describedby={bodyMissing.describedBy}
-              >
-                {previewing ? "Calculando…" : "Ver prévia"}
-              </button>
-              {preview &&
-                preview.queued > 0 &&
-                can("communications.broadcast") && (
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => {
-                      setSendError("");
-                      setConfirming(true);
-                    }}
-                  >
-                    Enfileirar comunicado
-                  </button>
-                )}
             </div>
           </form>
         )}
@@ -356,7 +388,7 @@ export function BroadcastPanel({
             </p>
             {outboxWarning && (
               <div className="outbox-note">
-                <LockKeyhole size={17} />
+                <LockKeyhole size={17} aria-hidden="true" />
                 <span>{outboxWarning}</span>
               </div>
             )}

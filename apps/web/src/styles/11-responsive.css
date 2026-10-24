@@ -462,6 +462,32 @@
   .selection-bar {
     flex-wrap: wrap;
   }
+
+  .broadcast-form {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .message-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .message-list article > .message-row-foot {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .communication-history .message-list {
+    max-height: none;
+  }
+
+  .message-queue-toolbar > label:not(.checkbox-field) {
+    flex: 1 1 100%;
+  }
+
+  .message-queue-toolbar > .checkbox-field {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 560px) {
