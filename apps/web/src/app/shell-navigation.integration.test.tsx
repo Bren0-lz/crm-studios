@@ -84,6 +84,7 @@ describe("shell navigation", () => {
         "Relatórios",
         "Histórico",
         "Configurações",
+        "Meu perfil",
       ],
     };
     for (const [name, labels] of Object.entries(expected)) {
@@ -118,9 +119,13 @@ describe("shell navigation", () => {
         within(nav).queryByRole("group", { name: "Relacionamento" }),
       ).not.toBeInTheDocument();
       expect(
-        within(nav).queryByRole("group", { name: "Gestão" }) !== null,
-      ).toBe(modules.includes("finance"));
-      expect(within(nav).getAllByRole("link")).toHaveLength(modules.length + 1);
+        within(nav).getByRole("group", { name: "Gestão" }),
+      ).toBeInTheDocument();
+      expect(within(nav).getByRole("link", { name: "Meu perfil" })).toHaveAttribute(
+        "href",
+        "/perfil",
+      );
+      expect(within(nav).getAllByRole("link")).toHaveLength(modules.length + 2);
       expect(screen.queryByRole("button", { name: "SOS" }) !== null).toBe(
         modules.includes("agenda"),
       );

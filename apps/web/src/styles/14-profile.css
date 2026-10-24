@@ -120,18 +120,6 @@
   margin-bottom: 0;
 }
 
-.top-avatar.has-photo {
-  overflow: hidden;
-  padding: 0;
-}
-
-.top-avatar.has-photo img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 .profile-form input[readonly] {
   background: var(--paper);
   color: var(--muted);
