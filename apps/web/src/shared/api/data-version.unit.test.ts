@@ -41,6 +41,14 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("POST", "/relationship/activities")).toEqual([
       "relationship",
     ]);
+    // Tarefas comerciais entram no sino.
+    expect(domainsForMutation("POST", "/leads/l1/tasks")).toEqual(["crm"]);
+    expect(domainsForMutation("PATCH", "/lead-tasks/t1/status")).toEqual([
+      "crm",
+    ]);
+    expect(domainsForMutation("POST", "/leads/l1/appointments")).toEqual(
+      expect.arrayContaining(["agenda", "crm"]),
+    );
   });
 
   it("ignora leituras, prévias e sessão", () => {
