@@ -36,20 +36,20 @@ export const leadInputSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
-/** Dados pedidos só na conversão (U19): o lead não guarda CPF, emergência nem endereço. */
+/**
+ * Dados revisados na conversão: o modal repete o cadastro de cliente, já preenchido com o
+ * que o lead tem. O CPF é obrigatório; campos vazios não apagam o que o lead já guarda.
+ */
 export const leadConversionInputSchema = leadPatientProfileSchema
-  .pick({
-    cpf: true,
-    emergencyContactName: true,
-    emergencyContactPhone: true,
-    postalCode: true,
-    address: true,
-    neighborhood: true,
-    city: true,
-    state: true,
-  })
+  .omit({ interests: true })
   .partial()
-  .extend({ cpf: patientInputSchema.shape.cpf });
+  .extend({
+    cpf: patientInputSchema.shape.cpf,
+    fullName: leadInputSchema.shape.fullName.optional().or(z.literal("")),
+    phone: phoneSchema.optional().or(z.literal("")),
+    email: leadInputSchema.shape.email,
+    notes: leadInputSchema.shape.notes,
+  });
 
 export const leadMoveSchema = z
   .object({
