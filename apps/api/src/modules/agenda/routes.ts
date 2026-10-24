@@ -19,6 +19,10 @@ import {
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import {
+  agendaProfessionalScope,
+  inProfessionalScope,
+} from "./professional-scope.js";
 
 export function registerAgendaRoutes(context: RouteContext) {
   registerAgendaNoteRoutes(context);
@@ -30,6 +34,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     assertServiceAvailable,
     assertPermissions,
   } = context;
+  const professionalScope = agendaProfessionalScope(context);
 
   /** Remarcar/sucessor mantém o serviço: o profissional e a sala novos precisam atendê-lo. */
   async function assertMovedServiceAvailable(
@@ -176,10 +181,13 @@ export function registerAgendaRoutes(context: RouteContext) {
         "DATE_RANGE_REQUIRED",
         "Informe o período da agenda.",
       );
-    return repository.listAppointments(
-      request.user.clinicId,
-      query.from,
-      query.to,
+    return inProfessionalScope(
+      await repository.listAppointments(
+        request.user.clinicId,
+        query.from,
+        query.to,
+      ),
+      await professionalScope(request),
     );
   });
 
@@ -189,9 +197,12 @@ export function registerAgendaRoutes(context: RouteContext) {
     "/appointments/pending-finalization",
     { preHandler: authenticate },
     async (request) =>
-      repository.listPendingFinalizationAppointments(
-        request.user.clinicId,
-        new Date().toISOString(),
+      inProfessionalScope(
+        await repository.listPendingFinalizationAppointments(
+          request.user.clinicId,
+          new Date().toISOString(),
+        ),
+        await professionalScope(request),
       ),
   );
 
@@ -363,10 +374,13 @@ export function registerAgendaRoutes(context: RouteContext) {
         "DATE_RANGE_REQUIRED",
         "Informe o período da agenda.",
       );
-    return repository.listScheduleBlocks(
-      request.user.clinicId,
-      query.from,
-      query.to,
+    return inProfessionalScope(
+      await repository.listScheduleBlocks(
+        request.user.clinicId,
+        query.from,
+        query.to,
+      ),
+      await professionalScope(request),
     );
   });
 

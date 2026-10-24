@@ -33,9 +33,14 @@ export const reportsApi = {
       `/reports/clients/details${exporting ? "/export" : ""}?${query}`,
     );
   },
-  dashboard: (date: string) =>
+  /** `professionalIds`: agenda só desses profissionais (vazio = todos os permitidos). */
+  dashboard: (date: string, professionalIds: readonly string[] = []) =>
     request<DashboardViewSummary>(
-      `/dashboard?date=${encodeURIComponent(date)}`,
+      `/dashboard?date=${encodeURIComponent(date)}${
+        professionalIds.length > 0
+          ? `&professionalIds=${professionalIds.map(encodeURIComponent).join(",")}`
+          : ""
+      }`,
     ),
   /** Contagens do sino do cabeçalho (QM13). */
   notifications: () => request<NotificationsSummary>("/notifications"),

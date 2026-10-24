@@ -227,6 +227,12 @@ export function AgendaPage() {
     shownGroupSessions.length +
     shownBlocks.length +
     shownNotes.length;
+  // Sem "Ver agenda de todos os profissionais", a API só devolve a agenda do profissional
+  // ligado ao usuário: a legenda e as colunas da grade acompanham (sem o filtro).
+  const canSeeAllAgenda = can("agenda.view_all");
+  const agendaProfessionals = canSeeAllAgenda
+    ? professionals
+    : professionals.filter((item) => item.id === ownProfessionalId);
   const professionalColors = new Map(
     professionals.map((item) => [item.id, item.color]),
   );
@@ -554,13 +560,13 @@ export function AgendaPage() {
             <AgendaStatusLegend />
           </div>
         </div>
-        {(professionals.length > 0 || view === "day") && (
+        {(agendaProfessionals.length > 0 || view === "day") && (
           <div className="agenda-professionals">
-            {professionals.length > 0 && (
+            {agendaProfessionals.length > 0 && (
               <>
                 <span className="agenda-legend-label">Profissionais</span>
                 <div className="legend" aria-label="Legenda dos profissionais">
-                  {professionals.map((professional) => (
+                  {agendaProfessionals.map((professional) => (
                     <span key={professional.id}>
                       <i
                         className="pro-dot"
@@ -571,22 +577,24 @@ export function AgendaPage() {
                     </span>
                   ))}
                 </div>
-                <label className="agenda-professional-filter">
-                  Profissional
-                  <select
-                    value={professionalFilter}
-                    onChange={(event) =>
-                      setProfessionalFilter(event.target.value)
-                    }
-                  >
-                    <option value="">Todos os profissionais</option>
-                    {professionals.map((professional) => (
-                      <option key={professional.id} value={professional.id}>
-                        {professional.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {canSeeAllAgenda && (
+                  <label className="agenda-professional-filter">
+                    Profissional
+                    <select
+                      value={professionalFilter}
+                      onChange={(event) =>
+                        setProfessionalFilter(event.target.value)
+                      }
+                    >
+                      <option value="">Todos os profissionais</option>
+                      {professionals.map((professional) => (
+                        <option key={professional.id} value={professional.id}>
+                          {professional.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </>
             )}
             {view === "day" && (
@@ -900,7 +908,7 @@ export function AgendaPage() {
               );
             })}
           </div>
-        ) : dayLayout === "grid" && professionals.length > 0 ? (
+        ) : dayLayout === "grid" && agendaProfessionals.length > 0 ? (
           <div className="day-agenda">
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
@@ -909,10 +917,10 @@ export function AgendaPage() {
               day={selectedDate}
               professionals={
                 professionalFilter
-                  ? professionals.filter(
+                  ? agendaProfessionals.filter(
                       (item) => item.id === professionalFilter,
                     )
-                  : professionals
+                  : agendaProfessionals
               }
               appointments={visibleAppointments}
               groupSessions={shownGroupSessions}
