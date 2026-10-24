@@ -5,6 +5,7 @@ import {
   type ClinicCatalogEntry,
   type ClinicCatalogKind,
 } from "@crm/contracts";
+import { Activity, Megaphone, Package, Plus, Truck, Users } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -14,11 +15,77 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { ReportTabs, type ReportTab } from "../reports/index";
 
+type Group = "clients" | "commercial" | "products" | "suppliers" | "clinical";
+const groups: ReportTab<Group>[] = [
+  { key: "clients", label: "Clientes", icon: Users },
+  { key: "commercial", label: "Comercial", icon: Megaphone },
+  { key: "products", label: "Produtos", icon: Package },
+  { key: "suppliers", label: "Fornecedores", icon: Truck },
+  { key: "clinical", label: "Clínico", icon: Activity },
+];
+const groupKinds: Record<Group, ClinicCatalogKind[]> = {
+  clients: ["interest", "level"],
+  commercial: ["lead_source", "lead_channel", "lead_lost_reason"],
+  products: ["product_category", "product_brand"],
+  suppliers: [],
+  clinical: ["muscle_group"],
+};
+const kindHints: Record<ClinicCatalogKind, string> = {
+  interest: "Modalidades e objetivos marcados no cadastro do cliente.",
+  level: "Níveis de condicionamento usados nas turmas e no acompanhamento.",
+  product_category: "Agrupam os produtos do estoque; aceitam subcategorias.",
+  product_brand: "Fabricantes dos produtos vendidos ou usados na clínica.",
+  muscle_group: "Usados nos exercícios e nas evoluções clínicas.",
+  lead_source: "De onde vêm os contatos comerciais.",
+  lead_channel: "Como o contato chegou à clínica.",
+  lead_lost_reason: "Por que um contato não virou cliente.",
+};
+
+/** Cadastros compartilhados em sub-abas; cada lista carrega na primeira visita. */
 export function ClinicCatalogsContent() {
-  const { user, can } = useAuthorization();
+  const { can } = useAuthorization();
+  const tabs = groups.filter(
+    (group) => group.key !== "suppliers" || can("finance.view"),
+  );
+  return (
+    <div className="settings-panel-body catalog-settings">
+      <ReportTabs sub label="Grupos de cadastros" tabs={tabs}>
+        {(group) =>
+          group === "suppliers" ? (
+            <SuppliersSection embedded />
+          ) : (
+            <div className="catalog-groups">
+              {groupKinds[group].map((kind) => (
+                <CatalogSection key={kind} kind={kind} />
+              ))}
+              {group === "clinical" && can("clinical.view") && (
+                <section className="catalog-section">
+                  <header className="catalog-section-head">
+                    <div>
+                      <h3>Aparelhos, exercícios e modelos de evolução</h3>
+                      <p>Recursos compartilhados nos prontuários.</p>
+                    </div>
+                  </header>
+                  <ClinicalResourcesPanel
+                    patientId=""
+                    patients={[]}
+                    catalogOnly
+                  />
+                </section>
+              )}
+            </div>
+          )
+        }
+      </ReportTabs>
+    </div>
+  );
+}
+
+function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
+  const { user } = useAuthorization();
   const toast = useToast();
-  const [kind, setKind] = useState<ClinicCatalogKind>("interest");
   const [items, setItems] = useState<ClinicCatalogEntry[] | null>(null);
   const [error, setError] = useState("");
   const [editor, setEditor] = useState<ClinicCatalogEntry | "new" | null>(null);
@@ -27,6 +94,8 @@ export function ClinicCatalogsContent() {
   const [parentId, setParentId] = useState("");
   const [saving, setSaving] = useState(false);
   const dirty = useFormDirty({ name, active, parentId }, Boolean(editor));
+  const label = clinicCatalogLabels[kind];
+  const admin = user?.role === "admin";
   useEffect(() => {
     let alive = true;
     api
@@ -45,6 +114,7 @@ export function ClinicCatalogsContent() {
     setName(item === "new" ? "" : item.name);
     setActive(item === "new" ? true : item.active);
     setParentId(item === "new" ? "" : (item.parentId ?? ""));
+    setError("");
     setEditor(item);
   }
   async function save(event: FormEvent) {
@@ -74,62 +144,72 @@ export function ClinicCatalogsContent() {
       setSaving(false);
     }
   }
+  const activeCount = items?.filter((item) => item.active).length ?? 0;
   return (
-    <div className="settings-panel-body">
-      <div className="list-toolbar">
-        <label>
-          Cadastro
-          <select
-            value={kind}
-            onChange={(event) => (
-              setKind(event.target.value as ClinicCatalogKind),
-              setItems(null),
-              setError("")
-            )}
+    <section className="catalog-section" aria-label={label}>
+      <header className="catalog-section-head">
+        <div>
+          <h3>{label}</h3>
+          <p>
+            {kindHints[kind]}
+            {items?.length
+              ? ` · ${activeCount} ${activeCount === 1 ? "ativo" : "ativos"} de ${items.length}`
+              : ""}
+          </p>
+        </div>
+        {admin && (
+          <button
+            className="secondary-button"
+            aria-label={`Adicionar em ${label}`}
+            onClick={() => open("new")}
           >
-            {Object.entries(clinicCatalogLabels).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {user?.role === "admin" && (
-          <button className="primary-button" onClick={() => open("new")}>
-            Novo cadastro
+            <Plus size={16} aria-hidden="true" />
+            Adicionar
           </button>
         )}
-      </div>
-      {error && <ErrorBanner error={error} />}
+      </header>
+      {error && !editor && <ErrorBanner error={error} />}
       {!items ? (
         !error && <LoadingBlock />
       ) : items.length === 0 ? (
         <EmptyState
           title="Nenhum cadastro"
-          copy="Adicione os itens utilizados pela clínica."
+          copy="Adicione o primeiro item desta lista."
         />
       ) : (
-        items.map((item) => (
-          <div className="table-row" key={item.id}>
-            <strong>
-              {item.parentId
-                ? `${items.find((parent) => parent.id === item.parentId)?.name ?? "Categoria"} / `
-                : ""}
-              {item.name}
-            </strong>
-            <span>{item.active ? "Ativo" : "Inativo"}</span>
-            {user?.role === "admin" && (
-              <button className="secondary-button" onClick={() => open(item)}>
-                Editar
-              </button>
-            )}
-          </div>
-        ))
+        <ul className="catalog-list">
+          {items.map((item) => (
+            <li className="table-row catalog-row" key={item.id}>
+              <strong>
+                {item.parentId && (
+                  <span className="catalog-parent">
+                    {items.find((parent) => parent.id === item.parentId)
+                      ?.name ?? "Categoria"}{" "}
+                    /{" "}
+                  </span>
+                )}
+                {item.name}
+              </strong>
+              <span
+                className={
+                  item.active ? "status-pill confirmed" : "status-pill"
+                }
+              >
+                {item.active ? "Ativo" : "Inativo"}
+              </span>
+              {admin && (
+                <button className="text-button" onClick={() => open(item)}>
+                  Editar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
       {editor && (
         <Modal
           title={editor === "new" ? "Novo cadastro" : "Editar cadastro"}
-          subtitle={clinicCatalogLabels[kind]}
+          subtitle={label}
           busy={saving}
           dirty={dirty}
           onClose={() => setEditor(null)}
@@ -189,10 +269,6 @@ export function ClinicCatalogsContent() {
           </form>
         </Modal>
       )}
-      {can("finance.view") && <SuppliersSection />}
-      {can("clinical.view") && (
-        <ClinicalResourcesPanel patientId="" patients={[]} catalogOnly />
-      )}
-    </div>
+    </section>
   );
 }

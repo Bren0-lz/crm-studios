@@ -2,7 +2,7 @@ import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("settings workflows through real HTTP handlers", () => {
   it("validates, saves and removes a clinic logo while retaining the remaining settings", async () => {
@@ -49,7 +49,13 @@ describe("settings workflows through real HTTP handlers", () => {
     const { repository } = await setupApi();
     open("/configuracoes");
     fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const panel = expand("Fornecedores");
+    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
+    fireEvent.click(
+      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
+    );
+    const panel = within(catalogs).getByRole("tabpanel", {
+      name: "Fornecedores",
+    });
     fireEvent.click(
       await within(panel).findByRole("button", { name: "Novo fornecedor" }),
     );
@@ -79,7 +85,7 @@ describe("settings workflows through real HTTP handlers", () => {
     open("/configuracoes");
     fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Novo cadastro" }),
+      await screen.findByRole("button", { name: "Adicionar em Interesses" }),
     );
     change("Nome", "Reabilitação", screen.getByRole("dialog"));
     await save("Novo cadastro");
