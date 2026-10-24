@@ -301,8 +301,7 @@ test("SOS stays in the header after scrolling and opens over the entire viewport
     .getByRole("banner")
     .getByRole("button", { name: "SOS", exact: true });
   await expect(sos).toBeInViewport();
-  if (page.viewportSize()!.width <= 820)
-    await expect(page.getByRole("navigation")).toBeHidden();
+  await expect(page.getByRole("navigation")).toBeVisible();
   await sos.click();
   const dialog = page.getByRole("dialog", { name: "SOS" });
   await expect(dialog).toBeVisible();
@@ -329,11 +328,15 @@ test("SOS stays in the header after scrolling and opens over the entire viewport
   await expect(sos).toBeFocused();
 });
 
-test("sidebar keeps branding and long-name profile visible while only navigation scrolls", async ({
+test("sidebar stays visible at every breakpoint while only navigation scrolls", async ({
   page,
   api,
 }, testInfo) => {
   const fullName = "Aryana Dutra de Albuquerque e Vasconcelos";
+  const branch = await api.post("/admin/branches", {
+    data: { name: "Unidade com nome extenso para testar o cabeçalho" },
+  });
+  expect(branch.status()).toBe(201);
   const created = await api.post("/admin/users", {
     data: {
       fullName,
@@ -346,6 +349,10 @@ test("sidebar keeps branding and long-name profile visible while only navigation
   await login(page, "sidebar@example.com", "SenhaForte123");
   for (const viewport of [
     { width: 1280, height: 600 },
+    { width: 821, height: 600 },
+    { width: 820, height: 600 },
+    { width: 700, height: 600 },
+    { width: 390, height: 600 },
     { width: 320, height: 480 },
   ]) {
     await page.setViewportSize(viewport);
@@ -354,7 +361,29 @@ test("sidebar keeps branding and long-name profile visible while only navigation
       .getByRole("banner")
       .getByRole("button", { name: "SOS", exact: true });
     await expect(sos).toBeInViewport();
-    if (mobile) await page.getByRole("button", { name: "Abrir menu" }).click();
+    await expect(
+      page.getByRole("combobox", { name: "Filial ativa" }),
+    ).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Abrir menu" })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole("button", { name: "Fechar menu" })).toHaveCount(
+      0,
+    );
+    for (const name of ["Notificações", "Menu do usuário"]) {
+      const trigger = page.getByRole("banner").getByRole("button", {
+        name: name === "Notificações" ? /^Notificações/ : name,
+      });
+      await expect(trigger).toBeInViewport();
+      await trigger.click();
+      const menu = page.getByRole("dialog", { name, exact: true });
+      await expect(menu).toBeInViewport({ ratio: 1 });
+      const box = (await menu.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(mobile ? 72 : 232);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+    }
     await expect
       .poll(async () => (await page.locator(".sidebar").boundingBox())?.x)
       .toBe(0);
@@ -364,10 +393,24 @@ test("sidebar keeps branding and long-name profile visible while only navigation
     await expect(page.locator(".sidebar-head")).toBeInViewport();
     await expect(page.locator(".user-card")).toBeInViewport();
     await expect(page.locator(".user-card strong")).toHaveText(fullName);
+    await expect(page.locator(".user-card")).toHaveAccessibleName(
+      `Sair: ${fullName}`,
+    );
+    if (mobile) {
+      await expect(page.locator(".brand-monogram")).toBeInViewport();
+      await expect(page.locator(".user-copy")).toBeHidden();
+    } else {
+      await expect(page.locator(".brand-name")).toBeInViewport();
+      await expect(page.locator(".user-copy")).toBeInViewport();
+    }
     await expect(
       page.getByRole("button", { name: "Sair de todos os dispositivos" }),
     ).toBeInViewport();
-    const sidebarBefore = await page.locator(".sidebar").boundingBox();
+    const sidebarBefore = (await page.locator(".sidebar").boundingBox())!;
+    expect(sidebarBefore.width).toBe(mobile ? 72 : 232);
+    expect((await page.locator(".app-main").boundingBox())!.x).toBe(
+      sidebarBefore.width,
+    );
     const footerBefore = await page.locator(".sidebar-bottom").boundingBox();
     await page.screenshot({
       path: testInfo.outputPath(`sidebar-${viewport.width}-top.png`),
@@ -382,6 +425,15 @@ test("sidebar keeps branding and long-name profile visible while only navigation
     expect(await nav.evaluate((element) => element.scrollTop)).toBeGreaterThan(
       0,
     );
+    for (const link of await nav.getByRole("link").all()) {
+      const box = (await link.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await expect(link).toHaveAttribute(
+        "title",
+        (await link.getAttribute("aria-label"))!,
+      );
+    }
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -397,12 +449,25 @@ test("sidebar keeps branding and long-name profile visible while only navigation
     await settings.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/configuracoes$/);
-    if (mobile) {
-      await expect(nav).toBeHidden();
-      await expect(sos).toBeInViewport();
-    }
+    await expect(nav).toBeVisible();
+    await expect(sos).toBeInViewport();
   }
   await page.setViewportSize({ width: 320, height: 480 });
+  const settings = await (await api.get("/admin/clinic-settings")).json();
+  const branding = await api.put("/admin/clinic-settings", {
+    data: {
+      ...settings,
+      logoDataUrl:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+    },
+  });
+  expect(branding.ok()).toBe(true);
+  await page.reload();
+  const logo = page.locator(".sidebar .clinic-logo");
+  await expect(logo).toBeInViewport();
+  expect((await logo.boundingBox())!.width).toBe(44);
+  expect((await logo.boundingBox())!.height).toBe(44);
+  await expect(page.locator(".sidebar .brand-monogram")).toHaveCount(0);
   await page.getByRole("button", { name: "SOS", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "SOS" });
   await expect(dialog).toBeInViewport();

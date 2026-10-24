@@ -128,16 +128,31 @@ describe("shell navigation", () => {
     },
   );
 
-  it("preserves navigation guards and closes the mobile menu when a link is selected", async () => {
-    renderShell(["agenda"], true);
-    const toggle = screen.getByRole("button", { name: "Abrir menu" });
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(screen.getByRole("link", { name: "Agenda" }));
-    expect(screen.getByLabelText("Rota atual")).toHaveTextContent(/^\/$/);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await waitFor(() => expect(api.me).toHaveBeenCalled());
-  });
+  it.each([false, true])(
+    "keeps navigation available without collapse controls when guarded=%s",
+    async (block) => {
+      renderShell(["agenda"], block);
+      const nav = screen.getByRole("navigation", {
+        name: "Navegação principal",
+      });
+      expect(
+        screen.queryByRole("button", { name: "Abrir menu" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Fechar menu" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("link", { name: "Agenda" }));
+      expect(screen.getByLabelText("Rota atual")).toHaveTextContent(
+        block ? /^\/$/ : /^\/agenda$/,
+      );
+      expect(nav).toBeVisible();
+      expect(within(nav).getByRole("link", { name: "Agenda" })).toHaveAttribute(
+        "title",
+        "Agenda",
+      );
+      await waitFor(() => expect(api.me).toHaveBeenCalled());
+    },
+  );
 
   it("opens SOS from the header in a viewport portal, retrieves contacts and restores focus", async () => {
     vi.spyOn(api, "emergencyContact").mockResolvedValue({
