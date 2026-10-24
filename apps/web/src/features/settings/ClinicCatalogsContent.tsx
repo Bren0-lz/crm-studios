@@ -31,7 +31,7 @@ const groupKinds: Record<Group, ClinicCatalogKind[]> = {
   clinical: ["muscle_group"],
 };
 const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
-  product_category: "Agrupam os produtos do estoque; aceitam subcategorias.",
+  product_category: "Agrupam os produtos do estoque.",
   product_brand: "Fabricantes dos produtos vendidos ou usados na clínica.",
   muscle_group: "Usados nos exercícios e nas evoluções clínicas.",
   lead_source: "De onde vêm os contatos comerciais.",
@@ -87,9 +87,8 @@ function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
   const [editor, setEditor] = useState<ClinicCatalogEntry | "new" | null>(null);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
-  const [parentId, setParentId] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty({ name, active, parentId }, Boolean(editor));
+  const dirty = useFormDirty({ name, active }, Boolean(editor));
   const label = clinicCatalogLabels[kind];
   const admin = user?.role === "admin";
   useEffect(() => {
@@ -109,7 +108,6 @@ function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
   function open(item: ClinicCatalogEntry | "new") {
     setName(item === "new" ? "" : item.name);
     setActive(item === "new" ? true : item.active);
-    setParentId(item === "new" ? "" : (item.parentId ?? ""));
     setError("");
     setEditor(item);
   }
@@ -120,13 +118,7 @@ function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
     try {
       await api.saveClinicCatalog(
         kind,
-        {
-          name,
-          active,
-          ...(kind === "product_category"
-            ? { parentId: parentId || null }
-            : {}),
-        },
+        { name, active },
         editor && editor !== "new" ? editor.id : undefined,
       );
       toast.success(
@@ -222,32 +214,6 @@ function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            {kind === "product_category" && (
-              <label>
-                Categoria principal
-                <select
-                  value={parentId}
-                  onChange={(event) => setParentId(event.target.value)}
-                  disabled={items?.some(
-                    (item) => editor !== "new" && item.parentId === editor.id,
-                  )}
-                >
-                  <option value="">Categoria principal (sem vínculo)</option>
-                  {items
-                    ?.filter(
-                      (item) =>
-                        !item.parentId &&
-                        (item.active || item.id === parentId) &&
-                        (editor === "new" || item.id !== editor.id),
-                    )
-                    .map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            )}
             <label className="checkbox-field">
               <input
                 type="checkbox"
