@@ -21,6 +21,10 @@ export function competencesBetween(from: string, to: string): string[] {
   return months;
 }
 
+const byName = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, "pt-BR");
+
+/** Listas da maior para a menor receita (gerado; nas turmas, rendimento mensal). */
 export function buildTeamFinanceReport(input: {
   from: string;
   to: string;
@@ -140,7 +144,12 @@ export function buildTeamFinanceReport(input: {
         idleRevenueInCents: potentialRevenueInCents - monthlyRevenueInCents,
       };
     })
-    .sort((a, b) => b.idleRevenueInCents - a.idleRevenueInCents);
+    .sort(
+      (a, b) =>
+        b.monthlyRevenueInCents - a.monthlyRevenueInCents ||
+        b.potentialRevenueInCents - a.potentialRevenueInCents ||
+        byName(a, b),
+    );
 
   return {
     commissionMonths: competencesBetween(input.from, input.to),
@@ -157,7 +166,7 @@ export function buildTeamFinanceReport(input: {
           totalInCents: 0,
         },
       }))
-      .sort((a, b) => b.generatedInCents - a.generatedInCents),
+      .sort((a, b) => b.generatedInCents - a.generatedInCents || byName(a, b)),
     byService: [...services.values()]
       .map((row) => ({
         id: row.id,
@@ -168,7 +177,7 @@ export function buildTeamFinanceReport(input: {
           ? Math.round(row.value / row.sessions)
           : 0,
       }))
-      .sort((a, b) => b.generatedInCents - a.generatedInCents),
+      .sort((a, b) => b.generatedInCents - a.generatedInCents || byName(a, b)),
     byGroup,
   };
 }
