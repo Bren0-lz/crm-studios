@@ -32,7 +32,9 @@ describe("aba Estoque do Financeiro (QM9)", () => {
       await within(panel).findByText("Óleo de massagem", { exact: true }),
     ).toBeInTheDocument();
 
-    fireEvent.click(within(panel).getByRole("button", { name: "Novo produto" }));
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Novo produto" }),
+    );
     let dialog = screen.getByRole("dialog", { name: "Novo produto" });
     change("Nome", "Faixa terapêutica", dialog);
     change("Código do produto", "FAIXA", dialog);
@@ -119,5 +121,27 @@ describe("aba Estoque do Financeiro (QM9)", () => {
     expect(
       screen.queryByRole("region", { name: "Estoque" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("leva do Estoque para a nova venda, que baixa o saldo do produto", async () => {
+    const { repository } = await setupApi();
+    await repository.createProduct(clinicId, actorId, {
+      name: "Óleo de massagem",
+      sku: "OLEO",
+      unit: "un",
+      costInCents: 1500,
+      salePriceInCents: 3000,
+      initialStock: 5,
+      minimumStock: 1,
+    });
+    const panel = await openInventoryTab();
+    await within(panel).findByText("Óleo de massagem", { exact: true });
+    fireEvent.click(
+      within(panel).getByRole("link", { name: "Registrar venda" }),
+    );
+    const sale = await screen.findByRole("region", { name: "Nova venda" });
+    expect(
+      within(sale).getByRole("option", { name: "Óleo de massagem · 5 un" }),
+    ).toBeInTheDocument();
   });
 });

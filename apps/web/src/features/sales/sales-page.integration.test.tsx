@@ -182,6 +182,83 @@ describe("página Vendas de produtos", () => {
     expect(within(first!).getByText("Creme relaxante")).toBeInTheDocument();
   });
 
+  it("não oferece produto sem estoque e limita a comanda aberta ao saldo", async () => {
+    const { repository, patient, cream, oil } = await seed();
+    await sell(repository, patient.id, oil.id, 2);
+    const tab = await repository.openPatientTab(clinicId, actorId, {
+      patientId: patient.id,
+    });
+    await repository.addPatientTabItem(clinicId, actorId, tab.id, {
+      productId: cream.id,
+      quantity: 1,
+    });
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    expect(
+      within(panel).getByRole("option", {
+        name: "Óleo de massagem · sem estoque",
+      }),
+    ).toBeDisabled();
+    expect(
+      within(panel).getByRole("option", { name: "Creme relaxante · 4 un" }),
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Comandas abertas/ }));
+    fireEvent.click(
+      within(
+        screen.getByRole("region", { name: "Comandas abertas" }),
+      ).getByRole("button", {
+        name: `Continuar comanda de ${patient.fullName}`,
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: `Comanda · ${patient.fullName}`,
+    });
+    expect(
+      within(dialog).getByRole("option", {
+        name: "Óleo de massagem · sem estoque",
+      }),
+    ).toBeDisabled();
+    const add = within(dialog)
+      .getAllByRole("button", { name: "Adicionar produto" })
+      .at(-1)!;
+    fireEvent.change(within(dialog).getByLabelText("Produto"), {
+      target: { value: cream.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
+      target: { value: "5" },
+    });
+    expect(add).toBeDisabled();
+    expect(add).toHaveAccessibleDescription(
+      "Falta: quantidade dentro do estoque (4 disponível).",
+    );
+
+    // No ajuste, o que já está reservado no item conta como disponível (1 + 4).
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ajustar item" }),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
+      target: { value: "6" },
+    });
+    const saveItem = within(dialog).getByRole("button", {
+      name: "Salvar item",
+    });
+    expect(saveItem).toHaveAccessibleDescription(
+      "Falta: quantidade dentro do estoque (5 disponível).",
+    );
+    fireEvent.change(within(dialog).getByLabelText("Quantidade"), {
+      target: { value: "5" },
+    });
+    expect(saveItem).toBeEnabled();
+    fireEvent.click(saveItem);
+    await within(dialog).findByText("Item atualizado.");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === cream.id,
+      )?.currentStock,
+    ).toBe(0);
+  });
+
   it("esconde a nova venda de quem não pode fechar comandas", async () => {
     const { repository, app } = await setupApi();
     const user = await repository.createAdminUser(
