@@ -189,6 +189,12 @@ export function DocumentWizard({
   const patientPlans = plans.filter(
     (plan) => plan.patientId === form.patientId,
   );
+  const firstStep = saved ? 1 : 0;
+  function goBack(target: number) {
+    if (busyRef.current) return;
+    setError("");
+    setStep(target);
+  }
   function next() {
     if (step === 0) {
       if (
@@ -239,8 +245,23 @@ export function DocumentWizard({
                 key={label}
                 aria-current={step === index ? "step" : undefined}
               >
-                <span>{index + 1}</span>
-                {label}
+                {index < step && index >= firstStep ? (
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={busy}
+                    aria-label={`Voltar para a etapa ${label}`}
+                    onClick={() => goBack(index)}
+                  >
+                    <span>{index + 1}</span>
+                    {label}
+                  </button>
+                ) : (
+                  <>
+                    <span>{index + 1}</span>
+                    {label}
+                  </>
+                )}
               </li>
             ))}
           </ol>
@@ -412,15 +433,12 @@ export function DocumentWizard({
           )}
           <div className="modal-actions">
             <ModalCancelButton disabled={busy}>Fechar</ModalCancelButton>
-            {step > (saved ? 1 : 0) && (
+            {step > firstStep && (
               <button
                 className="secondary-button"
                 type="button"
                 disabled={busy}
-                onClick={() => {
-                  setError("");
-                  setStep(step - 1);
-                }}
+                onClick={() => goBack(step - 1)}
               >
                 Voltar
               </button>
