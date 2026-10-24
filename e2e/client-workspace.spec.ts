@@ -738,7 +738,10 @@ test("closes a mixed tab from the customer context and shows its independent ses
     .getByRole("region", { name: "Comandas do cliente", exact: true })
     .locator(".table-row")
     .filter({ hasText: patient.fullName })
-    .getByRole("button", { name: "Abrir comanda", exact: true })
+    .getByRole("button", {
+      name: `Ver comanda de ${patient.fullName}`,
+      exact: true,
+    })
     .click();
   const dialog = page.getByRole("dialog", {
     name: `Comanda · ${patient.fullName}`,
