@@ -206,6 +206,84 @@ describe("management reports redesign", () => {
     ).toBeInTheDocument();
     expect(scroll).toHaveBeenCalled();
   });
+  it("opens the contract history and the WhatsApp link of a client without return", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({
+      ...sales(from, to),
+      patientsWithoutReturn: [
+        {
+          patientId: "p1",
+          patientName: "Lucas Ribeiro",
+          lastCompletedAt: "2026-08-20T15:00:00Z",
+          phone: "(11) 98888-7777",
+          whatsapp: "11977776666",
+        },
+        {
+          patientId: "p2",
+          patientName: "Helena Almeida",
+          lastCompletedAt: "2026-08-19T15:00:00Z",
+        },
+      ],
+    }));
+    let resolveHistory: (
+      value: Awaited<ReturnType<typeof api.patientSalesHistory>>,
+    ) => void = () => {};
+    const history = vi
+      .spyOn(api, "patientSalesHistory")
+      .mockImplementation(
+        () => new Promise((resolve) => (resolveHistory = resolve)),
+      );
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      value: vi.fn(),
+      configurable: true,
+    });
+    open("/relatorios?secao=sem-retorno");
+    const whatsapp = await screen.findByRole("link", {
+      name: "WhatsApp de Lucas Ribeiro",
+    });
+    expect(whatsapp).toHaveAttribute(
+      "href",
+      `https://wa.me/5511977776666?text=${encodeURIComponent("Olá, Lucas! Tudo bem?")}`,
+    );
+    expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(
+      screen.queryByRole("link", { name: "WhatsApp de Helena Almeida" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Histórico de Lucas Ribeiro" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Histórico de contratações",
+    });
+    expect(history).toHaveBeenCalledWith("p1");
+    await act(async () =>
+      resolveHistory([
+        {
+          id: "s1:sale",
+          sourceId: "plan-1",
+          sourceType: "plan",
+          kind: "sale",
+          occurredAt: "2025-03-10T15:00:00Z",
+          patientId: "p1",
+          patientName: "Lucas Ribeiro",
+          itemName: "Pilates 2x (Pilates)",
+          quantity: 1,
+          amountInCents: 48000,
+        },
+      ]),
+    );
+    expect(
+      within(dialog).getByText("Pilates 2x (Pilates)"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("10/03/2025")).toBeInTheDocument();
+    expect(within(dialog).getByText("Plano")).toBeInTheDocument();
+    expect(within(dialog).getByText(/480,00/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
   it("exports the applied range even when the draft has changed and exposes chart values by keyboard", async () => {
     session();
     vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) =>

@@ -1103,6 +1103,28 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(management.finance.paidInPeriodInCents).toBe(
       partialReport.current.receivedInCents,
     );
+
+    // Histórico de contratações do cliente: sem filtro de data, mais recentes primeiro.
+    const history = await anotherInstance.listPatientSales(
+      clinicId,
+      patients[0]!.id,
+    );
+    expect(
+      history!.filter((item) => item.sourceId === plan.id).map((i) => i.kind),
+    ).toEqual(["cancellation", "sale"]);
+    expect(history!.every((item) => item.patientId === patients[0]!.id)).toBe(
+      true,
+    );
+    expect(
+      await anotherInstance.listPatientSales(clinicId, randomUUID()),
+    ).toBeNull();
+    const period = await anotherInstance.getSalesPeriodReport(
+      clinicId,
+      `${date.slice(0, 7)}-01`,
+      date,
+    );
+    for (const item of period.patientsWithoutReturn)
+      expect(typeof item.phone).toBe("string");
   });
 
   it("renews due PostgreSQL plans once and blocks a second manual renewal", async () => {

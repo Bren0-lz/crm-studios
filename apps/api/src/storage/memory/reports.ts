@@ -14,6 +14,8 @@ import { commissionCandidates } from "./commission-operations.js";
 import {
   buildSalesReport,
   buildSalesPeriodReport,
+  patientSalesHistory,
+  withPatientContacts,
 } from "../../modules/reports/sales-report.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { localDate, now, today } from "./helpers.js";
@@ -281,13 +283,34 @@ export function createReportsRepository(
       to: string,
     ): Promise<SalesPeriodReport> {
       const data = await salesSources(clinicId);
-      return buildSalesPeriodReport(
-        from,
-        to,
-        data.sales,
-        data.payments,
-        data.appointments,
+      return withPatientContacts(
+        buildSalesPeriodReport(
+          from,
+          to,
+          data.sales,
+          data.payments,
+          data.appointments,
+        ),
+        new Map(
+          repositoryContext.patients
+            .filter((item) => item.clinicId === clinicId)
+            .map((item) => [
+              item.id,
+              { phone: item.phone, whatsapp: item.whatsapp },
+            ]),
+        ),
       );
+    },
+    async listPatientSales(
+      clinicId: string,
+      patientId: string,
+    ): Promise<SaleMovement[] | null> {
+      const exists = repositoryContext.patients.some(
+        (item) => item.clinicId === clinicId && item.id === patientId,
+      );
+      if (!exists) return null;
+      const data = await salesSources(clinicId);
+      return patientSalesHistory(data.sales, patientId);
     },
 
     async getManagementReport(

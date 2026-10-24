@@ -67,6 +67,9 @@ export interface PatientWithoutReturn {
   patientName: string;
   lastCompletedAt: string;
   nextAppointmentAt?: string;
+  /** Contato do cadastro, para o botão de WhatsApp da lista. */
+  phone?: string;
+  whatsapp?: string;
 }
 
 export interface Patient extends PatientInput {

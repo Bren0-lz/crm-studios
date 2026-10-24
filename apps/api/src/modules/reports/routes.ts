@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { buildClientDetails } from "./client-details.js";
 import { clientDetailsFilterSchema } from "@crm/contracts";
 import {
@@ -185,6 +186,23 @@ export function registerReportsRoutes(context: RouteContext) {
     const { month } = salesReportFilterSchema.parse(request.query);
     return repository.getSalesReport(request.user.clinicId, month);
   });
+
+  app.get(
+    "/reports/sales/patients/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const sales = z.uuid().safeParse(id).success
+        ? await repository.listPatientSales(request.user.clinicId, id)
+        : null;
+      if (!sales)
+        return reply.status(404).send({
+          code: "PATIENT_NOT_FOUND",
+          message: "Cliente não encontrado.",
+        });
+      return sales;
+    },
+  );
 
   app.get(
     "/reports/sales.xlsx",
