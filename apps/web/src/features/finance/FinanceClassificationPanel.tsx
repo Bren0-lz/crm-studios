@@ -369,10 +369,10 @@ export function FinanceClassificationPanel({
               <fieldset className="form-fields form-grid" disabled={busy}>
                 {creating && (
                   <>
-                    <label>
-                      Cliente
+                    <div className="span-2">
                       <PatientPicker
                         required
+                        popover
                         disabled={Boolean(patientId)}
                         patients={patients}
                         value={input.patientId}
@@ -380,7 +380,7 @@ export function FinanceClassificationPanel({
                           setInput({ ...input, patientId: value })
                         }
                       />
-                    </label>
+                    </div>
                     <label>
                       Descrição
                       <input
