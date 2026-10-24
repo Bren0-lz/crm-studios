@@ -231,8 +231,10 @@ describe("group sessions overview", () => {
     expect(summary).toHaveTextContent("Pilates");
     expect(summary).toHaveTextContent("Dra. Ana Martins");
     expect(summary).toHaveTextContent("Sala Movimento");
-    expect(summary).toHaveTextContent("Terça · 18:00–19:00");
-    expect(summary).toHaveTextContent("Quinta · 18:00–19:00");
+    const slots = within(summary).getAllByRole("listitem");
+    expect(slots).toHaveLength(2);
+    expect(slots[0]).toHaveTextContent("Terça 18:00–19:00");
+    expect(slots[1]).toHaveTextContent("Quinta 18:00–19:00");
     expect(summary).toHaveTextContent("3 matriculados · 2 vagas livres");
   });
 
