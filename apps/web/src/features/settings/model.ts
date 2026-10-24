@@ -147,7 +147,8 @@ export const settingsTabs: Array<{
     key: "catalogs",
     label: "Cadastros",
     title: "Cadastros da clínica",
-    description: "Interesses, níveis e classificações compartilhadas.",
+    description:
+      "Listas compartilhadas de clientes, comercial, produtos, fornecedores e clínico.",
     icon: Tags,
   },
   {
