@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   groupAttendanceInputSchema,
   groupClassInputSchema,
+  groupClassRenameSchema,
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   replacementBookingInputSchema,
@@ -14,7 +15,7 @@ import {
 } from "../agenda/professional-scope.js";
 
 export function registerGroupsRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, assertPermissions } = context;
   const professionalScope = agendaProfessionalScope(context);
   app.put(
     "/group-replacements/:id/attendance",
@@ -69,15 +70,32 @@ export function registerGroupsRoutes(context: RouteContext) {
     },
   );
 
-  app.post("/groups", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/groups", { preHandler: authenticate }, async (request, reply) => {
+    const input = groupClassInputSchema.parse(request.body);
+    if (input.name !== undefined) assertPermissions(request, "groups.rename");
+    return reply
       .status(201)
-      .send(
-        await repository.createGroupClass(
-          request.user.clinicId,
-          groupClassInputSchema.parse(request.body),
-        ),
-      ),
+      .send(await repository.createGroupClass(request.user.clinicId, input));
+  });
+
+  app.patch(
+    "/groups/:id/name",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { name } = groupClassRenameSchema.parse(request.body);
+      const group = await repository.renameGroupClass(
+        request.user.clinicId,
+        id,
+        name,
+      );
+      if (!group)
+        return reply.status(404).send({
+          code: "GROUP_NOT_FOUND",
+          message: "Turma não encontrada.",
+        });
+      return group;
+    },
   );
 
   app.put(

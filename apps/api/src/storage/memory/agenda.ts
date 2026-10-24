@@ -721,7 +721,7 @@ export function createAgendaRepository(
         branchId,
         id: uuid(),
         clinicId,
-        name: groupClassName(service.name, sequence),
+        name: input.name ?? groupClassName(service.name, sequence),
         sequence,
         serviceName: service.name,
         professionalName: professional.fullName,
@@ -735,6 +735,20 @@ export function createAgendaRepository(
       repositoryContext.ensureGroupSessions(clinicId, groupSessionHorizon(), {
         groupId: group.id,
       });
+      return group;
+    },
+
+    async renameGroupClass(clinicId: string, groupId: string, name: string) {
+      const group = repositoryContext.groupClasses.find(
+        (item) => item.clinicId === clinicId && item.id === groupId,
+      );
+      if (!group) return null;
+      repositoryContext.resourceBranch(group);
+      group.name = name;
+      for (const session of repositoryContext.groupSessions) {
+        if (session.clinicId === clinicId && session.groupId === groupId)
+          session.groupName = name;
+      }
       return group;
     },
 

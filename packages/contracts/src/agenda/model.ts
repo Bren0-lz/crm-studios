@@ -218,7 +218,20 @@ export function describeGroupSchedule(
   return `Turma de ${joinWithAnd(parts)}`;
 }
 
+const groupClassNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe o nome da turma.")
+  .max(120, "O nome da turma pode ter até 120 caracteres.");
+
+export const groupClassRenameSchema = z
+  .object({
+    name: groupClassNameSchema,
+  })
+  .strict();
+
 export const groupClassInputSchema = z.object({
+  name: groupClassNameSchema.optional(),
   serviceId: z.uuid(),
   professionalId: z.uuid(),
   roomId: z.uuid(),

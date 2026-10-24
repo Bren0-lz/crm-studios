@@ -372,6 +372,7 @@
 }
 .group-modal-note,
 .group-next-session {
+  overflow-wrap: anywhere;
   padding: 12px 14px;
   border-radius: 10px;
   background: #eef4f0;
@@ -687,6 +688,7 @@
 }
 
 .group-card {
+  overflow-wrap: anywhere;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 18px;
