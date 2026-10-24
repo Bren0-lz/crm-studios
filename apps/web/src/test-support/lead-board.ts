@@ -2,6 +2,7 @@ import {
   buildLeadFilterOptions,
   buildLeadInsights,
   leadFilterSchema,
+  defaultLeadStageKeys,
   leadStageSchema,
   matchesLead,
   parseLeadPageQuery,
@@ -52,7 +53,7 @@ export function leadBoardResponse(
   };
   return match[1]
     ? column(leadStageSchema.parse(match[1]), page.offset)
-    : { columns: leadStageSchema.options.map((stage) => column(stage, 0)) };
+    : { columns: defaultLeadStageKeys.map((stage) => column(stage, 0)) };
 }
 
 /** URL de uma das rotas do funil paginado (ver `leadBoardResponse`). */
