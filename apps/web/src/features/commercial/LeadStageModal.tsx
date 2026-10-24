@@ -30,11 +30,18 @@ export function LeadStageModal({
   onClose: () => void;
   onSave: (stages: StageItems, action: "saved" | "removed") => Promise<void>;
 }) {
-  const insertable = stages.filter((item) => item.kind !== "lost");
-  const wonIndex = insertable.findIndex((item) => item.kind === "won");
+  // Posição: "depois de" uma das outras etapas ("" = início do funil). Etapa nova entra, por
+  // padrão, antes da etapa final; a editada começa onde já está.
+  const others = stages.filter((item) => item.stage !== editing?.stage);
+  const editingIndex = stages.findIndex(
+    (item) => item.stage === editing?.stage,
+  );
+  const wonIndex = stages.findIndex((item) => item.kind === "won");
   const [label, setLabel] = useState(editing?.label ?? "");
   const [after, setAfter] = useState(
-    insertable[Math.max(0, wonIndex - 1)]?.stage ?? "",
+    (editing
+      ? stages[editingIndex - 1]?.stage
+      : stages[Math.max(0, wonIndex - 1)]?.stage) ?? "",
   );
   const [final, setFinal] = useState(editing?.kind === "won");
   const [error, setError] = useState("");
@@ -67,20 +74,15 @@ export function LeadStageModal({
       return;
     }
     const extra = becomesFinal ? { final: true } : {};
-    const items = current(stages);
-    if (editing) {
-      void run(
-        items.map((item) =>
-          item.stage === editing.stage
-            ? { ...item, label: name, ...extra }
-            : item,
-        ),
-        "saved",
-      );
-      return;
-    }
+    const items = current(others);
     const index = items.findIndex((item) => item.stage === after);
-    items.splice(index + 1, 0, { label: name, ...extra });
+    items.splice(
+      index + 1,
+      0,
+      editing
+        ? { stage: editing.stage, label: name, ...extra }
+        : { label: name, ...extra },
+    );
     void run(items, "saved");
   }
 
@@ -108,21 +110,23 @@ export function LeadStageModal({
             onChange={(event) => setLabel(event.target.value)}
           />
         </label>
-        {!editing && (
-          <label className="span-2">
-            Posição no funil
-            <select
-              value={after}
-              onChange={(event) => setAfter(event.target.value)}
-            >
-              {insertable.map((item) => (
-                <option key={item.stage} value={item.stage}>
-                  Depois de {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <label className="span-2">
+          Posição no funil
+          <select
+            value={after}
+            onChange={(event) => setAfter(event.target.value)}
+          >
+            <option value="">No início do funil</option>
+            {others.map((item) => (
+              <option key={item.stage} value={item.stage}>
+                Depois de {item.label}
+              </option>
+            ))}
+          </select>
+          <span className="field-hint">
+            No computador, também dá para arrastar a coluna pelo cabeçalho.
+          </span>
+        </label>
         {editing?.kind === "lost" ? (
           <p className="field-hint span-2">
             A etapa de perdidos pede o motivo da perda e não pode ser removida
