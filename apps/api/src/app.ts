@@ -21,6 +21,7 @@ import { registerPatientsRoutes } from "./modules/patients/routes.js";
 import { registerPlansRoutes } from "./modules/plans/routes.js";
 import { registerRelationshipRoutes } from "./modules/relationship/routes.js";
 import { registerReportsRoutes } from "./modules/reports/routes.js";
+import { registerWaitlistRoutes } from "./modules/waitlist/routes.js";
 
 export async function buildApp(options: BuildAppOptions) {
   const context = await createRouteContext(options);
@@ -29,6 +30,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerCatalogRoutes(context);
   registerAdministrationRoutes(context);
   registerRelationshipRoutes(context);
+  registerWaitlistRoutes(context);
   registerAgendaRoutes(context);
   registerHistoryRoutes(context);
   registerDashboardRoutes(context);

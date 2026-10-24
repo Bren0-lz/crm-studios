@@ -85,6 +85,7 @@ const operations = {
     stages_manage: "Editar etapas do funil",
   },
   relationship: { activities_create: "Registrar contato com cliente" },
+  waitlist: { manage: "Gerenciar lista de espera" },
   communications: {
     preferences: "Editar preferências de comunicação",
     messages: "Enviar mensagem individual",

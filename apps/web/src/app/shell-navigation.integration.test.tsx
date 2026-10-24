@@ -77,7 +77,12 @@ describe("shell navigation", () => {
         "Planos e sessões",
         "Prontuários",
       ],
-      Relacionamento: ["CRM comercial", "Contatos sugeridos", "Comunicações"],
+      Relacionamento: [
+        "CRM comercial",
+        "Contatos sugeridos",
+        "Lista de espera",
+        "Comunicações",
+      ],
       Gestão: [
         "Contratos",
         "Vendas de produtos",

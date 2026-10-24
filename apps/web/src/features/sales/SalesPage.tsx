@@ -10,11 +10,10 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { salesTabFromParam, salesTabLabels, type SalesTab } from "./model";
 import { NewSaleSection } from "./NewSaleSection";
-import { OpenTabsSection } from "./OpenTabsSection";
 import { SalesHistorySection } from "./SalesHistorySection";
 import { SalesSummarySection } from "./SalesSummarySection";
 
-/** Vendas de produtos: registro em uma etapa, histórico, comandas abertas e resumo. */
+/** Vendas de produtos: registro em uma etapa, histórico e resumo. */
 export function SalesPage() {
   const { can } = useAuthorization();
   const canSell =
@@ -24,7 +23,6 @@ export function SalesPage() {
   const tabs: SalesTab[] = [
     ...(canSell ? (["new"] as const) : []),
     "history",
-    "open",
     "summary",
   ];
   const [searchParams] = useSearchParams();
@@ -38,7 +36,7 @@ export function SalesPage() {
   async function reload() {
     setData(await api.inventoryWorkspace(allBranches));
   }
-  // Recarrega em silêncio quando uma venda, comanda ou ajuste muda o estoque (QC6).
+  // Recarrega em silêncio quando uma venda ou ajuste muda o estoque (QC6).
   const version = useDataVersion("inventory");
   useEffect(() => {
     if (!canView) return;
@@ -55,7 +53,6 @@ export function SalesPage() {
       alive = false;
     };
   }, [canView, version]);
-  const openCount = data?.tabs.filter((item) => item.status === "open").length;
   return (
     <>
       <PageHeader
@@ -87,11 +84,6 @@ export function SalesPage() {
                   onClick={() => setTab(key)}
                 >
                   {salesTabLabels[key]}
-                  {key === "open" && openCount !== undefined && (
-                    <span className="tab-count" aria-hidden="true">
-                      {openCount}
-                    </span>
-                  )}
                 </button>
               ))}
             </div>
@@ -102,8 +94,6 @@ export function SalesPage() {
             <NewSaleSection workspace={data} />
           ) : tab === "history" ? (
             <SalesHistorySection workspace={data} onChanged={reload} />
-          ) : tab === "open" ? (
-            <OpenTabsSection workspace={data} onChanged={reload} />
           ) : (
             <SalesSummarySection workspace={data} />
           )}
