@@ -104,12 +104,11 @@ export const userModulesSchema = z
   .max(appModuleSchema.options.length * 2)
   .nullable();
 
-export const strongPasswordSchema = z
+/** Senha livre: só não pode ficar vazia nem passar de 128 caracteres. */
+export const passwordSchema = z
   .string()
-  .max(128)
-  .regex(/[a-z]/, "Inclua uma letra minúscula.")
-  .regex(/[A-Z]/, "Inclua uma letra maiúscula.")
-  .regex(/[0-9]/, "Inclua um número.");
+  .min(1, "Informe a senha.")
+  .max(128, "Use no máximo 128 caracteres.");
 
 export const professionalInputSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
@@ -134,7 +133,7 @@ export const adminUserInputSchema = z
     fullName: z.string().trim().min(3).max(160),
     email: z.email().transform((value) => value.toLowerCase()),
     role: userRoleSchema,
-    password: strongPasswordSchema,
+    password: passwordSchema,
     /** Cargo informativo; vazio = sem cargo. */
     jobTitle: jobTitleSchema.optional(),
     /** Módulos que o usuário comum vê; ausente ou `null` = nenhum (admin ignora: vê tudo). */
@@ -169,7 +168,7 @@ export const adminUserUpdateSchema = z
   })
   .superRefine(validatePermissionInput);
 
-export const passwordResetSchema = z.object({ password: strongPasswordSchema });
+export const passwordResetSchema = z.object({ password: passwordSchema });
 
 /** Foto do usuário (perfil próprio): PNG ou JPEG em data URL; vazio = sem foto. */
 export const avatarDataUrlSchema = z
@@ -195,7 +194,7 @@ export const ownProfileUpdateSchema = z.object({
 /** Troca da própria senha: exige a senha atual. */
 export const ownPasswordChangeSchema = z.object({
   currentPassword: z.string().nonempty(),
-  newPassword: strongPasswordSchema,
+  newPassword: passwordSchema,
 });
 
 export const clinicSettingsInputSchema = z.object({
