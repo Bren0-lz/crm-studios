@@ -21,6 +21,8 @@ import {
   saoPauloToday,
   serviceAvailableFor,
   type UserSummary,
+  ptBrValidationError,
+  validationErrorMessage,
 } from "@crm/contracts";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
@@ -42,6 +44,9 @@ import {
   ROUTE_ACCESS,
 } from "./route-access.js";
 import { type BuildAppOptions } from "./route-utils.js";
+
+// Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
+z.config({ customError: ptBrValidationError });
 
 export async function createRouteContext({
   repository,
@@ -92,10 +97,15 @@ export async function createRouteContext({
         ...(error.details === undefined ? {} : { details: error.details }),
       } satisfies ApiError);
     }
-    if (typeof error === "object" && error !== null && "issues" in error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "issues" in error &&
+      Array.isArray(error.issues)
+    ) {
       return reply.status(400).send({
         code: "VALIDATION_ERROR",
-        message: "Revise os dados informados.",
+        message: validationErrorMessage(error.issues),
       } satisfies ApiError);
     }
     app.log.error(error);
