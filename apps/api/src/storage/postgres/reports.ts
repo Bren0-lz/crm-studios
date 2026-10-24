@@ -7,8 +7,10 @@ import {
   type SaleMovement,
   type SalesReport,
   type SalesPeriodReport,
+  type TeamProductionSources,
   allocatePlanRevenue,
 } from "@crm/contracts";
+import { competencesBetween } from "../../modules/reports/team-finance.js";
 import {
   buildSalesReport,
   buildSalesPeriodReport,
@@ -333,6 +335,63 @@ export function createReportsRepository(
         data.appointments,
         data.asOf,
       );
+    },
+
+    async listTeamProduction(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<TeamProductionSources> {
+      const branchIds = repositoryContext.branchReadIds();
+      const competences = competencesBetween(from, to);
+      const consumedPlan = (column: string, value: string) =>
+        `(SELECT sm.plan_id FROM session_movements sm WHERE sm.clinic_id=$1 AND sm.${column}=${value} AND sm.kind='consumption' ORDER BY sm.created_at LIMIT 1)`;
+      const [sessions, commissions, pending] = await Promise.all([
+        repositoryContext.pool.query<
+          TeamProductionSources["sessions"][number] & { planId: string | null }
+        >(
+          `SELECT a.professional_id AS "professionalId",p.full_name AS "professionalName",a.service_id AS "serviceId",s.name AS "serviceName",${consumedPlan("appointment_id", "a.id")} AS "planId"
+           FROM appointments a JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id
+           WHERE a.clinic_id=$1 AND a.status='completed' AND a.patient_id IS NOT NULL AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date AND ${branchClause("a.branch_id", 4)}
+           UNION ALL
+           SELECT p.id,p.full_name,g.service_id,s.name,${consumedPlan("group_attendance_id", "ga.id")}
+           FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id
+           JOIN professionals p ON p.id=coalesce(gs.professional_id,g.professional_id) AND p.clinic_id=ga.clinic_id JOIN services s ON s.id=g.service_id AND s.clinic_id=g.clinic_id
+           WHERE ga.clinic_id=$1 AND gs.status<>'cancelled' AND (ga.status='present' OR ga.outcome='present') AND (gs.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date AND ${branchClause("g.branch_id", 4)}`,
+          [clinicId, from, to, branchIds],
+        ),
+        repositoryContext.pool.query<
+          TeamProductionSources["commissions"][number]
+        >(
+          `SELECT ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.competence,ce.amount_in_cents AS "amountInCents",ce.status
+           FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id AND p.clinic_id=ce.clinic_id
+           WHERE ce.clinic_id=$1 AND ce.competence=ANY($2::text[]) AND ${branchClause("p.branch_id", 3)}`,
+          [clinicId, competences, branchIds],
+        ),
+        // Mesma seleção de regra da geração de comissões, só para as sessões ainda sem comissão.
+        repositoryContext.pool.query<
+          TeamProductionSources["pendingCommissions"][number]
+        >(
+          `WITH sources AS (
+             SELECT a.id AS appointment_id,NULL::uuid AS group_attendance_id,a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.status='completed' AND a.patient_id IS NOT NULL
+             UNION ALL SELECT NULL::uuid,ga.id,coalesce(gs.professional_id,g.professional_id),g.service_id,gs.starts_at FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE ga.clinic_id=$1 AND gs.status<>'cancelled' AND (ga.status='present' OR ga.outcome='present')
+           )
+           SELECT pr.id AS "professionalId",pr.full_name AS "professionalName",CASE WHEN rule.kind='fixed' THEN rule.fixed_amount_in_cents ELSE round(s.price_in_cents*rule.percentage/100)::int END AS "amountInCents"
+           FROM sources a JOIN clinics c ON c.id=$1 JOIN services s ON s.id=a.service_id AND s.clinic_id=$1 JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=$1
+           JOIN LATERAL (SELECT cr.* FROM commission_rules cr WHERE cr.clinic_id=$1 AND (cr.professional_id=a.professional_id OR (pr.user_id IS NOT NULL AND cr.user_id=pr.user_id)) AND cr.active AND (cr.service_id IS NULL OR cr.service_id=a.service_id) AND cr.effective_from<=(a.starts_at AT TIME ZONE c.timezone)::date AND (cr.effective_until IS NULL OR cr.effective_until>=(a.starts_at AT TIME ZONE c.timezone)::date) ORDER BY (cr.user_id IS NOT NULL) DESC,(cr.service_id IS NOT NULL) DESC,cr.effective_from DESC LIMIT 1) rule ON true
+           WHERE to_char(a.starts_at AT TIME ZONE c.timezone,'YYYY-MM')=ANY($2::text[]) AND ${branchClause("pr.branch_id", 3)}
+             AND NOT EXISTS (SELECT 1 FROM commission_entries ce WHERE ce.clinic_id=$1 AND (ce.appointment_id=a.appointment_id OR ce.group_attendance_id=a.group_attendance_id))`,
+          [clinicId, competences, branchIds],
+        ),
+      ]);
+      return {
+        sessions: sessions.rows.map(({ planId, ...row }) => ({
+          ...row,
+          ...(planId ? { planId } : {}),
+        })),
+        commissions: commissions.rows,
+        pendingCommissions: pending.rows,
+      };
     },
 
     async getManagementReport(

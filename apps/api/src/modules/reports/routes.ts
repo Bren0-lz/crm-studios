@@ -23,6 +23,7 @@ import {
   resolveRetentionPeriod,
 } from "./retention-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+import { buildTeamFinanceReport } from "./team-finance.js";
 
 export function registerReportsRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess, assertPermissions } =
@@ -70,11 +71,32 @@ export function registerReportsRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request) => {
       const filter = managementReportFilterSchema.parse(request.query);
-      return repository.getManagementReport(
-        request.user.clinicId,
+      const { clinicId } = request.user;
+      const report = await repository.getManagementReport(
+        clinicId,
         filter.from,
         filter.to,
       );
+      const permissions = requestAccess.get(request)?.permissions ?? [];
+      if (!permissions.includes("reports.team_finance")) return report;
+      const [sources, plans, services, groups] = await Promise.all([
+        repository.listTeamProduction(clinicId, filter.from, filter.to),
+        repository.listPatientPlans(clinicId),
+        repository.listServices(clinicId),
+        repository.getGroupWorkspace(clinicId, filter.from, filter.to),
+      ]);
+      return {
+        ...report,
+        teamFinance: buildTeamFinanceReport({
+          from: filter.from,
+          to: filter.to,
+          sources,
+          plans,
+          services,
+          groups: groups.groups,
+          enrollments: groups.enrollments,
+        }),
+      };
     },
   );
 

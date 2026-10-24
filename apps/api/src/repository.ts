@@ -155,6 +155,7 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
   ManagementReport,
+  TeamProductionSources,
   ManualMessageInput,
   OutboundMessage,
   Patient,
@@ -1282,6 +1283,15 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ManagementReport>;
+  /**
+   * Sessões concluídas no período (atendimentos com cliente e presenças em turma), comissões
+   * geradas nas competências que o período toca e a previsão das que faltam gerar.
+   */
+  listTeamProduction(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<TeamProductionSources>;
   getSalesPeriodReport(
     clinicId: string,
     from: string,
