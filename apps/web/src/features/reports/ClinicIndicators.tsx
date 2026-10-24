@@ -129,9 +129,6 @@ function CashPanel({ data }: { data: ManagementReport }) {
     dre.operatingExpensesInCents +
     dre.commissionsInCents;
   const net = dre.netResultInCents;
-  const keptPerHundred = dre.grossRevenueInCents
-    ? Math.round((net / dre.grossRevenueInCents) * 100)
-    : 0;
   return (
     <div className="panel indicator-card">
       <div className="panel-head">
@@ -148,20 +145,6 @@ function CashPanel({ data }: { data: ManagementReport }) {
         </strong>
       </div>
       <div className="cash-body">
-        {dre.grossRevenueInCents > 0 && (
-          <div className="cash-summary">
-            <progress
-              max={dre.grossRevenueInCents}
-              value={Math.max(net, 0)}
-              aria-label="Parte do que entrou que sobrou no caixa"
-            />
-            <p>
-              {net >= 0
-                ? `De cada R$ 100 que entraram, sobraram R$ ${keptPerHundred}.`
-                : `As saídas passaram as entradas em ${money(-net)}.`}
-            </p>
-          </div>
-        )}
         <dl className="indicator-lines">
           <div className="indicator-group">
             <dt>Entrou</dt>
