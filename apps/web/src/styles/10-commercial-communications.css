@@ -526,34 +526,27 @@
   font-weight: 700;
 }
 
-/* Aba "Fila e lembretes": a fila à esquerda; mensagem individual e lembretes ao lado;
-   comunicado segmentado na largura toda, abaixo. */
-.communications-layout {
+/* Aba "Fila e lembretes": sub-abas (fila, mensagem individual, lembretes, comunicado);
+   cada seção ocupa a largura toda. */
+.communication-sections {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
-  align-items: start;
-  gap: calc(var(--space-4) + 2px);
-}
-
-.communications-layout.single {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.communication-side {
-  display: grid;
-  gap: calc(var(--space-4) + 2px);
-}
-
-.communication-broadcast {
-  grid-column: 1 / -1;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .communication-form {
   display: grid;
-  align-content: start;
-  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4) var(--space-5);
   padding: calc(var(--space-5) - 3px) calc(var(--space-5) - 1px)
     calc(var(--space-5) - 1px);
+}
+
+.communication-form > .span-2,
+.communication-form > .field-hint,
+.communication-form > .modal-actions {
+  grid-column: 1 / -1;
 }
 
 .communication-form > label {
@@ -575,7 +568,7 @@
 
 .communication-options {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-2);
 }
 
@@ -759,12 +752,6 @@
   font-size: var(--text-sm);
 }
 
-/* Lista com rolagem própria: uma fila longa não empurra o comunicado para longe. */
-.communication-history .message-list {
-  max-height: 72vh;
-  overflow-y: auto;
-}
-
 /* Linha: nome e situação em cima; texto à esquerda e ações à direita. */
 .message-list article {
   display: grid;
@@ -781,7 +768,7 @@
 
 .message-list article > .message-row-foot {
   justify-content: flex-end;
-  max-width: 260px;
+  max-width: 320px;
 }
 
 .message-list article > .message-body:has(+ .message-row-foot:empty) {

@@ -490,6 +490,7 @@ describe("configured patient tags", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Comunicado" }));
     const panel = (
       await screen.findByRole("heading", { name: "Comunicado segmentado" })
     ).closest("section")!;
