@@ -791,7 +791,16 @@
   font-weight: 600;
 }
 
-/* Nome do cliente no card abre as pendências. */
+/* Card de contato sugerido: o card inteiro abre as pendências; o nome é o alvo do teclado. */
+.suggestion-card {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.suggestion-card:hover {
+  border-color: var(--green);
+}
+
 .suggestion-name-button {
   padding: 0;
   border: 0;
