@@ -25,6 +25,7 @@ export function ReceivablesList({
   onReverse,
   onAdjust,
   onReceipt,
+  onContact,
 }: {
   receivables: Receivable[];
   canManage: boolean;
@@ -39,6 +40,7 @@ export function ReceivablesList({
   onReverse: (id: string) => void;
   onAdjust: (item: Receivable) => void;
   onReceipt: (id: string) => void;
+  onContact: (item: Receivable, overdue: boolean) => void;
 }) {
   const { can } = useAuthorization();
   if (receivables.length === 0) {
@@ -233,6 +235,14 @@ export function ReceivablesList({
                 )}
               </span>
               <div className="finance-actions">
+                {item.status === "open" && (
+                  <button
+                    className="secondary-button button-sm"
+                    onClick={() => onContact(item, situation.key === "overdue")}
+                  >
+                    Entrar em contato
+                  </button>
+                )}
                 {canManage &&
                   item.status === "open" &&
                   can("finance.adjust") && (

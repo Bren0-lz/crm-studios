@@ -41,6 +41,7 @@ import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
+import { ReceivableContactModal } from "./ReceivableContactModal";
 import { ReceivablesList } from "./ReceivablesList";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
@@ -90,6 +91,10 @@ export function FinancePage() {
   const [settling, setSettling] = useState<SettleTarget | null>(null);
   const [payableModal, setPayableModal] = useState(false);
   const [adjusting, setAdjusting] = useState<Receivable | null>(null);
+  const [contacting, setContacting] = useState<{
+    receivable: Receivable;
+    overdue: boolean;
+  } | null>(null);
   const [registry, setRegistry] = useState<"category" | "costCenter" | null>(
     null,
   );
@@ -477,6 +482,9 @@ export function FinancePage() {
                 }
                 onReverse={(id) => void reverseReceivable(id)}
                 onAdjust={(item) => setAdjusting(item)}
+                onContact={(item, overdue) =>
+                  setContacting({ receivable: item, overdue })
+                }
                 onReceipt={(id) =>
                   void api
                     .paymentReceipt(id)
@@ -602,6 +610,13 @@ export function FinancePage() {
       )}
       {receipt && (
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
+      )}
+      {contacting && (
+        <ReceivableContactModal
+          receivable={contacting.receivable}
+          overdue={contacting.overdue}
+          onClose={() => setContacting(null)}
+        />
       )}
       {adjusting && (
         <ReceivableAdjustModal

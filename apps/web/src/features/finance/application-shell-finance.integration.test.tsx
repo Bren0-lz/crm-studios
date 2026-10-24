@@ -1150,6 +1150,74 @@ describe("application shell", () => {
       );
     });
 
+    it("contacts the client of an overdue installment with a ready message", async () => {
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem(
+        "crm.auth.user",
+        storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+      );
+      const workspace = receivablesWorkspace();
+      const overdue = workspace.summary.receivables.find(
+        (item) => item.overdue,
+      )!;
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = String(input);
+        const body = url.endsWith(`/receivables/${overdue.id}/contact`)
+          ? {
+              receivableId: overdue.id,
+              patientId: overdue.patientId,
+              patientName: overdue.patientName,
+              phone: "11987654321",
+              whatsapp: "11911112222",
+            }
+          : url.includes("/finance/workspace")
+            ? workspace
+            : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(
+        <MemoryRouter initialEntries={["/financeiro"]}>
+          <App />
+        </MemoryRouter>,
+      );
+      await screen.findByText(overdue.patientName);
+      // Só parcelas em aberto oferecem o contato; a paga não.
+      expect(
+        within(rowOf("Carla Mendes")).queryByRole("button", {
+          name: "Entrar em contato",
+        }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        within(rowOf(overdue.patientName)).getByRole("button", {
+          name: "Entrar em contato",
+        }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Entrar em contato",
+      });
+      expect(await within(dialog).findByText("(11) 98765-4321")).toBeVisible();
+      const message = within(dialog).getByLabelText("Mensagem");
+      expect((message as HTMLTextAreaElement).value).toContain(
+        "ainda está em aberto. Aconteceu alguma coisa?",
+      );
+      fireEvent.change(message, { target: { value: "Oi Bruno, tudo bem?" } });
+      expect(
+        within(dialog)
+          .getByRole("link", { name: /Enviar pelo WhatsApp/ })
+          .getAttribute("href"),
+      ).toBe(
+        `https://wa.me/5511911112222?text=${encodeURIComponent("Oi Bruno, tudo bem?")}`,
+      );
+      expect(
+        within(dialog).getByRole("link", { name: /Ligar/ }),
+      ).toHaveAttribute("href", "tel:11987654321");
+    });
+
     it("shows the reload error on the page after a successful settlement", async () => {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem(
