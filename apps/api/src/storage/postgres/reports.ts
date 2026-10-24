@@ -14,7 +14,9 @@ import { competencesBetween } from "../../modules/reports/team-finance.js";
 import {
   buildSalesReport,
   buildSalesPeriodReport,
+  patientSalesHistory,
   salesPeriodBounds,
+  withPatientContacts,
   salesReportBounds,
 } from "../../modules/reports/sales-report.js";
 import type { PostgresRepositoryContext } from "./context.js";
@@ -25,6 +27,88 @@ import {
   branchClause,
   mapAppointment,
 } from "./helpers.js";
+
+type PlanSaleRow = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  name: string;
+  serviceName: string;
+  totalValueInCents: number;
+  cancelledValueInCents: number;
+  createdAt: Date;
+  cancelledAt: Date | null;
+};
+
+type TabSaleRow = {
+  id: string;
+  tabId: string;
+  patientId: string;
+  patientName: string;
+  productName: string;
+  sourceType: "product" | "service";
+  quantity: number;
+  amountInCents: number;
+  closedAt: Date;
+  cancelledAt: Date | null;
+  receivableId: string | null;
+};
+
+function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
+  const sales: SaleMovement[] = [];
+  for (const plan of planRows) {
+    const base = {
+      sourceId: plan.id,
+      sourceType: "plan" as const,
+      patientId: plan.patientId,
+      patientName: plan.patientName,
+      itemName: `${plan.name} (${plan.serviceName})`,
+      quantity: 1,
+    };
+    sales.push({
+      ...base,
+      id: `${plan.id}:sale`,
+      kind: "sale",
+      occurredAt: plan.createdAt.toISOString(),
+      amountInCents: plan.totalValueInCents,
+    });
+    if (plan.cancelledAt)
+      sales.push({
+        ...base,
+        id: `${plan.id}:cancellation`,
+        kind: "cancellation",
+        occurredAt: plan.cancelledAt.toISOString(),
+        amountInCents: -plan.cancelledValueInCents,
+      });
+  }
+  for (const item of tabRows) {
+    const base = {
+      sourceId: item.tabId,
+      sourceType: item.sourceType,
+      patientId: item.patientId,
+      patientName: item.patientName,
+      itemName: item.productName,
+      quantity: item.quantity,
+      ...(item.receivableId ? { receivableId: item.receivableId } : {}),
+    };
+    sales.push({
+      ...base,
+      id: `${item.id}:sale`,
+      kind: "sale",
+      occurredAt: item.closedAt.toISOString(),
+      amountInCents: item.amountInCents,
+    });
+    if (item.cancelledAt)
+      sales.push({
+        ...base,
+        id: `${item.id}:cancellation`,
+        kind: "cancellation",
+        occurredAt: item.cancelledAt.toISOString(),
+        amountInCents: -item.amountInCents,
+      });
+  }
+  return sales;
+}
 
 export function createReportsRepository(
   repositoryContext: PostgresRepositoryContext,
@@ -42,17 +126,7 @@ export function createReportsRepository(
     const client = await repositoryContext.pool.connect();
     try {
       await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-      const planResult = await client.query<{
-        id: string;
-        patientId: string;
-        patientName: string;
-        name: string;
-        serviceName: string;
-        totalValueInCents: number;
-        cancelledValueInCents: number;
-        createdAt: Date;
-        cancelledAt: Date | null;
-      }>(
+      const planResult = await client.query<PlanSaleRow>(
         `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
                 pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
@@ -67,19 +141,7 @@ export function createReportsRepository(
          )`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
-      const productResult = await client.query<{
-        id: string;
-        tabId: string;
-        patientId: string;
-        patientName: string;
-        productName: string;
-        sourceType: "product" | "service";
-        quantity: number;
-        amountInCents: number;
-        closedAt: Date;
-        cancelledAt: Date | null;
-        receivableId: string | null;
-      }>(
+      const productResult = await client.query<TabSaleRow>(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
                 p.full_name AS "patientName", pr.name AS "productName",
                 i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
@@ -137,58 +199,7 @@ export function createReportsRepository(
         ],
       );
       await client.query("COMMIT");
-      const sales: SaleMovement[] = [];
-      for (const plan of planResult.rows) {
-        const base = {
-          sourceId: plan.id,
-          sourceType: "plan" as const,
-          patientId: plan.patientId,
-          patientName: plan.patientName,
-          itemName: `${plan.name} (${plan.serviceName})`,
-          quantity: 1,
-        };
-        sales.push({
-          ...base,
-          id: `${plan.id}:sale`,
-          kind: "sale",
-          occurredAt: plan.createdAt.toISOString(),
-          amountInCents: plan.totalValueInCents,
-        });
-        if (plan.cancelledAt)
-          sales.push({
-            ...base,
-            id: `${plan.id}:cancellation`,
-            kind: "cancellation",
-            occurredAt: plan.cancelledAt.toISOString(),
-            amountInCents: -plan.cancelledValueInCents,
-          });
-      }
-      for (const item of productResult.rows) {
-        const base = {
-          sourceId: item.tabId,
-          sourceType: item.sourceType,
-          patientId: item.patientId,
-          patientName: item.patientName,
-          itemName: item.productName,
-          quantity: item.quantity,
-          ...(item.receivableId ? { receivableId: item.receivableId } : {}),
-        };
-        sales.push({
-          ...base,
-          id: `${item.id}:sale`,
-          kind: "sale",
-          occurredAt: item.closedAt.toISOString(),
-          amountInCents: item.amountInCents,
-        });
-        if (item.cancelledAt)
-          sales.push({
-            ...base,
-            id: `${item.id}:cancellation`,
-            kind: "cancellation",
-            occurredAt: item.cancelledAt.toISOString(),
-            amountInCents: -item.amountInCents,
-          });
-      }
+      const sales = toSales(planResult.rows, productResult.rows);
       const payments: ReceivedPayment[] = paymentResult.rows.map((item) => ({
         id: item.id,
         receivableId: item.receivableId,
@@ -331,7 +342,7 @@ export function createReportsRepository(
       to: string,
     ): Promise<SalesPeriodReport> {
       const data = await salesSources(clinicId, { from, to });
-      return buildSalesPeriodReport(
+      const report = buildSalesPeriodReport(
         from,
         to,
         data.sales,
@@ -339,6 +350,66 @@ export function createReportsRepository(
         data.appointments,
         data.asOf,
       );
+      const ids = report.patientsWithoutReturn.map((item) => item.patientId);
+      if (!ids.length) return report;
+      const contacts = await repositoryContext.pool.query<{
+        id: string;
+        phone: string;
+        whatsapp: string | null;
+      }>(
+        `SELECT id, phone, whatsapp FROM patients
+         WHERE clinic_id=$1 AND id = ANY($2::uuid[])`,
+        [clinicId, ids],
+      );
+      return withPatientContacts(
+        report,
+        new Map(
+          contacts.rows.map((row) => [
+            row.id,
+            { phone: row.phone, whatsapp: row.whatsapp ?? undefined },
+          ]),
+        ),
+      );
+    },
+    async listPatientSales(
+      clinicId: string,
+      patientId: string,
+    ): Promise<SaleMovement[] | null> {
+      const branchIds = repositoryContext.branchReadIds();
+      const patient = await repositoryContext.pool.query(
+        "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2",
+        [clinicId, patientId],
+      );
+      if (!patient.rowCount) return null;
+      const [plans, tabs] = await Promise.all([
+        repositoryContext.pool.query<PlanSaleRow>(
+          `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
+                  pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
+                  pp.total_value_in_cents AS "totalValueInCents",
+                  pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                  pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+           FROM patient_plans pp
+           JOIN patients p ON p.id=pp.patient_id
+           JOIN services s ON s.id=pp.service_id
+           WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 3)}`,
+          [clinicId, patientId, branchIds],
+        ),
+        repositoryContext.pool.query<TabSaleRow>(
+          `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
+                  p.full_name AS "patientName", pr.name AS "productName",
+                  i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
+                  t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
+                  t.receivable_id AS "receivableId"
+           FROM patient_tab_items i
+           JOIN patient_tabs t ON t.id=i.tab_id
+           JOIN patients p ON p.id=t.patient_id
+           JOIN products pr ON pr.id=i.product_id
+           WHERE t.clinic_id=$1 AND t.patient_id=$2 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
+           UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.patient_id=$2 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+          [clinicId, patientId, branchIds],
+        ),
+      ]);
+      return patientSalesHistory(toSales(plans.rows, tabs.rows), patientId);
     },
 
     async listTeamProduction(

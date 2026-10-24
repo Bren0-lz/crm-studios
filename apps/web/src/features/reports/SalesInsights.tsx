@@ -1,5 +1,10 @@
 ﻿import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import {
+  patientFirstName,
+  whatsappLink,
+  type PatientWithoutReturn,
+} from "@crm/contracts";
+import { Download, History, MessageCircle } from "lucide-react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -10,6 +15,7 @@ import {
   formatIsoDate,
   shortDate,
 } from "../../shared/lib/formatting";
+import { PatientSalesHistoryModal } from "./PatientSalesHistoryModal";
 import { ReportChart } from "./ReportChart";
 import { compactMoney, salesChartPoints } from "./model";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
@@ -32,6 +38,7 @@ export function SalesInsights({
   } = useReportQuery(period, api.salesPeriodReport);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState({ period, message: "" });
+  const [historyOf, setHistoryOf] = useState<PatientWithoutReturn | null>(null);
   useEffect(() => {
     if (focusNoReturn && report)
       document
@@ -96,6 +103,9 @@ export function SalesInsights({
                       <th scope="col">Cliente</th>
                       <th scope="col">Último atendimento</th>
                       <th scope="col">Próximo agendamento</th>
+                      <th scope="col" className="table-actions-head">
+                        Ações
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -110,6 +120,34 @@ export function SalesInsights({
                             ? shortDate.format(new Date(item.nextAppointmentAt))
                             : "Sem agendamento"}
                         </td>
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="secondary-button button-sm"
+                              aria-label={`Histórico de ${item.patientName}`}
+                              onClick={() => setHistoryOf(item)}
+                            >
+                              <History size={15} aria-hidden="true" />
+                              Histórico
+                            </button>
+                            {(item.whatsapp || item.phone) && (
+                              <a
+                                className="whatsapp-button button-sm"
+                                aria-label={`WhatsApp de ${item.patientName}`}
+                                href={whatsappLink(
+                                  item.whatsapp || item.phone!,
+                                  `Olá, ${patientFirstName(item.patientName)}! Tudo bem?`,
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <MessageCircle size={15} aria-hidden="true" />
+                                WhatsApp
+                              </a>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -117,6 +155,13 @@ export function SalesInsights({
               </div>
             )}
           </div>
+        )}
+        {historyOf && (
+          <PatientSalesHistoryModal
+            patientId={historyOf.patientId}
+            patientName={historyOf.patientName}
+            onClose={() => setHistoryOf(null)}
+          />
         )}
       </section>
     );
