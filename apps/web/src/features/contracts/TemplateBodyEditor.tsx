@@ -10,7 +10,7 @@ import {
   type DocumentTemplateValues,
 } from "@crm/contracts";
 import { Maximize2, Minimize2 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { DocumentPaper } from "./DocumentPaper";
 import { RichDocumentEditor } from "./RichDocumentEditor";
 
@@ -38,7 +38,7 @@ function clinicValue(
  * Conteúdo do modelo com botões "Inserir campo" (inserem `{{variavel}}` na posição do cursor)
  * e a prévia do documento final numa folha, com os dados da clínica e um cliente de exemplo.
  * `studio` deixa o editor e a folha lado a lado ocupando a largura toda, com opção de ampliar
- * só a folha.
+ * só a folha; nele o texto também fica numa folha e as duas rolam juntas.
  */
 export function TemplateBodyEditor({
   value,
@@ -58,6 +58,37 @@ export function TemplateBodyEditor({
 }) {
   const id = useId();
   const [previewOnly, setPreviewOnly] = useState(false);
+  const editorCanvas = useRef<HTMLDivElement>(null);
+  const previewCanvas = useRef<HTMLDivElement>(null);
+
+  // Rolar uma folha rola a outra na mesma proporção (as alturas diferem pelo cabeçalho).
+  useEffect(() => {
+    const editor = editorCanvas.current;
+    const preview = previewCanvas.current;
+    if (!studio || previewOnly || !editor || !preview) return;
+    let following: HTMLElement | null = null;
+    let frame = 0;
+    function follow(source: HTMLElement, target: HTMLElement) {
+      if (following === source) return;
+      const range = source.scrollHeight - source.clientHeight;
+      const ratio = range > 0 ? source.scrollTop / range : 0;
+      following = target;
+      target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        following = null;
+      });
+    }
+    const onEditorScroll = () => follow(editor, preview);
+    const onPreviewScroll = () => follow(preview, editor);
+    editor.addEventListener("scroll", onEditorScroll);
+    preview.addEventListener("scroll", onPreviewScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      editor.removeEventListener("scroll", onEditorScroll);
+      preview.removeEventListener("scroll", onPreviewScroll);
+    };
+  }, [studio, previewOnly]);
 
   // Com os dados da clínica carregados, a prévia mostra o que a emissão vai mostrar,
   // inclusive "não informado" no que falta no cadastro.
@@ -130,7 +161,7 @@ export function TemplateBodyEditor({
           {missingClinicFields.join(", ")}. Na emissão, aparece “não informado”.
         </p>
       )}
-      <div className="document-paper-canvas">
+      <div className="document-paper-canvas" ref={previewCanvas}>
         <DocumentPaper
           body={documentContentText(previewContent)}
           content={previewContent}
@@ -154,6 +185,7 @@ export function TemplateBodyEditor({
         <RichDocumentEditor
           value={source}
           disabled={disabled}
+          canvasRef={studio ? editorCanvas : undefined}
           onChange={(next) => onChange(documentContentText(next), next)}
         />
       </div>
