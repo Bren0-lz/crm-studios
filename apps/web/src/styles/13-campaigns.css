@@ -113,10 +113,10 @@
 
 /* Cartão no acabamento do .plan-card: branco, borda clara e título em destaque. */
 .template-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: white;
@@ -124,6 +124,10 @@
     border-color 0.15s,
     box-shadow 0.15s,
     transform 0.15s;
+}
+
+.template-card:focus-within {
+  z-index: 1;
 }
 
 .template-card:hover {
@@ -147,6 +151,8 @@
   padding: var(--space-4) var(--space-4) 0 var(--space-7);
   overflow: hidden;
   border-bottom: 1px solid var(--line);
+  /* O cartão não corta o conteúdo (o menu de ações sai dele); a capa arredonda sozinha. */
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
   background-color: var(--wa-chat);
   background-image: radial-gradient(
     rgba(84, 101, 111, 0.08) 1px,
@@ -214,7 +220,7 @@
   z-index: 1;
 }
 
-.template-card-menu button {
+.template-card-menu .icon-button {
   background: white;
   box-shadow: 0 1px var(--space-1) rgba(34, 50, 44, 0.12);
 }
