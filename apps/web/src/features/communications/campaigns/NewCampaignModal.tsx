@@ -10,16 +10,32 @@ import {
   type WhatsappCampaignPreviewInput,
   type WhatsappCampaignSegment,
 } from "@crm/contracts";
-import { Check, Images, Search, UsersRound, X } from "lucide-react";
+import {
+  Check,
+  Images,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../../api";
 import { PatientPicker } from "../../../PatientPicker";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { shortDate } from "../../../shared/lib/formatting";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
-import { CampaignFilters } from "./CampaignFilters";
+import { CampaignFiltersModal } from "./CampaignFiltersModal";
 import { useTemplateImages } from "./images";
-import { emptyCampaignSegment } from "./model";
+import {
+  activeFilterCount,
+  emptyCampaignSegment,
+  filterGroupCounts,
+  filterGroupLabels,
+  type CampaignFilterGroup,
+} from "./model";
+import { useSegmentPreview } from "./useSegmentPreview";
 import { WhatsappBubble, WhatsappText } from "./WhatsappBubble";
 
 type Step = 1 | 2 | 3;
@@ -85,20 +101,32 @@ function FilterResults({
       aria-label="Clientes encontrados"
       aria-busy={loading}
     >
-      <header>
-        <strong role="status">
-          {loading
-            ? "Buscando clientes…"
-            : error
-              ? "Não foi possível buscar os clientes"
-              : `${preview!.matched} ${preview!.matched === 1 ? "cliente encontrado" : "clientes encontrados"}`}
-        </strong>
-        {preview && !loading && (
-          <span>
-            {preview.recipients} vão receber
-            {preview.skipped.length > 0 &&
-              ` · ${preview.skipped.length} ${preview.skipped.length === 1 ? "será pulado" : "serão pulados"}`}
-          </span>
+      <header className="campaign-audience-total" role="status">
+        {loading ? (
+          <strong>Buscando clientes…</strong>
+        ) : error ? (
+          <strong>Não foi possível buscar os clientes</strong>
+        ) : (
+          <>
+            <span className="campaign-audience-number">
+              {preview!.recipients}
+            </span>
+            <span>
+              <strong>
+                {preview!.recipients === 1
+                  ? "cliente vai receber esta campanha"
+                  : "clientes vão receber esta campanha"}
+              </strong>
+              <small>
+                {preview!.matched}{" "}
+                {preview!.matched === 1
+                  ? "cliente encontrado"
+                  : "clientes encontrados"}
+                {preview!.skipped.length > 0 &&
+                  ` · ${preview!.skipped.length} ${preview!.skipped.length === 1 ? "será pulado" : "serão pulados"} (sem WhatsApp liberado)`}
+              </small>
+            </span>
+          </>
         )}
       </header>
       {error && <p className="form-error">{error}</p>}
@@ -195,43 +223,17 @@ export function NewCampaignModal({
       ? { mode, patientIds: chosen.map((patient) => patient.id) }
       : { mode, segment };
 
-  // Por filtros: mostra na hora quem entra no segmento (consulta com pequeno atraso).
-  const filterKey =
-    mode === "segment" && step === 2 && template
-      ? JSON.stringify({ templateId: template.id, segment })
-      : "";
-  const [matches, setMatches] = useState<{
-    key: string;
-    preview?: WhatsappCampaignPreview;
-    error?: string;
-  } | null>(null);
-  useEffect(() => {
-    if (!filterKey) return;
-    let active = true;
-    const timer = window.setTimeout(() => {
-      const { templateId: id, segment: filter } = JSON.parse(filterKey) as {
-        templateId: string;
-        segment: WhatsappCampaignSegment;
-      };
-      api
-        .previewWhatsappCampaign({
-          templateId: id,
-          audience: { mode: "segment", segment: filter },
-        })
-        .then(
-          (result) => active && setMatches({ key: filterKey, preview: result }),
-        )
-        .catch(
-          (cause: Error) =>
-            active && setMatches({ key: filterKey, error: cause.message }),
-        );
-    }, 300);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [filterKey]);
-  const currentMatches = matches?.key === filterKey ? matches : null;
+  // Por filtros: mostra na hora quem entra no segmento aplicado.
+  const matches = useSegmentPreview(
+    mode === "segment" && step === 2 && template ? template.id : "",
+    segment,
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const groupCounts = filterGroupCounts(segment);
+  const activeGroups = (
+    Object.keys(filterGroupLabels) as CampaignFilterGroup[]
+  ).filter((group) => groupCounts[group] > 0);
+  const totalFilters = activeFilterCount(segment);
 
   function change(apply: () => void) {
     apply();
@@ -291,6 +293,7 @@ export function NewCampaignModal({
       subtitle="Você envia uma a uma pelo seu WhatsApp; o sistema prepara cada mensagem e guarda o progresso."
       busy={working}
       dirty={dirty}
+      inactive={filtersOpen}
       onClose={onClose}
     >
       <ol className="campaign-steps" aria-label="Etapas">
@@ -395,46 +398,92 @@ export function NewCampaignModal({
                   Busque pelo nome e adicione quantos clientes quiser.
                 </p>
               ) : (
-                <ul
-                  className="campaign-chosen"
-                  aria-label="Clientes escolhidos"
-                >
-                  {chosen.map((patient) => (
-                    <li key={patient.id}>
-                      {patient.fullName}
-                      <button
-                        type="button"
-                        className="text-button"
-                        aria-label={`Tirar ${patient.fullName}`}
-                        onClick={() =>
-                          change(() =>
-                            setChosen((current) =>
-                              current.filter((item) => item.id !== patient.id),
-                            ),
-                          )
-                        }
-                      >
-                        <X size={14} aria-hidden="true" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="campaign-chosen-count" role="status">
+                    <strong>{chosen.length}</strong>{" "}
+                    {chosen.length === 1
+                      ? "cliente escolhido para esta campanha"
+                      : "clientes escolhidos para esta campanha"}
+                  </p>
+                  <ul
+                    className="campaign-chosen"
+                    aria-label="Clientes escolhidos"
+                  >
+                    {chosen.map((patient) => (
+                      <li key={patient.id}>
+                        {patient.fullName}
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-label={`Tirar ${patient.fullName}`}
+                          onClick={() =>
+                            change(() =>
+                              setChosen((current) =>
+                                current.filter(
+                                  (item) => item.id !== patient.id,
+                                ),
+                              ),
+                            )
+                          }
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           ) : (
-            <div className="campaign-filter-layout">
-              <CampaignFilters
-                value={segment}
-                options={filterOptions}
-                patients={patients}
-                onChange={(next) => change(() => setSegment(next))}
-              />
+            <>
+              <div className="campaign-filter-bar">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setFiltersOpen(true)}
+                >
+                  <SlidersHorizontal size={16} aria-hidden="true" />
+                  Filtros
+                  {totalFilters > 0 && (
+                    <span className="campaign-filter-badge">
+                      {totalFilters}
+                    </span>
+                  )}
+                </button>
+                <ul
+                  className="campaign-filter-summary"
+                  aria-label="Filtros ligados"
+                >
+                  {activeGroups.length === 0 ? (
+                    <li>Todos os clientes</li>
+                  ) : (
+                    activeGroups.map((group) => (
+                      <li key={group}>
+                        {filterGroupLabels[group]}
+                        {groupCounts[group] > 1 && ` (${groupCounts[group]})`}
+                      </li>
+                    ))
+                  )}
+                </ul>
+                {totalFilters > 0 && (
+                  <button
+                    type="button"
+                    className="text-button button-sm"
+                    onClick={() =>
+                      change(() => setSegment(emptyCampaignSegment()))
+                    }
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
               <FilterResults
-                loading={!currentMatches}
-                error={currentMatches?.error}
-                preview={currentMatches?.preview}
+                loading={matches.loading}
+                error={matches.error}
+                preview={matches.preview}
               />
-            </div>
+            </>
           )}
         </div>
       )}
@@ -540,6 +589,22 @@ export function NewCampaignModal({
           </button>
         )}
       </div>
+      {filtersOpen &&
+        template &&
+        createPortal(
+          <CampaignFiltersModal
+            templateId={template.id}
+            initial={segment}
+            options={filterOptions}
+            patients={patients}
+            onApply={(next) => {
+              change(() => setSegment(next));
+              setFiltersOpen(false);
+            }}
+            onClose={() => setFiltersOpen(false)}
+          />,
+          document.body,
+        )}
     </Modal>
   );
 }
