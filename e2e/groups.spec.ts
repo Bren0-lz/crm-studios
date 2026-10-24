@@ -1,6 +1,99 @@
 import type { GroupClass, GroupWorkspace, Room } from "@crm/contracts";
 import { test, expect, login, seedPatient } from "./fixtures.js";
 
+test("creates and renames a group without changing its meetings", async ({
+  page,
+  api,
+}, testInfo) => {
+  const services = await (await api.get("/services")).json();
+  const professionals = await (await api.get("/professionals")).json();
+  const rooms: Room[] = await (await api.get("/rooms")).json();
+  const room = rooms.find((item) => item.active && item.capacity >= 2)!;
+  await login(page);
+  await page.goto("/turmas");
+  await page.getByRole("button", { name: "Nova turma" }).click();
+  const create = page.getByRole("dialog", { name: "Nova turma" });
+  await create
+    .getByRole("combobox", { name: "Serviço", exact: true })
+    .selectOption(services[0].id);
+  await create
+    .getByRole("combobox", { name: "Profissional", exact: true })
+    .selectOption(professionals[0].id);
+  await create
+    .getByRole("combobox", { name: "Sala", exact: true })
+    .selectOption(room.id);
+  const name = create.getByRole("textbox", { name: /^Nome da turma/ });
+  await expect(name).toHaveAttribute("placeholder", /Turma A$/);
+  await name.fill("Pilates da manhã");
+  await create.getByRole("button", { name: "Adicionar horário" }).click();
+  await create
+    .getByRole("button", { name: "Criar turma", exact: true })
+    .click();
+  await expect(create).toHaveCount(0);
+  const card = page
+    .locator(".group-card")
+    .filter({ hasText: "Pilates da manhã" });
+  await expect(card).toBeVisible();
+  const from = new Date().toISOString(),
+    to = new Date(Date.now() + 30 * 86400000).toISOString();
+  const read = async (): Promise<GroupWorkspace> =>
+    (await api.get("/groups/workspace", { params: { from, to } })).json();
+  const before = await read();
+  const group = before.groups.find((item) => item.name === "Pilates da manhã")!;
+  expect(
+    before.sessions.filter((item) => item.groupId === group.id).length,
+  ).toBeGreaterThan(0);
+  await card.getByRole("button", { name: "Abrir turma" }).click();
+  const edit = page.getByRole("dialog", {
+    name: "Pilates da manhã",
+    exact: true,
+  });
+  await edit
+    .getByLabel("Nome da turma", { exact: true })
+    .fill("Pilates especial");
+  await edit.getByRole("button", { name: "Salvar nome" }).click();
+  await expect(edit).toHaveCount(0);
+  const renamed = page
+    .locator(".group-card")
+    .filter({ hasText: "Pilates especial" });
+  await expect(renamed).toBeVisible();
+  await page.reload();
+  await renamed.getByRole("button", { name: "Abrir turma" }).click();
+  const persisted = page.getByRole("dialog", {
+    name: "Pilates especial",
+    exact: true,
+  });
+  await expect(
+    persisted.getByLabel("Nome da turma", { exact: true }),
+  ).toHaveValue("Pilates especial");
+  expect(
+    await persisted.evaluate(
+      (element) => element.scrollWidth - element.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath("group-name.png") });
+  const after = await read();
+  expect(after.groups.find((item) => item.id === group.id)).toEqual({
+    ...group,
+    name: "Pilates especial",
+  });
+  expect(after.sessions.filter((item) => item.groupId === group.id)).toEqual(
+    before.sessions
+      .filter((item) => item.groupId === group.id)
+      .map((item) => ({ ...item, groupName: "Pilates especial" })),
+  );
+  const longName = "Turma ".padEnd(120, "A");
+  await persisted.getByLabel("Nome da turma", { exact: true }).fill(longName);
+  await persisted.getByRole("button", { name: "Salvar nome" }).click();
+  const longCard = page.locator(".group-card").filter({ hasText: longName });
+  await expect(longCard).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    ),
+  ).toBeLessThanOrEqual(1);
+});
+
 test("keeps attendance and replacements inside each group's horizontal tabs", async ({
   page,
   api,
@@ -78,9 +171,7 @@ test("keeps attendance and replacements inside each group's horizontal tabs", as
     (new Date().getMonth() + 1);
   for (let index = 0; index < monthsAhead; index += 1)
     await dialog.getByRole("button", { name: "Próximo mês" }).click();
-  await calendar
-    .locator(`[data-date="${sourceDate}"]`)
-    .click();
+  await calendar.locator(`[data-date="${sourceDate}"]`).click();
   await expect(
     dialog
       .locator(".group-calendar-day-list")
@@ -162,9 +253,7 @@ test("keeps attendance and replacements inside each group's horizontal tabs", as
     .getByRole("button", { name: "Abrir turma" })
     .click();
   await dialog.getByRole("tab", { name: "Frequência e reposições" }).click();
-  await expect(
-    dialog.getByRole("table", { name: /^Aulas de / }),
-  ).toBeVisible();
+  await expect(dialog.getByRole("table", { name: /^Aulas de / })).toBeVisible();
   // Em 320 px os dias ficam compactos: as aulas aparecem na lista do dia.
   await expect(dialog.locator(".group-calendar-events").first()).toBeHidden();
   expect(

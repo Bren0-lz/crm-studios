@@ -3,6 +3,7 @@ import type { AppModule, UserRole } from "./index.js";
 
 // This catalog is the authority for operations, their dependencies and legacy migration.
 const additionalPermissions = new Set([
+  "groups.rename",
   "agenda.view_all",
   "agenda.notes",
   "finance.commissions_reconcile",
@@ -42,6 +43,7 @@ const operations = {
   groups: {
     create: "Criar turma",
     update: "Editar turma",
+    rename: "Editar nome da turma",
     enroll: "Matricular cliente",
     cancel_enrollment: "Cancelar matrícula",
     attendance: "Registrar presença na turma",

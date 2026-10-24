@@ -20,6 +20,7 @@ import type {
   ClinicalAppointmentOption,
   GroupClass,
   GroupClassInput,
+  GroupClassRenameInput,
   GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
@@ -170,6 +171,11 @@ export const agendaApi = {
   updateGroupClass: (id: string, input: GroupClassUpdateInput) =>
     request<GroupClass>(`/groups/${id}`, {
       method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  renameGroupClass: (id: string, input: GroupClassRenameInput) =>
+    request<GroupClass>(`/groups/${id}/name`, {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
   createGroupEnrollment: (input: GroupEnrollmentInput) =>

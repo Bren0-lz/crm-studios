@@ -15,6 +15,17 @@ import {
 } from "../permissions.js";
 
 describe("operation permissions", () => {
+  it("grants group renaming independently and only explicitly", () => {
+    expect(effectivePermissions("admin")).toContain("groups.rename");
+    expect(legacyPermissions("user", ["groups"], ["groups"])).not.toContain(
+      "groups.rename",
+    );
+    expect(normalizePermissions(["groups.rename"])).toEqual([]);
+    expect(togglePermissions([], ["groups.rename"], true)).toEqual([
+      "groups.view",
+      "groups.rename",
+    ]);
+  });
   it("keeps agenda notes explicit and dependent on agenda visibility", () => {
     expect(legacyPermissions("user", ["agenda"], ["agenda"])).not.toContain(
       "agenda.notes",
