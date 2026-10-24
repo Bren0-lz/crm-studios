@@ -54,9 +54,7 @@ import type { PatientRecordFilter, PatientSort } from "./types";
 export function PatientsPage() {
   const { can, canEdit, canView, user } = useAuthorization();
   const navigate = useNavigate();
-  const [management, setManagement] = useState<"merge" | "inactive" | null>(
-    null,
-  );
+  const [inactiveOpen, setInactiveOpen] = useState(false);
   const [segments, setSegments] = useState<PatientSegmentSummary[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
@@ -177,12 +175,8 @@ export function PatientsPage() {
     ...(user?.role === "admin"
       ? [
           {
-            label: "Mesclar clientes",
-            onSelect: () => setManagement("merge"),
-          },
-          {
             label: "Inativar antigos",
-            onSelect: () => setManagement("inactive"),
+            onSelect: () => setInactiveOpen(true),
           },
         ]
       : []),
@@ -208,13 +202,11 @@ export function PatientsPage() {
 
   return (
     <>
-      {management && (
+      {inactiveOpen && (
         <PatientManagementModal
-          mode={management}
-          patients={patients}
-          onClose={() => setManagement(null)}
+          onClose={() => setInactiveOpen(false)}
           onSaved={(message) => {
-            setManagement(null);
+            setInactiveOpen(false);
             setNotice(message);
             void load(appliedSearch);
           }}
