@@ -3,14 +3,9 @@ import type {
   PatientTab,
   PatientOption,
 } from "@crm/contracts";
-import { patientFirstName } from "@crm/contracts";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { useToast } from "../../shared/feedback/toast-context";
-import { PatientPicker } from "../../PatientPicker";
-import { Modal } from "../../shared/components/Modal";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -21,44 +16,25 @@ import { PatientTabModal } from "../sales";
 /**
  * Comandas do cliente (QM9). Produtos e estoque ficam na aba "Estoque" do Financeiro;
  * aqui só se abrem e consultam comandas, que vendem os produtos cadastrados lá.
- * Na ficha (`patientId`) o painel já vem aberto; na lista de clientes fica recolhido.
+ * Na ficha (`patient`) o painel já vem aberto; na lista de clientes fica recolhido.
  */
 export function InventoryPanel({
-  patientId,
+  patient,
 }: {
-  patientId?: string | undefined;
+  /** Ficha do cliente: lista só as comandas dele e a nova já vem com ele. */
+  patient?: PatientOption | undefined;
 }) {
+  const patientId = patient?.id;
   const { can } = useAuthorization();
-  const toast = useToast();
   const [opened, setOpened] = useState(Boolean(patientId)),
     [data, setData] = useState<InventoryWorkspace | null>(null),
-    [error, setError] = useState(""),
-    [patients, setPatients] = useState<PatientOption[]>([]);
-  const [opening, setOpening] = useState(false),
-    [selected, setSelected] = useState<PatientTab | null>(null),
-    [busy, setBusy] = useState(false);
-  const [client, setClient] = useState(patientId ?? ""),
-    [notes, setNotes] = useState("");
-  const openingDirty = useFormDirty({ client, notes }, opening);
+    [error, setError] = useState("");
+  // `null`: modal fechado; `{}`: comanda nova; `{ tab }`: comanda existente.
+  const [modal, setModal] = useState<{ tab?: PatientTab } | null>(null);
   async function load() {
     setData(await api.inventoryWorkspace(allBranches));
   }
   const version = useDataVersion("inventory");
-  useEffect(() => {
-    if (!opened) return;
-    let alive = true;
-    api
-      .patientOptions()
-      .then((patientData) => {
-        if (alive) setPatients(patientData);
-      })
-      .catch((cause: Error) => {
-        if (alive) setError(cause.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [opened]);
   // Comandas: recarrega em silêncio quando uma mutação muda o domínio (QC6).
   useEffect(() => {
     if (!opened) return;
@@ -76,22 +52,6 @@ export function InventoryPanel({
     };
   }, [opened, version]);
   if (!can("patients.inventory_view")) return null;
-  async function openTab(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const tab = await api.openPatientTab({ patientId: client, notes });
-      toast.success(`Comanda de ${patientFirstName(tab.patientName)} aberta.`);
-      await load();
-      setOpening(false);
-      setSelected(tab);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   const tabs =
     data?.tabs.filter((tab) => !patientId || tab.patientId === patientId) ?? [];
   const body = (
@@ -103,10 +63,7 @@ export function InventoryPanel({
         <>
           {can("patients.tabs_create") && (
             <div className="page-actions">
-              <button
-                className="primary-button"
-                onClick={() => setOpening(true)}
-              >
+              <button className="primary-button" onClick={() => setModal({})}>
                 Abrir comanda
               </button>
             </div>
@@ -132,54 +89,26 @@ export function InventoryPanel({
                 </span>
                 <button
                   className="secondary-button"
-                  onClick={() => setSelected(tab)}
+                  aria-label={`Ver comanda de ${tab.patientName}`}
+                  onClick={() => setModal({ tab })}
                 >
-                  Abrir comanda
+                  Ver comanda
                 </button>
               </div>
             ))
           )}
         </>
       )}
-      {opening && (
-        <Modal
-          title="Abrir comanda"
-          subtitle="Selecione o cliente para agrupar produtos e serviços."
-          busy={busy}
-          dirty={openingDirty}
-          onClose={() => setOpening(false)}
-        >
-          <form className="clinical-form" onSubmit={openTab}>
-            {error && <ErrorBanner error={error} />}
-            <label>
-              Cliente
-              <PatientPicker
-                patients={patients}
-                value={client}
-                onChange={setClient}
-                required
-              />
-            </label>
-            <label>
-              Observações
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </label>
-            <div className="modal-actions">
-              <button className="primary-button" disabled={busy}>
-                Abrir comanda
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {selected && data && (
+      {modal && data && (
         <PatientTabModal
-          tab={data.tabs.find((item) => item.id === selected.id) ?? selected}
+          tab={
+            modal.tab &&
+            (data.tabs.find((item) => item.id === modal.tab?.id) ?? modal.tab)
+          }
           products={data.products}
-          onClose={() => setSelected(null)}
+          fixedPatient={patient}
+          onOpened={(tab) => setModal({ tab })}
+          onClose={() => setModal(null)}
           onChanged={load}
         />
       )}

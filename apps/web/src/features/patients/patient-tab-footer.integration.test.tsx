@@ -21,7 +21,7 @@ async function openTabModal() {
   const panel = screen.getByRole("region", { name: "Comandas do cliente" });
   await within(panel).findByText("Aberta");
   fireEvent.click(
-    within(panel).getAllByRole("button", { name: "Abrir comanda" }).at(-1)!,
+    within(panel).getByRole("button", { name: /^Ver comanda de/ }),
   );
   const dialog = await screen.findByRole("dialog", {
     name: `Comanda · ${patient.fullName}`,
