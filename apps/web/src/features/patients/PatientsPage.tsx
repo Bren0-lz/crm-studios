@@ -50,12 +50,7 @@ import {
 import { PatientExportModal } from "./PatientExportModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
-import { PatientNextSteps } from "./PatientNextSteps";
-import type {
-  PatientRecordFilter,
-  PatientRegistrationResult,
-  PatientSort,
-} from "./types";
+import type { PatientRecordFilter, PatientSort } from "./types";
 
 export function PatientsPage() {
   const { can, canEdit, canView, user } = useAuthorization();
@@ -72,9 +67,6 @@ export function PatientsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [createdPatient, setCreatedPatient] =
-    useState<PatientRegistrationResult | null>(null);
-  const newPatientButton = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
@@ -240,7 +232,6 @@ export function PatientsPage() {
             )}
             {canManage && can("patients.create") && (
               <button
-                ref={newPatientButton}
                 className="primary-button"
                 onClick={() => {
                   setNotice("");
@@ -611,7 +602,7 @@ export function PatientsPage() {
             setModalOpen(false);
             setEditingPatient(null);
           }}
-          onSaved={(patient, savedNotice, result) => {
+          onSaved={(patient, savedNotice) => {
             setPatients((current) =>
               [
                 ...current.filter((item) => item.id !== patient.id),
@@ -620,18 +611,7 @@ export function PatientsPage() {
             );
             setNotice(savedNotice ?? "");
             setModalOpen(false);
-            if (!editingPatient) setCreatedPatient(result ?? { patient });
             setEditingPatient(null);
-          }}
-        />
-      )}
-      {createdPatient && (
-        <PatientNextSteps
-          patient={createdPatient.patient}
-          initialResult={createdPatient}
-          onClose={() => {
-            setCreatedPatient(null);
-            requestAnimationFrame(() => newPatientButton.current?.focus());
           }}
         />
       )}

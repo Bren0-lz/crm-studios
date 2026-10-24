@@ -296,52 +296,6 @@
 .fixed-patient strong {
   font-size: var(--text-lg);
 }
-.next-step-content {
-  display: grid;
-  gap: var(--space-5);
-}
-.next-step-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.next-step-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow-wrap: anywhere;
-}
-.next-step-card > svg {
-  color: var(--green);
-}
-.next-step-card h3 {
-  margin: 0;
-  font-size: var(--text-lg);
-}
-.next-step-card p {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-md);
-  line-height: 1.5;
-}
-.next-step-card > button {
-  margin-top: auto;
-}
-
-@media (max-width: 700px) {
-  .next-step-options {
-    grid-template-columns: 1fr;
-  }
-  .next-step-card {
-    align-items: stretch;
-  }
-}
-
 .form-fieldset {
   min-width: 0;
   margin: 0;

@@ -13256,8 +13256,8 @@ describe("guided client registration", () => {
       screen.queryByRole("dialog", { name: "Novo cliente" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({
       patient: { fullName: "Marina Costa", phone: "11987654321" },
@@ -13314,8 +13314,8 @@ describe("guided client registration", () => {
       await screen.findByText(/Aula de demonstração agendada para/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -13471,19 +13471,14 @@ describe("guided client registration", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );
-    const nextSteps = await screen.findByRole("dialog", {
-      name: "Cliente cadastrado",
-    });
     expect(
-      screen.getByText(
+      await screen.findByText(
         /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
       ),
     ).toBeInTheDocument();
     expect(
-      within(nextSteps).getByText(
-        "Na lista de espera de Pilates 2 · posição 2",
-      ),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "plan",
       groupId: groups[1]!.id,
