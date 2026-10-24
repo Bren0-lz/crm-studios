@@ -15,7 +15,13 @@ import {
 } from "../agenda/professional-scope.js";
 
 export function registerGroupsRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions } = context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertPermissions,
+    assertServiceAvailable,
+  } = context;
   const professionalScope = agendaProfessionalScope(context);
   app.put(
     "/group-replacements/:id/attendance",
@@ -73,6 +79,10 @@ export function registerGroupsRoutes(context: RouteContext) {
   app.post("/groups", { preHandler: authenticate }, async (request, reply) => {
     const input = groupClassInputSchema.parse(request.body);
     if (input.name !== undefined) assertPermissions(request, "groups.rename");
+    // Só profissionais que atendem o serviço; a sala não entra nesta checagem.
+    await assertServiceAvailable(request.user.clinicId, [
+      { ...input, roomId: "" },
+    ]);
     return reply
       .status(201)
       .send(await repository.createGroupClass(request.user.clinicId, input));
