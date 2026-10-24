@@ -149,6 +149,9 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -234,6 +237,9 @@ describe("appointment client search and creation", () => {
     const client = screen.getByRole("dialog", { name: "Novo cliente" });
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
+    });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
     });
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),

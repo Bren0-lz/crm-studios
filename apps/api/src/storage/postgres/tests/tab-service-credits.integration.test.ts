@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import {
   patientInputSchema,
   patientPlanInputSchema,
@@ -69,6 +70,7 @@ for (const storage of ["memory", "postgres"] as const) {
         const patient = await repository.createPatient(
           clinicId,
           patientInputSchema.parse({
+            cpf: nextTestCpf(),
             fullName: `Comanda ${randomUUID()}`,
             phone: "11988887777",
           }),

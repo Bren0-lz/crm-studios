@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -6,6 +7,7 @@ import { open } from "../../test-support/workflow-ui";
 async function openTabModal() {
   const { repository } = await setupApi();
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Cliente da comanda estável",
     phone: "11988887777",
     tags: [],

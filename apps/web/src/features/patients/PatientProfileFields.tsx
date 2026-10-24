@@ -9,6 +9,11 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { formatCep, lookupCep } from "../../shared/lib/cep";
 
+type PatientProfileInput = Pick<
+  PatientInput,
+  keyof typeof patientProfileLabels
+>;
+
 export function PatientProfileFields({
   form,
   onChange,
@@ -16,10 +21,10 @@ export function PatientProfileFields({
 }: {
   /** O lead não guarda endereço (U19): só é pedido na conversão. */
   withAddress?: boolean;
-  form: PatientInput;
-  onChange: <K extends keyof PatientInput>(
+  form: PatientProfileInput;
+  onChange: <K extends keyof PatientProfileInput>(
     key: K,
-    value: PatientInput[K],
+    value: PatientProfileInput[K],
   ) => void;
 }) {
   const [opened, setOpened] = useState(false);

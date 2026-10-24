@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { clinicalResourceInputSchema } from "@crm/contracts";
 import { buildApp } from "../../app.js";
@@ -215,6 +216,7 @@ describe("clinical resources", () => {
       reason: { code: "TRAINING_SESSION_LIMIT" },
     });
     const other = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Outro cliente",
       phone: "11911112222",
       tags: [],

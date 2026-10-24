@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -10,11 +11,13 @@ const pixel =
 async function clientWithHistory() {
   const { repository } = await setupApi();
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Helena Prontuário",
     phone: "11988887777",
     tags: [],
   });
   await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Zuleica Sem Sessão",
     phone: "11988886666",
     tags: [],

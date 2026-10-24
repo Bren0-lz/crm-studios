@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import type { NotificationsSummary } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
@@ -68,6 +69,7 @@ describe("GET /notifications", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Rita Sino",
           phone: "11955554444",
           birthDate: "1990-06-10",
@@ -81,6 +83,7 @@ describe("GET /notifications", () => {
       url: "/patients",
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: "Bruno Amanhã",
         phone: "11955553333",
         birthDate: "1990-06-11",
@@ -141,18 +144,18 @@ describe("GET /notifications", () => {
 
   it("only returns the groups of the modules the user can see", async () => {
     const { notifications, userWith } = await setup();
-    expect(Object.keys(await notifications(await userWith(["finance"])))).toEqual(
-      ["date", "overdueReceivables"],
-    );
-    expect(Object.keys(await notifications(await userWith(["agenda"])))).toEqual(
-      ["date", "pendingFinalization"],
-    );
+    expect(
+      Object.keys(await notifications(await userWith(["finance"]))),
+    ).toEqual(["date", "overdueReceivables"]);
+    expect(
+      Object.keys(await notifications(await userWith(["agenda"]))),
+    ).toEqual(["date", "pendingFinalization"]);
     expect(
       Object.keys(await notifications(await userWith(["relationship"]))),
     ).toEqual(["date", "birthdaysToday"]);
-    expect(Object.keys(await notifications(await userWith(["patients"])))).toEqual(
-      ["date"],
-    );
+    expect(
+      Object.keys(await notifications(await userWith(["patients"]))),
+    ).toEqual(["date"]);
   });
 
   it("requires login", async () => {

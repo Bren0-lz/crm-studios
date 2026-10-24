@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 
@@ -26,6 +27,7 @@ async function setup() {
     weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
   });
   const patient = await repository.createPatient(clinicId, {
+    cpf: nextTestCpf(),
     fullName: "Bruna Reposição",
     phone: "11988887777",
     tags: [],

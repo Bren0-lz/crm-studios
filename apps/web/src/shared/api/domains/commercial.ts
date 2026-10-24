@@ -73,7 +73,7 @@ export const commercialApi = {
       method: "PATCH",
       body: JSON.stringify({ stage, lostReason }),
     }),
-  convertLead: (id: string, input: LeadConversionInput = {}) =>
+  convertLead: (id: string, input: LeadConversionInput) =>
     request<LeadConversion>(`/leads/${id}/convert`, {
       method: "POST",
       body: JSON.stringify(input),

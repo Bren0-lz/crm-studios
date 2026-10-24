@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { leadInputSchema, patientInputSchema } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -80,6 +81,7 @@ for (const storage of ["memory", "postgres"] as const) {
           await repository.createPatient(
             otherClinicId,
             patientInputSchema.parse({
+              cpf: nextTestCpf(),
               fullName: "Outra Clínica",
               phone: "31966665555",
             }),

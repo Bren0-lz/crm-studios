@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { saoPauloToday } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -180,6 +181,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         color: "#64748b",
       });
       const patient = await repository.createPatient(isolatedClinic, {
+        cpf: nextTestCpf(),
         fullName: marker,
         phone: "11987654321",
         tags: [],
@@ -339,6 +341,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         repository.createPatientWithNextStep(isolatedClinic, ownerId, {
           next: "single",
           patient: {
+            cpf: nextTestCpf(),
             fullName: "Desfeito catálogo",
             phone: "11987654322",
             tags: [],
@@ -879,12 +882,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
     // Realizado só vale a partir de 15 min antes do início (QC3).
     await atInstant(convertedTrial!.startsAt, () =>
-      repository.updateAppointmentStatus(clinicId, convertedTrial!.id, "completed"),
+      repository.updateAppointmentStatus(
+        clinicId,
+        convertedTrial!.id,
+        "completed",
+      ),
     );
     const conversion = await repository.convertLead(
       clinicId,
       ownerId,
       converted.id,
+      { cpf: converted.cpf ?? nextTestCpf() },
     );
     await createPlanAt(
       conversion!.patient.id,
@@ -909,11 +917,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     );
     // Realizado só vale a partir de 15 min antes do início (QC3).
     await atInstant(openEvaluation!.startsAt, () =>
-      repository.updateAppointmentStatus(clinicId, openEvaluation!.id, "completed"),
+      repository.updateAppointmentStatus(
+        clinicId,
+        openEvaluation!.id,
+        "completed",
+      ),
     );
 
     // Cliente que contrata depois de 40 dias: não convertida; cancelada fica de fora.
     const client = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente Contrata Tarde",
       phone: trialConversionPhones[2]!,
       tags: [],

@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -16,6 +17,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
   it("validates questionnaire answers and preserves their published model in viewing and printing", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente do questionário",
       phone: "11988887777",
       tags: [],
@@ -192,6 +194,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
   it("preserves the longitudinal history, validates attachments and exports the client record", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente longitudinal",
       phone: "11988887777",
       tags: [],
@@ -292,6 +295,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     async (kind: ClinicalResourceKind) => {
       const { repository } = await setupApi();
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente de recursos",
         phone: "11988887777",
         tags: [],

@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -19,6 +20,7 @@ describe("manual external operations", () => {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente documento externo",
       phone: "11988887777",
       tags: [],
@@ -101,6 +103,7 @@ describe("manual external operations", () => {
       ),
     ).toBeNull();
     const other = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Outro cliente externo",
       phone: "11955554444",
       tags: [],

@@ -138,7 +138,9 @@ describe("paginated commercial board", () => {
     const won = await create("Lead convertido", "Indicação");
     await create("Lead aberto", "Site");
     await create("Lead de outra clínica", "Outra clínica", otherClinicId);
-    await repository.convertLead(clinicId, actorId, won.id, {});
+    await repository.convertLead(clinicId, actorId, won.id, {
+      cpf: "52998224725",
+    });
 
     const insights = await app.inject({
       method: "GET",

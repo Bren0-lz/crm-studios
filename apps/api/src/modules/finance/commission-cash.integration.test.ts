@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
@@ -9,6 +10,7 @@ describe("commission cash ledger", () => {
     vi.setSystemTime(new Date("2039-06-05T18:00:00Z"));
     const repository = new MemoryClinicRepository(),
       patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente comissão caixa",
         phone: "11977778888",
         tags: [],
@@ -79,6 +81,7 @@ describe("commission cash ledger", () => {
     vi.setSystemTime(new Date("2039-06-05T18:00:00Z"));
     const repository = new MemoryClinicRepository(),
       patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente comissão despesa",
         phone: "11977778888",
         tags: [],

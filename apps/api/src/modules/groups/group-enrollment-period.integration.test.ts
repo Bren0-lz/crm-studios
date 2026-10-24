@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { groupEnrollmentCoversSession } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -21,6 +22,7 @@ async function setup() {
     [service] = await repository.listServices(clinicId);
   const patient = (fullName: string) =>
     repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName,
       phone: "11988887777",
       tags: [],

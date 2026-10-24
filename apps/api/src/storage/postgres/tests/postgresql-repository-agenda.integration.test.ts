@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../test-support/cpf.js";
 import { appointmentStatusSchema, saoPauloToday } from "@crm/contracts";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -357,7 +358,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         day: "2-digit",
       }).format(new Date(value));
     const cleanup = async () => {
-      const patients = "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
+      const patients =
+        "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
       for (const table of [
         "group_attendance",
         "replacement_credits",
@@ -386,6 +388,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       if (clinicDate(first!.startsAt) === clinicDate(second!.startsAt)) return;
       if (group.activeEnrollments >= group.capacity) return;
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "PG período da matrícula",
         phone,
         tags: [],
@@ -454,7 +457,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     const from = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const to = new Date(Date.now() + 60 * 86_400_000).toISOString();
     const cleanup = async () => {
-      const patients = "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
+      const patients =
+        "SELECT id FROM patients WHERE clinic_id=$1 AND phone=$2";
       for (const table of [
         "group_attendance",
         "replacement_credits",
@@ -484,6 +488,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       );
       if (future.length < 2) return;
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "PG reposição futura",
         phone,
         tags: [],

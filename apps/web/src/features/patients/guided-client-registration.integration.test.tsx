@@ -166,6 +166,9 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Marina Costa" },
     });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
     });
