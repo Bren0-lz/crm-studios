@@ -11,7 +11,7 @@ import {
   shortDate,
 } from "../../shared/lib/formatting";
 import { ReportChart } from "./ReportChart";
-import { salesChartPoints } from "./model";
+import { compactMoney, salesChartPoints } from "./model";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
 const money = (value: number) => currency.format(value / 100);
@@ -183,8 +183,16 @@ export function SalesInsights({
               title="Vendas líquidas e recebimentos no período"
               points={chart!.points}
               series={[
-                { label: "Vendas líquidas", format: money },
-                { label: "Recebimentos", format: money },
+                {
+                  label: "Vendas líquidas",
+                  format: money,
+                  axisFormat: compactMoney,
+                },
+                {
+                  label: "Recebimentos",
+                  format: money,
+                  axisFormat: compactMoney,
+                },
               ]}
             />
           )}

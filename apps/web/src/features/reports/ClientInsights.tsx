@@ -11,10 +11,16 @@ import { formatRate } from "./model";
 import { ReportChart, AgeChart } from "./ReportChart";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
-export function ClientInsights({ period }: { period: ReportPeriod }) {
+export function ClientInsights({
+  period,
+  view,
+}: {
+  period: ReportPeriod;
+  view: "retention" | "rankings";
+}) {
   const { can } = useAuthorization();
-  const canRetention = can("reports.retention");
-  const canClients = can("reports.clients");
+  const canRetention = view === "retention" && can("reports.retention");
+  const canClients = view === "rankings" && can("reports.clients");
   const { data: retention, error: retentionError } =
     useReportQuery<RetentionReport>(period, api.retentionReport, canRetention);
   const { data: clients, error: clientsError } = useReportQuery<ClientReport>(

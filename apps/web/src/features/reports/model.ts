@@ -6,6 +6,16 @@ export function formatRate(rate: number | null) {
   return rate === null ? "—" : `${Math.round(rate * 100)}%`;
 }
 
+const compactCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+/** Valor em centavos no formato curto do eixo dos gráficos ("R$ 1,2 mil"). */
+export const compactMoney = (cents: number) =>
+  compactCurrency.format(cents / 100);
+
 export function salesChartPoints(report: SalesPeriodReport): {
   points: ChartPoint[];
   grouping: string;
@@ -50,6 +60,10 @@ export function salesChartPoints(report: SalesPeriodReport): {
         b.from === b.to
           ? formatIsoDate(b.from)
           : `${formatIsoDate(b.from)} a ${formatIsoDate(b.to)}`,
+      axisLabel:
+        grouping === "Mensal"
+          ? formatIsoDate(b.from).slice(3)
+          : formatIsoDate(b.from).slice(0, 5),
       values: b.values,
     })),
   };

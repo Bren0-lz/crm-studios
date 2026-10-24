@@ -1,4 +1,4 @@
-﻿import { useId, useState, type KeyboardEvent } from "react";
+﻿import { useState } from "react";
 import { BarChart3, CalendarDays, Users, Wallet } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ClientDetailsSection } from "./ClientDetailsSection";
@@ -9,13 +9,12 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { localIsoDate, formatIsoDate } from "../../shared/lib/formatting";
 import { ReportsDetails } from "./ReportsDetails";
+import { ReportTabs } from "./ReportTabs";
 import { SalesInsights } from "./SalesInsights";
 
-type Tab = "overview" | "clients" | "dre";
 export function ReportsPage() {
   const { can, canView } = useAuthorization();
   const [params] = useSearchParams();
-  const id = useId();
   const today = localIsoDate();
   const [draft, setDraft] = useState({
     from: `${today.slice(0, 7)}-01`,
@@ -46,38 +45,33 @@ export function ReportsPage() {
       visible: can("reports.dre"),
     },
   ].filter((tab) => tab.visible);
-  const initial =
+  const clientTabs = [
+    {
+      key: "retention" as const,
+      label: "Retenção",
+      visible: can("reports.retention"),
+    },
+    {
+      key: "rankings" as const,
+      label: "Ranking e faixa etária",
+      visible: can("reports.clients"),
+    },
+    {
+      key: "no-return" as const,
+      label: "Sem retorno",
+      visible: can("reports.sales"),
+    },
+    {
+      key: "details" as const,
+      label: "Consulta de clientes",
+      visible: can("reports.clients"),
+    },
+  ].filter((tab) => tab.visible);
+  const linkedNoReturn =
     params.get("secao") === "sem-retorno" &&
-    tabs.some((tab) => tab.key === "clients")
-      ? "clients"
-      : (tabs[0]?.key ?? "overview");
-  const [active, setActive] = useState<Tab>(initial);
-  const [visited, setVisited] = useState<Tab[]>([initial]);
-  const selected = tabs.some((tab) => tab.key === active)
-    ? active
-    : tabs[0]?.key;
-  function select(tab: Tab) {
-    setActive(tab);
-    setVisited((current) =>
-      current.includes(tab) ? current : [...current, tab],
-    );
-  }
-  function keyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const next =
-      event.key === "ArrowRight"
-        ? (index + 1) % tabs.length
-        : event.key === "ArrowLeft"
-          ? (index + tabs.length - 1) % tabs.length
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? tabs.length - 1
-              : null;
-    if (next === null) return;
-    event.preventDefault();
-    select(tabs[next]!.key);
-    document.getElementById(`${id}-${tabs[next]!.key}-tab`)?.focus();
-  }
+    tabs.some((tab) => tab.key === "clients");
+  const noReturn = linkedNoReturn && can("reports.sales");
+  const initial = linkedNoReturn ? ("clients" as const) : undefined;
   return (
     <div className="reports-page">
       <PageHeader
@@ -141,68 +135,40 @@ export function ReportsPage() {
               </button>
             </form>
           </section>
-          <div
-            className="settings-tabs reports-tabs"
-            role="tablist"
-            aria-label="Seções dos relatórios"
+          <ReportTabs
+            label="Seções dos relatórios"
+            tabs={tabs}
+            initial={initial}
           >
-            {tabs.map((tab, index) => (
-              <button
-                key={tab.key}
-                id={`${id}-${tab.key}-tab`}
-                type="button"
-                role="tab"
-                className="text-button settings-tab"
-                aria-selected={selected === tab.key}
-                aria-controls={`${id}-${tab.key}-panel`}
-                tabIndex={selected === tab.key ? 0 : -1}
-                onClick={() => select(tab.key)}
-                onKeyDown={(event) => keyboard(event, index)}
-              >
-                <tab.icon size={18} aria-hidden="true" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {tabs.map((tab) => (
-            <div
-              key={tab.key}
-              id={`${id}-${tab.key}-panel`}
-              role="tabpanel"
-              aria-labelledby={`${id}-${tab.key}-tab`}
-              hidden={selected !== tab.key}
-              className="reports-tab-panel"
-            >
-              {(visited.includes(tab.key) || selected === tab.key) &&
-                (tab.key === "overview" ? (
-                  <>
-                    {can("reports.sales") && (
-                      <SalesInsights period={period} mode="overview" />
-                    )}
-                    <ReportsDetails period={period} />
-                  </>
-                ) : tab.key === "clients" ? (
-                  <>
-                    <ClientInsights period={period} />
-                    {can("reports.sales") && (
+            {(tab) =>
+              tab === "overview" ? (
+                <ReportsDetails period={period} />
+              ) : tab === "clients" ? (
+                <ReportTabs
+                  sub
+                  label="Relatórios de clientes"
+                  tabs={clientTabs}
+                  initial={noReturn ? "no-return" : undefined}
+                >
+                  {(view) =>
+                    view === "no-return" ? (
                       <SalesInsights
                         period={period}
                         mode="clients"
-                        focusNoReturn={
-                          selected === "clients" &&
-                          params.get("secao") === "sem-retorno"
-                        }
+                        focusNoReturn={noReturn}
                       />
-                    )}
-                    {can("reports.clients") && (
+                    ) : view === "details" ? (
                       <ClientDetailsSection period={period} />
-                    )}
-                  </>
-                ) : (
-                  <DreSection period={period} />
-                ))}
-            </div>
-          ))}
+                    ) : (
+                      <ClientInsights period={period} view={view} />
+                    )
+                  }
+                </ReportTabs>
+              ) : (
+                <DreSection period={period} />
+              )
+            }
+          </ReportTabs>
         </>
       )}
     </div>
