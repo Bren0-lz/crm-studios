@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MonitorX } from "lucide-react";
 import { api } from "../../api";
 import { Modal } from "../components/Modal";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -21,8 +22,14 @@ export function RevokeSessionsButton({ onLogout }: { onLogout: () => void }) {
   }
   return (
     <>
-      <button className="text-button" onClick={() => setOpen(true)}>
-        Sair de todos os dispositivos
+      <button
+        className="text-button revoke-sessions-button"
+        onClick={() => setOpen(true)}
+        aria-label="Sair de todos os dispositivos"
+        title="Sair de todos os dispositivos"
+      >
+        <MonitorX size={19} aria-hidden="true" />
+        <span>Sair de todos os dispositivos</span>
       </button>
       {open && (
         <Modal
