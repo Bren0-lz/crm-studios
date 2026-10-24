@@ -1,7 +1,7 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { UserSummary } from "@crm/contracts";
-import { LogOut, Menu, X } from "lucide-react";
+import { LogOut } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -30,7 +30,6 @@ export function Shell({
   onLogout: () => void;
   children: ReactNode;
 }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
   // Trocar de filial remonta a página aberta: todas as telas recarregam na filial nova.
   const [branchKey, setBranchKey] = useState(() => getStoredBranchId() ?? "");
   useEffect(() => {
@@ -78,19 +77,9 @@ export function Shell({
 
   return (
     <div className="app-shell">
-      <aside
-        id="main-sidebar"
-        className={`sidebar ${mobileOpen ? "open" : ""}`}
-      >
+      <aside id="main-sidebar" className="sidebar">
         <div className="sidebar-head">
-          <Logo />
-          <button
-            className="icon-button sidebar-close"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Fechar menu"
-          >
-            <X size={20} />
-          </button>
+          <Logo compactMark />
         </div>
         <nav className="main-nav" aria-label="Navegação principal">
           {visibleGroups.map((group) => (
@@ -106,8 +95,13 @@ export function Shell({
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return item.disabled ? (
-                  <span className="nav-item disabled" key={item.to}>
-                    <Icon size={19} />
+                  <span
+                    className="nav-item disabled"
+                    key={item.to}
+                    title={`${item.label} (em breve)`}
+                    aria-label={`${item.label} (em breve)`}
+                  >
+                    <Icon size={19} aria-hidden="true" />
                     <span>{item.label}</span>
                     <small>em breve</small>
                   </span>
@@ -119,8 +113,9 @@ export function Shell({
                     to={item.to}
                     end={item.to === "/"}
                     key={item.to}
+                    title={item.label}
+                    aria-label={item.label}
                     onClick={(event) => {
-                      setMobileOpen(false);
                       for (const guard of guards.current) {
                         if (guard(item.to)) {
                           event.preventDefault();
@@ -129,7 +124,7 @@ export function Shell({
                       }
                     }}
                   >
-                    <Icon size={19} />
+                    <Icon size={19} aria-hidden="true" />
                     <span>{item.label}</span>
                   </NavLink>
                 );
@@ -138,35 +133,26 @@ export function Shell({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button className="user-card" onClick={onLogout} title="Sair">
-            <span className="avatar">{initials(user.fullName)}</span>
+          <button
+            className="user-card"
+            onClick={onLogout}
+            title="Sair"
+            aria-label={`Sair: ${user.fullName}`}
+          >
+            <span className="avatar" aria-hidden="true">
+              {initials(user.fullName)}
+            </span>
             <span className="user-copy">
               <strong>{user.fullName}</strong>
               <small>{user.jobTitle ?? roleLabels[user.role]}</small>
             </span>
-            <LogOut size={17} />
+            <LogOut size={17} aria-hidden="true" />
           </button>
           <RevokeSessionsButton onLogout={onLogout} />
         </div>
       </aside>
-      {mobileOpen && (
-        <button
-          className="sidebar-scrim"
-          onClick={() => setMobileOpen(false)}
-          aria-label="Fechar menu"
-        />
-      )}
       <section className="app-main">
         <header className="topbar" role="banner">
-          <button
-            className="icon-button menu-button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Abrir menu"
-            aria-controls="main-sidebar"
-            aria-expanded={mobileOpen}
-          >
-            <Menu size={21} />
-          </button>
           <div>
             <span className="clinic-label">Studios Aryana</span>
             <span className="environment-dot">Demonstração</span>

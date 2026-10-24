@@ -10,8 +10,6 @@ test("login validates credentials and logout ends the session", async ({
   await expect(page.locator(".form-error")).toContainText(/inválid|incorret/i);
   await login(page);
   const logout = page.getByTitle("Sair", { exact: true });
-  const menu = page.getByRole("button", { name: "Abrir menu", exact: true });
-  if (await menu.isVisible()) await menu.click();
   await logout.click();
   await expect(page).toHaveURL(/\/login$/);
   expect(
