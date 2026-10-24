@@ -4,9 +4,10 @@ import type {
   Product,
   ProductInput,
   ProductUpdateInput,
+  StockMovement,
   StockMovementInput,
 } from "@crm/contracts";
-import { Plus, ShoppingCart } from "lucide-react";
+import { ChevronDown, Pencil, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
@@ -19,7 +20,7 @@ import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
-import { currency } from "../../shared/lib/formatting";
+import { currency, shortDate } from "../../shared/lib/formatting";
 
 const emptyProduct: ProductInput = {
   name: "",
@@ -36,6 +37,22 @@ const emptyAdjustment: StockMovementInput = {
   quantity: 1,
   notes: "",
 };
+
+const movementLabels: Record<StockMovement["kind"], string> = {
+  initial_stock: "Estoque inicial",
+  purchase: "Compra / entrada",
+  adjustment_in: "Ajuste de entrada",
+  adjustment_out: "Ajuste de saída",
+  loss: "Perda",
+  sale: "Venda",
+  sale_reversal: "Estorno de venda",
+};
+
+function productStatus(product: Product) {
+  if (!product.active) return { label: "Inativo", className: "" };
+  if (product.lowStock) return { label: "Estoque baixo", className: "paused" };
+  return { label: "Ativo", className: "active" };
+}
 
 /** Aba "Estoque" do Financeiro (QM9): produtos, saldo e ajustes de estoque. */
 export function InventorySection() {
@@ -171,59 +188,160 @@ export function InventorySection() {
             </div>
           )}
         </div>
-        <div className="inventory-body">
-          {error && <ErrorBanner error={error} />}
-          {!data ? (
-            !error && <LoadingBlock />
-          ) : !data.products.length ? (
+        {error && (
+          <div className="inventory-body">
+            <ErrorBanner error={error} />
+          </div>
+        )}
+        {!data ? (
+          !error && (
+            <div className="inventory-body">
+              <LoadingBlock />
+            </div>
+          )
+        ) : !data.products.length ? (
+          <div className="inventory-body">
             <EmptyState
               title="Nenhum produto"
               copy="Cadastre os produtos vendidos pela clínica."
             />
-          ) : (
-            data.products.map((product) => (
-              <div className="table-row" key={product.id}>
-                <strong>{product.name}</strong>
-                <span>
-                  {product.currentStock} {product.unit}
-                  {product.lowStock ? " · estoque baixo" : ""}
-                  {!product.active ? " · inativo" : ""}
-                </span>
-                <span className="numeric-value">
-                  {currency.format(product.salePriceInCents / 100)}
-                </span>
-                {can("patients.products_update") && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => edit(product)}
-                  >
-                    Editar
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="dre-table inventory-table">
+              <caption className="sr-only">Produtos em estoque</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Produto</th>
+                  <th scope="col">Situação</th>
+                  <th scope="col" className="numeric-value">
+                    Estoque
+                  </th>
+                  <th scope="col" className="numeric-value">
+                    Mínimo
+                  </th>
+                  <th scope="col" className="numeric-value">
+                    Custo
+                  </th>
+                  <th scope="col" className="numeric-value">
+                    Preço de venda
+                  </th>
+                  <th scope="col" className="numeric-value">
+                    <span className="sr-only">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.products.map((product) => (
+                  <tr key={product.id}>
+                    <th scope="row">
+                      <span className="inventory-product">
+                        <strong>{product.name}</strong>
+                        <small>{product.sku}</small>
+                      </span>
+                    </th>
+                    <td>
+                      <span
+                        className={`status-pill ${productStatus(product).className}`}
+                      >
+                        {productStatus(product).label}
+                      </span>
+                    </td>
+                    <td className="numeric-value">
+                      {product.currentStock} {product.unit}
+                    </td>
+                    <td className="numeric-value">
+                      {product.minimumStock} {product.unit}
+                    </td>
+                    <td className="numeric-value">
+                      {currency.format(product.costInCents / 100)}
+                    </td>
+                    <td className="numeric-value">
+                      {currency.format(product.salePriceInCents / 100)}
+                    </td>
+                    <td className="numeric-value">
+                      {can("patients.products_update") && (
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          aria-label={`Editar ${product.name}`}
+                          onClick={() => edit(product)}
+                        >
+                          <Pencil size={15} aria-hidden="true" />
+                          Editar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
       {data && (
-        <section className="panel">
-          <details>
-            <summary className="panel-head">Histórico de estoque</summary>
-            <div className="inventory-body">
-              {!data.movements.length ? (
+        <section className="panel inventory-history-panel">
+          <details className="inventory-history">
+            <summary className="panel-head">
+              <div>
+                <h2>Histórico de estoque</h2>
+                <p className="panel-context">
+                  {data.movements.length === 1
+                    ? "1 movimentação"
+                    : `${data.movements.length} movimentações`}
+                </p>
+              </div>
+              <ChevronDown size={18} aria-hidden="true" />
+            </summary>
+            {!data.movements.length ? (
+              <div className="inventory-body">
                 <EmptyState
                   title="Sem histórico"
                   copy="Entradas, saídas e ajustes de estoque aparecem aqui."
                 />
-              ) : (
-                data.movements.map((item) => (
-                  <p key={item.id}>
-                    {item.productName} · {item.quantity > 0 ? "+" : ""}
-                    {item.quantity} · saldo {item.balanceAfter} · {item.notes}
-                  </p>
-                ))
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="dre-table inventory-table">
+                  <caption className="sr-only">
+                    Movimentações de estoque
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Data</th>
+                      <th scope="col">Produto</th>
+                      <th scope="col">Tipo</th>
+                      <th scope="col" className="numeric-value">
+                        Quantidade
+                      </th>
+                      <th scope="col" className="numeric-value">
+                        Saldo
+                      </th>
+                      <th scope="col">Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.movements.map((item) => (
+                      <tr key={item.id}>
+                        <td className="inventory-muted">
+                          {shortDate.format(new Date(item.createdAt))}
+                        </td>
+                        <th scope="row">{item.productName}</th>
+                        <td>{movementLabels[item.kind]}</td>
+                        <td
+                          className={`numeric-value ${item.quantity > 0 ? "inventory-in" : "inventory-out"}`}
+                        >
+                          {item.quantity > 0 ? "+" : ""}
+                          {item.quantity}
+                        </td>
+                        <td className="numeric-value">{item.balanceAfter}</td>
+                        <td className="inventory-notes">{item.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </details>
         </section>
       )}

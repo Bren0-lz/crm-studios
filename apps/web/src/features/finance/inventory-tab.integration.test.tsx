@@ -67,16 +67,22 @@ describe("aba Estoque do Financeiro (QM9)", () => {
         (item) => item.id === product.id,
       )?.currentStock,
     ).toBe(12);
-    await within(panel).findByText(/^12 un/);
+    await within(panel).findByText("12 un");
     const history = expand("Histórico de estoque");
-    expect(
-      within(history).getByText(/Faixa terapêutica · \+2 · saldo 12/),
-    ).toBeInTheDocument();
+    const movement = within(history)
+      .getByText("Compra de reposição")
+      .closest<HTMLElement>("tr")!;
+    expect(within(movement).getByText("Faixa terapêutica")).toBeInTheDocument();
+    expect(within(movement).getByText("+2")).toBeInTheDocument();
+    expect(within(movement).getByText("12")).toBeInTheDocument();
 
     const row = within(panel)
       .getByText("Faixa terapêutica", { exact: true })
-      .closest<HTMLElement>(".table-row")!;
-    fireEvent.click(within(row).getByRole("button", { name: "Editar" }));
+      .closest<HTMLElement>("tr")!;
+    expect(within(row).getByText("Ativo")).toBeInTheDocument();
+    fireEvent.click(
+      within(row).getByRole("button", { name: "Editar Faixa terapêutica" }),
+    );
     dialog = screen.getByRole("dialog", { name: "Editar produto" });
     change("Unidade", "kit", dialog);
     fireEvent.click(within(dialog).getByLabelText("Ativo"));
@@ -87,7 +93,7 @@ describe("aba Estoque do Financeiro (QM9)", () => {
       ),
     ).toMatchObject({ unit: "kit", active: false, currentStock: 12 });
     await waitFor(() =>
-      expect(within(panel).getByText(/inativo/)).toBeInTheDocument(),
+      expect(within(row).getByText("Inativo")).toBeInTheDocument(),
     );
   });
 
