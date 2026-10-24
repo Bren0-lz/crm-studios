@@ -97,6 +97,54 @@ describe("individual document preparation", () => {
       "Ajuste não salvo.",
     );
   });
+  it("returns to earlier steps by clicking the step numbers", async () => {
+    const { repository } = await setupApi();
+    installDocumentBrowserMocks();
+    const patient = await repository.createPatient(
+      clinicId,
+      patientInputSchema.parse({
+        fullName: "Cliente das etapas",
+        phone: "11999991234",
+      }),
+    );
+    await repository.createDocumentTemplate(clinicId, {
+      name: "Modelo das etapas",
+      kind: "contract",
+      body: "Contrato do cliente {{paciente_nome}}. Condições combinadas.",
+    });
+    open(`/contratos?patientId=${patient.id}`);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo documento" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Voltar para a etapa/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preparar conteúdo" }));
+    const body = await screen.findByRole("textbox", { name: "Conteúdo" });
+    const changed = "Contrato ajustado antes de voltar pelas etapas do modal.";
+    setDocumentText(body, changed);
+    fireEvent.click(screen.getByRole("button", { name: "Conferir PDF" }));
+    await screen.findByRole("button", { name: "Criar rascunho" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Voltar para a etapa Conteúdo" }),
+    );
+    expect(screen.getByRole("textbox", { name: "Conteúdo" })).toHaveTextContent(
+      changed,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Voltar para a etapa Revisão" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Conferir PDF" }));
+    await screen.findByRole("button", { name: "Criar rascunho" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Voltar para a etapa Dados" }),
+    );
+    expect(screen.getByLabelText("Modelo ativo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preparar conteúdo" }));
+    expect(
+      await screen.findByRole("textbox", { name: "Conteúdo" }),
+    ).toHaveTextContent(changed);
+  });
   it("confirms replacement when selected data changes after individual editing", async () => {
     const { repository } = await setupApi();
     installDocumentBrowserMocks();

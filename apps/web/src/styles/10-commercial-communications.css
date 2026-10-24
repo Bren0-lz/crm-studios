@@ -1239,7 +1239,11 @@
   color: var(--green-2);
   font-weight: 600;
 }
-.document-steps li > span {
+.document-steps .text-button {
+  font-weight: inherit;
+}
+.document-steps li > span,
+.document-steps li > button > span {
   display: inline-grid;
   place-items: center;
   width: var(--space-6);
