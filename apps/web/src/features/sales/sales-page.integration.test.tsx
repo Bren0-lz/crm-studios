@@ -182,6 +182,184 @@ describe("página Vendas de produtos", () => {
     expect(within(first!).getByText("Creme relaxante")).toBeInTheDocument();
   });
 
+  it("vende produto com tamanho e baixa o estoque do tamanho escolhido", async () => {
+    const { repository, patient } = await seed();
+    const shirt = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta",
+      sku: "CAM",
+      unit: "un",
+      costInCents: 2_000,
+      salePriceInCents: 5_000,
+      initialStock: 0,
+      minimumStock: 0,
+      sizes: ["p", "m", "g"],
+      initialSizeStock: [
+        { size: "p", quantity: 3 },
+        { size: "m", quantity: 2 },
+      ],
+    });
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    const submit = within(panel).getByRole("button", {
+      name: "Registrar venda",
+    });
+    await choosePatient(patient.fullName, panel);
+    expect(within(panel).queryByLabelText("Tamanho 1")).toBeNull();
+    fireEvent.change(within(panel).getByLabelText("Produto 1"), {
+      target: { value: shirt.id },
+    });
+    expect(submit).toHaveAccessibleDescription("Falta: tamanho.");
+    const size = within(panel).getByLabelText("Tamanho 1");
+    expect(
+      within(size).getByRole("option", { name: "G · sem estoque" }),
+    ).toBeDisabled();
+    fireEvent.change(size, { target: { value: "m" } });
+    fireEvent.change(within(panel).getByLabelText("Quantidade 1"), {
+      target: { value: "3" },
+    });
+    expect(submit).toHaveAccessibleDescription(
+      "Falta: quantidade dentro do estoque.",
+    );
+    fireEvent.change(within(panel).getByLabelText("Quantidade 1"), {
+      target: { value: "2" },
+    });
+    // O mesmo produto pode entrar de novo em outro tamanho.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Adicionar produto" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Produto 2"), {
+      target: { value: shirt.id },
+    });
+    expect(
+      within(within(panel).getByLabelText("Tamanho 2")).getByRole("option", {
+        name: "M · 2 un",
+      }),
+    ).toBeDisabled();
+    fireEvent.change(within(panel).getByLabelText("Tamanho 2"), {
+      target: { value: "p" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText(/Venda de R\$\s150,00 registrada para Bianca\./),
+    ).toBeInTheDocument();
+    const inventory = await repository.getInventoryWorkspace(clinicId);
+    const sale = inventory.tabs.find((tab) => tab.patientId === patient.id)!;
+    expect(sale.items.map((item) => [item.size, item.quantity]).sort()).toEqual(
+      [
+        ["m", 2],
+        ["p", 1],
+      ],
+    );
+    expect(
+      inventory.products.find((item) => item.id === shirt.id)?.sizeStock,
+    ).toEqual([
+      { size: "p", currentStock: 2 },
+      { size: "m", currentStock: 0 },
+      { size: "g", currentStock: 0 },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vendas realizadas" }));
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    expect(within(history).getByText(/2× Camiseta · M/)).toBeInTheDocument();
+  });
+
+  it("mostra os itens mais vendidos por tipo de item e por tamanho", async () => {
+    const { repository, patient } = await seed();
+    const category = async (name: string) =>
+      (await repository.saveClinicCatalog(
+        clinicId,
+        actorId,
+        "product_category",
+        { name, active: true },
+      ))!;
+    const clothes = await category("Roupas");
+    const care = await category("Cuidados");
+    const product = (
+      name: string,
+      categoryId: string,
+      salePriceInCents: number,
+      sizes: ("p" | "m")[],
+    ) =>
+      repository.createProduct(clinicId, actorId, {
+        name,
+        sku: name.toUpperCase(),
+        unit: "un",
+        costInCents: 1_000,
+        salePriceInCents,
+        initialStock: sizes.length ? 0 : 10,
+        minimumStock: 0,
+        categoryId,
+        sizes,
+        initialSizeStock: sizes.map((size) => ({ size, quantity: 10 })),
+      });
+    const shirt = await product("Camiseta", clothes.id, 5_000, ["p", "m"]);
+    const legging = await product("Legging", clothes.id, 9_000, ["m"]);
+    const balm = await product("Bálsamo", care.id, 3_000, []);
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [
+        { productId: shirt.id, size: "p", quantity: 3 },
+        { productId: shirt.id, size: "m", quantity: 2 },
+        { productId: legging.id, size: "m", quantity: 2 },
+        { productId: balm.id, quantity: 1 },
+      ],
+      settlement: "receivable",
+      dueDate: "2099-01-10",
+    });
+    open("/vendas?aba=resumo");
+    const ranking = await screen.findByRole("region", {
+      name: "Mais vendidos por tipo e tamanho",
+    });
+    const rows = async () =>
+      (await within(ranking).findAllByRole("row")).slice(1).map((row) =>
+        within(row)
+          .getAllByRole("cell")
+          .concat(within(row).queryAllByRole("rowheader"))
+          .map((cell) => cell.textContent)
+          .filter((text) => !/R\$/.test(text ?? "")),
+      );
+    expect(await rows()).toEqual([
+      ["1", "Roupas", "P", "3", "Camiseta"],
+      ["2", "Roupas", "M", "2", "Legging"],
+      ["3", "Roupas", "M", "2", "Camiseta"],
+      ["4", "Cuidados", "Sem tamanho", "1", "Bálsamo"],
+    ]);
+
+    fireEvent.change(within(ranking).getByLabelText("Tamanho"), {
+      target: { value: "m" },
+    });
+    expect((await rows()).map((row) => row[4])).toEqual([
+      "Legging",
+      "Camiseta",
+    ]);
+    fireEvent.change(within(ranking).getByLabelText("Tamanho"), {
+      target: { value: "" },
+    });
+
+    fireEvent.change(within(ranking).getByLabelText("Ver por"), {
+      target: { value: "type" },
+    });
+    expect(await rows()).toEqual([
+      ["1", "7", "Roupas"],
+      ["2", "1", "Cuidados"],
+    ]);
+    fireEvent.change(within(ranking).getByLabelText("Ver por"), {
+      target: { value: "size" },
+    });
+    expect(await rows()).toEqual([
+      ["1", "4", "M"],
+      ["2", "3", "P"],
+      ["3", "1", "Sem tamanho"],
+    ]);
+    fireEvent.change(within(ranking).getByLabelText("Tipo de item"), {
+      target: { value: care.id },
+    });
+    expect(await rows()).toEqual([["1", "1", "Sem tamanho"]]);
+  });
+
   it("não oferece produto sem estoque e conta o que está reservado", async () => {
     const { repository, patient, cream, oil } = await seed();
     await sell(repository, patient.id, oil.id, 2);

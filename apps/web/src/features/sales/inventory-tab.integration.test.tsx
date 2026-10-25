@@ -140,15 +140,47 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     fireEvent.click(within(sizes).getByLabelText("G"));
     fireEvent.click(within(sizes).getByLabelText("Baby look M"));
     fireEvent.click(within(sizes).getByLabelText("P"));
+    expect(within(dialog).queryByLabelText("Estoque inicial")).toBeNull();
+    change("Estoque inicial P", "2", dialog);
+    change("Estoque inicial Baby look M", "1", dialog);
     await save("Novo produto", "Salvar produto");
     const product = (
       await repository.getInventoryWorkspace(clinicId)
     ).products.find((item) => item.sku === "CAM")!;
-    expect(product.sizes).toEqual(["p", "g", "baby_look_m"]);
+    expect(product).toMatchObject({
+      sizes: ["p", "g", "baby_look_m"],
+      currentStock: 3,
+    });
     expect(
-      await within(panel).findByText("Tamanhos: P, G, Baby look M"),
+      await within(panel).findByText("P: 2 · G: 0 · Baby look M: 1"),
     ).toBeInTheDocument();
 
+    // Ajuste de estoque pede o tamanho do produto.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Ajustar estoque" }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Ajustar estoque" });
+    expect(within(dialog).queryByLabelText("Tamanho")).toBeNull();
+    change("Produto", product.id, dialog);
+    expect(
+      within(dialog).getByRole("option", { name: "G · 0 un" }),
+    ).toBeInTheDocument();
+    change("Tamanho", "g", dialog);
+    change("Quantidade", "4", dialog);
+    change("Motivo", "Compra de camisetas", dialog);
+    await save("Ajustar estoque", "Salvar ajuste");
+    expect(
+      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
+    ).toBeInTheDocument();
+    const history = expand("Histórico de estoque");
+    const movement = within(history)
+      .getByText("Compra de camisetas")
+      .closest<HTMLElement>("tr")!;
+    expect(
+      within(movement).getByText("Camiseta do estúdio · G"),
+    ).toBeInTheDocument();
+
+    // Sem tamanhos, o saldo dos tamanhos antigos continua visível até ser baixado.
     fireEvent.click(
       within(panel).getByRole("button", { name: "Editar Camiseta do estúdio" }),
     );
@@ -162,11 +194,11 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     expect(
       (await repository.getInventoryWorkspace(clinicId)).products.find(
         (item) => item.id === product.id,
-      )?.sizes,
-    ).toEqual([]);
-    await waitFor(() =>
-      expect(within(panel).queryByText(/^Tamanhos:/)).not.toBeInTheDocument(),
-    );
+      ),
+    ).toMatchObject({ sizes: [], currentStock: 7 });
+    expect(
+      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
+    ).toBeInTheDocument();
   });
 
   it("tira o Estoque do Financeiro, mesmo com permissão de consultar", async () => {

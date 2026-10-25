@@ -7,6 +7,7 @@ import {
   type SalesPeriodReport,
   type TeamProductionSources,
   allocatePlanRevenue,
+  productItemName,
 } from "@crm/contracts";
 import { commissionAmount } from "../../modules/finance/commission-calculation.js";
 import { competencesBetween } from "../../modules/reports/team-finance.js";
@@ -77,7 +78,10 @@ export function createReportsRepository(
           sourceType: item.sourceType,
           patientId: tab.patientId,
           patientName: tab.patientName,
-          itemName: item.productName,
+          itemName:
+            item.sourceType === "product"
+              ? productItemName(item)
+              : item.productName,
           quantity: item.quantity,
           ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
         };

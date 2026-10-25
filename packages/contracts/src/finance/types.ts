@@ -1,6 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
-import type { ProductSize } from "./model.js";
+import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
@@ -157,9 +157,14 @@ export interface ReceivedPayment {
   paymentMethod?: PaymentMethod;
 }
 
-export interface Product extends Omit<ProductInput, "initialStock" | "sizes"> {
+export interface Product extends Omit<
+  ProductInput,
+  "initialStock" | "initialSizeStock" | "sizes"
+> {
   /** Vazio = produto sem distinção por tamanhos. */
   sizes: ProductSize[];
+  /** Saldo por tamanho (ver `productSizeStock`); `currentStock` é a soma de todas as chaves. */
+  sizeStock: ProductSizeStock[];
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
   id: string;
@@ -184,7 +189,10 @@ export interface StockMovement {
     | "loss"
     | "sale"
     | "sale_reversal";
+  /** Ausente = estoque sem tamanho. */
+  size?: ProductSize;
   quantity: number;
+  /** Saldo da chave movimentada (do tamanho, quando houver) logo após o movimento. */
   balanceAfter: number;
   notes: string;
   patientTabId?: string;
@@ -195,6 +203,7 @@ export interface PatientTabItem {
   id: string;
   productId: string;
   productName: string;
+  size?: ProductSize;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
