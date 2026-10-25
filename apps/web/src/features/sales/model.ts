@@ -1,18 +1,22 @@
 import type { PatientTab } from "@crm/contracts";
 import { localIsoDate } from "../../shared/lib/formatting";
 
-export type SalesTab = "new" | "history" | "summary";
+export type SalesTab = "new" | "history" | "summary" | "inventory" | "catalogs";
 
 export const salesTabLabels: Record<SalesTab, string> = {
   new: "Nova venda",
   history: "Vendas realizadas",
   summary: "Resumo",
+  inventory: "Estoque",
+  catalogs: "Categorias e marcas",
 };
 
 const tabKeys: Record<string, SalesTab> = {
   "nova-venda": "new",
   vendas: "history",
   resumo: "summary",
+  estoque: "inventory",
+  categorias: "catalogs",
 };
 
 /** Sub-aba pedida por `?aba=` (links diretos); desconhecida cai no padrão. */
