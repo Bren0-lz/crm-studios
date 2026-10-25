@@ -9,6 +9,7 @@ import {
   type HistoryActor,
   type OwnProfile,
   type OwnProfileUpdate,
+  type Professional,
   type ProfessionalInput,
   type RoomInput,
   type ServiceInput,
@@ -271,8 +272,8 @@ export function createAdministrationRepository(
         const permissions = resolvePermissionInput(input.role, input);
         const result = await client.query<UserRow>(
           `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules,
-           edit_modules, permissions)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           edit_modules, permissions, whatsapp)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING ${userColumns}`,
           [
             clinicId,
@@ -284,6 +285,7 @@ export function createAdministrationRepository(
             input.role === "admin" ? null : permissionModules(permissions),
             input.role === "admin" ? null : permissionEditModules(permissions),
             input.role === "admin" ? [] : permissions,
+            input.whatsapp || null,
           ],
         );
         await repositoryContext.addAdminAudit(
@@ -410,9 +412,13 @@ export function createAdministrationRepository(
           input.jobTitle === undefined
             ? current.rows[0].jobTitle
             : input.jobTitle.trim() || null;
+        const whatsapp =
+          input.whatsapp === undefined
+            ? current.rows[0].whatsapp
+            : input.whatsapp || null;
         const result = await client.query<UserRow>(
           `UPDATE users SET full_name = $3, role = $4, active = $5, job_title = $6,
-           modules = $7, edit_modules = $8, permissions = $9, updated_at = now()
+           modules = $7, edit_modules = $8, permissions = $9, whatsapp = $10, updated_at = now()
          WHERE clinic_id = $1 AND id = $2
          RETURNING ${userColumns}`,
           [
@@ -425,6 +431,7 @@ export function createAdministrationRepository(
             nextModules,
             nextEditModules,
             input.role === "admin" ? [] : nextPermissions,
+            whatsapp,
           ],
         );
         if (!result.rows[0]) {
@@ -715,17 +722,25 @@ export function createAdministrationRepository(
     },
 
     async listProfessionals(clinicId: string) {
-      const result = await repositoryContext.pool.query<ProfessionalRow>(
+      const result = await repositoryContext.pool.query<
+        ProfessionalRow & { whatsapp: string | null }
+      >(
         `
-        SELECT id, clinic_id AS "clinicId", branch_id AS "branchId", full_name AS "fullName",
-               crefito, specialty, color, active
-        FROM professionals WHERE clinic_id = $1 AND active = true
-          AND ${branchClause("branch_id", 2)}
-        ORDER BY full_name
+        SELECT p.id, p.clinic_id AS "clinicId", p.branch_id AS "branchId",
+               p.full_name AS "fullName", p.crefito, p.specialty, p.color, p.active,
+               u.whatsapp
+        FROM professionals p
+        LEFT JOIN users u ON u.clinic_id = p.clinic_id AND u.id = p.user_id
+        WHERE p.clinic_id = $1 AND p.active = true
+          AND ${branchClause("p.branch_id", 2)}
+        ORDER BY p.full_name
       `,
         [clinicId, repositoryContext.branchReadIds()],
       );
-      return result.rows;
+      // WhatsApp do usuário ligado: só aparece quando informado.
+      return result.rows.map(({ whatsapp, ...row }): Professional =>
+        whatsapp ? { ...row, whatsapp } : row,
+      );
     },
 
     async createProfessional(clinicId: string, input: ProfessionalInput) {

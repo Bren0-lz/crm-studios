@@ -34,6 +34,47 @@ const update = (extra: Record<string, unknown>) =>
 
 export function userAgendaSuite(repository: () => ClinicRepository) {
   describe("usuário e agenda na mesma operação", () => {
+    it("grava o WhatsApp do usuário e o expõe no profissional ligado", async () => {
+      const repo = repository();
+      const created = await repo.createAdminUser(
+        clinic,
+        actor,
+        adminUserInputSchema.parse({
+          ...input(),
+          whatsapp: "(11) 98888-7777",
+        }),
+        "hash",
+      );
+      expect(created.whatsapp).toBe("11988887777");
+      const professionalId = created.professional!.id;
+      const listed = async () =>
+        (await repo.listProfessionals(clinic)).find(
+          (item) => item.id === professionalId,
+        );
+      expect((await listed())?.whatsapp).toBe("11988887777");
+      // Sem o campo, a edição mantém o número; vazio remove.
+      const kept = await repo.updateAdminUser(
+        clinic,
+        actor,
+        created.id,
+        update({}),
+      );
+      expect(kept?.whatsapp).toBe("11988887777");
+      const cleared = await repo.updateAdminUser(
+        clinic,
+        actor,
+        created.id,
+        update({ whatsapp: "" }),
+      );
+      expect(cleared?.whatsapp).toBeUndefined();
+      expect((await listed())?.whatsapp).toBeUndefined();
+      expect(
+        (await repo.listAdminUsers(clinic)).find(
+          (item) => item.id === created.id,
+        )?.whatsapp,
+      ).toBeUndefined();
+    });
+
     it("cria, edita, desativa e reativa o mesmo profissional sem alterar o histórico", async () => {
       const repo = repository();
       const created = await repo.createAdminUser(

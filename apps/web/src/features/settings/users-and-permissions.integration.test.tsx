@@ -387,6 +387,70 @@ describe("users and permissions", () => {
     expect(lastCall("POST").body).toMatchObject({ password: "senhafraca" });
   });
 
+  it("saves the user's WhatsApp on create and only sends it on edit when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const withWhatsapp = { ...customUser, whatsapp: "11988887777" };
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...customUser,
+              id: "66666666-6666-4666-8666-666666666666",
+              fullName: "Breno Luiz",
+            }
+          : init?.method === "PATCH"
+            ? withWhatsapp
+            : undefined,
+      [adminUser, withWhatsapp],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senha" },
+    });
+    const whatsapp = within(dialog).getByLabelText("WhatsApp");
+    fireEvent.change(whatsapp, { target: { value: "2199887" } });
+    fireEvent.submit(whatsapp.closest("form")!);
+    expect(
+      await within(dialog).findByText(/Informe o WhatsApp com DDD/),
+    ).toHaveClass("form-error");
+    fireEvent.change(whatsapp, { target: { value: "21998877665" } });
+    expect(whatsapp).toHaveValue("(21) 99887-7665");
+    fireEvent.submit(whatsapp.closest("form")!);
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ whatsapp: "21998877665" });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Maria Souza" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    expect(within(edit).getByLabelText("WhatsApp")).toHaveValue(
+      "(11) 98888-7777",
+    );
+    fireEvent.submit(within(edit).getByLabelText("WhatsApp").closest("form")!);
+    expect(
+      await screen.findByText("Alterações de Maria Souza salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).not.toHaveProperty("whatsapp");
+  });
+
   it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));

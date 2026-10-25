@@ -138,6 +138,8 @@ export const adminUserInputSchema = z
     password: passwordSchema,
     /** Cargo informativo; vazio = sem cargo. */
     jobTitle: jobTitleSchema.optional(),
+    /** WhatsApp com DDD (só dígitos); vazio = sem WhatsApp. Usado no "Compartilhar agenda". */
+    whatsapp: optionalPhoneSchema,
     /** Módulos que o usuário comum vê; ausente ou `null` = nenhum (admin ignora: vê tudo). */
     modules: userModulesSchema.optional(),
     /** Módulos com edição; ausente ou `null` = nenhum (editar sem ver é descartado). */
@@ -158,6 +160,8 @@ export const adminUserUpdateSchema = z
     active: z.boolean(),
     /** Ausente = mantém o cargo atual; vazio = remove o cargo. */
     jobTitle: jobTitleSchema.optional(),
+    /** Ausente = mantém o WhatsApp atual; vazio = remove. */
+    whatsapp: optionalPhoneSchema,
     /** Ausente = mantém os módulos atuais; `null` = nenhum. */
     modules: userModulesSchema.optional(),
     /** Ausente = mantém os módulos com edição atuais; `null` = nenhum. */
