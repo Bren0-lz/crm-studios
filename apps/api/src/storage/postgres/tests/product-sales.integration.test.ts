@@ -127,6 +127,63 @@ for (const storage of ["memory", "postgres"] as const) {
           after.products.find((item) => item.id === product.id)?.currentStock,
         ).toBe(1);
       });
+
+      it("guarda, mantém e limpa os tamanhos do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Camiseta ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 2_000,
+            salePriceInCents: 5_000,
+            sizes: ["g", "baby_look_m", "p"],
+          }),
+        );
+        expect(product.sizes).toEqual(["p", "g", "baby_look_m"]);
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: 5_500,
+          minimumStock: product.minimumStock,
+          active: true,
+        };
+        expect(
+          (
+            await repository.updateProduct(
+              clinicId,
+              actorId,
+              product.id,
+              fields,
+            )
+          )?.sizes,
+        ).toEqual(["p", "g", "baby_look_m"]);
+        expect(
+          (
+            await repository.updateProduct(clinicId, actorId, product.id, {
+              ...fields,
+              sizes: [],
+            })
+          )?.sizes,
+        ).toEqual([]);
+        const plain = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Óleo ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 1_000,
+            salePriceInCents: 2_000,
+          }),
+        );
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === plain.id,
+          )?.sizes,
+        ).toEqual([]);
+      });
     },
   );
 }

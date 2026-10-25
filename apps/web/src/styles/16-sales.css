@@ -318,3 +318,13 @@
 .product-catalogs {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
 }
+
+/* Tamanhos do produto no cadastro do estoque. */
+.product-size-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 2 + var(--space-5)), 1fr)
+  );
+  gap: var(--space-2) var(--space-4);
+}

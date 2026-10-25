@@ -146,6 +146,7 @@ export function createFinanceRepository(
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
         minimumStock: input.minimumStock,
+        sizes: input.sizes ?? [],
         branchId,
         id: uuid(),
         clinicId,

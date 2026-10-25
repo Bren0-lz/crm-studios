@@ -1,5 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { ProductSize } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
@@ -156,7 +157,9 @@ export interface ReceivedPayment {
   paymentMethod?: PaymentMethod;
 }
 
-export interface Product extends Omit<ProductInput, "initialStock"> {
+export interface Product extends Omit<ProductInput, "initialStock" | "sizes"> {
+  /** Vazio = produto sem distinção por tamanhos. */
+  sizes: ProductSize[];
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
   id: string;

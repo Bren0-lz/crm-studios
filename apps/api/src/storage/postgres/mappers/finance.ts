@@ -8,12 +8,13 @@ import type {
   Payable,
   PaymentMethod,
   Product,
+  ProductSize,
   Receivable,
   ReceivableStatus,
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
-import { serviceCommissionsInForce } from "@crm/contracts";
+import { serviceCommissionsInForce, sortProductSizes } from "@crm/contracts";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
 
 export interface ProductRow {
@@ -29,6 +30,7 @@ export interface ProductRow {
   salePriceInCents: number;
   currentStock: number;
   minimumStock: number;
+  sizes: ProductSize[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -286,6 +288,7 @@ export function mapProduct(row: ProductRow): Product {
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
     minimumStock: row.minimumStock,
+    sizes: sortProductSizes(row.sizes),
     lowStock: row.currentStock <= row.minimumStock,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
