@@ -1,11 +1,12 @@
 import type {
   Appointment,
+  PatientWithoutReturn,
   ReceivedPayment,
   SaleMovement,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { buildSalesReport } from "./sales-report.js";
+import { buildSalesReport, withContractedHistory } from "./sales-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
 
 describe("monthly sales report", () => {
@@ -214,5 +215,58 @@ describe("monthly sales report", () => {
     );
     expect(previous.previousComparable.attendedPatients).toBe(0);
     expect(previous.patientsWithoutReturn).toEqual([]);
+  });
+});
+
+describe("contracted history of patients without return", () => {
+  it("lists each contracted item once, keeps cancelled sales and ignores other patients", () => {
+    const movement = (
+      id: string,
+      patientId: string,
+      sourceType: SaleMovement["sourceType"],
+      itemName: string,
+      kind: SaleMovement["kind"] = "sale",
+    ): SaleMovement => ({
+      id,
+      sourceId: id,
+      sourceType,
+      kind,
+      occurredAt: "2026-08-10T15:00:00Z",
+      patientId,
+      patientName: patientId,
+      itemName,
+      quantity: 1,
+      amountInCents: kind === "sale" ? 1000 : -1000,
+    });
+    const patientsWithoutReturn: PatientWithoutReturn[] = [
+      {
+        patientId: "ana",
+        patientName: "Ana",
+        lastCompletedAt: "2026-08-01T15:00:00Z",
+      },
+      {
+        patientId: "bia",
+        patientName: "Bia",
+        lastCompletedAt: "2026-08-01T15:00:00Z",
+      },
+    ];
+    const report = withContractedHistory({ patientsWithoutReturn }, [
+      movement("1", "ana", "plan", "Pilates 2x (Pilates)"),
+      movement("2", "ana", "plan", "Pilates 2x (Pilates)"),
+      movement("2c", "ana", "plan", "Pilates 2x (Pilates)", "cancellation"),
+      movement("3", "ana", "product", "Bola suíça"),
+      movement("4", "ana", "service", "Avaliação"),
+      movement("5", "carla", "service", "Depilação"),
+    ]);
+    expect(report.patientsWithoutReturn.map((item) => item.contracted)).toEqual(
+      [
+        [
+          { sourceType: "service", itemName: "Avaliação" },
+          { sourceType: "product", itemName: "Bola suíça" },
+          { sourceType: "plan", itemName: "Pilates 2x (Pilates)" },
+        ],
+        [],
+      ],
+    );
   });
 });

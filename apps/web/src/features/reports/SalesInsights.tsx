@@ -19,6 +19,9 @@ import { PatientSalesHistoryModal } from "./PatientSalesHistoryModal";
 import { ReportChart } from "./ReportChart";
 import {
   compactMoney,
+  contractedKey,
+  contractedOptions,
+  matchesContracted,
   matchesNoReturnSchedule,
   noReturnScheduleFilterLabels,
   salesChartPoints,
@@ -48,6 +51,7 @@ export function SalesInsights({
   const [historyOf, setHistoryOf] = useState<PatientWithoutReturn | null>(null);
   const [search, setSearch] = useState("");
   const [schedule, setSchedule] = useState<NoReturnScheduleFilter>("all");
+  const [contracted, setContracted] = useState("");
   useEffect(() => {
     if (focusNoReturn && report)
       document
@@ -72,8 +76,20 @@ export function SalesInsights({
     }
   }
   if (mode === "clients") {
+    const options = report
+      ? contractedOptions(report.patientsWithoutReturn)
+      : [];
+    // Item que sumiu da lista (outro período) deixa de filtrar.
+    const contractedFilter = options.some((group) =>
+      group.items.some((item) => contractedKey(item) === contracted),
+    )
+      ? contracted
+      : "";
     const searched = report
-      ? searchPatientsWithoutReturn(report.patientsWithoutReturn, search)
+      ? searchPatientsWithoutReturn(
+          report.patientsWithoutReturn,
+          search,
+        ).filter((item) => matchesContracted(item, contractedFilter))
       : [];
     const visible = searched.filter((item) =>
       matchesNoReturnSchedule(item, schedule),
@@ -122,6 +138,32 @@ export function SalesInsights({
                       onChange={(event) => setSearch(event.target.value)}
                     />
                   </label>
+                  <label className="filter-group">
+                    <span className="filter-label">Já contratou</span>
+                    <select
+                      value={contractedFilter}
+                      disabled={!options.length}
+                      onChange={(event) => setContracted(event.target.value)}
+                    >
+                      <option value="">
+                        {options.length
+                          ? "Qualquer item"
+                          : "Nenhuma contratação registrada"}
+                      </option>
+                      {options.map((group) => (
+                        <optgroup key={group.sourceType} label={group.label}>
+                          {group.items.map((item) => (
+                            <option
+                              key={contractedKey(item)}
+                              value={contractedKey(item)}
+                            >
+                              {item.itemName}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
                   <div className="filter-group">
                     <span className="filter-label" id="no-return-schedule">
                       Próximo agendamento
@@ -159,7 +201,7 @@ export function SalesInsights({
                 {!visible.length ? (
                   <EmptyState
                     title="Nenhum cliente encontrado."
-                    copy="Mude a busca ou o filtro de agendamento para ver outros clientes."
+                    copy="Mude a busca, o item contratado ou o filtro de agendamento para ver outros clientes."
                   />
                 ) : (
                   <div className="table-scroll">
