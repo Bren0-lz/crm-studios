@@ -1,5 +1,6 @@
 import {
   type AdminUser,
+  type AdminUserServiceCommission,
   type Professional,
   type PermissionKey,
   effectiveEditModules,
@@ -114,6 +115,9 @@ export interface AdminUserRow extends UserRow {
   commissionFixedAmountInCents?: number | null;
   commissionPercentage: string | null;
   commissionEffectiveFrom: string | null;
+  /** Regras por serviço ativas e não encerradas (o mapper filtra com `serviceCommissionsInForce`). */
+  serviceCommissions?: AdminUserServiceCommission[] | null;
+  today?: string;
 }
 
 /**
@@ -122,6 +126,7 @@ export interface AdminUserRow extends UserRow {
  * começou). `$1` = clínica; para um só usuário, filtre por `u.id` no WHERE.
  */
 export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_name AS "professionalName", p.professional,
+    sc.items AS "serviceCommissions", (now() AT TIME ZONE c.timezone)::date::text AS today,
     cr.kind AS "commissionKind",cr.fixed_amount_in_cents AS "commissionFixedAmountInCents",cr.percentage AS "commissionPercentage", cr.effective_from::text AS "commissionEffectiveFrom"
   FROM (SELECT ${userColumns} FROM users WHERE clinic_id = $1) u
   JOIN clinics c ON c.id = u."clinicId"
@@ -133,7 +138,14 @@ export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_nam
   LEFT JOIN LATERAL (SELECT r.percentage,r.kind,r.fixed_amount_in_cents, r.effective_from FROM commission_rules r
     WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active AND r.service_id IS NULL
       AND r.effective_from <= (now() AT TIME ZONE c.timezone)::date AND (r.effective_until IS NULL OR r.effective_until>=(now() AT TIME ZONE c.timezone)::date)
-    ORDER BY r.effective_from DESC LIMIT 1) cr ON true`;
+    ORDER BY r.effective_from DESC LIMIT 1) cr ON true
+  LEFT JOIN LATERAL (SELECT json_agg(json_strip_nulls(json_build_object(
+    'serviceId',r.service_id,'serviceName',s.name,'kind',r.kind,'percentage',r.percentage,
+    'fixedAmountInCents',r.fixed_amount_in_cents,'effectiveFrom',r.effective_from::text,
+    'effectiveUntil',r.effective_until::text))) AS items FROM commission_rules r
+    JOIN services s ON s.clinic_id = r.clinic_id AND s.id = r.service_id
+    WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active
+      AND (r.effective_until IS NULL OR r.effective_until>=(now() AT TIME ZONE c.timezone)::date)) sc ON true`;
 
 export function mapAuthenticatedUser(row: UserRow): AuthenticatedUser {
   return {

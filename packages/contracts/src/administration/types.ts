@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PermissionKey } from "../permissions.js";
+import type { AdminUserServiceCommission } from "../finance/types.js";
 import {
   adminUserAgendaInputSchema,
   adminUserInputSchema,
@@ -114,6 +115,8 @@ export interface AdminUser extends UserSummary {
   commissionPercentage?: number;
   /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
   commissionEffectiveFrom?: string;
+  /** Comissões por serviço vigentes hoje ou agendadas (`serviceCommissionsInForce`). */
+  serviceCommissions?: AdminUserServiceCommission[];
 }
 
 /** Dados públicos da clínica para qualquer usuário logado (logo, cabeçalho de documentos). */

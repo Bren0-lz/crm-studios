@@ -92,6 +92,8 @@ import {
   renderDocumentTemplate,
   clinicalAlertInputSchema,
   compareClinicalAlerts,
+  adminUserServiceCommissionsSchema,
+  serviceCommissionsInForce,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1600,5 +1602,55 @@ describe("receivableContactMessage", () => {
     });
     expect(message).toContain("vence em 19/10/2026");
     expect(message).not.toContain("Aconteceu alguma coisa?");
+  });
+});
+
+describe("comissões por serviço do usuário", () => {
+  const serviceId = "6c7a0a52-6a1b-4c4f-9d5e-2f8a1b3c4d5e";
+  it("rejects the same service twice on the same start date", () => {
+    const item = { serviceId, percentage: 30, effectiveFrom: "2026-10-01" };
+    expect(adminUserServiceCommissionsSchema.safeParse([item]).success).toBe(
+      true,
+    );
+    expect(
+      adminUserServiceCommissionsSchema.safeParse([item, { ...item }]).success,
+    ).toBe(false);
+    expect(
+      adminUserServiceCommissionsSchema.safeParse([
+        item,
+        { ...item, effectiveFrom: "2026-11-01" },
+      ]).success,
+    ).toBe(true);
+    expect(
+      adminUserServiceCommissionsSchema.safeParse([
+        { percentage: 30, effectiveFrom: "2026-10-01" },
+      ]).success,
+    ).toBe(false);
+  });
+  it("keeps the rule in force and the scheduled ones per service", () => {
+    const rule = (
+      name: string,
+      effectiveFrom: string,
+      effectiveUntil?: string,
+    ) => ({
+      serviceId: name,
+      serviceName: name,
+      kind: "percentage" as const,
+      percentage: 10,
+      effectiveFrom,
+      ...(effectiveUntil ? { effectiveUntil } : {}),
+    });
+    expect(
+      serviceCommissionsInForce(
+        [
+          rule("Pilates", "2026-11-01"),
+          rule("Pilates", "2026-01-01"),
+          rule("Pilates", "2026-06-01"),
+          rule("Dança", "2026-01-01", "2026-10-24"),
+          rule("Dança", "2026-12-01"),
+        ],
+        "2026-10-25",
+      ).map((item) => `${item.serviceName} ${item.effectiveFrom}`),
+    ).toEqual(["Dança 2026-12-01", "Pilates 2026-06-01", "Pilates 2026-11-01"]);
   });
 });
