@@ -272,7 +272,7 @@ describe("settings tabs", () => {
       within(catalogs)
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Comercial", "Produtos", "Fornecedores", "Clínico"]);
+    ).toEqual(["Comercial", "Fornecedores", "Clínico"]);
     expect(
       within(catalogs).getByRole("tab", { name: "Comercial" }),
     ).toHaveAttribute("aria-selected", "true");
