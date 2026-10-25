@@ -473,6 +473,69 @@ describe("guided client registration", () => {
     });
   });
 
+  it("prorates the first charge of a recurring plan by the classes until the due date", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            serviceName: "Pilates",
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-15" },
+    });
+    expect(
+      within(dialog).getByText(/^Escolha a turma para calcular o 1º pagamento/),
+    ).toBeInTheDocument();
+    // Pilates 1 é às segundas: 4 aulas em outubro, 2 delas até o dia 15.
+    fireEvent.change(await within(dialog).findByLabelText("Turma (opcional)"), {
+      target: { value: groups[0]!.id },
+    });
+    const note = within(dialog).getByText(/^1º pagamento proporcional/);
+    expect(note).toHaveTextContent(
+      /R\$\s240,00 \(2 aulas da turma até 15\/10\/2026, de 4 aulas no ciclo até 31\/10\/2026\)/,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
+      plan: {
+        kind: "recurring",
+        installments: 1,
+        totalValueInCents: 48000,
+        firstDueDate: "2026-10-15",
+        firstInstallmentInCents: 24000,
+      },
+    });
+  });
+
   it("sells a single service without model nor class", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
