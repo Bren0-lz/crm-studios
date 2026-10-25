@@ -12,6 +12,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -1038,6 +1039,192 @@ describe("users and permissions", () => {
           },
           commission: { percentage: 25, effectiveFrom: saoPauloToday() },
         },
+      });
+    });
+
+    describe("commission per service", () => {
+      const pilatesServiceId = "99999999-9999-4999-8999-999999999991";
+      const danceServiceId = "99999999-9999-4999-8999-999999999992";
+      const services = [
+        {
+          id: pilatesServiceId,
+          clinicId: customUser.clinicId,
+          name: "Pilates",
+          durationMinutes: 50,
+          priceInCents: 12000,
+          color: "#547A6B",
+          active: true,
+        },
+        {
+          id: danceServiceId,
+          clinicId: customUser.clinicId,
+          name: "Dançaterapia",
+          durationMinutes: 60,
+          priceInCents: 9000,
+          color: "#336699",
+          active: true,
+        },
+      ];
+      const lastRow = (dialog: HTMLElement) =>
+        within(dialog)
+          .getAllByLabelText("Serviço")
+          .at(-1)!
+          .closest(".service-commission-row") as HTMLElement;
+
+      it("adds several services with their own commission and start date in the POST", async () => {
+        mockCommission((url, init) =>
+          init?.method === "POST"
+            ? { ...customUser, fullName: "Ana Lima" }
+            : url.endsWith("/services")
+              ? services
+              : undefined,
+        );
+        const dialog = await openNew();
+        const add = await within(dialog).findByRole("button", {
+          name: "Adicionar serviço",
+        });
+        await waitFor(() => expect(add).toBeEnabled());
+        fireEvent.click(add);
+        expect(
+          within(dialog).getByRole("button", { name: "Criar usuário" }),
+        ).toBeDisabled();
+        let row = lastRow(dialog);
+        fireEvent.change(within(row).getByLabelText("Serviço"), {
+          target: { value: pilatesServiceId },
+        });
+        fireEvent.change(
+          within(row).getByLabelText("Comissão do serviço (%)"),
+          { target: { value: "40" } },
+        );
+        fireEvent.change(within(row).getByLabelText("Vale a partir de"), {
+          target: { value: "2099-03-01" },
+        });
+        fireEvent.click(add);
+        row = lastRow(dialog);
+        fireEvent.change(within(row).getByLabelText("Serviço"), {
+          target: { value: danceServiceId },
+        });
+        fireEvent.change(within(row).getByLabelText("Tipo de comissão"), {
+          target: { value: "fixed" },
+        });
+        fireEvent.change(within(row).getByLabelText("Valor fixo (R$)"), {
+          target: { value: "25,50" },
+        });
+        // Linha extra removida não vai para o servidor.
+        fireEvent.click(add);
+        fireEvent.click(
+          within(dialog).getByRole("button", {
+            name: "Remover comissão do serviço 3",
+          }),
+        );
+        save(dialog, "Criar usuário");
+        await screen.findByText("Usuário Ana Lima criado.");
+        expect(writes()).toHaveLength(1);
+        expect(writes()[0]!.body).toMatchObject({
+          serviceCommissions: [
+            {
+              serviceId: pilatesServiceId,
+              percentage: 40,
+              effectiveFrom: "2099-03-01",
+            },
+            {
+              serviceId: danceServiceId,
+              kind: "fixed",
+              percentage: 0,
+              fixedAmountInCents: 2550,
+              effectiveFrom: saoPauloToday(),
+            },
+          ],
+        });
+        expect(writes()[0]!.body).not.toHaveProperty("commission");
+      });
+
+      it("lists saved service commissions and sends a new period for one of them", async () => {
+        const withServices = {
+          ...customUser,
+          serviceCommissions: [
+            {
+              serviceId: pilatesServiceId,
+              serviceName: "Pilates",
+              kind: "percentage",
+              percentage: 40,
+              effectiveFrom: "2026-01-01",
+            },
+          ],
+        };
+        mockCommission((url, init) =>
+          init?.method === "PATCH"
+            ? withServices
+            : url.endsWith("/services")
+              ? services
+              : url.includes("/admin/users")
+                ? [withServices, otherUser]
+                : undefined,
+        );
+        localStorage.setItem("crm.auth.token", "test-token");
+        localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+        render(
+          <MemoryRouter initialEntries={["/configuracoes"]}>
+            <App />
+          </MemoryRouter>,
+        );
+        const section = await openSettingsSection("Usuários");
+        expect(
+          await within(section).findByText(
+            "Sem profissional da agenda · Sem comissão vigente · 1 serviço com comissão própria",
+          ),
+        ).toBeInTheDocument();
+        fireEvent.click(
+          screen.getByRole("button", { name: "Editar Maria Souza" }),
+        );
+        const dialog = screen.getByRole("dialog", {
+          name: "Editar Maria Souza",
+        });
+        expect(
+          within(dialog).getByText(`40% · desde ${futureLabel("2026-01-01")}`),
+        ).toBeInTheDocument();
+        await waitFor(() =>
+          expect(
+            within(dialog).getByRole("button", { name: "Adicionar serviço" }),
+          ).toBeEnabled(),
+        );
+        fireEvent.click(
+          within(dialog).getByRole("button", { name: "Nova vigência" }),
+        );
+        const row = lastRow(dialog);
+        expect(within(row).getByLabelText("Serviço")).toHaveValue(
+          pilatesServiceId,
+        );
+        fireEvent.change(
+          within(row).getByLabelText("Comissão do serviço (%)"),
+          { target: { value: "120" } },
+        );
+        fireEvent.submit(row.closest("form")!);
+        expect(
+          await within(dialog).findByText(
+            "Informe um percentual de comissão por serviço entre 0 e 100.",
+          ),
+        ).toBeInTheDocument();
+        expect(writes()).toHaveLength(0);
+        fireEvent.change(
+          within(row).getByLabelText("Comissão do serviço (%)"),
+          { target: { value: "45" } },
+        );
+        save(dialog);
+        await waitFor(() => expect(writes()).toHaveLength(1));
+        expect(writes()[0]).toMatchObject({
+          method: "PATCH",
+          body: {
+            serviceCommissions: [
+              {
+                serviceId: pilatesServiceId,
+                percentage: 45,
+                effectiveFrom: saoPauloToday(),
+              },
+            ],
+          },
+        });
+        expect(writes()[0]!.body).not.toHaveProperty("commission");
       });
     });
 

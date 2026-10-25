@@ -218,7 +218,13 @@ export function userCommissionSummary(user: AdminUser) {
       : user.commissionKind === "fixed"
         ? `Comissão fixa ${(user.commissionFixedAmountInCents ?? 0) / 100} reais`
         : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
-  return `${agenda} · ${commission}`;
+  const services = new Set(
+    user.serviceCommissions?.map((item) => item.serviceId),
+  ).size;
+  const byService = services
+    ? ` · ${services} ${services === 1 ? "serviço" : "serviços"} com comissão própria`
+    : "";
+  return `${agenda} · ${commission}${byService}`;
 }
 
 export function userSaveErrorMessage(cause: unknown) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AdminUserServiceCommission } from "./types.js";
 import { competenceMonthSchema, paymentMethodSchema } from "../common/model.js";
 import {
   fillMessageTemplate,
@@ -45,6 +46,54 @@ export const commissionTermsSchema = z
     },
   );
 export const adminUserCommissionInputSchema = commissionTermsSchema;
+
+/**
+ * Comissão do usuário num serviço específico (`commission_rules.user_id` + `service_id`):
+ * prevalece sobre a regra geral do usuário nos atendimentos desse serviço.
+ */
+export const adminUserServiceCommissionInputSchema =
+  commissionTermsSchema.safeExtend({ serviceId: z.uuid() });
+
+/** Lista enviada no cadastro do usuário: um serviço só aparece uma vez por data de início. */
+export const adminUserServiceCommissionsSchema = z
+  .array(adminUserServiceCommissionInputSchema)
+  .max(50)
+  .refine(
+    (items) =>
+      new Set(items.map((item) => `${item.serviceId}|${item.effectiveFrom}`))
+        .size === items.length,
+    { message: "Serviço repetido com a mesma data de início." },
+  );
+
+/**
+ * Regras de serviço do usuário que importam hoje: em cada serviço, a vigente (maior início que
+ * já começou e não terminou) e as que começam depois dela. Ordem: serviço, depois início.
+ */
+export function serviceCommissionsInForce(
+  rules: readonly AdminUserServiceCommission[],
+  today: string,
+): AdminUserServiceCommission[] {
+  const live = rules.filter(
+    (rule) => !rule.effectiveUntil || rule.effectiveUntil >= today,
+  );
+  const currentStart = new Map<string, string>();
+  for (const rule of live)
+    if (
+      rule.effectiveFrom <= today &&
+      rule.effectiveFrom > (currentStart.get(rule.serviceId) ?? "")
+    )
+      currentStart.set(rule.serviceId, rule.effectiveFrom);
+  return live
+    .filter(
+      (rule) => rule.effectiveFrom >= (currentStart.get(rule.serviceId) ?? ""),
+    )
+    .sort(
+      (a, b) =>
+        a.serviceName.localeCompare(b.serviceName, "pt-BR") ||
+        a.serviceId.localeCompare(b.serviceId) ||
+        a.effectiveFrom.localeCompare(b.effectiveFrom),
+    );
+}
 
 export const productInputSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
