@@ -32,6 +32,7 @@ import {
   ChevronRight,
   LockKeyhole,
   Plus,
+  Share2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -61,6 +62,7 @@ import { DayEventsModal } from "./DayEventsModal";
 import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
+import { ShareAgendaModal } from "./ShareAgendaModal";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
   type AgendaView,
@@ -141,6 +143,7 @@ export function AgendaPage() {
     () => newAppointmentRequested && canCreateAppointment,
   );
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   useEffect(() => {
     if (wantsNewAppointment) {
       const params = new URLSearchParams(location.search);
@@ -412,8 +415,22 @@ export function AgendaPage() {
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
-          (canBlock || canSchedule || can("agenda.notes")) && (
+          (canBlock ||
+            canSchedule ||
+            can("agenda.notes") ||
+            agendaProfessionals.length > 0) && (
             <div className="page-actions">
+              {agendaProfessionals.length > 0 && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setShareOpen(true)}
+                  disabled={loading}
+                  type="button"
+                >
+                  <Share2 size={16} aria-hidden="true" />
+                  Compartilhar agenda
+                </button>
+              )}
               {can("agenda.notes") && (
                 <button
                   className="secondary-button"
@@ -1105,6 +1122,34 @@ export function AgendaPage() {
             setNoteReload((value) => value + 1);
             toast.success("Nota excluída.");
           }}
+        />
+      )}
+      {shareOpen && (
+        <ShareAgendaModal
+          professionals={agendaProfessionals}
+          initialProfessionalId={
+            professionalFilter ||
+            ownProfessionalId ||
+            agendaProfessionals[0]?.id ||
+            ""
+          }
+          // Começa no período exibido (dia, semana ou mês).
+          initialFrom={
+            view === "month" ? localIsoDate(monthStart) : holidayFrom
+          }
+          initialTo={
+            view === "month"
+              ? localIsoDate(
+                  new Date(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth() + 1,
+                    0,
+                    12,
+                  ),
+                )
+              : holidayTo
+          }
+          onClose={() => setShareOpen(false)}
         />
       )}
       {blockModalOpen && (

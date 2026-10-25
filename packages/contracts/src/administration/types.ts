@@ -91,6 +91,8 @@ export interface AdminUser extends UserSummary {
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: sempre `false`). */
   customModules: boolean;
+  /** WhatsApp com DDD, só dígitos (ausente = não informado). */
+  whatsapp?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -172,6 +174,8 @@ export interface PermissionMatrixItem {
 export interface Professional extends ProfessionalInput {
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
+  /** WhatsApp do usuário ligado (só em `GET /professionals`; ausente = não informado). */
+  whatsapp?: string;
   id: string;
   clinicId: string;
   active: boolean;

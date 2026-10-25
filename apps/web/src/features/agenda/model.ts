@@ -4,6 +4,7 @@ import type {
   GroupSession,
   ScheduleBlock,
 } from "@crm/contracts";
+import { localIsoDate, timeLabel } from "../../shared/lib/formatting";
 import type { AgendaEntry } from "./types";
 
 export const agendaKindOrder: Record<AgendaEntry["kind"], number> = {
@@ -157,4 +158,85 @@ export function sortAgendaEntriesWithNotes(
       note,
     })),
   ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+}
+
+/** Período máximo do "Compartilhar agenda", para a mensagem caber no WhatsApp. */
+export const agendaShareMaxDays = 31;
+
+/** Dias corridos entre duas datas aaaa-mm-dd, contando as duas pontas. */
+export function agendaShareDays(from: string, to: string) {
+  const start = new Date(`${from}T12:00:00`).getTime();
+  const end = new Date(`${to}T12:00:00`).getTime();
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+/**
+ * Texto da agenda de um profissional no período (datas aaaa-mm-dd, inclusivas), agrupado por
+ * dia. Cancelados ficam de fora; atendimentos e aulas de turma seguem a ordem do horário.
+ */
+export function agendaShareMessage({
+  professional,
+  from,
+  to,
+  appointments,
+  groupSessions,
+}: {
+  professional: { id: string; fullName: string };
+  from: string;
+  to: string;
+  appointments: Appointment[];
+  groupSessions: GroupSession[];
+}) {
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+  const fullDate = (iso: string) =>
+    new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR");
+  const localDay = (value: string) => localIsoDate(new Date(value));
+  const range = (startsAt: string, endsAt: string) =>
+    `${timeLabel.format(new Date(startsAt))}–${timeLabel.format(new Date(endsAt))}`;
+  const entries = sortAgendaEntries({
+    appointments: appointments.filter(
+      (item) =>
+        item.professionalId === professional.id && item.status !== "cancelled",
+    ),
+    groupSessions: groupSessions.filter(
+      (item) =>
+        item.professionalId === professional.id && item.status !== "cancelled",
+    ),
+  }).filter((entry) => {
+    const key = localDay(entry.startsAt);
+    return key >= from && key <= to;
+  });
+  const lines = [
+    `*Agenda de ${professional.fullName}*`,
+    from === to ? fullDate(from) : `${fullDate(from)} a ${fullDate(to)}`,
+  ];
+  if (entries.length === 0) {
+    lines.push("", "Nenhum atendimento agendado no período.");
+    return lines.join("\n");
+  }
+  let currentDay = "";
+  for (const entry of entries) {
+    const key = localDay(entry.startsAt);
+    if (key !== currentDay) {
+      currentDay = key;
+      lines.push("", `*${day.format(new Date(entry.startsAt))}*`);
+    }
+    if (entry.kind === "appointment") {
+      const item = entry.appointment;
+      const name = item.patientName || item.leadName || "Cliente";
+      lines.push(
+        `${range(item.startsAt, item.endsAt)} · ${name} — ${item.serviceName}${item.roomName ? ` (${item.roomName})` : ""}`,
+      );
+    } else if (entry.kind === "group") {
+      const item = entry.session;
+      lines.push(
+        `${range(item.startsAt, item.endsAt)} · Turma ${item.groupName}${item.roomName ? ` (${item.roomName})` : ""}`,
+      );
+    }
+  }
+  return lines.join("\n");
 }

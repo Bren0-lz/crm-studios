@@ -491,6 +491,9 @@ export class MemoryRepositoryContext {
   /** Foto do perfil por usuário (`users.avatar_data_url` no PostgreSQL). */
   readonly userAvatars = new Map<string, string>();
 
+  /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
+  readonly userWhatsapps = new Map<string, string>();
+
   readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",
@@ -777,8 +780,10 @@ export class MemoryRepositoryContext {
     const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
     const allBranches = user.role === "admin" || (user.allBranches ?? true);
+    const whatsapp = this.userWhatsapps.get(user.id);
     return {
       ...summary,
+      ...(whatsapp ? { whatsapp } : {}),
       allBranches,
       branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
       ...(professional
