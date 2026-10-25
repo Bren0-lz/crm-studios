@@ -28,6 +28,7 @@ import type {
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 
 export const patientProfileSchema = z.object({
+  nickname: z.string().trim().max(80).optional(),
   address: z.string().trim().max(300).optional(),
   neighborhood: z.string().trim().max(100).optional(),
   city: z.string().trim().max(100).optional(),
@@ -45,6 +46,7 @@ export const patientProfileSchema = z.object({
 });
 
 export const patientProfileLabels = {
+  nickname: "Apelido",
   address: "Endereço",
   neighborhood: "Bairro",
   city: "Cidade",

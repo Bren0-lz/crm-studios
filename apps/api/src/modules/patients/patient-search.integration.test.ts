@@ -31,4 +31,56 @@ describe("patient search", () => {
     }
     await app.close();
   });
+
+  it("saves the nickname and finds the client by it", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers,
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "Maria Aparecida Lima",
+        nickname: "  Cidinha  ",
+        phone: "11955551111",
+        tags: [],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const saved = created.json<Record<string, unknown>>();
+    expect(saved.nickname).toBe("Cidinha");
+    for (const term of ["cidinha", "CIDINHA"]) {
+      const found = await app.inject({
+        method: "GET",
+        url: `/patients?search=${encodeURIComponent(term)}`,
+        headers,
+      });
+      expect(
+        found.json().map((item: { fullName: string }) => item.fullName),
+      ).toEqual(["Maria Aparecida Lima"]);
+    }
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/patients/${String(saved.id)}`,
+      headers,
+      payload: { ...saved, nickname: "Cida" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().nickname).toBe("Cida");
+    const tooLong = await app.inject({
+      method: "POST",
+      url: "/patients",
+      headers,
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "Outra Cliente",
+        nickname: "a".repeat(81),
+        phone: "11955552222",
+        tags: [],
+      },
+    });
+    expect(tooLong.statusCode).toBe(400);
+    await app.close();
+  });
 });
