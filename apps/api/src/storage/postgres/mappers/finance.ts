@@ -13,6 +13,7 @@ import type {
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
+import { serviceCommissionsInForce } from "@crm/contracts";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
 
 export interface ProductRow {
@@ -255,6 +256,17 @@ export function mapAdminUserWithCommission(row: AdminUserRow): AdminUser {
             : {}),
           commissionPercentage: Number(row.commissionPercentage),
           commissionEffectiveFrom: row.commissionEffectiveFrom,
+        }
+      : {}),
+    ...(row.serviceCommissions?.length && row.today
+      ? {
+          serviceCommissions: serviceCommissionsInForce(
+            row.serviceCommissions.map((item) => ({
+              ...item,
+              percentage: Number(item.percentage),
+            })),
+            row.today,
+          ),
         }
       : {}),
   };

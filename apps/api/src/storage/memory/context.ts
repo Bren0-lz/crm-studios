@@ -21,6 +21,7 @@ import {
   type AdminAuditEvent,
   type AdminUser,
   type AdminUserCommissionInput,
+  serviceCommissionsInForce,
   type AppModule,
   appModuleSchema,
   type Appointment,
@@ -784,6 +785,11 @@ export class MemoryRepositoryContext {
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
     const allBranches = user.role === "admin" || (user.allBranches ?? true);
     const whatsapp = this.userWhatsapps.get(user.id);
+    const serviceCommissions = this.userServiceCommissions(
+      user.clinicId,
+      user.id,
+      today,
+    );
     return {
       ...summary,
       ...(whatsapp ? { whatsapp } : {}),
@@ -809,7 +815,41 @@ export class MemoryRepositoryContext {
             commissionEffectiveFrom: rule.effectiveFrom,
           }
         : {}),
+      ...(serviceCommissions.length ? { serviceCommissions } : {}),
     };
+  }
+
+  /** Regras por serviço do usuário vigentes hoje ou agendadas, com o nome do serviço. */
+  userServiceCommissions(clinicId: string, userId: string, today: string) {
+    return serviceCommissionsInForce(
+      this.userCommissionRules.flatMap((rule) => {
+        const service =
+          rule.active && rule.clinicId === clinicId && rule.userId === userId
+            ? this.services.find(
+                (item) =>
+                  item.clinicId === clinicId && item.id === rule.serviceId,
+              )
+            : undefined;
+        return service
+          ? [
+              {
+                serviceId: service.id,
+                serviceName: service.name,
+                kind: rule.kind ?? "percentage",
+                percentage: rule.percentage,
+                ...(rule.fixedAmountInCents !== undefined
+                  ? { fixedAmountInCents: rule.fixedAmountInCents }
+                  : {}),
+                effectiveFrom: rule.effectiveFrom,
+                ...(rule.effectiveUntil
+                  ? { effectiveUntil: rule.effectiveUntil }
+                  : {}),
+              },
+            ]
+          : [];
+      }),
+      today,
+    );
   }
 
   /** Regra do usuário vigente na data (ativa, maior vigência que já começou). */

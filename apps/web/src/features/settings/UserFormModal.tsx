@@ -1,4 +1,6 @@
 import { UserAgendaFields } from "./UserAgendaFields";
+import { UserServiceCommissionFields } from "./UserServiceCommissionFields";
+import { useServiceCommissions } from "./useServiceCommissions";
 import { useUserAgenda } from "./useUserAgenda";
 import {
   legacyPermissions,
@@ -64,6 +66,7 @@ export function UserFormModal({
     effectiveFrom: today,
   });
   const agenda = useUserAgenda(user, users, fullName);
+  const serviceCommissions = useServiceCommissions(user);
   // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
   const [branches, setBranches] = useState<Branch[]>([]);
   const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
@@ -82,6 +85,7 @@ export function UserFormModal({
     selectedPermissions,
     percentage,
     effectiveFrom,
+    serviceCommissions: serviceCommissions.rows,
     agenda: {
       attends: agenda.attends,
       mode: agenda.mode,
@@ -150,6 +154,7 @@ export function UserFormModal({
       ? ["Comissão (%) — para não pagar comissão, informe 0%"]
       : []),
     ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
+    ...serviceCommissions.missing,
   ]);
 
   /** Regra do percentual informado (não é falta de campo). */
@@ -171,6 +176,7 @@ export function UserFormModal({
     if (saving) return;
     const invalid =
       commissionError() ||
+      serviceCommissions.validate() ||
       (whatsapp && whatsapp.length < 10
         ? "Informe o WhatsApp com DDD, por exemplo (11) 99999-9999."
         : "") ||
@@ -200,6 +206,9 @@ export function UserFormModal({
       commissionChanged && typedPercentage !== undefined
         ? { percentage: typedPercentage, effectiveFrom }
         : undefined;
+    const services = serviceCommissions.payload.length
+      ? { serviceCommissions: serviceCommissions.payload }
+      : {};
     let latest: AdminUser;
     try {
       latest = current
@@ -212,6 +221,7 @@ export function UserFormModal({
             ...(whatsapp !== (current.whatsapp ?? "") ? { whatsapp } : {}),
             ...permissions,
             ...(commission ? { commission } : {}),
+            ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
           })
         : await api.createAdminUser({
@@ -223,6 +233,7 @@ export function UserFormModal({
             ...(whatsapp ? { whatsapp } : {}),
             ...permissions,
             ...(commission ? { commission } : {}),
+            ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
           });
       onSaved(latest);
@@ -438,6 +449,7 @@ export function UserFormModal({
             )}
           </div>
         </fieldset>
+        <UserServiceCommissionFields commissions={serviceCommissions} />
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">
