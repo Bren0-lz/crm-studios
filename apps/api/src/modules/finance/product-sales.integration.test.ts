@@ -33,7 +33,6 @@ async function setup() {
         costInCents: 2_000,
         salePriceInCents: 4_500,
         initialStock,
-        minimumStock: 1,
       },
     });
     expect(response.statusCode).toBe(201);

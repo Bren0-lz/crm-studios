@@ -19,7 +19,6 @@ async function seed() {
     costInCents: 1_000,
     salePriceInCents: 4_000,
     initialStock: 5,
-    minimumStock: 1,
   });
   const oil = await api.repository.createProduct(clinicId, actorId, {
     name: "Óleo de massagem",
@@ -28,7 +27,6 @@ async function seed() {
     costInCents: 1_500,
     salePriceInCents: 3_000,
     initialStock: 2,
-    minimumStock: 1,
   });
   return { ...api, patient, cream, oil };
 }

@@ -144,7 +144,7 @@ export function createFinanceOperationsRepository(
           );
       Object.assign(item, input, {
         updatedAt: now(),
-        lowStock: item.currentStock <= input.minimumStock,
+        lowStock: item.currentStock <= 0,
       });
       context.recordAudit(
         clinicId,
@@ -198,7 +198,7 @@ export function createFinanceOperationsRepository(
           409,
         );
       product.currentStock -= delta;
-      product.lowStock = product.currentStock <= product.minimumStock;
+      product.lowStock = product.currentStock <= 0;
       product.updatedAt = now();
       if (delta)
         context.pushStockMovement(

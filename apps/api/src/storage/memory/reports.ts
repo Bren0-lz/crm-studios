@@ -734,7 +734,7 @@ export function createReportsRepository(
               .filter(
                 (item) =>
                   item.clinicId === clinicId &&
-                  item.currentStock <= item.minimumStock,
+                  item.currentStock <= 0,
               ).length,
             productUnitsSold: byProduct.reduce(
               (sum, item) => sum + item.unitsSold,

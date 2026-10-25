@@ -104,7 +104,6 @@ export const productInputSchema = z.object({
   costInCents: z.number().int().min(0),
   salePriceInCents: z.number().int().min(0),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
-  minimumStock: z.number().int().min(0).max(1_000_000).default(0),
 });
 
 export const stockMovementInputSchema = z.object({
