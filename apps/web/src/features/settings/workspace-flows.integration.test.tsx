@@ -61,9 +61,26 @@ describe("settings workflows through real HTTP handlers", () => {
     let dialog = screen.getByRole("dialog", { name: "Novo fornecedor" });
     change("Nome", "Fornecedor de faixas", dialog);
     change("Tipo", "person", dialog);
-    change("CPF / CNPJ", "12345678900", dialog);
+    change("CPF", "12345678900", dialog);
+    expect(within(dialog).getByLabelText("CPF")).toHaveValue("123.456.789-00");
+    fireEvent.blur(within(dialog).getByLabelText("CPF"));
+    await within(dialog).findByText("Informe um CPF válido.");
+    change("CPF", "52998224725", dialog);
     change("Telefone", "11988887777", dialog);
+    expect(within(dialog).getByLabelText("Telefone")).toHaveValue(
+      "(11) 98888-7777",
+    );
+    change("WhatsApp", "11977776666", dialog);
     change("E-mail", "fornecedor@example.com", dialog);
+    change("Data de contratação", "2026-09-01", dialog);
+    change("Valor contratado (R$)", "1200", dialog);
+    change("Recorrência", "monthly", dialog);
+    change("Forma de pagamento", "boleto", dialog);
+    change("Parcelas", "3", dialog);
+    await within(dialog).findByText(/3× de R\$\s?400,00/);
+    change("Condições de pagamento", "Vencimento todo dia 10", dialog);
+    change("Pedidos", "Pedido 123: 20 faixas elásticas", dialog);
+    change("Contratos", "Contrato 2026/01, vigência de 12 meses", dialog);
     change("Observações", "Contato comercial", dialog);
     await save("Novo fornecedor", "Salvar fornecedor");
     fireEvent.click(within(panel).getByRole("button", { name: "Editar" }));
@@ -76,6 +93,17 @@ describe("settings workflows through real HTTP handlers", () => {
         active: false,
         email: "fornecedor@example.com",
         kind: "person",
+        document: "52998224725",
+        phone: "11988887777",
+        whatsapp: "11977776666",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 120000,
+        billingCycle: "monthly",
+        paymentMethod: "boleto",
+        installments: 3,
+        paymentTerms: "Vencimento todo dia 10",
+        orders: "Pedido 123: 20 faixas elásticas",
+        contracts: "Contrato 2026/01, vigência de 12 meses",
       },
     ]);
   });

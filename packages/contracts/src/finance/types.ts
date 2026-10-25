@@ -6,6 +6,7 @@ import {
   patientTabServiceInputSchema,
   productSaleInputSchema,
   supplierInputSchema,
+  supplierBillingCycleSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
@@ -17,6 +18,7 @@ export type PatientTabServiceInput = z.infer<
   typeof patientTabServiceInputSchema
 >;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
+export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
 export interface Supplier extends SupplierInput {
   id: string;
   clinicId: string;
@@ -400,7 +402,10 @@ export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
 export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
 
 export type DailyCashMovementKind =
-  "receipt" | "receipt_reversal" | "payable" | "commission";
+  | "receipt"
+  | "receipt_reversal"
+  | "payable"
+  | "commission";
 
 export interface DailyCashMovement {
   /** `<kind>:<id da origem>`. */
