@@ -301,8 +301,18 @@ export const recurringPayableInputSchema = z
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
     costCenterId: z.uuid(),
+    /** Valor fixo ou, quando `variableAmount`, o valor estimado de cada mês. */
     amountInCents: z.number().int().min(1),
+    /** Conta de valor variável (água, luz): o valor do mês é informado na conta gerada. */
+    variableAmount: z.boolean().default(false),
     dayOfMonth: z.number().int().min(1).max(28),
+    /** Avisar no sino N dias antes do vencimento (0 = no próprio dia); ausente = sem aviso. */
+    reminderDaysBefore: z
+      .number()
+      .int("Informe a antecedência em dias inteiros.")
+      .min(0, "A antecedência vai de 0 a 28 dias.")
+      .max(28, "A antecedência vai de 0 a 28 dias.")
+      .optional(),
     startMonth: competenceMonthSchema,
     endMonth: competenceMonthSchema.optional(),
     active: z.boolean().default(true),
@@ -357,6 +367,108 @@ export function recurringPayableDueDate(
   dayOfMonth: number,
 ): string {
   return `${competence}-${String(dayOfMonth).padStart(2, "0")}`;
+}
+
+/** Valor do mês de uma conta de valor variável (`PUT /finance/payables/:id/amount`). */
+export const payableAmountInputSchema = z.object({
+  amountInCents: z
+    .number("Informe o valor do mês.")
+    .int("Informe o valor do mês.")
+    .min(1, "Informe o valor do mês."),
+});
+
+function daysBetween(from: string, to: string) {
+  return Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86_400_000,
+  );
+}
+
+/** Aviso de despesa fixa a vencer: a competência dentro da antecedência configurada. */
+export interface RecurringPayableReminder {
+  recurringPayableId: string;
+  description: string;
+  competence: string;
+  dueDate: string;
+  /** 0 = vence hoje. */
+  daysUntilDue: number;
+  amountInCents: number;
+  variableAmount: boolean;
+  /** Conta do mês já gerada (ausente se a competência ainda não virou conta a pagar). */
+  payableId?: string;
+  /** Valor ainda estimado: a conta variável aguarda o valor real do mês. */
+  amountEstimated: boolean;
+}
+
+/**
+ * Despesas fixas com aviso configurado cujo vencimento cai entre hoje e hoje + antecedência
+ * (olha o mês atual e o próximo, para avisos que atravessam a virada do mês). Fica de fora a
+ * competência fora do período, pausada ou cuja conta já foi paga ou cancelada.
+ */
+export function recurringPayableReminders(
+  models: readonly {
+    id: string;
+    description: string;
+    amountInCents: number;
+    variableAmount?: boolean | undefined;
+    dayOfMonth: number;
+    reminderDaysBefore?: number | undefined;
+    startMonth: string;
+    endMonth?: string | undefined;
+    resumedFromMonth?: string | undefined;
+    active: boolean;
+  }[],
+  payables: readonly {
+    id: string;
+    recurringPayableId?: string | undefined;
+    competence?: string | undefined;
+    status: "open" | "paid" | "cancelled";
+    amountInCents: number;
+    amountEstimated?: boolean | undefined;
+  }[],
+  today: string,
+): RecurringPayableReminder[] {
+  const currentMonth = today.slice(0, 7);
+  const reminders: RecurringPayableReminder[] = [];
+  for (const model of models) {
+    if (!model.active || model.reminderDaysBefore === undefined) continue;
+    const from =
+      model.resumedFromMonth && model.resumedFromMonth > model.startMonth
+        ? model.resumedFromMonth
+        : model.startMonth;
+    for (const competence of [currentMonth, nextCompetence(currentMonth)]) {
+      if (competence < from || (model.endMonth && competence > model.endMonth))
+        continue;
+      const dueDate = recurringPayableDueDate(competence, model.dayOfMonth);
+      const daysUntilDue = daysBetween(today, dueDate);
+      if (daysUntilDue < 0 || daysUntilDue > model.reminderDaysBefore) continue;
+      const payable = payables.find(
+        (item) =>
+          item.recurringPayableId === model.id &&
+          item.competence === competence,
+      );
+      if (payable && payable.status !== "open") continue;
+      const variableAmount = model.variableAmount ?? false;
+      reminders.push({
+        recurringPayableId: model.id,
+        description: model.description,
+        competence,
+        dueDate,
+        daysUntilDue,
+        amountInCents: payable?.amountInCents ?? model.amountInCents,
+        variableAmount,
+        ...(payable ? { payableId: payable.id } : {}),
+        amountEstimated: payable
+          ? (payable.amountEstimated ?? false)
+          : variableAmount,
+      });
+    }
+  }
+  return reminders.sort(
+    (a, b) =>
+      a.dueDate.localeCompare(b.dueDate) ||
+      a.description.localeCompare(b.description, "pt-BR"),
+  );
 }
 
 // Caixa do dia (`GET /finance/daily-cash?date=`)
@@ -455,7 +567,11 @@ export function receivableContactMessage(input: {
 /** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
 export const pixMessageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Marina" },
-  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
   { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
   { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
   { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },

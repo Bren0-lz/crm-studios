@@ -6,6 +6,7 @@ import {
   ListTodo,
   PauseCircle,
   PhoneCall,
+  ReceiptText,
   WalletCards,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -90,7 +91,7 @@ interface NotificationGroup {
 
 /**
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
- * (Relacionamento), parcelas vencidas (Financeiro), atendimentos a finalizar (Agenda) e
+ * (Relacionamento), parcelas vencidas e despesas fixas a vencer (Financeiro), atendimentos a finalizar (Agenda) e
  * os retornos combinados: tarefas comerciais vencidas (Comercial), contatos adiados que
  * voltaram (Relacionamento) e pausas com retorno previsto (Planos). Grupos zerados não
  * aparecem.
@@ -118,6 +119,15 @@ function notificationGroups(
       count: summary.overdueReceivables ?? 0,
       to: "/financeiro",
       icon: <WalletCards size={16} aria-hidden="true" />,
+    });
+  if (canView("finance") && (summary.fixedExpensesDue ?? 0) > 0)
+    groups.push({
+      key: "fixed-expenses",
+      label: "Despesas fixas a vencer",
+      detail: "Dentro do prazo de aviso configurado",
+      count: summary.fixedExpensesDue ?? 0,
+      to: "/financeiro?aba=contas-a-pagar",
+      icon: <ReceiptText size={16} aria-hidden="true" />,
     });
   if (canView("agenda") && (summary.pendingFinalization ?? 0) > 0)
     groups.push({

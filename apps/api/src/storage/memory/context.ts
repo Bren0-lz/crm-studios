@@ -84,6 +84,7 @@ import {
   type Receivable,
   type ReceivableRenegotiation,
   type ReceivedPayment,
+  type PayrollEmployee,
   type RecurringPayable,
   type RecurringPayableInput,
   type RelationshipSettings,
@@ -433,6 +434,7 @@ export class MemoryRepositoryContext {
   readonly payables: Payable[] = [];
 
   readonly recurringPayables: StoredRecurringPayable[] = [];
+  readonly payrollEmployees: Omit<PayrollEmployee, "professionalName">[] = [];
 
   readonly financialCategories: FinancialCategory[] = [
     {
@@ -1905,11 +1907,25 @@ export class MemoryRepositoryContext {
       categoryId: input.categoryId,
       costCenterId: input.costCenterId,
       amountInCents: input.amountInCents,
+      variableAmount: input.variableAmount,
       dayOfMonth: input.dayOfMonth,
+      ...(input.reminderDaysBefore !== undefined
+        ? { reminderDaysBefore: input.reminderDaysBefore }
+        : {}),
       startMonth: input.startMonth,
       ...(input.endMonth ? { endMonth: input.endMonth } : {}),
       active: input.active,
     };
+  }
+
+  toPayrollEmployee(
+    model: Omit<PayrollEmployee, "professionalName">,
+  ): PayrollEmployee {
+    const professionalName = model.professionalId
+      ? this.professionals.find((item) => item.id === model.professionalId)
+          ?.fullName
+      : undefined;
+    return { ...model, ...(professionalName ? { professionalName } : {}) };
   }
 
   toRecurringPayable(model: StoredRecurringPayable): RecurringPayable {

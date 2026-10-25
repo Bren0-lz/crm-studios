@@ -1043,3 +1043,115 @@
   > .label-with-help:first-child {
   grid-column: 1;
 }
+
+/* Despesas fixas: avisos de vencimento e valor variável. */
+.recurring-reminders {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-5) - 1px) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f8f7f2;
+}
+
+.recurring-reminders h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.recurring-reminders ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recurring-reminders li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.recurring-reminder-text {
+  display: grid;
+  min-width: 0;
+}
+
+.recurring-reminder-text > strong {
+  font-size: var(--text-md);
+}
+
+.recurring-reminder-text > span,
+.recurring-reminder-note {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.finance-due .recurring-reminder-note {
+  display: block;
+}
+
+.recurring-reminders li {
+  flex-wrap: wrap;
+}
+
+/* Folha de pagamento. */
+.payroll-toolbar {
+  padding: 0 calc(var(--space-5) - 1px) var(--space-3);
+}
+
+.payroll-toolbar label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.payroll-error {
+  padding: 0 calc(var(--space-5) - 1px);
+}
+
+/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
+.payroll-table .finance-row {
+  grid-template-columns: minmax(0, 1fr) 130px 130px 130px minmax(100px, auto);
+}
+
+.payroll-table .payroll-total {
+  border-top: 1px solid var(--line);
+  background: #f8f7f2;
+}
+
+.payroll-inactive {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) calc(var(--space-5) - 1px) var(--space-5);
+}
+
+.payroll-inactive h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.payroll-inactive ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payroll-inactive li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

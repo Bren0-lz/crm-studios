@@ -36,6 +36,7 @@ import {
   type Receivable,
   type ReceivableRenegotiation,
   type ReceivableRenegotiationInput,
+  type PayrollEmployeeInput,
   type RecurringPayableInput,
   type StockMovementInput,
 } from "@crm/contracts";
@@ -1236,6 +1237,7 @@ export function createFinanceRepository(
             overdue: dueDate < currentDate,
             recurringPayableId: model.id,
             competence,
+            ...(model.variableAmount ? { amountEstimated: true } : {}),
             createdAt: timestamp,
             updatedAt: timestamp,
           });
@@ -1243,6 +1245,77 @@ export function createFinanceRepository(
         }
       }
       return created;
+    },
+
+    async setPayableAmount(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+      amountInCents: number,
+    ) {
+      const index = repositoryContext.payables.findIndex(
+        (item) => item.clinicId === clinicId && item.id === payableId,
+      );
+      const current = repositoryContext.payables[index];
+      if (!current) return null;
+      assertVariablePayable(
+        current,
+        repositoryContext.recurringPayables.find(
+          (item) => item.id === current.recurringPayableId,
+        ),
+      );
+      const updated: Payable = { ...current, amountInCents, updatedAt: now() };
+      delete updated.amountEstimated;
+      repositoryContext.payables[index] = updated;
+      return updated;
+    },
+
+    async listPayrollEmployees(clinicId: string) {
+      return repositoryContext.payrollEmployees
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => repositoryContext.toPayrollEmployee(item))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    },
+
+    async createPayrollEmployee(
+      clinicId: string,
+      _actorUserId: string,
+      input: PayrollEmployeeInput,
+    ) {
+      assertPayrollProfessional(repositoryContext, clinicId, input);
+      const timestamp = now();
+      const model = {
+        id: uuid(),
+        clinicId,
+        ...payrollEmployeeFields(input),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      repositoryContext.payrollEmployees.push(model);
+      return repositoryContext.toPayrollEmployee(model);
+    },
+
+    async updatePayrollEmployee(
+      clinicId: string,
+      _actorUserId: string,
+      employeeId: string,
+      input: PayrollEmployeeInput,
+    ) {
+      const index = repositoryContext.payrollEmployees.findIndex(
+        (item) => item.clinicId === clinicId && item.id === employeeId,
+      );
+      const current = repositoryContext.payrollEmployees[index];
+      if (!current) return null;
+      assertPayrollProfessional(repositoryContext, clinicId, input, employeeId);
+      const updated = {
+        id: current.id,
+        clinicId,
+        ...payrollEmployeeFields(input),
+        createdAt: current.createdAt,
+        updatedAt: now(),
+      };
+      repositoryContext.payrollEmployees[index] = updated;
+      return repositoryContext.toPayrollEmployee(updated);
     },
 
     async renegotiateReceivables(
@@ -1603,4 +1676,65 @@ export function createFinanceRepository(
         );
     },
   };
+}
+
+/** Só conta em aberto de despesa fixa de valor variável recebe o valor do mês. */
+function assertVariablePayable(
+  payable: Payable,
+  model: { variableAmount: boolean } | undefined,
+) {
+  if (!model?.variableAmount)
+    throw new DomainError(
+      "PAYABLE_NOT_VARIABLE",
+      "Só contas de despesa fixa de valor variável recebem o valor do mês.",
+      409,
+    );
+  if (payable.status !== "open")
+    throw new DomainError(
+      "PAYABLE_NOT_OPEN",
+      "Só contas em aberto podem ter o valor alterado.",
+      409,
+    );
+}
+
+function payrollEmployeeFields(input: PayrollEmployeeInput) {
+  return {
+    name: input.name,
+    ...(input.role ? { role: input.role } : {}),
+    ...(input.professionalId ? { professionalId: input.professionalId } : {}),
+    baseSalaryInCents: input.baseSalaryInCents,
+    active: input.active,
+  };
+}
+
+function assertPayrollProfessional(
+  repositoryContext: MemoryRepositoryContext,
+  clinicId: string,
+  input: PayrollEmployeeInput,
+  employeeId?: string,
+) {
+  if (!input.professionalId) return;
+  if (
+    !repositoryContext.professionals.some(
+      (item) => item.clinicId === clinicId && item.id === input.professionalId,
+    )
+  )
+    throw new DomainError(
+      "PROFESSIONAL_NOT_FOUND",
+      "Profissional não encontrado.",
+      404,
+    );
+  if (
+    repositoryContext.payrollEmployees.some(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.professionalId === input.professionalId &&
+        item.id !== employeeId,
+    )
+  )
+    throw new DomainError(
+      "PAYROLL_PROFESSIONAL_IN_USE",
+      "Este profissional já está ligado a outro colaborador da folha.",
+      409,
+    );
 }

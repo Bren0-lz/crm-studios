@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildPayroll,
+  recurringPayableInputSchema,
+  recurringPayableReminders,
   cpfMatchKey,
   receivableContactMessage,
   planPixChargeMessage,
@@ -1730,5 +1733,144 @@ describe("comissões por serviço do usuário", () => {
         "2026-10-25",
       ).map((item) => `${item.serviceName} ${item.effectiveFrom}`),
     ).toEqual(["Dança 2026-12-01", "Pilates 2026-06-01", "Pilates 2026-11-01"]);
+  });
+});
+
+describe("despesas fixas: valor variável e aviso de vencimento", () => {
+  const model = {
+    id: "luz",
+    description: "Conta de luz",
+    amountInCents: 30_000,
+    variableAmount: true,
+    dayOfMonth: 2,
+    reminderDaysBefore: 5,
+    startMonth: "2026-01",
+    active: true,
+  };
+
+  it("valor variável é opcional (padrão fixo) e a antecedência vai de 0 a 28", () => {
+    const base = {
+      description: "Internet",
+      categoryId: "6f0b5a34-2c1f-4a0c-9d0b-111111111111",
+      costCenterId: "6f0b5a34-2c1f-4a0c-9d0b-222222222222",
+      amountInCents: 10_000,
+      dayOfMonth: 10,
+      startMonth: "2026-10",
+    };
+    expect(recurringPayableInputSchema.parse(base).variableAmount).toBe(false);
+    expect(
+      recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 0 })
+        .success,
+    ).toBe(true);
+    expect(
+      recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 29 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("avisa dentro da antecedência, inclusive na virada do mês", () => {
+    // Hoje 28/10, vence dia 02: o aviso de 5 dias já pega a competência de novembro.
+    expect(recurringPayableReminders([model], [], "2026-10-28")).toEqual([
+      {
+        recurringPayableId: "luz",
+        description: "Conta de luz",
+        competence: "2026-11",
+        dueDate: "2026-11-02",
+        daysUntilDue: 5,
+        amountInCents: 30_000,
+        variableAmount: true,
+        amountEstimated: true,
+      },
+    ]);
+    expect(recurringPayableReminders([model], [], "2026-10-27")).toEqual([]);
+    expect(
+      recurringPayableReminders(
+        [{ ...model, reminderDaysBefore: undefined }],
+        [],
+        "2026-10-28",
+      ),
+    ).toEqual([]);
+    expect(
+      recurringPayableReminders(
+        [{ ...model, active: false }],
+        [],
+        "2026-10-28",
+      ),
+    ).toEqual([]);
+    expect(
+      recurringPayableReminders(
+        [{ ...model, endMonth: "2026-10" }],
+        [],
+        "2026-10-28",
+      ),
+    ).toEqual([]);
+  });
+
+  it("usa a conta gerada e some quando ela é paga", () => {
+    const payable = {
+      id: "conta",
+      recurringPayableId: "luz",
+      competence: "2026-11",
+      status: "open" as const,
+      amountInCents: 27_000,
+    };
+    expect(
+      recurringPayableReminders([model], [payable], "2026-11-02")[0],
+    ).toMatchObject({
+      daysUntilDue: 0,
+      payableId: "conta",
+      amountInCents: 27_000,
+      amountEstimated: false,
+    });
+    expect(
+      recurringPayableReminders(
+        [model],
+        [{ ...payable, status: "paid" }],
+        "2026-11-02",
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("folha de pagamento", () => {
+  const employee = (id: string, name: string, extra: object = {}) => ({
+    id,
+    clinicId: "c",
+    name,
+    baseSalaryInCents: 200_000,
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+    ...extra,
+  });
+
+  it("soma salário fixo e comissões do mês do profissional ligado", () => {
+    const summary = buildPayroll(
+      [
+        employee("2", "Bia", { professionalId: "p1" }),
+        employee("1", "Ana"),
+        employee("3", "Caio", { active: false }),
+      ],
+      [
+        { professionalId: "p1", competence: "2026-10", amountInCents: 1_500 },
+        { professionalId: "p1", competence: "2026-10", amountInCents: 2_500 },
+        { professionalId: "p1", competence: "2026-09", amountInCents: 9_000 },
+      ],
+      "2026-10",
+    );
+    expect(summary.lines.map((line) => line.employee.name)).toEqual([
+      "Ana",
+      "Bia",
+    ]);
+    expect(summary.lines[1]).toMatchObject({
+      commissionInCents: 4_000,
+      commissionCount: 2,
+      totalInCents: 204_000,
+    });
+    expect(summary).toMatchObject({
+      baseSalaryInCents: 400_000,
+      commissionInCents: 4_000,
+      totalInCents: 404_000,
+    });
   });
 });

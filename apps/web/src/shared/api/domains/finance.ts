@@ -10,6 +10,11 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type {
+  PayrollEmployee,
+  PayrollEmployeeInput,
+  PayrollSummary,
+} from "@crm/contracts";
+import type {
   ReceivableContact,
   PaymentTiming,
   FinancialDatesInput,
@@ -320,6 +325,27 @@ export const financeApi = {
     }),
   updateRecurringPayable: (id: string, input: RecurringPayableInput) =>
     request<RecurringPayable>(`/finance/recurring-payables/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  setPayableAmount: (id: string, amountInCents: number) =>
+    request<Payable>(`/finance/payables/${id}/amount`, {
+      method: "PUT",
+      body: JSON.stringify({ amountInCents }),
+    }),
+  payroll: (competence: string) =>
+    request<PayrollSummary>(
+      `/finance/payroll?competence=${encodeURIComponent(competence)}`,
+    ),
+  payrollEmployees: () =>
+    request<PayrollEmployee[]>("/finance/payroll/employees"),
+  createPayrollEmployee: (input: PayrollEmployeeInput) =>
+    request<PayrollEmployee>("/finance/payroll/employees", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePayrollEmployee: (id: string, input: PayrollEmployeeInput) =>
+    request<PayrollEmployee>(`/finance/payroll/employees/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),

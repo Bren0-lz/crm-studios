@@ -27,7 +27,9 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Nova despesa" }),
     );
-    let dialog = screen.getByRole("dialog", { name: "Nova conta a pagar" });
+    let dialog = await screen.findByRole("dialog", {
+      name: "Nova conta a pagar",
+    });
     await within(dialog).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],

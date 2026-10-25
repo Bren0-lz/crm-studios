@@ -16,6 +16,10 @@ import {
   receivableAdjustmentInputSchema,
   receivableRenegotiationInputSchema,
   recurringPayableInputSchema,
+  buildPayroll,
+  payableAmountInputSchema,
+  payrollEmployeeInputSchema,
+  payrollFilterSchema,
   saoPauloToday,
   stockMovementInputSchema,
   type ReceivableContact,
@@ -370,6 +374,84 @@ export function registerFinanceRoutes(context: RouteContext) {
           message: "Despesa fixa não encontrada.",
         });
       return reply.status(204).send();
+    },
+  );
+
+  // Valor real do mês de uma conta gerada por despesa fixa de valor variável.
+  app.put(
+    "/finance/payables/:id/amount",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { amountInCents } = payableAmountInputSchema.parse(request.body);
+      const payable = await repository.setPayableAmount(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        amountInCents,
+      );
+      if (!payable)
+        return reply.status(404).send({
+          code: "PAYABLE_NOT_FOUND",
+          message: "Conta a pagar não encontrada.",
+        });
+      return payable;
+    },
+  );
+
+  // Folha de pagamento: salário fixo de cada colaborador + comissões da competência.
+  app.get("/finance/payroll", { preHandler: authenticate }, async (request) => {
+    const { competence } = payrollFilterSchema.parse(request.query);
+    const { clinicId } = request.user;
+    const [employees, workspace] = await Promise.all([
+      repository.listPayrollEmployees(clinicId),
+      repository.getFinancialWorkspace(clinicId),
+    ]);
+    return buildPayroll(
+      employees,
+      workspace.commissions,
+      competence ?? saoPauloToday().slice(0, 7),
+    );
+  });
+
+  app.get(
+    "/finance/payroll/employees",
+    { preHandler: authenticate },
+    async (request) => repository.listPayrollEmployees(request.user.clinicId),
+  );
+
+  app.post(
+    "/finance/payroll/employees",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createPayrollEmployee(
+            request.user.clinicId,
+            request.user.sub,
+            payrollEmployeeInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.put(
+    "/finance/payroll/employees/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const employee = await repository.updatePayrollEmployee(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        payrollEmployeeInputSchema.parse(request.body),
+      );
+      if (!employee)
+        return reply.status(404).send({
+          code: "PAYROLL_EMPLOYEE_NOT_FOUND",
+          message: "Colaborador não encontrado.",
+        });
+      return employee;
     },
   );
 

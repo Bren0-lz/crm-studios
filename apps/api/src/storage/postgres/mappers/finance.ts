@@ -10,6 +10,7 @@ import type {
   Product,
   Receivable,
   ReceivableStatus,
+  PayrollEmployee,
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
@@ -141,6 +142,7 @@ export interface PayableRow {
   updatedAt: Date;
   recurringPayableId: string | null;
   competence: string | null;
+  amountEstimated?: boolean;
 }
 
 export interface RecurringPayableRow {
@@ -154,7 +156,9 @@ export interface RecurringPayableRow {
   categoryName: string;
   costCenterName: string;
   amountInCents: number;
+  variableAmount: boolean;
   dayOfMonth: number;
+  reminderDaysBefore: number | null;
   startMonth: string;
   endMonth: string | null;
   active: boolean;
@@ -222,14 +226,16 @@ export const payableColumns = `
   py.paid_at AS "paidAt",
   (py.status = 'open' AND py.due_date < CURRENT_DATE) AS overdue,
   py.created_at AS "createdAt", py.updated_at AS "updatedAt",
-  py.recurring_payable_id AS "recurringPayableId", py.competence
+  py.recurring_payable_id AS "recurringPayableId", py.competence,
+  py.amount_estimated AS "amountEstimated"
 `;
 
 export const recurringPayableColumns = `
   rp.branch_id AS "branchId", rp.id, rp.clinic_id AS "clinicId", rp.description, rp.supplier,
   rp.category_id AS "categoryId", rp.cost_center_id AS "costCenterId",
   fc.name AS "categoryName", cc.name AS "costCenterName",
-  rp.amount_in_cents AS "amountInCents", rp.day_of_month::int AS "dayOfMonth",
+  rp.amount_in_cents AS "amountInCents", rp.variable_amount AS "variableAmount",
+  rp.day_of_month::int AS "dayOfMonth", rp.reminder_days_before::int AS "reminderDaysBefore",
   rp.start_month AS "startMonth", rp.end_month AS "endMonth", rp.active,
   rp.resumed_from_month AS "resumedFromMonth",
   (SELECT max(py.competence) FROM payables py
@@ -405,6 +411,7 @@ export function mapPayable(row: PayableRow): Payable {
       ? { recurringPayableId: row.recurringPayableId }
       : {}),
     ...(row.competence ? { competence: row.competence } : {}),
+    ...(row.amountEstimated ? { amountEstimated: true } : {}),
   };
 }
 
@@ -422,7 +429,11 @@ export function mapRecurringPayable(
     categoryName: row.categoryName,
     costCenterName: row.costCenterName,
     amountInCents: row.amountInCents,
+    variableAmount: row.variableAmount,
     dayOfMonth: row.dayOfMonth,
+    ...(row.reminderDaysBefore !== null
+      ? { reminderDaysBefore: row.reminderDaysBefore }
+      : {}),
     startMonth: row.startMonth,
     ...(row.endMonth ? { endMonth: row.endMonth } : {}),
     active: row.active,
@@ -487,4 +498,39 @@ export function hasDatabaseCode(error: unknown, code: string) {
     "code" in error &&
     error.code === code
   );
+}
+
+export interface PayrollEmployeeRow {
+  id: string;
+  clinicId: string;
+  name: string;
+  role: string | null;
+  professionalId: string | null;
+  professionalName: string | null;
+  baseSalaryInCents: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const payrollEmployeeColumns = `
+  pe.id, pe.clinic_id AS "clinicId", pe.name, pe.role,
+  pe.professional_id AS "professionalId", pr.full_name AS "professionalName",
+  pe.base_salary_in_cents AS "baseSalaryInCents", pe.active,
+  pe.created_at AS "createdAt", pe.updated_at AS "updatedAt"
+`;
+
+export function mapPayrollEmployee(row: PayrollEmployeeRow): PayrollEmployee {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    name: row.name,
+    ...(row.role ? { role: row.role } : {}),
+    ...(row.professionalId ? { professionalId: row.professionalId } : {}),
+    ...(row.professionalName ? { professionalName: row.professionalName } : {}),
+    baseSalaryInCents: row.baseSalaryInCents,
+    active: row.active,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }

@@ -46,7 +46,11 @@ export function PayablesList({
       </div>
       {payables.map((item) => {
         const situation = receivableSituation(item, today);
-        const detail = [item.supplier || item.categoryName, item.costCenterName]
+        const detail = [
+          item.supplier || item.categoryName,
+          item.costCenterName,
+          item.amountEstimated && "Valor estimado",
+        ]
           .filter(Boolean)
           .join(" · ");
         return (

@@ -403,6 +403,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "DELETE /finance/recurring-payables/:id": operation(
     "finance.recurring_delete",
   ),
+  "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
+  "GET /finance/payroll": operation("finance.payroll_view"),
+  "GET /finance/payroll/employees": operation("finance.payroll_view"),
+  "POST /finance/payroll/employees": operation("finance.payroll_manage"),
+  "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
   "POST /finance/renegotiations": operation("finance.renegotiate"),
   "POST /finance/commission-rules": operation("finance.commission_rules"),
   "POST /finance/commissions/generate": operation(

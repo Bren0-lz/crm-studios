@@ -276,6 +276,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.deleteRecurringPayable = this.finance.deleteRecurringPayable;
     this.generateDueRecurringPayables =
       this.finance.generateDueRecurringPayables;
+    this.setPayableAmount = this.finance.setPayableAmount;
+    this.listPayrollEmployees = this.finance.listPayrollEmployees;
+    this.createPayrollEmployee = this.finance.createPayrollEmployee;
+    this.updatePayrollEmployee = this.finance.updatePayrollEmployee;
     this.renegotiateReceivables = this.finance.renegotiateReceivables;
     this.createCommissionRule = this.finance.createCommissionRule;
     this.generateCommissions = this.finance.generateCommissions;
@@ -618,6 +622,18 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly generateDueRecurringPayables: ReturnType<
     typeof createFinanceRepository
   >["generateDueRecurringPayables"];
+  readonly setPayableAmount: ReturnType<
+    typeof createFinanceRepository
+  >["setPayableAmount"];
+  readonly listPayrollEmployees: ReturnType<
+    typeof createFinanceRepository
+  >["listPayrollEmployees"];
+  readonly createPayrollEmployee: ReturnType<
+    typeof createFinanceRepository
+  >["createPayrollEmployee"];
+  readonly updatePayrollEmployee: ReturnType<
+    typeof createFinanceRepository
+  >["updatePayrollEmployee"];
 
   readonly renegotiateReceivables: ReturnType<
     typeof createFinanceRepository

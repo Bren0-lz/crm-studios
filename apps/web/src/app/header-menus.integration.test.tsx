@@ -61,6 +61,57 @@ function renderApp(initialEntry = "/agenda") {
 }
 
 describe("header menus", () => {
+  it("shows fixed expenses within the reminder window and opens accounts payable", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/notifications"))
+        return json({ date: "2026-10-16", fixedExpensesDue: 2 });
+      if (url.includes("/finance/workspace"))
+        return json({
+          summary: {
+            openInCents: 0,
+            overdueInCents: 0,
+            paidThisMonthInCents: 0,
+            receivables: [],
+          },
+          categories: [],
+          costCenters: [],
+          payables: [],
+          payableOpenInCents: 0,
+          payableOverdueInCents: 0,
+          paidExpensesThisMonthInCents: 0,
+          cashBalanceThisMonthInCents: 0,
+          commissionRules: [],
+          commissions: [],
+          commissionOpenInCents: 0,
+          paidCommissionsThisMonthInCents: 0,
+        });
+      return json(
+        url.includes("/dashboard?")
+          ? { date: "2026-10-16", nextAppointments: [] }
+          : [],
+      );
+    });
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Notificações: 2 pendências",
+      }),
+    );
+    const item = within(
+      screen.getByRole("dialog", { name: "Notificações" }),
+    ).getByRole("button", { name: /Despesas fixas a vencer/ });
+    expect(item).toHaveTextContent("2");
+    fireEvent.click(item);
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/financeiro",
+    );
+    expect(
+      await screen.findByRole("button", { name: /^Contas a pagar/ }),
+    ).toHaveClass("active");
+  });
+
   it("opens notifications with an empty state and closes with Esc", async () => {
     login();
     mockApi(() =>

@@ -912,6 +912,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         costCenterId: costCenter.rows[0]!.id,
         amountInCents: 12_345,
         dayOfMonth: 28,
+        variableAmount: false,
         startMonth: shift(-2),
         active: true,
       };
@@ -944,6 +945,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       });
       expect(running).toMatchObject({
         dayOfMonth: 28,
+        variableAmount: false,
         startMonth: shift(-2),
         active: true,
       });
@@ -1044,6 +1046,126 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       ).toBeNull();
     } finally {
       await cleanupRecurringPayables();
+    }
+  });
+
+  it("generates variable fixed expenses as estimated and accepts the month's amount", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await testFinanceClassification();
+      const current = saoPauloToday().slice(0, 7);
+      const model = await repository.createRecurringPayable(clinicId, ownerId, {
+        description: recurringPayableMarker,
+        categoryId: category.rows[0]!.id,
+        costCenterId: costCenter.rows[0]!.id,
+        amountInCents: 30_000,
+        variableAmount: true,
+        reminderDaysBefore: 4,
+        dayOfMonth: 28,
+        startMonth: current,
+        active: true,
+      });
+      expect(model).toMatchObject({
+        variableAmount: true,
+        reminderDaysBefore: 4,
+      });
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      const generated = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.recurringPayableId === model.id)!;
+      expect(generated).toMatchObject({
+        amountInCents: 30_000,
+        amountEstimated: true,
+      });
+      const informed = await repository.setPayableAmount(
+        clinicId,
+        ownerId,
+        generated.id,
+        27_450,
+      );
+      expect(informed?.amountInCents).toBe(27_450);
+      expect(informed?.amountEstimated).toBeUndefined();
+      await repository.settlePayable(clinicId, ownerId, generated.id, "pix");
+      await expect(
+        repository.setPayableAmount(clinicId, ownerId, generated.id, 1_000),
+      ).rejects.toMatchObject({ code: "PAYABLE_NOT_OPEN" });
+      const updated = await repository.updateRecurringPayable(
+        clinicId,
+        ownerId,
+        model.id,
+        {
+          description: recurringPayableMarker,
+          categoryId: category.rows[0]!.id,
+          costCenterId: costCenter.rows[0]!.id,
+          amountInCents: 30_000,
+          variableAmount: false,
+          dayOfMonth: 28,
+          startMonth: current,
+          active: true,
+        },
+      );
+      expect(updated?.variableAmount).toBe(false);
+      expect(updated?.reminderDaysBefore).toBeUndefined();
+    } finally {
+      await cleanupRecurringPayables();
+    }
+  });
+
+  it("stores payroll employees linked to at most one professional", async () => {
+    const marker = "Colaborador folha PG";
+    const cleanup = () =>
+      pool.query(
+        "DELETE FROM payroll_employees WHERE clinic_id = $1 AND name LIKE $2",
+        [clinicId, `${marker}%`],
+      );
+    await cleanup();
+    try {
+      const [professional] = await repository.listProfessionals(clinicId);
+      await pool.query(
+        "DELETE FROM payroll_employees WHERE clinic_id = $1 AND professional_id = $2",
+        [clinicId, professional!.id],
+      );
+      const created = await repository.createPayrollEmployee(
+        clinicId,
+        ownerId,
+        {
+          name: `${marker} 1`,
+          role: "Fisioterapeuta",
+          professionalId: professional!.id,
+          baseSalaryInCents: 250_000,
+          active: true,
+        },
+      );
+      expect(created).toMatchObject({
+        professionalName: professional!.fullName,
+        baseSalaryInCents: 250_000,
+      });
+      await expect(
+        repository.createPayrollEmployee(clinicId, ownerId, {
+          name: `${marker} 2`,
+          professionalId: professional!.id,
+          baseSalaryInCents: 0,
+          active: true,
+        }),
+      ).rejects.toMatchObject({ code: "PAYROLL_PROFESSIONAL_IN_USE" });
+      const updated = await repository.updatePayrollEmployee(
+        clinicId,
+        ownerId,
+        created.id,
+        { name: `${marker} 1`, baseSalaryInCents: 260_000, active: false },
+      );
+      expect(updated).toMatchObject({
+        baseSalaryInCents: 260_000,
+        active: false,
+      });
+      expect(updated?.professionalId).toBeUndefined();
+      expect(
+        (await repository.listPayrollEmployees(clinicId)).some(
+          (item) => item.id === created.id,
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
     }
   });
 

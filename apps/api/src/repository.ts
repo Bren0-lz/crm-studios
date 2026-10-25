@@ -203,6 +203,8 @@ import type {
   RecurringAppointmentInput,
   RecurringPayable,
   RecurringPayableInput,
+  PayrollEmployee,
+  PayrollEmployeeInput,
   RelationshipSettings,
   ReminderGenerationResult,
   ReplacementBookingInput,
@@ -1139,6 +1141,28 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
   ): Promise<number>;
+  /**
+   * Informa o valor real do mês de uma conta em aberto gerada por despesa fixa de valor
+   * variável; a conta deixa de ser estimada.
+   */
+  setPayableAmount(
+    clinicId: string,
+    actorUserId: string,
+    payableId: string,
+    amountInCents: number,
+  ): Promise<Payable | null>;
+  listPayrollEmployees(clinicId: string): Promise<PayrollEmployee[]>;
+  createPayrollEmployee(
+    clinicId: string,
+    actorUserId: string,
+    input: PayrollEmployeeInput,
+  ): Promise<PayrollEmployee>;
+  updatePayrollEmployee(
+    clinicId: string,
+    actorUserId: string,
+    employeeId: string,
+    input: PayrollEmployeeInput,
+  ): Promise<PayrollEmployee | null>;
   renegotiateReceivables(
     clinicId: string,
     actorUserId: string,

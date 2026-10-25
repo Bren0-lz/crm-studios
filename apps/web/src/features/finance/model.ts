@@ -149,12 +149,23 @@ export function recurringPayableInput(
     categoryId: item.categoryId,
     costCenterId: item.costCenterId,
     amountInCents: item.amountInCents,
+    variableAmount: item.variableAmount,
     dayOfMonth: item.dayOfMonth,
+    ...(item.reminderDaysBefore !== undefined
+      ? { reminderDaysBefore: item.reminderDaysBefore }
+      : {}),
     startMonth: item.startMonth,
     ...(item.endMonth ? { endMonth: item.endMonth } : {}),
     active: item.active,
     ...changes,
   };
+}
+
+/** "Vence hoje", "Vence amanhã" ou "Vence em N dias" (avisos de despesa fixa). */
+export function dueInLabel(days: number) {
+  if (days === 0) return "Vence hoje";
+  if (days === 1) return "Vence amanhã";
+  return `Vence em ${days} dias`;
 }
 
 export function recurringPayableStatus(

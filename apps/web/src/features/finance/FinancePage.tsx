@@ -21,6 +21,7 @@ import type {
 } from "@crm/contracts";
 import { Building2, Plus, Tags } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -38,6 +39,7 @@ import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
+import { PayrollSection } from "./PayrollSection";
 import { ReceiptModal } from "./ReceiptModal";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
 import { ReceivableContactModal } from "./ReceivableContactModal";
@@ -80,7 +82,16 @@ export function FinancePage() {
     | "forecast"
     | "entries"
     | "externalOperations"
+    | "payroll"
   >("receivables");
+  // O aviso de despesa fixa do sino abre direto em Contas a pagar.
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("aba");
+  const [handledTab, setHandledTab] = useState<string | null>(null);
+  if (requestedTab !== handledTab) {
+    setHandledTab(requestedTab);
+    if (requestedTab === "contas-a-pagar") setTab("payables");
+  }
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
   const [receivableFilter, setReceivableFilter] =
@@ -418,6 +429,14 @@ export function FinancePage() {
                   Documentos fiscais
                 </button>
               )}
+              {can("finance.payroll_view") && (
+                <button
+                  className={`tab-button ${tab === "payroll" ? "active" : ""}`}
+                  onClick={() => setTab("payroll")}
+                >
+                  Folha de pagamento
+                </button>
+              )}
             </div>
           </section>
           {tab === "dailyCash" ? (
@@ -428,6 +447,8 @@ export function FinancePage() {
             <FinanceClassificationPanel workspace={data} onChanged={reload} />
           ) : tab === "externalOperations" ? (
             <ExternalOperationsPanel workspace={data} />
+          ) : tab === "payroll" ? (
+            <PayrollSection professionals={professionals} />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">

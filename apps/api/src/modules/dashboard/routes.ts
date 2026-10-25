@@ -1,5 +1,6 @@
 import {
   isOverdueReceivable,
+  recurringPayableReminders,
   type DashboardViewSummary,
   type NotificationsSummary,
 } from "@crm/contracts";
@@ -82,8 +83,8 @@ export function registerDashboardRoutes(context: RouteContext) {
    * Aniversariantes do dia ainda sem parabéns (relacionamento), parcelas vencidas em aberto
    * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), atendimentos a finalizar
    * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
-   * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
-   * até hoje (planos).
+   * contatos adiados que voltaram à lista (relacionamento), pausas com retorno previsto
+   * até hoje (planos) e despesas fixas dentro da antecedência de aviso (financeiro).
    */
   app.get("/notifications", { preHandler: authenticate }, async (request) => {
     const { clinicId } = request.user;
@@ -93,7 +94,7 @@ export function registerDashboardRoutes(context: RouteContext) {
       new Date(),
       settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     );
-    const [birthdays, finance, pending, leads, snoozed, plans] =
+    const [birthdays, finance, pending, leads, snoozed, plans, fixedExpenses] =
       await Promise.all([
         modules.includes("relationship")
           ? repository.listBirthdays(clinicId, date.slice(0, 7))
@@ -132,6 +133,17 @@ export function registerDashboardRoutes(context: RouteContext) {
         modules.includes("plans")
           ? repository.listPatientPlans(clinicId)
           : undefined,
+        modules.includes("finance")
+          ? repository.listRecurringPayables(clinicId).then(async (models) => {
+              // As contas do mês só são lidas quando algum modelo tem aviso configurado.
+              if (!models.some((item) => item.reminderDaysBefore !== undefined))
+                return 0;
+              const workspace =
+                await repository.getFinancialWorkspace(clinicId);
+              return recurringPayableReminders(models, workspace.payables, date)
+                .length;
+            })
+          : undefined,
       ]);
     return {
       date,
@@ -167,6 +179,9 @@ export function registerDashboardRoutes(context: RouteContext) {
                 plan.pauseExpectedReturn <= date,
             ).length,
           }
+        : {}),
+      ...(fixedExpenses !== undefined
+        ? { fixedExpensesDue: fixedExpenses }
         : {}),
     } satisfies NotificationsSummary;
   });

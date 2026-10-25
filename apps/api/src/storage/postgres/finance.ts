@@ -37,6 +37,7 @@ import {
   type ReceivedPayment,
   recurringPayableCompetences,
   recurringPayableDueDate,
+  type PayrollEmployeeInput,
   type RecurringPayableInput,
   saoPauloToday,
   type StockMovementInput,
@@ -73,6 +74,11 @@ import {
   type StockMovementRow,
   branchClause,
 } from "./helpers.js";
+import {
+  mapPayrollEmployee,
+  payrollEmployeeColumns,
+  type PayrollEmployeeRow,
+} from "./mappers/finance.js";
 
 /** Insere um produto na comanda (reserva estoque); `false` se a comanda não existe. */
 async function addTabItem(
@@ -1243,8 +1249,8 @@ export function createFinanceRepository(
         `INSERT INTO recurring_payables
          (clinic_id, description, supplier, category_id, cost_center_id,
           amount_in_cents, day_of_month, start_month, end_month, active,
-          created_by_user_id, branch_id)
-       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,$12
+          created_by_user_id, branch_id, variable_amount, reminder_days_before)
+       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,$12,$13,$14
        FROM financial_categories fc, cost_centers cc
        WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
          AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
@@ -1262,6 +1268,8 @@ export function createFinanceRepository(
           input.active,
           actorUserId,
           repositoryContext.branchWriteId(),
+          input.variableAmount,
+          input.reminderDaysBefore ?? null,
         ],
       );
       if (!inserted.rows[0])
@@ -1317,7 +1325,8 @@ export function createFinanceRepository(
          SET description = $3, supplier = $4, category_id = $5, cost_center_id = $6,
              amount_in_cents = $7, day_of_month = $8, start_month = $9, end_month = $10,
              resumed_from_month = CASE WHEN $11 AND NOT active THEN $12 ELSE resumed_from_month END,
-             active = $11, updated_at = now()
+             active = $11, variable_amount = $13, reminder_days_before = $14,
+             updated_at = now()
          WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -1332,6 +1341,8 @@ export function createFinanceRepository(
             input.endMonth ?? null,
             input.active,
             saoPauloToday().slice(0, 7),
+            input.variableAmount,
+            input.reminderDaysBefore ?? null,
           ],
         );
         return repositoryContext.findRecurringPayable(
@@ -1412,8 +1423,10 @@ export function createFinanceRepository(
             endMonth: string | null;
             resumedFromMonth: string | null;
             active: boolean;
+            variableAmount: boolean;
           }>(
             `SELECT description, supplier, category_id AS "categoryId",
+                  variable_amount AS "variableAmount",
                   cost_center_id AS "costCenterId", amount_in_cents AS "amountInCents",
                   day_of_month::int AS "dayOfMonth", start_month AS "startMonth",
                   end_month AS "endMonth", resumed_from_month AS "resumedFromMonth", active
@@ -1436,9 +1449,9 @@ export function createFinanceRepository(
               `INSERT INTO payables
                (clinic_id, description, supplier, category_id, cost_center_id,
                 due_date, amount_in_cents, created_by_user_id,
-                recurring_payable_id, competence, branch_id)
+                recurring_payable_id, competence, branch_id, amount_estimated)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-               (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9))
+               (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9),$11)
              ON CONFLICT (recurring_payable_id, competence)
                WHERE recurring_payable_id IS NOT NULL DO NOTHING
              RETURNING id`,
@@ -1453,6 +1466,7 @@ export function createFinanceRepository(
                 actorUserId,
                 row.id,
                 competence,
+                model.variableAmount,
               ],
             );
             if (!payable.rows[0]) continue;
@@ -1474,6 +1488,122 @@ export function createFinanceRepository(
         });
       }
       return created;
+    },
+
+    async setPayableAmount(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+      amountInCents: number,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<{
+          status: string;
+          variableAmount: boolean | null;
+        }>(
+          `SELECT py.status, rp.variable_amount AS "variableAmount"
+           FROM payables py
+           LEFT JOIN recurring_payables rp
+             ON rp.clinic_id = py.clinic_id AND rp.id = py.recurring_payable_id
+           WHERE py.clinic_id = $1 AND py.id = $2
+           FOR UPDATE OF py`,
+          [clinicId, payableId],
+        );
+        const row = current.rows[0];
+        if (!row) return null;
+        if (!row.variableAmount)
+          throw new DomainError(
+            "PAYABLE_NOT_VARIABLE",
+            "Só contas de despesa fixa de valor variável recebem o valor do mês.",
+            409,
+          );
+        if (row.status !== "open")
+          throw new DomainError(
+            "PAYABLE_NOT_OPEN",
+            "Só contas em aberto podem ter o valor alterado.",
+            409,
+          );
+        await client.query(
+          `UPDATE payables SET amount_in_cents = $3, amount_estimated = false,
+             updated_at = now()
+           WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, payableId, amountInCents],
+        );
+        return repositoryContext.findPayable(client, clinicId, payableId);
+      });
+    },
+
+    async listPayrollEmployees(clinicId: string) {
+      const result = await repositoryContext.pool.query<PayrollEmployeeRow>(
+        `SELECT ${payrollEmployeeColumns} FROM payroll_employees pe
+         LEFT JOIN professionals pr ON pr.id = pe.professional_id
+         WHERE pe.clinic_id = $1
+         ORDER BY pe.name, pe.created_at`,
+        [clinicId],
+      );
+      return result.rows.map(mapPayrollEmployee);
+    },
+
+    async createPayrollEmployee(
+      clinicId: string,
+      actorUserId: string,
+      input: PayrollEmployeeInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        await assertPayrollProfessional(client, clinicId, input);
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO payroll_employees
+           (clinic_id, name, role, professional_id, base_salary_in_cents, active,
+            created_by_user_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+          [
+            clinicId,
+            input.name,
+            input.role || null,
+            input.professionalId ?? null,
+            input.baseSalaryInCents,
+            input.active,
+            actorUserId,
+          ],
+        );
+        return (await findPayrollEmployee(
+          client,
+          clinicId,
+          inserted.rows[0]!.id,
+        ))!;
+      });
+    },
+
+    async updatePayrollEmployee(
+      clinicId: string,
+      _actorUserId: string,
+      employeeId: string,
+      input: PayrollEmployeeInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query(
+          "SELECT 1 FROM payroll_employees WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+          [clinicId, employeeId],
+        );
+        if (!current.rowCount) return null;
+        await assertPayrollProfessional(client, clinicId, input, employeeId);
+        await client.query(
+          `UPDATE payroll_employees
+           SET name = $3, role = $4, professional_id = $5, base_salary_in_cents = $6,
+               active = $7, updated_at = now()
+           WHERE clinic_id = $1 AND id = $2`,
+          [
+            clinicId,
+            employeeId,
+            input.name,
+            input.role || null,
+            input.professionalId ?? null,
+            input.baseSalaryInCents,
+            input.active,
+          ],
+        );
+        return findPayrollEmployee(client, clinicId, employeeId);
+      });
     },
 
     async renegotiateReceivables(
@@ -1941,4 +2071,48 @@ export function createFinanceRepository(
       }));
     },
   };
+}
+
+async function findPayrollEmployee(
+  client: PoolClient,
+  clinicId: string,
+  employeeId: string,
+) {
+  const result = await client.query<PayrollEmployeeRow>(
+    `SELECT ${payrollEmployeeColumns} FROM payroll_employees pe
+     LEFT JOIN professionals pr ON pr.id = pe.professional_id
+     WHERE pe.clinic_id = $1 AND pe.id = $2`,
+    [clinicId, employeeId],
+  );
+  return result.rows[0] ? mapPayrollEmployee(result.rows[0]) : null;
+}
+
+async function assertPayrollProfessional(
+  client: PoolClient,
+  clinicId: string,
+  input: PayrollEmployeeInput,
+  employeeId?: string,
+) {
+  if (!input.professionalId) return;
+  const professional = await client.query(
+    "SELECT 1 FROM professionals WHERE clinic_id = $1 AND id = $2",
+    [clinicId, input.professionalId],
+  );
+  if (!professional.rowCount)
+    throw new DomainError(
+      "PROFESSIONAL_NOT_FOUND",
+      "Profissional não encontrado.",
+      404,
+    );
+  const used = await client.query(
+    `SELECT 1 FROM payroll_employees
+     WHERE clinic_id = $1 AND professional_id = $2 AND ($3::uuid IS NULL OR id <> $3)`,
+    [clinicId, input.professionalId, employeeId ?? null],
+  );
+  if (used.rowCount)
+    throw new DomainError(
+      "PAYROLL_PROFESSIONAL_IN_USE",
+      "Este profissional já está ligado a outro colaborador da folha.",
+      409,
+    );
 }

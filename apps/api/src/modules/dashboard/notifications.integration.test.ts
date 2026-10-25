@@ -128,6 +128,7 @@ describe("GET /notifications", () => {
       overdueLeadTasks: before.overdueLeadTasks,
       snoozedContactsDue: before.snoozedContactsDue,
       pauseReturnsDue: before.pauseReturnsDue,
+      fixedExpensesDue: before.fixedExpensesDue,
     });
 
     // Parabéns registrados tiram o aniversariante do sino.
@@ -295,7 +296,7 @@ describe("GET /notifications", () => {
     const { notifications, userWith } = await setup();
     expect(
       Object.keys(await notifications(await userWith(["finance"]))),
-    ).toEqual(["date", "overdueReceivables"]);
+    ).toEqual(["date", "overdueReceivables", "fixedExpensesDue"]);
     expect(
       Object.keys(await notifications(await userWith(["agenda"]))),
     ).toEqual(["date", "pendingFinalization"]);
@@ -312,6 +313,78 @@ describe("GET /notifications", () => {
     expect(
       Object.keys(await notifications(await userWith(["patients"]))),
     ).toEqual(["date"]);
+  });
+
+  it("counts fixed expenses within the configured reminder window", async () => {
+    const { app, headers, notifications } = await setup();
+    const before = await notifications();
+    expect(before.fixedExpensesDue).toBe(0);
+    const workspace = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json<{
+      categories: { id: string; kind: string }[];
+      costCenters: { id: string }[];
+    }>();
+    const base = {
+      categoryId: workspace.categories.find((item) => item.kind === "expense")!
+        .id,
+      costCenterId: workspace.costCenters[0]!.id,
+      amountInCents: 15_000,
+      startMonth: "2039-01",
+    };
+    async function create(payload: Record<string, unknown>) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers,
+        payload: { ...base, ...payload },
+      });
+      expect(response.statusCode).toBe(201);
+      return response.json<{ id: string }>();
+    }
+    // Hoje é 10/06: vence dia 13 com aviso 3 dias antes (entra), dia 14 com 3 dias (fora),
+    // dia 10 com aviso no próprio dia (entra) e dia 13 sem aviso (fora).
+    await create({
+      description: "Conta de luz",
+      dayOfMonth: 13,
+      reminderDaysBefore: 3,
+      variableAmount: true,
+    });
+    await create({
+      description: "Internet",
+      dayOfMonth: 14,
+      reminderDaysBefore: 3,
+    });
+    const water = await create({
+      description: "Conta de água",
+      dayOfMonth: 10,
+      reminderDaysBefore: 0,
+    });
+    await create({ description: "Aluguel", dayOfMonth: 13 });
+    expect((await notifications()).fixedExpensesDue).toBe(2);
+
+    // Conta do mês paga sai do sino.
+    const payables = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json<{
+      payables: {
+        id: string;
+        recurringPayableId?: string;
+        competence?: string;
+      }[];
+    }>().payables;
+    const waterJune = payables.find(
+      (item) =>
+        item.recurringPayableId === water.id && item.competence === "2039-06",
+    )!;
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${waterJune.id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix" },
+    });
+    expect(paid.statusCode).toBe(200);
+    expect((await notifications()).fixedExpensesDue).toBe(1);
   });
 
   it("requires login", async () => {

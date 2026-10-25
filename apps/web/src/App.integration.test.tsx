@@ -6318,6 +6318,7 @@ describe("application shell", () => {
       categoryId: category.id,
       costCenterId: center.id,
       amountInCents: 45000,
+      variableAmount: false,
       dayOfMonth: 20,
       startMonth: "2026-10",
       endMonth: "2027-09",

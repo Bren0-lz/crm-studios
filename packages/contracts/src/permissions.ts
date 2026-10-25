@@ -18,6 +18,8 @@ const additionalPermissions = new Set([
   "finance.classify",
   "finance.receivables_create",
   "finance.suppliers_manage",
+  "finance.payroll_view",
+  "finance.payroll_manage",
   "patients.products_update",
   "reports.dre",
   "reports.team_finance",
@@ -125,6 +127,8 @@ const operations = {
       "Registrar documentos fiscais e operações com parceiros",
     dates_manage: "Editar datas financeiras",
     suppliers_manage: "Gerenciar fornecedores",
+    payroll_view: "Consultar folha de pagamento",
+    payroll_manage: "Gerenciar salários da folha de pagamento",
     receivables_create: "Criar cobrança manual",
     classify: "Classificar lançamentos e categorias da DRE",
     receive: "Receber pagamento",
@@ -210,6 +214,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
           const legacyEdit: AppModule[] = module === "reports" ? [] : [module];
           if (key === "finance.external_records_manage")
             dependencies.push("finance.external_records_view");
+          if (key === "finance.payroll_manage")
+            dependencies.push("finance.payroll_view");
           if (key === "reports.team_finance")
             dependencies.push("reports.management");
           if (key === "patients.timeline") {

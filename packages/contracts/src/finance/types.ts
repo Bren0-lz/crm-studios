@@ -68,6 +68,7 @@ import {
   receivableRenegotiationInputSchema,
   receivableSettlementSchema,
   receivableStatusSchema,
+  payableAmountInputSchema,
   recurringPayableInputSchema,
   stockMovementInputSchema,
 } from "./model.js";
@@ -120,6 +121,8 @@ export type CostCenterInput = z.infer<typeof costCenterInputSchema>;
 export type PayableInput = z.infer<typeof payableInputSchema>;
 
 export type RecurringPayableInput = z.infer<typeof recurringPayableInputSchema>;
+
+export type PayableAmountInput = z.infer<typeof payableAmountInputSchema>;
 
 export interface PayablePaymentEvent {
   id: string;
@@ -308,6 +311,8 @@ export interface Payable extends PayableInput {
   /** Despesa fixa que gerou esta conta, com a competência (AAAA-MM). */
   recurringPayableId?: string;
   competence?: string;
+  /** Conta gerada por despesa fixa de valor variável que ainda aguarda o valor do mês. */
+  amountEstimated?: boolean;
 }
 
 export interface RecurringPayable {
@@ -321,8 +326,12 @@ export interface RecurringPayable {
   costCenterId: string;
   categoryName: string;
   costCenterName: string;
+  /** Valor fixo ou, quando `variableAmount`, o estimado de cada mês. */
   amountInCents: number;
+  variableAmount: boolean;
   dayOfMonth: number;
+  /** Dias de antecedência do aviso no sino; ausente = sem aviso. */
+  reminderDaysBefore?: number;
   startMonth: string;
   endMonth?: string;
   active: boolean;

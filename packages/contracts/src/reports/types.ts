@@ -87,6 +87,8 @@ export interface NotificationsSummary {
   snoozedContactsDue?: number | undefined;
   /** Planos pausados com retorno previsto até hoje (módulo plans). */
   pauseReturnsDue?: number | undefined;
+  /** Despesas fixas dentro da antecedência de aviso configurada (módulo finance). */
+  fixedExpensesDue?: number | undefined;
 }
 
 export interface DashboardSummary {

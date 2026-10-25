@@ -1,10 +1,12 @@
 import {
+  recurringPayableReminders,
   saoPauloToday,
   type FinancialWorkspace,
+  type Payable,
   type RecurringPayable,
   type RecurringPayableInput,
 } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { BellRing, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -12,7 +14,9 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { formatIsoDate } from "../../shared/lib/formatting";
 import {
+  dueInLabel,
   formatCompetence,
   recurringPayableInput,
   recurringPayableStatus,
@@ -20,6 +24,7 @@ import {
 } from "./model";
 import { RecurringPayableEndModal } from "./RecurringPayableEndModal";
 import { RecurringPayableModal } from "./RecurringPayableModal";
+import { PayableAmountModal } from "./PayableAmountModal";
 
 export function RecurringPayablesSection({
   workspace,
@@ -37,8 +42,26 @@ export function RecurringPayablesSection({
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<RecurringPayable | null>(null);
   const [ending, setEnding] = useState<RecurringPayable | null>(null);
-  const currentMonth = saoPauloToday().slice(0, 7);
+  const [informing, setInforming] = useState<Payable | null>(null);
+  const today = saoPauloToday();
+  const currentMonth = today.slice(0, 7);
+  const reminders = items
+    ? recurringPayableReminders(items, workspace.payables, today)
+    : [];
+  // Conta em aberto mais recente que ainda espera o valor real do mês.
+  const estimatedPayable = (item: RecurringPayable) =>
+    workspace.payables
+      .filter(
+        (payable) =>
+          payable.recurringPayableId === item.id &&
+          payable.status === "open" &&
+          payable.amountEstimated,
+      )
+      .sort((a, b) => (b.competence ?? "").localeCompare(a.competence ?? ""))
+      .at(0);
+  const canInform = editable && can("finance.recurring_update");
   useEffect(() => {
     let active = true;
     api
@@ -81,8 +104,9 @@ export function RecurringPayablesSection({
           <div>
             <h2>Despesas fixas</h2>
             <p className="panel-help">
-              Contas que se repetem todo mês, como aluguel e internet. Cada mês
-              vira uma conta a pagar no dia do vencimento.
+              Contas que se repetem todo mês. O valor pode ser fixo (aluguel,
+              internet) ou variável (água, luz): na variável, a conta nasce com
+              o valor estimado e você informa o valor real do mês.
             </p>
           </div>
           {editable && can("finance.recurring_create") && (
@@ -91,6 +115,47 @@ export function RecurringPayablesSection({
             </button>
           )}
         </div>
+        {reminders.length > 0 && (
+          <div
+            className="recurring-reminders"
+            aria-label="Avisos de vencimento"
+          >
+            <h3>
+              <BellRing size={16} aria-hidden="true" /> Avisos de vencimento
+            </h3>
+            <ul>
+              {reminders.map((reminder) => {
+                const payable = workspace.payables.find(
+                  (item) => item.id === reminder.payableId,
+                );
+                return (
+                  <li
+                    key={`${reminder.recurringPayableId}-${reminder.competence}`}
+                  >
+                    <span className="recurring-reminder-text">
+                      <strong>{reminder.description}</strong>
+                      <span>
+                        {dueInLabel(reminder.daysUntilDue)} ·{" "}
+                        {formatIsoDate(reminder.dueDate)} ·{" "}
+                        {signedCurrency(-reminder.amountInCents)}
+                        {reminder.amountEstimated && " (estimado)"}
+                      </span>
+                    </span>
+                    {canInform && payable && reminder.variableAmount && (
+                      <button
+                        className="secondary-button button-sm"
+                        aria-label={`Informar valor de ${reminder.description}`}
+                        onClick={() => setInforming(payable)}
+                      >
+                        Informar valor
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         {!items ? (
           !error && <LoadingBlock />
         ) : items.length === 0 ? (
@@ -110,6 +175,7 @@ export function RecurringPayablesSection({
             {items.map((item) => {
               const status = recurringPayableStatus(item, currentMonth);
               const period = [
+                item.variableAmount && "Valor variável (estimado)",
                 `Desde ${formatCompetence(item.startMonth)}`,
                 item.endMonth && `até ${formatCompetence(item.endMonth)}`,
                 item.resumedFromMonth &&
@@ -120,6 +186,9 @@ export function RecurringPayablesSection({
               ]
                 .filter(Boolean)
                 .join(" · ");
+              const pending = item.variableAmount
+                ? estimatedPayable(item)
+                : undefined;
               return (
                 <div className="finance-row" key={item.id}>
                   <div className="finance-item">
@@ -133,6 +202,13 @@ export function RecurringPayablesSection({
                   <span className="finance-due">
                     <span className="finance-label">Vencimento </span>
                     <span>Dia {item.dayOfMonth}</span>
+                    {item.reminderDaysBefore !== undefined && (
+                      <span className="recurring-reminder-note">
+                        {item.reminderDaysBefore === 0
+                          ? "Aviso no dia"
+                          : `Aviso ${item.reminderDaysBefore} ${item.reminderDaysBefore === 1 ? "dia" : "dias"} antes`}
+                      </span>
+                    )}
                   </span>
                   <strong className="finance-amount cash-out">
                     {signedCurrency(-item.amountInCents)}
@@ -147,8 +223,27 @@ export function RecurringPayablesSection({
                     </span>
                   </span>
                   <div className="finance-actions">
+                    {canInform && pending && (
+                      <button
+                        className="primary-button button-sm"
+                        aria-label={`Informar valor de ${item.description} (${formatCompetence(pending.competence!)})`}
+                        onClick={() => setInforming(pending)}
+                      >
+                        Informar valor
+                      </button>
+                    )}
                     {editable && status !== "ended" && (
                       <>
+                        {can("finance.recurring_update") && (
+                          <button
+                            className="secondary-button button-sm"
+                            aria-label={`Editar ${item.description}`}
+                            disabled={busyId === item.id}
+                            onClick={() => setEditing(item)}
+                          >
+                            Editar
+                          </button>
+                        )}
                         {can("finance.recurring_update") && (
                           <button
                             className="secondary-button button-sm"
@@ -188,6 +283,30 @@ export function RecurringPayablesSection({
           onCreated={() => {
             toast.success("Despesa fixa criada.");
             setModal(false);
+            void refresh().catch((cause: Error) => setError(cause.message));
+          }}
+        />
+      )}
+      {editing && (
+        <RecurringPayableModal
+          workspace={workspace}
+          currentMonth={currentMonth}
+          item={editing}
+          onClose={() => setEditing(null)}
+          onCreated={() => {
+            toast.success("Despesa fixa atualizada.");
+            setEditing(null);
+            void refresh().catch((cause: Error) => setError(cause.message));
+          }}
+        />
+      )}
+      {informing && (
+        <PayableAmountModal
+          payable={informing}
+          onClose={() => setInforming(null)}
+          onSaved={() => {
+            toast.success("Valor do mês informado.");
+            setInforming(null);
             void refresh().catch((cause: Error) => setError(cause.message));
           }}
         />
