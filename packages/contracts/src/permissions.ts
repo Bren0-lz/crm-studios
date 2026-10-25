@@ -24,6 +24,13 @@ const additionalPermissions = new Set([
   "communications.templates",
   "communications.campaigns",
 ]);
+/** Exportação de planilha de cada relatório → consulta do relatório exportado. */
+const reportSpreadsheetExports: Partial<Record<string, PermissionKey>> = {
+  "reports.dre_export": "reports.dre",
+  "reports.management_export": "reports.management",
+  "reports.clients_export": "reports.clients",
+  "reports.sales_export": "reports.sales",
+};
 const operations = {
   agenda: {
     view_all: "Ver agenda de todos os profissionais",
@@ -53,8 +60,8 @@ const operations = {
   patients: {
     create: "Cadastrar cliente",
     update: "Editar cliente",
-    import: "Importar clientes",
-    export: "Exportar clientes",
+    import: "Importar planilha de clientes",
+    export: "Exportar planilha de clientes",
     timeline: "Consultar histórico do cliente",
     inventory_view: "Consultar estoque e comandas",
     products_update: "Editar produto",
@@ -151,7 +158,10 @@ const operations = {
     retention: "Consultar retenção",
     clients: "Consultar relatório de clientes",
     sales: "Consultar vendas",
-    export: "Exportar relatórios",
+    dre_export: "Exportar planilha da DRE",
+    management_export: "Exportar planilha do relatório gerencial",
+    clients_export: "Exportar planilha do relatório de clientes",
+    sales_export: "Exportar planilha de vendas",
   },
   settings: {
     registry_manage: "Editar e desativar cadastros administrativos",
@@ -166,9 +176,7 @@ const operations = {
 } as const;
 
 type OperationKey = {
-  [
-    M in keyof typeof operations
-  ]: `${M}.${keyof (typeof operations)[M] & string}`;
+  [M in keyof typeof operations]: `${M}.${keyof (typeof operations)[M] & string}`;
 }[keyof typeof operations];
 export type PermissionKey = `${AppModule}.view` | OperationKey;
 export interface PermissionDefinition {
@@ -212,6 +220,9 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             dependencies.push("finance.external_records_view");
           if (key === "reports.team_finance")
             dependencies.push("reports.management");
+          // Cada planilha de relatório exige consultar o próprio relatório.
+          const exportedReport = reportSpreadsheetExports[key];
+          if (exportedReport) dependencies.push(exportedReport);
           if (key === "patients.timeline") {
             dependencies.push("crm.view");
             legacyView.push("crm");

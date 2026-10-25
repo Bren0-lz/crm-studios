@@ -431,28 +431,28 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.receivables_reverse",
   ),
 
-  // Relatórios (só leitura).
+  // Relatórios (só leitura). Cada planilha tem sua própria permissão de exportação.
   "GET /reports/dre": operation("reports.dre"),
-  "GET /reports/dre/export": operation("reports.dre", "reports.export"),
+  "GET /reports/dre/export": operation("reports.dre", "reports.dre_export"),
   "GET /reports/management": operation("reports.management"),
   "GET /reports/retention": operation("reports.retention"),
   "GET /reports/clients/details": operation("reports.clients"),
   "GET /reports/clients/details/export": operation(
     "reports.clients",
-    "reports.export",
+    "reports.clients_export",
   ),
   "GET /reports/clients": operation("reports.clients"),
   "GET /reports/sales/period": operation("reports.sales"),
   "GET /reports/sales/period.xlsx": operation(
     "reports.sales",
-    "reports.export",
+    "reports.sales_export",
   ),
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales/patients/:id": operation("reports.sales"),
-  "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),
+  "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
   "GET /reports/management.csv": operation(
     "reports.management",
-    "reports.export",
+    "reports.management_export",
   ),
 };
 

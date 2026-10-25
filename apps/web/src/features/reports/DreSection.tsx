@@ -231,7 +231,7 @@ export function DreSection({ period }: { period: ReportPeriod }) {
             ) : (
               table(report)
             )}
-            {can("reports.export") && (
+            {can("reports.dre_export") && (
               <div className="page-actions">
                 <button
                   disabled={busy}
