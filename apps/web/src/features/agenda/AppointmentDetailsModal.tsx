@@ -256,6 +256,12 @@ export function AppointmentDetailsModal({
             <div>
               <small>Status</small>
               <strong>{statusLabel(appointment.status)}</strong>
+              {appointment.status === "completed" &&
+                appointment.autoCompletedAt && (
+                  <span className="auto-finalized-badge">
+                    Finalização automática
+                  </span>
+                )}
             </div>
             <div>
               <small>Data</small>

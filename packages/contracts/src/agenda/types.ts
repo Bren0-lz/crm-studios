@@ -3,6 +3,7 @@ import {
   appointmentInputSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusSchema,
+  autoFinalizationSettingsInputSchema,
   appointmentUpdateInputSchema,
   appointmentVisitTypeSchema,
   groupAttendanceInputSchema,
@@ -81,6 +82,8 @@ export interface Appointment extends Omit<AppointmentInput, "patientId"> {
   createdAt: string;
   updatedAt: string;
   seriesId?: string;
+  /** Quando a finalização automática marcou como realizado (ausente = registrado pela equipe). */
+  autoCompletedAt?: string;
 }
 
 export interface AppointmentRescheduleEvent {
@@ -218,4 +221,13 @@ export interface Holiday extends HolidayInput {
   id: string;
   clinicId: string;
   createdAt: string;
+}
+
+export type AutoFinalizationSettingsInput = z.infer<
+  typeof autoFinalizationSettingsInputSchema
+>;
+
+export interface AutoFinalizationSettings extends AutoFinalizationSettingsInput {
+  /** Última alteração (ausente = nunca configurada, valem os padrões). */
+  updatedAt?: string;
 }

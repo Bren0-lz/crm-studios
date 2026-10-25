@@ -6,6 +6,7 @@ import { hasSession } from "../api";
 import { useAuthorization } from "../authorization-context";
 import { AgendaPage } from "../features/agenda/AgendaPage";
 import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationPage";
+import { CompletedAppointmentsPage } from "../features/agenda/CompletedAppointmentsPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
@@ -76,6 +77,10 @@ export function AppRoutes() {
                 <Route
                   path="/agenda/a-finalizar"
                   element={allow("agenda", <PendingFinalizationPage />)}
+                />
+                <Route
+                  path="/agenda/concluidos"
+                  element={allow("agenda", <CompletedAppointmentsPage />)}
                 />
                 <Route
                   path="/turmas"

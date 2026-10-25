@@ -143,6 +143,35 @@ export function createAgendaRepository(
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
 
+    async autoFinalizeAppointments(
+      clinicId: string,
+      cutoff: string,
+      at: string,
+    ) {
+      const limit = Date.parse(cutoff);
+      // Todas as filiais da clínica, independente do escopo da requisição.
+      const due = repositoryContext.appointments.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          (item.status === "scheduled" || item.status === "confirmed") &&
+          Date.parse(item.endsAt) <= limit,
+      );
+      let finalized = 0;
+      for (const appointment of due) {
+        try {
+          repositoryContext.consumeSession(appointment);
+        } catch {
+          // Sem saldo ou crédito preso a comanda: fica pendente para a equipe resolver.
+          continue;
+        }
+        appointment.status = "completed";
+        appointment.autoCompletedAt = at;
+        appointment.updatedAt = at;
+        finalized += 1;
+      }
+      return finalized;
+    },
+
     async createAppointment(clinicId: string, input: AppointmentInput) {
       const patient = repositoryContext.patients.find(
         (item) => item.id === input.patientId && item.clinicId === clinicId,
@@ -1154,6 +1183,8 @@ export function createAgendaRepository(
         repositoryContext.restoreSession(appointment);
       }
       appointment.status = status;
+      // Desfecho registrado pela equipe substitui o da finalização automática.
+      if (previousStatus !== status) delete appointment.autoCompletedAt;
       if (absenceReason !== undefined)
         appointment.absenceReason = absenceReason;
       appointment.updatedAt = now();

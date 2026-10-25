@@ -17,6 +17,8 @@ import type {
   AppointmentRescheduleInput,
   AppointmentStatus,
   AppointmentUpdateInput,
+  AutoFinalizationSettings,
+  AutoFinalizationSettingsInput,
   ClinicalAppointmentOption,
   GroupClass,
   GroupClassInput,
@@ -103,6 +105,18 @@ export const agendaApi = {
   /** Atendimentos passados ainda agendados/confirmados, de qualquer data (QC2). */
   pendingFinalizationAppointments: () =>
     request<Appointment[]>("/appointments/pending-finalization"),
+  /** Realizados que começaram no período (pela equipe ou pela finalização automática). */
+  completedAppointments: (from: string, to: string) =>
+    request<Appointment[]>(
+      `/appointments/completed?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  autoFinalizationSettings: () =>
+    request<AutoFinalizationSettings>("/clinic/auto-finalization"),
+  saveAutoFinalizationSettings: (input: AutoFinalizationSettingsInput) =>
+    request<AutoFinalizationSettings>("/admin/auto-finalization", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   createAppointment: (input: AppointmentInput) =>
     request<Appointment>("/appointments", {
       method: "POST",

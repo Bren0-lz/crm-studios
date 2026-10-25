@@ -1,5 +1,7 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
 import {
+  type AutoFinalizationSettings,
+  type AutoFinalizationSettingsInput,
   type AdminAuditPage,
   type AdminUserInput,
   type AdminUserUpdate,
@@ -15,6 +17,7 @@ import {
   type ProfessionalInput,
   type RoomInput,
   type ServiceInput,
+  defaultAutoFinalizationSettings,
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
@@ -57,6 +60,27 @@ type ClinicSettingsRow = {
 const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
   logo_data_url AS "logoDataUrl",email, address, pix_key AS "pixKey",
   pix_message_template AS "pixMessageTemplate", timezone, updated_at AS "updatedAt"`;
+
+type AutoFinalizationRow = {
+  enabled: boolean;
+  delayMinutes: number;
+  updatedAt: Date | null;
+};
+
+const autoFinalizationColumns = `auto_finalization_enabled AS enabled,
+  auto_finalization_delay_minutes AS "delayMinutes",
+  auto_finalization_updated_at AS "updatedAt"`;
+
+function mapAutoFinalization(
+  row: AutoFinalizationRow | undefined,
+): AutoFinalizationSettings {
+  if (!row) return { ...defaultAutoFinalizationSettings };
+  return {
+    enabled: row.enabled,
+    delayMinutes: row.delayMinutes,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
+  };
+}
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
   return {
@@ -630,6 +654,47 @@ export function createAdministrationRepository(
       const row = result.rows[0];
       if (!row) return null;
       return mapClinicSettings(row);
+    },
+
+    async getAutoFinalizationSettings(
+      clinicId: string,
+    ): Promise<AutoFinalizationSettings> {
+      const result = await repositoryContext.pool.query<AutoFinalizationRow>(
+        `SELECT ${autoFinalizationColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapAutoFinalization(result.rows[0]);
+    },
+
+    async updateAutoFinalizationSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: AutoFinalizationSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const result = await client.query<AutoFinalizationRow>(
+          `UPDATE clinics SET auto_finalization_enabled = $2,
+             auto_finalization_delay_minutes = $3, auto_finalization_updated_at = now()
+           WHERE id = $1 RETURNING ${autoFinalizationColumns}`,
+          [clinicId, input.enabled, input.delayMinutes],
+        );
+        if (!result.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.auto_finalization_updated",
+          "clinic",
+          clinicId,
+          { enabled: input.enabled, delayMinutes: input.delayMinutes },
+        );
+        return mapAutoFinalization(result.rows[0]);
+      });
     },
 
     async updateClinicSettings(

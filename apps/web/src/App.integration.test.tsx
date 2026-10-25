@@ -10103,6 +10103,7 @@ describe("settings tabs", () => {
       "Abas do menu",
       "Planos",
       "Feriados",
+      "Finalização automática",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",

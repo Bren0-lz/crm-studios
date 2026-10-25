@@ -1,6 +1,9 @@
 import { prepareUserAgenda } from "./user-agenda.js";
 import {
+  defaultAutoFinalizationSettings,
   resolveNavTabLabels,
+  type AutoFinalizationSettings,
+  type AutoFinalizationSettingsInput,
   resolvePermissionInput,
   saoPauloToday,
   type AdminAuditPage,
@@ -478,6 +481,38 @@ export function createAdministrationRepository(
         clinicId,
       );
       return repositoryContext.clinicSettings;
+    },
+
+    async getAutoFinalizationSettings(
+      clinicId: string,
+    ): Promise<AutoFinalizationSettings> {
+      return (
+        repositoryContext.autoFinalizationSettings.get(clinicId) ?? {
+          ...defaultAutoFinalizationSettings,
+        }
+      );
+    },
+
+    async updateAutoFinalizationSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: AutoFinalizationSettingsInput,
+    ) {
+      const saved: AutoFinalizationSettings = {
+        enabled: input.enabled,
+        delayMinutes: input.delayMinutes,
+        updatedAt: now(),
+      };
+      repositoryContext.autoFinalizationSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.auto_finalization_updated",
+        "clinic",
+        clinicId,
+        { enabled: input.enabled, delayMinutes: input.delayMinutes },
+        clinicId,
+      );
+      return { ...saved };
     },
 
     async listAdminAuditEvents(clinicId: string) {

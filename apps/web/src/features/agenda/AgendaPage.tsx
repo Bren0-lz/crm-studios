@@ -28,6 +28,7 @@ import {
 } from "@crm/contracts";
 import {
   CalendarDays,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
   LockKeyhole,
@@ -35,7 +36,7 @@ import {
   Share2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -63,6 +64,7 @@ import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
 import { ShareAgendaModal } from "./ShareAgendaModal";
+import { useAutoFinalizationSettings } from "./useAutoFinalizationSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
   type AgendaView,
@@ -83,6 +85,7 @@ import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 export function AgendaPage() {
   const { can, canView, canEdit, user } = useAuthorization();
+  const autoFinalization = useAutoFinalizationSettings();
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -418,8 +421,15 @@ export function AgendaPage() {
           (canBlock ||
             canSchedule ||
             can("agenda.notes") ||
-            agendaProfessionals.length > 0) && (
+            agendaProfessionals.length > 0 ||
+            autoFinalization) && (
             <div className="page-actions">
+              {autoFinalization && (
+                <NavLink to="/agenda/concluidos" className="secondary-button">
+                  <CheckCheck size={16} aria-hidden="true" />
+                  Concluídos
+                </NavLink>
+              )}
               {agendaProfessionals.length > 0 && (
                 <button
                   className="secondary-button"
