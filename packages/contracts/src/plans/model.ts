@@ -6,6 +6,7 @@ import {
 } from "../common/model.js";
 import type {
   PatientPlan,
+  PlanPaymentSummary,
   PlanServiceInput,
   PlanTerms,
   PlanType,
@@ -114,6 +115,8 @@ export const planTemplateFieldsSchema = z.object({
   services: planTemplateServicesSchema,
   planType: planTypeSchema.nullable().optional(),
   kind: planKindSchema.nullable().optional(),
+  /** Máximo de parcelas na venda: 1 = não aceita parcelamento; ausente = sem limite próprio. */
+  maxInstallments: z.number().int().min(1).max(36).nullable().optional(),
 });
 
 export const planTemplateInputSchema = planTemplateFieldsSchema
@@ -224,8 +227,7 @@ export function allocatePlanRevenue(
  */
 export function sessionValueInCents(
   planService:
-    | Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">
-    | undefined,
+    Pick<PlanServiceInput, "totalSessions" | "totalValueInCents"> | undefined,
   priceInCents: number,
 ): number {
   return planService && planService.totalSessions > 0
@@ -434,5 +436,27 @@ export function nextPlanPeriod(plan: {
     validFrom,
     validUntil: addDaysToIsoDate(validFrom, days - 1),
     firstDueDate: addDaysToIsoDate(plan.firstDueDate, days),
+  };
+}
+
+/** Resume as parcelas do plano (canceladas ficam fora); null quando não há cobrança. */
+export function planPaymentSummary(
+  receivables: readonly {
+    status: "open" | "paid" | "cancelled";
+    amountInCents: number;
+    overdue: boolean;
+  }[],
+): PlanPaymentSummary | null {
+  const active = receivables.filter((item) => item.status !== "cancelled");
+  if (!active.length) return null;
+  const paid = active.filter((item) => item.status === "paid");
+  const open = active.filter((item) => item.status === "open");
+  return {
+    installmentCount: active.length,
+    paidCount: paid.length,
+    openCount: open.length,
+    overdueCount: open.filter((item) => item.overdue).length,
+    paidInCents: paid.reduce((sum, item) => sum + item.amountInCents, 0),
+    openInCents: open.reduce((sum, item) => sum + item.amountInCents, 0),
   };
 }

@@ -23,6 +23,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
 import { PlanInstallmentsField } from "../plans/index";
@@ -56,6 +57,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   const [services, setServices] = useState<Service[] | null>(null);
   const [templates, setTemplates] = useState<PlanTemplate[]>([]);
   const [loadError, setLoadError] = useState("");
+  const paymentSettings = usePaymentMethodSettings();
   useEffect(() => {
     let active = true;
     Promise.all([api.services(), api.planTemplates()])
@@ -276,6 +278,9 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         installments={form.installments}
         firstDueDate={form.firstDueDate}
         validUntil={form.validUntil}
+        paymentMethod={form.paymentMethod}
+        settings={paymentSettings}
+        template={templates.find((item) => item.id === form.planTemplateId)}
         onChange={(installments) => setForm({ ...form, installments })}
       />
       <label>

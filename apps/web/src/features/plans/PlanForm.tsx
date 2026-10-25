@@ -2,6 +2,8 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
+  paymentMethodLabels,
+  paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
   planServiceValueForSessions,
@@ -10,6 +12,7 @@ import {
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
+  type PaymentMethod,
   type PlanTemplate,
   type Service,
 } from "@crm/contracts";
@@ -29,6 +32,7 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
 import {
@@ -108,6 +112,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
+      ...(renewing.paymentMethod
+        ? { paymentMethod: renewing.paymentMethod }
+        : {}),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -129,6 +136,7 @@ export function PlanForm({
   );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const paymentSettings = usePaymentMethodSettings();
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
   useEffect(() => {
@@ -532,11 +540,38 @@ export function PlanForm({
                 }
               />
             </label>
+            <label>
+              Forma de pagamento
+              <select
+                value={form.paymentMethod ?? ""}
+                onChange={(event) => {
+                  const paymentMethod = event.target.value as
+                    PaymentMethod | "";
+                  const next = { ...form };
+                  if (paymentMethod) next.paymentMethod = paymentMethod;
+                  else delete next.paymentMethod;
+                  setForm(next);
+                }}
+              >
+                <option value="">A combinar</option>
+                {paymentMethodSchema.options.map((method) => (
+                  <option value={method} key={method}>
+                    {paymentMethodLabels[method]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <PlanInstallmentsField
               kind={form.kind}
               installments={form.installments}
               firstDueDate={form.firstDueDate}
               validUntil={form.validUntil}
+              paymentMethod={form.paymentMethod}
+              settings={paymentSettings}
+              template={templates?.find(
+                (item) =>
+                  item.id === (renewing?.planTemplateId ?? form.planTemplateId),
+              )}
               onChange={(installments) => setForm({ ...form, installments })}
             />
             <label>

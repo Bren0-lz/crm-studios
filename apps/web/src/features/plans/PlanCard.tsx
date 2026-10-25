@@ -1,7 +1,13 @@
 import { type PatientPlan, planDisplayStatus } from "@crm/contracts";
 import type { ReactNode } from "react";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { planBadgeLabel, planKindLabels, planRenewalLabel } from "./model";
+import {
+  planBadgeLabel,
+  planKindLabels,
+  planPaymentProgress,
+  planPaymentTerms,
+  planRenewalLabel,
+} from "./model";
 
 /**
  * Cartão completo do plano: saldo por serviço, validade, pausa e renovação. Usado na página
@@ -58,6 +64,19 @@ export function PlanCard({
             : " · contínuo"}
         </strong>
       </div>
+      {!plan.sourceTabId && plan.totalValueInCents > 0 && (
+        <div className="plan-meta plan-payment">
+          <span>Pagamento</span>
+          <strong>{planPaymentTerms(plan)}</strong>
+          {plan.paymentSummary && (
+            <span
+              className={`plan-payment-progress${plan.paymentSummary.overdueCount ? " overdue" : ""}`}
+            >
+              {planPaymentProgress(plan)}
+            </span>
+          )}
+        </div>
+      )}
       {plan.status === "paused" && plan.pausedAt && (
         <div className="plan-meta plan-pause">
           <span>Pausa</span>

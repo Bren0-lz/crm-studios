@@ -111,6 +111,7 @@ export {
   mapRecurringPayable,
   mapStockMovement,
   payableColumns,
+  paymentInstallmentsValue,
   receivableColumns,
   recurringPayableColumns,
 } from "./mappers/finance.js";

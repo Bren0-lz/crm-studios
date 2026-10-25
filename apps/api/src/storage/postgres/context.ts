@@ -90,6 +90,7 @@ import {
   type PatientTagRow,
   payableColumns,
   type PayableRow,
+  paymentInstallmentsValue,
   receivableColumns,
   type ReceivableRow,
   recurringPayableColumns,
@@ -1444,9 +1445,9 @@ export class PostgresRepositoryContext {
       }
       await client.query(
         operation === "payment"
-          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4::timestamptz,now()),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, updated_at = now()
+          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4::timestamptz,now()),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`
-          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, updated_at = now()
+          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = now()
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
           ? [
@@ -1455,6 +1456,7 @@ export class PostgresRepositoryContext {
               paymentMethod,
               timing?.paidAt ?? null,
               timing?.availableAt ?? null,
+              paymentInstallmentsValue(adjustments.paymentInstallments),
             ]
           : [clinicId, receivableId],
       );
@@ -1471,7 +1473,12 @@ export class PostgresRepositoryContext {
           operation,
           operation === "payment" ? receivedInCents : -receivedInCents,
           operation === "payment"
-            ? { paymentMethod }
+            ? {
+                paymentMethod,
+                ...(paymentInstallmentsValue(adjustments.paymentInstallments)
+                  ? { paymentInstallments: adjustments.paymentInstallments }
+                  : {}),
+              }
             : { paymentMethod: current.rows[0].paymentMethod },
           timing?.paidAt ?? null,
           timing?.availableAt ??

@@ -229,6 +229,11 @@ export const historyActions: {
     label: "Finalização automática alterada",
   },
   {
+    action: "clinic.payment_methods_updated",
+    module: "settings",
+    label: "Formas de pagamento alteradas",
+  },
+  {
     action: "patient_tag.created",
     module: "settings",
     label: "Etiqueta criada",

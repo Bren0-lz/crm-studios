@@ -17,6 +17,7 @@ import type {
   ClinicCatalogEntry,
   NavTabLabel,
   AutoFinalizationSettings,
+  PaymentMethodSettings,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -659,6 +660,8 @@ export class MemoryRepositoryContext {
     string,
     AutoFinalizationSettings
   >();
+  /** Parcelamento por forma de pagamento, por clínica (sem entrada = até 36x em todas). */
+  readonly paymentMethodSettings = new Map<string, PaymentMethodSettings>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,
