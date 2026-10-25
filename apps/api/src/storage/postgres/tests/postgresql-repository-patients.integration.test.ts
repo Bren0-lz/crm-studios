@@ -1716,7 +1716,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
             tags: [],
           },
           plan: { ...terms, kind: "fixed_package" },
-          additionalPlans: [{ plan: { ...terms, kind: "recurring" }, groupId }],
+          additionalPlans: [
+            { plan: { ...terms, kind: "recurring" }, groupId },
+            { plan: { ...terms, kind: "single", installments: 1 } },
+          ],
         },
       );
       expect(twoPlans.plan?.kind).toBe("fixed_package");
@@ -1729,6 +1732,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           }),
           enrollment: expect.objectContaining({ groupId }),
         },
+        { plan: expect.objectContaining({ kind: "single" }) },
       ]);
       const single = await repository.createPatientWithNextStep(
         clinicId,
@@ -1822,7 +1826,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND name = $2",
         [clinicId, marker],
       );
-      expect(stored.rowCount).toBe(5);
+      expect(stored.rowCount).toBe(6);
     } finally {
       await cleanup();
     }

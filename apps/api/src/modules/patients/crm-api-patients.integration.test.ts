@@ -4740,7 +4740,7 @@ describe("CRM API", () => {
       await app.close();
     });
 
-    it("creates several subscription plans at once, each with its own optional group", async () => {
+    it("creates several plans and single services at once, each plan with its own optional group", async () => {
       const { app, headers, guided, findPatients, createGroup } = await setup();
       const groupId = await createGroup(SERVICE_ID);
       const otherGroupId = await createGroup(OTHER_SERVICE_ID);
@@ -4771,6 +4771,14 @@ describe("CRM API", () => {
         additionalPlans: [
           { plan: otherPlan, groupId: otherGroupId },
           { plan: { ...otherPlan, kind: "fixed_package" }, groupId: "" },
+          {
+            plan: {
+              ...otherTerms,
+              kind: "single",
+              installments: 1,
+              validUntil: "",
+            },
+          },
         ],
       });
       expect(created.statusCode, created.body).toBe(201);
@@ -4795,6 +4803,9 @@ describe("CRM API", () => {
             kind: "fixed_package",
           }),
         },
+        {
+          plan: expect.objectContaining({ kind: "single" }),
+        },
       ]);
       const stored = (
         await app.inject({
@@ -4803,7 +4814,7 @@ describe("CRM API", () => {
           headers,
         })
       ).json() as unknown[];
-      expect(stored).toHaveLength(3);
+      expect(stored).toHaveLength(4);
 
       // A mesma turma em dois planos: recusado na validação.
       const repeatedGroup = await guided({
@@ -4820,6 +4831,20 @@ describe("CRM API", () => {
       });
       expect(repeatedGroup.statusCode).toBe(400);
       expect(repeatedGroup.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+      // Serviço avulso não tem turma.
+      const singleWithGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Avulso Com Turma", phone: "11966670004" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        additionalPlans: [
+          {
+            plan: { ...otherTerms, kind: "single", installments: 1 },
+            groupId: otherGroupId,
+          },
+        ],
+      });
+      expect(singleWithGroup.statusCode).toBe(400);
+      expect(await findPatients("Avulso Com Turma")).toEqual([]);
 
       // Turma de outro serviço no plano adicional: nada fica gravado.
       const plansBefore = (

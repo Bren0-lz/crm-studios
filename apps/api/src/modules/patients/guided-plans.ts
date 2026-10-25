@@ -10,7 +10,10 @@ type CreatedGuidedPlan = NonNullable<
   GuidedPatientResult["additionalPlans"]
 >[number];
 
-/** Planos de assinatura do cadastro guiado, na ordem: o principal e depois os adicionais. */
+/**
+ * Planos do passo "plan" do cadastro guiado, na ordem: o principal e depois os adicionais
+ * (assinaturas e serviços avulsos; avulso não tem turma).
+ */
 export function guidedSubscriptions(input: GuidedPatientInput) {
   if (input.next !== "plan") return [];
   return [
