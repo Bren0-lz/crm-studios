@@ -135,13 +135,17 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       dialog,
     );
     change("Intensidade (pontos)", "5", dialog);
-    change("Autorizado", "true", dialog);
-    change("Escolha", "B", dialog);
-    const multiple = within(dialog).getByLabelText(
-      "Atividades",
-    ) as HTMLSelectElement;
-    for (const option of multiple.options) option.selected = true;
-    fireEvent.change(multiple);
+    // Sim/Não e seleções curtas viram botões de opção; seleção múltipla, caixas.
+    const choice = (group: string, option: string, scope: HTMLElement) =>
+      fireEvent.click(
+        within(
+          within(scope).getByRole("group", { name: group }),
+        ).getByLabelText(option),
+      );
+    choice("Autorizado", "Sim", dialog);
+    choice("Escolha", "B", dialog);
+    choice("Atividades", "Mobilidade", dialog);
+    choice("Atividades", "Força", dialog);
     await save("Novo registro");
     change("Data inicial", "2040-01-01", panel);
     change("Data final", "2040-12-31", panel);
@@ -158,7 +162,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     fireEvent.click(within(view).getByRole("button", { name: "Fechar" }));
     fireEvent.click(within(card).getByRole("button", { name: "Editar" }));
     const editing = screen.getByRole("dialog", { name: "Editar registro" });
-    change("Autorizado", "false", editing);
+    choice("Autorizado", "Não", editing);
     await save("Editar registro");
     fireEvent.click(within(card).getByRole("button", { name: "Visualizar" }));
     const revised = screen.getByRole("dialog");

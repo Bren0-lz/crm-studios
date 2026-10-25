@@ -77,6 +77,8 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
   readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
+  readonly listAssessmentTemplates: ClinicRepository["listAssessmentTemplates"];
+  readonly setAssessmentTemplateActive: ClinicRepository["setAssessmentTemplateActive"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
   readonly getDocumentSignatureContent: ClinicRepository["getDocumentSignatureContent"];
@@ -199,9 +201,13 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.reports = createReportsRepository(this.context);
     this.plans = createPlansRepository(this.context);
     this.clinical = createClinicalRepository(this.context);
-    this.saveAssessmentTemplate = createAssessmentOperationsRepository(
+    const assessmentOperations = createAssessmentOperationsRepository(
       this.context,
-    ).saveAssessmentTemplate;
+    );
+    this.saveAssessmentTemplate = assessmentOperations.saveAssessmentTemplate;
+    this.listAssessmentTemplates = assessmentOperations.listAssessmentTemplates;
+    this.setAssessmentTemplateActive =
+      assessmentOperations.setAssessmentTemplateActive;
     const clinicalResources = createClinicalResourcesRepository(this.context);
     this.listClinicalResources = clinicalResources.listClinicalResources;
     this.listClinicalSources = clinicalResources.listClinicalSources;

@@ -11402,7 +11402,7 @@ describe("screens without loose elements", () => {
     const more = await screen.findByRole("button", { name: "Mais ações" });
     // Cabeçalho do prontuário: ação principal visível, o resto no menu.
     const actions = more.closest(".clinical-chart-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Imprimir", "Exportar"]) {
+    for (const name of ["Registrar avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
     expect(

@@ -58,6 +58,16 @@ export const historyActions: {
     label: "Modelo de avaliação salvo",
   },
   {
+    action: "assessment.template_archived",
+    module: "clinical",
+    label: "Modelo de avaliação arquivado",
+  },
+  {
+    action: "assessment.template_restored",
+    module: "clinical",
+    label: "Modelo de avaliação reativado",
+  },
+  {
     action: "catalog.saved",
     module: "settings",
     label: "Cadastro reutilizável salvo",

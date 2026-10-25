@@ -1,13 +1,10 @@
 import type {
-  AssessmentTemplate,
   ClinicalAddendum,
-  ClinicalAssessment,
   ClinicalMeasurement,
   ClinicalRecord,
   TherapeuticGoal,
 } from "@crm/contracts";
 import {
-  ClipboardList,
   FileClock,
   FilePlus2,
   History,
@@ -290,141 +287,6 @@ export function ChartEvolutionsTab({
           </article>
         );
       })}
-    </div>
-  );
-}
-
-function assessmentValue(value: unknown) {
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "boolean") return value ? "Sim" : "Não";
-  return String(value);
-}
-
-export function ChartAssessmentsTab({
-  assessments,
-  templates,
-  editable,
-  onNew,
-  onNewTemplate,
-  onEditTemplate,
-}: {
-  assessments: ClinicalAssessment[];
-  templates: AssessmentTemplate[];
-  editable: boolean;
-  onNew: () => void;
-  onNewTemplate: () => void;
-  onEditTemplate: (template: AssessmentTemplate) => void;
-}) {
-  const { can } = useAuthorization();
-  return (
-    <div className="chart-tab">
-      <div className="chart-tab-toolbar">
-        <p className="panel-context">
-          Fichas preenchidas com os modelos da clínica.
-        </p>
-        {editable && can("clinical.assessments_create") && (
-          <button type="button" className="secondary-button" onClick={onNew}>
-            <ClipboardList size={16} /> Nova avaliação
-          </button>
-        )}
-      </div>
-      {assessments.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Nenhuma avaliação registrada"
-          copy="Use um modelo (anamnese, postural, funcional…) para registrar a avaliação."
-        />
-      ) : (
-        <div className="chart-assessments">
-          {assessments.map((assessment) => {
-            const template = templates.find(
-              (item) => item.id === assessment.templateId,
-            );
-            const fields = (template?.fields ?? []).filter(
-              (field) => field.type !== "section",
-            );
-            const entries = Object.entries(assessment.values).filter(
-              ([, value]) =>
-                value !== "" && !(Array.isArray(value) && value.length === 0),
-            );
-            return (
-              <details className="chart-assessment" key={assessment.id}>
-                <summary>
-                  <span>
-                    <strong>{assessment.templateName}</strong>
-                    <small>
-                      {dateTime(assessment.createdAt)} · {assessment.authorName}
-                    </small>
-                  </span>
-                  <span className="chart-assessment-count">
-                    {entries.length}{" "}
-                    {entries.length === 1 ? "resposta" : "respostas"}
-                  </span>
-                </summary>
-                <dl>
-                  {entries.map(([key, value]) => {
-                    const field = fields.find((item) => item.key === key);
-                    return (
-                      <div key={key}>
-                        <dt>{field?.label ?? key}</dt>
-                        <dd>
-                          {assessmentValue(value)}
-                          {field?.unit ? ` ${field.unit}` : ""}
-                        </dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-                {assessment.notes && (
-                  <p className="chart-assessment-notes">{assessment.notes}</p>
-                )}
-              </details>
-            );
-          })}
-        </div>
-      )}
-      {can("clinical.templates_create") && (
-        <section className="chart-templates" aria-label="Modelos de avaliação">
-          <div className="chart-tab-toolbar">
-            <h3>Modelos de avaliação</h3>
-            {editable && (
-              <button
-                type="button"
-                className="text-button button-sm"
-                onClick={onNewTemplate}
-              >
-                Novo modelo
-              </button>
-            )}
-          </div>
-          {templates.length === 0 ? (
-            <p className="muted-copy">Nenhum modelo cadastrado.</p>
-          ) : (
-            <ul>
-              {templates.map((template) => (
-                <li key={template.id}>
-                  <span>
-                    <strong>{template.name}</strong>
-                    <small>
-                      {template.specialty} · versão {template.version} ·{" "}
-                      {template.status === "draft" ? "Rascunho" : "Publicado"}
-                    </small>
-                  </span>
-                  {editable && (
-                    <button
-                      type="button"
-                      className="secondary-button button-sm"
-                      onClick={() => onEditTemplate(template)}
-                    >
-                      Editar modelo
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </div>
   );
 }
