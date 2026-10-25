@@ -434,4 +434,97 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       await cleanup();
     }
   });
+
+  it("records views and the client's signature through the public link", async () => {
+    const name = "postgres-document-signature-link-test";
+    const cleanup = async () => {
+      await pool.query(
+        `DELETE FROM issued_documents WHERE template_id IN
+           (SELECT id FROM document_templates WHERE clinic_id = $1 AND name = $2)`,
+        [clinicId, name],
+      );
+      await pool.query(
+        "DELETE FROM document_templates WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    };
+    await cleanup();
+    try {
+      const [patient] = await repository.listPatients(clinicId);
+      const template = await repository.createDocumentTemplate(clinicId, {
+        name,
+        kind: "contract",
+        body: "Contrato de {{paciente_nome}} para assinatura pelo link.",
+      });
+      const document = await repository.createIssuedDocument(
+        clinicId,
+        ownerId,
+        { templateId: template.id, patientId: patient!.id, title: name },
+      );
+      await expect(
+        repository.createDocumentSignatureLink(clinicId, ownerId, document.id),
+      ).rejects.toMatchObject({ code: "DOCUMENT_NOT_ISSUED" });
+      await repository.updateIssuedDocumentStatus(
+        clinicId,
+        document.id,
+        "issued",
+      );
+      const share = await repository.createDocumentSignatureLink(
+        clinicId,
+        ownerId,
+        document.id,
+      );
+      expect(share?.document.signatureLink).toMatchObject({ viewCount: 0 });
+      expect(
+        (
+          await repository.createDocumentSignatureLink(
+            clinicId,
+            ownerId,
+            document.id,
+          )
+        )?.token,
+      ).toBe(share!.token);
+      const opened = await repository.openPublicSignatureDocument(
+        share!.token,
+        { ipAddress: "203.0.113.7", userAgent: "Celular" },
+      );
+      expect(opened).toMatchObject({ status: "pending", title: name });
+      const signatureImage = "data:image/png;base64,cG5n";
+      const signed = await repository.signPublicDocument(
+        share!.token,
+        { signerName: patient!.fullName, accepted: true, signatureImage },
+        { ipAddress: "203.0.113.7", userAgent: "Celular" },
+      );
+      expect(signed).toMatchObject({
+        status: "signed",
+        signerName: patient!.fullName,
+      });
+      await expect(
+        repository.signPublicDocument(
+          share!.token,
+          { signerName: "Outra pessoa", accepted: true, signatureImage },
+          {},
+        ),
+      ).rejects.toMatchObject({ code: "DOCUMENT_ALREADY_SIGNED" });
+      expect(
+        await repository.getDocumentSignatureLink(clinicId, document.id),
+      ).toMatchObject({
+        viewCount: 1,
+        views: [{ ipAddress: "203.0.113.7", userAgent: "Celular" }],
+        signatureImage,
+        signerIpAddress: "203.0.113.7",
+        documentSha256: signed!.documentSha256,
+      });
+      const listed = (await repository.listIssuedDocuments(clinicId)).find(
+        (item) => item.id === document.id,
+      );
+      expect(listed?.signatureLink).toMatchObject({
+        viewCount: 1,
+        signerName: patient!.fullName,
+      });
+      expect(listed?.signatureLink?.signedAt).toBeTruthy();
+    } finally {
+      await cleanup();
+    }
+  });
 });

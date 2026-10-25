@@ -6,8 +6,28 @@ import {
   documentTemplateVersionInputSchema,
   documentTransitionSchema,
   issuedDocumentInputSchema,
+  publicDocumentSignInputSchema,
+  type PublicRequestMetadata,
 } from "@crm/contracts";
+import type { FastifyRequest } from "fastify";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { signatureTokenPattern } from "./signature-links.js";
+
+const tokenParams = z.object({
+  token: z.string().regex(signatureTokenPattern),
+});
+const signatureLinkNotFound = {
+  code: "DOCUMENT_SIGNATURE_LINK_NOT_FOUND",
+  message: "Link de assinatura não encontrado.",
+};
+
+function requestMetadata(request: FastifyRequest): PublicRequestMetadata {
+  const userAgent = request.headers["user-agent"];
+  return {
+    ...(request.ip ? { ipAddress: request.ip } : {}),
+    ...(userAgent ? { userAgent } : {}),
+  };
+}
 
 export function registerContractsRoutes(context: RouteContext) {
   const { app, authenticate, repository, assertPermissions } = context;
@@ -36,6 +56,54 @@ export function registerContractsRoutes(context: RouteContext) {
         code: "DOCUMENT_SIGNATURE_NOT_FOUND",
         message: "Cópia assinada não encontrada.",
       }),
+  );
+  app.post(
+    "/documents/:id/signature-link",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.createDocumentSignatureLink(
+        request.user.clinicId,
+        request.user.sub,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "DOCUMENT_NOT_FOUND",
+        message: "Documento não encontrado.",
+      }),
+  );
+  app.get(
+    "/documents/:id/signature-link",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.getDocumentSignatureLink(
+        request.user.clinicId,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+      )) ?? reply.status(404).send(signatureLinkNotFound),
+  );
+  // Link público enviado ao cliente: sem login, o token aleatório identifica o documento.
+  app.get("/public/document-signatures/:token", async (request, reply) => {
+    const params = tokenParams.safeParse(request.params);
+    const document =
+      params.success &&
+      (await repository.openPublicSignatureDocument(
+        params.data.token,
+        requestMetadata(request),
+      ));
+    return document || reply.status(404).send(signatureLinkNotFound);
+  });
+  app.post(
+    "/public/document-signatures/:token",
+    { bodyLimit: 1024 * 1024 },
+    async (request, reply) => {
+      const params = tokenParams.safeParse(request.params);
+      if (!params.success) return reply.status(404).send(signatureLinkNotFound);
+      const document = await repository.signPublicDocument(
+        params.data.token,
+        publicDocumentSignInputSchema.parse(request.body),
+        requestMetadata(request),
+      );
+      return document ?? reply.status(404).send(signatureLinkNotFound);
+    },
   );
   app.get(
     "/document-templates",
