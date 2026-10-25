@@ -1,5 +1,5 @@
 ﻿import type { SalesPeriodReport } from "@crm/contracts/reports";
-import type { PatientWithoutReturn } from "@crm/contracts";
+import type { ContractedItem, PatientWithoutReturn } from "@crm/contracts";
 import type { ChartPoint } from "./ReportChart";
 import { formatIsoDate } from "../../shared/lib/formatting";
 
@@ -127,4 +127,41 @@ export function matchesNoReturnSchedule(
   return filter === "scheduled"
     ? Boolean(item.nextAppointmentAt)
     : !item.nextAppointmentAt;
+}
+
+/** Chave do item contratado no filtro ("plan:Pilates 2x (Pilates)"). */
+export const contractedKey = (item: ContractedItem) =>
+  `${item.sourceType}:${item.itemName}`;
+export const contractedTypeLabels: Record<
+  ContractedItem["sourceType"],
+  string
+> = {
+  plan: "Planos",
+  service: "Serviços",
+  product: "Produtos",
+};
+/** Opções do filtro "Já contratou": itens da lista, sem repetir, por tipo e nome. */
+export function contractedOptions(items: PatientWithoutReturn[]) {
+  const unique = new Map<string, ContractedItem>();
+  for (const patient of items)
+    for (const item of patient.contracted ?? [])
+      unique.set(contractedKey(item), item);
+  return (Object.keys(contractedTypeLabels) as ContractedItem["sourceType"][])
+    .map((sourceType) => ({
+      sourceType,
+      label: contractedTypeLabels[sourceType],
+      items: [...unique.values()]
+        .filter((item) => item.sourceType === sourceType)
+        .sort((a, b) => a.itemName.localeCompare(b.itemName, "pt-BR")),
+    }))
+    .filter((group) => group.items.length);
+}
+/** Filtro "Já contratou": chave vazia aceita todos. */
+export function matchesContracted(item: PatientWithoutReturn, key: string) {
+  return (
+    !key ||
+    (item.contracted ?? []).some(
+      (contracted) => contractedKey(contracted) === key,
+    )
+  );
 }

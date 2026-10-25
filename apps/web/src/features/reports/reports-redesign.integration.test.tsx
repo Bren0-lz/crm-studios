@@ -256,6 +256,61 @@ describe("management reports redesign", () => {
     });
     expect(screen.getByText("Nenhum cliente encontrado.")).toBeInTheDocument();
   });
+  it("filters clients without return by what they already contracted", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({
+      ...sales(from, to),
+      patientsWithoutReturn: [
+        {
+          patientId: "p1",
+          patientName: "Lúcia Prado",
+          lastCompletedAt: "2026-08-20T15:00:00Z",
+          contracted: [
+            { sourceType: "plan", itemName: "Pilates 2x (Pilates)" },
+            { sourceType: "product", itemName: "Bola suíça" },
+          ],
+        },
+        {
+          patientId: "p2",
+          patientName: "Luana Reis",
+          lastCompletedAt: "2026-08-18T15:00:00Z",
+          nextAppointmentAt: "2099-01-10T13:00:00Z",
+          contracted: [
+            { sourceType: "plan", itemName: "Pilates 2x (Pilates)" },
+          ],
+        },
+        {
+          patientId: "p3",
+          patientName: "Marta Souza",
+          lastCompletedAt: "2026-08-12T15:00:00Z",
+          contracted: [{ sourceType: "service", itemName: "Depilação" }],
+        },
+      ],
+    }));
+    open("/relatorios?secao=sem-retorno");
+    await screen.findByText("Marta Souza");
+    const select = screen.getByLabelText("Já contratou");
+    expect(
+      within(select)
+        .getAllByRole("group")
+        .map((group) => group.getAttribute("label")),
+    ).toEqual(["Planos", "Serviços", "Produtos"]);
+    fireEvent.change(select, {
+      target: { value: "plan:Pilates 2x (Pilates)" },
+    });
+    expect(screen.getByText("Lúcia Prado")).toBeInTheDocument();
+    expect(screen.getByText("Luana Reis")).toBeInTheDocument();
+    expect(screen.queryByText("Marta Souza")).not.toBeInTheDocument();
+    const group = screen.getByRole("group", { name: "Próximo agendamento" });
+    expect(
+      within(group).getByRole("button", { name: /Sem agendamento/ }),
+    ).toHaveTextContent("Sem agendamento1");
+    fireEvent.change(select, { target: { value: "product:Bola suíça" } });
+    expect(screen.getByText("Lúcia Prado")).toBeInTheDocument();
+    expect(screen.queryByText("Luana Reis")).not.toBeInTheDocument();
+    fireEvent.change(select, { target: { value: "" } });
+    expect(screen.getByText("Marta Souza")).toBeInTheDocument();
+  });
   it("opens the contract history and the WhatsApp link of a client without return", async () => {
     session();
     vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({

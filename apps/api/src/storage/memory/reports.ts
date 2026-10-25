@@ -15,6 +15,7 @@ import {
   buildSalesReport,
   buildSalesPeriodReport,
   patientSalesHistory,
+  withContractedHistory,
   withPatientContacts,
 } from "../../modules/reports/sales-report.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -284,12 +285,15 @@ export function createReportsRepository(
     ): Promise<SalesPeriodReport> {
       const data = await salesSources(clinicId);
       return withPatientContacts(
-        buildSalesPeriodReport(
-          from,
-          to,
+        withContractedHistory(
+          buildSalesPeriodReport(
+            from,
+            to,
+            data.sales,
+            data.payments,
+            data.appointments,
+          ),
           data.sales,
-          data.payments,
-          data.appointments,
         ),
         new Map(
           repositoryContext.patients

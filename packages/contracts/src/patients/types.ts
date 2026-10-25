@@ -70,6 +70,14 @@ export interface PatientWithoutReturn {
   /** Contato do cadastro, para o botão de WhatsApp da lista. */
   phone?: string;
   whatsapp?: string;
+  /** Tudo o que o cliente já contratou (todo o histórico, sem repetir), para o filtro da lista. */
+  contracted?: ContractedItem[];
+}
+
+/** Item já contratado pelo cliente: plano, serviço ou produto, pelo nome da venda. */
+export interface ContractedItem {
+  sourceType: "plan" | "service" | "product";
+  itemName: string;
 }
 
 export interface Patient extends Omit<PatientInput, "cpf"> {
