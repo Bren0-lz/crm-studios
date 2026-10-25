@@ -1,6 +1,9 @@
 import {
   type PatientPlan,
+  type PaymentMethod,
+  paymentMethodSchema,
   planPeriodEnd,
+  planPixChargeMessage,
   planPeriodMonths,
   planServiceValueForSessions,
   type PlanTemplate,
@@ -23,18 +26,25 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
 import { PlanInstallmentsField } from "../plans/index";
+import { dailyCashMethodLabels } from "../finance/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
   setForm,
   onServiceChange,
   kindField,
+  patientName,
+  pixKey,
   children,
 }: {
   form: T;
   setForm: Dispatch<SetStateAction<T>>;
   onServiceChange?: () => void;
   kindField?: ReactNode;
+  /** Nome do cliente para a mensagem de cobrança Pix. */
+  patientName: string;
+  /** Chave Pix da clínica; `null` enquanto carrega. */
+  pixKey: string | null;
   children?: ReactNode;
 }) {
   const { can } = useAuthorization();
@@ -287,6 +297,54 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         />
         Renovar automaticamente ao fim da validade, com as mesmas condições
       </label>
+      <label className="span-2">
+        Forma de pagamento
+        <select
+          value={form.paymentMethod ?? ""}
+          onChange={(event) =>
+            setForm({
+              ...form,
+              paymentMethod:
+                (event.target.value as PaymentMethod | "") || undefined,
+            })
+          }
+        >
+          <option value="">A combinar</option>
+          {paymentMethodSchema.options.map((method) => (
+            <option value={method} key={method}>
+              {dailyCashMethodLabels[method]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {form.paymentMethod === "pix" &&
+        (pixKey === null ? (
+          <LoadingBlock />
+        ) : pixKey ? (
+          <label className="span-2">
+            Mensagem do Pix (enviada pelo WhatsApp ao salvar)
+            <textarea
+              readOnly
+              rows={4}
+              value={planPixChargeMessage({
+                patientName: patientName.trim() || "cliente",
+                planName: form.name || "Plano",
+                totalValueInCents: form.totalValueInCents,
+                installments: form.installments,
+                totalSessions: form.services.reduce(
+                  (sum, entry) => sum + entry.totalSessions,
+                  0,
+                ),
+                pixKey,
+              })}
+            />
+          </label>
+        ) : (
+          <p className="span-2 muted-copy">
+            Nenhuma chave Pix cadastrada: informe a chave em Configurações ›
+            Dados da clínica para enviar a cobrança ao cliente.
+          </p>
+        ))}
       {children}
     </div>
   );

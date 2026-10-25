@@ -6,6 +6,7 @@ import {
   MapPin,
   Save,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
@@ -285,6 +286,33 @@ export function ClinicSettingsContent() {
                   value={settings.address}
                   onChange={(event) =>
                     setSettings({ ...settings, address: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset
+            disabled={saving}
+            className="settings-clinic-section"
+            aria-labelledby="clinic-payments-title"
+          >
+            <div className="settings-clinic-section-heading">
+              <span className="settings-clinic-section-icon">
+                <Wallet size={20} aria-hidden="true" />
+              </span>
+              <h3 id="clinic-payments-title">Recebimentos</h3>
+              <p>Chave enviada ao cliente nas cobranças por Pix.</p>
+            </div>
+            <div className="form-grid">
+              <label className="span-2">
+                Chave Pix
+                <input
+                  autoComplete="off"
+                  maxLength={140}
+                  placeholder="CNPJ, e-mail, telefone ou chave aleatória"
+                  value={settings.pixKey ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, pixKey: event.target.value })
                   }
                 />
               </label>

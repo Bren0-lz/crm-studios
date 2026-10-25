@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/** Formas de pagamento (recebimentos, despesas e a forma combinada do plano). */
+export const paymentMethodSchema = z.enum([
+  "pix",
+  "card",
+  "cash",
+  "bank_transfer",
+  "boleto",
+  "other",
+]);
+
 export function phoneDigits(value: string): string {
   return value.replace(/\D/g, "").slice(0, 11);
 }

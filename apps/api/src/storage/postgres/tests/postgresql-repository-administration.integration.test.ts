@@ -591,6 +591,38 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("stores and clears the clinic Pix key without touching the other settings", async () => {
+    const before = (await repository.getClinicSettings(clinicId))!;
+    try {
+      const saved = await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        pixKey: "financeiro@aryana.com.br",
+      });
+      expect(saved.pixKey).toBe("financeiro@aryana.com.br");
+      expect((await repository.getClinicSettings(clinicId))?.pixKey).toBe(
+        "financeiro@aryana.com.br",
+      );
+      const cleared = await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        pixKey: "",
+      });
+      expect(cleared.pixKey).toBe("");
+    } finally {
+      await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        legalName: before.legalName ?? "",
+        taxId: before.taxId ?? "",
+        phone: before.phone ?? "",
+        email: before.email ?? "",
+        address: before.address ?? "",
+        pixKey: before.pixKey ?? "",
+      });
+    }
+  });
+
   it("updates the own profile, photo and linked professional in one transaction", async () => {
     const crefito = `PERFIL-${randomUUID().slice(0, 8)}`;
     const cleanup = async () => {

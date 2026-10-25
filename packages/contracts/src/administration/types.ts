@@ -124,6 +124,8 @@ export interface ClinicBranding {
   address?: string;
   phone?: string;
   email?: string;
+  /** Chave Pix da clínica para as cobranças enviadas ao cliente. */
+  pixKey?: string;
 }
 
 export interface ClinicSettings extends ClinicSettingsInput {

@@ -45,6 +45,7 @@ export interface PatientPlanRow {
   totalValueInCents: number;
   installments: number;
   firstDueDate: string;
+  paymentMethod: PatientPlan["paymentMethod"] | null;
   patientName: string;
   serviceName: string;
   status: PlanStatus;
@@ -80,7 +81,7 @@ export const patientPlanColumns = `
   pp.total_sessions AS "totalSessions", pp.remaining_sessions AS "remainingSessions",
   pp.valid_from::text AS "validFrom", pp.valid_until::text AS "validUntil",
   pp.total_value_in_cents AS "totalValueInCents", pp.installments,
-  pp.first_due_date::text AS "firstDueDate", pp.status,
+  pp.first_due_date::text AS "firstDueDate", pp.status, pp.payment_method AS "paymentMethod",
   pp.plan_template_id AS "planTemplateId", pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
   (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
   p.full_name AS "patientName",
@@ -117,6 +118,7 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     totalValueInCents: row.totalValueInCents,
     installments: row.installments,
     firstDueDate: row.firstDueDate,
+    ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
     patientName: row.patientName,
     serviceName: row.serviceName,
     status: row.status,

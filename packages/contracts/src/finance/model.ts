@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { competenceMonthSchema } from "../common/model.js";
+import { competenceMonthSchema, paymentMethodSchema } from "../common/model.js";
 import { patientFirstName } from "../communications/model.js";
 
 /**
@@ -74,14 +74,7 @@ export const patientTabItemInputSchema = z.object({
 
 export const receivableStatusSchema = z.enum(["open", "paid", "cancelled"]);
 
-export const paymentMethodSchema = z.enum([
-  "pix",
-  "card",
-  "cash",
-  "bank_transfer",
-  "boleto",
-  "other",
-]);
+export { paymentMethodSchema };
 
 export const paymentTimingSchema = z.object({
   paidAt: z.iso.datetime({ offset: true }).optional(),
@@ -405,4 +398,37 @@ export function receivableContactMessage(input: {
   return input.overdue
     ? `${greeting} Notamos que ${installment}, com vencimento em ${due}, ainda está em aberto. Aconteceu alguma coisa? Se precisar, podemos combinar juntos a melhor forma de pagamento.`
     : `${greeting} Passando para lembrar que ${installment} vence em ${due}. Qualquer dúvida, estamos à disposição.`;
+}
+
+/**
+ * Mensagem de cobrança por Pix do plano vendido no cadastro: valor proporcional às sessões
+ * (preço por sessão), a primeira cobrança (parcela ou ciclo) e a chave da clínica.
+ */
+export function planPixChargeMessage(input: {
+  patientName: string;
+  planName: string;
+  totalValueInCents: number;
+  installments: number;
+  totalSessions: number;
+  pixKey: string;
+}): string {
+  const money = (cents: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+      .format(cents / 100)
+      .replace(/\u00a0/g, " ");
+  const installments = Math.max(1, input.installments);
+  // Mesma divisão de `planInstallmentSchedule`: o resto vai nos primeiros centavos.
+  const firstCharge =
+    Math.floor(input.totalValueInCents / installments) +
+    (input.totalValueInCents % installments ? 1 : 0);
+  const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
+  const perSession =
+    input.totalSessions > 0
+      ? ` (${money(Math.round(input.totalValueInCents / input.totalSessions))} por sessão)`
+      : "";
+  const charge =
+    installments > 1
+      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}`
+      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}, referente a ${sessions}${perSession}`;
+  return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;
 }

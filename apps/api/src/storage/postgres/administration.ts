@@ -44,12 +44,13 @@ type ClinicSettingsRow = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  pixKey: string | null;
   timezone: string;
   updatedAt: Date;
 };
 
 const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
-  logo_data_url AS "logoDataUrl",email, address, timezone, updated_at AS "updatedAt"`;
+  logo_data_url AS "logoDataUrl",email, address, pix_key AS "pixKey", timezone, updated_at AS "updatedAt"`;
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
   return {
@@ -63,6 +64,7 @@ function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
     phone: row.phone ?? "",
     email: row.email ?? "",
     address: row.address ?? "",
+    pixKey: row.pixKey ?? "",
     timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -608,7 +610,8 @@ export function createAdministrationRepository(
         await client.query("BEGIN");
         const result = await client.query<ClinicSettingsRow>(
           `UPDATE clinics SET name = $2, legal_name = $3, tax_id = $4,
-            phone = $5, email = $6, address = $7, timezone = $8,logo_data_url=CASE WHEN $9 THEN $10 ELSE logo_data_url END, updated_at = now()
+            phone = $5, email = $6, address = $7, timezone = $8,logo_data_url=CASE WHEN $9 THEN $10 ELSE logo_data_url END,
+            pix_key = CASE WHEN $11 THEN $12 ELSE pix_key END, updated_at = now()
          WHERE id = $1 RETURNING ${clinicSettingsColumns}`,
           [
             clinicId,
@@ -621,6 +624,8 @@ export function createAdministrationRepository(
             input.timezone,
             input.logoDataUrl !== undefined,
             input.logoDataUrl ?? null,
+            input.pixKey !== undefined,
+            input.pixKey || null,
           ],
         );
         if (!result.rowCount)
