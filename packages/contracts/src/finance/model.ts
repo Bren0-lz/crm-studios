@@ -95,6 +95,46 @@ export function serviceCommissionsInForce(
     );
 }
 
+/** Tamanhos que um produto pode ter (roupas): padrão, tamanho único e baby look. */
+export const productSizeSchema = z.enum([
+  "pp",
+  "p",
+  "m",
+  "g",
+  "gg",
+  "unique",
+  "baby_look_pp",
+  "baby_look_p",
+  "baby_look_m",
+  "baby_look_g",
+  "baby_look_gg",
+]);
+export type ProductSize = z.infer<typeof productSizeSchema>;
+export const productSizeLabels: Record<ProductSize, string> = {
+  pp: "PP",
+  p: "P",
+  m: "M",
+  g: "G",
+  gg: "GG",
+  unique: "Tamanho único",
+  baby_look_pp: "Baby look PP",
+  baby_look_p: "Baby look P",
+  baby_look_m: "Baby look M",
+  baby_look_g: "Baby look G",
+  baby_look_gg: "Baby look GG",
+};
+/** Tamanhos na ordem da escala (independe da ordem em que foram marcados). */
+export function sortProductSizes(sizes: readonly ProductSize[]): ProductSize[] {
+  return productSizeSchema.options.filter((size) => sizes.includes(size));
+}
+const productSizesSchema = z
+  .array(productSizeSchema)
+  .max(productSizeSchema.options.length)
+  .refine((sizes) => new Set(sizes).size === sizes.length, {
+    message: "Cada tamanho entra uma vez só.",
+  })
+  .transform(sortProductSizes);
+
 export const productInputSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
@@ -105,6 +145,8 @@ export const productInputSchema = z.object({
   salePriceInCents: z.number().int().min(0),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
   minimumStock: z.number().int().min(0).max(1_000_000).default(0),
+  /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
+  sizes: productSizesSchema.optional(),
 });
 
 export const stockMovementInputSchema = z.object({
@@ -455,7 +497,11 @@ export function receivableContactMessage(input: {
 /** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
 export const pixMessageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Marina" },
-  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
   { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
   { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
   { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },

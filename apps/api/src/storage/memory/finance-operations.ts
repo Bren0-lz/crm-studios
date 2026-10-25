@@ -142,7 +142,9 @@ export function createFinanceOperationsRepository(
             "Classificação do produto não encontrada.",
             404,
           );
-      Object.assign(item, input, {
+      const { sizes, ...fields } = input;
+      Object.assign(item, fields, {
+        ...(sizes ? { sizes } : {}),
         updatedAt: now(),
         lowStock: item.currentStock <= input.minimumStock,
       });

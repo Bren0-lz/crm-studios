@@ -3,9 +3,15 @@ import type {
   InventoryWorkspace,
   Product,
   ProductInput,
+  ProductSize,
   ProductUpdateInput,
   StockMovement,
   StockMovementInput,
+} from "@crm/contracts";
+import {
+  productSizeLabels,
+  productSizeSchema,
+  sortProductSizes,
 } from "@crm/contracts";
 import { ChevronDown, Pencil, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
@@ -21,7 +27,9 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, shortDate } from "../../shared/lib/formatting";
 
-const emptyProduct: ProductInput = {
+type ProductForm = ProductInput & { sizes: ProductSize[] };
+
+const emptyProduct: ProductForm = {
   name: "",
   sku: "",
   unit: "un",
@@ -29,6 +37,7 @@ const emptyProduct: ProductInput = {
   salePriceInCents: 0,
   initialStock: 0,
   minimumStock: 0,
+  sizes: [],
 };
 const emptyAdjustment: StockMovementInput = {
   productId: "",
@@ -70,11 +79,15 @@ export function InventorySection({
     [adjusting, setAdjusting] = useState(false),
     [busy, setBusy] = useState(false),
     [formError, setFormError] = useState(""),
-    [form, setForm] = useState<ProductInput>(emptyProduct),
+    [form, setForm] = useState<ProductForm>(emptyProduct),
     [active, setActive] = useState(true),
+    [hasSizes, setHasSizes] = useState(false),
     [adjustment, setAdjustment] = useState<StockMovementInput>(emptyAdjustment);
   const version = useDataVersion("inventory");
-  const productDirty = useFormDirty({ form, active }, Boolean(editor));
+  const productDirty = useFormDirty(
+    { form, active, hasSizes },
+    Boolean(editor),
+  );
   const adjustmentDirty = useFormDirty(adjustment, adjusting);
   useEffect(() => {
     let alive = true;
@@ -116,6 +129,7 @@ export function InventorySection({
   function edit(product: Product | "new") {
     setForm(product === "new" ? emptyProduct : { ...product, initialStock: 0 });
     setActive(product === "new" ? true : product.active);
+    setHasSizes(product !== "new" && product.sizes.length > 0);
     setFormError("");
     setEditor(product);
   }
@@ -124,15 +138,30 @@ export function InventorySection({
     setFormError("");
     setAdjusting(true);
   }
+  function toggleSize(size: ProductSize, checked: boolean) {
+    setForm({
+      ...form,
+      sizes: sortProductSizes(
+        checked
+          ? [...form.sizes, size]
+          : form.sizes.filter((item) => item !== size),
+      ),
+    });
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (hasSizes && !form.sizes.length) {
+      setFormError("Selecione ao menos um tamanho.");
+      return;
+    }
+    const input = { ...form, sizes: hasSizes ? form.sizes : [] };
     setBusy(true);
     setFormError("");
     try {
-      if (editor === "new") await api.createProduct(form);
+      if (editor === "new") await api.createProduct(input);
       else if (editor)
         await api.updateProduct(editor.id, {
-          ...form,
+          ...input,
           active,
         } as ProductUpdateInput);
       toast.success(
@@ -236,6 +265,11 @@ export function InventorySection({
                       <span className="inventory-product">
                         <strong>{product.name}</strong>
                         <small>{product.sku}</small>
+                        {product.sizes.length > 0 && (
+                          <small>
+                            {`Tamanhos: ${product.sizes.map((size) => productSizeLabels[size]).join(", ")}`}
+                          </small>
+                        )}
                       </span>
                     </th>
                     <td>
@@ -461,6 +495,33 @@ export function InventorySection({
                   ))}
                 </select>
               </label>
+              <label className="checkbox-field span-2">
+                <input
+                  type="checkbox"
+                  checked={hasSizes}
+                  onChange={(event) => setHasSizes(event.target.checked)}
+                />
+                Possui distinção por tamanhos
+              </label>
+              {hasSizes && (
+                <fieldset className="form-fieldset span-2">
+                  <legend>Tamanhos disponíveis</legend>
+                  <div className="product-size-grid">
+                    {productSizeSchema.options.map((size) => (
+                      <label key={size} className="checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={form.sizes.includes(size)}
+                          onChange={(event) =>
+                            toggleSize(size, event.target.checked)
+                          }
+                        />
+                        {productSizeLabels[size]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
               {editor !== "new" && (
                 <label className="checkbox-field">
                   <input
