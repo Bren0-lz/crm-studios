@@ -16,6 +16,7 @@ import { AdminUsersContent } from "./AdminUsersContent";
 import { BranchesContent } from "./BranchesContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
+import { NavTabLabelsContent } from "./NavTabLabelsContent";
 import { settingsTabFromSection, settingsTabs } from "./model";
 import { PatientTagsContent } from "./PatientTagsContent";
 import { PlanTemplatesContent } from "./PlanTemplatesContent";
@@ -134,6 +135,8 @@ export function SettingsPage() {
               <BranchesContent />
             ) : tab.key === "users" ? (
               <AdminUsersContent />
+            ) : tab.key === "menu" ? (
+              <NavTabLabelsContent />
             ) : tab.key === "plans" ? (
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (

@@ -21,6 +21,7 @@ import type {
   ClinicSettings,
   ClinicSettingsInput,
   HistoryActor,
+  NavTabLabel,
   OwnPasswordChange,
   OwnProfile,
   OwnProfileUpdate,
@@ -79,6 +80,13 @@ export const administrationApi = {
   revokeAdminUserSessions: (id: string) =>
     request<void>(`/admin/users/${id}/revoke-sessions`, { method: "POST" }),
   clinicBranding: () => request<ClinicBranding>("/clinic/branding"),
+  /** Nomes das abas do menu (padrão onde o admin não renomeou). */
+  navTabLabels: () => request<NavTabLabel[]>("/clinic/nav-tabs"),
+  saveNavTabLabels: (tabs: NavTabLabel[]) =>
+    request<NavTabLabel[]>("/admin/nav-tabs", {
+      method: "PUT",
+      body: JSON.stringify({ tabs }),
+    }),
   administrativeRegistry: () =>
     request<AdministrativeRegistryWorkspace>("/admin/registry"),
   updateAdministrativeRegistry: (

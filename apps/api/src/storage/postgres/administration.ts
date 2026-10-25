@@ -7,6 +7,8 @@ import {
   type ClinicSettings,
   type ClinicSettingsInput,
   type HistoryActor,
+  type NavTabLabel,
+  type NavTabLabelsInput,
   type OwnProfile,
   type OwnProfileUpdate,
   type ProfessionalInput,
@@ -14,6 +16,7 @@ import {
   type ServiceInput,
   permissionEditModules,
   permissionModules,
+  resolveNavTabLabels,
   resolvePermissionInput,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
@@ -822,6 +825,28 @@ export function createAdministrationRepository(
         ],
       );
       return result.rows[0]!;
+    },
+
+    async listNavTabLabels(clinicId: string) {
+      const result = await repositoryContext.pool.query<NavTabLabel>(
+        "SELECT tab, label FROM nav_tab_labels WHERE clinic_id = $1",
+        [clinicId],
+      );
+      return resolveNavTabLabels(result.rows);
+    },
+
+    async saveNavTabLabels(clinicId: string, input: NavTabLabelsInput) {
+      await repositoryContext.inTransaction(async (client) => {
+        for (const item of input.tabs)
+          await client.query(
+            `INSERT INTO nav_tab_labels (clinic_id, tab, label)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (clinic_id, tab)
+             DO UPDATE SET label = EXCLUDED.label, updated_at = now()`,
+            [clinicId, item.tab, item.label],
+          );
+      });
+      return resolveNavTabLabels(input.tabs);
     },
   };
 }
