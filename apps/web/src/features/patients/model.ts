@@ -36,6 +36,7 @@ import {
 } from "../../shared/lib/formatting";
 import type {
   GuidedDemonstrationForm,
+  GuidedPlanEntry,
   GuidedSingleForm,
   PatientRecordFilter,
   PatientSort,
@@ -73,6 +74,15 @@ export const defaultPatientFilters = {
   /** Assinantes sem turma vinculada: calculado na API (`GET /patients?withoutGroup=true`). */
   withoutGroup: false,
 };
+
+/** Plano novo do passo "Assinar um plano"; `id` identifica o bloco na lista. */
+export function defaultGuidedPlanEntry(id: number): GuidedPlanEntry {
+  return {
+    id,
+    form: { kind: "fixed_package", ...defaultPlanTerms() },
+    groupId: "",
+  };
+}
 
 export function defaultPlanTerms(): GuidedSingleForm {
   const today = localIsoDate();
@@ -160,18 +170,42 @@ export function guidedNotice(
   }
   if (!plan) return "";
   if (plan.kind === "single") return `Serviço avulso “${plan.name}” criado.`;
-  const created = `Plano “${plan.name}” criado.`;
-  if (!enrollment) return created;
-  const groupName =
-    groups.find((item) => item.id === enrollment.groupId)?.name ?? "escolhida";
-  if (enrollment.status === "waitlisted")
-    return `${created} A turma ${groupName} está cheia: o cliente entrou na lista de espera${
-      enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""
-    }.`;
-  return `${created} Matrícula feita na turma ${groupName}.`;
+  const entries = [{ plan, enrollment }, ...(result.additionalPlans ?? [])];
+  const names = new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(
+    entries.map((entry) => `“${entry.plan.name}”`),
+  );
+  const created =
+    entries.length === 1
+      ? `Plano ${names} criado.`
+      : `Planos ${names} criados.`;
+  return [
+    created,
+    ...entries.flatMap(({ enrollment: item }) => {
+      if (!item) return [];
+      const groupName =
+        groups.find((group) => group.id === item.groupId)?.name ?? "escolhida";
+      return item.status === "waitlisted"
+        ? `A turma ${groupName} está cheia: o cliente entrou na lista de espera${
+            item.queuePosition ? ` (posição ${item.queuePosition})` : ""
+          }.`
+        : `Matrícula feita na turma ${groupName}.`;
+    }),
+  ].join(" ");
 }
 
 export const guidedPlanKinds = ["fixed_package", "recurring"] as const;
+
+/** Planos que o cliente pode assinar de uma vez no cadastro guiado (o principal + 9 adicionais). */
+export const maxGuidedPlans = 10;
+
+/** Campos obrigatórios ainda vazios de um plano do cadastro guiado. */
+export function missingPlanFields(plan: GuidedSingleForm) {
+  return [
+    !plan.planTemplateId && "Plano cadastrado",
+    !plan.validFrom && "Início",
+    !plan.firstDueDate && "Primeiro vencimento",
+  ].filter((item): item is string => Boolean(item));
+}
 
 export const guidedStepLabels: Record<GuidedPatientNext, string> = {
   demonstration: "Aula experimental",

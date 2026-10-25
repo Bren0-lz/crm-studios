@@ -56,6 +56,8 @@ export interface GuidedPatientResult {
   plan?: PatientPlan;
   /** `status: "waitlisted"` quando a turma estava cheia. */
   enrollment?: GroupEnrollment;
+  /** Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula. */
+  additionalPlans?: { plan: PatientPlan; enrollment?: GroupEnrollment }[];
 }
 
 export type PatientListQuery = z.infer<typeof patientListQuerySchema>;

@@ -4740,6 +4740,106 @@ describe("CRM API", () => {
       await app.close();
     });
 
+    it("creates several subscription plans at once, each with its own optional group", async () => {
+      const { app, headers, guided, findPatients, createGroup } = await setup();
+      const groupId = await createGroup(SERVICE_ID);
+      const otherGroupId = await createGroup(OTHER_SERVICE_ID);
+      const otherTerms = await configuredPlan(app, {
+        ...planTerms,
+        name: "Dança mensal",
+        serviceId: OTHER_SERVICE_ID,
+        services: [
+          {
+            serviceId: OTHER_SERVICE_ID,
+            totalSessions: 4,
+            totalValueInCents: 20000,
+          },
+        ],
+        totalSessions: 4,
+        totalValueInCents: 20000,
+      });
+      const otherPlan = {
+        ...otherTerms,
+        kind: "recurring",
+        installments: 1,
+      };
+      const created = await guided({
+        next: "plan",
+        patient: { fullName: "Dois Planos", phone: "11966670001" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        groupId,
+        additionalPlans: [
+          { plan: otherPlan, groupId: otherGroupId },
+          { plan: { ...otherPlan, kind: "fixed_package" }, groupId: "" },
+        ],
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const body = created.json();
+      expect(body.plan).toMatchObject({
+        name: "Pilates mensal",
+        kind: "fixed_package",
+      });
+      expect(body.enrollment).toMatchObject({ groupId });
+      expect(body.additionalPlans).toEqual([
+        {
+          plan: expect.objectContaining({
+            name: "Dança mensal",
+            kind: "recurring",
+            patientId: body.patient.id,
+          }),
+          enrollment: expect.objectContaining({ groupId: otherGroupId }),
+        },
+        {
+          plan: expect.objectContaining({
+            name: "Dança mensal",
+            kind: "fixed_package",
+          }),
+        },
+      ]);
+      const stored = (
+        await app.inject({
+          method: "GET",
+          url: `/plans?patientId=${body.patient.id as string}`,
+          headers,
+        })
+      ).json() as unknown[];
+      expect(stored).toHaveLength(3);
+
+      // A mesma turma em dois planos: recusado na validação.
+      const repeatedGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Turma Repetida", phone: "11966670002" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        groupId,
+        additionalPlans: [
+          {
+            plan: { ...planTerms, kind: "recurring", installments: 1 },
+            groupId,
+          },
+        ],
+      });
+      expect(repeatedGroup.statusCode).toBe(400);
+      expect(repeatedGroup.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+
+      // Turma de outro serviço no plano adicional: nada fica gravado.
+      const plansBefore = (
+        await app.inject({ method: "GET", url: "/plans", headers })
+      ).json().length as number;
+      const mismatch = await guided({
+        next: "plan",
+        patient: { fullName: "Adicional Errado", phone: "11966670003" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        additionalPlans: [{ plan: otherPlan, groupId }],
+      });
+      expect(mismatch.statusCode).toBe(400);
+      expect(mismatch.json()).toMatchObject({ code: "GROUP_SERVICE_MISMATCH" });
+      expect(await findPatients("Adicional Errado")).toEqual([]);
+      expect(
+        (await app.inject({ method: "GET", url: "/plans", headers })).json(),
+      ).toHaveLength(plansBefore);
+      await app.close();
+    });
+
     it("filters subscribers without a linked group in the list and in the export", async () => {
       const { app, headers, guided, createGroup } = await setup();
       const groupId = await createGroup(SERVICE_ID);
