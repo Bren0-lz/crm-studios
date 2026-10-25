@@ -2513,10 +2513,12 @@ describe("application shell", () => {
 
     // Os cabeçalhos distinguem confirmado de projetado.
     expect(
-      within(table).getByRole("columnheader", { name: "Confirmado" }),
+      within(table).getByRole("columnheader", {
+        name: "Pagamentos confirmados",
+      }),
     ).toBeInTheDocument();
     expect(
-      within(table).getByRole("columnheader", { name: "Projetado" }),
+      within(table).getByRole("columnheader", { name: "Pagamentos em aberto" }),
     ).toBeInTheDocument();
     expect(
       within(table).getByRole("columnheader", { name: "Saldo do mês" }),
@@ -2577,7 +2579,7 @@ describe("application shell", () => {
     expect(firstCells[1]).toHaveClass("cash-out");
     expect(firstCells[2]).toHaveClass("negative");
 
-    // Frase explicativa e legenda do que é Confirmado e Projetado.
+    // Frase explicativa e legenda dos pagamentos confirmados e em aberto.
     expect(
       within(section).getByText(
         /Quanto deve entrar e sair do caixa nos próximos meses/,
@@ -2586,7 +2588,7 @@ describe("application shell", () => {
     const legend = section.querySelector(".forecast-legend")!;
     expect(
       [...legend.querySelectorAll("dt")].map((dt) => dt.textContent),
-    ).toEqual(["Confirmado", "Projetado"]);
+    ).toEqual(["Pagamentos confirmados", "Pagamentos em aberto"]);
     expect(legend).toHaveTextContent("já lançadas e em aberto");
     expect(legend).toHaveTextContent(
       "Renovações automáticas de planos e despesas fixas",
