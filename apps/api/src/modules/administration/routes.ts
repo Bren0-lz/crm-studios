@@ -153,6 +153,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
       email: settings?.email ?? "",
       // Chave Pix para a cobrança enviada no cadastro do cliente.
       pixKey: settings?.pixKey ?? "",
+      pixMessageTemplate: settings?.pixMessageTemplate ?? "",
     };
   });
   // Nomes das abas do menu (o admin pode renomeá-los; a chave da aba não muda).

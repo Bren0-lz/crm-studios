@@ -137,13 +137,17 @@ export function PatientModal({
     (item) => item === "plan" || item === "single",
   );
   const [pixKey, setPixKey] = useState<string | null>(null);
+  // Modelo da mensagem configurado pela clínica; vazio = texto padrão.
+  const [pixTemplate, setPixTemplate] = useState("");
   useEffect(() => {
     if (!sellsPlans) return;
     let active = true;
     api
       .clinicBranding()
       .then((branding) => {
-        if (active) setPixKey(branding.pixKey ?? "");
+        if (!active) return;
+        setPixKey(branding.pixKey ?? "");
+        setPixTemplate(branding.pixMessageTemplate ?? "");
       })
       .catch(() => {
         if (active) setPixKey("");
@@ -286,6 +290,7 @@ export function PatientModal({
             installments: result.plan.installments,
             totalSessions: result.plan.totalSessions,
             pixKey,
+            template: pixTemplate,
           }),
         });
         return;
@@ -519,6 +524,7 @@ export function PatientModal({
               onServiceChange={() => setGroupId("")}
               patientName={form.fullName}
               pixKey={pixKey}
+              pixTemplate={pixTemplate}
               kindField={
                 <label>
                   Modelo
@@ -564,6 +570,7 @@ export function PatientModal({
               setForm={setSingleForm}
               patientName={form.fullName}
               pixKey={pixKey}
+              pixTemplate={pixTemplate}
             />
           </fieldset>
         )}
