@@ -1853,3 +1853,12 @@ button.day-event:focus-visible {
     width: 100%;
   }
 }
+
+/* Prévia do "Compartilhar agenda": mesma quebra de linhas da mensagem do WhatsApp. */
+.agenda-share-message {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

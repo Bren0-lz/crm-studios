@@ -206,6 +206,8 @@ export function createAdministrationRepository(
           actorUserId,
         );
       repositoryContext.users.push(user);
+      if (input.whatsapp)
+        repositoryContext.userWhatsapps.set(user.id, input.whatsapp);
       repositoryContext.addAdminAudit(
         actorUserId,
         "user.created",
@@ -303,6 +305,11 @@ export function createAdministrationRepository(
         const jobTitle = input.jobTitle.trim();
         if (jobTitle) user.jobTitle = jobTitle;
         else delete user.jobTitle;
+      }
+      if (input.whatsapp !== undefined) {
+        if (input.whatsapp)
+          repositoryContext.userWhatsapps.set(user.id, input.whatsapp);
+        else repositoryContext.userWhatsapps.delete(user.id);
       }
       repositoryContext.setUserPermissions(
         user,
@@ -557,12 +564,21 @@ export function createAdministrationRepository(
     },
 
     async listProfessionals(clinicId: string) {
-      return repositoryContext.professionals.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.active &&
-          repositoryContext.inBranchScope(item),
-      );
+      return repositoryContext.professionals
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.active &&
+            repositoryContext.inBranchScope(item),
+        )
+        .map((item): Professional => {
+          // WhatsApp do usuário ligado: só aparece quando informado.
+          const userId = repositoryContext.professionalUsers.get(item.id);
+          const whatsapp = userId
+            ? repositoryContext.userWhatsapps.get(userId)
+            : undefined;
+          return whatsapp ? { ...item, whatsapp } : item;
+        });
     },
 
     async createProfessional(clinicId: string, input: ProfessionalInput) {

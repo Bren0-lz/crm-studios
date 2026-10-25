@@ -18,6 +18,7 @@ export interface UserRow {
   email: string;
   role: AuthenticatedUser["role"];
   jobTitle: string | null;
+  whatsapp: string | null;
   modules: string[] | null;
   editModules: string[] | null;
   permissions: string[];
@@ -30,7 +31,7 @@ export interface UserRow {
 }
 
 export const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
-  job_title AS "jobTitle", modules, edit_modules AS "editModules", permissions,
+  job_title AS "jobTitle", whatsapp, modules, edit_modules AS "editModules", permissions,
   password_hash AS "passwordHash", session_version AS "sessionVersion", active,
   created_at AS "createdAt", updated_at AS "updatedAt", all_branches AS "allBranches",
   ARRAY(SELECT ub.branch_id::text FROM user_branches ub WHERE ub.user_id = users.id
@@ -89,6 +90,7 @@ export function mapAdminUser(row: UserRow): AdminUser {
     email: row.email,
     role: row.role,
     ...(row.jobTitle ? { jobTitle: row.jobTitle } : {}),
+    ...(row.whatsapp ? { whatsapp: row.whatsapp } : {}),
     permissions: rowPermissions(row),
     modules: permissionModules(rowPermissions(row)),
     editModules:
