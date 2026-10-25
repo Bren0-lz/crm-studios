@@ -211,7 +211,8 @@ export function registerPatientsRoutes(context: RouteContext) {
         ...(input.next === "plan" || input.next === "single"
           ? ["plans.create" as const]
           : []),
-        ...(input.next === "plan" && input.groupId
+        ...(input.next === "plan" &&
+        (input.groupId || input.additionalPlans?.some((item) => item.groupId))
           ? ["groups.enroll" as const]
           : []),
       );

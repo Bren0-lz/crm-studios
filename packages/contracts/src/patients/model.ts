@@ -280,13 +280,39 @@ export const patientExportFilterSchema = z.object({
   ),
 });
 
+/** Plano de assinatura do cadastro guiado (`recurring` ou `fixed_package`). */
+const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
+  .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(isRecurringChargeValid, {
+    message: recurringSingleChargeIssue,
+    path: ["installments"],
+  })
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
+const guidedGroupIdSchema = z
+  .uuid()
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
  *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
- *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera). Em
+ *   `additionalPlans` vão os demais planos do cliente, cada um com a sua turma opcional
+ *   (a mesma turma não pode aparecer duas vezes);
  * - `single`: serviço avulso (plano `single`).
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
@@ -296,33 +322,35 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     patient: patientInputSchema,
     appointment: leadAppointmentInputSchema.omit({ visitType: true }),
   }),
-  z.object({
-    next: z.literal("plan"),
-    patient: patientInputSchema,
-    plan: guidedPlanTermsSchema
-      .extend({ kind: z.enum(["recurring", "fixed_package"]) })
-      .refine(validPlanPeriod, planPeriodIssue)
-      .refine(isRecurringChargeValid, {
-        message: recurringSingleChargeIssue,
-        path: ["installments"],
-      })
-      .refine(renewablePlanPeriod, autoRenewIssue)
-      .refine(
-        (value) =>
-          value.services.reduce(
-            (sum, item) => sum + item.totalValueInCents,
-            0,
-          ) === value.totalValueInCents,
-        {
-          message: "A soma dos serviços deve corresponder ao valor total.",
-          path: ["totalValueInCents"],
-        },
-      ),
-    groupId: z
-      .uuid()
-      .optional()
-      .or(z.literal("").transform(() => undefined)),
-  }),
+  z
+    .object({
+      next: z.literal("plan"),
+      patient: patientInputSchema,
+      plan: guidedSubscriptionPlanSchema,
+      groupId: guidedGroupIdSchema,
+      additionalPlans: z
+        .array(
+          z.object({
+            plan: guidedSubscriptionPlanSchema,
+            groupId: guidedGroupIdSchema,
+          }),
+        )
+        .max(9)
+        .optional(),
+    })
+    .refine(
+      (value) => {
+        const groupIds = [
+          value.groupId,
+          ...(value.additionalPlans ?? []).map((item) => item.groupId),
+        ].filter(Boolean);
+        return new Set(groupIds).size === groupIds.length;
+      },
+      {
+        message: "A mesma turma foi escolhida em mais de um plano.",
+        path: ["additionalPlans"],
+      },
+    ),
   z.object({
     next: z.literal("single"),
     patient: patientInputSchema,

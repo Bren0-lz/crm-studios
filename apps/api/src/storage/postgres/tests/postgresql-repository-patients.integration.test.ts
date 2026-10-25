@@ -1555,6 +1555,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       "11955506404",
       "11955506405",
       "11955506406",
+      "11955506407",
     ];
     const serviceId = "77777777-7777-4777-8777-777777777777";
     const otherServiceId = "88888888-8888-4888-8888-888888888888";
@@ -1702,6 +1703,33 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           plan: { ...terms, kind: "fixed_package" },
         },
       );
+      // Vários planos de uma vez, cada um com a sua turma opcional.
+      const twoPlans = await repository.createPatientWithNextStep(
+        clinicId,
+        ownerId,
+        {
+          next: "plan",
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Guiada PG Dois Planos",
+            phone: phones[6]!,
+            tags: [],
+          },
+          plan: { ...terms, kind: "fixed_package" },
+          additionalPlans: [{ plan: { ...terms, kind: "recurring" }, groupId }],
+        },
+      );
+      expect(twoPlans.plan?.kind).toBe("fixed_package");
+      expect(twoPlans.enrollment).toBeUndefined();
+      expect(twoPlans.additionalPlans).toEqual([
+        {
+          plan: expect.objectContaining({
+            kind: "recurring",
+            patientId: twoPlans.patient.id,
+          }),
+          enrollment: expect.objectContaining({ groupId }),
+        },
+      ]);
       const single = await repository.createPatientWithNextStep(
         clinicId,
         ownerId,
@@ -1794,7 +1822,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND name = $2",
         [clinicId, marker],
       );
-      expect(stored.rowCount).toBe(3);
+      expect(stored.rowCount).toBe(5);
     } finally {
       await cleanup();
     }
