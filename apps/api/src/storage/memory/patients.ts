@@ -42,6 +42,7 @@ export function createPatientsRepository(
           normalized
             ? [
                 item.fullName,
+                item.nickname,
                 item.cpf,
                 item.email,
                 item.phone,
