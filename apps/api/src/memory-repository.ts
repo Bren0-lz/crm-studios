@@ -229,6 +229,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
     this.updateClinicSettings = this.administration.updateClinicSettings;
+    this.getAutoFinalizationSettings =
+      this.administration.getAutoFinalizationSettings;
+    this.updateAutoFinalizationSettings =
+      this.administration.updateAutoFinalizationSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -296,6 +300,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listAppointments = this.agenda.listAppointments;
     this.listPendingFinalizationAppointments =
       this.agenda.listPendingFinalizationAppointments;
+    this.autoFinalizeAppointments = this.agenda.autoFinalizeAppointments;
     this.createAppointment = this.agenda.createAppointment;
     this.createLeadAppointment = this.agenda.createLeadAppointment;
     this.rescheduleAppointment = this.agenda.rescheduleAppointment;
@@ -466,6 +471,14 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateClinicSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateClinicSettings"];
+
+  readonly getAutoFinalizationSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getAutoFinalizationSettings"];
+
+  readonly updateAutoFinalizationSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateAutoFinalizationSettings"];
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
@@ -689,6 +702,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listPendingFinalizationAppointments: ReturnType<
     typeof createAgendaRepository
   >["listPendingFinalizationAppointments"];
+
+  readonly autoFinalizeAppointments: ReturnType<
+    typeof createAgendaRepository
+  >["autoFinalizeAppointments"];
 
   readonly createAppointment: ReturnType<
     typeof createAgendaRepository

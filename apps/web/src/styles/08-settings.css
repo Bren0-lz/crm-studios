@@ -1650,3 +1650,35 @@
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* Finalização automática: tempo de espera e resumo do efeito. */
+.auto-finalization-delay {
+  max-width: calc(var(--space-8) * 8);
+  margin-top: var(--space-4);
+}
+
+.auto-finalization-summary {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.auto-finalization-summary[data-enabled="true"] {
+  border-color: #cfe3da;
+  background: #eef6f2;
+}
+
+.auto-finalization-summary p {
+  margin: 0;
+}
+
+.auto-finalization-summary strong {
+  color: var(--ink);
+  font-weight: 600;
+}

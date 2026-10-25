@@ -1,6 +1,7 @@
-import type { Appointment } from "@crm/contracts";
-import { CheckCircle2, Search, UserX } from "lucide-react";
+import { autoFinalizationDelayLabel, type Appointment } from "@crm/contracts";
+import { CheckCheck, CheckCircle2, Search, UserX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { NavLink } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
@@ -16,6 +17,7 @@ import {
   timeLabel,
 } from "../../shared/lib/formatting";
 import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
+import { useAutoFinalizationSettings } from "./useAutoFinalizationSettings";
 
 type BatchStatus = "completed" | "no_show";
 
@@ -96,6 +98,7 @@ export function PendingFinalizationPage() {
   const { can } = useAuthorization();
   const toast = useToast();
   const canFinalize = can("agenda.attendance");
+  const autoFinalization = useAutoFinalizationSettings();
   const [items, setItems] = useState<Appointment[] | null>(null);
   const [error, setError] = useState("");
   const [batchError, setBatchError] = useState("");
@@ -198,6 +201,16 @@ export function PendingFinalizationPage() {
         back={{ to: "/agenda", label: "Voltar à agenda" }}
         title="Atendimentos a finalizar"
         description="Atendimentos que já terminaram e ainda estão como agendados ou confirmados. Registre se foram realizados ou se o cliente faltou."
+        action={
+          autoFinalization && (
+            <div className="page-actions">
+              <NavLink to="/agenda/concluidos" className="secondary-button">
+                <CheckCheck size={16} aria-hidden="true" />
+                Ver concluídos
+              </NavLink>
+            </div>
+          )
+        }
       />
       {error && <ErrorBanner error={error} />}
       {batchError && <ErrorBanner error={batchError} />}
@@ -216,6 +229,13 @@ export function PendingFinalizationPage() {
                 {visible.length === 1
                   ? "1 exibido com os filtros"
                   : `${visible.length} exibidos com os filtros`}
+              </p>
+            )}
+            {autoFinalization && (
+              <p className="panel-context">
+                {autoFinalization.delayMinutes === 0
+                  ? "Finalização automática ligada: viram realizados logo após o término."
+                  : `Finalização automática ligada: viram realizados ${autoFinalizationDelayLabel(autoFinalization.delayMinutes)} após o término.`}
               </p>
             )}
           </div>

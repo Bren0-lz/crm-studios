@@ -1,7 +1,12 @@
-import type { AdminUser, PatientTag } from "@crm/contracts";
+import type {
+  AdminUser,
+  AutoFinalizationSettingsInput,
+  PatientTag,
+} from "@crm/contracts";
 import {
   type LucideIcon,
   Building2,
+  CalendarCheck,
   CalendarDays,
   MapPin,
   PanelLeft,
@@ -13,7 +18,12 @@ import {
 } from "lucide-react";
 import { ApiClientError } from "../../api";
 import { shortDate } from "../../shared/lib/formatting";
-import type { RelationshipDeadlineKey, SettingsTabKey } from "./types";
+import type {
+  AutoFinalizationDraft,
+  AutoFinalizationUnit,
+  RelationshipDeadlineKey,
+  SettingsTabKey,
+} from "./types";
 
 export function isoDateLabel(value: string) {
   return shortDate.format(new Date(`${value}T12:00:00`));
@@ -146,6 +156,15 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "autoFinalization",
+    label: "Finalização automática",
+    title: "Finalização automática",
+    description:
+      "Conclua sozinhos os atendimentos que ficaram sem desfecho depois do horário.",
+    icon: CalendarCheck,
+    adminOnly: true,
+  },
+  {
     key: "tags",
     label: "Etiquetas",
     title: "Etiquetas",
@@ -189,6 +208,7 @@ const sectionTabs: Record<string, SettingsTabKey> = {
   servicos: "registry",
   salas: "registry",
   profissionais: "registry",
+  finalizacao: "autoFinalization",
 };
 
 export function settingsTabFromSection(
@@ -226,4 +246,51 @@ export function userSaveErrorMessage(cause: unknown) {
     return "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes de rebaixar ou desativar este.";
   }
   return (cause as Error).message;
+}
+
+export const autoFinalizationUnits: Record<
+  AutoFinalizationUnit,
+  { label: string; minutes: number }
+> = {
+  minutes: { label: "Minutos", minutes: 1 },
+  hours: { label: "Horas", minutes: 60 },
+  days: { label: "Dias", minutes: 1440 },
+};
+
+/** Maior unidade que representa o tempo sem fração (90 min fica em minutos). */
+export function autoFinalizationDraft(
+  input: AutoFinalizationSettingsInput,
+): AutoFinalizationDraft {
+  const unit: AutoFinalizationUnit =
+    input.delayMinutes > 0 && input.delayMinutes % 1440 === 0
+      ? "days"
+      : input.delayMinutes > 0 && input.delayMinutes % 60 === 0
+        ? "hours"
+        : "minutes";
+  return {
+    enabled: input.enabled,
+    amount: String(input.delayMinutes / autoFinalizationUnits[unit].minutes),
+    unit,
+  };
+}
+
+/** Minutos do formulário; vazio ou inválido vira NaN. */
+export function draftDelayMinutes(draft: AutoFinalizationDraft) {
+  const amount = draft.amount.trim() === "" ? Number.NaN : Number(draft.amount);
+  return amount * autoFinalizationUnits[draft.unit].minutes;
+}
+
+/** Exemplo com um atendimento que termina às 10:00. */
+export function autoFinalizationExample(delayMinutes: number) {
+  const total = 10 * 60 + delayMinutes;
+  const days = Math.floor(total / 1440);
+  const minutes = total % 1440;
+  const time = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const when =
+    days === 0
+      ? `às ${time}`
+      : days === 1
+        ? `no dia seguinte, às ${time}`
+        : `${days} dias depois, às ${time}`;
+  return `Um atendimento que termina às 10:00 vira realizado ${when}, se ninguém registrar o desfecho antes.`;
 }

@@ -6,6 +6,7 @@ import {
   adminUserInputSchema,
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
+  autoFinalizationSettingsInputSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
   navTabLabelsInputSchema,
@@ -16,7 +17,8 @@ import { hash } from "bcryptjs";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 
 export function registerAdministrationRoutes(context: RouteContext) {
-  const { app, authenticate, repository, visibleHistory } = context;
+  const { app, authenticate, autoFinalizer, repository, visibleHistory } =
+    context;
 
   app.post(
     "/admin/users/:id/revoke-sessions",
@@ -165,6 +167,28 @@ export function registerAdministrationRoutes(context: RouteContext) {
       request.user.clinicId,
       navTabLabelsInputSchema.parse(request.body),
     ),
+  );
+
+  // Finalização automática: todos leem (a agenda mostra os concluídos); só o admin altera.
+  app.get(
+    "/clinic/auto-finalization",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getAutoFinalizationSettings(request.user.clinicId),
+  );
+  app.put(
+    "/admin/auto-finalization",
+    { preHandler: authenticate },
+    async (request) => {
+      const saved = await repository.updateAutoFinalizationSettings(
+        request.user.clinicId,
+        request.user.sub,
+        autoFinalizationSettingsInputSchema.parse(request.body),
+      );
+      // Ao ligar ou encurtar a espera, o que já venceu é finalizado na hora.
+      await autoFinalizer.run(request.user.clinicId, { force: true });
+      return saved;
+    },
   );
 
   app.get(
