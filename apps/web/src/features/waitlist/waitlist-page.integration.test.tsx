@@ -24,7 +24,6 @@ async function seed() {
     costInCents: 500,
     salePriceInCents: 1000,
     initialStock: 0,
-    minimumStock: 1,
   });
   return { ...api, ana, bruno, carla, pilates: pilates!, product };
 }

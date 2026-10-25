@@ -19,7 +19,6 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       costInCents: 1500,
       salePriceInCents: 3000,
       initialStock: 5,
-      minimumStock: 1,
     });
     const category = await repository.saveClinicCatalog(
       clinicId,
@@ -41,7 +40,9 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     change("Custo (R$)", "10", dialog);
     change("Preço de venda (R$)", "20", dialog);
     change("Estoque inicial", "10", dialog);
-    change("Estoque mínimo", "2", dialog);
+    expect(
+      within(dialog).queryByLabelText("Estoque mínimo"),
+    ).not.toBeInTheDocument();
     change("Categoria", category!.id, dialog);
     await save("Novo produto", "Salvar produto");
     const product = (
@@ -145,7 +146,6 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       costInCents: 1500,
       salePriceInCents: 3000,
       initialStock: 5,
-      minimumStock: 1,
     });
     const panel = await openInventoryTab();
     await within(panel).findByText("Óleo de massagem", { exact: true });

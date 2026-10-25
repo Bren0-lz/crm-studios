@@ -28,7 +28,6 @@ const emptyProduct: ProductInput = {
   costInCents: 0,
   salePriceInCents: 0,
   initialStock: 0,
-  minimumStock: 0,
 };
 const emptyAdjustment: StockMovementInput = {
   productId: "",
@@ -49,7 +48,7 @@ const movementLabels: Record<StockMovement["kind"], string> = {
 
 function productStatus(product: Product) {
   if (!product.active) return { label: "Inativo", className: "" };
-  if (product.lowStock) return { label: "Estoque baixo", className: "paused" };
+  if (product.lowStock) return { label: "Sem estoque", className: "paused" };
   return { label: "Ativo", className: "active" };
 }
 
@@ -216,9 +215,6 @@ export function InventorySection({
                     Estoque
                   </th>
                   <th scope="col" className="numeric-value">
-                    Mínimo
-                  </th>
-                  <th scope="col" className="numeric-value">
                     Custo
                   </th>
                   <th scope="col" className="numeric-value">
@@ -247,9 +243,6 @@ export function InventorySection({
                     </td>
                     <td className="numeric-value">
                       {product.currentStock} {product.unit}
-                    </td>
-                    <td className="numeric-value">
-                      {product.minimumStock} {product.unit}
                     </td>
                     <td className="numeric-value">
                       {currency.format(product.costInCents / 100)}
@@ -412,20 +405,6 @@ export function InventorySection({
                   />
                 </label>
               )}
-              <label>
-                Estoque mínimo
-                <input
-                  type="number"
-                  min={0}
-                  value={form.minimumStock}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      minimumStock: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
               <label>
                 Categoria
                 <select

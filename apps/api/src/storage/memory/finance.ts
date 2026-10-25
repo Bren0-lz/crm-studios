@@ -145,12 +145,11 @@ export function createFinanceRepository(
         unit: input.unit,
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
-        minimumStock: input.minimumStock,
         branchId,
         id: uuid(),
         clinicId,
         currentStock: input.initialStock,
-        lowStock: input.initialStock <= input.minimumStock,
+        lowStock: input.initialStock <= 0,
         active: true,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -190,7 +189,7 @@ export function createFinanceRepository(
           409,
         );
       product.currentStock += quantity;
-      product.lowStock = product.currentStock <= product.minimumStock;
+      product.lowStock = product.currentStock <= 0;
       product.updatedAt = now();
       return repositoryContext.pushStockMovement(
         product,
@@ -288,7 +287,7 @@ export function createFinanceRepository(
         });
       }
       product.currentStock -= input.quantity;
-      product.lowStock = product.currentStock <= product.minimumStock;
+      product.lowStock = product.currentStock <= 0;
       product.updatedAt = now();
       repositoryContext.pushStockMovement(
         product,
@@ -442,7 +441,7 @@ export function createFinanceRepository(
           (candidate) => candidate.id === item.productId,
         )!;
         product.currentStock += item.quantity;
-        product.lowStock = product.currentStock <= product.minimumStock;
+        product.lowStock = product.currentStock <= 0;
         product.updatedAt = now();
         repositoryContext.pushStockMovement(
           product,

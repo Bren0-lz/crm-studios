@@ -705,7 +705,7 @@ export function createReportsRepository(
              (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
              (SELECT coalesce(sum(capacity),0)::int FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
              (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
-             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=minimum_stock AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
+             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=0 AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
              (SELECT coalesce(avg(amount_in_cents),0)::int FROM receivables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "averageReceiptInCents"`,
           [clinicId, from, to, branchIds],
         ),

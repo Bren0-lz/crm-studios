@@ -28,7 +28,6 @@ export interface ProductRow {
   costInCents: number;
   salePriceInCents: number;
   currentStock: number;
-  minimumStock: number;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -285,8 +284,7 @@ export function mapProduct(row: ProductRow): Product {
     costInCents: row.costInCents,
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
-    minimumStock: row.minimumStock,
-    lowStock: row.currentStock <= row.minimumStock,
+    lowStock: row.currentStock <= 0,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
