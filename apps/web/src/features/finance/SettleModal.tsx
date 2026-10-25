@@ -13,6 +13,7 @@ import { currency } from "../../shared/lib/formatting";
 import { paymentMethodOptions, financeTermHelp } from "./model";
 import type { SettleTarget } from "./types";
 import { HelpTip } from "../../shared/components/HelpTip";
+import { PaymentProofsField } from "./PaymentProofs";
 
 export function SettleModal({
   target,
@@ -25,6 +26,7 @@ export function SettleModal({
     method: PaymentMethod,
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
+    proofs?: File[],
   ) => Promise<void>;
 }) {
   // Por padrão a baixa é agora; "Pagamento antigo?" libera as datas para edição.
@@ -37,9 +39,10 @@ export function SettleModal({
     [interest, setInterest] = useState<number | null>(null),
     [received, setReceived] = useState<number | null>(null),
     [balanceDueDate, setBalanceDueDate] = useState(target.dueDate ?? "");
+  const [proofs, setProofs] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const dirty = useFormDirty({
+  const formDirty = useFormDirty({
     pastPayment,
     paidAt,
     availableAt,
@@ -49,6 +52,7 @@ export function SettleModal({
     received,
     balanceDueDate,
   });
+  const dirty = formDirty || proofs.length > 0;
   const isReceivable = target.kind === "receivable";
   // Só os ajustes informados: a baixa simples continua com o mesmo pedido de antes.
   const values: SettlementAdjustments = {
@@ -92,6 +96,7 @@ export function SettleModal({
             }
           : undefined,
         isReceivable ? adjustments : undefined,
+        proofs,
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -231,6 +236,12 @@ export function SettleModal({
             </p>
           </div>
         </fieldset>
+        <PaymentProofsField
+          className="span-2"
+          files={proofs}
+          onChange={setProofs}
+          disabled={loading}
+        />
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">
