@@ -3,5 +3,10 @@
   "framework": null,
   "regions": ["gru1"],
   "installCommand": "npm install",
-  "buildCommand": "npm run vercel-build"
+  "buildCommand": "npm run vercel-build",
+  "git": {
+    "deploymentEnabled": {
+      "claude/**": false
+    }
+  }
 }
