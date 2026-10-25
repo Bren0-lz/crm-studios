@@ -298,3 +298,32 @@ export const documentDraftInputSchema = z
     (input) => documentContentText(input.content).trim().length >= 20,
     "O conteúdo precisa ter pelo menos 20 caracteres.",
   );
+
+/** Assinatura eletrônica pelo link público: nome, CPF opcional, aceite e o traço desenhado (PNG). */
+export const publicDocumentSignInputSchema = z.object({
+  signerName: z.string().trim().min(3).max(160),
+  signerCpf: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine(
+      (value) => value === "" || value.length === 11,
+      "Informe o CPF com 11 dígitos.",
+    )
+    .optional(),
+  accepted: z.literal(true, "Confirme que leu e concorda com o documento."),
+  signatureImage: z
+    .string()
+    .max(700_000)
+    .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Desenhe a assinatura."),
+});
+
+/** Mensagem de WhatsApp com o link para ler e assinar o contrato. */
+export function documentSignatureMessage(input: {
+  patientName: string;
+  clinicName: string;
+  link: string;
+}) {
+  const firstName = input.patientName.trim().split(/\s+/)[0] ?? "";
+  return `Olá ${firstName}, a ${input.clinicName} está lhe enviando o contrato referente ao seu plano de atendimentos/aulas contratado. Acesse o link abaixo para leitura e assinatura do contrato.\n\n${input.link}`;
+}

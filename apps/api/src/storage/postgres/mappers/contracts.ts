@@ -18,8 +18,21 @@ export interface DocumentTemplateRow {
   createdAt: Date;
 }
 
+/** Resumo do link vindo do `jsonb_build_object`: datas em texto e campos nulos. */
+export interface SignatureLinkRow {
+  token: string;
+  createdAt: string;
+  createdByName: string;
+  viewCount: number;
+  firstViewedAt: string | null;
+  lastViewedAt: string | null;
+  signedAt: string | null;
+  signerName: string | null;
+}
+
 export interface IssuedDocumentRow {
   manualSignature?: IssuedDocument["manualSignature"] | null;
+  signatureLink?: SignatureLinkRow | null;
   id: string;
   clinicId: string;
   templateId: string;
@@ -54,8 +67,32 @@ export const issuedDocumentColumns = `
   p.full_name AS "patientName", pp.name AS "planName",
   d.manual_signature AS "manualSignature",d.snapshot_body AS "snapshotBody", d.snapshot_content AS "snapshotContent", d.branding, d.status,
   d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
-  d.created_at AS "createdAt", d.updated_at AS "updatedAt"
+  d.created_at AS "createdAt", d.updated_at AS "updatedAt",
+  (SELECT jsonb_build_object(
+      'token', l.token, 'createdAt', l.created_at, 'createdByName', u.full_name,
+      'viewCount', l.view_count, 'firstViewedAt', l.first_viewed_at,
+      'lastViewedAt', l.last_viewed_at, 'signedAt', l.signed_at,
+      'signerName', l.signature->>'signerName')
+    FROM document_signature_links l JOIN users u ON u.id = l.created_by
+    WHERE l.clinic_id = d.clinic_id AND l.document_id = d.id) AS "signatureLink"
 `;
+
+const isoDate = (value: string) => new Date(value).toISOString();
+
+export function mapSignatureLink(
+  row: SignatureLinkRow,
+): NonNullable<IssuedDocument["signatureLink"]> {
+  return {
+    token: row.token,
+    createdAt: isoDate(row.createdAt),
+    createdByName: row.createdByName,
+    viewCount: row.viewCount,
+    ...(row.firstViewedAt ? { firstViewedAt: isoDate(row.firstViewedAt) } : {}),
+    ...(row.lastViewedAt ? { lastViewedAt: isoDate(row.lastViewedAt) } : {}),
+    ...(row.signedAt ? { signedAt: isoDate(row.signedAt) } : {}),
+    ...(row.signerName ? { signerName: row.signerName } : {}),
+  };
+}
 
 export function mapDocumentTemplate(
   row: DocumentTemplateRow,
@@ -90,6 +127,9 @@ export function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     patientName: row.patientName,
     ...(row.planName ? { planName: row.planName } : {}),
     ...(row.manualSignature ? { manualSignature: row.manualSignature } : {}),
+    ...(row.signatureLink
+      ? { signatureLink: mapSignatureLink(row.signatureLink) }
+      : {}),
     snapshotBody: row.snapshotBody,
     ...(row.snapshotContent ? { snapshotContent: row.snapshotContent } : {}),
     ...(row.branding ? { branding: row.branding } : {}),

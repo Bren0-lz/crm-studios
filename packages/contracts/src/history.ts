@@ -103,6 +103,11 @@ export const historyActions: {
     label: "Cópia assinada consultada",
   },
   {
+    action: "document.signature_link_created",
+    module: "contracts",
+    label: "Link de assinatura gerado",
+  },
+  {
     action: "product.updated",
     module: "patients",
     label: "Produto atualizado",
