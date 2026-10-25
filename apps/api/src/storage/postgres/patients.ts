@@ -127,6 +127,8 @@ export function createPatientsRepository(
             -- Sem diferenciar acentos: "andre" acha "André" (mesma tabela da migração 0044).
             OR translate(full_name, 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ',
               'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY') ILIKE '%' || $5 || '%'
+            OR translate(coalesce(profile->>'nickname', ''), 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ',
+              'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY') ILIKE '%' || $5 || '%'
             OR coalesce(email, '') ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%'
             OR ($3 <> '' AND (phone LIKE '%' || $3 || '%' OR coalesce(whatsapp, '') LIKE '%' || $3 || '%'))
             OR ($4 <> '' AND regexp_replace(coalesce(cpf, ''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%')
