@@ -162,7 +162,7 @@ export function PatientModal({
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
-        return "Informe a data e o horário da aula de demonstração.";
+        return "Informe a data e o horário da aula experimental.";
       return {
         next: "demonstration",
         patient: form,
@@ -414,7 +414,7 @@ export function PatientModal({
         )}
         {step === "demonstration" && (
           <fieldset className="form-fieldset span-2">
-            <legend>Aula de demonstração</legend>
+            <legend>Aula experimental</legend>
             <GuidedDemonstrationFields
               value={demonstration}
               setValue={setDemonstration}
