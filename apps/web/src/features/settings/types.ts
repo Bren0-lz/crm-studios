@@ -10,6 +10,7 @@ export type SettingsTabKey =
   | "catalogs"
   | "registry"
   | "clinic"
+  | "menu"
   | "users"
   | "plans"
   | "holidays"

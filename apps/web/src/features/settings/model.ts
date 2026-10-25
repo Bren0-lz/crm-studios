@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarDays,
   MapPin,
+  PanelLeft,
   HeartHandshake,
   PackageOpen,
   Stethoscope,
@@ -121,6 +122,15 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "menu",
+    label: "Abas do menu",
+    title: "Abas do menu",
+    description:
+      "Renomeie as abas do menu lateral para combinar com a rotina da clínica.",
+    icon: PanelLeft,
+    adminOnly: true,
+  },
+  {
     key: "plans",
     label: "Planos",
     title: "Planos",
@@ -172,6 +182,7 @@ export const settingsTabs: Array<{
 /** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
 const sectionTabs: Record<string, SettingsTabKey> = {
   filiais: "branches",
+  abas: "menu",
   etiquetas: "tags",
   planos: "plans",
   cadastros: "catalogs",
