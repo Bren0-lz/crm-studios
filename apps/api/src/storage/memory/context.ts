@@ -1,4 +1,4 @@
-import type { ExternalOperation } from "@crm/contracts";
+import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
   StoredMessageTemplateImage,
@@ -278,6 +278,7 @@ export class MemoryRepositoryContext {
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
+  readonly paymentProofs: (PaymentProof & { contentBase64: string })[] = [];
   readonly planPurchases = new Map<
     string,
     { fingerprint: string; result: PlanPurchaseResult }

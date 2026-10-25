@@ -13,6 +13,8 @@ import { Modal } from "../../shared/components/Modal";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { currency, shortDate } from "../../shared/lib/formatting";
+import { PaymentProofsField, PaymentProofsModal } from "./PaymentProofs";
+import { proofFailureMessage, uploadPaymentProofs } from "./payment-proofs";
 export function CommissionReconciliationModal({
   id,
   onClose,
@@ -42,6 +44,9 @@ export function CommissionReconciliationModal({
     | { kind: "reverse"; payment: CommissionAccountPayment }
     | null
   >(null);
+  const [proofs, setProofs] = useState<File[]>([]);
+  const [viewingProofs, setViewingProofs] =
+    useState<CommissionAccountPayment | null>(null);
   useEffect(() => {
     let active = true;
     api
@@ -102,19 +107,29 @@ export function CommissionReconciliationModal({
     setBusy(true);
     setError("");
     try {
-      if (confirmation.kind === "pay")
-        await api.settleCommissionAccount(
+      let failed: string[] = [];
+      if (confirmation.kind === "pay") {
+        const payment = await api.settleCommissionAccount(
           id,
           confirmation.balance.professionalId,
           confirmation.balance.amountInCents,
         );
-      else await api.reverseCommissionAccountPayment(confirmation.payment.id);
+        // A baixa já está registrada: falha de envio só avisa (dá para anexar depois).
+        if (proofs.length)
+          failed = await uploadPaymentProofs(
+            "commission_account_payment",
+            payment.id,
+            proofs,
+          );
+      } else await api.reverseCommissionAccountPayment(confirmation.payment.id);
       setConfirmation(null);
+      setProofs([]);
       setNotice(
         confirmation.kind === "pay"
           ? "Baixa conciliada registrada."
           : "Estorno conciliado registrado sem remover o pagamento original.",
       );
+      if (failed.length) setError(proofFailureMessage(failed));
       await refresh();
     } catch (cause) {
       setError((cause as Error).message);
@@ -135,8 +150,17 @@ export function CommissionReconciliationModal({
         title="Conciliar comissão"
         subtitle="Revise a origem e registre os ajustes. Os valores e a regra da comissão original ficam preservados."
         wide
-        busy={busy || Boolean(prompt.modal) || Boolean(confirmation)}
-        inactive={Boolean(prompt.modal) || Boolean(confirmation)}
+        busy={
+          busy ||
+          Boolean(prompt.modal) ||
+          Boolean(confirmation) ||
+          Boolean(viewingProofs)
+        }
+        inactive={
+          Boolean(prompt.modal) ||
+          Boolean(confirmation) ||
+          Boolean(viewingProofs)
+        }
         onClose={close}
       >
         {error && <ErrorBanner error={error} />}{" "}
@@ -336,6 +360,14 @@ export function CommissionReconciliationModal({
                         {payment.reversedAt ? " · Estornado" : " · Registrado"}
                       </p>
                     </div>
+                    <button
+                      className="secondary-button"
+                      disabled={busy}
+                      aria-label={`Comprovantes do pagamento de ${payment.professionalName}`}
+                      onClick={() => setViewingProofs(payment)}
+                    >
+                      Comprovantes
+                    </button>
                     {!payment.reversedAt &&
                       can("finance.commissions_reverse") && (
                         <button
@@ -379,7 +411,11 @@ export function CommissionReconciliationModal({
           }
           subtitle="Confirme o registro financeiro realizado pela equipe."
           busy={busy}
-          onClose={() => setConfirmation(null)}
+          dirty={proofs.length > 0}
+          onClose={() => {
+            setConfirmation(null);
+            setProofs([]);
+          }}
         >
           {error && <ErrorBanner error={error} />}
           <p>
@@ -391,11 +427,22 @@ export function CommissionReconciliationModal({
                   : `Registre o pagamento líquido de ${currency.format(confirmation.balance.amountInCents / 100)} já realizado para ${confirmation.balance.professionalName}.`
               : `O estorno preserva a baixa original e registra sua reversão no caixa.`}
           </p>
+          {confirmation.kind === "pay" &&
+            confirmation.balance.amountInCents !== 0 && (
+              <PaymentProofsField
+                files={proofs}
+                onChange={setProofs}
+                disabled={busy}
+              />
+            )}
           <div className="modal-actions">
             <button
               className="secondary-button"
               disabled={busy}
-              onClick={() => setConfirmation(null)}
+              onClick={() => {
+                setConfirmation(null);
+                setProofs([]);
+              }}
             >
               Voltar
             </button>
@@ -408,6 +455,17 @@ export function CommissionReconciliationModal({
             </button>
           </div>
         </Modal>
+      )}
+      {viewingProofs && (
+        <PaymentProofsModal
+          entity="commission_account_payment"
+          entityId={viewingProofs.id}
+          subtitle={`${viewingProofs.professionalName} · ${currency.format(viewingProofs.amountInCents / 100)}`}
+          canAttach={
+            !viewingProofs.reversedAt && can("finance.commissions_pay")
+          }
+          onClose={() => setViewingProofs(null)}
+        />
       )}
       {prompt.modal}
     </>
