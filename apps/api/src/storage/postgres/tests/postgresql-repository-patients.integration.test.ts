@@ -1720,10 +1720,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
               totalSessions: 1,
             })),
             installments: 1,
+            paymentMethod: "pix",
           },
         },
       );
       expect(single.plan?.kind).toBe("single");
+      // Forma de pagamento combinada fica no plano; sem escolha, fica a combinar.
+      expect(single.plan?.paymentMethod).toBe("pix");
+      expect(noGroup.plan).not.toHaveProperty("paymentMethod");
       const receivables = await pool.query(
         "SELECT 1 FROM receivables WHERE clinic_id = $1 AND plan_id = $2",
         [clinicId, enrolled.plan!.id],
