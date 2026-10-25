@@ -366,6 +366,15 @@ export function PatientModal({
           />
         </label>
         <label className="span-2">
+          Apelido
+          <input
+            maxLength={80}
+            placeholder="Como o cliente prefere ser chamado"
+            value={form.nickname ?? ""}
+            onChange={(e) => field("nickname", e.target.value)}
+          />
+        </label>
+        <label className="span-2">
           CPF
           <CpfInput
             required

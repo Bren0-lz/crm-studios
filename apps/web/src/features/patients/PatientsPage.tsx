@@ -486,7 +486,11 @@ export function PatientsPage() {
                     </span>
                     <div>
                       <strong>{patient.fullName}</strong>
-                      <small>{patient.recordNumber}</small>
+                      <small>
+                        {patient.nickname
+                          ? `${patient.recordNumber} · "${patient.nickname}"`
+                          : patient.recordNumber}
+                      </small>
                     </div>
                   </div>
                   <div className="contact-cell">
