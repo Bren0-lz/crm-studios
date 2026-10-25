@@ -128,6 +128,7 @@ describe("GET /notifications", () => {
       overdueLeadTasks: before.overdueLeadTasks,
       snoozedContactsDue: before.snoozedContactsDue,
       pauseReturnsDue: before.pauseReturnsDue,
+      autoCampaigns: [],
     });
 
     // Parabéns registrados tiram o aniversariante do sino.

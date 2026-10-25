@@ -14,7 +14,8 @@ export type DataDomain =
   | "contracts"
   | "relationship"
   | "waitlist"
-  | "crm";
+  | "crm"
+  | "communications";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
 const mutationRules: [RegExp, DataDomain[]][] = [
@@ -55,6 +56,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/(?:documents|document-templates)(?:\/|$)/, ["contracts", "history"]],
   // Contato registrado (ex.: parabéns enviados) tira o aniversariante do sino (QM13).
   [/^\/relationship\/activities(?:\/|$)/, ["relationship"]],
+  // Campanhas automáticas e envios registrados mudam a fila e o sino.
+  [/^\/communications\/auto-campaigns(?:\/|$)/, ["communications"]],
 ];
 
 export function domainsForMutation(method: string, path: string): DataDomain[] {

@@ -1,6 +1,7 @@
 import type { NotificationsSummary } from "@crm/contracts";
 import {
   Bell,
+  BellRing,
   Cake,
   CalendarClock,
   ListTodo,
@@ -77,7 +78,7 @@ function HeaderPopover({
 }
 
 type NotificationModule =
-  "relationship" | "finance" | "agenda" | "crm" | "plans";
+  "relationship" | "finance" | "agenda" | "crm" | "plans" | "communications";
 
 interface NotificationGroup {
   key: string;
@@ -92,8 +93,8 @@ interface NotificationGroup {
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
  * (Relacionamento), parcelas vencidas (Financeiro), atendimentos a finalizar (Agenda) e
  * os retornos combinados: tarefas comerciais vencidas (Comercial), contatos adiados que
- * voltaram (Relacionamento) e pausas com retorno previsto (Planos). Grupos zerados não
- * aparecem.
+ * voltaram (Relacionamento), pausas com retorno previsto (Planos) e uma linha por campanha
+ * automática com mensagens pendentes (Comunicações). Grupos zerados não aparecem.
  */
 function notificationGroups(
   summary: NotificationsSummary | null,
@@ -155,6 +156,17 @@ function notificationGroups(
       to: "/planos",
       icon: <PauseCircle size={16} aria-hidden="true" />,
     });
+  if (canView("communications"))
+    for (const campaign of summary.autoCampaigns ?? [])
+      if (campaign.pending > 0)
+        groups.push({
+          key: `auto-campaign:${campaign.id}`,
+          label: `Campanha automática “${campaign.name}”`,
+          detail: `${campaign.pending === 1 ? "Falta 1 pessoa" : `Faltam ${campaign.pending} pessoas`} para concluir a campanha de hoje`,
+          count: campaign.pending,
+          to: "/?aba=campanhas",
+          icon: <BellRing size={16} aria-hidden="true" />,
+        });
   return groups;
 }
 
@@ -165,7 +177,14 @@ export function NotificationsMenu({
 }) {
   const { canView } = useAuthorization();
   const watched = (
-    ["relationship", "finance", "agenda", "crm", "plans"] as const
+    [
+      "relationship",
+      "finance",
+      "agenda",
+      "crm",
+      "plans",
+      "communications",
+    ] as const
   ).some((module) => canView(module));
   // Recarga silenciosa quando agenda, financeiro, clientes, contatos, leads ou planos
   // mudam (QC6).
@@ -176,6 +195,7 @@ export function NotificationsMenu({
     "relationship",
     "crm",
     "plans",
+    "communications",
   );
   const [summary, setSummary] = useState<NotificationsSummary | null>(null);
   const [error, setError] = useState("");
