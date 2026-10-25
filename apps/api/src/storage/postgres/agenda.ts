@@ -155,6 +155,65 @@ export function createAgendaRepository(
       return result.rows.map(mapAppointment);
     },
 
+    async autoFinalizeAppointments(
+      clinicId: string,
+      cutoff: string,
+      at: string,
+    ) {
+      // Todas as filiais da clínica, independente do escopo da requisição.
+      const due = await repositoryContext.pool.query<{ id: string }>(
+        `SELECT id FROM appointments
+         WHERE clinic_id = $1 AND status IN ('scheduled', 'confirmed') AND ends_at <= $2
+         ORDER BY ends_at`,
+        [clinicId, cutoff],
+      );
+      let finalized = 0;
+      // Uma transação por atendimento: falta de saldo em um não desfaz os demais.
+      for (const { id } of due.rows) {
+        try {
+          const done = await repositoryContext.inTransaction(async (client) => {
+            const current = await client.query<{
+              patientId: string | null;
+              serviceId: string;
+              startsAt: Date;
+            }>(
+              `SELECT patient_id AS "patientId", service_id AS "serviceId",
+                      starts_at AS "startsAt"
+               FROM appointments
+               WHERE id = $2 AND clinic_id = $1
+                 AND status IN ('scheduled', 'confirmed') AND ends_at <= $3
+               FOR UPDATE`,
+              [clinicId, id, cutoff],
+            );
+            const row = current.rows[0];
+            // Já finalizado por outra requisição ou alterado nesse meio-tempo.
+            if (!row) return false;
+            if (row.patientId)
+              await repositoryContext.consumeSessionInDatabase(
+                client,
+                clinicId,
+                id,
+                row.patientId,
+                row.serviceId,
+                row.startsAt,
+              );
+            await client.query(
+              `UPDATE appointments SET status = 'completed', auto_completed_at = $3,
+                 updated_at = now()
+               WHERE id = $2 AND clinic_id = $1`,
+              [clinicId, id, at],
+            );
+            return true;
+          });
+          if (done) finalized += 1;
+        } catch (error) {
+          // Sem saldo ou crédito preso a comanda: fica pendente para a equipe resolver.
+          if (!(error instanceof DomainError)) throw error;
+        }
+      }
+      return finalized;
+    },
+
     async createAppointment(clinicId: string, input: AppointmentInput) {
       const related = await repositoryContext.pool.query<{
         durationMinutes: number;
@@ -1374,7 +1433,8 @@ export function createAgendaRepository(
           );
         }
         await client.query(
-          `UPDATE appointments SET status = $3,absence_reason=coalesce($4,absence_reason), updated_at = now()
+          `UPDATE appointments SET status = $3,absence_reason=coalesce($4,absence_reason),
+           auto_completed_at = CASE WHEN status = $3 THEN auto_completed_at END, updated_at = now()
          WHERE id = $2 AND clinic_id = $1`,
           [clinicId, appointmentId, status, absenceReason ?? null],
         );

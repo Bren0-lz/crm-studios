@@ -4,6 +4,7 @@ import {
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   appointmentUpdateInputSchema,
+  completedAppointmentsQuerySchema,
   holidayInputSchema,
   isAppointmentStarted,
   leadAppointmentInputSchema,
@@ -33,6 +34,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     assertNoHoliday,
     assertServiceAvailable,
     assertPermissions,
+    autoFinalizer,
   } = context;
   const professionalScope = agendaProfessionalScope(context);
 
@@ -196,14 +198,42 @@ export function registerAgendaRoutes(context: RouteContext) {
   app.get(
     "/appointments/pending-finalization",
     { preHandler: authenticate },
-    async (request) =>
-      inProfessionalScope(
+    async (request) => {
+      // Com a finalização automática ligada, o que já venceu sai desta lista agora.
+      await autoFinalizer.run(request.user.clinicId, { force: true });
+      return inProfessionalScope(
         await repository.listPendingFinalizationAppointments(
           request.user.clinicId,
           new Date().toISOString(),
         ),
         await professionalScope(request),
-      ),
+      );
+    },
+  );
+
+  // Atendimentos realizados no período (pela equipe ou pela finalização automática).
+  app.get(
+    "/appointments/completed",
+    { preHandler: authenticate },
+    async (request) => {
+      const { from, to } = completedAppointmentsQuerySchema.parse(
+        request.query,
+      );
+      await autoFinalizer.run(request.user.clinicId, { force: true });
+      const appointments = await repository.listAppointments(
+        request.user.clinicId,
+        from,
+        to,
+      );
+      return inProfessionalScope(
+        appointments.filter(
+          (item) =>
+            item.status === "completed" &&
+            Date.parse(item.startsAt) >= Date.parse(from),
+        ),
+        await professionalScope(request),
+      );
+    },
   );
 
   app.post(

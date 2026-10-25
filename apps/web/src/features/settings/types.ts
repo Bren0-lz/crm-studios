@@ -15,4 +15,14 @@ export type SettingsTabKey =
   | "plans"
   | "holidays"
   | "tags"
-  | "relationship";
+  | "relationship"
+  | "autoFinalization";
+
+export type AutoFinalizationUnit = "minutes" | "hours" | "days";
+
+/** Formulário da finalização automática: o tempo é digitado numa unidade escolhida. */
+export type AutoFinalizationDraft = {
+  enabled: boolean;
+  amount: string;
+  unit: AutoFinalizationUnit;
+};

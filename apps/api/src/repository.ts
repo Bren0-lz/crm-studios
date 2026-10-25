@@ -103,6 +103,8 @@ import type {
   ClinicalWorkspace,
   ClinicSettings,
   ClinicSettingsInput,
+  AutoFinalizationSettings,
+  AutoFinalizationSettingsInput,
   NavTabLabel,
   NavTabLabelsInput,
   CommissionEntry,
@@ -544,6 +546,15 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
+  /** Finalização automática da clínica (nunca configurada = desligada, 60 min). */
+  getAutoFinalizationSettings(
+    clinicId: string,
+  ): Promise<AutoFinalizationSettings>;
+  updateAutoFinalizationSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoFinalizationSettingsInput,
+  ): Promise<AutoFinalizationSettings>;
   /** Nomes das abas do menu da clínica (padrão onde não foram renomeadas), na ordem. */
   listNavTabLabels(clinicId: string): Promise<NavTabLabel[]>;
   /** Renomeia as abas do menu da clínica (vale para todas as filiais). */
@@ -743,6 +754,16 @@ export interface ClinicRepository {
     clinicId: string,
     now: string,
   ): Promise<Appointment[]>;
+  /**
+   * Finalização automática: marca como realizados os agendados/confirmados de todas as filiais
+   * com término até `cutoff`, gravando `autoCompletedAt = at` e consumindo a sessão do plano.
+   * Quem não puder ser finalizado (ex.: sem saldo) segue pendente. Devolve quantos finalizou.
+   */
+  autoFinalizeAppointments(
+    clinicId: string,
+    cutoff: string,
+    at: string,
+  ): Promise<number>;
   createAppointment(
     clinicId: string,
     input: AppointmentInput,

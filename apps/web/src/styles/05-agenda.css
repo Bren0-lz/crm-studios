@@ -1863,13 +1863,95 @@ button.day-event:focus-visible {
     align-items: stretch;
   }
 
+  /* Na coluna do celular, a base flexível viraria altura: o campo fica no tamanho natural. */
   .pending-finalization-search {
+    flex: none;
     max-width: none;
   }
 
   .pending-finalization-filters select,
   .pending-finalization-filters input {
     width: 100%;
+  }
+}
+
+/* Atendimentos concluídos no período (finalização automática). */
+.completed-appointments-head {
+  flex-wrap: wrap;
+}
+
+.completed-appointments-head .segmented {
+  flex-wrap: wrap;
+}
+
+.completed-appointments-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-2) calc(var(--space-5) - 1px) var(--space-4);
+}
+
+.completed-appointments-metrics .metric-card {
+  box-shadow: none;
+}
+
+.completed-appointments-message {
+  margin: 0;
+  padding: var(--space-4) calc(var(--space-5) - 1px);
+}
+
+.completed-appointments-day h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) calc(var(--space-5) - 1px);
+  border-top: 1px solid var(--line);
+  background: var(--cream);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.completed-appointments-day h3::first-letter {
+  text-transform: uppercase;
+}
+
+.completed-appointments-day h3 span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.completed-appointments-day .pending-finalization-row:first-child {
+  border-top: 0;
+}
+
+.auto-finalized-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-height: calc(var(--space-5) + 1px);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: #e6eef8;
+  color: #3f5f86;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.appointment-detail-grid .auto-finalized-badge {
+  margin-top: var(--space-1);
+}
+
+@media (max-width: 700px) {
+  .completed-appointments-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .completed-appointments-head .segment-button {
+    flex: 1 0 auto;
   }
 }
 

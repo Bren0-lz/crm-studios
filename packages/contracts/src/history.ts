@@ -224,6 +224,11 @@ export const historyActions: {
     label: "Dados da clínica atualizados",
   },
   {
+    action: "clinic.auto_finalization_updated",
+    module: "settings",
+    label: "Finalização automática alterada",
+  },
+  {
     action: "patient_tag.created",
     module: "settings",
     label: "Etiqueta criada",
