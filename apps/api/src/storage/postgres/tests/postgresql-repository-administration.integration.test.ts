@@ -591,15 +591,19 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
-  it("stores and clears the clinic Pix key without touching the other settings", async () => {
+  it("stores and clears the clinic Pix key and message without touching the other settings", async () => {
     const before = (await repository.getClinicSettings(clinicId))!;
     try {
       const saved = await repository.updateClinicSettings(clinicId, ownerId, {
         name: before.name,
         timezone: before.timezone,
         pixKey: "financeiro@aryana.com.br",
+        pixMessageTemplate: "Olá, {{nome}}! Chave: {{chave_pix}}",
       });
       expect(saved.pixKey).toBe("financeiro@aryana.com.br");
+      expect(saved.pixMessageTemplate).toBe(
+        "Olá, {{nome}}! Chave: {{chave_pix}}",
+      );
       expect((await repository.getClinicSettings(clinicId))?.pixKey).toBe(
         "financeiro@aryana.com.br",
       );
@@ -607,8 +611,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         name: before.name,
         timezone: before.timezone,
         pixKey: "",
+        pixMessageTemplate: "",
       });
       expect(cleared.pixKey).toBe("");
+      expect(cleared.pixMessageTemplate).toBe("");
     } finally {
       await repository.updateClinicSettings(clinicId, ownerId, {
         name: before.name,
@@ -619,6 +625,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         email: before.email ?? "",
         address: before.address ?? "",
         pixKey: before.pixKey ?? "",
+        pixMessageTemplate: before.pixMessageTemplate ?? "",
       });
     }
   });

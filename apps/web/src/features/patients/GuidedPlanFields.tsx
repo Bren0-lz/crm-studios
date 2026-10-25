@@ -35,6 +35,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   kindField,
   patientName,
   pixKey,
+  pixTemplate,
   children,
 }: {
   form: T;
@@ -45,6 +46,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   patientName: string;
   /** Chave Pix da clínica; `null` enquanto carrega. */
   pixKey: string | null;
+  /** Modelo da mensagem configurado pela clínica; vazio = texto padrão. */
+  pixTemplate: string;
   children?: ReactNode;
 }) {
   const { can } = useAuthorization();
@@ -336,6 +339,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
                   0,
                 ),
                 pixKey,
+                template: pixTemplate,
               })}
             />
           </label>

@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { competenceMonthSchema, paymentMethodSchema } from "../common/model.js";
-import { patientFirstName } from "../communications/model.js";
+import {
+  fillMessageTemplate,
+  patientFirstName,
+} from "../communications/model.js";
 
 /**
  * Descrição da cobrança gerada ao fechar a comanda: data de abertura (dia local da clínica,
@@ -400,9 +403,31 @@ export function receivableContactMessage(input: {
     : `${greeting} Passando para lembrar que ${installment} vence em ${due}. Qualquer dúvida, estamos à disposição.`;
 }
 
+/** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
+export const pixMessageVariables = [
+  { code: "{{nome}}", label: "Nome", example: "Marina" },
+  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
+  { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
+  { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },
+  { code: "{{valor_sessao}}", label: "Valor por sessão", example: "R$ 60,00" },
+  { code: "{{parcelas}}", label: "Parcelas", example: "3" },
+  {
+    code: "{{valor_parcela}}",
+    label: "Valor da 1ª parcela",
+    example: "R$ 160,00",
+  },
+  {
+    code: "{{chave_pix}}",
+    label: "Chave Pix",
+    example: "financeiro@clinica.com.br",
+  },
+] as const;
+
 /**
  * Mensagem de cobrança por Pix do plano vendido no cadastro: valor proporcional às sessões
- * (preço por sessão), a primeira cobrança (parcela ou ciclo) e a chave da clínica.
+ * (preço por sessão), a primeira cobrança (parcela ou ciclo) e a chave da clínica. Com
+ * `template` preenchido, usa o modelo da clínica (`pixMessageVariables`); vazio, o texto padrão.
  */
 export function planPixChargeMessage(input: {
   patientName: string;
@@ -411,6 +436,7 @@ export function planPixChargeMessage(input: {
   installments: number;
   totalSessions: number;
   pixKey: string;
+  template?: string | undefined;
 }): string {
   const money = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
@@ -422,10 +448,23 @@ export function planPixChargeMessage(input: {
     Math.floor(input.totalValueInCents / installments) +
     (input.totalValueInCents % installments ? 1 : 0);
   const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
-  const perSession =
+  const sessionValue =
     input.totalSessions > 0
-      ? ` (${money(Math.round(input.totalValueInCents / input.totalSessions))} por sessão)`
+      ? money(Math.round(input.totalValueInCents / input.totalSessions))
       : "";
+  if (input.template?.trim())
+    return fillMessageTemplate(input.template, {
+      nome: patientFirstName(input.patientName),
+      nome_completo: input.patientName.trim(),
+      plano: input.planName,
+      sessoes: sessions,
+      valor_total: money(input.totalValueInCents),
+      valor_sessao: sessionValue,
+      parcelas: String(installments),
+      valor_parcela: money(firstCharge),
+      chave_pix: input.pixKey,
+    });
+  const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
   const charge =
     installments > 1
       ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}`

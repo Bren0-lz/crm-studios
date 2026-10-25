@@ -13,6 +13,7 @@ const input: ClinicSettingsInput = {
   email: "clinica@example.com",
   address: "Rua de teste, 123",
   pixKey: "financeiro@example.com",
+  pixMessageTemplate: "Olá, {{nome}}! Chave Pix: {{chave_pix}}.",
   timezone: "America/Sao_Paulo",
 };
 

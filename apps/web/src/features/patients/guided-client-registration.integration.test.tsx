@@ -529,7 +529,7 @@ describe("guided client registration", () => {
 
   describe("payment method", () => {
     /** Plano criado pela API ecoando os termos enviados, e a chave Pix da clínica. */
-    function mockPlanSale(pixKey: string) {
+    function mockPlanSale(pixKey: string, pixMessageTemplate = "") {
       const posts = mockApi((body) =>
         jsonResponse(
           {
@@ -552,7 +552,12 @@ describe("guided client registration", () => {
       const base = vi.mocked(fetch).getMockImplementation()!;
       vi.mocked(fetch).mockImplementation(async (input, init) =>
         String(input).includes("/clinic/branding")
-          ? jsonResponse({ name: "Studios Aryana", logoDataUrl: "", pixKey })
+          ? jsonResponse({
+              name: "Studios Aryana",
+              logoDataUrl: "",
+              pixKey,
+              pixMessageTemplate,
+            })
           : base(input, init),
       );
       renderAs(storedUser(admin));
@@ -605,6 +610,31 @@ describe("guided client registration", () => {
       expect(
         screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("uses the message configured by the clinic", async () => {
+      mockPlanSale(
+        "financeiro@aryana.com.br",
+        "Oi {{nome}}, {{sessoes}} do {{plano}}: {{parcelas}}x de {{valor_parcela}}. Pix {{chave_pix}}",
+      );
+      const dialog = await choosePlanWithPix();
+      const expected =
+        "Oi Marina, 8 sessões do Pilates 2x semana: 3x de R$ 160,00. Pix financeiro@aryana.com.br";
+      expect(
+        await within(dialog).findByLabelText(
+          "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+        ),
+      ).toHaveValue(expected);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      const href = within(charge)
+        .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
+        .getAttribute("href")!;
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toBe(expected);
     });
 
     it("explains where to register the Pix key and only saves the method without it", async () => {
