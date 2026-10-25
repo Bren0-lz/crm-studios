@@ -3,7 +3,11 @@ import {
   cpfMatchKey,
   receivableContactMessage,
   planPixChargeMessage,
+  planFirstChargeProration,
+  planInstallmentSchedule,
   planServiceValueForSessions,
+  weeklySlotSessionsBetween,
+  withPlanFirstCharge,
   fillCampaignMessage,
   usesAppointmentVariables,
   imageDataUrlInfo,
@@ -1628,6 +1632,94 @@ describe("planPixChargeMessage", () => {
         installments: 3,
       }),
     ).toContain("tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.");
+  });
+});
+
+describe("1º pagamento proporcional às aulas até o vencimento", () => {
+  // Turma de segunda e quarta: outubro/2026 tem 8 aulas (5, 7, 12, 14, 19, 21, 26, 28).
+  const slots = [{ weekday: 1 }, { weekday: 3 }];
+  const plan = {
+    kind: "recurring" as const,
+    totalValueInCents: 40_000,
+    validFrom: "2026-10-01",
+    firstDueDate: "2026-10-31",
+  };
+  it("counts the weekly classes between two dates", () => {
+    expect(weeklySlotSessionsBetween(slots, "2026-10-01", "2026-10-31")).toBe(
+      8,
+    );
+    expect(weeklySlotSessionsBetween(slots, "2026-10-05", "2026-10-05")).toBe(
+      1,
+    );
+    expect(weeklySlotSessionsBetween(slots, "2026-10-06", "2026-10-06")).toBe(
+      0,
+    );
+    expect(weeklySlotSessionsBetween([], "2026-10-01", "2026-10-31")).toBe(0);
+  });
+  it("charges the full value at the end of the first cycle", () => {
+    expect(planFirstChargeProration(plan, slots)).toBeNull();
+  });
+  it("is cheaper before and more expensive after the end of the cycle", () => {
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-15" }, slots),
+    ).toEqual({
+      sessions: 4,
+      cycleSessions: 8,
+      cycleEnd: "2026-10-31",
+      amountInCents: 20_000,
+    });
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-11-10" }, slots)
+        ?.amountInCents,
+    ).toBe(55_000);
+  });
+  it("keeps the full value without a group, when paid upfront or outside recurring plans", () => {
+    const early = { ...plan, firstDueDate: "2026-10-15" };
+    expect(planFirstChargeProration(early, undefined)).toBeNull();
+    expect(planFirstChargeProration(early, [])).toBeNull();
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-01" }, slots),
+    ).toBeNull();
+    expect(
+      planFirstChargeProration({ ...early, kind: "fixed_package" }, slots),
+    ).toBeNull();
+  });
+  it("replaces only the first installment of the schedule", () => {
+    const terms = withPlanFirstCharge(
+      { ...plan, firstDueDate: "2026-10-15", installments: 1 },
+      slots,
+    );
+    expect(terms.firstInstallmentInCents).toBe(20_000);
+    expect(planInstallmentSchedule(terms)).toEqual([
+      { installmentNumber: 1, dueDate: "2026-10-15", amountInCents: 20_000 },
+    ]);
+    // Voltar para o fim do ciclo remove o valor proporcional calculado antes.
+    expect(
+      withPlanFirstCharge({ ...terms, firstDueDate: "2026-10-31" }, slots),
+    ).not.toHaveProperty("firstInstallmentInCents");
+    expect(
+      planInstallmentSchedule({
+        totalValueInCents: 30_000,
+        installments: 3,
+        firstDueDate: "2026-10-15",
+        firstInstallmentInCents: 5_000,
+      }).map((item) => item.amountInCents),
+    ).toEqual([5_000, 10_000, 10_000]);
+  });
+  it("tells the prorated first charge in the Pix message", () => {
+    expect(
+      planPixChargeMessage({
+        patientName: "Marina Costa",
+        planName: "Pilates 2x semana",
+        totalValueInCents: 40_000,
+        totalSessions: 8,
+        installments: 1,
+        pixKey: "financeiro@aryana.com.br",
+        firstChargeInCents: 20_000,
+      }),
+    ).toContain(
+      "o plano “Pilates 2x semana” tem 8 sessões por R$ 400,00 (R$ 50,00 por sessão); o 1º pagamento, proporcional às aulas até o vencimento, é de R$ 200,00.",
+    );
   });
 });
 

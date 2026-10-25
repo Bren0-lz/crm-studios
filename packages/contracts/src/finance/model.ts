@@ -486,6 +486,8 @@ export function planPixChargeMessage(input: {
   totalSessions: number;
   pixKey: string;
   template?: string | undefined;
+  /** 1º pagamento proporcional às aulas até o vencimento (`firstInstallmentInCents`). */
+  firstChargeInCents?: number | undefined;
 }): string {
   const money = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
@@ -494,8 +496,9 @@ export function planPixChargeMessage(input: {
   const installments = Math.max(1, input.installments);
   // Mesma divisão de `planInstallmentSchedule`: o resto vai nos primeiros centavos.
   const firstCharge =
+    input.firstChargeInCents ??
     Math.floor(input.totalValueInCents / installments) +
-    (input.totalValueInCents % installments ? 1 : 0);
+      (input.totalValueInCents % installments ? 1 : 0);
   const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
   const sessionValue =
     input.totalSessions > 0
@@ -514,8 +517,12 @@ export function planPixChargeMessage(input: {
       chave_pix: input.pixKey,
     });
   const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
-  const charge =
-    installments > 1
+  const prorated =
+    input.firstChargeInCents !== undefined &&
+    input.firstChargeInCents !== input.totalValueInCents;
+  const charge = prorated
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o vencimento, é de ${money(firstCharge)}`
+    : installments > 1
       ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}`
       : `o valor do plano “${input.planName}” é de ${money(firstCharge)}, referente a ${sessions}${perSession}`;
   return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;

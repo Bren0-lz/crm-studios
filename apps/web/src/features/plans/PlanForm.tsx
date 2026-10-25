@@ -12,6 +12,7 @@ import {
   type PatientPlanInput,
   type PlanTemplate,
   type Service,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   useEffect,
@@ -21,6 +22,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
+import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
 import { PlanInstallmentsField } from "./PlanInstallmentsField";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -174,7 +176,7 @@ export function PlanForm({
     setError("");
     try {
       await onSubmit(
-        form,
+        withPlanFirstCharge(form, firstChargeSlots),
         form.kind !== "single" ? groupId || undefined : undefined,
       );
     } catch (cause) {
@@ -186,6 +188,10 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  // 1º pagamento proporcional às aulas da turma escolhida; a renovação mantém o valor cheio.
+  const firstChargeSlots = renewing
+    ? undefined
+    : groups?.items?.find((group) => group.id === groupId)?.weeklySlots;
   // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
   // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
   const references = renewing
@@ -550,6 +556,9 @@ export function PlanForm({
                 }
               />
             </label>
+            {!renewing && (
+              <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"

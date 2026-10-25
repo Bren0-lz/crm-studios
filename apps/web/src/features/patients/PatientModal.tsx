@@ -3,6 +3,7 @@ import {
   patientTagDisplayColor,
   planPixChargeMessage,
   whatsappLink,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   isValidCpf,
@@ -221,7 +222,10 @@ export function PatientModal({
       return {
         next: "plan",
         patient: form,
-        plan: planForm,
+        plan: withPlanFirstCharge(
+          planForm,
+          groups?.find((group) => group.id === groupId)?.weeklySlots,
+        ),
         ...(groupId ? { groupId } : {}),
       };
     if (step === "single")
@@ -291,6 +295,10 @@ export function PatientModal({
             totalSessions: result.plan.totalSessions,
             pixKey,
             template: pixTemplate,
+            firstChargeInCents:
+              input.next === "plan"
+                ? input.plan.firstInstallmentInCents
+                : undefined,
           }),
         });
         return;
@@ -531,6 +539,9 @@ export function PatientModal({
               form={planForm}
               setForm={setPlanForm}
               onServiceChange={() => setGroupId("")}
+              groupSlots={
+                groups?.find((group) => group.id === groupId)?.weeklySlots
+              }
               patientName={form.fullName}
               pixKey={pixKey}
               pixTemplate={pixTemplate}
