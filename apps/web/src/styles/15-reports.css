@@ -722,3 +722,8 @@
     font-size: var(--text-sm);
   }
 }
+.reports-body > .no-return-toolbar {
+  flex-wrap: wrap;
+  padding: 0;
+  border-bottom: 0;
+}

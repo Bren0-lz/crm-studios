@@ -4,7 +4,7 @@ import {
   whatsappLink,
   type PatientWithoutReturn,
 } from "@crm/contracts";
-import { Download, History, MessageCircle } from "lucide-react";
+import { Download, History, MessageCircle, Search } from "lucide-react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -17,7 +17,14 @@ import {
 } from "../../shared/lib/formatting";
 import { PatientSalesHistoryModal } from "./PatientSalesHistoryModal";
 import { ReportChart } from "./ReportChart";
-import { compactMoney, salesChartPoints } from "./model";
+import {
+  compactMoney,
+  matchesNoReturnSchedule,
+  noReturnScheduleFilterLabels,
+  salesChartPoints,
+  searchPatientsWithoutReturn,
+  type NoReturnScheduleFilter,
+} from "./model";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
 const money = (value: number) => currency.format(value / 100);
@@ -39,6 +46,8 @@ export function SalesInsights({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState({ period, message: "" });
   const [historyOf, setHistoryOf] = useState<PatientWithoutReturn | null>(null);
+  const [search, setSearch] = useState("");
+  const [schedule, setSchedule] = useState<NoReturnScheduleFilter>("all");
   useEffect(() => {
     if (focusNoReturn && report)
       document
@@ -62,7 +71,13 @@ export function SalesInsights({
       setExporting(false);
     }
   }
-  if (mode === "clients")
+  if (mode === "clients") {
+    const searched = report
+      ? searchPatientsWithoutReturn(report.patientsWithoutReturn, search)
+      : [];
+    const visible = searched.filter((item) =>
+      matchesNoReturnSchedule(item, schedule),
+    );
     return (
       <section className="panel" id="sales-no-return">
         <div className="panel-head">
@@ -95,64 +110,123 @@ export function SalesInsights({
                 copy="Todos os clientes do intervalo de referência retornaram ou não houve atendimentos."
               />
             ) : (
-              <div className="table-scroll">
-                <table className="dre-table">
-                  <caption>Clientes sem retorno no período</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Cliente</th>
-                      <th scope="col">Último atendimento</th>
-                      <th scope="col">Próximo agendamento</th>
-                      <th scope="col" className="table-actions-head">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.patientsWithoutReturn.map((item) => (
-                      <tr key={item.patientId}>
-                        <th scope="row">{item.patientName}</th>
-                        <td>
-                          {shortDate.format(new Date(item.lastCompletedAt))}
-                        </td>
-                        <td>
-                          {item.nextAppointmentAt
-                            ? shortDate.format(new Date(item.nextAppointmentAt))
-                            : "Sem agendamento"}
-                        </td>
-                        <td>
-                          <div className="table-actions">
-                            <button
-                              type="button"
-                              className="secondary-button button-sm"
-                              aria-label={`Histórico de ${item.patientName}`}
-                              onClick={() => setHistoryOf(item)}
-                            >
-                              <History size={15} aria-hidden="true" />
-                              Histórico
-                            </button>
-                            {(item.whatsapp || item.phone) && (
-                              <a
-                                className="whatsapp-button button-sm"
-                                aria-label={`WhatsApp de ${item.patientName}`}
-                                href={whatsappLink(
-                                  item.whatsapp || item.phone!,
-                                  `Olá, ${patientFirstName(item.patientName)}! Tudo bem?`,
+              <>
+                <div className="list-toolbar no-return-toolbar">
+                  <label className="search-box">
+                    <Search size={18} aria-hidden="true" />
+                    <input
+                      type="search"
+                      aria-label="Buscar cliente sem retorno"
+                      placeholder="Buscar por nome"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </label>
+                  <div className="filter-group">
+                    <span className="filter-label" id="no-return-schedule">
+                      Próximo agendamento
+                    </span>
+                    <div
+                      className="tag-filter-list"
+                      role="group"
+                      aria-labelledby="no-return-schedule"
+                    >
+                      {(
+                        Object.keys(
+                          noReturnScheduleFilterLabels,
+                        ) as NoReturnScheduleFilter[]
+                      ).map((filter) => (
+                        <button
+                          type="button"
+                          key={filter}
+                          className="text-button tag-filter"
+                          aria-pressed={schedule === filter}
+                          onClick={() => setSchedule(filter)}
+                        >
+                          {noReturnScheduleFilterLabels[filter]}
+                          <small>
+                            {
+                              searched.filter((item) =>
+                                matchesNoReturnSchedule(item, filter),
+                              ).length
+                            }
+                          </small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {!visible.length ? (
+                  <EmptyState
+                    title="Nenhum cliente encontrado."
+                    copy="Mude a busca ou o filtro de agendamento para ver outros clientes."
+                  />
+                ) : (
+                  <div className="table-scroll">
+                    <table className="dre-table">
+                      <caption>Clientes sem retorno no período</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Cliente</th>
+                          <th scope="col">Último atendimento</th>
+                          <th scope="col">Próximo agendamento</th>
+                          <th scope="col" className="table-actions-head">
+                            Ações
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visible.map((item) => (
+                          <tr key={item.patientId}>
+                            <th scope="row">{item.patientName}</th>
+                            <td>
+                              {shortDate.format(new Date(item.lastCompletedAt))}
+                            </td>
+                            <td>
+                              {item.nextAppointmentAt
+                                ? shortDate.format(
+                                    new Date(item.nextAppointmentAt),
+                                  )
+                                : "Sem agendamento"}
+                            </td>
+                            <td>
+                              <div className="table-actions">
+                                <button
+                                  type="button"
+                                  className="secondary-button button-sm"
+                                  aria-label={`Histórico de ${item.patientName}`}
+                                  onClick={() => setHistoryOf(item)}
+                                >
+                                  <History size={15} aria-hidden="true" />
+                                  Histórico
+                                </button>
+                                {(item.whatsapp || item.phone) && (
+                                  <a
+                                    className="whatsapp-button button-sm"
+                                    aria-label={`WhatsApp de ${item.patientName}`}
+                                    href={whatsappLink(
+                                      item.whatsapp || item.phone!,
+                                      `Olá, ${patientFirstName(item.patientName)}! Tudo bem?`,
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <MessageCircle
+                                      size={15}
+                                      aria-hidden="true"
+                                    />
+                                    WhatsApp
+                                  </a>
                                 )}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <MessageCircle size={15} aria-hidden="true" />
-                                WhatsApp
-                              </a>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -165,6 +239,7 @@ export function SalesInsights({
         )}
       </section>
     );
+  }
   const chart = report ? salesChartPoints(report) : null;
   return (
     <section className="panel reports-sales">
