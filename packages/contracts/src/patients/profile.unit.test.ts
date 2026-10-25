@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { patientInputSchema, patientProfile } from "./model.js";
+import {
+  applyPatientDiscount,
+  patientDiscountSchema,
+  patientExportColumns,
+  patientInputSchema,
+  patientProfile,
+} from "./model.js";
 import { mergedPatientInput, patientMergeSchema } from "./management.js";
 import type { Patient } from "./types.js";
 describe("optional client profile", () => {
@@ -77,5 +83,35 @@ describe("optional client profile", () => {
       tags: ["vip", "pilates"],
       interests: ["Postura", "Reabilitação"],
     });
+  });
+});
+
+describe("client discount", () => {
+  it("applies a percentage or amount without going below zero", () => {
+    expect(applyPatientDiscount(10000, undefined)).toBe(10000);
+    expect(applyPatientDiscount(10000, null)).toBe(10000);
+    expect(
+      applyPatientDiscount(10000, { type: "percentage", percent: 15 }),
+    ).toBe(8500);
+    expect(
+      applyPatientDiscount(10000, { type: "percentage", percent: 12.5 }),
+    ).toBe(8750);
+    expect(
+      applyPatientDiscount(10000, { type: "amount", amountInCents: 2500 }),
+    ).toBe(7500);
+    expect(
+      applyPatientDiscount(1000, { type: "amount", amountInCents: 2500 }),
+    ).toBe(0);
+  });
+
+  it("keeps the discount out of the export columns", () => {
+    expect(patientExportColumns).not.toContain("discount");
+    expect(
+      patientProfile({ discount: { type: "amount", amountInCents: 500 } }),
+    ).toEqual({ discount: { type: "amount", amountInCents: 500 } });
+    expect(
+      patientDiscountSchema.safeParse({ type: "percentage", percent: 101 })
+        .success,
+    ).toBe(false);
   });
 });

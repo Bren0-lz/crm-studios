@@ -17,6 +17,7 @@ import {
 } from "@crm/contracts";
 import { MessageCircle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -41,7 +42,9 @@ import {
   guidedStepOrder,
   guidedStepPermissions,
   guidedSubmitLabels,
+  patientDiscountLabel,
 } from "./model";
+import { PatientDiscountModal } from "./PatientDiscountModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 import { PatientProfileFields } from "./PatientProfileFields";
 import type {
@@ -88,6 +91,7 @@ export function PatientModal({
   const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState(false);
   const submitting = useRef(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -321,11 +325,7 @@ export function PatientModal({
             <textarea readOnly rows={5} value={pixCharge.message} />
           </label>
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={finish}
-            >
+            <button type="button" className="secondary-button" onClick={finish}>
               Concluir
             </button>
             <a
@@ -353,6 +353,7 @@ export function PatientModal({
       }
       busy={loading}
       dirty={dirty}
+      inactive={discountOpen}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -425,6 +426,24 @@ export function PatientModal({
             onChange={(e) => field("birthDate", e.target.value)}
           />
         </label>
+        <fieldset className="form-fieldset span-2">
+          <legend>Desconto</legend>
+          <div className="discount-summary">
+            <p className="muted-copy">
+              {form.discount
+                ? patientDiscountLabel(form.discount)
+                : "Sem desconto configurado."}
+            </p>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!editable || loading}
+              onClick={() => setDiscountOpen(true)}
+            >
+              {form.discount ? "Alterar desconto" : "Configurar desconto"}
+            </button>
+          </div>
+        </fieldset>
         {/* Cadastro rápido (U15): o essencial à vista; o restante fica recolhido. */}
         <details className="more-info span-2" open={Boolean(patient)}>
           <summary>Mais informações</summary>
@@ -613,6 +632,19 @@ export function PatientModal({
       {showHistory && patient && (
         <PatientTimelineSection patientId={patient.id} />
       )}
+      {discountOpen &&
+        createPortal(
+          <PatientDiscountModal
+            discount={form.discount}
+            onApply={(discount) => {
+              // Sem desconto vira `null` na edição para retirar o que estava salvo.
+              field("discount", discount ?? (patient ? null : undefined));
+              setDiscountOpen(false);
+            }}
+            onClose={() => setDiscountOpen(false)}
+          />,
+          document.body,
+        )}
     </Modal>
   );
 }

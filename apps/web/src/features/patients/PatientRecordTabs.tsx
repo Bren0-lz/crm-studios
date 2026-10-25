@@ -40,6 +40,7 @@ import {
   planSubtitle,
   type PlanCatalogKind,
 } from "../plans/index";
+import { patientDiscountLabel } from "./model";
 import { PatientPlanModal } from "./PatientPlanModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
@@ -145,6 +146,12 @@ function profileFields(patient: Patient) {
               : value,
     ]);
   }
+  if (patient.discount)
+    fields.push([
+      "discount",
+      "Desconto",
+      patientDiscountLabel(patient.discount),
+    ]);
   return fields;
 }
 
