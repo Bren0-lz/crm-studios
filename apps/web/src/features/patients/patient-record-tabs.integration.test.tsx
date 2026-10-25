@@ -82,6 +82,9 @@ describe("client record", () => {
     expect(overview).toHaveTextContent("(11) 98765-4321");
     expect(overview).toHaveTextContent("helena@example.com");
     expect(overview).toHaveTextContent("Nascimento01/01/1950");
+    expect(overview).toHaveTextContent(
+      `Idade${new Date().getFullYear() - 1950} anos`,
+    );
     expect(screen.queryByText("Ver também")).toBeNull();
     expect(overview).toHaveTextContent("VIP");
     expect(await within(overview).findByText("Pilates 2x")).toBeInTheDocument();
