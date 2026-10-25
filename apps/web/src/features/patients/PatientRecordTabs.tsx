@@ -44,12 +44,7 @@ import { PatientPlanModal } from "./PatientPlanModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
 type TabKey =
-  | "agenda"
-  | "plans"
-  | "finance"
-  | "contracts"
-  | "clinical"
-  | "history";
+  "agenda" | "plans" | "finance" | "contracts" | "clinical" | "history";
 
 /**
  * Consulta de dados do cliente com carregando/erro, refeita ao trocar de cliente e, em
@@ -204,13 +199,20 @@ export function PatientRecordTabs({
   const today = localIsoDate();
   // Instante em que a ficha abriu: referência para o "próximo atendimento".
   const [openedAt] = useState(() => Date.now());
-  const currentPlan = plans.data?.find(
-    (plan) =>
-      !isTabCreditPlan(plan) &&
-      plan.status === "active" &&
-      plan.validFrom <= today &&
-      (!plan.validUntil || plan.validUntil >= today),
-  );
+  // Todos os planos vigentes, o que vence primeiro no topo (sem validade por último).
+  const currentPlans = (plans.data ?? [])
+    .filter(
+      (plan) =>
+        !isTabCreditPlan(plan) &&
+        plan.status === "active" &&
+        plan.validFrom <= today &&
+        (!plan.validUntil || plan.validUntil >= today),
+    )
+    .sort((a, b) =>
+      (a.validUntil ?? "9999-12-31").localeCompare(
+        b.validUntil ?? "9999-12-31",
+      ),
+    );
   const nextAppointment = appointments.data
     ?.filter(
       (item) =>
@@ -282,23 +284,35 @@ export function PatientRecordTabs({
           <dl className="patient-overview-highlights">
             {canView("plans") && (
               <div>
-                <dt>Plano ativo</dt>
+                <dt>
+                  {currentPlans.length > 1
+                    ? `Planos ativos (${currentPlans.length})`
+                    : "Plano ativo"}
+                </dt>
                 {plans.loading ? (
                   <dd className="is-empty">Carregando…</dd>
-                ) : currentPlan ? (
+                ) : currentPlans.length ? (
                   <dd>
-                    <strong>{currentPlan.name}</strong>
-                    <span>
-                      {countLabel(
-                        currentPlan.remainingSessions,
-                        "sessão restante",
-                        "sessões restantes",
-                      )}{" "}
-                      de {currentPlan.totalSessions}
-                      {currentPlan.validUntil
-                        ? ` · até ${formatIsoDate(currentPlan.validUntil)}`
-                        : ""}
-                    </span>
+                    <ul
+                      className={`patient-overview-plans${currentPlans.length > 1 ? " is-multiple" : ""}`}
+                    >
+                      {currentPlans.map((plan) => (
+                        <li key={plan.id}>
+                          <strong>{plan.name}</strong>
+                          <span>
+                            {countLabel(
+                              plan.remainingSessions,
+                              "sessão restante",
+                              "sessões restantes",
+                            )}{" "}
+                            de {plan.totalSessions}
+                            {plan.validUntil
+                              ? ` · até ${formatIsoDate(plan.validUntil)}`
+                              : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </dd>
                 ) : (
                   <dd className="is-empty">Sem plano ativo</dd>
