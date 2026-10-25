@@ -50,6 +50,11 @@ import {
   isValidCpf,
   isAppointmentPendingFinalization,
   pendingFinalizationLabel,
+  autoFinalizationSettingsInputSchema,
+  autoFinalizationDelayLabel,
+  completedAppointmentsQuerySchema,
+  defaultAutoFinalizationSettings,
+  isAppointmentDueForAutoFinalization,
   appointmentActionLeadMinutes,
   appointmentActionsAvailableAt,
   isAppointmentStarted,
@@ -1097,6 +1102,79 @@ describe("appointment clinical actions availability", () => {
     expect(appointmentNotStartedMessage("2026-10-20T03:10:00.000Z")).toBe(
       "Disponível a partir de 19/10 às 23:55",
     );
+  });
+});
+
+describe("appointment auto finalization", () => {
+  const now = new Date("2026-10-18T15:00:00.000Z");
+
+  it("is due only after the configured delay from the end", () => {
+    const appointment = {
+      status: "confirmed" as const,
+      endsAt: "2026-10-18T14:00:00.000Z",
+    };
+    expect(isAppointmentDueForAutoFinalization(appointment, 60, now)).toBe(
+      true,
+    );
+    expect(isAppointmentDueForAutoFinalization(appointment, 61, now)).toBe(
+      false,
+    );
+    expect(
+      isAppointmentDueForAutoFinalization(
+        { ...appointment, status: "no_show" },
+        0,
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("validates the delay and keeps the defaults disabled", () => {
+    expect(defaultAutoFinalizationSettings).toEqual({
+      enabled: false,
+      delayMinutes: 60,
+    });
+    expect(
+      autoFinalizationSettingsInputSchema.safeParse({
+        enabled: true,
+        delayMinutes: 10080,
+      }).success,
+    ).toBe(true);
+    for (const delayMinutes of [-1, 10081, 1.5])
+      expect(
+        autoFinalizationSettingsInputSchema.safeParse({
+          enabled: true,
+          delayMinutes,
+        }).success,
+      ).toBe(false);
+  });
+
+  it("describes the delay in words", () => {
+    expect(autoFinalizationDelayLabel(0)).toBe("imediatamente");
+    expect(autoFinalizationDelayLabel(45)).toBe("45 minutos");
+    expect(autoFinalizationDelayLabel(90)).toBe("1 hora e 30 minutos");
+    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe(
+      "2 dias e 1 minuto",
+    );
+  });
+
+  it("requires an ordered period of up to one year", () => {
+    const ok = completedAppointmentsQuerySchema.safeParse({
+      from: "2026-10-01T00:00:00-03:00",
+      to: "2026-11-01T00:00:00-03:00",
+    });
+    expect(ok.success).toBe(true);
+    expect(
+      completedAppointmentsQuerySchema.safeParse({
+        from: "2026-11-01T00:00:00-03:00",
+        to: "2026-10-01T00:00:00-03:00",
+      }).success,
+    ).toBe(false);
+    expect(
+      completedAppointmentsQuerySchema.safeParse({
+        from: "2024-10-01T00:00:00-03:00",
+        to: "2026-10-01T00:00:00-03:00",
+      }).success,
+    ).toBe(false);
   });
 });
 

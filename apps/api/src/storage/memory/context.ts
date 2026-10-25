@@ -16,6 +16,7 @@ import type {
   ClinicalResource,
   ClinicCatalogEntry,
   NavTabLabel,
+  AutoFinalizationSettings,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -653,6 +654,11 @@ export class MemoryRepositoryContext {
   readonly clinicCatalogEntries: ClinicCatalogEntry[] = [];
   /** Abas do menu renomeadas, por clínica. */
   readonly navTabLabels = new Map<string, NavTabLabel[]>();
+  /** Finalização automática configurada, por clínica (sem entrada = padrão). */
+  readonly autoFinalizationSettings = new Map<
+    string,
+    AutoFinalizationSettings
+  >();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,

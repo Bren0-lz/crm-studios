@@ -13,6 +13,7 @@ import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import type { CloseGuard } from "../../shared/workflows/types";
 import { AdminUsersContent } from "./AdminUsersContent";
+import { AutoFinalizationContent } from "./AutoFinalizationContent";
 import { BranchesContent } from "./BranchesContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
@@ -137,6 +138,8 @@ export function SettingsPage() {
               <AdminUsersContent />
             ) : tab.key === "menu" ? (
               <NavTabLabelsContent />
+            ) : tab.key === "autoFinalization" ? (
+              <AutoFinalizationContent />
             ) : tab.key === "plans" ? (
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (

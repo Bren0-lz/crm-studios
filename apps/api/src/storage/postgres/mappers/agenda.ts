@@ -39,6 +39,7 @@ export interface AppointmentRow {
   updatedAt: Date;
   seriesId: string | null;
   visitType: AppointmentVisitType;
+  autoCompletedAt?: Date | null;
 }
 
 export interface ScheduleBlockRow {
@@ -170,7 +171,8 @@ export const appointmentColumns = `
   a.created_at AS "createdAt",
   a.updated_at AS "updatedAt",
   a.series_id AS "seriesId",
-  a.visit_type AS "visitType"
+  a.visit_type AS "visitType",
+  a.auto_completed_at AS "autoCompletedAt"
 `;
 
 // Atendimento é de cliente (patient_id) ou de lead (lead_id): os dois LEFT JOIN.
@@ -208,6 +210,9 @@ export function mapAppointment(row: AppointmentRow): Appointment {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ...(row.seriesId ? { seriesId: row.seriesId } : {}),
+    ...(row.autoCompletedAt
+      ? { autoCompletedAt: row.autoCompletedAt.toISOString() }
+      : {}),
   };
 }
 

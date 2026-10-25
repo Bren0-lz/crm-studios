@@ -30,6 +30,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import Fastify from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
+import { createAutoFinalizer } from "../modules/agenda/auto-finalization.js";
 import { buildBroadcast } from "../modules/communications/broadcast.js";
 import {
   decodeCsvText,
@@ -58,6 +59,8 @@ export async function createRouteContext({
     string,
     { failures: number; blockedUntil?: number }
   >();
+
+  const autoFinalizer = createAutoFinalizer(repository);
 
   const webOrigins = new Set([config.WEB_ORIGIN]);
 
@@ -168,6 +171,12 @@ export async function createRouteContext({
     const scope = await resolveBranchScope(request, user);
     if ("code" in scope) return reply.status(403).send(scope);
     repository.branchScope.set(scope);
+    // Falha da finalização automática não pode derrubar a requisição do usuário.
+    try {
+      await autoFinalizer.run(request.user.clinicId);
+    } catch (error) {
+      request.log.error(error);
+    }
   }
 
   /** Filiais ativas que o usuário acessa (admin e "todas as filiais": todas as ativas). */
@@ -578,6 +587,7 @@ export async function createRouteContext({
     repository,
     toUserSummary,
     authenticate,
+    autoFinalizer,
     requestAccess,
     accessibleBranches,
     visibleHistory,

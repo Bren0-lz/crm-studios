@@ -348,6 +348,72 @@ export function isAppointmentPendingFinalization(
   );
 }
 
+/** Limite do tempo de espera da finalização automática: 7 dias. */
+export const autoFinalizationMaxDelayMinutes = 7 * 24 * 60;
+
+/**
+ * Finalização automática (por clínica): quando ligada, o atendimento que segue agendado ou
+ * confirmado vira "realizado" depois de `delayMinutes` do término.
+ */
+export const autoFinalizationSettingsInputSchema = z.object({
+  enabled: z.boolean(),
+  delayMinutes: z.number().int().min(0).max(autoFinalizationMaxDelayMinutes),
+});
+
+/** Padrão de clínica que nunca configurou: desligada, 1 hora após o término. */
+export const defaultAutoFinalizationSettings = {
+  enabled: false,
+  delayMinutes: 60,
+} as const;
+
+/** Instante-limite: atendimentos que terminaram até ele já podem ser finalizados. */
+export function autoFinalizationCutoff(now: Date, delayMinutes: number): Date {
+  return new Date(now.getTime() - delayMinutes * 60_000);
+}
+
+/** Pendente de finalização há pelo menos `delayMinutes` (término + espera ≤ agora). */
+export function isAppointmentDueForAutoFinalization(
+  appointment: Pick<Appointment, "status" | "endsAt">,
+  delayMinutes: number,
+  now: Date = new Date(),
+): boolean {
+  return (
+    (appointment.status === "scheduled" ||
+      appointment.status === "confirmed") &&
+    Date.parse(appointment.endsAt) <=
+      autoFinalizationCutoff(now, delayMinutes).getTime()
+  );
+}
+
+/** Tempo de espera por extenso: "imediatamente", "45 minutos", "1 hora e 30 minutos", "2 dias". */
+export function autoFinalizationDelayLabel(delayMinutes: number): string {
+  if (delayMinutes <= 0) return "imediatamente";
+  const days = Math.floor(delayMinutes / 1440);
+  const hours = Math.floor((delayMinutes % 1440) / 60);
+  const minutes = delayMinutes % 60;
+  const parts = [
+    days ? `${days} ${days === 1 ? "dia" : "dias"}` : "",
+    hours ? `${hours} ${hours === 1 ? "hora" : "horas"}` : "",
+    minutes ? `${minutes} ${minutes === 1 ? "minuto" : "minutos"}` : "",
+  ].filter(Boolean);
+  return joinWithAnd(parts);
+}
+
+/** Período da lista de concluídos (instantes com fuso, como a agenda). */
+export const completedAppointmentsQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }),
+    to: z.iso.datetime({ offset: true }),
+  })
+  .refine((value) => Date.parse(value.from) < Date.parse(value.to), {
+    message: "A data final precisa ser depois da inicial.",
+  })
+  .refine(
+    (value) =>
+      Date.parse(value.to) - Date.parse(value.from) <= 367 * 24 * 3600_000,
+    { message: "Escolha um período de até 1 ano." },
+  );
+
 /**
  * Tolerância (minutos antes do início) para registrar realizado/falta ou vincular evolução
  * clínica a um atendimento. Decisão do dono: constante, sem configuração.
