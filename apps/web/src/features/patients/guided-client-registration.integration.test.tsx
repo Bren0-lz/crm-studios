@@ -197,7 +197,7 @@ describe("guided client registration", () => {
         .getAllByRole("radio")
         .map((radio) => radio.closest("label")?.textContent),
     ).toEqual([
-      "Aula de demonstração",
+      "Aula experimental",
       "Assinar um plano",
       "Serviço avulso",
       "Só cadastrar por enquanto",
@@ -254,7 +254,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     );
     const service = await within(dialog).findByLabelText("Serviço");
     expect(service).toHaveValue(pilatesId);
@@ -268,11 +268,11 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
-      await screen.findByText(/Aula de demonstração agendada para/),
+      await screen.findByText(/Aula experimental agendada para/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
@@ -306,7 +306,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     );
     await within(dialog).findByLabelText("Serviço");
     fireEvent.change(within(dialog).getByLabelText("Data e horário"), {
@@ -314,7 +314,7 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -326,7 +326,7 @@ describe("guided client registration", () => {
       "Marina Costa",
     );
     expect(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     ).toBeChecked();
     expect(within(dialog).getByLabelText("Data e horário")).toHaveValue(
       "2026-10-06T09:00",
@@ -337,7 +337,7 @@ describe("guided client registration", () => {
     fail = false;
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -527,6 +527,125 @@ describe("guided client registration", () => {
     expect(posts[0]).not.toHaveProperty("groupId");
   });
 
+  describe("payment method", () => {
+    /** Plano criado pela API ecoando os termos enviados, e a chave Pix da clínica. */
+    function mockPlanSale(pixKey: string) {
+      const posts = mockApi((body) =>
+        jsonResponse(
+          {
+            patient: created,
+            plan: {
+              id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              patientId: created.id,
+              patientName: created.fullName,
+              serviceName: "Pilates",
+              serviceId: pilatesId,
+              ...(body.plan as object),
+              totalSessions: 8,
+              status: "active",
+              remainingSessions: 8,
+            },
+          },
+          201,
+        ),
+      );
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation(async (input, init) =>
+        String(input).includes("/clinic/branding")
+          ? jsonResponse({ name: "Studios Aryana", logoDataUrl: "", pixKey })
+          : base(input, init),
+      );
+      renderAs(storedUser(admin));
+      return posts;
+    }
+    async function choosePlanWithPix() {
+      const dialog = await openNewClient();
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      );
+      const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+      fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
+      const method = within(dialog).getByLabelText("Forma de pagamento");
+      expect(method).toHaveValue("");
+      fireEvent.change(method, { target: { value: "pix" } });
+      return dialog;
+    }
+
+    it("sends the Pix key and the default message with the value per session", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      const preview = await within(dialog).findByLabelText(
+        "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+      );
+      expect((preview as HTMLTextAreaElement).value).toContain(
+        "o plano “Pilates 2x semana” tem 8 sessões por R$ 480,00 (R$ 60,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 160,00. Chave Pix: financeiro@aryana.com.br.",
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      expect(posts[0]).toMatchObject({
+        next: "plan",
+        plan: { planTemplateId: pilatesTemplate.id, paymentMethod: "pix" },
+      });
+      const link = within(charge).getByRole("link", {
+        name: "Enviar Pix pelo WhatsApp",
+      });
+      const href = link.getAttribute("href")!;
+      expect(href.startsWith("https://wa.me/5511987654321?text=")).toBe(true);
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toBe(
+        "Olá, Marina! Tudo bem? Seja bem-vindo(a)! Para confirmar, o plano “Pilates 2x semana” tem 8 sessões por R$ 480,00 (R$ 60,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 160,00. Chave Pix: financeiro@aryana.com.br. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!",
+      );
+      fireEvent.click(within(charge).getByRole("button", { name: "Concluir" }));
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("explains where to register the Pix key and only saves the method without it", async () => {
+      const posts = mockPlanSale("");
+      const dialog = await choosePlanWithPix();
+      expect(
+        await within(dialog).findByText(/Nenhuma chave Pix cadastrada/),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
+      ).not.toBeInTheDocument();
+      expect(posts[0]).toMatchObject({ plan: { paymentMethod: "pix" } });
+    });
+
+    it("sends another method without a Pix charge", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      fireEvent.change(within(dialog).getByLabelText("Forma de pagamento"), {
+        target: { value: "card" },
+      });
+      expect(
+        within(dialog).queryByLabelText(
+          "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+        ),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(posts[0]).toMatchObject({ plan: { paymentMethod: "card" } });
+    });
+  });
+
   describe("single service catalog", () => {
     const massageId = "79797979-7979-4979-8979-797979797979";
     const massageTemplate = {
@@ -665,7 +784,7 @@ describe("guided client registration", () => {
       within(question)
         .getAllByRole("radio")
         .map((radio) => radio.closest("label")?.textContent),
-    ).toEqual(["Aula de demonstração", "Só cadastrar por enquanto"]);
+    ).toEqual(["Aula experimental", "Só cadastrar por enquanto"]);
     cleanup();
 
     // Edita Planos mas não Turmas: plano sem o campo de turma (e sem buscar as turmas).

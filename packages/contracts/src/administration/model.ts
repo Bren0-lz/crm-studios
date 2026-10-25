@@ -225,6 +225,8 @@ export const clinicSettingsInputSchema = z.object({
   phone: optionalPhoneSchema,
   email: z.email().optional().or(z.literal("")),
   address: z.string().trim().max(500).optional().or(z.literal("")),
+  /** Chave Pix enviada nas cobranças do cadastro de clientes. */
+  pixKey: z.string().trim().max(140).optional().or(z.literal("")),
   timezone: z
     .string()
     .trim()

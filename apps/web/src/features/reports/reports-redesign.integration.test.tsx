@@ -206,6 +206,56 @@ describe("management reports redesign", () => {
     ).toBeInTheDocument();
     expect(scroll).toHaveBeenCalled();
   });
+  it("filters clients without return by name and next appointment", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({
+      ...sales(from, to),
+      patientsWithoutReturn: [
+        {
+          patientId: "p1",
+          patientName: "Lúcia Prado",
+          lastCompletedAt: "2026-08-20T15:00:00Z",
+          nextAppointmentAt: "2099-01-10T13:00:00Z",
+        },
+        {
+          patientId: "p2",
+          patientName: "Luana Reis",
+          lastCompletedAt: "2026-08-18T15:00:00Z",
+        },
+        {
+          patientId: "p3",
+          patientName: "Marta Souza",
+          lastCompletedAt: "2026-08-12T15:00:00Z",
+        },
+      ],
+    }));
+    open("/relatorios?secao=sem-retorno");
+    await screen.findByText("Marta Souza");
+    const group = screen.getByRole("group", { name: "Próximo agendamento" });
+    fireEvent.click(
+      within(group).getByRole("button", { name: /Sem agendamento/ }),
+    );
+    expect(screen.queryByText("Lúcia Prado")).not.toBeInTheDocument();
+    expect(screen.getByText("Luana Reis")).toBeInTheDocument();
+    expect(screen.getByText("Marta Souza")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Buscar cliente sem retorno"), {
+      target: { value: "lu" },
+    });
+    expect(screen.getByText("Luana Reis")).toBeInTheDocument();
+    expect(screen.queryByText("Marta Souza")).not.toBeInTheDocument();
+    expect(
+      within(group).getByRole("button", { name: /Todos/ }),
+    ).toHaveTextContent("Todos2");
+    fireEvent.click(
+      within(group).getByRole("button", { name: /Com agendamento/ }),
+    );
+    expect(screen.getByText("Lúcia Prado")).toBeInTheDocument();
+    expect(screen.queryByText("Luana Reis")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Buscar cliente sem retorno"), {
+      target: { value: "marta" },
+    });
+    expect(screen.getByText("Nenhum cliente encontrado.")).toBeInTheDocument();
+  });
   it("opens the contract history and the WhatsApp link of a client without return", async () => {
     session();
     vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cpfMatchKey,
   receivableContactMessage,
+  planPixChargeMessage,
   planServiceValueForSessions,
   fillCampaignMessage,
   usesAppointmentVariables,
@@ -1518,6 +1519,35 @@ describe("clinical alerts", () => {
       { severity: "info", createdAt: "2026-10-03T10:00:00.000Z" },
       { severity: "info", createdAt: "2026-10-02T10:00:00.000Z" },
     ]);
+  });
+});
+
+describe("planPixChargeMessage", () => {
+  const plan = {
+    patientName: "Marina Costa",
+    planName: "Pilates 2x semana",
+    totalValueInCents: 48000,
+    totalSessions: 8,
+    pixKey: "financeiro@aryana.com.br",
+  };
+  it("sends the key with the value proportional to the sessions", () => {
+    expect(planPixChargeMessage({ ...plan, installments: 1 })).toBe(
+      "Olá, Marina! Tudo bem? Seja bem-vindo(a)! Para confirmar, o valor do plano “Pilates 2x semana” é de R$ 480,00, referente a 8 sessões (R$ 60,00 por sessão). Chave Pix: financeiro@aryana.com.br. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!",
+    );
+  });
+  it("charges the first installment and keeps the price per session", () => {
+    expect(planPixChargeMessage({ ...plan, installments: 3 })).toContain(
+      "o plano “Pilates 2x semana” tem 8 sessões por R$ 480,00 (R$ 60,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 160,00.",
+    );
+    // O resto da divisão fica na primeira parcela, como em planInstallmentSchedule.
+    expect(
+      planPixChargeMessage({
+        ...plan,
+        totalValueInCents: 10000,
+        totalSessions: 1,
+        installments: 3,
+      }),
+    ).toContain("tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.");
   });
 });
 

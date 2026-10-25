@@ -44,6 +44,20 @@ export function formatIsoDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+/** Idade em anos completos na data de referência. */
+export function patientAge(birthDate: string | undefined, now = new Date()) {
+  if (!birthDate) return undefined;
+  const [year, month, day] = birthDate.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  let age = now.getFullYear() - year;
+  if (
+    now.getMonth() + 1 < month ||
+    (now.getMonth() + 1 === month && now.getDate() < day)
+  )
+    age -= 1;
+  return age;
+}
+
 export function groupOperationRange(now = new Date()) {
   const from = new Date(now);
   from.setDate(from.getDate() - 30);

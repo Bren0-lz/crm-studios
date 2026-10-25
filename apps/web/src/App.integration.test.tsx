@@ -12901,7 +12901,7 @@ describe("guided client registration", () => {
         .getAllByRole("radio")
         .map((radio) => radio.closest("label")?.textContent),
     ).toEqual([
-      "Aula de demonstração",
+      "Aula experimental",
       "Assinar um plano",
       "Serviço avulso",
       "Só cadastrar por enquanto",
@@ -12958,7 +12958,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     );
     const service = await within(dialog).findByLabelText("Serviço");
     expect(service).toHaveValue(pilatesId);
@@ -12972,11 +12972,11 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
-      await screen.findByText(/Aula de demonstração agendada para/),
+      await screen.findByText(/Aula experimental agendada para/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
@@ -13010,7 +13010,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     );
     await within(dialog).findByLabelText("Serviço");
     fireEvent.change(within(dialog).getByLabelText("Data e horário"), {
@@ -13018,7 +13018,7 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -13030,7 +13030,7 @@ describe("guided client registration", () => {
       "Marina Costa",
     );
     expect(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("radio", { name: "Aula experimental" }),
     ).toBeChecked();
     expect(within(dialog).getByLabelText("Data e horário")).toHaveValue(
       "2026-10-06T09:00",
@@ -13041,7 +13041,7 @@ describe("guided client registration", () => {
     fail = false;
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -13233,7 +13233,7 @@ describe("guided client registration", () => {
       within(question)
         .getAllByRole("radio")
         .map((radio) => radio.closest("label")?.textContent),
-    ).toEqual(["Aula de demonstração", "Só cadastrar por enquanto"]);
+    ).toEqual(["Aula experimental", "Só cadastrar por enquanto"]);
     cleanup();
 
     // Edita Planos mas não Turmas: plano sem o campo de turma (e sem buscar as turmas).

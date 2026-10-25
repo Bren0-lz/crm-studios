@@ -1800,6 +1800,60 @@ button.day-event:focus-visible {
     padding: var(--space-2);
   }
 }
+
+/* Filtros da lista de atendimentos a finalizar (mesmo padrão da lista de espera). */
+.pending-finalization-filters {
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  border-bottom: 0;
+}
+
+.pending-finalization-filters label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.pending-finalization-search {
+  flex: 1 1 calc(var(--space-8) * 3);
+  max-width: calc(var(--space-8) * 5);
+}
+
+.pending-finalization-search-input {
+  position: relative;
+  display: block;
+}
+
+.pending-finalization-search-input svg {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  color: var(--muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.pending-finalization-search-input input {
+  width: 100%;
+  padding-left: calc(var(--space-6) + var(--space-3));
+}
+
+@media (max-width: 700px) {
+  .pending-finalization-filters {
+    align-items: stretch;
+  }
+
+  .pending-finalization-search {
+    max-width: none;
+  }
+
+  .pending-finalization-filters select,
+  .pending-finalization-filters input {
+    width: 100%;
+  }
+}
+
 /* Prévia do "Compartilhar agenda": mesma quebra de linhas da mensagem do WhatsApp. */
 .agenda-share-message {
   margin: 0;
