@@ -1,6 +1,6 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
-import type { UserSummary } from "@crm/contracts";
+import type { NavTab, NavTabLabel, UserSummary } from "@crm/contracts";
 import { LogOut } from "lucide-react";
 import {
   type ReactNode,
@@ -11,12 +11,13 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ModuleLabelContext } from "../shared/lib/ModuleLabelContext";
+import { NavTabLabelsContext } from "../shared/lib/NavTabLabelsContext";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
 import type { NavigationGuard } from "../shared/lib/types";
 import { installInlineValidation } from "../shared/feedback/inline-validation";
-import { BRANCH_CHANGED_EVENT, getStoredBranchId } from "../api";
+import { api, BRANCH_CHANGED_EVENT, getStoredBranchId } from "../api";
 import { BranchSelector } from "./BranchSelector";
 import { NotificationsMenu } from "./HeaderMenus";
 import { navGroups } from "./navItems";
@@ -37,11 +38,39 @@ export function Shell({
     window.addEventListener(BRANCH_CHANGED_EVENT, changed);
     return () => window.removeEventListener(BRANCH_CHANGED_EVENT, changed);
   }, []);
+  // Nomes das abas renomeados pelo admin; sem resposta, o menu fica com os nomes padrão.
+  const [tabLabels, setTabLabels] = useState<Partial<Record<NavTab, string>>>(
+    {},
+  );
+  const applyTabLabels = useCallback((labels: NavTabLabel[]) => {
+    setTabLabels(
+      Object.fromEntries(labels.map((item) => [item.tab, item.label])),
+    );
+  }, []);
+  useEffect(() => {
+    let active = true;
+    api
+      .navTabLabels()
+      .then((labels) => {
+        if (active && Array.isArray(labels)) applyTabLabels(labels);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [applyTabLabels]);
+  const navItems = navGroups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({
+      ...item,
+      label: tabLabels[item.tab] ?? item.label,
+    })),
+  }));
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // Rótulo dos modais: o módulo da página aberta (o item de menu mais específico).
   const moduleLabel =
-    navGroups
+    navItems
       .flatMap((group) => group.items)
       .filter(
         (item) =>
@@ -49,10 +78,12 @@ export function Shell({
           (pathname === item.to || pathname.startsWith(`${item.to}/`)),
       )
       .sort((a, b) => b.to.length - a.to.length)[0]?.label ??
-    (pathname === "/" ? "Visão geral" : "Studios Aryana");
+    (pathname === "/"
+      ? (tabLabels.dashboard ?? "Visão geral")
+      : "Studios Aryana");
   // Validação dos formulários abaixo de cada campo, no lugar dos balões do navegador.
   useEffect(() => installInlineValidation(document), []);
-  const visibleGroups = navGroups
+  const visibleGroups = navItems
     .map((group) => ({
       ...group,
       items: group.items.filter(
@@ -165,9 +196,11 @@ export function Shell({
         </header>
         <div className="page-content" key={branchKey}>
           <NavigationGuardContext.Provider value={registerGuard}>
-            <ModuleLabelContext.Provider value={moduleLabel}>
-              {children}
-            </ModuleLabelContext.Provider>
+            <NavTabLabelsContext.Provider value={applyTabLabels}>
+              <ModuleLabelContext.Provider value={moduleLabel}>
+                {children}
+              </ModuleLabelContext.Provider>
+            </NavTabLabelsContext.Provider>
           </NavigationGuardContext.Provider>
         </div>
       </section>

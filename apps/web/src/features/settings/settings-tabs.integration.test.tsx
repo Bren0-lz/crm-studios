@@ -82,6 +82,7 @@ describe("settings tabs", () => {
       "Clínica",
       "Usuários",
       "Filiais",
+      "Abas do menu",
       "Planos",
       "Feriados",
       "Etiquetas",

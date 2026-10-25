@@ -15,6 +15,7 @@ import type { Supplier } from "@crm/contracts";
 import type {
   ClinicalResource,
   ClinicCatalogEntry,
+  NavTabLabel,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -646,6 +647,8 @@ export class MemoryRepositoryContext {
   }
   readonly clinicalResources: ClinicalResource[] = [];
   readonly clinicCatalogEntries: ClinicCatalogEntry[] = [];
+  /** Abas do menu renomeadas, por clínica. */
+  readonly navTabLabels = new Map<string, NavTabLabel[]>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,

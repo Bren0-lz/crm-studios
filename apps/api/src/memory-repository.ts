@@ -229,6 +229,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
     this.updateClinicSettings = this.administration.updateClinicSettings;
+    this.listNavTabLabels = this.administration.listNavTabLabels;
+    this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
     this.listAdminAuditPage = this.administration.listAdminAuditPage;
@@ -464,6 +466,9 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateClinicSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateClinicSettings"];
+
+  readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
+  readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
 
   readonly listAdminAuditEvents: ReturnType<
     typeof createAdministrationRepository

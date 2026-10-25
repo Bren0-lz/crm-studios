@@ -1,5 +1,6 @@
 import { prepareUserAgenda } from "./user-agenda.js";
 import {
+  resolveNavTabLabels,
   resolvePermissionInput,
   saoPauloToday,
   type AdminAuditPage,
@@ -8,6 +9,7 @@ import {
   type AuditHistoryFilters,
   type ClinicSettingsInput,
   type HistoryActor,
+  type NavTabLabelsInput,
   type OwnProfile,
   type OwnProfileUpdate,
   type Professional,
@@ -615,6 +617,20 @@ export function createAdministrationRepository(
       };
       repositoryContext.services.push(service);
       return service;
+    },
+
+    async listNavTabLabels(clinicId: string) {
+      return resolveNavTabLabels(
+        repositoryContext.navTabLabels.get(clinicId) ?? [],
+      );
+    },
+
+    async saveNavTabLabels(clinicId: string, input: NavTabLabelsInput) {
+      repositoryContext.navTabLabels.set(
+        clinicId,
+        input.tabs.map((item) => ({ ...item })),
+      );
+      return resolveNavTabLabels(input.tabs);
     },
   };
 }
