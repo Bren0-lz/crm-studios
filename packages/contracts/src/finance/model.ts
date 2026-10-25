@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AdminUserServiceCommission } from "./types.js";
 import { competenceMonthSchema, paymentMethodSchema } from "../common/model.js";
+import { maxInstallmentsLimit } from "./installments.js";
 import {
   fillMessageTemplate,
   patientFirstName,
@@ -137,6 +138,13 @@ export const financialDatesSchema = paymentTimingSchema.extend({
   dueDate: z.iso.date().optional(),
   reason: z.string().trim().min(3).max(500),
 });
+/** Parcelas do pagamento na própria forma (ex.: cartão em 3x); ausente = à vista. */
+export const paymentInstallmentsSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxInstallmentsLimit)
+  .optional();
 export const paymentInputSchema = z.object({
   ...paymentTimingSchema.shape,
   paymentMethod: paymentMethodSchema.default("pix"),
@@ -148,6 +156,7 @@ export const patientTabCloseInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -186,6 +195,7 @@ export const productSaleInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -378,6 +388,7 @@ export const financeForecastFilterSchema = z.object({
 
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
+  paymentInstallments: paymentInstallmentsSchema,
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */
@@ -455,7 +466,11 @@ export function receivableContactMessage(input: {
 /** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
 export const pixMessageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Marina" },
-  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
   { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
   { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
   { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },

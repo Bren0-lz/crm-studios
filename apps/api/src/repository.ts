@@ -105,6 +105,8 @@ import type {
   ClinicSettingsInput,
   AutoFinalizationSettings,
   AutoFinalizationSettingsInput,
+  PaymentMethodSettings,
+  PaymentMethodSettingsInput,
   NavTabLabel,
   NavTabLabelsInput,
   CommissionEntry,
@@ -555,6 +557,13 @@ export interface ClinicRepository {
     actorUserId: string,
     input: AutoFinalizationSettingsInput,
   ): Promise<AutoFinalizationSettings>;
+  /** Parcelamento por forma de pagamento (todas as formas; nunca configurado = até 36x). */
+  getPaymentMethodSettings(clinicId: string): Promise<PaymentMethodSettings>;
+  updatePaymentMethodSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: PaymentMethodSettingsInput,
+  ): Promise<PaymentMethodSettings>;
   /** Nomes das abas do menu da clínica (padrão onde não foram renomeadas), na ordem. */
   listNavTabLabels(clinicId: string): Promise<NavTabLabel[]>;
   /** Renomeia as abas do menu da clínica (vale para todas as filiais). */

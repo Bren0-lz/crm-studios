@@ -25,6 +25,8 @@ export function registerPlansRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    requestAccess,
   } = context;
   app.post(
     "/plans/purchases",
@@ -42,6 +44,7 @@ export function registerPlansRoutes(context: RouteContext) {
           input.appointments.map((item) => item.startsAt),
         );
       await assertServiceAvailable(request.user.clinicId, input.appointments);
+      await assertInstallmentsAllowed(request.user.clinicId, input.plan);
       return reply
         .status(201)
         .send(
@@ -165,20 +168,32 @@ export function registerPlansRoutes(context: RouteContext) {
       request.user.clinicId,
       request.user.sub,
     );
-    return repository.listPatientPlans(request.user.clinicId, query.patientId);
+    const plans = await repository.listPatientPlans(
+      request.user.clinicId,
+      query.patientId,
+    );
+    // Situação das parcelas só para quem vê o Financeiro (como "Pagamento atrasado").
+    if (requestAccess.get(request)?.modules.includes("finance")) return plans;
+    return plans.map((plan) => {
+      const { paymentSummary, ...rest } = plan;
+      void paymentSummary;
+      return rest;
+    });
   });
 
-  app.post("/plans", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/plans", { preHandler: authenticate }, async (request, reply) => {
+    const input = patientPlanInputSchema.parse(request.body);
+    await assertInstallmentsAllowed(request.user.clinicId, input);
+    return reply
       .status(201)
       .send(
         await repository.createPatientPlan(
           request.user.clinicId,
           request.user.sub,
-          patientPlanInputSchema.parse(request.body),
+          input,
         ),
-      ),
-  );
+      );
+  });
 
   app.patch(
     "/plans/:id/status",
@@ -233,6 +248,11 @@ export function registerPlansRoutes(context: RouteContext) {
           recurringSingleChargeIssue,
           400,
         );
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: input.installments,
+        paymentMethod: input.paymentMethod,
+        planTemplateId: current?.planTemplateId,
+      });
       const plan = await repository.renewPatientPlan(
         request.user.clinicId,
         request.user.sub,

@@ -84,6 +84,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/branches/:id": "admin",
   "GET /clinic/auto-finalization": "login",
   "PUT /admin/auto-finalization": "admin",
+  "GET /clinic/payment-methods": "login",
+  "PUT /admin/payment-methods": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",

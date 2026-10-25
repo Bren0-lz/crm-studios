@@ -1,4 +1,7 @@
-import { receiptWithClinic } from "../../modules/finance/receipt.js";
+import {
+  receiptInstallments,
+  receiptWithClinic,
+} from "../../modules/finance/receipt.js";
 import {
   prepareTabServiceCredits,
   assertTabCreditsReversible,
@@ -371,7 +374,13 @@ export function createFinanceRepository(
         amountInCents: tab.totalInCents,
         status: input.settlement === "paid" ? "paid" : "open",
         ...(input.settlement === "paid"
-          ? { paidAt: timestamp, paymentMethod: input.paymentMethod! }
+          ? {
+              paidAt: timestamp,
+              paymentMethod: input.paymentMethod!,
+              ...(input.paymentInstallments && input.paymentInstallments > 1
+                ? { paymentInstallments: input.paymentInstallments }
+                : {}),
+            }
           : {}),
         overdue: input.settlement === "receivable" && input.dueDate < today(),
         createdAt: timestamp,
@@ -587,6 +596,12 @@ export function createFinanceRepository(
       receivable.paidAt = timing?.paidAt ?? now();
       if (timing?.availableAt) receivable.cashAvailableAt = timing.availableAt;
       receivable.paymentMethod = paymentMethod;
+      if (
+        adjustments.paymentInstallments &&
+        adjustments.paymentInstallments > 1
+      )
+        receivable.paymentInstallments = adjustments.paymentInstallments;
+      else delete receivable.paymentInstallments;
       receivable.overdue = false;
       receivable.updatedAt = now();
       repositoryContext.receiptEvents.push({
@@ -641,6 +656,7 @@ export function createFinanceRepository(
         (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
       delete receivable.paidAt;
       delete receivable.paymentMethod;
+      delete receivable.paymentInstallments;
       receivable.overdue = receivable.dueDate < today();
       receivable.updatedAt = now();
       return receivable;
@@ -727,6 +743,7 @@ export function createFinanceRepository(
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
+        ...receiptInstallments(receivable),
         paidAt: receivable.paidAt,
         clinicName: clinic.name,
         clinicLegalName: clinic.legalName ?? "",

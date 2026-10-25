@@ -233,6 +233,10 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.administration.getAutoFinalizationSettings;
     this.updateAutoFinalizationSettings =
       this.administration.updateAutoFinalizationSettings;
+    this.getPaymentMethodSettings =
+      this.administration.getPaymentMethodSettings;
+    this.updatePaymentMethodSettings =
+      this.administration.updatePaymentMethodSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -479,6 +483,9 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateAutoFinalizationSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateAutoFinalizationSettings"];
+
+  readonly getPaymentMethodSettings: ClinicRepository["getPaymentMethodSettings"];
+  readonly updatePaymentMethodSettings: ClinicRepository["updatePaymentMethodSettings"];
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];

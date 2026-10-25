@@ -25,6 +25,8 @@ export const financialEntryFilterSchema = z
       ])
       .optional(),
     status: z.enum(["open", "paid", "cancelled", "overdue"]).optional(),
+    /** Parceladas: parcela de um parcelamento ou paga em várias vezes na forma (cartão 3x). */
+    installments: z.enum(["installments", "single"]).optional(),
     search: z.string().max(200).optional(),
   })
   .refine((filter) => !filter.from || !filter.to || filter.to >= filter.from, {
@@ -49,6 +51,20 @@ export interface FilterableFinancialEntry {
   categoryId?: string | undefined;
   costCenterId?: string | undefined;
   paymentMethod?: string | undefined;
+  installmentCount?: number | undefined;
+  paymentInstallments?: number | undefined;
+}
+
+/** A conta faz parte de um parcelamento (plano em N vezes) ou foi paga parcelada na forma. */
+export function isInstallmentEntry(
+  entry: Pick<
+    FilterableFinancialEntry,
+    "installmentCount" | "paymentInstallments"
+  >,
+) {
+  return (
+    (entry.installmentCount ?? 1) > 1 || (entry.paymentInstallments ?? 1) > 1
+  );
 }
 const normalized = (text: string) =>
   text
@@ -100,6 +116,11 @@ export function matchesFinancialEntry(
   if (
     filter.paymentMethod &&
     (entry.paymentMethod ?? "unspecified") !== filter.paymentMethod
+  )
+    return false;
+  if (
+    filter.installments &&
+    isInstallmentEntry(entry) !== (filter.installments === "installments")
   )
     return false;
   return (

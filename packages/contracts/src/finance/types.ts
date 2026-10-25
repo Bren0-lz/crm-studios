@@ -235,10 +235,17 @@ export interface InventoryWorkspace {
 }
 
 export type PaymentTiming = z.infer<typeof paymentTimingSchema>;
-/** Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio. */
+/**
+ * Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio, à vista.
+ * `paymentInstallments`: parcelas na própria forma (ex.: cartão em 3x).
+ */
 export type SettlementAdjustments = Pick<
   z.input<typeof receivableSettlementSchema>,
-  "discountInCents" | "interestInCents" | "receivedInCents" | "balanceDueDate"
+  | "discountInCents"
+  | "interestInCents"
+  | "receivedInCents"
+  | "balanceDueDate"
+  | "paymentInstallments"
 >;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
@@ -266,6 +273,8 @@ export interface Receivable {
   createdAt: string;
   updatedAt: string;
   paymentMethod?: PaymentMethod;
+  /** Parcelas na própria forma de pagamento (ex.: cartão em 3x); ausente = à vista. */
+  paymentInstallments?: number;
 }
 
 export interface FinancialSummary {
@@ -502,6 +511,11 @@ export interface PaymentReceipt {
   description: string;
   amountInCents: number;
   paymentMethod: PaymentMethod;
+  /** Parcelas na própria forma de pagamento (ex.: cartão em 3x). */
+  paymentInstallments?: number;
+  /** Parcela do plano/venda: "2 de 3" quando há mais de uma. */
+  installmentNumber?: number;
+  installmentCount?: number;
   paidAt: string;
   /** Dados da clínica (Configurações › Dados da clínica). */
   clinicName: string;

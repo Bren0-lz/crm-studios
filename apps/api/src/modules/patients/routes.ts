@@ -35,6 +35,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
     patientTagNotFound,
     analyzePatientImport,
     requestAccess,
@@ -221,6 +222,8 @@ export function registerPatientsRoutes(context: RouteContext) {
         await assertNoHoliday(clinicId, [input.appointment.startsAt]);
         await assertServiceAvailable(clinicId, [input.appointment]);
       }
+      if (input.next === "plan" || input.next === "single")
+        await assertInstallmentsAllowed(clinicId, input.plan);
       const result: GuidedPatientResult =
         await repository.createPatientWithNextStep(clinicId, request.user.sub, {
           ...input,

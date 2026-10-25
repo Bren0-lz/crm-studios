@@ -11,6 +11,9 @@ import {
   appModuleLabels,
   broadcastInputSchema,
   historyAction,
+  installmentsIssue,
+  installmentsLimit,
+  type PaymentMethod,
   type PatientImportAnalysis,
   patientImportFileSchema,
   type PatientInput,
@@ -476,6 +479,39 @@ export async function createRouteContext({
   }
 
   /**
+   * Recusa (400 `INSTALLMENTS_NOT_ALLOWED`) parcelas acima do aceito pela forma de pagamento
+   * (Configurações › Formas de pagamento) e pelo plano do catálogo (`maxInstallments`).
+   * Sem forma escolhida ("a combinar"), vale só o limite do plano.
+   */
+  async function assertInstallmentsAllowed(
+    clinicId: string,
+    input: {
+      installments: number | undefined;
+      paymentMethod?: PaymentMethod | undefined;
+      planTemplateId?: string | undefined;
+    },
+  ) {
+    if (!input.installments || input.installments <= 1) return;
+    const [settings, templates] = await Promise.all([
+      repository.getPaymentMethodSettings(clinicId),
+      input.planTemplateId
+        ? repository.listPlanTemplates(clinicId)
+        : Promise.resolve([]),
+    ]);
+    const limit = installmentsLimit({
+      settings,
+      paymentMethod: input.paymentMethod,
+      template: templates.find((item) => item.id === input.planTemplateId),
+    });
+    const issue = installmentsIssue(
+      input.installments,
+      limit,
+      input.paymentMethod,
+    );
+    if (issue) throw new DomainError("INSTALLMENTS_NOT_ALLOWED", issue, 400);
+  }
+
+  /**
    * O cliente só recebe etiquetas configuradas: troca cada uma pela grafia oficial (sem
    * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
    * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
@@ -595,6 +631,7 @@ export async function createRouteContext({
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
     patientTagNotFound,
     analyzePatientImport,
     planBroadcast,

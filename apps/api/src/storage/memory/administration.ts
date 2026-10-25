@@ -2,6 +2,8 @@ import { prepareUserAgenda } from "./user-agenda.js";
 import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
+  resolvePaymentMethodSettings,
+  type PaymentMethodSettingsInput,
   type AutoFinalizationSettings,
   type AutoFinalizationSettingsInput,
   resolvePermissionInput,
@@ -513,6 +515,39 @@ export function createAdministrationRepository(
         clinicId,
       );
       return { ...saved };
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const saved = repositoryContext.paymentMethodSettings.get(clinicId);
+      return resolvePaymentMethodSettings(saved?.methods, saved?.updatedAt);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      const current = repositoryContext.paymentMethodSettings.get(clinicId);
+      const saved = resolvePaymentMethodSettings(
+        [
+          ...input.methods,
+          ...(current?.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ],
+        now(),
+      );
+      repositoryContext.paymentMethodSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.payment_methods_updated",
+        "clinic",
+        clinicId,
+        { methods: saved.methods },
+        clinicId,
+      );
+      return saved;
     },
 
     async listAdminAuditEvents(clinicId: string) {

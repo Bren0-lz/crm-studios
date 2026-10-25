@@ -1,4 +1,5 @@
 import {
+  maxInstallmentsLimit,
   planPeriodMonths,
   planSessionsForPeriod,
   planTemplateInputSchema,
@@ -35,6 +36,11 @@ export function PlanTemplateModal({
     name: item?.name ?? "",
     value: item ? centsToMoneyText(item.totalValueInCents) : "",
     planType: item?.planType ?? (item ? "" : "monthly"),
+    acceptsInstallments: item?.maxInstallments !== 1,
+    maxInstallments:
+      item?.maxInstallments && item.maxInstallments > 1
+        ? String(item.maxInstallments)
+        : "",
     services: item?.services.length
       ? item.services.map((entry) => ({
           serviceId: entry.serviceId,
@@ -50,6 +56,11 @@ export function PlanTemplateModal({
   const [error, setError] = useState("");
   const dirty = useFormDirty(form);
   const months = planPeriodMonths(form.planType as PlanType);
+  // Mensal é recorrente: uma cobrança por ciclo, sem parcelamento a configurar.
+  const recurring =
+    (form.planType
+      ? planTypeKind(form.planType as PlanType)
+      : (item?.kind ?? null)) === "recurring";
   const periodSessions = (entry: (typeof form.services)[number]) =>
     months
       ? planSessionsForPeriod(
@@ -67,6 +78,14 @@ export function PlanTemplateModal({
     [
       form.name.trim().length < 3 && "Nome do plano (pelo menos 3 caracteres)",
       !item && !form.planType && "Tipo de plano",
+      !recurring &&
+        form.acceptsInstallments &&
+        form.maxInstallments !== "" &&
+        !(
+          Number(form.maxInstallments) >= 2 &&
+          Number(form.maxInstallments) <= maxInstallmentsLimit
+        ) &&
+        `Máximo de parcelas (de 2 a ${maxInstallmentsLimit})`,
       total === null && "Valor total",
       ...form.services.flatMap((entry, index) => [
         !entry.serviceId && `Serviço ${index + 1}`,
@@ -98,6 +117,13 @@ export function PlanTemplateModal({
       name: form.name,
       totalValueInCents: total,
       planType: form.planType || null,
+      maxInstallments: recurring
+        ? null
+        : !form.acceptsInstallments
+          ? 1
+          : form.maxInstallments
+            ? Number(form.maxInstallments)
+            : null,
       kind: form.planType
         ? planTypeKind(form.planType as PlanType)
         : (item?.kind ?? null),
@@ -185,6 +211,48 @@ export function PlanTemplateModal({
             }}
           />
         </label>
+        {!recurring && (
+          <fieldset className="span-2 form-grid">
+            <legend>Parcelamento</legend>
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
+                checked={form.acceptsInstallments}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    acceptsInstallments: event.target.checked,
+                  })
+                }
+              />
+              Aceita parcelamento
+            </label>
+            {form.acceptsInstallments ? (
+              <label>
+                Até quantas parcelas
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  aria-label="Até quantas parcelas"
+                  min={2}
+                  max={maxInstallmentsLimit}
+                  placeholder="Sem limite próprio"
+                  value={form.maxInstallments}
+                  onChange={(event) =>
+                    setForm({ ...form, maxInstallments: event.target.value })
+                  }
+                />
+                <span className="field-hint">
+                  Vazio: vale o limite da forma de pagamento.
+                </span>
+              </label>
+            ) : (
+              <p className="span-2 muted-copy">
+                Vendido só à vista (1 parcela), em qualquer forma de pagamento.
+              </p>
+            )}
+          </fieldset>
+        )}
         {months > 0 && (
           <p className="span-2 muted-copy">
             Período de {months} {months === 1 ? "mês" : "meses"}. Saldo

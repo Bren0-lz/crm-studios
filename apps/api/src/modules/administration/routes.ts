@@ -7,6 +7,7 @@ import {
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
   autoFinalizationSettingsInputSchema,
+  paymentMethodSettingsInputSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
   navTabLabelsInputSchema,
@@ -189,6 +190,24 @@ export function registerAdministrationRoutes(context: RouteContext) {
       await autoFinalizer.run(request.user.clinicId, { force: true });
       return saved;
     },
+  );
+
+  // Parcelamento por forma de pagamento: todos leem (as vendas limitam as parcelas); só o admin altera.
+  app.get(
+    "/clinic/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getPaymentMethodSettings(request.user.clinicId),
+  );
+  app.put(
+    "/admin/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.updatePaymentMethodSettings(
+        request.user.clinicId,
+        request.user.sub,
+        paymentMethodSettingsInputSchema.parse(request.body),
+      ),
   );
 
   app.get(
