@@ -1,4 +1,5 @@
 ﻿import type { SalesPeriodReport } from "@crm/contracts/reports";
+import type { PatientWithoutReturn } from "@crm/contracts";
 import type { ChartPoint } from "./ReportChart";
 import { formatIsoDate } from "../../shared/lib/formatting";
 
@@ -91,4 +92,39 @@ export function responseTimeLabel(minutes: number) {
 /** Quantidade com a palavra no singular ou plural ("1 cliente", "2 clientes"). */
 export function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+export type NoReturnScheduleFilter = "all" | "unscheduled" | "scheduled";
+export const noReturnScheduleFilterLabels: Record<
+  NoReturnScheduleFilter,
+  string
+> = {
+  all: "Todos",
+  unscheduled: "Sem agendamento",
+  scheduled: "Com agendamento",
+};
+const searchKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+/** Busca por nome (sem acento, minúscula) dos clientes sem retorno. */
+export function searchPatientsWithoutReturn(
+  items: PatientWithoutReturn[],
+  search: string,
+) {
+  const key = searchKey(search);
+  return key
+    ? items.filter((item) => searchKey(item.patientName).includes(key))
+    : items;
+}
+export function matchesNoReturnSchedule(
+  item: PatientWithoutReturn,
+  filter: NoReturnScheduleFilter,
+) {
+  if (filter === "all") return true;
+  return filter === "scheduled"
+    ? Boolean(item.nextAppointmentAt)
+    : !item.nextAppointmentAt;
 }

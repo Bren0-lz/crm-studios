@@ -12,6 +12,7 @@ const input: ClinicSettingsInput = {
   phone: "11999991234",
   email: "clinica@example.com",
   address: "Rua de teste, 123",
+  pixKey: "financeiro@example.com",
   timezone: "America/Sao_Paulo",
 };
 

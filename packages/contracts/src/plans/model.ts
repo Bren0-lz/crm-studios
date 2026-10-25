@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { addDaysToIsoDate, addMonthsToIsoDate } from "../common/model.js";
+import {
+  addDaysToIsoDate,
+  addMonthsToIsoDate,
+  paymentMethodSchema,
+} from "../common/model.js";
 import type {
   PatientPlan,
   PlanServiceInput,
@@ -335,6 +339,8 @@ export const planTermsSchema = z.object({
   installments: z.number().int().min(1).max(36),
   firstDueDate: z.iso.date(),
   autoRenew: z.boolean().optional(),
+  /** Forma de pagamento combinada na venda (ausente = a combinar). */
+  paymentMethod: paymentMethodSchema.optional(),
 });
 
 export const validPlanPeriod = (value: PlanTerms) =>

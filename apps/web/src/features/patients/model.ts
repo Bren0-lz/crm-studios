@@ -156,7 +156,7 @@ export function guidedNotice(
   const { appointment, plan, enrollment } = result;
   if (appointment) {
     const startsAt = new Date(appointment.startsAt);
-    return `Aula de demonstração agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
+    return `Aula experimental agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
   }
   if (!plan) return "";
   if (plan.kind === "single") return `Serviço avulso “${plan.name}” criado.`;
@@ -174,7 +174,7 @@ export function guidedNotice(
 export const guidedPlanKinds = ["fixed_package", "recurring"] as const;
 
 export const guidedStepLabels: Record<GuidedPatientNext, string> = {
-  demonstration: "Aula de demonstração",
+  demonstration: "Aula experimental",
   plan: "Assinar um plano",
   single: "Serviço avulso",
   none: "Só cadastrar por enquanto",
@@ -192,7 +192,7 @@ export const guidedStepPermissions: Record<
 };
 
 export const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
-  demonstration: "Salvar e agendar demonstração",
+  demonstration: "Salvar e agendar aula experimental",
   plan: "Salvar e criar plano",
   single: "Salvar e criar serviço avulso",
   none: "Salvar cliente",

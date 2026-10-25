@@ -310,18 +310,7 @@ export function goalProgress(
   return Math.round(Math.min(1, Math.max(0, ratio)) * 100);
 }
 
-export function patientAge(birthDate: string | undefined, now = new Date()) {
-  if (!birthDate) return undefined;
-  const [year, month, day] = birthDate.split("-").map(Number);
-  if (!year || !month || !day) return undefined;
-  let age = now.getFullYear() - year;
-  if (
-    now.getMonth() + 1 < month ||
-    (now.getMonth() + 1 === month && now.getDate() < day)
-  )
-    age -= 1;
-  return age;
-}
+export { patientAge } from "../../shared/lib/formatting";
 
 /** Janela de sessões oferecidas para evoluir, igual à da página Prontuários. */
 export function clinicalAppointmentRange(now = new Date()) {

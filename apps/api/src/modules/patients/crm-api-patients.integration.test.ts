@@ -4452,6 +4452,54 @@ describe("CRM API", () => {
       };
     }
 
+    it("keeps the payment method chosen for the plan and the single service", async () => {
+      const { app, headers, guided } = await setup();
+      const plan = await guided({
+        next: "plan",
+        patient: { fullName: "Pix Guiado", phone: "11955550101" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "pix" },
+      });
+      expect(plan.statusCode, plan.body).toBe(201);
+      expect(plan.json().plan).toMatchObject({ paymentMethod: "pix" });
+      const stored = await app.inject({
+        method: "GET",
+        url: `/plans?patientId=${plan.json().patient.id as string}`,
+        headers,
+      });
+      expect(stored.json()).toEqual([
+        expect.objectContaining({ paymentMethod: "pix" }),
+      ]);
+      const single = await guided({
+        next: "single",
+        patient: { fullName: "Cartão Guiado", phone: "11955550102" },
+        plan: {
+          ...planTerms,
+          installments: 1,
+          validUntil: "",
+          paymentMethod: "card",
+        },
+      });
+      expect(single.statusCode, single.body).toBe(201);
+      expect(single.json().plan).toMatchObject({
+        kind: "single",
+        paymentMethod: "card",
+      });
+      const undecided = await guided({
+        next: "plan",
+        patient: { fullName: "A Combinar Guiado", phone: "11955550103" },
+        plan: { ...planTerms, kind: "fixed_package" },
+      });
+      expect(undecided.statusCode, undecided.body).toBe(201);
+      expect(undecided.json().plan).not.toHaveProperty("paymentMethod");
+      const invalid = await guided({
+        next: "plan",
+        patient: { fullName: "Forma Inválida", phone: "11955550104" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "cheque" },
+      });
+      expect(invalid.statusCode).toBe(400);
+      await app.close();
+    });
+
     it("schedules the demonstration class with holiday, conflict and tag checks, all or nothing", async () => {
       const { app, headers, roomId, guided, findPatients } = await setup();
       await configureTags(app, headers, ["Experimental T064"]);

@@ -50,8 +50,8 @@ export function GuidedDemonstrationFields({
   )
     return (
       <p className="muted-copy">
-        Cadastre serviço, profissional e sala antes de agendar a aula de
-        demonstração.
+        Cadastre serviço, profissional e sala antes de agendar a aula
+        experimental.
       </p>
     );
   return (

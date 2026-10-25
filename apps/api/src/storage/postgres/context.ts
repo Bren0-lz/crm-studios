@@ -866,10 +866,11 @@ export class PostgresRepositoryContext {
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
          installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
-         branch_id
+         branch_id, payment_method
        ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
          -- Renovação fica na filial do plano anterior; venda nova, na da requisição.
-         coalesce((SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$13), $15)
+         coalesce((SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$13), $15),
+         $16
        ) RETURNING id`,
       [
         clinicId,
@@ -887,6 +888,7 @@ export class PostgresRepositoryContext {
         renewedFromPlanId ?? null,
         input.planTemplateId ?? null,
         this.branchWriteId(),
+        input.paymentMethod ?? null,
       ],
     );
     const planId = inserted.rows[0]!.id;

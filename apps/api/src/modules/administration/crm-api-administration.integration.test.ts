@@ -793,6 +793,32 @@ describe("CRM API", () => {
     });
   });
 
+  it("stores the clinic Pix key and shares it with every logged user", async () => {
+    const { app, token } = await authenticatedApp();
+    const owner = { authorization: `Bearer ${token}` };
+    const saved = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: {
+        name: "Studios Aryana",
+        timezone: "America/Sao_Paulo",
+        pixKey: "  financeiro@aryana.com.br ",
+      },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json()).toMatchObject({ pixKey: "financeiro@aryana.com.br" });
+    const branding = await app.inject({
+      method: "GET",
+      url: "/clinic/branding",
+      headers: owner,
+    });
+    expect(branding.json()).toMatchObject({
+      pixKey: "financeiro@aryana.com.br",
+    });
+    await app.close();
+  });
+
   it("validates the clinic CPF/CNPJ check digits and stores it formatted", async () => {
     const { app, token } = await authenticatedApp();
     const owner = { authorization: `Bearer ${token}` };

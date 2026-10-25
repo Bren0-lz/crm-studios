@@ -1,4 +1,9 @@
-import { patientFirstName, patientTagDisplayColor } from "@crm/contracts";
+import {
+  patientFirstName,
+  patientTagDisplayColor,
+  planPixChargeMessage,
+  whatsappLink,
+} from "@crm/contracts";
 import {
   isValidCpf,
   patientTagKey,
@@ -10,7 +15,8 @@ import {
   type PatientTag,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
-import { useRef, useState, type FormEvent } from "react";
+import { MessageCircle } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -126,6 +132,33 @@ export function PatientModal({
     installments: 1,
     validUntil: "",
   }));
+  // Chave Pix da clínica para a cobrança do plano vendido no cadastro; `null` enquanto carrega.
+  const sellsPlans = guidedSteps.some(
+    (item) => item === "plan" || item === "single",
+  );
+  const [pixKey, setPixKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sellsPlans) return;
+    let active = true;
+    api
+      .clinicBranding()
+      .then((branding) => {
+        if (active) setPixKey(branding.pixKey ?? "");
+      })
+      .catch(() => {
+        if (active) setPixKey("");
+      });
+    return () => {
+      active = false;
+    };
+  }, [sellsPlans]);
+  // Cadastro salvo com plano no Pix: a cobrança fica à vista para enviar antes de fechar.
+  const [pixCharge, setPixCharge] = useState<{
+    patient: Patient;
+    notice: string;
+    result: PatientRegistrationResult;
+    message: string;
+  } | null>(null);
   const [groupId, setGroupId] = useState("");
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
@@ -162,7 +195,7 @@ export function PatientModal({
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
-        return "Informe a data e o horário da aula de demonstração.";
+        return "Informe a data e o horário da aula experimental.";
       return {
         next: "demonstration",
         patient: form,
@@ -236,10 +269,28 @@ export function PatientModal({
       }
       // O cadastro guiado já confirma num aviso detalhado na lista (savedNotice).
       const result = await api.createGuidedPatient(input);
-      onSaved(result.patient, guidedNotice(result, groups ?? []), {
+      const notice = guidedNotice(result, groups ?? []);
+      const registration = {
         ...result,
         group: groups?.find((group) => group.id === result.enrollment?.groupId),
-      });
+      };
+      if (result.plan?.paymentMethod === "pix" && pixKey) {
+        setPixCharge({
+          patient: result.patient,
+          notice,
+          result: registration,
+          message: planPixChargeMessage({
+            patientName: result.patient.fullName,
+            planName: result.plan.name,
+            totalValueInCents: result.plan.totalValueInCents,
+            installments: result.plan.installments,
+            totalSessions: result.plan.totalSessions,
+            pixKey,
+          }),
+        });
+        return;
+      }
+      onSaved(result.patient, notice, registration);
     } catch (cause) {
       // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);
@@ -247,6 +298,44 @@ export function PatientModal({
       submitting.current = false;
       setLoading(false);
     }
+  }
+  if (pixCharge) {
+    const finish = () =>
+      onSaved(pixCharge.patient, pixCharge.notice, pixCharge.result);
+    const phone = pixCharge.patient.whatsapp || pixCharge.patient.phone;
+    return (
+      <Modal
+        eyebrow="Cadastro rápido"
+        title="Enviar cobrança Pix"
+        subtitle={`${pixCharge.notice} Envie a chave Pix para ${patientFirstName(pixCharge.patient.fullName)} pelo WhatsApp.`}
+        onClose={finish}
+      >
+        <div className="form-grid">
+          <label className="span-2">
+            Mensagem
+            <textarea readOnly rows={5} value={pixCharge.message} />
+          </label>
+          <div className="modal-actions span-2">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={finish}
+            >
+              Concluir
+            </button>
+            <a
+              className="whatsapp-button"
+              href={whatsappLink(phone, pixCharge.message)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle size={16} aria-hidden="true" />
+              Enviar Pix pelo WhatsApp
+            </a>
+          </div>
+        </div>
+      </Modal>
+    );
   }
   return (
     <Modal
@@ -414,7 +503,7 @@ export function PatientModal({
         )}
         {step === "demonstration" && (
           <fieldset className="form-fieldset span-2">
-            <legend>Aula de demonstração</legend>
+            <legend>Aula experimental</legend>
             <GuidedDemonstrationFields
               value={demonstration}
               setValue={setDemonstration}
@@ -428,6 +517,8 @@ export function PatientModal({
               form={planForm}
               setForm={setPlanForm}
               onServiceChange={() => setGroupId("")}
+              patientName={form.fullName}
+              pixKey={pixKey}
               kindField={
                 <label>
                   Modelo
@@ -468,7 +559,12 @@ export function PatientModal({
         {step === "single" && (
           <fieldset className="form-fieldset span-2">
             <legend>Serviço avulso</legend>
-            <GuidedPlanFields form={singleForm} setForm={setSingleForm} />
+            <GuidedPlanFields
+              form={singleForm}
+              setForm={setSingleForm}
+              patientName={form.fullName}
+              pixKey={pixKey}
+            />
           </fieldset>
         )}
         {error && <div className="form-error span-2">{error}</div>}
