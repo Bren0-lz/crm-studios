@@ -1800,3 +1800,11 @@ button.day-event:focus-visible {
     padding: var(--space-2);
   }
 }
+/* Prévia do "Compartilhar agenda": mesma quebra de linhas da mensagem do WhatsApp. */
+.agenda-share-message {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

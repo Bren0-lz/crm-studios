@@ -13,6 +13,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
 import { useMissingFields } from "../../shared/components/MissingFields";
+import { PhoneInput } from "../../shared/components/PhoneInput";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { roleLabels } from "../../shared/lib/formatting";
@@ -41,6 +42,7 @@ export function UserFormModal({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(user?.role ?? "user");
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
+  const [whatsapp, setWhatsapp] = useState(user?.whatsapp ?? "");
   // Usuário comum novo (ou admin sendo rebaixado) começa com tudo desmarcado: não há padrão.
   const [selectedPermissions, setSelectedPermissions] = useState<
     PermissionKey[]
@@ -76,6 +78,7 @@ export function UserFormModal({
     password,
     role,
     jobTitle,
+    whatsapp,
     selectedPermissions,
     percentage,
     effectiveFrom,
@@ -168,6 +171,9 @@ export function UserFormModal({
     if (saving) return;
     const invalid =
       commissionError() ||
+      (whatsapp && whatsapp.length < 10
+        ? "Informe o WhatsApp com DDD, por exemplo (11) 99999-9999."
+        : "") ||
       (choosesBranches && !allBranches && branchIds.length === 0
         ? "Selecione ao menos uma filial."
         : "");
@@ -202,6 +208,8 @@ export function UserFormModal({
             role,
             active: current.active,
             jobTitle: title,
+            // Ausente mantém o número gravado; vazio remove.
+            ...(whatsapp !== (current.whatsapp ?? "") ? { whatsapp } : {}),
             ...permissions,
             ...(commission ? { commission } : {}),
             ...(agenda.operation ? { professional: agenda.operation } : {}),
@@ -212,6 +220,7 @@ export function UserFormModal({
             password,
             role,
             ...(title ? { jobTitle: title } : {}),
+            ...(whatsapp ? { whatsapp } : {}),
             ...permissions,
             ...(commission ? { commission } : {}),
             ...(agenda.operation ? { professional: agenda.operation } : {}),
@@ -295,6 +304,15 @@ export function UserFormModal({
             onChange={(event) => setJobTitle(event.target.value)}
           />
         </label>
+        <div className="field-with-hint">
+          <label>
+            WhatsApp
+            <PhoneInput value={whatsapp} onChange={setWhatsapp} />
+          </label>
+          <small className="field-hint">
+            Usado para compartilhar a agenda do profissional.
+          </small>
+        </div>
         {!current && (
           <p className="muted-copy span-2">
             O cargo é só informativo: o acesso vem dos módulos abaixo.
