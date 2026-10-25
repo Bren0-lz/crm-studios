@@ -1401,6 +1401,25 @@ button.day-event:focus-visible {
   font-size: var(--text-md);
   font-weight: 600;
 }
+.appointment-patient-warnings li > button {
+  justify-self: start;
+  margin-top: var(--space-1);
+}
+.overdue-details-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.overdue-details-total strong {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
 .appointment-cancel-notify {
   display: flex;
   flex-wrap: wrap;
