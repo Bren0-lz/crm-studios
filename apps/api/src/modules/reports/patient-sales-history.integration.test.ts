@@ -90,6 +90,7 @@ describe("clientes sem retorno: contato e histórico de contratações", () => {
         patientId: patient.id,
         phone: "11988887777",
         whatsapp: "11977776666",
+        contracted: [{ sourceType: "product", itemName: "Faixa elástica" }],
       },
     ]);
 
