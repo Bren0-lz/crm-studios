@@ -152,6 +152,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
       email: settings?.email ?? "",
       // Chave Pix para a cobrança enviada no cadastro do cliente.
       pixKey: settings?.pixKey ?? "",
+      pixMessageTemplate: settings?.pixMessageTemplate ?? "",
     };
   });
   app.get(
