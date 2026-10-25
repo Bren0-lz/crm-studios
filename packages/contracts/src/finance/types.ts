@@ -53,6 +53,7 @@ export interface DreReport {
 }
 import {
   adminUserCommissionInputSchema,
+  adminUserServiceCommissionInputSchema,
   commissionRuleInputSchema,
   costCenterInputSchema,
   dailyCashFilterSchema,
@@ -74,6 +75,21 @@ import {
 export type AdminUserCommissionInput = z.infer<
   typeof adminUserCommissionInputSchema
 >;
+
+export type AdminUserServiceCommissionInput = z.infer<
+  typeof adminUserServiceCommissionInputSchema
+>;
+
+/** Regra de serviço gravada (vigente ou agendada), como a lista de usuários devolve. */
+export interface AdminUserServiceCommission {
+  serviceId: string;
+  serviceName: string;
+  kind: "percentage" | "fixed";
+  percentage: number;
+  fixedAmountInCents?: number;
+  effectiveFrom: string;
+  effectiveUntil?: string;
+}
 
 export type ProductInput = z.infer<typeof productInputSchema>;
 

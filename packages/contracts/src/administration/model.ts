@@ -5,7 +5,10 @@ import {
   isValidTaxId,
   optionalPhoneSchema,
 } from "../common/model.js";
-import { adminUserCommissionInputSchema } from "../finance/model.js";
+import {
+  adminUserCommissionInputSchema,
+  adminUserServiceCommissionsSchema,
+} from "../finance/model.js";
 import {
   userPermissionsSchema,
   validatePermissionInput,
@@ -147,6 +150,8 @@ export const adminUserInputSchema = z
     permissions: userPermissionsSchema.optional(),
     /** Comissão do usuário já na criação; ausente = sem comissão. */
     commission: adminUserCommissionInputSchema.optional(),
+    /** Comissões por serviço já na criação; cada item cria uma regra do usuário. */
+    serviceCommissions: adminUserServiceCommissionsSchema.optional(),
     professional: adminUserAgendaInputSchema.optional(),
     /** Filiais que o usuário acessa; ausente = todas. */
     branchAccess: userBranchAccessSchema.optional(),
@@ -171,6 +176,8 @@ export const adminUserUpdateSchema = z
     branchAccess: userBranchAccessSchema.optional(),
     professional: adminUserAgendaInputSchema.optional(),
     commission: adminUserCommissionInputSchema.optional(),
+    /** Novas vigências por serviço; as regras já gravadas continuam (histórico mantido). */
+    serviceCommissions: adminUserServiceCommissionsSchema.optional(),
   })
   .superRefine(validatePermissionInput);
 

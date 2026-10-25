@@ -191,6 +191,8 @@ export function createAdministrationRepository(
           user.id,
           input.commission,
         );
+      for (const item of input.serviceCommissions ?? [])
+        repositoryContext.validateUserCommissionRule(clinicId, user.id, item);
       const saveAgenda = prepareUserAgenda(
         repositoryContext,
         user,
@@ -243,6 +245,13 @@ export function createAdministrationRepository(
           user.id,
           input.commission,
         );
+      for (const item of input.serviceCommissions ?? [])
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          user.id,
+          item,
+        );
       saveAgenda();
       return repositoryContext.toAdminUser(user);
     },
@@ -286,6 +295,8 @@ export function createAdministrationRepository(
           userId,
           input.commission,
         );
+      for (const item of input.serviceCommissions ?? [])
+        repositoryContext.validateUserCommissionRule(clinicId, userId, item);
       const saveAgenda = prepareUserAgenda(
         repositoryContext,
         user,
@@ -356,6 +367,13 @@ export function createAdministrationRepository(
           actorUserId,
           userId,
           input.commission,
+        );
+      for (const item of input.serviceCommissions ?? [])
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          userId,
+          item,
         );
       saveAgenda();
       return repositoryContext.toAdminUser(user);
