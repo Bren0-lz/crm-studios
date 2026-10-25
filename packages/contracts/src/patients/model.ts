@@ -299,6 +299,21 @@ const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
     },
   );
 
+/** Serviço avulso adicionado junto com os planos do cadastro guiado (plano `single`). */
+const guidedAdditionalSingleSchema = guidedPlanTermsSchema
+  .extend({ kind: z.literal("single") })
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
 const guidedGroupIdSchema = z
   .uuid()
   .optional()
@@ -312,7 +327,8 @@ const guidedGroupIdSchema = z
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
  *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera). Em
  *   `additionalPlans` vão os demais planos do cliente, cada um com a sua turma opcional
- *   (a mesma turma não pode aparecer duas vezes);
+ *   (a mesma turma não pode aparecer duas vezes), e os serviços avulsos (`kind: "single"`,
+ *   sem turma) comprados junto;
  * - `single`: serviço avulso (plano `single`).
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
@@ -330,10 +346,17 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
       groupId: guidedGroupIdSchema,
       additionalPlans: z
         .array(
-          z.object({
-            plan: guidedSubscriptionPlanSchema,
-            groupId: guidedGroupIdSchema,
-          }),
+          z.union([
+            z.object({
+              plan: guidedSubscriptionPlanSchema,
+              groupId: guidedGroupIdSchema,
+            }),
+            // Avulso não tem turma: `groupId` informado é recusado.
+            z.object({
+              plan: guidedAdditionalSingleSchema,
+              groupId: z.undefined().optional(),
+            }),
+          ]),
         )
         .max(9)
         .optional(),

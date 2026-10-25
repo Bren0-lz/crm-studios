@@ -28,6 +28,12 @@ export interface GuidedPlanEntry {
   groupId: string;
 }
 
+/** Serviço avulso comprado junto com os planos do passo "Assinar um plano". */
+export interface GuidedSingleEntry {
+  id: number;
+  form: GuidedSingleForm;
+}
+
 export type GuidedSingleForm = Extract<
   GuidedPatientInput,
   { next: "single" }

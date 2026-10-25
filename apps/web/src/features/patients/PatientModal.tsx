@@ -42,7 +42,7 @@ import { GuidedPlanFields } from "./GuidedPlanFields";
 import {
   defaultGuidedDemonstration,
   defaultGuidedPlanEntry,
-  defaultPlanTerms,
+  defaultSingleForm,
   guidedNotice,
   guidedPlanKinds,
   guidedStepLabels,
@@ -57,6 +57,7 @@ import { PatientProfileFields } from "./PatientProfileFields";
 import type {
   GuidedPlanEntry,
   GuidedPlanForm,
+  GuidedSingleEntry,
   GuidedSingleForm,
   PatientRegistrationResult,
 } from "./types";
@@ -161,12 +162,26 @@ export function PatientModal({
         ),
       );
   }
-  const [singleForm, setSingleForm] = useState<GuidedSingleForm>(() => ({
-    ...defaultPlanTerms(),
-    name: "Serviço avulso",
-    installments: 1,
-    validUntil: "",
-  }));
+  // Serviços avulsos comprados junto com os planos (passo "Assinar um plano").
+  const [singles, setSingles] = useState<GuidedSingleEntry[]>([]);
+  function singleFormSetter(
+    id: number,
+  ): Dispatch<SetStateAction<GuidedSingleForm>> {
+    return (action) =>
+      setSingles((current) =>
+        current.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                form:
+                  typeof action === "function" ? action(entry.form) : action,
+              }
+            : entry,
+        ),
+      );
+  }
+  const [singleForm, setSingleForm] =
+    useState<GuidedSingleForm>(defaultSingleForm);
   // Chave Pix da clínica para a cobrança do plano vendido no cadastro; `null` enquanto carrega.
   const sellsPlans = guidedSteps.some(
     (item) => item === "plan" || item === "single",
@@ -205,11 +220,14 @@ export function PatientModal({
     step,
     demonstration,
     plans,
+    singles,
     singleForm,
   });
   // O que falta no cadastro e na etapa guiada escolhida: o botão fica desativado listando (QM14).
   const planLabel = (index: number) =>
     plans.length > 1 ? `Plano ${index + 1}` : "Plano";
+  const singleLabel = (index: number) =>
+    singles.length > 1 ? `Serviço avulso ${index + 1}` : "Serviço avulso";
   const missing = useMissingFields([
     ...(form.fullName.trim() ? [] : ["Nome completo"]),
     ...(form.cpf.trim() ? [] : ["CPF"]),
@@ -226,6 +244,13 @@ export function PatientModal({
       ? plans.flatMap(({ form: plan }, index) =>
           missingPlanFields(plan).map((item) =>
             plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
+          ),
+        )
+      : []),
+    ...(step === "plan"
+      ? singles.flatMap(({ form: single }, index) =>
+          missingPlanFields(single).map(
+            (item) => `${singleLabel(index)}: ${item}`,
           ),
         )
       : []),
@@ -248,7 +273,8 @@ export function PatientModal({
       };
     }
     if (
-      (step === "plan" && plans.some((entry) => !entry.form.planTemplateId)) ||
+      (step === "plan" &&
+        [...plans, ...singles].some((entry) => !entry.form.planTemplateId)) ||
       (step === "single" && !singleForm.planTemplateId)
     )
       return "Selecione um plano cadastrado.";
@@ -262,12 +288,17 @@ export function PatientModal({
         patient: form,
         plan: first!.form,
         ...(first!.groupId ? { groupId: first!.groupId } : {}),
-        ...(rest.length
+        ...(rest.length || singles.length
           ? {
-              additionalPlans: rest.map((entry) => ({
-                plan: entry.form,
-                ...(entry.groupId ? { groupId: entry.groupId } : {}),
-              })),
+              additionalPlans: [
+                ...rest.map((entry) => ({
+                  plan: entry.form,
+                  ...(entry.groupId ? { groupId: entry.groupId } : {}),
+                })),
+                ...singles.map((entry) => ({
+                  plan: { ...entry.form, kind: "single" as const },
+                })),
+              ],
             }
           : {}),
       };
@@ -656,8 +687,35 @@ export function PatientModal({
               )}
             </fieldset>
           ))}
-        {step === "plan" && plans.length < maxGuidedPlans && (
-          <div className="span-2">
+        {step === "plan" &&
+          singles.map((entry, index) => (
+            <fieldset className="form-fieldset span-2" key={entry.id}>
+              <legend>{singleLabel(index)}</legend>
+              <GuidedPlanFields
+                form={entry.form}
+                setForm={singleFormSetter(entry.id)}
+                patientName={form.fullName}
+                pixKey={pixKey}
+                pixTemplate={pixTemplate}
+              />
+              <div className="guided-plan-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    setSingles((current) =>
+                      current.filter((item) => item.id !== entry.id),
+                    )
+                  }
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  {`Remover ${singleLabel(index).toLowerCase()}`}
+                </button>
+              </div>
+            </fieldset>
+          ))}
+        {step === "plan" && plans.length + singles.length < maxGuidedPlans && (
+          <div className="page-actions span-2">
             <button
               type="button"
               className="secondary-button"
@@ -670,6 +728,19 @@ export function PatientModal({
             >
               <Plus size={16} aria-hidden="true" />
               Adicionar outro plano
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() =>
+                setSingles((current) => [
+                  ...current,
+                  { id: nextPlanId.current++, form: defaultSingleForm() },
+                ])
+              }
+            >
+              <Plus size={16} aria-hidden="true" />
+              Adicionar serviço avulso
             </button>
           </div>
         )}

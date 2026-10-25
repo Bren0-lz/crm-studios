@@ -84,6 +84,15 @@ export function defaultGuidedPlanEntry(id: number): GuidedPlanEntry {
   };
 }
 
+export function defaultSingleForm(): GuidedSingleForm {
+  return {
+    ...defaultPlanTerms(),
+    name: "Serviço avulso",
+    installments: 1,
+    validUntil: "",
+  };
+}
+
 export function defaultPlanTerms(): GuidedSingleForm {
   const today = localIsoDate();
   return {
@@ -169,15 +178,30 @@ export function guidedNotice(
     return `Aula experimental agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
   }
   if (!plan) return "";
-  if (plan.kind === "single") return `Serviço avulso “${plan.name}” criado.`;
   const entries = [{ plan, enrollment }, ...(result.additionalPlans ?? [])];
-  const names = new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(
-    entries.map((entry) => `“${entry.plan.name}”`),
-  );
-  const created =
-    entries.length === 1
-      ? `Plano ${names} criado.`
-      : `Planos ${names} criados.`;
+  const list = (names: string[]) =>
+    new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(
+      names.map((name) => `“${name}”`),
+    );
+  // Serviços avulsos comprados junto com os planos ganham frase própria.
+  const subscriptions = entries
+    .filter((entry) => entry.plan.kind !== "single")
+    .map((entry) => entry.plan.name);
+  const singles = entries
+    .filter((entry) => entry.plan.kind === "single")
+    .map((entry) => entry.plan.name);
+  const created = [
+    ...(subscriptions.length === 1
+      ? [`Plano ${list(subscriptions)} criado.`]
+      : subscriptions.length > 1
+        ? [`Planos ${list(subscriptions)} criados.`]
+        : []),
+    ...(singles.length === 1
+      ? [`Serviço avulso ${list(singles)} criado.`]
+      : singles.length > 1
+        ? [`Serviços avulsos ${list(singles)} criados.`]
+        : []),
+  ].join(" ");
   return [
     created,
     ...entries.flatMap(({ enrollment: item }) => {
