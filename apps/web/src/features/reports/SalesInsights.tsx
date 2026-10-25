@@ -4,7 +4,7 @@ import {
   whatsappLink,
   type PatientWithoutReturn,
 } from "@crm/contracts";
-import { Download, History, MessageCircle, Search } from "lucide-react";
+import { Download, History, MessageCircle, Search, X } from "lucide-react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -94,6 +94,8 @@ export function SalesInsights({
     const visible = searched.filter((item) =>
       matchesNoReturnSchedule(item, schedule),
     );
+    const filtered =
+      Boolean(search.trim()) || Boolean(contractedFilter) || schedule !== "all";
     return (
       <section className="panel" id="sales-no-return">
         <div className="panel-head">
@@ -127,16 +129,22 @@ export function SalesInsights({
               />
             ) : (
               <>
-                <div className="list-toolbar no-return-toolbar">
-                  <label className="search-box">
-                    <Search size={18} aria-hidden="true" />
-                    <input
-                      type="search"
-                      aria-label="Buscar cliente sem retorno"
-                      placeholder="Buscar por nome"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
+                <div
+                  className="no-return-filters"
+                  role="search"
+                  aria-label="Filtros dos clientes sem retorno"
+                >
+                  <label className="filter-group">
+                    <span className="filter-label">Cliente</span>
+                    <span className="search-box">
+                      <Search size={18} aria-hidden="true" />
+                      <input
+                        type="search"
+                        placeholder="Buscar por nome"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                      />
+                    </span>
                   </label>
                   <label className="filter-group">
                     <span className="filter-label">Já contratou</span>
@@ -169,7 +177,7 @@ export function SalesInsights({
                       Próximo agendamento
                     </span>
                     <div
-                      className="tag-filter-list"
+                      className="segmented"
                       role="group"
                       aria-labelledby="no-return-schedule"
                     >
@@ -181,7 +189,7 @@ export function SalesInsights({
                         <button
                           type="button"
                           key={filter}
-                          className="text-button tag-filter"
+                          className="segment-button"
                           aria-pressed={schedule === filter}
                           onClick={() => setSchedule(filter)}
                         >
@@ -196,6 +204,26 @@ export function SalesInsights({
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="no-return-summary">
+                    <span aria-live="polite">
+                      Mostrando <strong>{visible.length}</strong> de{" "}
+                      {report.patientsWithoutReturn.length} clientes
+                    </span>
+                    {filtered && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => {
+                          setSearch("");
+                          setContracted("");
+                          setSchedule("all");
+                        }}
+                      >
+                        <X size={15} aria-hidden="true" />
+                        Limpar filtros
+                      </button>
+                    )}
                   </div>
                 </div>
                 {!visible.length ? (
