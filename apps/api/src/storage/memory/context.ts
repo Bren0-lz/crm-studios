@@ -1,3 +1,4 @@
+import { starterAssessmentTemplates } from "@crm/contracts";
 import type { ExternalOperation } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
@@ -332,6 +333,17 @@ export class MemoryRepositoryContext {
       active: true,
       createdAt: now(),
     },
+    // Fichas iniciais (mesmo conteúdo da migração 0101).
+    ...starterAssessmentTemplates.map(
+      (template, index): AssessmentTemplate => ({
+        ...structuredClone(template),
+        id: `c1000000-0000-4000-8000-00000000000${index + 2}`,
+        clinicId: CLINIC_ID,
+        version: 1,
+        active: true,
+        createdAt: now(),
+      }),
+    ),
   ];
 
   readonly clinicalAssessments: ClinicalAssessment[] = [];

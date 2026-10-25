@@ -55,7 +55,7 @@ export interface ClinicalRevisionRow {
 
 export interface AssessmentTemplateRow {
   status?: "draft" | "published";
-  familyId?: string;
+  familyId?: string | null;
   id: string;
   clinicId: string;
   name: string;
@@ -220,7 +220,12 @@ export function mapClinicalRecord(row: ClinicalRecordRow): ClinicalRecord {
 export function mapAssessmentTemplate(
   row: AssessmentTemplateRow,
 ): AssessmentTemplate {
-  return { ...row, createdAt: row.createdAt.toISOString() };
+  const { familyId, ...template } = row;
+  return {
+    ...template,
+    ...(familyId ? { familyId } : {}),
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 export function mapClinicalAssessment(

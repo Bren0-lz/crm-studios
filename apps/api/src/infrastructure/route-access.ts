@@ -361,6 +361,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /clinical-addenda": operation("clinical.addenda_create"),
   "POST /clinical-alerts": operation("clinical.records_update"),
   "DELETE /clinical-alerts/:id": operation("clinical.records_update"),
+  "GET /assessment-templates": view("clinical"),
+  "PATCH /assessment-templates/:id/status": operation(
+    "clinical.templates_create",
+  ),
   "POST /assessment-templates/drafts": operation("clinical.templates_create"),
   "PUT /assessment-templates/:id": operation("clinical.templates_create"),
   "POST /assessment-templates": operation("clinical.templates_create"),
