@@ -22,6 +22,7 @@ import {
   currency,
   formatIsoDate,
   localIsoDate,
+  patientAge,
   statusLabel,
   tagColorLookup,
   timeLabel,
@@ -119,6 +120,9 @@ function profileFields(patient: Patient) {
   const fields: [string, string, string][] = [];
   if (patient.birthDate)
     fields.push(["birthDate", "Nascimento", formatIsoDate(patient.birthDate)]);
+  const age = patientAge(patient.birthDate || undefined);
+  if (age !== undefined)
+    fields.push(["age", "Idade", `${age} ${age === 1 ? "ano" : "anos"}`]);
   if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
   for (const [key, label] of Object.entries(patientProfileLabels)) {
     const value = patient[key as keyof typeof patientProfileLabels];
