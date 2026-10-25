@@ -8698,7 +8698,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
