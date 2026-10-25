@@ -36,7 +36,6 @@ import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
-import { InventorySection } from "./InventorySection";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
@@ -79,7 +78,6 @@ export function FinancePage() {
     | "commissions"
     | "dailyCash"
     | "forecast"
-    | "inventory"
     | "entries"
     | "externalOperations"
   >("receivables");
@@ -406,14 +404,6 @@ export function FinancePage() {
               >
                 Previsão
               </button>
-              {can("patients.inventory_view") && (
-                <button
-                  className={`tab-button ${tab === "inventory" ? "active" : ""}`}
-                  onClick={() => setTab("inventory")}
-                >
-                  Estoque
-                </button>
-              )}
               <button
                 className={`tab-button ${tab === "entries" ? "active" : ""}`}
                 onClick={() => setTab("entries")}
@@ -434,8 +424,6 @@ export function FinancePage() {
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
-          ) : tab === "inventory" ? (
-            <InventorySection />
           ) : tab === "entries" ? (
             <FinanceClassificationPanel workspace={data} onChanged={reload} />
           ) : tab === "externalOperations" ? (

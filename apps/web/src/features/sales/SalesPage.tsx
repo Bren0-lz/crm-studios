@@ -9,11 +9,16 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { salesTabFromParam, salesTabLabels, type SalesTab } from "./model";
+import { InventorySection } from "./InventorySection";
 import { NewSaleSection } from "./NewSaleSection";
+import { ProductCatalogsSection } from "./ProductCatalogsSection";
 import { SalesHistorySection } from "./SalesHistorySection";
 import { SalesSummarySection } from "./SalesSummarySection";
 
-/** Vendas de produtos: registro em uma etapa, histórico e resumo. */
+/**
+ * Vendas de produtos: registro em uma etapa, histórico, resumo e os cadastros de
+ * produtos (estoque, categorias e marcas).
+ */
 export function SalesPage() {
   const { can } = useAuthorization();
   const canSell =
@@ -24,6 +29,8 @@ export function SalesPage() {
     ...(canSell ? (["new"] as const) : []),
     "history",
     "summary",
+    "inventory",
+    "catalogs",
   ];
   const [searchParams] = useSearchParams();
   const requested = salesTabFromParam(searchParams.get("aba"));
@@ -57,7 +64,7 @@ export function SalesPage() {
     <>
       <PageHeader
         title="Vendas de produtos"
-        description="Registre vendas de produtos e acompanhe o que foi vendido."
+        description="Registre vendas, cadastre produtos e controle o estoque."
       />
       {!canView ? (
         <section className="panel">
@@ -88,7 +95,13 @@ export function SalesPage() {
               ))}
             </div>
           </section>
-          {!data ? (
+          {tab === "inventory" ? (
+            <InventorySection
+              onSell={canSell ? () => setTab("new") : undefined}
+            />
+          ) : tab === "catalogs" ? (
+            <ProductCatalogsSection />
+          ) : !data ? (
             !error && <LoadingBlock />
           ) : tab === "new" ? (
             <NewSaleSection workspace={data} />
