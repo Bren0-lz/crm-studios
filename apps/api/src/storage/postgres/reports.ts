@@ -16,6 +16,7 @@ import {
   buildSalesPeriodReport,
   patientSalesHistory,
   salesPeriodBounds,
+  withContractedHistory,
   withPatientContacts,
   salesReportBounds,
 } from "../../modules/reports/sales-report.js";
@@ -113,6 +114,39 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
 export function createReportsRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
+  /** Vendas de todo o histórico dos clientes informados (planos e comandas). */
+  async function patientSales(clinicId: string, patientIds: string[]) {
+    const branchIds = repositoryContext.branchReadIds();
+    const [plans, tabs] = await Promise.all([
+      repositoryContext.pool.query<PlanSaleRow>(
+        `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
+                pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
+                pp.total_value_in_cents AS "totalValueInCents",
+                pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+         FROM patient_plans pp
+         JOIN patients p ON p.id=pp.patient_id
+         JOIN services s ON s.id=pp.service_id
+         WHERE pp.clinic_id=$1 AND pp.patient_id = ANY($2::uuid[]) AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 3)}`,
+        [clinicId, patientIds, branchIds],
+      ),
+      repositoryContext.pool.query<TabSaleRow>(
+        `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
+                p.full_name AS "patientName", pr.name AS "productName",
+                i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
+                t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
+                t.receivable_id AS "receivableId"
+         FROM patient_tab_items i
+         JOIN patient_tabs t ON t.id=i.tab_id
+         JOIN patients p ON p.id=t.patient_id
+         JOIN products pr ON pr.id=i.product_id
+         WHERE t.clinic_id=$1 AND t.patient_id = ANY($2::uuid[]) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.patient_id = ANY($2::uuid[]) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+        [clinicId, patientIds, branchIds],
+      ),
+    ]);
+    return toSales(plans.rows, tabs.rows);
+  }
   async function salesSources(
     clinicId: string,
     input: string | { from: string; to: string },
@@ -352,17 +386,20 @@ export function createReportsRepository(
       );
       const ids = report.patientsWithoutReturn.map((item) => item.patientId);
       if (!ids.length) return report;
-      const contacts = await repositoryContext.pool.query<{
-        id: string;
-        phone: string;
-        whatsapp: string | null;
-      }>(
-        `SELECT id, phone, whatsapp FROM patients
-         WHERE clinic_id=$1 AND id = ANY($2::uuid[])`,
-        [clinicId, ids],
-      );
+      const [contacts, history] = await Promise.all([
+        repositoryContext.pool.query<{
+          id: string;
+          phone: string;
+          whatsapp: string | null;
+        }>(
+          `SELECT id, phone, whatsapp FROM patients
+           WHERE clinic_id=$1 AND id = ANY($2::uuid[])`,
+          [clinicId, ids],
+        ),
+        patientSales(clinicId, ids),
+      ]);
       return withPatientContacts(
-        report,
+        withContractedHistory(report, history),
         new Map(
           contacts.rows.map((row) => [
             row.id,
@@ -375,41 +412,15 @@ export function createReportsRepository(
       clinicId: string,
       patientId: string,
     ): Promise<SaleMovement[] | null> {
-      const branchIds = repositoryContext.branchReadIds();
       const patient = await repositoryContext.pool.query(
         "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2",
         [clinicId, patientId],
       );
       if (!patient.rowCount) return null;
-      const [plans, tabs] = await Promise.all([
-        repositoryContext.pool.query<PlanSaleRow>(
-          `SELECT pp.id, pp.patient_id AS "patientId", p.full_name AS "patientName",
-                  pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
-                  pp.total_value_in_cents AS "totalValueInCents",
-                  pp.cancelled_value_in_cents AS "cancelledValueInCents",
-                  pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
-           FROM patient_plans pp
-           JOIN patients p ON p.id=pp.patient_id
-           JOIN services s ON s.id=pp.service_id
-           WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 3)}`,
-          [clinicId, patientId, branchIds],
-        ),
-        repositoryContext.pool.query<TabSaleRow>(
-          `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
-                  p.full_name AS "patientName", pr.name AS "productName",
-                  i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
-                  t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
-                  t.receivable_id AS "receivableId"
-           FROM patient_tab_items i
-           JOIN patient_tabs t ON t.id=i.tab_id
-           JOIN patients p ON p.id=t.patient_id
-           JOIN products pr ON pr.id=i.product_id
-           WHERE t.clinic_id=$1 AND t.patient_id=$2 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-           UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.patient_id=$2 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
-          [clinicId, patientId, branchIds],
-        ),
-      ]);
-      return patientSalesHistory(toSales(plans.rows, tabs.rows), patientId);
+      return patientSalesHistory(
+        await patientSales(clinicId, [patientId]),
+        patientId,
+      );
     },
 
     async listTeamProduction(

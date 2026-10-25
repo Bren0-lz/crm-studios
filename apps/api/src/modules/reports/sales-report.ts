@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  ContractedItem,
   PatientWithoutReturn,
   ReceivedPayment,
   SaleMovement,
@@ -133,6 +134,34 @@ export function withPatientContacts<
           }
         : item;
     }),
+  };
+}
+
+/**
+ * Completa a lista de clientes sem retorno com tudo o que cada um já contratou
+ * (vendas de todo o histórico, inclusive as estornadas depois), sem repetir item.
+ */
+export function withContractedHistory<
+  T extends { patientsWithoutReturn: PatientWithoutReturn[] },
+>(report: T, sales: SaleMovement[]): T {
+  const byPatient = new Map<string, Map<string, ContractedItem>>();
+  for (const item of sales) {
+    if (item.kind !== "sale") continue;
+    const items = byPatient.get(item.patientId) ?? new Map();
+    items.set(`${item.sourceType}:${item.itemName}`, {
+      sourceType: item.sourceType,
+      itemName: item.itemName,
+    });
+    byPatient.set(item.patientId, items);
+  }
+  return {
+    ...report,
+    patientsWithoutReturn: report.patientsWithoutReturn.map((item) => ({
+      ...item,
+      contracted: [...(byPatient.get(item.patientId)?.values() ?? [])].sort(
+        (a, b) => a.itemName.localeCompare(b.itemName, "pt-BR"),
+      ),
+    })),
   };
 }
 
