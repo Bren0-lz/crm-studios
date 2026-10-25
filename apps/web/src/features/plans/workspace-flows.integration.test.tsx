@@ -22,7 +22,8 @@ describe("integrated plan purchase", () => {
       professionalId: professional!.id,
       roomId: room!.id,
       capacity: 1,
-      weeklySlots: [{ weekday: 0, startTime: "06:00", endTime: "07:00" }],
+      // Fora dos horários dos atendimentos demo de hoje (06:00 a 14:00 conforme o fuso).
+      weeklySlots: [{ weekday: 0, startTime: "20:00", endTime: "21:00" }],
     });
     const template = await repository.createPlanTemplate(clinicId, actorId, {
       name: "Contratação integrada",
@@ -67,6 +68,14 @@ describe("integrated plan purchase", () => {
       name: "Horários da contratação",
     });
     expect(within(nested).getByText(patient.fullName)).toBeInTheDocument();
+    // Pacote fixo: os horários já abrem em dias fixos na semana até acabar as sessões.
+    expect(
+      within(nested).getByLabelText("Repetir este atendimento"),
+    ).toBeChecked();
+    expect(within(nested).getByLabelText("Intervalo")).toHaveValue("package");
+    expect(
+      within(nested).getByRole("heading", { name: "Dias e horários fixos" }),
+    ).toBeInTheDocument();
     fireEvent.click(within(nested).getByRole("button", { name: "Voltar" }));
     await save("Novo plano", "Criar plano e parcelas");
     const plans = (await repository.listPatientPlans(clinicId)).filter(

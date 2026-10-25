@@ -254,6 +254,16 @@ export function PlanPurchaseOptions({
               onCancel={() => schedule(false)}
               onBusyChange={setBusy}
               onNestedModalChange={setNested}
+              packageSessions={
+                plan.kind === "fixed_package"
+                  ? Object.fromEntries(
+                      plan.services.map((entry) => [
+                        entry.serviceId,
+                        entry.totalSessions,
+                      ]),
+                    )
+                  : undefined
+              }
               onSubmit={async (input, recurrence) => {
                 const appointments = (
                   recurrence
