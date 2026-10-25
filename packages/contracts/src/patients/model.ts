@@ -27,6 +27,37 @@ import type {
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 
+/** Desconto fixo do cliente: porcentagem (até 100%) ou valor em centavos. */
+export const patientDiscountSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("percentage"),
+    percent: z
+      .number()
+      .gt(0, "Informe uma porcentagem maior que zero.")
+      .max(100, "A porcentagem pode ser de até 100%."),
+  }),
+  z.object({
+    type: z.literal("amount"),
+    amountInCents: z
+      .number()
+      .int()
+      .positive("Informe um valor de desconto maior que zero."),
+  }),
+]);
+
+/** Valor com o desconto do cliente aplicado (nunca abaixo de zero). */
+export function applyPatientDiscount(
+  amountInCents: number,
+  discount: z.infer<typeof patientDiscountSchema> | null | undefined,
+) {
+  if (!discount) return amountInCents;
+  const off =
+    discount.type === "percentage"
+      ? Math.round((amountInCents * discount.percent) / 100)
+      : discount.amountInCents;
+  return Math.max(0, amountInCents - off);
+}
+
 export const patientProfileSchema = z.object({
   nickname: z.string().trim().max(80).optional(),
   address: z.string().trim().max(300).optional(),
@@ -43,6 +74,14 @@ export const patientProfileSchema = z.object({
   clientSince: z.iso.date().optional().or(z.literal("")),
   imageConsent: z.boolean().optional(),
   interests: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+});
+
+/**
+ * Perfil gravado (JSON `profile`): os campos acima e o desconto, que fica fora da
+ * importação/exportação. `null` retira o desconto (a edição mescla o perfil).
+ */
+export const patientStoredProfileSchema = patientProfileSchema.extend({
+  discount: patientDiscountSchema.nullable().optional(),
 });
 
 export const patientProfileLabels = {
@@ -63,12 +102,14 @@ export const patientProfileLabels = {
   interests: "Interesses",
 } as const;
 
-export function patientProfile(input: z.infer<typeof patientProfileSchema>) {
-  return patientProfileSchema.parse(input);
+export function patientProfile(
+  input: z.infer<typeof patientStoredProfileSchema>,
+) {
+  return patientStoredProfileSchema.parse(input);
 }
 
 export const patientInputSchema = z.object({
-  ...patientProfileSchema.shape,
+  ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
   cpf: z
     .string({ error: "Informe um CPF válido." })
