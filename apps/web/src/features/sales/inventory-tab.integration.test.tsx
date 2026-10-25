@@ -4,13 +4,13 @@ import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { change, expand, open, save } from "../../test-support/workflow-ui";
 
 async function openInventoryTab() {
-  open("/financeiro");
+  open("/vendas");
   fireEvent.click(await screen.findByRole("button", { name: "Estoque" }));
   return screen.getByRole("region", { name: "Estoque" });
 }
 
-describe("aba Estoque do Financeiro (QM9)", () => {
-  it("lista, cadastra, ajusta e edita produtos no Financeiro", async () => {
+describe("aba Estoque de Vendas de produtos (QM9)", () => {
+  it("lista, cadastra, ajusta e edita produtos em Vendas de produtos", async () => {
     const { repository } = await setupApi();
     await repository.createProduct(clinicId, actorId, {
       name: "Óleo de massagem",
@@ -97,36 +97,43 @@ describe("aba Estoque do Financeiro (QM9)", () => {
     );
   });
 
-  it("não mostra a aba Estoque sem permissão de consultar o estoque", async () => {
-    const { repository, app } = await setupApi();
-    const user = await repository.createAdminUser(
-      clinicId,
-      actorId,
-      {
-        fullName: "Financeiro sem estoque",
-        email: "financeiro.sem.estoque@example.com",
-        role: "user",
-        password: "SenhaForte123",
-        permissions: ["finance.view"],
-      },
-      "hash-de-teste",
-    );
-    const token = app.jwt.sign({ sub: user.id, clinicId, role: "user" });
-    const me = await app.inject({
-      url: "/me",
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(me.statusCode).toBe(200);
-    localStorage.setItem("crm.auth.token", token);
-    localStorage.setItem("crm.auth.user", me.body);
+  it("tira o Estoque do Financeiro, mesmo com permissão de consultar", async () => {
+    await setupApi();
     open("/financeiro");
     await screen.findByRole("button", { name: /Contas a receber/ });
     expect(
       screen.queryByRole("button", { name: "Estoque" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("abre o Estoque por link direto e cadastra categorias e marcas de produtos", async () => {
+    const { repository } = await setupApi();
+    open("/vendas?aba=estoque");
+    await screen.findByRole("region", { name: "Estoque" });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Categorias e marcas" }),
+    );
+    const catalogs = screen.getByRole("region", {
+      name: "Categorias e marcas",
+    });
+    const categories = await within(catalogs).findByRole("region", {
+      name: "Categorias de produtos",
+    });
+    fireEvent.click(
+      within(categories).getByRole("button", {
+        name: "Adicionar em Categorias de produtos",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
+    change("Nome", "Óleos", dialog);
+    await save("Novo cadastro", "Salvar");
     expect(
-      screen.queryByRole("region", { name: "Estoque" }),
-    ).not.toBeInTheDocument();
+      await repository.listClinicCatalog(clinicId, "product_category"),
+    ).toEqual([expect.objectContaining({ name: "Óleos", active: true })]);
+    expect(
+      within(catalogs).getByRole("region", { name: "Marcas" }),
+    ).toBeInTheDocument();
   });
 
   it("leva do Estoque para a nova venda, que baixa o saldo do produto", async () => {
@@ -143,7 +150,7 @@ describe("aba Estoque do Financeiro (QM9)", () => {
     const panel = await openInventoryTab();
     await within(panel).findByText("Óleo de massagem", { exact: true });
     fireEvent.click(
-      within(panel).getByRole("link", { name: "Registrar venda" }),
+      within(panel).getByRole("button", { name: "Registrar venda" }),
     );
     const sale = await screen.findByRole("region", { name: "Nova venda" });
     expect(
