@@ -441,6 +441,7 @@ export function AppointmentForm({
                 patientChoices.find((item) => item.id === form.patientId)
               }
               checkPlan={form.visitType === "regular"}
+              onNestedModalChange={onNestedModalChange}
             />
           </fieldset>
           {error && (
