@@ -2,6 +2,7 @@ import type {
   Appointment,
   AppointmentStatus,
   GroupSession,
+  PackageWeeklySlot,
   ScheduleBlock,
 } from "@crm/contracts";
 import { localIsoDate, timeLabel } from "../../shared/lib/formatting";
@@ -239,4 +240,22 @@ export function agendaShareMessage({
     }
   }
   return lines.join("\n");
+}
+
+export const packageWeekdayNames = [
+  "Domingo",
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+];
+
+/** Dia e horário iniciais do pacote: os do atendimento escolhido (ou segunda, 09:00). */
+export function initialPackageSlot(startsAt: string): PackageWeeklySlot {
+  const [date, time] = startsAt.split("T");
+  return date && time
+    ? { weekday: new Date(`${date}T00:00:00Z`).getUTCDay(), time }
+    : { weekday: 1, time: time || "09:00" };
 }

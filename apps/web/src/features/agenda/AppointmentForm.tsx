@@ -1,15 +1,18 @@
 import type {
   AppointmentInput,
   AppointmentVisitType,
+  PackageWeeklySlot,
   Patient,
   PatientOption,
+  PatientPlan,
   Professional,
   Room,
   Service,
 } from "@crm/contracts";
-import { serviceAvailableFor } from "@crm/contracts";
+import { packageScheduleStarts, serviceAvailableFor } from "@crm/contracts";
 import { X } from "lucide-react";
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -17,7 +20,7 @@ import {
   type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { ApiClientError } from "../../api";
+import { api, ApiClientError } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -25,10 +28,13 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import {
   appointmentVisitTypes,
   currency,
+  localIsoDate,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
+import { initialPackageSlot } from "./model";
+import { PackageWeeklySlotsFields } from "./PackageWeeklySlotsFields";
 import {
   useConfirmDiscard,
   useModalDirty,
@@ -47,6 +53,7 @@ export function AppointmentForm({
   onPatientCreated,
   onNestedModalChange,
   initialSlot,
+  packageSessions,
 }: {
   patients: PatientOption[];
   professionals: Professional[];
@@ -66,8 +73,13 @@ export function AppointmentForm({
   onPatientCreated?: (patient: Patient) => void;
   onNestedModalChange?: (open: boolean) => void;
   initialSlot?: { professionalId: string; startsAt: string } | undefined;
+  /**
+   * Sessões por serviço do pacote que está sendo contratado: abre em "Dias fixos na
+   * semana" e usa esse total como número de sessões.
+   */
+  packageSessions?: Record<string, number> | undefined;
 }) {
-  const { can } = useAuthorization();
+  const { can, canView } = useAuthorization();
   const [form, setForm] = useState({
     patientId: fixedPatient?.id ?? "",
     visitType: "" as AppointmentVisitType | "",
@@ -76,13 +88,47 @@ export function AppointmentForm({
     serviceId: "",
     startsAt: initialSlot?.startsAt ?? "",
     notes: "",
-    recurring: can("agenda.recurring") && !can("agenda.create"),
+    recurring:
+      can("agenda.recurring") &&
+      (!can("agenda.create") || Boolean(packageSessions)),
     occurrences: 4,
     intervalWeeks: 1,
     // "Escolher datas": as demais ocorrências (além de startsAt) definidas à mão.
     manualDates: false,
     extraStarts: [] as string[],
+    // "Dias fixos na semana": pacote marcado nos dias/horários abaixo até acabar as sessões.
+    packageDays: Boolean(packageSessions) && can("agenda.recurring"),
+    // Vazio: um único dia fixo, o do atendimento escolhido acima.
+    slots: [] as PackageWeeklySlot[],
+    occurrencesEdited: false,
   });
+  const fetchedRemaining = usePackageRemaining(
+    form.packageDays && !packageSessions && canView("plans")
+      ? form.patientId
+      : "",
+    form.serviceId,
+  );
+  const packageRemaining = packageSessions
+    ? (packageSessions[form.serviceId] ?? null)
+    : fetchedRemaining;
+  const packageSlots = form.slots.length
+    ? form.slots
+    : [initialPackageSlot(form.startsAt)];
+  // Sem alteração manual, o número de sessões acompanha o saldo do pacote do cliente.
+  const sessionCount =
+    form.packageDays &&
+    !form.occurrencesEdited &&
+    packageRemaining !== null &&
+    packageRemaining >= 2
+      ? Math.min(packageRemaining, 52)
+      : form.occurrences;
+  const packageStarts = form.packageDays
+    ? packageScheduleStarts({
+        fromDate: form.startsAt.split("T")[0] || localIsoDate(),
+        slots: packageSlots,
+        count: sessionCount,
+      })
+    : [];
   const startTime = form.startsAt.split("T")[1] ?? "";
   // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
   const availableServices = services.filter((item) =>
@@ -134,6 +180,10 @@ export function AppointmentForm({
       patientInputRef.current?.focus();
       return;
     }
+    if (form.recurring && form.packageDays && packageStarts.length < 2) {
+      setError("Informe os dias e horários fixos e ao menos 2 sessões.");
+      return;
+    }
     submitting.current = true;
     setLoading(true);
     onBusyChange(true);
@@ -144,7 +194,11 @@ export function AppointmentForm({
         professionalId: form.professionalId,
         roomId: form.roomId,
         serviceId: form.serviceId,
-        startsAt: new Date(form.startsAt).toISOString(),
+        startsAt: new Date(
+          form.recurring && form.packageDays
+            ? packageStarts[0]!
+            : form.startsAt,
+        ).toISOString(),
         notes: form.notes,
         visitType: form.visitType as AppointmentVisitType,
       };
@@ -160,10 +214,18 @@ export function AppointmentForm({
                   new Date(value).toISOString(),
                 ),
               }
-            : {
-                occurrences: form.occurrences,
-                intervalWeeks: form.intervalWeeks,
-              },
+            : form.packageDays
+              ? {
+                  occurrences: packageStarts.length,
+                  intervalWeeks: 1,
+                  customStartsAt: packageStarts
+                    .slice(1)
+                    .map((value) => new Date(value).toISOString()),
+                }
+              : {
+                  occurrences: form.occurrences,
+                  intervalWeeks: form.intervalWeeks,
+                },
       );
     } catch (cause) {
       setError(
@@ -249,40 +311,66 @@ export function AppointmentForm({
                   </p>
                 ) : (
                   <label>
-                    Número de ocorrências
+                    {form.packageDays
+                      ? "Número de sessões"
+                      : "Número de ocorrências"}
                     <input
                       type="number"
                       min={2}
                       max={52}
-                      value={form.occurrences}
+                      value={sessionCount}
                       onChange={(e) =>
                         setForm({
                           ...form,
                           occurrences: Number(e.target.value),
+                          occurrencesEdited: true,
                         })
                       }
                     />
+                    {form.packageDays && packageRemaining !== null && (
+                      <span className="field-hint">
+                        {packageSessions
+                          ? "Sessões do pacote neste serviço"
+                          : "Saldo do pacote neste serviço"}
+                        : {packageRemaining}{" "}
+                        {packageRemaining === 1 ? "sessão" : "sessões"}.
+                      </span>
+                    )}
                   </label>
                 )}
                 <label>
                   Intervalo
                   <select
-                    value={form.manualDates ? "custom" : form.intervalWeeks}
+                    value={
+                      form.manualDates
+                        ? "custom"
+                        : form.packageDays
+                          ? "package"
+                          : form.intervalWeeks
+                    }
                     onChange={(e) =>
                       setForm(
                         e.target.value === "custom"
                           ? {
                               ...form,
                               manualDates: true,
+                              packageDays: false,
                               extraStarts: form.extraStarts.length
                                 ? form.extraStarts
                                 : [`T${startTime}`],
                             }
-                          : {
-                              ...form,
-                              manualDates: false,
-                              intervalWeeks: Number(e.target.value),
-                            },
+                          : e.target.value === "package"
+                            ? {
+                                ...form,
+                                manualDates: false,
+                                packageDays: true,
+                              }
+                            : {
+                                ...form,
+                                manualDates: false,
+                                packageDays: false,
+                                intervalWeeks: Number(e.target.value),
+                              },
                       )
                     }
                   >
@@ -290,6 +378,9 @@ export function AppointmentForm({
                     <option value={2}>A cada 2 semanas</option>
                     <option value={3}>A cada 3 semanas</option>
                     <option value={4}>A cada 4 semanas</option>
+                    <option value="package">
+                      Dias fixos na semana (pacote)
+                    </option>
                     <option value="custom">Escolher datas</option>
                   </select>
                 </label>
@@ -364,6 +455,15 @@ export function AppointmentForm({
                 disabled={loading}
               />
             </div>
+            {form.recurring && form.packageDays && (
+              <PackageWeeklySlotsFields
+                slots={packageSlots}
+                starts={packageStarts}
+                onChange={(slots) =>
+                  setForm((current) => ({ ...current, slots }))
+                }
+              />
+            )}
             {form.recurring && form.manualDates && (
               <div className="recurrence-dates span-2">
                 <div className="recurrence-dates-head">
@@ -489,4 +589,44 @@ export function AppointmentForm({
         )}
     </>
   );
+}
+
+/**
+ * Saldo de sessões do serviço nos planos vigentes do cliente (pacote contratado), para
+ * sugerir quantas sessões marcar. `null` enquanto não houver cliente/serviço ou plano.
+ */
+function usePackageRemaining(patientId: string, serviceId: string) {
+  const [plans, setPlans] = useState<{
+    patientId: string;
+    items: PatientPlan[];
+  } | null>(null);
+  useEffect(() => {
+    if (!patientId) return;
+    let active = true;
+    api
+      .plans(patientId)
+      .then(
+        (items) =>
+          active &&
+          setPlans({ patientId, items: Array.isArray(items) ? items : [] }),
+      )
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [patientId]);
+  if (!patientId || !serviceId || plans?.patientId !== patientId) return null;
+  const today = localIsoDate();
+  const services = plans.items
+    .filter(
+      (plan) =>
+        plan.status === "active" &&
+        plan.validFrom <= today &&
+        (!plan.validUntil || plan.validUntil >= today),
+    )
+    .flatMap((plan) => plan.services ?? [])
+    .filter((service) => service.serviceId === serviceId);
+  return services.length
+    ? services.reduce((total, service) => total + service.remainingSessions, 0)
+    : null;
 }

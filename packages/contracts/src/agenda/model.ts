@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  addDaysToIsoDate,
   addMonthsToIsoDate,
   clockTimeSchema,
   joinWithAnd,
@@ -104,6 +105,49 @@ export function recurringOccurrenceStarts(input: {
     );
     return startsAt.toISOString();
   });
+}
+
+/** Dia fixo da semana (0 = domingo … 6 = sábado) e horário "HH:MM" de um pacote. */
+export interface PackageWeeklySlot {
+  weekday: number;
+  time: string;
+}
+
+/**
+ * Datas de um pacote de sessões com dias e horários fixos na semana: a partir de
+ * `fromDate` (AAAA-MM-DD, inclusive), percorre os dias em ordem e marca cada dia/horário
+ * fixo até completar `count` sessões. Devolve data e hora locais ("AAAA-MM-DDTHH:MM"),
+ * em ordem cronológica e sem repetição; a conversão para UTC fica com quem chama.
+ */
+export function packageScheduleStarts(input: {
+  fromDate: string;
+  slots: PackageWeeklySlot[];
+  count: number;
+}): string[] {
+  const slots = [
+    ...new Map(
+      input.slots
+        .filter(
+          (slot) =>
+            Number.isInteger(slot.weekday) &&
+            slot.weekday >= 0 &&
+            slot.weekday <= 6 &&
+            clockTimeSchema.safeParse(slot.time).success,
+        )
+        .map((slot) => [`${slot.weekday}-${slot.time}`, slot] as const),
+    ).values(),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+  const starts: string[] = [];
+  if (!slots.length || input.count < 1) return starts;
+  for (let offset = 0; starts.length < input.count; offset += 1) {
+    const date = addDaysToIsoDate(input.fromDate, offset);
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    for (const slot of slots) {
+      if (slot.weekday !== weekday || starts.length >= input.count) continue;
+      starts.push(`${date}T${slot.time}`);
+    }
+  }
+  return starts;
 }
 
 // Atendimento de lead ainda não convertido: só experimental ou avaliação.

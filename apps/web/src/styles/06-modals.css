@@ -407,6 +407,24 @@ p.field-hint {
 .recurrence-date-row .icon-button {
   min-height: calc(var(--space-6) + 19px);
 }
+/* Pacote com dias e horários fixos: dia da semana + horário em cada linha. */
+.package-slot-row label {
+  flex: 1;
+  min-width: 0;
+}
+.package-preview summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.package-preview ol {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
 
 .appointment-date-picker {
   position: relative;
