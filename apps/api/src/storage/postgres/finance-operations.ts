@@ -9,6 +9,7 @@ import {
   type FinancialClassification,
   type DreGroup,
   type AppointmentInput,
+  type ProductSize,
 } from "@crm/contracts";
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
@@ -27,9 +28,11 @@ import {
   type CommissionEntryRow,
   branchClause,
   hasDatabaseCode,
+  productStockRowsColumn,
 } from "./helpers.js";
+import { changeProductStock } from "./product-stock.js";
 
-const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",sizes,active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
+const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
 const supplierColumns = `id,clinic_id AS "clinicId",name,kind,document,phone,email,notes,active,created_at AS "createdAt",updated_at AS "updatedAt"`;
 type SupplierRow = Omit<Supplier, "createdAt" | "updatedAt"> & {
   createdAt: Date;
@@ -287,9 +290,10 @@ export function createFinanceOperationsRepository(
           );
         const result = await client.query<{
           productId: string;
+          size: string;
           quantity: number;
         }>(
-          `SELECT product_id AS "productId",quantity FROM patient_tab_items WHERE tab_id=$1 AND id=$2 FOR UPDATE`,
+          `SELECT product_id AS "productId",size,quantity FROM patient_tab_items WHERE tab_id=$1 AND id=$2 FOR UPDATE`,
           [tabId, itemId],
         );
         const item = result.rows[0];
@@ -299,25 +303,21 @@ export function createFinanceOperationsRepository(
             "Item não encontrado.",
             404,
           );
-        const product = await client.query<{ stock: number }>(
-          "SELECT current_stock AS stock FROM products WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
+        await client.query(
+          "SELECT id FROM products WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
           [clinicId, item.productId],
         );
         const delta = (input?.quantity ?? 0) - item.quantity;
-        if (!product.rows[0] || delta > product.rows[0].stock)
-          throw new DomainError(
-            "INSUFFICIENT_STOCK",
-            "O estoque disponível é insuficiente.",
-            409,
-          );
-        const balance = product.rows[0].stock - delta;
-        await client.query(
-          "UPDATE products SET current_stock=$3,updated_at=now() WHERE clinic_id=$1 AND id=$2",
-          [clinicId, item.productId, balance],
+        const balance = await changeProductStock(
+          client,
+          clinicId,
+          item.productId,
+          (item.size || undefined) as ProductSize | undefined,
+          -delta,
         );
         if (delta)
           await client.query(
-            "INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,$4,$5,$6,'Ajuste de item na comanda',$7)",
+            "INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,$4,$5,$6,'Ajuste de item na comanda',$7,$8)",
             [
               clinicId,
               item.productId,
@@ -326,6 +326,7 @@ export function createFinanceOperationsRepository(
               -delta,
               balance,
               actorUserId,
+              item.size,
             ],
           );
         if (input)

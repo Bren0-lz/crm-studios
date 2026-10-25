@@ -80,6 +80,8 @@ import {
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
+  type ProductSize,
+  productSizeStock,
   type Professional,
   type Receivable,
   type ReceivableRenegotiation,
@@ -670,6 +672,8 @@ export class MemoryRepositoryContext {
 
   readonly suppliers: Supplier[] = [];
   readonly products: Product[] = [];
+  /** Saldo por produto e chave de estoque ("" = sem tamanho); `currentStock` é a soma. */
+  readonly productStocks = new Map<string, Map<string, number>>();
 
   readonly stockMovements: StockMovement[] = [];
 
@@ -1624,12 +1628,52 @@ export class MemoryRepositoryContext {
     });
   }
 
+  productStockOf(productId: string, size: ProductSize | undefined) {
+    return this.productStocks.get(productId)?.get(size ?? "") ?? 0;
+  }
+
+  /** Recalcula total, alerta de mínimo e saldos por tamanho a partir das chaves de estoque. */
+  refreshProductStock(product: Product) {
+    const rows = [...(this.productStocks.get(product.id) ?? new Map())];
+    product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
+    product.lowStock = product.currentStock <= product.minimumStock;
+    product.sizeStock = productSizeStock(
+      product.sizes,
+      rows.map(([size, currentStock]) => ({
+        size: (size || null) as ProductSize | null,
+        currentStock,
+      })),
+    );
+  }
+
+  /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */
+  changeProductStock(
+    product: Product,
+    size: ProductSize | undefined,
+    delta: number,
+  ) {
+    const balance = this.productStockOf(product.id, size) + delta;
+    if (balance < 0)
+      throw new DomainError(
+        "INSUFFICIENT_STOCK",
+        "O estoque disponível é insuficiente.",
+        409,
+      );
+    const rows = this.productStocks.get(product.id) ?? new Map();
+    rows.set(size ?? "", balance);
+    this.productStocks.set(product.id, rows);
+    this.refreshProductStock(product);
+    product.updatedAt = now();
+    return balance;
+  }
+
   pushStockMovement(
     product: Product,
     kind: StockMovement["kind"],
     quantity: number,
     notes: string,
     patientTabId?: string,
+    size?: ProductSize,
   ) {
     const movement: StockMovement = {
       id: uuid(),
@@ -1637,8 +1681,9 @@ export class MemoryRepositoryContext {
       productId: product.id,
       productName: product.name,
       kind,
+      ...(size ? { size } : {}),
       quantity,
-      balanceAfter: product.currentStock,
+      balanceAfter: this.productStockOf(product.id, size),
       notes,
       ...(patientTabId ? { patientTabId } : {}),
       createdAt: now(),

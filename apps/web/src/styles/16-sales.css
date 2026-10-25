@@ -158,6 +158,12 @@
   align-items: end;
 }
 
+.sale-line.has-size {
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 1fr)
+    minmax(0, 1fr) auto;
+}
+
 .sale-line-total {
   display: grid;
   gap: var(--space-1);
@@ -181,7 +187,8 @@
 }
 
 @media (max-width: 700px) {
-  .sale-line {
+  .sale-line,
+  .sale-line.has-size {
     grid-template-columns: 1fr;
   }
 
@@ -317,6 +324,10 @@
 
 .product-catalogs {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.sales-ranking-body {
+  padding: var(--space-4) var(--space-5);
 }
 
 /* Tamanhos do produto no cadastro do estoque. */

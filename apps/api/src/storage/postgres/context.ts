@@ -1225,7 +1225,7 @@ export class PostgresRepositoryContext {
         [clinicId, tabId],
       ),
       client.query<PatientTabItemRow>(
-        `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 AND i.tab_id=$2 ORDER BY i.created_at`,
+        `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.size,i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 AND i.tab_id=$2 ORDER BY i.created_at`,
         [clinicId, tabId],
       ),
     ]);

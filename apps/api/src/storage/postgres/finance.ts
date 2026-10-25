@@ -30,6 +30,7 @@ import {
   type PaymentMethod,
   type PaymentReceipt,
   type ProductInput,
+  type ProductSize,
   type Receivable,
   type ReceivableRenegotiation,
   type ReceivableRenegotiationInput,
@@ -72,7 +73,14 @@ import {
   type RecurringPayableRow,
   type StockMovementRow,
   branchClause,
+  productStockRowsColumn,
 } from "./helpers.js";
+import { changeProductStock, productStockOf } from "./product-stock.js";
+import {
+  assertStockSize,
+  isStockOut,
+  stockKey,
+} from "../../modules/finance/product-stock.js";
 
 /** Insere um produto na comanda (reserva estoque); `false` se a comanda não existe. */
 async function addTabItem(
@@ -96,12 +104,12 @@ async function addTabItem(
   const product = await client.query<{
     id: string;
     name: string;
-    currentStock: number;
+    sizes: ProductSize[];
     salePriceInCents: number;
     costInCents: number;
     sameBranch: boolean;
   }>(
-    `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
+    `SELECT id,name,sizes,sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
     [clinicId, input.productId, tabId],
   );
   const productRow = product.rows[0];
@@ -113,14 +121,16 @@ async function addTabItem(
       "O produto é de outra filial que não a da comanda.",
       409,
     );
-  if (productRow.currentStock < input.quantity)
-    throw new DomainError(
-      "INSUFFICIENT_STOCK",
-      "O estoque disponível é insuficiente.",
-      409,
-    );
+  assertStockSize(productRow, input.size);
+  const balance = await changeProductStock(
+    client,
+    clinicId,
+    productRow.id,
+    input.size,
+    -input.quantity,
+  );
   await client.query(
-    `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(tab_id,product_id) DO UPDATE SET quantity=patient_tab_items.quantity+EXCLUDED.quantity`,
+    `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents,size) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(tab_id,product_id,size) DO UPDATE SET quantity=patient_tab_items.quantity+EXCLUDED.quantity`,
     [
       clinicId,
       tabId,
@@ -128,15 +138,11 @@ async function addTabItem(
       input.quantity,
       input.unitPriceInCents ?? productRow.salePriceInCents,
       productRow.costInCents,
+      stockKey(input.size),
     ],
   );
-  const balance = productRow.currentStock - input.quantity;
   await client.query(
-    `UPDATE products SET current_stock=$2,updated_at=now() WHERE id=$1`,
-    [productRow.id, balance],
-  );
-  await client.query(
-    `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale',$4,$5,$6,$7)`,
+    `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,'sale',$4,$5,$6,$7,$8)`,
     [
       clinicId,
       productRow.id,
@@ -145,6 +151,7 @@ async function addTabItem(
       balance,
       `Reserva na comanda de ${tab.rows[0].patientName}`,
       actorUserId,
+      stockKey(input.size),
     ],
   );
   await client.query(
@@ -299,11 +306,11 @@ export function createFinanceRepository(
         servicesResult,
       ] = await Promise.all([
         repositoryContext.pool.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",sizes,active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<StockMovementRow>(
-          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 AND ${branchClause("p.branch_id", 2)} ORDER BY sm.created_at DESC LIMIT 500`,
+          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.size,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 AND ${branchClause("p.branch_id", 2)} ORDER BY sm.created_at DESC LIMIT 500`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabRow>(
@@ -311,7 +318,7 @@ export function createFinanceRepository(
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabItemRow>(
-          `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 ORDER BY i.created_at`,
+          `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.size,i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 ORDER BY i.created_at`,
           [clinicId],
         ),
         repositoryContext.pool.query<
@@ -384,7 +391,7 @@ export function createFinanceRepository(
             input.unit,
             input.costInCents,
             input.salePriceInCents,
-            input.initialStock,
+            0,
             input.minimumStock,
             input.categoryId ?? null,
             input.brandId ?? null,
@@ -393,13 +400,31 @@ export function createFinanceRepository(
           ],
         );
         const product = result.rows[0]!;
-        if (input.initialStock > 0)
-          await client.query(
-            `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,'initial_stock',$3,$3,'Estoque inicial',$4)`,
-            [clinicId, product.id, input.initialStock, actorUserId],
-          );
+        const initial = input.sizes?.length
+          ? (input.initialSizeStock ?? []).map(
+              (entry) => [entry.size, entry.quantity] as const,
+            )
+          : [[undefined, input.initialStock] as const];
+        for (const [size, quantity] of initial)
+          if (quantity > 0) {
+            await changeProductStock(
+              client,
+              clinicId,
+              product.id,
+              size,
+              quantity,
+            );
+            await client.query(
+              `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,'initial_stock',$3,$3,'Estoque inicial',$4,$5)`,
+              [clinicId, product.id, quantity, actorUserId, stockKey(size)],
+            );
+          }
+        const created = await client.query<ProductRow>(
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
+          [product.id],
+        );
         await client.query("COMMIT");
-        return mapProduct(product);
+        return mapProduct(created.rows[0]!);
       } catch (error) {
         await client.query("ROLLBACK");
         if (hasDatabaseCode(error, "23505"))
@@ -433,22 +458,22 @@ export function createFinanceRepository(
             "Produto não encontrado.",
             404,
           );
-        const quantity = ["adjustment_out", "loss"].includes(input.kind)
-          ? -input.quantity
-          : input.quantity;
-        const balance = row.currentStock + quantity;
-        if (balance < 0)
-          throw new DomainError(
-            "INSUFFICIENT_STOCK",
-            "O estoque disponível é insuficiente.",
-            409,
-          );
-        await client.query(
-          `UPDATE products SET current_stock=$2,updated_at=now() WHERE id=$1`,
-          [row.id, balance],
+        const out = isStockOut(input.kind);
+        assertStockSize(row, input.size, {
+          leftoverStock: out
+            ? await productStockOf(client, row.id, input.size)
+            : 0,
+        });
+        const quantity = out ? -input.quantity : input.quantity;
+        const balance = await changeProductStock(
+          client,
+          clinicId,
+          row.id,
+          input.size,
+          quantity,
         );
         const movement = await client.query<StockMovementRow>(
-          `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,clinic_id AS "clinicId",product_id AS "productId",$8::text AS "productName",kind,quantity,balance_after AS "balanceAfter",notes,patient_tab_id AS "patientTabId",created_at AS "createdAt"`,
+          `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,$4,$5,$6,$7,$9) RETURNING id,clinic_id AS "clinicId",product_id AS "productId",$8::text AS "productName",kind,size,quantity,balance_after AS "balanceAfter",notes,patient_tab_id AS "patientTabId",created_at AS "createdAt"`,
           [
             clinicId,
             row.id,
@@ -458,6 +483,7 @@ export function createFinanceRepository(
             input.notes,
             actorUserId,
             row.name,
+            stockKey(input.size),
           ],
         );
         await client.query("COMMIT");
@@ -626,26 +652,26 @@ export function createFinanceRepository(
         await cancelTabServiceCredits(client, clinicId, actorUserId, tabId);
         const items = await client.query<{
           productId: string;
+          size: string;
           quantity: number;
         }>(
-          `SELECT product_id AS "productId",quantity FROM patient_tab_items WHERE tab_id=$1 ORDER BY product_id FOR UPDATE`,
+          `SELECT product_id AS "productId",size,quantity FROM patient_tab_items WHERE tab_id=$1 ORDER BY product_id,size FOR UPDATE`,
           [tabId],
         );
         for (const item of items.rows) {
-          const product = await client.query<{
-            name: string;
-            currentStock: number;
-          }>(
-            `SELECT name,current_stock AS "currentStock" FROM products WHERE id=$1 FOR UPDATE`,
-            [item.productId],
+          await client.query(`SELECT id FROM products WHERE id=$1 FOR UPDATE`, [
+            item.productId,
+          ]);
+          const size = (item.size || undefined) as ProductSize | undefined;
+          const balance = await changeProductStock(
+            client,
+            clinicId,
+            item.productId,
+            size,
+            item.quantity,
           );
-          const balance = product.rows[0]!.currentStock + item.quantity;
           await client.query(
-            `UPDATE products SET current_stock=$2,updated_at=now() WHERE id=$1`,
-            [item.productId, balance],
-          );
-          await client.query(
-            `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale_reversal',$4,$5,$6,$7)`,
+            `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,'sale_reversal',$4,$5,$6,$7,$8)`,
             [
               clinicId,
               item.productId,
@@ -654,6 +680,7 @@ export function createFinanceRepository(
               balance,
               `Estorno da comanda de ${row.patientName}`,
               actorUserId,
+              item.size,
             ],
           );
         }
