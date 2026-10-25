@@ -26,6 +26,8 @@ import {
   broadcastSkipReasons,
   clinicSettingsInputSchema,
   formatTaxId,
+  formatCnpj,
+  supplierInputSchema,
   isValidCnpj,
   isValidTaxId,
   clinicalRecordInputSchema,
@@ -351,6 +353,25 @@ describe("shared contracts", () => {
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
   });
 
+  it("fills supplier hiring and payment defaults", () => {
+    const parsed = supplierInputSchema.parse({
+      name: "Fornecedor",
+      kind: "company",
+    });
+    expect(parsed).toMatchObject({
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "",
+      contracts: "",
+    });
+    expect(parsed.hiredOn).toBeUndefined();
+    expect(() =>
+      supplierInputSchema.parse({ ...parsed, installments: 0 }),
+    ).toThrow();
+  });
+
   it("validates and formats the clinic CPF/CNPJ", () => {
     expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
     expect(isValidCnpj("12.345.678/0001-90")).toBe(false);
@@ -359,6 +380,8 @@ describe("shared contracts", () => {
     expect(isValidTaxId("1122233300018")).toBe(false);
     expect(formatTaxId("11222333000181")).toBe("11.222.333/0001-81");
     expect(formatTaxId("1122233300")).toBe("112.223.330-0");
+    expect(formatCnpj("112223")).toBe("11.222.3");
+    expect(formatCnpj("11222333000181")).toBe("11.222.333/0001-81");
     const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
     expect(
       clinicSettingsInputSchema.parse({ ...base, taxId: "11222333000181" })
@@ -1152,9 +1175,7 @@ describe("appointment auto finalization", () => {
     expect(autoFinalizationDelayLabel(0)).toBe("imediatamente");
     expect(autoFinalizationDelayLabel(45)).toBe("45 minutos");
     expect(autoFinalizationDelayLabel(90)).toBe("1 hora e 30 minutos");
-    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe(
-      "2 dias e 1 minuto",
-    );
+    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe("2 dias e 1 minuto");
   });
 
   it("requires an ordered period of up to one year", () => {
@@ -1627,7 +1648,9 @@ describe("planPixChargeMessage", () => {
         totalSessions: 1,
         installments: 3,
       }),
-    ).toContain("tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.");
+    ).toContain(
+      "tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.",
+    );
   });
 });
 
