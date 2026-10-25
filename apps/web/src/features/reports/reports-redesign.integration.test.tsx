@@ -238,7 +238,7 @@ describe("management reports redesign", () => {
     expect(screen.queryByText("Lúcia Prado")).not.toBeInTheDocument();
     expect(screen.getByText("Luana Reis")).toBeInTheDocument();
     expect(screen.getByText("Marta Souza")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Buscar cliente sem retorno"), {
+    fireEvent.change(screen.getByLabelText("Cliente"), {
       target: { value: "lu" },
     });
     expect(screen.getByText("Luana Reis")).toBeInTheDocument();
@@ -251,10 +251,21 @@ describe("management reports redesign", () => {
     );
     expect(screen.getByText("Lúcia Prado")).toBeInTheDocument();
     expect(screen.queryByText("Luana Reis")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Buscar cliente sem retorno"), {
+    fireEvent.change(screen.getByLabelText("Cliente"), {
       target: { value: "marta" },
     });
     expect(screen.getByText("Nenhum cliente encontrado.")).toBeInTheDocument();
+    expect(screen.getByText(/^Mostrando/)).toHaveTextContent(
+      "Mostrando 0 de 3 clientes",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(screen.getByLabelText("Cliente")).toHaveValue("");
+    expect(screen.getByText(/^Mostrando/)).toHaveTextContent(
+      "Mostrando 3 de 3 clientes",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Limpar filtros" }),
+    ).not.toBeInTheDocument();
   });
   it("filters clients without return by what they already contracted", async () => {
     session();
