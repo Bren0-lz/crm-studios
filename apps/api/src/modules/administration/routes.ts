@@ -8,6 +8,7 @@ import {
   adminUserUpdateSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
+  navTabLabelsInputSchema,
   passwordResetSchema,
   type PermissionMatrixItem,
 } from "@crm/contracts";
@@ -154,6 +155,17 @@ export function registerAdministrationRoutes(context: RouteContext) {
       pixKey: settings?.pixKey ?? "",
     };
   });
+  // Nomes das abas do menu (o admin pode renomeá-los; a chave da aba não muda).
+  app.get("/clinic/nav-tabs", { preHandler: authenticate }, async (request) =>
+    repository.listNavTabLabels(request.user.clinicId),
+  );
+  app.put("/admin/nav-tabs", { preHandler: authenticate }, async (request) =>
+    repository.saveNavTabLabels(
+      request.user.clinicId,
+      navTabLabelsInputSchema.parse(request.body),
+    ),
+  );
+
   app.get(
     "/admin/clinic-settings",
     { preHandler: authenticate },

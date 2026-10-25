@@ -103,6 +103,8 @@ import type {
   ClinicalWorkspace,
   ClinicSettings,
   ClinicSettingsInput,
+  NavTabLabel,
+  NavTabLabelsInput,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -542,6 +544,13 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
+  /** Nomes das abas do menu da clínica (padrão onde não foram renomeadas), na ordem. */
+  listNavTabLabels(clinicId: string): Promise<NavTabLabel[]>;
+  /** Renomeia as abas do menu da clínica (vale para todas as filiais). */
+  saveNavTabLabels(
+    clinicId: string,
+    input: NavTabLabelsInput,
+  ): Promise<NavTabLabel[]>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,
