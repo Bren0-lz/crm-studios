@@ -813,6 +813,10 @@
   margin: 0 0 var(--space-5);
 }
 
+.settings-fieldset > .form-grid + .secondary-button {
+  margin-top: var(--space-5);
+}
+
 .settings-panel .form-grid,
 .settings-modal .form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
