@@ -1,6 +1,6 @@
 import type { Appointment } from "@crm/contracts";
-import { CheckCircle2, UserX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CheckCircle2, Search, UserX } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
@@ -9,10 +9,65 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useToast } from "../../shared/feedback/toast-context";
-import { shortDate, statusLabel, timeLabel } from "../../shared/lib/formatting";
+import {
+  localIsoDate,
+  shortDate,
+  statusLabel,
+  timeLabel,
+} from "../../shared/lib/formatting";
 import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 type BatchStatus = "completed" | "no_show";
+
+type Filters = {
+  search: string;
+  professionalId: string;
+  serviceId: string;
+  status: "" | "scheduled" | "confirmed";
+  from: string;
+  to: string;
+};
+
+const initialFilters: Filters = {
+  search: "",
+  professionalId: "",
+  serviceId: "",
+  status: "",
+  from: "",
+  to: "",
+};
+
+function normalize(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Opções únicas (id → nome) dos atendimentos carregados, em ordem alfabética. */
+function optionsOf(
+  items: Appointment[],
+  pick: (item: Appointment) => [string, string],
+) {
+  return [...new Map(items.map(pick)).entries()].sort((a, b) =>
+    a[1].localeCompare(b[1], "pt-BR"),
+  );
+}
+
+function matches(item: Appointment, filters: Filters) {
+  const day = localIsoDate(new Date(item.startsAt));
+  return (
+    (!filters.search ||
+      normalize(item.patientName).includes(normalize(filters.search))) &&
+    (!filters.professionalId ||
+      item.professionalId === filters.professionalId) &&
+    (!filters.serviceId || item.serviceId === filters.serviceId) &&
+    (!filters.status || item.status === filters.status) &&
+    (!filters.from || day >= filters.from) &&
+    (!filters.to || day <= filters.to)
+  );
+}
 
 const batchCopy: Record<
   BatchStatus,
@@ -47,6 +102,7 @@ export function PendingFinalizationPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState<BatchStatus | null>(null);
   const [reload, setReload] = useState(0);
+  const [filters, setFilters] = useState<Filters>(initialFilters);
 
   useEffect(() => {
     let active = true;
@@ -72,8 +128,31 @@ export function PendingFinalizationPage() {
     };
   }, [reload]);
 
-  const allSelected =
-    items !== null && items.length > 0 && selected.size === items.length;
+  const professionalOptions = useMemo(
+    () =>
+      optionsOf(items ?? [], (item) => [
+        item.professionalId,
+        item.professionalName,
+      ]),
+    [items],
+  );
+  const serviceOptions = useMemo(
+    () => optionsOf(items ?? [], (item) => [item.serviceId, item.serviceName]),
+    [items],
+  );
+  const visible = useMemo(
+    () => (items ?? []).filter((item) => matches(item, filters)),
+    [items, filters],
+  );
+  const filtered = Object.values(filters).some(Boolean);
+  // Só o que está visível com os filtros atuais entra na ação em lote.
+  const selectedVisible = visible.filter((item) => selected.has(item.id));
+  const selectedCount = selectedVisible.length;
+  const allSelected = visible.length > 0 && selectedCount === visible.length;
+
+  function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
 
   function toggle(id: string, checked: boolean) {
     setSelected((current) => {
@@ -85,9 +164,7 @@ export function PendingFinalizationPage() {
   }
 
   async function applyBatch(status: BatchStatus) {
-    const ids = (items ?? [])
-      .filter((item) => selected.has(item.id))
-      .map((item) => item.id);
+    const ids = selectedVisible.map((item) => item.id);
     const failures: string[] = [];
     let done = 0;
     // Uma chamada por atendimento na rota de status: mesmas permissões e regras da agenda.
@@ -134,12 +211,19 @@ export function PendingFinalizationPage() {
                   ? "1 atendimento"
                   : `${items.length} atendimentos`}
             </h2>
+            {items && filtered && (
+              <p className="panel-context">
+                {visible.length === 1
+                  ? "1 exibido com os filtros"
+                  : `${visible.length} exibidos com os filtros`}
+              </p>
+            )}
           </div>
           {canFinalize && items && items.length > 0 && (
             <div className="page-actions">
               <button
                 className="primary-button"
-                disabled={selected.size === 0}
+                disabled={selectedCount === 0}
                 onClick={() => setConfirming("completed")}
               >
                 <CheckCircle2 size={16} aria-hidden="true" />
@@ -147,7 +231,7 @@ export function PendingFinalizationPage() {
               </button>
               <button
                 className="secondary-button"
-                disabled={selected.size === 0}
+                disabled={selectedCount === 0}
                 onClick={() => setConfirming("no_show")}
               >
                 <UserX size={16} aria-hidden="true" />
@@ -167,26 +251,130 @@ export function PendingFinalizationPage() {
           />
         ) : (
           <>
-            {canFinalize ? (
+            <div
+              className="list-toolbar pending-finalization-filters"
+              role="group"
+              aria-label="Filtros"
+            >
+              <label className="pending-finalization-search">
+                Cliente
+                <span className="pending-finalization-search-input">
+                  <Search size={16} aria-hidden="true" />
+                  <input
+                    type="search"
+                    placeholder="Buscar pelo nome"
+                    value={filters.search}
+                    onChange={(event) =>
+                      updateFilter("search", event.target.value)
+                    }
+                  />
+                </span>
+              </label>
+              <label>
+                Profissional
+                <select
+                  value={filters.professionalId}
+                  onChange={(event) =>
+                    updateFilter("professionalId", event.target.value)
+                  }
+                >
+                  <option value="">Todos</option>
+                  {professionalOptions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Serviço
+                <select
+                  value={filters.serviceId}
+                  onChange={(event) =>
+                    updateFilter("serviceId", event.target.value)
+                  }
+                >
+                  <option value="">Todos</option>
+                  {serviceOptions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Situação
+                <select
+                  value={filters.status}
+                  onChange={(event) =>
+                    updateFilter(
+                      "status",
+                      event.target.value as Filters["status"],
+                    )
+                  }
+                >
+                  <option value="">Todas</option>
+                  <option value="scheduled">{statusLabel("scheduled")}</option>
+                  <option value="confirmed">{statusLabel("confirmed")}</option>
+                </select>
+              </label>
+              <label>
+                De
+                <input
+                  type="date"
+                  value={filters.from}
+                  max={filters.to || undefined}
+                  onChange={(event) => updateFilter("from", event.target.value)}
+                />
+              </label>
+              <label>
+                Até
+                <input
+                  type="date"
+                  value={filters.to}
+                  min={filters.from || undefined}
+                  onChange={(event) => updateFilter("to", event.target.value)}
+                />
+              </label>
+              {filtered && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setFilters(initialFilters)}
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+            {visible.length === 0 ? (
+              <EmptyState
+                title="Nenhum atendimento encontrado"
+                copy="Ajuste a busca ou os filtros para ver outros atendimentos."
+              />
+            ) : canFinalize ? (
               <div className="pending-finalization-toolbar">
                 <label className="checkbox-field">
                   <input
                     type="checkbox"
                     checked={allSelected}
-                    onChange={(event) =>
-                      setSelected(
-                        event.target.checked
-                          ? new Set(items.map((item) => item.id))
-                          : new Set(),
-                      )
-                    }
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setSelected((current) => {
+                        const next = new Set(current);
+                        for (const item of visible) {
+                          if (checked) next.add(item.id);
+                          else next.delete(item.id);
+                        }
+                        return next;
+                      });
+                    }}
                   />
                   Selecionar todos
                 </label>
                 <span>
-                  {selected.size === 1
+                  {selectedCount === 1
                     ? "1 selecionado"
-                    : `${selected.size} selecionados`}
+                    : `${selectedCount} selecionados`}
                 </span>
               </div>
             ) : (
@@ -194,40 +382,42 @@ export function PendingFinalizationPage() {
                 Seu acesso não permite registrar presença ou falta.
               </p>
             )}
-            <ul
-              className="pending-finalization-list"
-              aria-label="Atendimentos a finalizar"
-            >
-              {items.map((item) => {
-                const startsAt = new Date(item.startsAt);
-                const when = `${shortDate.format(startsAt)} às ${timeLabel.format(startsAt)}`;
-                return (
-                  <li className="pending-finalization-row" key={item.id}>
-                    {canFinalize && (
-                      <input
-                        type="checkbox"
-                        checked={selected.has(item.id)}
-                        onChange={(event) =>
-                          toggle(item.id, event.target.checked)
-                        }
-                        aria-label={`Selecionar ${item.patientName}, ${when}`}
-                      />
-                    )}
-                    <div className="pending-finalization-info">
-                      <strong>{item.patientName}</strong>
-                      <span>
-                        {when}–{timeLabel.format(new Date(item.endsAt))} ·{" "}
-                        {item.serviceName} · {item.professionalName}
+            {visible.length > 0 && (
+              <ul
+                className="pending-finalization-list"
+                aria-label="Atendimentos a finalizar"
+              >
+                {visible.map((item) => {
+                  const startsAt = new Date(item.startsAt);
+                  const when = `${shortDate.format(startsAt)} às ${timeLabel.format(startsAt)}`;
+                  return (
+                    <li className="pending-finalization-row" key={item.id}>
+                      {canFinalize && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(item.id)}
+                          onChange={(event) =>
+                            toggle(item.id, event.target.checked)
+                          }
+                          aria-label={`Selecionar ${item.patientName}, ${when}`}
+                        />
+                      )}
+                      <div className="pending-finalization-info">
+                        <strong>{item.patientName}</strong>
+                        <span>
+                          {when}–{timeLabel.format(new Date(item.endsAt))} ·{" "}
+                          {item.serviceName} · {item.professionalName}
+                        </span>
+                      </div>
+                      <span className={`status-pill ${item.status}`}>
+                        {statusLabel(item.status)}
                       </span>
-                    </div>
-                    <span className={`status-pill ${item.status}`}>
-                      {statusLabel(item.status)}
-                    </span>
-                    <PendingFinalizationBadge appointment={item} />
-                  </li>
-                );
-              })}
-            </ul>
+                      <PendingFinalizationBadge appointment={item} />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </>
         )}
       </section>
@@ -236,9 +426,9 @@ export function PendingFinalizationPage() {
           eyebrow="Atendimentos a finalizar"
           title={batchCopy[confirming].title}
           subtitle={
-            selected.size === 1
+            selectedCount === 1
               ? "1 atendimento selecionado"
-              : `${selected.size} atendimentos selecionados`
+              : `${selectedCount} atendimentos selecionados`
           }
           effect={batchCopy[confirming].effect}
           confirmLabel={batchCopy[confirming].title}
