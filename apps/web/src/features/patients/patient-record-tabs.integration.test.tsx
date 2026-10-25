@@ -117,6 +117,89 @@ describe("client record", () => {
     ).toHaveAttribute("href", `/planos?patientId=${patient.id}`);
   });
 
+  it("lists every current plan in the summary, the one expiring first on top", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const patient = {
+      id: "99999999-9999-4999-8999-999999999999",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      recordNumber: "PAC-00001",
+      fullName: "Helena Almeida",
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+      createdAt: "2026-01-01T12:00:00.000Z",
+      updatedAt: "2026-01-01T12:00:00.000Z",
+    };
+    const basePlan = {
+      patientId: patient.id,
+      kind: "fixed_package",
+      status: "active",
+      validFrom: "2026-01-01",
+      services: [],
+    };
+    const plans = [
+      {
+        ...basePlan,
+        id: "p1",
+        name: "Pilates 2x",
+        remainingSessions: 5,
+        totalSessions: 8,
+      },
+      {
+        ...basePlan,
+        id: "p2",
+        name: "Dançaterapia 1x",
+        remainingSessions: 3,
+        totalSessions: 4,
+        validUntil: "2099-03-10",
+      },
+      {
+        ...basePlan,
+        id: "p3",
+        name: "Plano encerrado",
+        status: "cancelled",
+        remainingSessions: 0,
+        totalSessions: 4,
+      },
+    ];
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = url.endsWith(`/patients/${patient.id}`)
+        ? patient
+        : url.includes("/plans?patientId=")
+          ? plans
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/clientes/${patient.id}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const overview = await screen.findByRole("region", {
+      name: "Resumo do cliente",
+    });
+    expect(
+      await within(overview).findByText("Planos ativos (2)"),
+    ).toBeInTheDocument();
+    const items = within(overview).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Dançaterapia 1x");
+    expect(items[0]).toHaveTextContent("3 sessões restantes de 4 · até");
+    expect(items[1]).toHaveTextContent("Pilates 2x");
+    expect(items[1]).toHaveTextContent("5 sessões restantes de 8");
+    expect(overview).not.toHaveTextContent("Plano encerrado");
+  });
+
   it("links the client to a recurring or single plan from the Plans tab", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
