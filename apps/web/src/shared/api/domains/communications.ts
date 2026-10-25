@@ -1,4 +1,9 @@
 import type {
+  AutoCampaign,
+  AutoCampaignDelivery,
+  AutoCampaignDeliveryInput,
+  AutoCampaignInput,
+  AutoCampaignQueue,
   CampaignFilterOptions,
   CampaignRecipientStatus,
   CampaignRecipientUpdate,
@@ -16,6 +21,33 @@ import type {
 import { request } from "../transport";
 
 export const communicationsApi = {
+  autoCampaigns: () =>
+    request<AutoCampaign[]>("/communications/auto-campaigns"),
+  autoCampaignQueue: () =>
+    request<AutoCampaignQueue>("/communications/auto-campaigns/queue"),
+  createAutoCampaign: (input: AutoCampaignInput) =>
+    request<AutoCampaign>("/communications/auto-campaigns", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateAutoCampaign: (id: string, input: AutoCampaignInput) =>
+    request<AutoCampaign>(`/communications/auto-campaigns/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteAutoCampaign: (id: string) =>
+    request<void>(`/communications/auto-campaigns/${id}`, {
+      method: "DELETE",
+    }),
+  recordAutoCampaignDelivery: (input: AutoCampaignDeliveryInput) =>
+    request<AutoCampaignDelivery>("/communications/auto-campaigns/deliveries", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  undoAutoCampaignDelivery: (id: string) =>
+    request<void>(`/communications/auto-campaigns/deliveries/${id}`, {
+      method: "DELETE",
+    }),
   communicationPreferences: (patientId: string) =>
     request<CommunicationPreference[]>(
       `/communications/preferences?patientId=${encodeURIComponent(patientId)}`,
