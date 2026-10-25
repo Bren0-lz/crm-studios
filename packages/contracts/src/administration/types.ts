@@ -128,6 +128,8 @@ export interface ClinicBranding {
   email?: string;
   /** Chave Pix da clínica para as cobranças enviadas ao cliente. */
   pixKey?: string;
+  /** Modelo da mensagem de cobrança Pix; vazio = texto padrão. */
+  pixMessageTemplate?: string;
 }
 
 export interface ClinicSettings extends ClinicSettingsInput {

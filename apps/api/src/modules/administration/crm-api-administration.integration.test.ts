@@ -804,10 +804,14 @@ describe("CRM API", () => {
         name: "Studios Aryana",
         timezone: "America/Sao_Paulo",
         pixKey: "  financeiro@aryana.com.br ",
+        pixMessageTemplate: " Olá, {{nome}}! Chave: {{chave_pix}} ",
       },
     });
     expect(saved.statusCode, saved.body).toBe(200);
-    expect(saved.json()).toMatchObject({ pixKey: "financeiro@aryana.com.br" });
+    expect(saved.json()).toMatchObject({
+      pixKey: "financeiro@aryana.com.br",
+      pixMessageTemplate: "Olá, {{nome}}! Chave: {{chave_pix}}",
+    });
     const branding = await app.inject({
       method: "GET",
       url: "/clinic/branding",
@@ -815,7 +819,19 @@ describe("CRM API", () => {
     });
     expect(branding.json()).toMatchObject({
       pixKey: "financeiro@aryana.com.br",
+      pixMessageTemplate: "Olá, {{nome}}! Chave: {{chave_pix}}",
     });
+    const tooLong = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: {
+        name: "Studios Aryana",
+        timezone: "America/Sao_Paulo",
+        pixMessageTemplate: "x".repeat(1001),
+      },
+    });
+    expect(tooLong.statusCode).toBe(400);
     await app.close();
   });
 

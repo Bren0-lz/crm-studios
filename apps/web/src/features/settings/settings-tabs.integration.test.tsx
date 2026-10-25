@@ -465,6 +465,50 @@ describe("settings tabs", () => {
     },
   );
 
+  it("saves the Pix key and message template with the chosen variables and previews it", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.change(await screen.findByLabelText("Chave Pix"), {
+      target: { value: "financeiro@aryana.com.br" },
+    });
+    const message = screen.getByLabelText("Mensagem do Pix");
+    expect(screen.getByText(/^Prévia: Olá, Marina!/)).toBeInTheDocument();
+    fireEvent.change(message, { target: { value: "Oi {{nome}}! " } });
+    const toolbar = screen.getByRole("toolbar", {
+      name: "Inserir dados na mensagem do Pix",
+    });
+    fireEvent.click(
+      within(toolbar).getByRole("button", { name: "Inserir valor por sessão" }),
+    );
+    expect(message).toHaveValue("Oi {{nome}}! {{valor_sessao}}");
+    fireEvent.change(message, {
+      target: { value: "Oi {{nome}}! {{valor_sessao}} · {{chave_pix}}" },
+    });
+    expect(
+      screen.getByText(
+        "Prévia: Oi Marina! R$ 60,00 · financeiro@aryana.com.br",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar configurações" }),
+    );
+    await waitFor(() => {
+      const put = vi
+        .mocked(fetch)
+        .mock.calls.find(([, init]) => init?.method === "PUT");
+      expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
+        pixKey: "financeiro@aryana.com.br",
+        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}} · {{chave_pix}}",
+      });
+    });
+  });
+
   it("keeps a clinic draft after a failed save, blocks duplicate writes and isolates user refreshes", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));

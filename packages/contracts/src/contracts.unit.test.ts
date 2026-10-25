@@ -1551,6 +1551,31 @@ describe("planPixChargeMessage", () => {
   });
 });
 
+describe("planPixChargeMessage with the clinic template", () => {
+  it("fills every variable and ignores a blank template", () => {
+    const plan = {
+      patientName: "Marina Costa",
+      planName: "Pilates 2x semana",
+      totalValueInCents: 10000,
+      totalSessions: 1,
+      installments: 3,
+      pixKey: "financeiro@aryana.com.br",
+    };
+    expect(
+      planPixChargeMessage({
+        ...plan,
+        template:
+          "{{nome}} / {{nome_completo}} / {{plano}} / {{sessoes}} / {{valor_total}} / {{valor_sessao}} / {{parcelas}} / {{valor_parcela}} / {{chave_pix}} / {{desconhecida}}",
+      }),
+    ).toBe(
+      "Marina / Marina Costa / Pilates 2x semana / 1 sessão / R$ 100,00 / R$ 100,00 / 3 / R$ 33,34 / financeiro@aryana.com.br / {{desconhecida}}",
+    );
+    expect(planPixChargeMessage({ ...plan, template: "  " })).toBe(
+      planPixChargeMessage(plan),
+    );
+  });
+});
+
 describe("receivableContactMessage", () => {
   const installment = {
     patientName: "Bruno Lima",
