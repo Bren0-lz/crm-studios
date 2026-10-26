@@ -1,4 +1,5 @@
 import { receiptWithClinic } from "../../modules/finance/receipt.js";
+import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -1222,6 +1223,32 @@ export function createFinanceRepository(
       );
     },
 
+    async setPayableAmount(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+      amountInCents: number,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<{
+          status: string;
+          recurringPayableId: string | null;
+        }>(
+          `SELECT status, recurring_payable_id AS "recurringPayableId"
+         FROM payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          [clinicId, payableId],
+        );
+        if (!current.rows[0]) return null;
+        assertPayableAmountEditable(current.rows[0]);
+        await client.query(
+          `UPDATE payables SET amount_in_cents = $3, amount_pending = false, updated_at = now()
+         WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, payableId, amountInCents],
+        );
+        return repositoryContext.findPayable(client, clinicId, payableId);
+      });
+    },
+
     async listRecurringPayables(clinicId: string) {
       const result = await repositoryContext.pool.query<RecurringPayableRow>(
         `SELECT ${recurringPayableColumns} FROM recurring_payables rp
@@ -1243,8 +1270,8 @@ export function createFinanceRepository(
         `INSERT INTO recurring_payables
          (clinic_id, description, supplier, category_id, cost_center_id,
           amount_in_cents, day_of_month, start_month, end_month, active,
-          created_by_user_id, branch_id)
-       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,$12
+          created_by_user_id, branch_id, amount_type, reminder_days_before)
+       SELECT $1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,$12,$13,$14
        FROM financial_categories fc, cost_centers cc
        WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
          AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active
@@ -1262,6 +1289,8 @@ export function createFinanceRepository(
           input.active,
           actorUserId,
           repositoryContext.branchWriteId(),
+          input.amountType,
+          input.reminderDaysBefore ?? null,
         ],
       );
       if (!inserted.rows[0])
@@ -1317,7 +1346,7 @@ export function createFinanceRepository(
          SET description = $3, supplier = $4, category_id = $5, cost_center_id = $6,
              amount_in_cents = $7, day_of_month = $8, start_month = $9, end_month = $10,
              resumed_from_month = CASE WHEN $11 AND NOT active THEN $12 ELSE resumed_from_month END,
-             active = $11, updated_at = now()
+             active = $11, amount_type = $13, reminder_days_before = $14, updated_at = now()
          WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -1332,6 +1361,8 @@ export function createFinanceRepository(
             input.endMonth ?? null,
             input.active,
             saoPauloToday().slice(0, 7),
+            input.amountType,
+            input.reminderDaysBefore ?? null,
           ],
         );
         return repositoryContext.findRecurringPayable(
@@ -1412,9 +1443,11 @@ export function createFinanceRepository(
             endMonth: string | null;
             resumedFromMonth: string | null;
             active: boolean;
+            amountType: "fixed" | "variable";
           }>(
             `SELECT description, supplier, category_id AS "categoryId",
                   cost_center_id AS "costCenterId", amount_in_cents AS "amountInCents",
+                  amount_type AS "amountType",
                   day_of_month::int AS "dayOfMonth", start_month AS "startMonth",
                   end_month AS "endMonth", resumed_from_month AS "resumedFromMonth", active
            FROM recurring_payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
@@ -1436,9 +1469,9 @@ export function createFinanceRepository(
               `INSERT INTO payables
                (clinic_id, description, supplier, category_id, cost_center_id,
                 due_date, amount_in_cents, created_by_user_id,
-                recurring_payable_id, competence, branch_id)
+                recurring_payable_id, competence, branch_id, amount_pending)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-               (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9))
+               (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9),$11)
              ON CONFLICT (recurring_payable_id, competence)
                WHERE recurring_payable_id IS NOT NULL DO NOTHING
              RETURNING id`,
@@ -1453,6 +1486,7 @@ export function createFinanceRepository(
                 actorUserId,
                 row.id,
                 competence,
+                model.amountType === "variable",
               ],
             );
             if (!payable.rows[0]) continue;

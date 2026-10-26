@@ -11,12 +11,15 @@ export function PayablesList({
   onCreate,
   onSettle,
   onReverse,
+  onSetAmount,
 }: {
   payables: Payable[];
   canManage: boolean;
   onCreate: () => void;
   onSettle: (item: Payable) => void;
   onReverse: (id: string) => void;
+  /** Despesa fixa variável: informar o valor do mês antes de pagar. */
+  onSetAmount: (item: Payable) => void;
 }) {
   const { can } = useAuthorization();
   if (payables.length === 0) {
@@ -46,7 +49,11 @@ export function PayablesList({
       </div>
       {payables.map((item) => {
         const situation = receivableSituation(item, today);
-        const detail = [item.supplier || item.categoryName, item.costCenterName]
+        const detail = [
+          item.supplier || item.categoryName,
+          item.costCenterName,
+          item.amountPending && "Valor estimado: informe o valor do mês",
+        ]
           .filter(Boolean)
           .join(" · ");
         return (
@@ -70,6 +77,19 @@ export function PayablesList({
             <div className="finance-actions">
               {canManage &&
                 item.status === "open" &&
+                item.amountPending &&
+                can("finance.recurring_update") && (
+                  <button
+                    className="primary-button button-sm"
+                    aria-label={`Informar valor de ${item.description}`}
+                    onClick={() => onSetAmount(item)}
+                  >
+                    Informar valor
+                  </button>
+                )}
+              {canManage &&
+                item.status === "open" &&
+                !item.amountPending &&
                 can("finance.payables_pay") && (
                   <button
                     className="primary-button button-sm"
