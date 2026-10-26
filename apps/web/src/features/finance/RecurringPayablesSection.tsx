@@ -6,7 +6,7 @@ import {
   type RecurringPayable,
   type RecurringPayableInput,
 } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { BellRing, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -49,6 +49,7 @@ export function RecurringPayablesSection({
   const reminders = items
     ? recurringPayableReminders(items, workspace.payables, today)
     : [];
+  const canInform = editable && can("finance.recurring_update");
   useEffect(() => {
     let active = true;
     api
@@ -102,6 +103,49 @@ export function RecurringPayablesSection({
             </button>
           )}
         </div>
+        {reminders.length > 0 && (
+          <div
+            className="recurring-reminders"
+            role="region"
+            aria-label="Avisos de vencimento"
+          >
+            <h3>
+              <BellRing size={16} aria-hidden="true" /> Avisos de vencimento
+            </h3>
+            <ul>
+              {reminders.map((reminder) => {
+                const payable = reminder.payableId
+                  ? workspace.payables.find(
+                      (item) => item.id === reminder.payableId,
+                    )
+                  : undefined;
+                return (
+                  <li
+                    key={`${reminder.recurringPayableId}-${reminder.competence}`}
+                  >
+                    <span className="recurring-reminder-text">
+                      <strong>{reminder.description}</strong>
+                      <span>
+                        {recurringReminderLabel(reminder, today)} ·{" "}
+                        {signedCurrency(-reminder.amountInCents)}
+                        {reminder.amountPending && " (estimado)"}
+                      </span>
+                    </span>
+                    {canInform && payable && reminder.amountPending && (
+                      <button
+                        className="secondary-button button-sm"
+                        aria-label={`Informar valor de ${reminder.description} (${formatCompetence(reminder.competence)})`}
+                        onClick={() => setInforming(payable)}
+                      >
+                        Informar valor
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         {!items ? (
           !error && <LoadingBlock />
         ) : items.length === 0 ? (
@@ -186,9 +230,7 @@ export function RecurringPayablesSection({
                     </span>
                   </span>
                   <div className="finance-actions">
-                    {editable &&
-                      pendingPayable &&
-                      can("finance.recurring_update") && (
+                    {canInform && pendingPayable && (
                         <button
                           className="primary-button button-sm"
                           aria-label={`Informar valor de ${item.description}`}

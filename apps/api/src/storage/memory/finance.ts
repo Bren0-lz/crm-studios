@@ -1109,7 +1109,7 @@ export function createFinanceRepository(
 
     async setPayableAmount(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       payableId: string,
       amountInCents: number,
     ) {
@@ -1117,10 +1117,27 @@ export function createFinanceRepository(
         (item) => item.clinicId === clinicId && item.id === payableId,
       );
       if (!payable) return null;
-      assertPayableAmountEditable(payable);
+      const model = repositoryContext.recurringPayables.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === payable.recurringPayableId,
+      );
+      assertPayableAmountEditable(payable, model?.amountType);
+      const previousAmountInCents = payable.amountInCents;
       payable.amountInCents = amountInCents;
       delete payable.amountPending;
       payable.updatedAt = now();
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "payable.amount_informed",
+        "payable",
+        {
+          competence: payable.competence,
+          previousAmountInCents,
+          amountInCents,
+        },
+        payable.id,
+      );
       return payable;
     },
 
@@ -1191,6 +1208,19 @@ export function createFinanceRepository(
         updatedAt: now(),
       };
       repositoryContext.recurringPayables[index] = updated;
+      // Trocar o tipo de valor vale também para as contas ainda em aberto: a variável passa a
+      // esperar o valor do mês e a fixa volta a poder ser paga.
+      if (current.amountType !== updated.amountType)
+        for (const payable of repositoryContext.payables)
+          if (
+            payable.clinicId === clinicId &&
+            payable.recurringPayableId === current.id &&
+            payable.status === "open"
+          ) {
+            if (updated.amountType === "variable") payable.amountPending = true;
+            else delete payable.amountPending;
+            payable.updatedAt = now();
+          }
       return repositoryContext.toRecurringPayable(updated);
     },
 

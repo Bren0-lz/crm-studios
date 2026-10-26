@@ -460,6 +460,105 @@ describe("GET /notifications", () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  it("informs the month only on variable bills, audits it and follows type changes", async () => {
+    const { app, headers } = await setup();
+    const workspace = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json();
+    const base = {
+      categoryId: workspace.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      ).id,
+      costCenterId: workspace.costCenters[0].id,
+      amountInCents: 9_000,
+      dayOfMonth: 25,
+      startMonth: "2039-06",
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/recurring-payables",
+      headers,
+      payload: { ...base, description: "Conta de luz" },
+    });
+    expect(created.statusCode).toBe(201);
+    const model = created.json<{ id: string }>();
+    async function bill() {
+      await app.inject({
+        method: "GET",
+        url: "/finance/recurring-payables",
+        headers,
+      });
+      return (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().payables as Array<{
+          id: string;
+          recurringPayableId?: string;
+          amountPending?: boolean;
+        }>
+      ).find((item) => item.recurringPayableId === model.id)!;
+    }
+    async function edit(amountType: "fixed" | "variable") {
+      const response = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: { ...base, description: "Conta de luz", amountType },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+    const fixedBill = await bill();
+    expect(fixedBill.amountPending).toBeUndefined();
+    // Conta de despesa de valor fixo não recebe o valor do mês.
+    const fixedAmount = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${fixedBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 9_500 },
+    });
+    expect(fixedAmount.statusCode).toBe(409);
+    expect(fixedAmount.json().code).toBe("PAYABLE_NOT_VARIABLE");
+
+    // Virou variável: a conta do mês ainda aberta passa a esperar o valor real.
+    await edit("variable");
+    expect((await bill()).amountPending).toBe(true);
+    // Voltou a fixa: a conta aberta pode ser paga de novo.
+    await edit("fixed");
+    expect((await bill()).amountPending).toBeUndefined();
+    await edit("variable");
+    const informed = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${fixedBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 11_230 },
+    });
+    expect(informed.statusCode).toBe(200);
+    expect(informed.json().amountPending).toBeUndefined();
+
+    const history = await app.inject({
+      method: "GET",
+      url: "/history/audit-events?module=finance&action=payable.amount_informed",
+      headers,
+    });
+    expect(history.statusCode).toBe(200);
+    const events = history.json<{
+      items: { entityId?: string; metadata: Record<string, unknown> }[];
+    }>().items;
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      entityId: fixedBill.id,
+      metadata: {
+        competence: "2039-06",
+        previousAmountInCents: 9_000,
+        amountInCents: 11_230,
+      },
+    });
+  });
+
   it("only returns the groups of the modules the user can see", async () => {
     const { notifications, userWith } = await setup();
     expect(
