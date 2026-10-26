@@ -264,6 +264,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createPayable = this.finance.createPayable;
     this.settlePayable = this.finance.settlePayable;
     this.reversePayablePayment = this.finance.reversePayablePayment;
+    this.setPayableAmount = this.finance.setPayableAmount;
     this.listRecurringPayables = this.finance.listRecurringPayables;
     this.createRecurringPayable = this.finance.createRecurringPayable;
     this.updateRecurringPayable = this.finance.updateRecurringPayable;
@@ -580,6 +581,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly reversePayablePayment: ReturnType<
     typeof createFinanceRepository
   >["reversePayablePayment"];
+
+  readonly setPayableAmount: ReturnType<
+    typeof createFinanceRepository
+  >["setPayableAmount"];
 
   readonly listRecurringPayables: ReturnType<
     typeof createFinanceRepository

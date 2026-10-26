@@ -910,6 +910,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         supplier: "Fornecedor PG",
         categoryId: category.rows[0]!.id,
         costCenterId: costCenter.rows[0]!.id,
+        amountType: "fixed" as const,
         amountInCents: 12_345,
         dayOfMonth: 28,
         startMonth: shift(-2),
@@ -1042,6 +1043,71 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           base,
         ),
       ).toBeNull();
+    } finally {
+      await cleanupRecurringPayables();
+    }
+  });
+
+  it("keeps variable fixed expenses pending until the month amount is informed", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await testFinanceClassification();
+      const current = saoPauloToday().slice(0, 7);
+      const variable = await repository.createRecurringPayable(
+        clinicId,
+        ownerId,
+        {
+          description: recurringPayableMarker,
+          categoryId: category.rows[0]!.id,
+          costCenterId: costCenter.rows[0]!.id,
+          amountType: "variable",
+          amountInCents: 15_000,
+          dayOfMonth: 10,
+          reminderDaysBefore: 3,
+          startMonth: current,
+          active: true,
+        },
+      );
+      expect(variable).toMatchObject({
+        amountType: "variable",
+        reminderDaysBefore: 3,
+      });
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      const payable = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.recurringPayableId === variable.id)!;
+      expect(payable).toMatchObject({
+        amountInCents: 15_000,
+        amountPending: true,
+      });
+      await expect(
+        repository.settlePayable(clinicId, ownerId, payable.id, "pix"),
+      ).rejects.toMatchObject({ code: "PAYABLE_AMOUNT_PENDING" });
+      const informed = await repository.setPayableAmount(
+        clinicId,
+        ownerId,
+        payable.id,
+        18_790,
+      );
+      expect(informed?.amountInCents).toBe(18_790);
+      expect(informed?.amountPending).toBeUndefined();
+      const updated = await repository.updateRecurringPayable(
+        clinicId,
+        ownerId,
+        variable.id,
+        {
+          description: recurringPayableMarker,
+          categoryId: category.rows[0]!.id,
+          costCenterId: costCenter.rows[0]!.id,
+          amountType: "fixed",
+          amountInCents: 15_000,
+          dayOfMonth: 10,
+          startMonth: current,
+          active: true,
+        },
+      );
+      expect(updated?.amountType).toBe("fixed");
+      expect(updated?.reminderDaysBefore).toBeUndefined();
     } finally {
       await cleanupRecurringPayables();
     }
