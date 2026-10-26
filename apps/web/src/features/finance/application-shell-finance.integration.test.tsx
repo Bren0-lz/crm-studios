@@ -297,7 +297,12 @@ describe("application shell", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }),
     );
-    expect(await within(section).findByText("Contador")).toBeInTheDocument();
+    // A linha na tabela (o nome também pode aparecer no bloco de avisos de vencimento).
+    expect(
+      await within(
+        section.querySelector(".recurring-table") as HTMLElement,
+      ).findByText("Contador"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Nova despesa fixa" }),
     ).not.toBeInTheDocument();

@@ -149,8 +149,30 @@ describe("variable fixed expenses", () => {
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
+    // Bloco "Avisos de vencimento" no topo: a internet (dia 5, vencida e ainda não gerada) e a
+    // água, que entrou no prazo de aviso; só a variável pede o valor do mês.
+    const remindersBlock = await within(section).findByRole("region", {
+      name: "Avisos de vencimento",
+    });
+    expect(
+      within(remindersBlock)
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("strong")?.textContent),
+    ).toEqual(["Internet", "Conta de água"]);
+    expect(
+      within(remindersBlock).getAllByRole("button", { name: /Informar valor/ }),
+    ).toHaveLength(1);
+    expect(
+      within(remindersBlock).getByText(/vence em 2 dias .* a informar/),
+    ).toHaveTextContent(/150,00 \(estimado\)$/);
+    expect(
+      within(remindersBlock).getByRole("button", {
+        name: "Informar valor de Conta de água (10/2026)",
+      }),
+    ).toBeInTheDocument();
+    const table = section.querySelector(".recurring-table") as HTMLElement;
     const waterRow = (
-      await within(section).findByText("Conta de água")
+      await within(table).findByText("Conta de água")
     ).closest(".finance-row") as HTMLElement;
     expect(
       within(waterRow).getByText(
@@ -206,6 +228,13 @@ describe("variable fixed expenses", () => {
     ).not.toBeInTheDocument();
     expect(within(waterRow).getByText(/vence em 2 dias/)).not.toHaveTextContent(
       "valor do mês a informar",
+    );
+    // Com o valor informado, o aviso continua (falta pagar), sem o botão e sem "(estimado)".
+    expect(
+      within(remindersBlock).queryByRole("button", { name: /Informar valor/ }),
+    ).not.toBeInTheDocument();
+    expect(within(remindersBlock).getByText(/vence em 2 dias/)).toHaveTextContent(
+      /187,90$/,
     );
 
     // Editar a internet: passa a variável e sem aviso.

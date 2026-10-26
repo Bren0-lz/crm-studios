@@ -1108,6 +1108,34 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       );
       expect(updated?.amountType).toBe("fixed");
       expect(updated?.reminderDaysBefore).toBeUndefined();
+      const audit = await pool.query<{ metadata: Record<string, unknown> }>(
+        "SELECT metadata FROM audit_events WHERE clinic_id=$1 AND action='payable.amount_informed' AND entity_id=$2",
+        [clinicId, payable.id],
+      );
+      expect(audit.rows[0]?.metadata).toMatchObject({
+        previousAmountInCents: 15_000,
+        amountInCents: 18_790,
+      });
+      // Conta de despesa de valor fixo não recebe o valor do mês.
+      await expect(
+        repository.setPayableAmount(clinicId, ownerId, payable.id, 20_000),
+      ).rejects.toMatchObject({ code: "PAYABLE_NOT_VARIABLE" });
+      // Voltar a variável faz a conta ainda aberta esperar o valor do mês de novo.
+      await repository.updateRecurringPayable(clinicId, ownerId, variable.id, {
+        description: recurringPayableMarker,
+        categoryId: category.rows[0]!.id,
+        costCenterId: costCenter.rows[0]!.id,
+        amountType: "variable",
+        amountInCents: 15_000,
+        dayOfMonth: 10,
+        startMonth: current,
+        active: true,
+      });
+      expect(
+        (await repository.getFinancialWorkspace(clinicId)).payables.find(
+          (item) => item.id === payable.id,
+        )?.amountPending,
+      ).toBe(true);
     } finally {
       await cleanupRecurringPayables();
     }

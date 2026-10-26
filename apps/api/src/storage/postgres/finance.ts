@@ -1225,7 +1225,7 @@ export function createFinanceRepository(
 
     async setPayableAmount(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       payableId: string,
       amountInCents: number,
     ) {
@@ -1233,17 +1233,39 @@ export function createFinanceRepository(
         const current = await client.query<{
           status: string;
           recurringPayableId: string | null;
+          amountType: "fixed" | "variable" | null;
+          competence: string | null;
+          amountInCents: number;
         }>(
-          `SELECT status, recurring_payable_id AS "recurringPayableId"
-         FROM payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          `SELECT py.status, py.recurring_payable_id AS "recurringPayableId",
+                rp.amount_type AS "amountType", py.competence,
+                py.amount_in_cents AS "amountInCents"
+         FROM payables py
+         LEFT JOIN recurring_payables rp
+           ON rp.clinic_id = py.clinic_id AND rp.id = py.recurring_payable_id
+         WHERE py.clinic_id = $1 AND py.id = $2 FOR UPDATE OF py`,
           [clinicId, payableId],
         );
-        if (!current.rows[0]) return null;
-        assertPayableAmountEditable(current.rows[0]);
+        const row = current.rows[0];
+        if (!row) return null;
+        assertPayableAmountEditable(row, row.amountType ?? undefined);
         await client.query(
           `UPDATE payables SET amount_in_cents = $3, amount_pending = false, updated_at = now()
          WHERE clinic_id = $1 AND id = $2`,
           [clinicId, payableId, amountInCents],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "payable.amount_informed",
+          "payable",
+          payableId,
+          {
+            competence: row.competence,
+            previousAmountInCents: row.amountInCents,
+            amountInCents,
+          },
         );
         return repositoryContext.findPayable(client, clinicId, payableId);
       });
@@ -1317,8 +1339,10 @@ export function createFinanceRepository(
           active: boolean;
           categoryId: string;
           costCenterId: string;
+          amountType: "fixed" | "variable";
         }>(
-          `SELECT active, category_id AS "categoryId", cost_center_id AS "costCenterId"
+          `SELECT active, category_id AS "categoryId", cost_center_id AS "costCenterId",
+                amount_type AS "amountType"
          FROM recurring_payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
           [clinicId, recurringPayableId],
         );
@@ -1365,6 +1389,14 @@ export function createFinanceRepository(
             input.reminderDaysBefore ?? null,
           ],
         );
+        // Trocar o tipo de valor vale também para as contas ainda em aberto: a variável passa a
+        // esperar o valor do mês e a fixa volta a poder ser paga.
+        if (model.amountType !== input.amountType)
+          await client.query(
+            `UPDATE payables SET amount_pending = $3, updated_at = now()
+           WHERE clinic_id = $1 AND recurring_payable_id = $2 AND status = 'open'`,
+            [clinicId, recurringPayableId, input.amountType === "variable"],
+          );
         return repositoryContext.findRecurringPayable(
           client,
           clinicId,
