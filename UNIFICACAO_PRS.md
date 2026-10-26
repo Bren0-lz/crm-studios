@@ -49,28 +49,20 @@ comissão** quando a regra muda no meio do mês.
 | Editar despesa fixa | Sim | Sim | Igual |
 | Bloco "Avisos de vencimento" dentro de Despesas fixas | Mostra na linha | Bloco próprio com "Vence em N dias" e "Informar valor" | **Os dois**: linha do #141 + bloco do #137 no topo da seção |
 | Informar valor | Qualquer conta de despesa fixa | Só a conta variável | **#137** (só variável) — evita mudar o valor de conta fixa por engano |
-| **Folha de pagamento** | — | Aba nova, colaboradores, salário + comissões, permissões `finance.payroll_view/manage` | **#137** (o card pede) |
-| Verificar comissão (descrição do card) | — | — | **Nenhum fez** → item novo (abaixo) |
+| **Folha de pagamento** | — | Aba nova, colaboradores, salário + comissões, permissões `finance.payroll_view/manage` | **PR separado** (seção 8) |
+| Verificar comissão (descrição do card) | — | — | **Nenhum fez** → PR próprio (seção 7) |
 
-**Como unir (passo a passo)**
-1. Partir do branch do **#141** (`claude/determined-tesla-8xtz9r`), que tem as regras de aviso corretas.
-2. Trazer do **#137** (`claude/amazing-gauss-nquqqo`) só a folha de pagamento:
-   `packages/contracts/src/finance/payroll.ts`, `PayrollSection.tsx`, `PayrollEmployeeModal.tsx`,
-   rotas `/finance/payroll*`, permissões, métodos `listPayrollEmployees`/`create`/`update` (memória
-   + PostgreSQL) e os testes de folha.
-3. Trazer do #137 o bloco "Avisos de vencimento" e o rótulo "Valor estimado", adaptando para
-   `amountPending`.
-4. **Uma migração só** (`0101_recurring_payables_and_payroll.sql`): colunas do #141 + tabela
-   `payroll_employees` do #137.
-5. Ajustes que nenhum dos dois fez:
+**Como unir (passo a passo)** — atualizado com as decisões da seção 5
+1. Partir do branch do **#141** (`claude/determined-tesla-8xtz9r`), que tem as regras de aviso corretas
+   e **só deixa pagar pelo valor real** (decisão 2).
+2. Trazer do **#137** (`claude/amazing-gauss-nquqqo`) o bloco "Avisos de vencimento" e o rótulo
+   "Valor estimado" (só exibição/previsão), adaptando para `amountPending`.
+3. **A folha de pagamento não entra aqui:** vai para um PR separado (decisão 5, seção 8).
+4. Ajustes que nenhum dos dois fez:
    - registrar na auditoria a troca do valor do mês;
-   - ao mudar uma despesa de fixa para variável, marcar como pendente a conta do mês ainda aberta (ou perguntar na tela);
-   - folha: filtrar por filial (card #77 "Filial em todo o sistema") e somar os ajustes de comissão do mês.
-6. **Verificação de comissão (descrição do card #65)** — a `main` já escolhe a regra pela data
-   (`selectCommissionRule` usa `effectiveFrom`/`effectiveUntil`), então "mudou no dia 15, antes do 15
-   vale a antiga" já deve funcionar. Falta conferir e testar: **"se eu mudar com início no dia 1
-   estando no dia 15, recalcular as comissões já geradas do mês"**. Criar teste para os dois casos e,
-   se o recálculo não existir, implementar (só para comissões **em aberto**; paga não muda).
+   - ao mudar uma despesa de fixa para variável, marcar como pendente a conta do mês ainda aberta (ou perguntar na tela).
+5. **Recálculo de comissão retroativa (descrição do card #65)**: PR próprio, com a regra da **seção 7**
+   (recalcula todas no período coberto pela nova data, e as já pagas geram ajuste).
 
 **Ideia para depois (card #70 "Vale para funcionário")**: a folha do #137 é o lugar natural para o
 vale: lançamento por colaborador, recibo assinado e desconto na competência escolhida. Pode
@@ -140,10 +132,8 @@ item do cadastro (plano principal, plano adicional ou avulso)
      enviado). Hoje a API aceita qualquer valor.
    - Aplicar também aos planos adicionais do #131, cada um com a sua turma.
    - A mensagem Pix única do #131 passa a somar o 1º pagamento proporcional de cada item.
-4. **#129 (desconto)** por último.
-   - Mostrar o desconto no resumo de cada item do cadastro.
-   - Aplicar ou não conforme a resposta da pergunta 1. Se aplicar: usar `applyPatientDiscount`
-     no valor do plano **antes** do proporcional e do parcelamento, e mostrar "R$ X com desconto".
+4. **#129 (desconto)** por último, ampliado conforme a **seção 6** (desconto aplicado de verdade:
+   só agora, recorrente em parcelas/renovações escolhidas ou permanente, e visível nos relatórios).
 
 > Card relacionado ainda em "A fazer": #74 "Adicionar botão para adicionar o serviço direto". O
 > botão "Adicionar serviço avulso" do #131 provavelmente já resolve; vale conferir e fechar o card.
@@ -159,8 +149,7 @@ Os dois mexem em `features/communications/index.ts` e no `MessageBodyEditor`.
 2. No **#139**, usar o mesmo editor nas mensagens de cada momento da campanha automática, passando
    os códigos do evento (`{{nome}}`, `{{data}}`, `{{idade}}`, `{{plano}}`, `{{sessoes}}`…). Assim
    fica tudo igual: Pix, campanhas manuais e automáticas com as etiquetas verdes.
-3. O card #78 diz **"alterar essa parte de avisos por um sistema de campanhas automáticas"**, mas
-   o #139 deixou a página antiga de Relacionamento. Decidir se ela sai (pergunta 3).
+3. A página antiga de Relacionamento **fica por enquanto** (decisão 3) e será apagada depois, num PR próprio.
 4. Ajustes no #139: auditoria ao criar, editar e excluir campanha.
 5. Card relacionado em "A fazer": #61 "Relatório de mensagens campanhas". A tabela
    `auto_campaign_deliveries` do #139 já tem tudo (enviada, não enviada, motivo, quem, quando).
@@ -195,7 +184,8 @@ enviado por engano (com auditoria) e decidir o que acontece com eles no estorno.
 
 1. Consertar o **GitHub Actions** (todos os jobs falham em ~2s sem log, então hoje nenhum PR tem CI de verdade).
 2. Base pequena e sem dependência: **#128 → #138 → #126 → #132 → #135**.
-3. Grupo A unificado (#141 + folha do #137).
+3. Grupo A unificado (#141 + bloco de avisos do #137). Depois, o **recálculo de comissão** (seção 7)
+   e, em seguida, o **PR da folha de pagamento** (seção 8).
 4. Grupo D em sequência: **#136 → #131 → #130 → #129**.
 5. **#134** (alinhado ao #136), **#127** (sobre o #126), **#133** (sobre o #138), **#139** (sobre o #128).
 6. **#140** depois das correções de segurança.
@@ -204,15 +194,91 @@ enviado por engano (com auditoria) e decidir o que acontece com eles no estorno.
 
 ---
 
-## 5. Perguntas para você decidir
+## 5. Decisões do dono (26/10/2026)
 
-1. **Desconto do cliente (#129):** deve ser aplicado automaticamente nos planos e vendas, ou é só
-   informativo por enquanto? (O card #53 não diz.)
-2. **Despesa variável:** pode pagar a conta só com o valor estimado (#137) ou deve exigir o valor real
-   antes (#141)? O plano acima segue o #141.
-3. **Campanhas automáticas (#139):** a página antiga de Relacionamento (contatos sugeridos) sai, já
-   que o card fala em "alterar essa parte de avisos"?
-4. **Comissão (card #65):** ao mudar a regra com início retroativo, recalcular só as comissões em
-   aberto ou também as já pagas (gerando ajuste)?
-5. **Folha de pagamento:** entra junto com despesas fixas (como no card) ou vira um PR próprio para
-   revisar com calma?
+1. **Desconto do cliente (#129): aplicado de verdade no valor.** Especificação na seção 6.
+2. **Despesa variável: só se paga pelo valor real.** Vale o bloqueio do #141
+   (`PAYABLE_AMOUNT_PENDING`). O "Valor estimado" do #137 serve só para previsão e exibição.
+3. **Campanhas automáticas (#139):** a página antiga de Relacionamento **fica por enquanto**. Ela
+   será apagada depois, num PR próprio.
+4. **Comissão retroativa (card #65): recalcula todas, inclusive as pagas, olhando a data.**
+   Especificação na seção 7.
+5. **Folha de pagamento: PR separado.** O Grupo A fica só com as despesas fixas (#141 + o que
+   aproveitar do #137). A folha sai do #137 para um PR próprio (seção 8).
+
+---
+
+## 6. Especificação — desconto do cliente aplicado (substitui o #129 "só informativo")
+
+**Onde se configura:** no modal "Desconto do cliente" do #129 (porcentagem ou valor), com uma nova
+escolha de **alcance**:
+
+| Alcance | O que acontece |
+|---|---|
+| **Só no pagamento de agora** | O desconto entra só na próxima cobrança gerada para o cliente (1ª parcela do plano ou venda atual). Depois de usado, fica marcado como consumido. |
+| **Recorrente — escolher parcelas/renovações** | A equipe escolhe quais parcelas (ex.: 1ª a 3ª) e/ou quantas renovações (ex.: as 2 próximas) recebem o desconto. |
+| **Permanente** | Vale para todas as parcelas e renovações até a equipe remover. |
+
+**Regras de cálculo**
+- Ordem no valor de cada item vendido: **valor do plano → desconto → 1º pagamento proporcional
+  (#130) → divisão em parcelas (#136)**. O desconto não pode deixar o valor abaixo de zero
+  (`applyPatientDiscount` já garante isso).
+- Desconto em **valor (R$)** recorrente vale por parcela/renovação, não sobre o total do plano. O
+  modal deve explicar isso.
+- Cada cobrança gerada **grava o desconto aplicado**: valor cheio, valor do desconto, tipo (%/R$) e
+  origem (desconto do cliente). Assim, mudar ou remover o desconto depois **não altera** cobranças
+  já geradas.
+- Remover o desconto encerra o alcance para as próximas cobranças. As já geradas ficam como estão.
+- Plano recorrente: a renovação automática consulta o alcance (renovações restantes ou permanente)
+  ao gerar a nova cobrança.
+
+**Dados (migração nova)**
+- No cliente: tipo, valor, alcance (`once` | `selected` | `permanent`), parcelas/renovações escolhidas
+  e quantas já foram usadas. O #129 hoje guarda no JSON `profile`; para os relatórios, é melhor uma
+  tabela ou colunas próprias.
+- Em `receivables`: `gross_amount_in_cents`, `discount_in_cents` e a origem do desconto.
+
+**Relatórios (obrigatório)**
+- DRE e relatório financeiro (#133): linha **"Descontos concedidos"** (receita bruta − descontos =
+  receita líquida).
+- Relatório de clientes e de vendas: coluna de desconto por cliente/venda e filtro "com desconto".
+- Ficha do cliente: total de desconto já concedido.
+- Recibo e mensagem Pix: "Valor R$ 400,00 · Desconto R$ 40,00 · Total R$ 360,00".
+
+**Testes:** os três alcances; desconto + proporcional + parcelas juntos; renovação consumindo o
+desconto; remover o desconto sem mexer em cobranças antigas; números da DRE e dos relatórios.
+
+---
+
+## 7. Especificação — recálculo de comissão retroativa (card #65)
+
+**Regra:** ao criar ou alterar uma regra de comissão com `effectiveFrom` numa data passada, o sistema
+procura os atendimentos/vendas **a partir dessa data**:
+- **Nenhum atendimento/venda no período** → nada a recalcular, só grava a regra.
+- **Há atendimentos/vendas no período** → recalcula **todas** as comissões desse intervalo (do
+  `effectiveFrom` até o `effectiveUntil` ou até hoje), abertas ou pagas:
+  - **em aberto:** o valor é atualizado direto;
+  - **já pagas:** o valor pago não é alterado. Gera um **ajuste de comissão** (crédito ou débito)
+    com a diferença, que entra no próximo pagamento/conciliação do profissional. Usar o mecanismo de
+    `commissionAdjustments` que já existe.
+- Atendimentos **antes** do `effectiveFrom` continuam com a regra antiga (a `main` já faz isso com
+  `selectCommissionRule`).
+- Antes de salvar, a tela mostra uma prévia: "Esta mudança recalcula N comissões de dd/mm a dd/mm
+  (diferença: R$ X; R$ Y em ajustes de comissões já pagas)", e a equipe confirma.
+- Tudo numa transação e registrado na auditoria (regra antiga, regra nova, comissões afetadas).
+
+**Testes:** regra nova sem atendimento no período (nada muda); regra no dia 15 (antes = antiga,
+depois = nova); regra com início no dia 1 criada no dia 15 (recalcula de 1 a 15); comissão já paga
+gerando ajuste; memória e PostgreSQL.
+
+---
+
+## 8. PR separado — Folha de pagamento
+
+- Sai do #137: `payroll.ts`, `PayrollSection.tsx`, `PayrollEmployeeModal.tsx`, rotas
+  `/finance/payroll*`, permissões `finance.payroll_view`/`finance.payroll_manage`, tabela
+  `payroll_employees` (migração própria) e os testes.
+- Ajustes: filtrar por filial; somar os **ajustes de comissão** da competência (inclusive os gerados
+  pelo recálculo da seção 7). Por isso, convém entrar **depois** do recálculo de comissão.
+- Próximo passo natural: card #70 "Vale para funcionário" (vale descontado na competência, com
+  recibo assinado, que pode usar o link de assinatura do #140).
