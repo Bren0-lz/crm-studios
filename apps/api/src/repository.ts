@@ -1116,6 +1116,13 @@ export interface ClinicRepository {
     actorUserId: string,
     payableId: string,
   ): Promise<Payable | null>;
+  /** Informa o valor do mês de uma conta aberta gerada por despesa fixa. */
+  setPayableAmount(
+    clinicId: string,
+    actorUserId: string,
+    payableId: string,
+    amountInCents: number,
+  ): Promise<Payable | null>;
   listRecurringPayables(clinicId: string): Promise<RecurringPayable[]>;
   createRecurringPayable(
     clinicId: string,

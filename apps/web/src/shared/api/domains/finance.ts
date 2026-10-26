@@ -305,6 +305,11 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify({ paymentMethod, ...timing }),
     }),
+  setPayableAmount: (id: string, amountInCents: number) =>
+    request<Payable>(`/finance/payables/${id}/amount`, {
+      method: "PUT",
+      body: JSON.stringify({ amountInCents }),
+    }),
   reversePayable: (id: string) =>
     request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),
   dailyCash: (date: string) =>
