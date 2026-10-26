@@ -427,6 +427,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),

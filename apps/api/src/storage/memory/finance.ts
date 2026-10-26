@@ -43,6 +43,7 @@ import {
   buildDailyCash,
   clinicDateOf,
 } from "../../modules/finance/daily-cash.js";
+import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { addMonths, now, today, uuid } from "./helpers.js";
@@ -1106,6 +1107,23 @@ export function createFinanceRepository(
       );
     },
 
+    async setPayableAmount(
+      clinicId: string,
+      _actorUserId: string,
+      payableId: string,
+      amountInCents: number,
+    ) {
+      const payable = repositoryContext.payables.find(
+        (item) => item.clinicId === clinicId && item.id === payableId,
+      );
+      if (!payable) return null;
+      assertPayableAmountEditable(payable);
+      payable.amountInCents = amountInCents;
+      delete payable.amountPending;
+      payable.updatedAt = now();
+      return payable;
+    },
+
     async listRecurringPayables(clinicId: string) {
       return repositoryContext.recurringPayables
         .filter(
@@ -1236,6 +1254,7 @@ export function createFinanceRepository(
             overdue: dueDate < currentDate,
             recurringPayableId: model.id,
             competence,
+            ...(model.amountType === "variable" ? { amountPending: true } : {}),
             createdAt: timestamp,
             updatedAt: timestamp,
           });
