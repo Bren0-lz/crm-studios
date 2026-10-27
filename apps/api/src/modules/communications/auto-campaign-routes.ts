@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  type AutoCampaign,
 } from "@crm/contracts";
 import type { FastifyRequest } from "fastify";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -25,6 +26,26 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
     context;
   const modulesOf = (request: FastifyRequest) =>
     requestAccess.get(request)?.modules ?? [];
+
+  /** Criar, alterar e excluir campanha ficam no Histórico (nome, evento e mensagens). */
+  const audit = (
+    request: FastifyRequest,
+    action: "created" | "updated" | "deleted",
+    campaign: AutoCampaign,
+  ) =>
+    repository.recordAdminAuditEvent(
+      request.user.clinicId,
+      request.user.sub,
+      `auto_campaign.${action}`,
+      "auto_campaign",
+      {
+        name: campaign.name,
+        trigger: campaign.trigger,
+        active: campaign.active,
+        steps: campaign.steps.length,
+      },
+      campaign.id,
+    );
 
   function parseCampaign(request: FastifyRequest) {
     const input = autoCampaignInputSchema.parse(request.body);
@@ -53,16 +74,15 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
   app.post(
     "/communications/auto-campaigns",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createAutoCampaign(
-            request.user.clinicId,
-            request.user.sub,
-            parseCampaign(request),
-          ),
-        ),
+    async (request, reply) => {
+      const campaign = await repository.createAutoCampaign(
+        request.user.clinicId,
+        request.user.sub,
+        parseCampaign(request),
+      );
+      await audit(request, "created", campaign);
+      return reply.status(201).send(campaign);
+    },
   );
 
   app.put(
@@ -76,6 +96,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
         parseCampaign(request),
       );
       if (!campaign) throw campaignNotFound();
+      await audit(request, "updated", campaign);
       return campaign;
     },
   );
@@ -85,8 +106,16 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = idParams.parse(request.params);
-      if (!(await repository.deleteAutoCampaign(request.user.clinicId, id)))
+      const campaign = await repository.getAutoCampaign(
+        request.user.clinicId,
+        id,
+      );
+      if (
+        !campaign ||
+        !(await repository.deleteAutoCampaign(request.user.clinicId, id))
+      )
         throw campaignNotFound();
+      await audit(request, "deleted", campaign);
       return reply.status(204).send();
     },
   );

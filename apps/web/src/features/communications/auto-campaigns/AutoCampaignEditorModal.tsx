@@ -3,7 +3,6 @@ import {
   autoCampaignStepLabel,
   autoCampaignTriggerDescriptions,
   autoCampaignTriggerLabels,
-  autoCampaignTriggerVariables,
   type AutoCampaign,
 } from "@crm/contracts";
 import { Plus, Trash2 } from "lucide-react";
@@ -11,8 +10,10 @@ import { useId, useState, type FormEvent } from "react";
 import { api } from "../../../api";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
+import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
 import {
   autoCampaignDraft,
+  autoCampaignEditorVariables,
   autoCampaignInput,
   autoCampaignTriggers,
   newStepKey,
@@ -46,11 +47,7 @@ export function AutoCampaignEditorModal({
       canSeeFinance ||
       campaign?.trigger === trigger,
   );
-  const variables = [
-    "nome",
-    "nome_completo",
-    ...autoCampaignTriggerVariables[draft.trigger],
-  ];
+  const variables = autoCampaignEditorVariables[draft.trigger];
 
   function updateStep(key: string, change: Partial<StepDraft>) {
     setDraft((current) => ({
@@ -151,7 +148,7 @@ export function AutoCampaignEditorModal({
         <div className="span-2 auto-campaign-steps">
           <span className="filter-label">Mensagens</span>
           <p className="field-hint">
-            Códigos: {variables.map((name) => `{{${name}}}`).join(", ")}.
+            Use os botões verdes para inserir os dados do cliente e do evento.
           </p>
           <ol className="auto-campaign-step-list">
             {draft.steps.map((step, index) => (
@@ -195,19 +192,23 @@ export function AutoCampaignEditorModal({
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
                 </div>
-                <label>
-                  Mensagem {index + 1}
-                  <textarea
-                    required
-                    maxLength={1000}
-                    rows={3}
+                <div className="field-with-hint">
+                  <span id={`${formId}-message-${step.key}`}>
+                    Mensagem {index + 1}
+                  </span>
+                  {/* Trocar o evento troca os códigos: o editor é recriado. */}
+                  <MessageBodyEditor
+                    key={`${step.key}-${draft.trigger}`}
+                    labelId={`${formId}-message-${step.key}`}
                     value={step.message}
+                    maxLength={1000}
                     placeholder="Olá, {{nome}}! …"
-                    onChange={(event) =>
-                      updateStep(step.key, { message: event.target.value })
-                    }
+                    variables={variables}
+                    toolbarLabel={`Inserir dados na mensagem ${index + 1}`}
+                    disabled={saving}
+                    onChange={(message) => updateStep(step.key, { message })}
                   />
-                </label>
+                </div>
               </li>
             ))}
           </ol>

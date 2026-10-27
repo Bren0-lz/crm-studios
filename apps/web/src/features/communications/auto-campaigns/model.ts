@@ -3,6 +3,7 @@ import {
   autoCampaignSkipReasonLabels,
   autoCampaignTriggerSchema,
   autoCampaignTriggerTiming,
+  autoCampaignTriggerVariables,
   type AutoCampaign,
   type AutoCampaignInput,
   type AutoCampaignItem,
@@ -11,6 +12,43 @@ import {
 } from "@crm/contracts";
 
 export const autoCampaignTriggers = autoCampaignTriggerSchema.options;
+
+/** Rótulo e exemplo de cada código das campanhas automáticas (etiquetas verdes do editor). */
+const autoCampaignVariableInfo: Record<
+  string,
+  { label: string; example: string }
+> = {
+  nome: { label: "Nome", example: "Maria" },
+  nome_completo: { label: "Nome completo", example: "Maria Souza" },
+  data: { label: "Data", example: "23/10" },
+  idade: { label: "Idade", example: "35" },
+  hora: { label: "Hora", example: "09:00" },
+  servico: { label: "Serviço", example: "Pilates" },
+  plano: { label: "Plano", example: "Pilates 2x semana" },
+  sessoes: { label: "Sessões", example: "2 sessões" },
+  parcelas: { label: "Parcelas", example: "2 parcelas" },
+  nota: { label: "Nota", example: "5" },
+};
+
+/**
+ * Códigos oferecidos no editor para o evento: `{{nome}}`, `{{nome_completo}}` e os do
+ * evento. Um array por evento, sempre o mesmo (o editor pede `variables` estável).
+ */
+export const autoCampaignEditorVariables = Object.fromEntries(
+  autoCampaignTriggerSchema.options.map((trigger) => [
+    trigger,
+    ["nome", "nome_completo", ...autoCampaignTriggerVariables[trigger]].map(
+      (name) => ({
+        code: `{{${name}}}`,
+        label: autoCampaignVariableInfo[name]?.label ?? name,
+        example: autoCampaignVariableInfo[name]?.example ?? name,
+      }),
+    ),
+  ]),
+) as Record<
+  AutoCampaignTrigger,
+  { code: string; label: string; example: string }[]
+>;
 
 export const autoCampaignStatusLabels: Record<AutoCampaignItemStatus, string> =
   {
