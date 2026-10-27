@@ -1,5 +1,6 @@
 import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
+import { guidedSubscriptions } from "./guided-plans.js";
 import {
   matchesPatientProfile,
   matchesPatientSegment,
@@ -212,7 +213,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         ...(input.next === "plan" || input.next === "single"
           ? ["plans.create" as const]
           : []),
-        ...(input.next === "plan" && input.groupId
+        ...(guidedSubscriptions(input).some((item) => item.groupId)
           ? ["groups.enroll" as const]
           : []),
       );

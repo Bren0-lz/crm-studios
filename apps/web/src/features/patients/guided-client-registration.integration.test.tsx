@@ -473,6 +473,216 @@ describe("guided client registration", () => {
     });
   });
 
+  it("subscribes several plans at once, each with its own class", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 8,
+    });
+    const posts = mockApi((body) => {
+      const additional = body.additionalPlans as {
+        plan: object;
+        groupId?: string;
+      }[];
+      return jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: additional.map((entry) => ({
+            plan: planResult(
+              entry.plan,
+              "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+            ),
+            enrollment: {
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              clinicId: created.clinicId,
+              groupId: entry.groupId,
+              patientId: created.id,
+              patientName: created.fullName,
+              status: "active",
+              enrolledAt: "2026-10-04T12:00:00.000Z",
+              updatedAt: "2026-10-04T12:00:00.000Z",
+            },
+          })),
+        },
+        201,
+      );
+    });
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    // Um plano só: nada para remover.
+    expect(
+      within(dialog).queryByRole("button", { name: /^Remover plano/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar outro plano" }),
+    );
+    const first = within(dialog).getByRole("group", { name: "Plano 1" });
+    const second = within(dialog).getByRole("group", { name: "Plano 2" });
+    // O segundo plano ainda sem escolha trava o salvamento.
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(await within(second).findByLabelText("Plano cadastrado"), {
+      target: { value: physioTemplate.id },
+    });
+    fireEvent.change(within(second).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    const secondGroup =
+      await within(second).findByLabelText("Turma (opcional)");
+    expect(
+      within(secondGroup)
+        .getAllByRole("option")
+        .map((item) => item.textContent),
+    ).toEqual(["Escolher depois", expect.stringMatching(/^Fisioterapia 1 — /)]);
+    fireEvent.change(secondGroup, { target: { value: groups[2]!.id } });
+    // Um terceiro plano adicionado e removido não vai para o cadastro.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar outro plano" }),
+    );
+    fireEvent.click(
+      within(within(dialog).getByRole("group", { name: "Plano 3" })).getByRole(
+        "button",
+        { name: "Remover plano 3" },
+      ),
+    );
+    expect(
+      within(dialog).queryByRole("group", { name: "Plano 3" }),
+    ).not.toBeInTheDocument();
+    expect(within(first).getByLabelText("Plano cadastrado")).toHaveValue(
+      pilatesTemplate.id,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Planos “Pilates 2x semana” e “Fisioterapia” criados. Matrícula feita na turma Fisioterapia 1.",
+      ),
+    ).toBeInTheDocument();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          groupId: groups[2]!.id,
+          plan: {
+            planTemplateId: physioTemplate.id,
+            kind: "recurring",
+            installments: 1,
+            services: [
+              {
+                serviceId: physioId,
+                totalSessions: 8,
+                totalValueInCents: 48000,
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(posts[0]).not.toHaveProperty("groupId");
+  });
+
+  it("mixes a plan with single services in the same registration", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 1,
+    });
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: (body.additionalPlans as { plan: object }[]).map(
+            (entry) => ({
+              plan: planResult(
+                entry.plan,
+                "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+              ),
+            }),
+          ),
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
+    );
+    const single = within(dialog).getByRole("group", {
+      name: "Serviço avulso",
+    });
+    // Avulso: só os planos do tipo avulso, sem modelo nem turma.
+    const catalog = await within(single).findByLabelText("Plano cadastrado");
+    expect(
+      within(catalog)
+        .getAllByRole("option")
+        .map((item) => item.getAttribute("value")),
+    ).toEqual(["", singleTemplate.id]);
+    expect(within(single).queryByLabelText("Modelo")).not.toBeInTheDocument();
+    expect(
+      within(single).queryByLabelText("Turma (opcional)"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(catalog, { target: { value: singleTemplate.id } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Plano “Pilates 2x semana” criado. Serviço avulso “Serviço avulso” criado.",
+      ),
+    ).toBeInTheDocument();
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          plan: {
+            planTemplateId: singleTemplate.id,
+            kind: "single",
+            installments: 1,
+            totalValueInCents: 9000,
+          },
+        },
+      ],
+    });
+    expect(
+      (posts[0]!.additionalPlans as Record<string, unknown>[])[0],
+    ).not.toHaveProperty("groupId");
+  });
+
   it("sells a single service without model nor class", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
