@@ -668,6 +668,32 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).rejects.toMatchObject({ code: "PATIENT_DUPLICATE" });
   });
 
+  it("persists and removes the client discount", async () => {
+    const input = {
+      fullName: "Cliente com Desconto",
+      phone: "11933334444",
+      cpf: nextTestCpf(),
+      tags: [],
+    };
+    const patient = await repository.createPatient(clinicId, {
+      ...input,
+      discount: { type: "percentage", percent: 15 },
+    });
+    expect(patient.discount).toEqual({ type: "percentage", percent: 15 });
+    const kept = await repository.updatePatient(clinicId, patient.id, input);
+    expect(kept?.discount).toEqual({ type: "percentage", percent: 15 });
+    const amount = await repository.updatePatient(clinicId, patient.id, {
+      ...input,
+      discount: { type: "amount", amountInCents: 2500 },
+    });
+    expect(amount?.discount).toEqual({ type: "amount", amountInCents: 2500 });
+    const removed = await repository.updatePatient(clinicId, patient.id, {
+      ...input,
+      discount: null,
+    });
+    expect(removed?.discount).toBeNull();
+  });
+
   it("persists one reschedule and rolls back an occupied time", async () => {
     const [patients, professionals, rooms, services] = await Promise.all([
       repository.listPatients(clinicId),
