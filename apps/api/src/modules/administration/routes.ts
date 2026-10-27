@@ -7,6 +7,7 @@ import {
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
   autoFinalizationSettingsInputSchema,
+  commissionRecalculationConfirmationSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
   navTabLabelsInputSchema,
@@ -15,6 +16,13 @@ import {
 } from "@crm/contracts";
 import { hash } from "bcryptjs";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+
+/** Regras de comissão gravadas pelo usuário recalculam as comissões já lançadas. */
+function recalculationOf(body: unknown) {
+  const { recalculationDigest } =
+    commissionRecalculationConfirmationSchema.parse(body);
+  return recalculationDigest ? { expectedDigest: recalculationDigest } : {};
+}
 
 export function registerAdministrationRoutes(context: RouteContext) {
   const { app, authenticate, autoFinalizer, repository, visibleHistory } =
@@ -50,6 +58,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
             request.user.sub,
             input,
             await hash(input.password, 12),
+            recalculationOf(request.body),
           ),
         );
     },
@@ -65,6 +74,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserUpdateSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({
@@ -131,6 +141,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserCommissionInputSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({

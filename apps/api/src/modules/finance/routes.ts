@@ -1,5 +1,7 @@
 import {
   commissionGenerationInputSchema,
+  commissionRecalculationConfirmationSchema,
+  commissionRecalculationPreviewInputSchema,
   commissionRuleInputSchema,
   costCenterInputSchema,
   dailyCashFilterSchema,
@@ -21,6 +23,7 @@ import {
   type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { DomainError } from "../../repository.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
@@ -388,18 +391,47 @@ export function registerFinanceRoutes(context: RouteContext) {
         ),
   );
 
+  // Regra com início no passado recalcula as comissões já lançadas (mesma transação).
   app.post(
     "/finance/commission-rules",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createCommissionRule(
-            request.user.clinicId,
-            commissionRuleInputSchema.parse(request.body),
-          ),
+    async (request, reply) => {
+      const { recalculationDigest } =
+        commissionRecalculationConfirmationSchema.parse(request.body);
+      return reply.status(201).send(
+        await repository.createCommissionRule(
+          request.user.clinicId,
+          commissionRuleInputSchema.parse(request.body),
+          {
+            actorId: request.user.sub,
+            ...(recalculationDigest
+              ? { expectedDigest: recalculationDigest }
+              : {}),
+          },
         ),
+      );
+    },
+  );
+
+  // Prévia do recálculo antes de salvar (regra do profissional ou, só admin, do usuário).
+  app.post(
+    "/finance/commission-rules/recalculation/preview",
+    { preHandler: authenticate },
+    async (request) => {
+      const input = commissionRecalculationPreviewInputSchema.parse(
+        request.body,
+      );
+      if (input.userId && request.user.role !== "admin")
+        throw new DomainError(
+          "ADMIN_ACCESS_REQUIRED",
+          "Esta operação é restrita a usuários admin.",
+          403,
+        );
+      return repository.previewCommissionRecalculation(
+        request.user.clinicId,
+        input,
+      );
+    },
   );
 
   app.post(

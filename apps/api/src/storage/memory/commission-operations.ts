@@ -2,6 +2,7 @@ import type {
   CommissionRule,
   CommissionRuleInput,
   AdminUserCommissionInput,
+  CommissionRecalculationPreviewInput,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
@@ -11,6 +12,8 @@ import {
 } from "../../modules/finance/commission-calculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
+import type { CommissionRecalculationRequest } from "../../repository.js";
 /**
  * Sessões concluídas da competência ainda sem comissão, com a regra e o serviço que a
  * geração usaria (mesma seleção de `generateCommissions`).
@@ -106,53 +109,81 @@ export function commissionCandidates(
 export function createCommissionOperationsRepository(
   context: MemoryRepositoryContext,
 ) {
-  return {
-    async createCommissionRule(clinicId: string, input: CommissionRuleInput) {
-      const professional = context.professionals.find(
-        (item) =>
-          item.clinicId === clinicId && item.id === input.professionalId,
+  const recalculation = createMemoryCommissionRecalculation(context);
+  const insertRule = (clinicId: string, input: CommissionRuleInput) => {
+    const professional = context.professionals.find(
+      (item) => item.clinicId === clinicId && item.id === input.professionalId,
+    );
+    if (!professional)
+      throw new DomainError(
+        "PROFESSIONAL_NOT_FOUND",
+        "Profissional não encontrado.",
+        404,
       );
-      if (!professional)
-        throw new DomainError(
-          "PROFESSIONAL_NOT_FOUND",
-          "Profissional não encontrado.",
-          404,
-        );
-      if (
-        input.serviceId &&
-        !context.services.some(
-          (item) => item.clinicId === clinicId && item.id === input.serviceId,
-        )
+    if (
+      input.serviceId &&
+      !context.services.some(
+        (item) => item.clinicId === clinicId && item.id === input.serviceId,
       )
-        throw new DomainError(
-          "SERVICE_NOT_FOUND",
-          "Serviço não encontrado.",
-          404,
-        );
-      if (
-        context.commissionRules.some(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.professionalId === input.professionalId &&
-            item.serviceId === input.serviceId &&
-            item.effectiveFrom === input.effectiveFrom,
-        )
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
+    if (
+      context.commissionRules.some(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.professionalId === input.professionalId &&
+          item.serviceId === input.serviceId &&
+          item.effectiveFrom === input.effectiveFrom,
       )
-        throw new DomainError(
-          "COMMISSION_RULE_DUPLICATE",
-          "Já existe uma regra nesta vigência para este serviço.",
-          409,
-        );
-      const rule: CommissionRule = {
-        ...input,
-        id: uuid(),
+    )
+      throw new DomainError(
+        "COMMISSION_RULE_DUPLICATE",
+        "Já existe uma regra nesta vigência para este serviço.",
+        409,
+      );
+    const rule: CommissionRule = {
+      ...input,
+      id: uuid(),
+      clinicId,
+      professionalName: professional.fullName,
+      active: true,
+      createdAt: now(),
+    };
+    context.commissionRules.push(rule);
+    return { ...rule };
+  };
+  return {
+    async createCommissionRule(
+      clinicId: string,
+      input: CommissionRuleInput,
+      request?: CommissionRecalculationRequest & { actorId: string },
+    ) {
+      if (!request) return insertRule(clinicId, input);
+      const { professionalId, ...terms } = input;
+      return recalculation.saveAndApply(
         clinicId,
-        professionalName: professional.fullName,
-        active: true,
-        createdAt: now(),
-      };
-      context.commissionRules.push(rule);
-      return { ...rule };
+        request.actorId,
+        { professionalId },
+        [terms],
+        request.expectedDigest,
+        () => insertRule(clinicId, input),
+      );
+    },
+    async previewCommissionRecalculation(
+      clinicId: string,
+      input: CommissionRecalculationPreviewInput,
+    ) {
+      return recalculation.preview(
+        clinicId,
+        input.userId
+          ? { userId: input.userId }
+          : { professionalId: input.professionalId! },
+        input.rules,
+      );
     },
     async generateCommissions(clinicId: string, competence: string) {
       for (const { source, rule, service } of commissionCandidates(

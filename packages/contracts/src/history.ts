@@ -459,6 +459,11 @@ export const historyActions: {
     label: "Comissão conciliada com a origem",
   },
   {
+    action: "commission.recalculated",
+    module: "finance",
+    label: "Comissões recalculadas pela regra nova",
+  },
+  {
     action: "commission.account_paid",
     module: "finance",
     label: "Baixa da comissão conciliada",
