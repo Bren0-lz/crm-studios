@@ -16,6 +16,7 @@ import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 type Filters = PatientProfileFilter & {
   search: string;
   status?: "active" | "inactive" | undefined;
+  discount?: "with" | "without" | undefined;
 };
 export function ClientDetailsSection({ period }: { period: ReportPeriod }) {
   const { can } = useAuthorization();
@@ -217,6 +218,23 @@ export function ClientDetailsSection({ period }: { period: ReportPeriod }) {
               <option value="">Todas</option>
               <option value="active">Ativos</option>
               <option value="inactive">Inativos</option>
+            </select>
+          </label>
+          <label>
+            Desconto
+            <select
+              value={filter.discount ?? ""}
+              onChange={(event) =>
+                setFilter({
+                  ...filter,
+                  discount: (event.target.value ||
+                    undefined) as Filters["discount"],
+                })
+              }
+            >
+              <option value="">Todos</option>
+              <option value="with">Com desconto</option>
+              <option value="without">Sem desconto</option>
             </select>
           </label>
           <details className="report-filter-advanced">

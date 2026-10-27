@@ -77,6 +77,7 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
+  discountedInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
@@ -1806,7 +1807,18 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const installments: Receivable[] = planInstallmentSchedule(input).map(
+    // O desconto do cliente vale nas primeiras cobranças enquanto o alcance permitir.
+    const discounted = discountedInstallments(
+      planInstallmentSchedule(input),
+      patient.discount,
+    );
+    if (patient.discount && discounted.usedCharges > 0)
+      patient.discount = {
+        ...patient.discount,
+        usedCharges:
+          (patient.discount.usedCharges ?? 0) + discounted.usedCharges,
+      };
+    const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),
         clinicId,
@@ -1827,6 +1839,9 @@ export class MemoryRepositoryContext {
         installmentCount: input.installments,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        ...(installment.customerDiscountInCents
+          ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,

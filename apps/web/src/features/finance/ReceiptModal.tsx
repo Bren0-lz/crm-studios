@@ -64,6 +64,21 @@ export function ReceiptModal({
             <dt>Data</dt>
             <dd>{new Date(receipt.paidAt).toLocaleString("pt-BR")}</dd>
           </div>
+          {receipt.customerDiscountInCents ? (
+            <div>
+              <dt>Desconto do cliente</dt>
+              <dd>
+                {money(receipt.customerDiscountInCents)} (valor cheio{" "}
+                {money(
+                  receipt.amountInCents +
+                    receipt.customerDiscountInCents +
+                    (receipt.discountInCents ?? 0) -
+                    (receipt.interestInCents ?? 0),
+                )}
+                )
+              </dd>
+            </div>
+          ) : null}
           {receipt.discountInCents ? (
             <div>
               <dt>Desconto</dt>

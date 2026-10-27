@@ -98,6 +98,7 @@ export interface ReceivableRow {
   updatedAt: Date;
   paymentMethod: PaymentMethod | null;
   paymentInstallments?: number | null;
+  customerDiscountInCents?: number | null;
 }
 
 export interface FinancialCategoryRow {
@@ -215,6 +216,7 @@ export const receivableColumns = `
   (r.status = 'open' AND r.due_date < CURRENT_DATE) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
   , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
+  , r.customer_discount_in_cents AS "customerDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -378,6 +380,9 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
     ...(row.paymentInstallments && row.paymentInstallments > 1
       ? { paymentInstallments: row.paymentInstallments }
+      : {}),
+    ...(row.customerDiscountInCents
+      ? { customerDiscountInCents: row.customerDiscountInCents }
       : {}),
   };
 }

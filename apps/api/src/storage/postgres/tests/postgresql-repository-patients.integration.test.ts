@@ -668,25 +668,71 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).rejects.toMatchObject({ code: "PATIENT_DUPLICATE" });
   });
 
-  it("persists and removes the client discount", async () => {
+  it("persists, consumes and removes the client discount", async () => {
     const input = {
       fullName: "Cliente com Desconto",
       phone: "11933334444",
       cpf: nextTestCpf(),
       tags: [],
     };
+    const nextTwo = {
+      type: "percentage",
+      percent: 10,
+      scope: "next",
+      charges: 2,
+    } as const;
     const patient = await repository.createPatient(clinicId, {
       ...input,
-      discount: { type: "percentage", percent: 15 },
+      discount: nextTwo,
     });
-    expect(patient.discount).toEqual({ type: "percentage", percent: 15 });
+    expect(patient.discount).toEqual(nextTwo);
     const kept = await repository.updatePatient(clinicId, patient.id, input);
-    expect(kept?.discount).toEqual({ type: "percentage", percent: 15 });
+    expect(kept?.discount).toEqual(nextTwo);
+    // Três parcelas: o desconto vale nas duas primeiras e o uso fica gravado no cliente.
+    const services = await repository.listServices(clinicId);
+    const date = saoPauloToday();
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      ownerId,
+      await configuredPlan({
+        patientId: patient.id,
+        serviceId: services[0]!.id,
+        name: "Plano com desconto",
+        kind: "fixed_package",
+        totalSessions: 3,
+        validFrom: date,
+        totalValueInCents: 30000,
+        installments: 3,
+        firstDueDate: date,
+      }),
+    );
+    const receivables = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables
+      .filter((item) => item.planId === plan.id)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+    expect(
+      receivables.map((item) => [
+        item.amountInCents,
+        item.customerDiscountInCents,
+      ]),
+    ).toEqual([
+      [9000, 1000],
+      [9000, 1000],
+      [10000, undefined],
+    ]);
+    expect(
+      (await repository.getPatient(clinicId, patient.id))?.discount,
+    ).toEqual({ ...nextTwo, usedCharges: 2 });
     const amount = await repository.updatePatient(clinicId, patient.id, {
       ...input,
-      discount: { type: "amount", amountInCents: 2500 },
+      discount: { type: "amount", amountInCents: 2500, scope: "permanent" },
     });
-    expect(amount?.discount).toEqual({ type: "amount", amountInCents: 2500 });
+    expect(amount?.discount).toEqual({
+      type: "amount",
+      amountInCents: 2500,
+      scope: "permanent",
+    });
     const removed = await repository.updatePatient(clinicId, patient.id, {
       ...input,
       discount: null,

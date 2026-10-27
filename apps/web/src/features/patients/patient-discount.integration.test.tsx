@@ -103,6 +103,32 @@ describe("client discount", () => {
       within(discount).getByLabelText("Porcentagem de desconto (%)"),
       { target: { value: "12,5" } },
     );
+    // Alcance: nas próximas cobranças pede quantas (mínimo 2).
+    fireEvent.click(within(discount).getByLabelText("Nas próximas cobranças"));
+    fireEvent.change(
+      within(discount).getByLabelText(
+        "Quantas cobranças (parcelas ou renovações)",
+      ),
+      { target: { value: "1" } },
+    );
+    fireEvent.click(
+      within(discount).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    // Menos de 2 cobranças não passa da validação do campo (para uma só, "Só no próximo pagamento").
+    expect(
+      within(discount).getByLabelText(
+        "Quantas cobranças (parcelas ou renovações)",
+      ),
+    ).toBeInvalid();
+    expect(
+      screen.getByRole("dialog", { name: "Desconto do cliente" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      within(discount).getByLabelText(
+        "Quantas cobranças (parcelas ou renovações)",
+      ),
+      { target: { value: "3" } },
+    );
     fireEvent.click(
       within(discount).getByRole("button", { name: "Aplicar desconto" }),
     );
@@ -111,13 +137,20 @@ describe("client discount", () => {
         screen.queryByRole("dialog", { name: "Desconto do cliente" }),
       ).toBeNull(),
     );
-    expect(within(dialog).getByText("12,5% de desconto")).toBeVisible();
+    expect(
+      within(dialog).getByText("12,5% de desconto · nas próximas 3 cobranças"),
+    ).toBeVisible();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     );
     await waitFor(() =>
       expect(sentBody("POST", "/patients")).toMatchObject({
-        discount: { type: "percentage", percent: 12.5 },
+        discount: {
+          type: "percentage",
+          percent: 12.5,
+          scope: "next",
+          charges: 3,
+        },
       }),
     );
   });
@@ -147,14 +180,16 @@ describe("client discount", () => {
       within(discount).getByRole("button", { name: "Aplicar desconto" }),
     );
     expect(
-      await within(dialog).findByText(/R\$\s25,00 de desconto/),
+      await within(dialog).findByText(
+        /R\$\s25,00 de desconto · só no próximo pagamento/,
+      ),
     ).toBeVisible();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     );
     await waitFor(() =>
       expect(sentBody("POST", "/patients")).toMatchObject({
-        discount: { type: "amount", amountInCents: 2500 },
+        discount: { type: "amount", amountInCents: 2500, scope: "once" },
       }),
     );
   });
@@ -163,7 +198,12 @@ describe("client discount", () => {
     login();
     const withDiscount = {
       ...patient,
-      discount: { type: "percentage", percent: 10 },
+      discount: {
+        type: "percentage",
+        percent: 10,
+        scope: "permanent",
+        usedCharges: 4,
+      },
     };
     vi.mocked(fetch).mockImplementation(async (input, options) => {
       const url = String(input);
@@ -183,7 +223,7 @@ describe("client discount", () => {
     });
     expect(
       within(summary).getByText("Desconto").closest("div"),
-    ).toHaveTextContent("10% de desconto");
+    ).toHaveTextContent("10% de desconto · permanente");
     fireEvent.click(
       await screen.findByRole("button", { name: /Editar cadastro|Editar/ }),
     );
@@ -199,6 +239,12 @@ describe("client discount", () => {
     expect(
       within(discount).getByLabelText("Porcentagem de desconto (%)"),
     ).toHaveValue("10");
+    expect(
+      within(discount).getByLabelText("Permanente (até remover)"),
+    ).toBeChecked();
+    expect(
+      within(discount).getByText(/Já usado em 4 cobranças\./),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(discount).getByRole("button", { name: "Remover desconto" }),
     );

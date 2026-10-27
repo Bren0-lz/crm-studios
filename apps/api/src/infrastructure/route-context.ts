@@ -22,6 +22,7 @@ import {
   resolvePatientTags,
   withoutAutomaticPatientTags,
   saoPauloToday,
+  withPlanFirstCharge,
   serviceAvailableFor,
   type UserSummary,
   ptBrValidationError,
@@ -479,6 +480,23 @@ export async function createRouteContext({
   }
 
   /**
+   * 1º pagamento do plano recorrente proporcional às aulas da turma, calculado aqui a partir
+   * dos horários da turma (`groupId`). O valor enviado pela tela é descartado: sem turma, ou
+   * fora da regra, o plano fica com a divisão normal do valor.
+   */
+  async function withServerFirstCharge<
+    T extends Parameters<typeof withPlanFirstCharge>[0],
+  >(clinicId: string, plan: T, groupId?: string): Promise<T> {
+    const today = saoPauloToday();
+    const slots = groupId
+      ? (
+          await repository.getGroupWorkspace(clinicId, today, today)
+        ).groups.find((group) => group.id === groupId)?.weeklySlots
+      : undefined;
+    return withPlanFirstCharge(plan, slots) as T;
+  }
+
+  /**
    * Recusa (400 `INSTALLMENTS_NOT_ALLOWED`) parcelas acima do aceito pela forma de pagamento
    * (Configurações › Formas de pagamento) e pelo plano do catálogo (`maxInstallments`).
    * Sem forma escolhida ("a combinar"), vale só o limite do plano.
@@ -632,6 +650,7 @@ export async function createRouteContext({
     assertNoHoliday,
     assertServiceAvailable,
     assertInstallmentsAllowed,
+    withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
     planBroadcast,

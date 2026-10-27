@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   applyPatientDiscount,
+  discountedInstallments,
+  patientDiscountRemaining,
   patientDiscountSchema,
+  samePatientDiscount,
   patientExportColumns,
   patientInputSchema,
   patientProfile,
@@ -87,31 +90,95 @@ describe("optional client profile", () => {
 });
 
 describe("client discount", () => {
+  const percent = (value: number) =>
+    ({ type: "percentage", percent: value, scope: "permanent" }) as const;
+  const amount = (value: number) =>
+    ({ type: "amount", amountInCents: value, scope: "permanent" }) as const;
+
   it("applies a percentage or amount without going below zero", () => {
     expect(applyPatientDiscount(10000, undefined)).toBe(10000);
     expect(applyPatientDiscount(10000, null)).toBe(10000);
-    expect(
-      applyPatientDiscount(10000, { type: "percentage", percent: 15 }),
-    ).toBe(8500);
-    expect(
-      applyPatientDiscount(10000, { type: "percentage", percent: 12.5 }),
-    ).toBe(8750);
-    expect(
-      applyPatientDiscount(10000, { type: "amount", amountInCents: 2500 }),
-    ).toBe(7500);
-    expect(
-      applyPatientDiscount(1000, { type: "amount", amountInCents: 2500 }),
-    ).toBe(0);
+    expect(applyPatientDiscount(10000, percent(15))).toBe(8500);
+    expect(applyPatientDiscount(10000, percent(12.5))).toBe(8750);
+    expect(applyPatientDiscount(10000, amount(2500))).toBe(7500);
+    expect(applyPatientDiscount(1000, amount(2500))).toBe(0);
   });
 
   it("keeps the discount out of the export columns", () => {
     expect(patientExportColumns).not.toContain("discount");
+    expect(patientProfile({ discount: amount(500) })).toEqual({
+      discount: amount(500),
+    });
+    expect(patientDiscountSchema.safeParse(percent(101)).success).toBe(false);
+    expect(patientDiscountSchema.safeParse(percent(12.345)).success).toBe(
+      false,
+    );
+  });
+
+  it("validates the scope: next needs the number of charges", () => {
     expect(
-      patientProfile({ discount: { type: "amount", amountInCents: 500 } }),
-    ).toEqual({ discount: { type: "amount", amountInCents: 500 } });
+      patientDiscountSchema.safeParse({ ...percent(10), scope: "next" }).error
+        ?.issues[0]?.message,
+    ).toBe("Informe quantas cobranças recebem o desconto.");
     expect(
-      patientDiscountSchema.safeParse({ type: "percentage", percent: 101 })
+      patientDiscountSchema.safeParse({
+        ...percent(10),
+        scope: "next",
+        charges: 3,
+      }).success,
+    ).toBe(true);
+    expect(
+      patientDiscountSchema.safeParse({ type: "percentage", percent: 10 })
         .success,
     ).toBe(false);
+  });
+
+  it("applies the discount only while the scope allows", () => {
+    const schedule = [10000, 10000, 10000, 10000].map((amountInCents) => ({
+      amountInCents,
+    }));
+    const once = discountedInstallments(schedule, {
+      ...percent(10),
+      scope: "once",
+    });
+    expect(once.installments.map((item) => item.amountInCents)).toEqual([
+      9000, 10000, 10000, 10000,
+    ]);
+    expect(once.usedCharges).toBe(1);
+    // Duas das três cobranças já foram usadas: sobra uma.
+    const next = discountedInstallments(schedule, {
+      ...amount(1500),
+      scope: "next",
+      charges: 3,
+      usedCharges: 2,
+    });
+    expect(
+      next.installments.map((item) => item.customerDiscountInCents),
+    ).toEqual([1500, 0, 0, 0]);
+    expect(
+      discountedInstallments(schedule, percent(10)).installments.map(
+        (item) => item.amountInCents,
+      ),
+    ).toEqual([9000, 9000, 9000, 9000]);
+    expect(patientDiscountRemaining(percent(10))).toBe(Infinity);
+    expect(
+      patientDiscountRemaining({
+        ...percent(10),
+        scope: "once",
+        usedCharges: 1,
+      }),
+    ).toBe(0);
+  });
+
+  it("compares the configuration without the used charges", () => {
+    expect(
+      samePatientDiscount(
+        { ...percent(10), scope: "next", charges: 3, usedCharges: 2 },
+        { ...percent(10), scope: "next", charges: 3 },
+      ),
+    ).toBe(true);
+    expect(samePatientDiscount(percent(10), percent(15))).toBe(false);
+    expect(samePatientDiscount(percent(10), amount(1000))).toBe(false);
+    expect(samePatientDiscount(null, undefined)).toBe(true);
   });
 });

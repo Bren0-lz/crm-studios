@@ -43,13 +43,22 @@ export function receiptWithClinic(
 export function receiptInstallments(
   receivable: Pick<
     Receivable,
-    "installmentNumber" | "installmentCount" | "paymentInstallments"
+    | "installmentNumber"
+    | "installmentCount"
+    | "paymentInstallments"
+    | "customerDiscountInCents"
   >,
 ): Pick<
   PaymentReceipt,
-  "installmentNumber" | "installmentCount" | "paymentInstallments"
+  | "installmentNumber"
+  | "installmentCount"
+  | "paymentInstallments"
+  | "customerDiscountInCents"
 > {
   return {
+    ...(receivable.customerDiscountInCents
+      ? { customerDiscountInCents: receivable.customerDiscountInCents }
+      : {}),
     ...(receivable.installmentCount > 1
       ? {
           installmentNumber: receivable.installmentNumber,

@@ -24,6 +24,8 @@ import {
   type PatientPlanInput,
   type Payable,
   type PaymentMethod,
+  discountedInstallments,
+  type PatientDiscount,
   planInstallmentSchedule,
   type PlanTemplateInput,
   type ReceivableStatus,
@@ -840,8 +842,9 @@ export class PostgresRepositoryContext {
       input.totalValueInCents,
       allowed,
     );
-    const patient = await client.query(
-      "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
+    // Trava o cliente: o desconto dele é consumido pelas cobranças geradas aqui.
+    const patient = await client.query<{ discount: PatientDiscount | null }>(
+      "SELECT profile->'discount' AS discount FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active' FOR UPDATE",
       [clinicId, input.patientId],
     );
     const context = await client.query<{ id: string; name: string }>(
@@ -924,14 +927,30 @@ export class PostgresRepositoryContext {
         ],
       );
     }
-    for (const installment of planInstallmentSchedule(input)) {
+    const discount = patient.rows[0]?.discount ?? null;
+    const discounted = discountedInstallments(
+      planInstallmentSchedule(input),
+      discount,
+    );
+    if (discount && discounted.usedCharges > 0)
+      await client.query(
+        `UPDATE patients SET profile = jsonb_set(profile, '{discount,usedCharges}', to_jsonb($3::int))
+         WHERE clinic_id = $1 AND id = $2`,
+        [
+          clinicId,
+          input.patientId,
+          (discount.usedCharges ?? 0) + discounted.usedCharges,
+        ],
+      );
+    for (const installment of discounted.installments) {
       const amount = installment.amountInCents;
       const receivable = await client.query<{ id: string }>(
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
-           installment_count, due_date, amount_in_cents, branch_id
+           installment_count, due_date, amount_in_cents, branch_id,
+           customer_discount_in_cents
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3)
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3),$9
          ) RETURNING id`,
         [
           clinicId,
@@ -942,6 +961,7 @@ export class PostgresRepositoryContext {
           input.installments,
           installment.dueDate,
           amount,
+          installment.customerDiscountInCents,
         ],
       );
       await client.query(
