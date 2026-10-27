@@ -1,5 +1,6 @@
 import type { AutoCampaignItem, AutoCampaignQueue } from "@crm/contracts";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -9,6 +10,11 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import {
+  documentEditor,
+  installDocumentBrowserMocks,
+  setDocumentText,
+} from "../../test-support/document-editor";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
@@ -282,18 +288,33 @@ describe("configuração das campanhas automáticas", () => {
       target: { value: "7" },
     });
     expect(within(dialog).getByText("7 dias antes")).toBeVisible();
-    fireEvent.change(within(dialog).getByLabelText("Mensagem 1"), {
-      target: { value: "Faltam 7 dias, {{nome}}!" },
+    // Mensagem com o editor das etiquetas verdes: códigos do evento (aniversário tem idade).
+    installDocumentBrowserMocks();
+    const first = within(dialog).getByRole("textbox", { name: "Mensagem 1" });
+    setDocumentText(first, "Faltam 7 dias, ");
+    act(() => {
+      documentEditor(first).commands.focus("end");
     });
+    const firstToolbar = within(dialog).getByRole("toolbar", {
+      name: "Inserir dados na mensagem 1",
+    });
+    expect(
+      within(firstToolbar).getByRole("button", { name: "Inserir idade" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(firstToolbar).getByRole("button", { name: "Inserir nome" }),
+    );
+    expect(within(first).getByText("Nome")).toHaveClass("document-field");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar mensagem" }),
     );
     fireEvent.change(within(dialog).getByLabelText("Momento da mensagem 2"), {
       target: { value: "0" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Mensagem 2"), {
-      target: { value: "Parabéns, {{nome}}!" },
-    });
+    setDocumentText(
+      within(dialog).getByRole("textbox", { name: "Mensagem 2" }),
+      "Parabéns!",
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar campanha" }),
     );
@@ -303,8 +324,8 @@ describe("configuração das campanhas automáticas", () => {
         trigger: "birthday",
         active: true,
         steps: [
-          { offset: 7, message: "Faltam 7 dias, {{nome}}!" },
-          { offset: 0, message: "Parabéns, {{nome}}!" },
+          { offset: 7, message: "Faltam 7 dias, {{nome}}" },
+          { offset: 0, message: "Parabéns!" },
         ],
       }),
     );

@@ -286,6 +286,39 @@ describe("campanhas automáticas", () => {
         (item) => item.id === campaign.id,
       ),
     ).toBe(false);
+    // Criar, alterar e excluir ficam no Histórico.
+    const history = (
+      await app.inject({
+        method: "GET",
+        url: "/history/audit-events?module=communications",
+        headers,
+      })
+    ).json<{
+      items: {
+        action: string;
+        entityId?: string;
+        metadata: Record<string, unknown>;
+      }[];
+    }>().items;
+    expect(
+      history
+        .filter((item) => item.entityId === campaign.id)
+        .map((item) => [item.action, item.metadata.name])
+        .sort(),
+    ).toEqual([
+      ["auto_campaign.created", "Parabéns"],
+      ["auto_campaign.deleted", "Parabéns do mês"],
+      ["auto_campaign.updated", "Parabéns do mês"],
+    ]);
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url: `/communications/auto-campaigns/${campaign.id}`,
+          headers,
+        })
+      ).statusCode,
+    ).toBe(404);
   });
 
   it("validates steps and protects editing and overdue payments by permission", async () => {
