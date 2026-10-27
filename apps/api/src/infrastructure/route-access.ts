@@ -429,6 +429,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "GET /finance/receivables/:id/proofs": view("finance"),
+  "POST /finance/receivables/:id/proofs": operation("finance.receive"),
+  "GET /finance/payables/:id/proofs": view("finance"),
+  "POST /finance/payables/:id/proofs": operation("finance.payables_pay"),
+  "GET /finance/commission-account-payments/:id/proofs": view("finance"),
+  "POST /finance/commission-account-payments/:id/proofs": operation(
+    "finance.commissions_pay",
+  ),
+  "GET /finance/payment-proofs/:id/content": view("finance"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),

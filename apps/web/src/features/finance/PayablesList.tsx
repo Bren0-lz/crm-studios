@@ -11,12 +11,14 @@ export function PayablesList({
   onCreate,
   onSettle,
   onReverse,
+  onProofs,
 }: {
   payables: Payable[];
   canManage: boolean;
   onCreate: () => void;
   onSettle: (item: Payable) => void;
   onReverse: (id: string) => void;
+  onProofs: (item: Payable) => void;
 }) {
   const { can } = useAuthorization();
   if (payables.length === 0) {
@@ -68,6 +70,15 @@ export function PayablesList({
               </span>
             </span>
             <div className="finance-actions">
+              {item.status === "paid" && (
+                <button
+                  className="secondary-button button-sm"
+                  aria-label={`Comprovantes de ${item.description}`}
+                  onClick={() => onProofs(item)}
+                >
+                  Comprovantes
+                </button>
+              )}
               {canManage &&
                 item.status === "open" &&
                 can("finance.payables_pay") && (

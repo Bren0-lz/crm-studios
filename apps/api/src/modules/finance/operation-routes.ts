@@ -1,5 +1,6 @@
 import { commissionReconciliationInputSchema } from "@crm/contracts";
 import { externalOperationInputSchema } from "@crm/contracts";
+import { paymentProofInputSchema } from "@crm/contracts";
 import { financialDatesSchema } from "@crm/contracts";
 import {
   productUpdateSchema,
@@ -118,6 +119,53 @@ export function registerFinanceOperationRoutes({
       )) ??
       reply.status(404).send({
         code: "EXTERNAL_OPERATION_NOT_FOUND",
+        message: "Comprovante não encontrado.",
+      }),
+  );
+  // Comprovantes de baixas: um arquivo por pedido (o limite do corpo é 8 MB).
+  for (const [path, entityType] of [
+    ["receivables", "receivable"],
+    ["payables", "payable"],
+    ["commission-account-payments", "commission_account_payment"],
+  ] as const) {
+    app.get(
+      `/finance/${path}/:id/proofs`,
+      { preHandler: authenticate },
+      async (request) =>
+        repository.listPaymentProofs(
+          request.user.clinicId,
+          entityType,
+          z.object({ id: z.uuid() }).parse(request.params).id,
+        ),
+    );
+    app.post(
+      `/finance/${path}/:id/proofs`,
+      { preHandler: authenticate, bodyLimit: 8 * 1024 * 1024 },
+      async (request, reply) =>
+        reply
+          .status(201)
+          .send(
+            await repository.createPaymentProof(
+              request.user.clinicId,
+              request.user.sub,
+              entityType,
+              z.object({ id: z.uuid() }).parse(request.params).id,
+              paymentProofInputSchema.parse(request.body),
+            ),
+          ),
+    );
+  }
+  app.get(
+    "/finance/payment-proofs/:id/content",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.getPaymentProofContent(
+        request.user.clinicId,
+        request.user.sub,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "PAYMENT_PROOF_NOT_FOUND",
         message: "Comprovante não encontrado.",
       }),
   );
