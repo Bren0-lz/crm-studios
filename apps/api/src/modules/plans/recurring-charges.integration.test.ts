@@ -77,4 +77,49 @@ describe("recurring plan charges", () => {
     expect(renewed.statusCode).toBe(201);
     await app.close();
   });
+
+  it("uses the prorated first charge sent with the plan", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const plan = await configuredPlan(app, {
+      patientId: patients.json()[0].id as string,
+      serviceId: services.json()[0].id as string,
+      name: "Pilates 2x",
+      kind: "recurring" as const,
+      totalSessions: 8,
+      validFrom: "2026-10-01",
+      validUntil: "2026-10-31",
+      totalValueInCents: 40_000,
+      installments: 1,
+      firstDueDate: "2026-10-15",
+    });
+    const created = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: { ...plan, firstInstallmentInCents: 20_000 },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().totalValueInCents).toBe(40_000);
+    const finance = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const receivables = (
+      finance.json().summary.receivables as {
+        planId?: string;
+        dueDate: string;
+        amountInCents: number;
+      }[]
+    ).filter((item) => item.planId === created.json().id);
+    expect(receivables).toMatchObject([
+      { dueDate: "2026-10-15", amountInCents: 20_000 },
+    ]);
+    await app.close();
+  });
 });
