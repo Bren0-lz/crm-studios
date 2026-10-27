@@ -1,8 +1,10 @@
 import {
   patientFirstName,
   patientTagDisplayColor,
+  planInstallmentSchedule,
   planPixChargeMessage,
   whatsappLink,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   isValidCpf,
@@ -286,13 +288,13 @@ export function PatientModal({
       return {
         next: "plan",
         patient: form,
-        plan: first!.form,
+        plan: withPlanFirstCharge(first!.form, slotsOf(first!.groupId)),
         ...(first!.groupId ? { groupId: first!.groupId } : {}),
         ...(rest.length || singles.length
           ? {
               additionalPlans: [
                 ...rest.map((entry) => ({
-                  plan: entry.form,
+                  plan: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
                   ...(entry.groupId ? { groupId: entry.groupId } : {}),
                 })),
                 ...singles.map((entry) => ({
@@ -358,10 +360,36 @@ export function PatientModal({
         group: groups?.find((group) => group.id === result.enrollment?.groupId),
       };
       // Vários planos no Pix: uma cobrança só, com os nomes e a soma dos valores.
-      const pixPlans = [
+      // A resposta vem na ordem do que foi enviado (principal e depois os adicionais).
+      const sentPlans =
+        input.next === "plan"
+          ? [
+              input.plan,
+              ...(input.additionalPlans ?? []).map((entry) => entry.plan),
+            ]
+          : [input.plan];
+      const createdPlans = [
         ...(result.plan ? [result.plan] : []),
         ...(result.additionalPlans ?? []).map((entry) => entry.plan),
-      ].filter((plan) => plan.paymentMethod === "pix");
+      ];
+      const pixPlans = createdPlans.filter(
+        (plan) => plan.paymentMethod === "pix",
+      );
+      // 1º pagamento proporcional (turma) de cada item no Pix, somado.
+      const pixFirstCharges = createdPlans.flatMap((plan, index) =>
+        plan.paymentMethod === "pix"
+          ? [
+              {
+                prorated:
+                  sentPlans[index]?.firstInstallmentInCents !== undefined,
+                amountInCents:
+                  sentPlans[index]?.firstInstallmentInCents ??
+                  planInstallmentSchedule(plan)[0]?.amountInCents ??
+                  0,
+              },
+            ]
+          : [],
+      );
       if (pixPlans.length > 0 && pixKey) {
         const installments = pixPlans[0]!.installments;
         setPixCharge({
@@ -387,6 +415,12 @@ export function PatientModal({
             ),
             pixKey,
             template: pixTemplate,
+            firstChargeInCents: pixFirstCharges.some((item) => item.prorated)
+              ? pixFirstCharges.reduce(
+                  (sum, item) => sum + item.amountInCents,
+                  0,
+                )
+              : undefined,
           }),
         });
         return;
@@ -624,6 +658,7 @@ export function PatientModal({
                 form={entry.form}
                 setForm={planFormSetter(entry.id)}
                 onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
+                groupSlots={slotsOf(entry.groupId)}
                 patientName={form.fullName}
                 pixKey={pixKey}
                 pixTemplate={pixTemplate}

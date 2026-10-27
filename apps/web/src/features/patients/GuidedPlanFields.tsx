@@ -2,6 +2,7 @@ import {
   type PatientPlan,
   type PaymentMethod,
   paymentMethodSchema,
+  planFirstChargeProration,
   planPeriodEnd,
   planPixChargeMessage,
   planPeriodMonths,
@@ -26,7 +27,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
-import { PlanInstallmentsField } from "../plans/index";
+import { PlanFirstChargeNote, PlanInstallmentsField } from "../plans/index";
 import { dailyCashMethodLabels } from "../finance/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
@@ -37,6 +38,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   patientName,
   pixKey,
   pixTemplate,
+  groupSlots,
   children,
 }: {
   form: T;
@@ -49,6 +51,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   pixKey: string | null;
   /** Modelo da mensagem configurado pela clínica; vazio = texto padrão. */
   pixTemplate: string;
+  /** Horários da turma escolhida: base do 1º pagamento proporcional. */
+  groupSlots?: readonly { weekday: number }[] | undefined;
   children?: ReactNode;
 }) {
   const { can } = useAuthorization();
@@ -294,6 +298,12 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           }
         />
       </label>
+      {"kind" in form && (
+        <PlanFirstChargeNote
+          plan={{ ...form, kind: form.kind as PatientPlan["kind"] }}
+          slots={groupSlots}
+        />
+      )}
       <label className="checkbox-field span-2">
         <input
           type="checkbox"
@@ -345,6 +355,13 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
                 ),
                 pixKey,
                 template: pixTemplate,
+                firstChargeInCents:
+                  "kind" in form
+                    ? planFirstChargeProration(
+                        { ...form, kind: form.kind as PatientPlan["kind"] },
+                        groupSlots,
+                      )?.amountInCents
+                    : undefined,
               })}
             />
           </label>
