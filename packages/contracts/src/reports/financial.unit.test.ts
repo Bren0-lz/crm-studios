@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  financialExportFilterSchema,
+  financialReportFilterSchema,
   financialTotals,
   groupFinancialEntries,
   proLaboreSettingsInputSchema,
@@ -93,6 +95,52 @@ describe("relatório financeiro", () => {
     expect(
       proLaboreSettingsInputSchema.safeParse({ percentage: 10, base: "other" })
         .success,
+    ).toBe(false);
+  });
+
+  it("limita o período do relatório a 12 meses", () => {
+    expect(
+      financialReportFilterSchema.safeParse({
+        from: "2026-01-01",
+        to: "2026-12-31",
+      }).success,
+    ).toBe(true);
+    const tooLong = financialReportFilterSchema.safeParse({
+      from: "2025-01-01",
+      to: "2026-01-02",
+    });
+    expect(tooLong.error?.issues[0]?.message).toBe(
+      "Escolha um período de até 12 meses.",
+    );
+    expect(
+      financialReportFilterSchema.safeParse({
+        from: "2026-02-01",
+        to: "2026-01-01",
+      }).error?.issues[0]?.message,
+    ).toBe("A data inicial deve ser anterior à data final.");
+  });
+
+  it("lê os filtros da exportação com padrões vazios", () => {
+    expect(
+      financialExportFilterSchema.parse({
+        periodFrom: "2026-10-01",
+        periodTo: "2026-10-31",
+        origin: "expense",
+      }),
+    ).toMatchObject({
+      periodFrom: "2026-10-01",
+      periodTo: "2026-10-31",
+      origin: "expense",
+      search: "",
+      branchId: "",
+      from: "",
+    });
+    expect(
+      financialExportFilterSchema.safeParse({
+        periodFrom: "2026-10-01",
+        periodTo: "2026-10-31",
+        origin: "salário",
+      }).success,
     ).toBe(false);
   });
 });

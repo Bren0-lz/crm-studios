@@ -211,6 +211,52 @@ describe("relatório financeiro", () => {
       expect(april.entries).toEqual([]);
       expect(april.professionals).toEqual([]);
 
+      // Planilha do extrato gerada pela API com os mesmos filtros da tela.
+      const csv = await app.inject({
+        method: "GET",
+        url: "/reports/financial/export?periodFrom=2031-03-01&periodTo=2031-03-31&direction=out&search=imobiliaria",
+        headers: as("owner"),
+      });
+      expect(csv.statusCode).toBe(200);
+      expect(csv.headers["content-type"]).toContain("text/csv");
+      expect(csv.headers["content-disposition"]).toContain(
+        "extrato-financeiro-2031-03-01-2031-03-31.csv",
+      );
+      const lines = csv.body.replace(/^\uFEFF/, "").split("\r\n");
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toContain('"Data";"Tipo";"Descrição"');
+      expect(lines[1]).toContain(
+        '"10/03/2031";"Saída";"Aluguel da sala";"Imobiliária Centro"',
+      );
+      expect(lines[1]).toContain('"-40,00"');
+      const branchId = report.entries[0]!.branchId!;
+      const all = await app.inject({
+        method: "GET",
+        url: `/reports/financial/export?periodFrom=2031-03-01&periodTo=2031-03-31&branchId=${branchId}`,
+        headers: as("owner"),
+      });
+      expect(all.body.replace(/^\uFEFF/, "").split("\r\n")).toHaveLength(
+        1 + report.entries.filter((item) => item.branchId === branchId).length,
+      );
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/reports/financial/export?periodFrom=2031-03-01&periodTo=2031-03-31&origin=salario",
+            headers: as("owner"),
+          })
+        ).statusCode,
+      ).toBe(400);
+      // Período acima de 12 meses é recusado (no relatório e na planilha).
+      for (const url of [
+        "/reports/financial?from=2030-01-01&to=2031-03-31",
+        "/reports/financial/export?periodFrom=2030-01-01&periodTo=2031-03-31",
+      ])
+        expect(
+          (await app.inject({ method: "GET", url, headers: as("owner") }))
+            .statusCode,
+        ).toBe(400);
+
       expect(
         (
           await app.inject({

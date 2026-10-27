@@ -221,6 +221,7 @@ describe("per-operation API authorization", () => {
   it("authorizes each spreadsheet export and import with its own permission", async () => {
     const { app, headers, update } = await setup([
       "reports.view",
+      "reports.dre",
       "reports.sales",
       "reports.management",
       "reports.clients",
@@ -233,6 +234,11 @@ describe("per-operation API authorization", () => {
       [`/reports/management.csv?${range}`, "reports.management_export"],
       [`/reports/clients/details/export?${range}`, "reports.clients_export"],
       ["/patients/export?format=csv&columns=fullName", "patients.export"],
+      [`/reports/dre/export?${range}`, "reports.dre_export"],
+      [
+        "/reports/financial/export?periodFrom=2025-01-01&periodTo=2025-01-31",
+        "reports.financial_export",
+      ],
     ];
     const status = async (url: string) =>
       (await app.inject({ method: "GET", url, headers })).statusCode;
@@ -252,6 +258,7 @@ describe("per-operation API authorization", () => {
         togglePermissions(
           [
             "reports.view",
+            "reports.dre",
             "reports.sales",
             "reports.management",
             "reports.clients",
@@ -375,6 +382,7 @@ describe("per-operation API authorization", () => {
     // 0101 replaced "reports.export" with one spreadsheet export per report.
     const spreadsheetExports = [
       "reports.dre_export",
+      "reports.financial_export",
       "reports.management_export",
       "reports.clients_export",
       "reports.sales_export",

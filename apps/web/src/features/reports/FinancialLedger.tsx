@@ -7,7 +7,9 @@ import {
 } from "@crm/contracts";
 import { Download, Search } from "lucide-react";
 import { useState, type Ref } from "react";
+import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { useToast } from "../../shared/feedback/toast-context";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
 import { dailyCashMethodLabels } from "../finance/index";
 import {
@@ -15,7 +17,6 @@ import {
   emptyFinancialFilters,
   entryEffect,
   filterFinancialEntries,
-  financialEntriesCsv,
   type FinancialFilters,
 } from "./financial-model";
 
@@ -36,7 +37,7 @@ export function FinancialLedger({
   branchName,
   professionals,
   exportable,
-  fileName,
+  exportPeriod,
 }: {
   ref?: Ref<HTMLElement>;
   entries: readonly FinancialEntry[];
@@ -46,9 +47,12 @@ export function FinancialLedger({
   branchName: (entry: FinancialEntry) => string;
   professionals: readonly FinancialProfessional[];
   exportable: boolean;
-  fileName: string;
+  /** Período e filial do relatório: a API gera a planilha com os filtros abaixo. */
+  exportPeriod: { periodFrom: string; periodTo: string; branchId: string };
 }) {
+  const toast = useToast();
   const [limit, setLimit] = useState(PAGE);
+  const [exporting, setExporting] = useState(false);
   const visible = filterFinancialEntries(entries, filters);
   const inflow = visible
     .filter((entry) => entry.direction === "in")
@@ -74,17 +78,24 @@ export function FinancialLedger({
     entries.some((entry) => entry.origin === origin),
   ) as FinancialEntryOrigin[];
 
-  function download() {
-    const url = URL.createObjectURL(
-      new Blob([financialEntriesCsv(visible, branchName)], {
-        type: "text/csv;charset=utf-8",
-      }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
+  async function download() {
+    setExporting(true);
+    try {
+      const blob = await api.financialReportCsv({
+        ...exportPeriod,
+        ...filters,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `extrato-financeiro-${exportPeriod.periodFrom}-${exportPeriod.periodTo}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      toast.error((cause as Error).message);
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -101,8 +112,8 @@ export function FinancialLedger({
           <button
             type="button"
             className="secondary-button"
-            disabled={!visible.length}
-            onClick={download}
+            disabled={!visible.length || exporting}
+            onClick={() => void download()}
           >
             <Download size={16} aria-hidden="true" />
             Exportar extrato

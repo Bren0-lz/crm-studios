@@ -1,11 +1,10 @@
-import type { FinancialEntry } from "@crm/contracts";
+import { financialEntriesCsv, type FinancialEntry } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   compareBranches,
   drillFilters,
   emptyFinancialFilters,
   filterFinancialEntries,
-  financialEntriesCsv,
   NO_BRANCH,
 } from "./financial-model";
 
