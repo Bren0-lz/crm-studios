@@ -3,6 +3,9 @@ import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
   type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
   type AutoFinalizationSettingsInput,
   resolvePermissionInput,
   saoPauloToday,
@@ -491,6 +494,35 @@ export function createAdministrationRepository(
           ...defaultAutoFinalizationSettings,
         }
       );
+    },
+
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      return {
+        ...(repositoryContext.proLaboreSettings.get(clinicId) ??
+          defaultProLaboreSettings),
+      };
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      const saved: ProLaboreSettings = {
+        percentage: Math.round(input.percentage * 100) / 100,
+        base: input.base,
+        updatedAt: now(),
+      };
+      repositoryContext.proLaboreSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.pro_labore_updated",
+        "clinic",
+        clinicId,
+        { percentage: saved.percentage, base: saved.base },
+        clinicId,
+      );
+      return { ...saved };
     },
 
     async updateAutoFinalizationSettings(
