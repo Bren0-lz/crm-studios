@@ -13,6 +13,7 @@ import {
   clinicDateOf,
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
+import { loadAutoCampaignQueue } from "../communications/auto-campaigns.js";
 
 export function registerDashboardRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess } = context;
@@ -83,7 +84,7 @@ export function registerDashboardRoutes(context: RouteContext) {
    * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), atendimentos a finalizar
    * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
    * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
-   * até hoje (planos).
+   * até hoje (planos). Com Comunicações, as campanhas automáticas com mensagens pendentes.
    */
   app.get("/notifications", { preHandler: authenticate }, async (request) => {
     const { clinicId } = request.user;
@@ -93,7 +94,7 @@ export function registerDashboardRoutes(context: RouteContext) {
       new Date(),
       settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     );
-    const [birthdays, finance, pending, leads, snoozed, plans] =
+    const [birthdays, finance, pending, leads, snoozed, plans, autoQueue] =
       await Promise.all([
         modules.includes("relationship")
           ? repository.listBirthdays(clinicId, date.slice(0, 7))
@@ -132,6 +133,9 @@ export function registerDashboardRoutes(context: RouteContext) {
         modules.includes("plans")
           ? repository.listPatientPlans(clinicId)
           : undefined,
+        modules.includes("communications")
+          ? loadAutoCampaignQueue(repository, clinicId, modules)
+          : undefined,
       ]);
     return {
       date,
@@ -166,6 +170,17 @@ export function registerDashboardRoutes(context: RouteContext) {
                 plan.pauseExpectedReturn !== undefined &&
                 plan.pauseExpectedReturn <= date,
             ).length,
+          }
+        : {}),
+      ...(autoQueue
+        ? {
+            autoCampaigns: autoQueue.campaigns
+              .filter((campaign) => campaign.pending > 0)
+              .map((campaign) => ({
+                id: campaign.campaignId,
+                name: campaign.name,
+                pending: campaign.pending,
+              })),
           }
         : {}),
     } satisfies NotificationsSummary;
