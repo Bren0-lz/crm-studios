@@ -863,6 +863,7 @@ export function createFinanceRepository(
                 repositoryContext.clinicSettings.timezone,
               ).slice(0, 7) === month &&
               !tracked.has(item.id) &&
+              !item.payrollPayableId &&
               !payables.some(
                 (expense) =>
                   expense.commissionId === item.id &&

@@ -157,6 +157,8 @@ export function buildDailyCash(
   for (const item of sources.commissions) {
     if (
       trackedCommissions.has(item.id) ||
+      // Paga pela folha: a saída está na despesa da folha.
+      item.payrollPayableId ||
       sources.payables.some(
         (payable) =>
           payable.commissionId === item.id && payable.status !== "cancelled",

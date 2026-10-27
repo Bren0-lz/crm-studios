@@ -454,6 +454,26 @@ export const historyActions: {
     label: "Recebíveis renegociados",
   },
   {
+    action: "payroll.employee_created",
+    module: "finance",
+    label: "Colaborador cadastrado na folha",
+  },
+  {
+    action: "payroll.employee_updated",
+    module: "finance",
+    label: "Colaborador da folha atualizado",
+  },
+  {
+    action: "payroll.launched",
+    module: "finance",
+    label: "Folha de pagamento lançada",
+  },
+  {
+    action: "payroll.launch_cancelled",
+    module: "finance",
+    label: "Lançamento da folha desfeito",
+  },
+  {
     action: "commission.reconciled",
     module: "finance",
     label: "Comissão conciliada com a origem",

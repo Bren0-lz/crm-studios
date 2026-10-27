@@ -1,5 +1,6 @@
 import { registerBranchesRoutes } from "./modules/branches/routes.js";
 import { registerFinanceOperationRoutes } from "./modules/finance/operation-routes.js";
+import { registerPayrollRoutes } from "./modules/finance/payroll-routes.js";
 import { registerClinicalResourceRoutes } from "./modules/clinical/resource-routes.js";
 import { registerPatientManagementRoutes } from "./modules/patients/management-routes.js";
 import { registerCatalogRoutes } from "./modules/administration/catalog-routes.js";
@@ -40,6 +41,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerGroupsRoutes(context);
   registerFinanceRoutes(context);
   registerFinanceOperationRoutes(context);
+  registerPayrollRoutes(context);
   registerClinicalRoutes(context);
   registerClinicalResourceRoutes(context);
   registerCommercialRoutes(context);

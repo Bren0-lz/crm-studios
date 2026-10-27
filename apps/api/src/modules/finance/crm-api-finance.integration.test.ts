@@ -995,11 +995,40 @@ describe("CRM API", () => {
         headers,
       });
       expect(reversed.statusCode).toBe(200);
+      // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
       at("2031-03-11T02:40:00.000Z");
+      const employee = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/employees",
+        headers,
+        payload: {
+          name: "Profissional do caixa",
+          professionalId: professionals.json()[0].id,
+          baseSalaryInCents: 0,
+        },
+      });
+      expect(employee.statusCode).toBe(201);
+      const launched = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/launch",
+        headers,
+        payload: {
+          competence: "2031-03",
+          employeeIds: [employee.json().id],
+          dueDate: "2031-03-10",
+          categoryId: workspace
+            .json()
+            .categories.find(
+              (item: { kind: string }) => item.kind === "expense",
+            ).id,
+        },
+      });
+      expect(launched.statusCode).toBe(201);
       const commissionPaid = await app.inject({
         method: "POST",
-        url: `/finance/commissions/${commission.id}/pay`,
+        url: `/finance/payables/${launched.json().payables[0].id}/pay`,
         headers,
+        payload: { paymentMethod: "cash" },
       });
       expect(commissionPaid.statusCode).toBe(200);
 
@@ -1038,7 +1067,7 @@ describe("CRM API", () => {
           balanceInCents: 0,
         },
         {
-          paymentMethod: "unspecified",
+          paymentMethod: "cash",
           inflowInCents: 0,
           outflowInCents: commission.amountInCents,
           balanceInCents: -commission.amountInCents,
@@ -1053,7 +1082,7 @@ describe("CRM API", () => {
         ["receipt", 12_000],
         ["payable", 4_000],
         ["receipt_reversal", -12_000],
-        ["commission", commission.amountInCents],
+        ["payable", commission.amountInCents],
       ]);
       expect(cash.movements[2]).toMatchObject({
         occurredAt: "2031-03-11T02:30:00.000Z",
@@ -1665,12 +1694,13 @@ describe("CRM API", () => {
     });
     expect(first.json()).toHaveLength(1);
     expect(second.json()).toHaveLength(1);
+    // Pagar comissão avulsa foi substituído pela folha de pagamento.
     const paid = await app.inject({
       method: "POST",
       url: `/finance/commissions/${first.json()[0].id}/pay`,
       headers,
     });
-    expect(paid.json().status).toBe("paid");
+    expect(paid.json().code).toBe("COMMISSION_PAID_BY_PAYROLL");
     workspace = await app.inject({
       method: "GET",
       url: "/finance/workspace",
