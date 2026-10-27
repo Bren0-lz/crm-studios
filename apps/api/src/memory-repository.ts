@@ -57,6 +57,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listPaymentProofs: ClinicRepository["listPaymentProofs"];
   readonly createPaymentProof: ClinicRepository["createPaymentProof"];
   readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
+  readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
+  readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -146,6 +148,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listPaymentProofs = paymentProofs.listPaymentProofs;
     this.createPaymentProof = paymentProofs.createPaymentProof;
     this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
+    this.deletePaymentProof = paymentProofs.deletePaymentProof;
+    this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;

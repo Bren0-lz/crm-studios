@@ -1062,6 +1062,21 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<PaymentProofContent | null>;
+  /**
+   * Exclui um comprovante enviado por engano: sai da lista, o registro e o motivo ficam na
+   * auditoria. `null` = não encontrado (ou fora das filiais da leitura).
+   */
+  deletePaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    reason: string,
+  ): Promise<PaymentProof | null>;
+  /** Tipo do registro de um comprovante visível (para conferir a permissão de excluir). */
+  findPaymentProofEntity(
+    clinicId: string,
+    id: string,
+  ): Promise<PaymentProofEntity | null>;
   purchasePatientPlan(
     clinicId: string,
     actorUserId: string,

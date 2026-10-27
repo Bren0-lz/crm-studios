@@ -120,6 +120,12 @@ export const financeApi = {
     }),
   paymentProofContent: (id: string) =>
     request<PaymentProofContent>(`/finance/payment-proofs/${id}/content`),
+  /** Comprovante enviado por engano: sai da lista; o motivo fica no histórico. */
+  deletePaymentProof: (id: string, reason: string) =>
+    request<PaymentProof>(`/finance/payment-proofs/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
+    }),
   externalOperationContent: (id: string) =>
     request<ExternalOperationContent>(
       `/finance/external-operations/${id}/content`,

@@ -8,7 +8,7 @@ export const paymentProofEntitySchema = z.enum([
 ]);
 export type PaymentProofEntity = z.infer<typeof paymentProofEntitySchema>;
 
-/** Limites por arquivo e por registro; cada arquivo é enviado num pedido próprio. */
+/** Limites por arquivo e por baixa (os da baixa estornada não contam); um arquivo por pedido. */
 export const paymentProofLimits = {
   maxFiles: 10,
   maxSizeInBytes: 5242880,
@@ -31,7 +31,18 @@ export interface PaymentProof extends Omit<PaymentProofInput, "contentBase64"> {
   authorId: string;
   authorName: string;
   createdAt: string;
+  /** A baixa deste comprovante foi estornada (fica no histórico). */
+  reversedAt?: string;
 }
+
+/** Exclusão de comprovante enviado por engano: o motivo fica na auditoria. */
+export const paymentProofDeletionSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Informe o motivo (pelo menos 5 caracteres).")
+    .max(500),
+});
 
 export interface PaymentProofContent {
   fileName: string;

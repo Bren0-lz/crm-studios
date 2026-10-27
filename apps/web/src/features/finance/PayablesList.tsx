@@ -1,4 +1,8 @@
-import { type Payable, saoPauloToday } from "@crm/contracts";
+import {
+  type Payable,
+  paymentMethodWithInstallments,
+  saoPauloToday,
+} from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -56,6 +60,11 @@ export function PayablesList({
             <div className="finance-item">
               <strong title={item.description}>{item.description}</strong>
               <span title={detail}>{detail}</span>
+              {item.status === "paid" && item.paymentMethod && (
+                <span className="finance-installment">
+                  Pago: {paymentMethodWithInstallments(item.paymentMethod)}
+                </span>
+              )}
             </div>
             <span className="finance-due">
               <span className="finance-label">Vencimento </span>

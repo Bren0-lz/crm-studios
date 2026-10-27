@@ -197,6 +197,87 @@ describe("comprovantes de pagamento", () => {
   });
 });
 
+describe("exclusão de comprovante", () => {
+  it("exige motivo e a permissão de anexar no tipo do registro", async () => {
+    const { repository, app, headers } = await setup();
+    const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente exclusão",
+      phone: "11988887777",
+      tags: [],
+    });
+    const invoice = await repository.createManualReceivable(clinicId, actorId, {
+      patientId: patient.id,
+      description: "Parcela com comprovante errado",
+      amountInCents: 9000,
+      dueDate: "2039-06-10",
+    });
+    await repository.settleReceivable(clinicId, actorId, invoice.id, "pix");
+    const created = await repository.createPaymentProof(
+      clinicId,
+      actorId,
+      "receivable",
+      invoice.id,
+      proof(pdf, "errado.pdf", "application/pdf"),
+    );
+    const url = `/finance/payment-proofs/${created.id}`;
+    const viewer = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Só consulta o financeiro",
+        email: "proof-viewer@test.local",
+        password: "Password123",
+        role: "user",
+        permissions: ["finance.view", "finance.payables_pay"],
+      },
+      "unused",
+    );
+    const viewerHeaders = {
+      authorization: `Bearer ${app.jwt.sign({ sub: viewer.id, clinicId, role: "user" })}`,
+    };
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url,
+          headers: viewerHeaders,
+          payload: { reason: "Arquivo errado" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (await app.inject({ method: "DELETE", url, headers, payload: {} }))
+        .statusCode,
+    ).toBe(400);
+    const deleted = await app.inject({
+      method: "DELETE",
+      url,
+      headers,
+      payload: { reason: "Arquivo errado" },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(
+      (
+        await app.inject({
+          url: `/finance/receivables/${invoice.id}/proofs`,
+          headers,
+        })
+      ).json(),
+    ).toEqual([]);
+    expect(
+      (
+        await app.inject({
+          method: "DELETE",
+          url,
+          headers,
+          payload: { reason: "Arquivo errado" },
+        })
+      ).statusCode,
+    ).toBe(404);
+  });
+});
+
 describe("comprovantes de pagamento no repositório em memória", () => {
   it("segue a mesma suíte do PostgreSQL", async () => {
     await verifyPaymentProofsRepository(new MemoryClinicRepository());

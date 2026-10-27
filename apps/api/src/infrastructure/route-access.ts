@@ -438,6 +438,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.commissions_pay",
   ),
   "GET /finance/payment-proofs/:id/content": view("finance"),
+  // A permissão de excluir é a de anexar no tipo do registro (conferida na rota).
+  "DELETE /finance/payment-proofs/:id": view("finance"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),
