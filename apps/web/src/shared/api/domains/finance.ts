@@ -1,4 +1,6 @@
 import type {
+  CommissionRecalculationPreview,
+  CommissionRecalculationPreviewInput,
   CommissionReconciliationPreview,
   CommissionReconciliationInput,
   CommissionReconciliation,
@@ -219,7 +221,10 @@ export const financeApi = {
     request<DreReport>(
       `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
     ),
-  setUserCommission: (id: string, input: AdminUserCommissionInput) =>
+  setUserCommission: (
+    id: string,
+    input: AdminUserCommissionInput & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}/commission`, {
       method: "PUT",
       body: JSON.stringify(input),
@@ -263,11 +268,21 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  createCommissionRule: (input: CommissionRuleInput) =>
+  /** `recalculationDigest`: prévia confirmada; as comissões alcançadas são recalculadas. */
+  createCommissionRule: (
+    input: CommissionRuleInput & { recalculationDigest?: string },
+  ) =>
     request<CommissionRule>("/finance/commission-rules", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  commissionRecalculationPreview: (
+    input: CommissionRecalculationPreviewInput,
+  ) =>
+    request<CommissionRecalculationPreview>(
+      "/finance/commission-rules/recalculation/preview",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   generateCommissions: (competence: string) =>
     request<CommissionEntry[]>("/finance/commissions/generate", {
       method: "POST",

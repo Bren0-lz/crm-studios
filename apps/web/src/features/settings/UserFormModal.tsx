@@ -2,12 +2,15 @@ import { UserAgendaFields } from "./UserAgendaFields";
 import { UserServiceCommissionFields } from "./UserServiceCommissionFields";
 import { useServiceCommissions } from "./useServiceCommissions";
 import { useUserAgenda } from "./useUserAgenda";
+import { CommissionRecalculationNotice } from "../finance/index";
 import {
   legacyPermissions,
   saoPauloToday,
   userRoleSchema,
   type AdminUser,
+  type AdminUserCommissionInput,
   type Branch,
+  type CommissionRecalculationPreview,
   type PermissionKey,
   type UserRole,
 } from "@crm/contracts";
@@ -73,6 +76,11 @@ export function UserFormModal({
   const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Prévia do recálculo das comissões já lançadas e as regras que ela descreve.
+  const [recalculation, setRecalculation] = useState<{
+    key: string;
+    data: CommissionRecalculationPreview;
+  } | null>(null);
   const dirty = useFormDirty({
     allBranches,
     branchIds,
@@ -157,6 +165,19 @@ export function UserFormModal({
     ...serviceCommissions.missing,
   ]);
 
+  const commission =
+    commissionChanged && typedPercentage !== undefined
+      ? { percentage: typedPercentage, effectiveFrom }
+      : undefined;
+  // Regras que o salvamento grava; a prévia do recálculo vale só para estas.
+  const commissionRules: AdminUserCommissionInput[] = [
+    ...(commission ? [commission] : []),
+    ...serviceCommissions.payload,
+  ];
+  const recalculationKey = JSON.stringify(commissionRules);
+  const confirmedRecalculation =
+    recalculation?.key === recalculationKey ? recalculation.data : null;
+
   /** Regra do percentual informado (não é falta de campo). */
   function commissionError() {
     if (typedPercentage === undefined || !commissionChanged) return "";
@@ -202,15 +223,31 @@ export function UserFormModal({
         : {}),
     };
     const title = jobTitle.trim();
-    const commission =
-      commissionChanged && typedPercentage !== undefined
-        ? { percentage: typedPercentage, effectiveFrom }
-        : undefined;
     const services = serviceCommissions.payload.length
       ? { serviceCommissions: serviceCommissions.payload }
       : {};
     let latest: AdminUser;
     try {
+      // Regra com início até hoje recalcula as comissões já lançadas: mostra antes o que muda.
+      // Trocando o profissional ligado no mesmo salvamento, a prévia (feita com o vínculo
+      // atual) não vale: o servidor recalcula sem conferir.
+      let digest = confirmedRecalculation?.digest;
+      if (
+        current &&
+        !agenda.operation &&
+        !digest &&
+        commissionRules.some((rule) => rule.effectiveFrom <= today)
+      ) {
+        const data = await api.commissionRecalculationPreview({
+          userId: current.id,
+          rules: commissionRules,
+        });
+        if (data.items.length) {
+          setRecalculation({ key: recalculationKey, data });
+          return;
+        }
+        digest = data.digest;
+      }
       latest = current
         ? await api.updateAdminUser(current.id, {
             fullName: fullName.trim(),
@@ -223,6 +260,7 @@ export function UserFormModal({
             ...(commission ? { commission } : {}),
             ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
+            ...(digest ? { recalculationDigest: digest } : {}),
           })
         : await api.createAdminUser({
             fullName: fullName.trim(),
@@ -239,6 +277,7 @@ export function UserFormModal({
       onSaved(latest);
     } catch (cause) {
       setError(userSaveErrorMessage(cause));
+      setRecalculation(null);
     } finally {
       setSaving(false);
     }
@@ -450,6 +489,9 @@ export function UserFormModal({
           </div>
         </fieldset>
         <UserServiceCommissionFields commissions={serviceCommissions} />
+        {confirmedRecalculation && (
+          <CommissionRecalculationNotice preview={confirmedRecalculation} />
+        )}
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">
@@ -461,9 +503,11 @@ export function UserFormModal({
           >
             {saving
               ? "Salvando…"
-              : current
-                ? "Salvar alterações"
-                : "Criar usuário"}
+              : confirmedRecalculation
+                ? "Confirmar e recalcular"
+                : current
+                  ? "Salvar alterações"
+                  : "Criar usuário"}
           </button>
         </div>
       </form>

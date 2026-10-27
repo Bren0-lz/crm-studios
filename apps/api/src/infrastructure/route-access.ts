@@ -405,6 +405,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /finance/renegotiations": operation("finance.renegotiate"),
   "POST /finance/commission-rules": operation("finance.commission_rules"),
+  "POST /finance/commission-rules/recalculation/preview": operation(
+    "finance.commission_rules",
+  ),
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),

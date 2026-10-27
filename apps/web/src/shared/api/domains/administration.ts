@@ -116,7 +116,11 @@ export const administrationApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateAdminUser: (id: string, input: AdminUserUpdate) =>
+  /** `recalculationDigest`: prévia confirmada do recálculo das comissões já lançadas. */
+  updateAdminUser: (
+    id: string,
+    input: AdminUserUpdate & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),
