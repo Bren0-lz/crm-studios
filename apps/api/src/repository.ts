@@ -31,6 +31,10 @@ import type {
   ExternalOperation,
   ExternalOperationInput,
   ExternalOperationContent,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -1039,6 +1043,25 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<ExternalOperationContent | null>;
+  /** Comprovantes de uma baixa (parcela, despesa ou baixa conciliada), sem o conteúdo. */
+  listPaymentProofs(
+    clinicId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+  ): Promise<PaymentProof[]>;
+  /** Anexa um comprovante a um registro já pago/recebido. */
+  createPaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+    input: PaymentProofInput,
+  ): Promise<PaymentProof>;
+  getPaymentProofContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<PaymentProofContent | null>;
   purchasePatientPlan(
     clinicId: string,
     actorUserId: string,
