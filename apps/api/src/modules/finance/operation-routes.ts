@@ -1,6 +1,18 @@
 import { commissionReconciliationInputSchema } from "@crm/contracts";
 import { externalOperationInputSchema } from "@crm/contracts";
-import { paymentProofInputSchema } from "@crm/contracts";
+import {
+  paymentProofDeletionSchema,
+  paymentProofInputSchema,
+  type PaymentProofEntity,
+  type PermissionKey,
+} from "@crm/contracts";
+
+/** Quem anexa comprovante em cada tipo de registro (vale também para excluir). */
+const proofAttachPermission: Record<PaymentProofEntity, PermissionKey> = {
+  receivable: "finance.receive",
+  payable: "finance.payables_pay",
+  commission_account_payment: "finance.commissions_pay",
+};
 import { financialDatesSchema } from "@crm/contracts";
 import {
   productUpdateSchema,
@@ -168,6 +180,35 @@ export function registerFinanceOperationRoutes({
         code: "PAYMENT_PROOF_NOT_FOUND",
         message: "Comprovante não encontrado.",
       }),
+  );
+  // Comprovante enviado por engano: quem pode anexar naquele tipo de registro pode excluir.
+  app.delete(
+    "/finance/payment-proofs/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { reason } = paymentProofDeletionSchema.parse(request.body ?? {});
+      const entity = await repository.findPaymentProofEntity(
+        request.user.clinicId,
+        id,
+      );
+      if (entity) assertPermissions(request, proofAttachPermission[entity]);
+      const deleted =
+        entity &&
+        (await repository.deletePaymentProof(
+          request.user.clinicId,
+          request.user.sub,
+          id,
+          reason,
+        ));
+      return (
+        deleted ??
+        reply.status(404).send({
+          code: "PAYMENT_PROOF_NOT_FOUND",
+          message: "Comprovante não encontrado.",
+        })
+      );
+    },
   );
   const ids = z.object({ id: z.uuid(), itemId: z.uuid().optional() });
   app.put(

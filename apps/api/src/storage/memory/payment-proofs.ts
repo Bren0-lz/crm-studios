@@ -12,41 +12,54 @@ import { uuid, now } from "./helpers.js";
 export function createPaymentProofsRepository(
   context: MemoryRepositoryContext,
 ) {
+  type Stored = MemoryRepositoryContext["paymentProofs"][number];
   const metadata = ({
     contentBase64,
+    deletedAt,
+    deletedByUserId,
+    deletionReason,
     ...record
-  }: PaymentProof & { contentBase64: string }): PaymentProof => {
+  }: Stored): PaymentProof => {
     void contentBase64;
+    void deletedAt;
+    void deletedByUserId;
+    void deletionReason;
     return record;
   };
-  // Só registros já pagos/recebidos aceitam comprovante.
-  function assertSettled(
+  /** Registro da baixa nas filiais da leitura em curso (fora delas = não encontrado). */
+  function entityOf(
     clinicId: string,
     entityType: PaymentProofEntity,
     entityId: string,
   ) {
     const owned = (entry: { clinicId: string; id: string }) =>
       entry.clinicId === clinicId && entry.id === entityId;
-    const entry =
-      entityType === "receivable"
-        ? context.receivables.find(owned)
-        : entityType === "payable"
-          ? context.payables.find(owned)
-          : context.commissionAccountPayments.find(owned);
-    if (!entry)
-      throw new DomainError(
-        "PAYMENT_PROOF_ENTITY_NOT_FOUND",
-        "Registro financeiro não encontrado.",
-        404,
-      );
-    const settled =
-      "status" in entry ? entry.status === "paid" : !entry.reversedAt;
-    if (!settled)
-      throw new DomainError(
-        "PAYMENT_PROOF_NOT_SETTLED",
-        "Registre o pagamento antes de anexar comprovantes.",
-        409,
-      );
+    if (entityType === "receivable") {
+      const entry = context.receivables.find(owned);
+      return entry && context.inBranchScope(entry)
+        ? { settled: entry.status === "paid" }
+        : null;
+    }
+    if (entityType === "payable") {
+      const entry = context.payables.find(owned);
+      return entry && context.inBranchScope(entry)
+        ? { settled: entry.status === "paid" }
+        : null;
+    }
+    const entry = context.commissionAccountPayments.find(owned);
+    return entry && context.professionalInBranchScope(entry.professionalId)
+      ? { settled: !entry.reversedAt }
+      : null;
+  }
+  function visibleProof(clinicId: string, id: string) {
+    const record = context.paymentProofs.find(
+      (entry) => entry.clinicId === clinicId && entry.id === id,
+    );
+    return record &&
+      !record.deletedAt &&
+      entityOf(clinicId, record.entityType, record.entityId)
+      ? record
+      : undefined;
   }
   return {
     async listPaymentProofs(
@@ -54,13 +67,15 @@ export function createPaymentProofsRepository(
       entityType: PaymentProofEntity,
       entityId: string,
     ) {
+      if (!entityOf(clinicId, entityType, entityId)) return [];
       return structuredClone(
         context.paymentProofs
           .filter(
             (record) =>
               record.clinicId === clinicId &&
               record.entityType === entityType &&
-              record.entityId === entityId,
+              record.entityId === entityId &&
+              !record.deletedAt,
           )
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
           .map(metadata),
@@ -78,13 +93,28 @@ export function createPaymentProofsRepository(
       );
       if (!actor)
         throw new DomainError("USER_NOT_FOUND", "Usuário não encontrado.", 404);
-      assertSettled(clinicId, entityType, entityId);
+      const entity = entityOf(clinicId, entityType, entityId);
+      if (!entity)
+        throw new DomainError(
+          "PAYMENT_PROOF_ENTITY_NOT_FOUND",
+          "Registro financeiro não encontrado.",
+          404,
+        );
+      // Só registros já pagos/recebidos aceitam comprovante.
+      if (!entity.settled)
+        throw new DomainError(
+          "PAYMENT_PROOF_NOT_SETTLED",
+          "Registre o pagamento antes de anexar comprovantes.",
+          409,
+        );
       if (
         context.paymentProofs.filter(
           (record) =>
             record.clinicId === clinicId &&
             record.entityType === entityType &&
-            record.entityId === entityId,
+            record.entityId === entityId &&
+            !record.deletedAt &&
+            !record.reversedAt,
         ).length >= paymentProofLimits.maxFiles
       )
         throw new DomainError(
@@ -97,7 +127,7 @@ export function createPaymentProofsRepository(
         patientId: clinicId,
         notes: "",
       });
-      const record = {
+      const record: Stored = {
         ...input,
         id: uuid(),
         clinicId,
@@ -124,9 +154,7 @@ export function createPaymentProofsRepository(
       actorUserId: string,
       id: string,
     ): Promise<PaymentProofContent | null> {
-      const record = context.paymentProofs.find(
-        (entry) => entry.clinicId === clinicId && entry.id === id,
-      );
+      const record = visibleProof(clinicId, id);
       if (!record) return null;
       context.recordAudit(
         clinicId,
@@ -143,6 +171,38 @@ export function createPaymentProofsRepository(
         sizeInBytes: record.sizeInBytes,
         sha256: record.sha256,
       };
+    },
+    async deletePaymentProof(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      reason: string,
+    ) {
+      const record = visibleProof(clinicId, id);
+      if (!record) return null;
+      record.deletedAt = now();
+      record.deletedByUserId = actorUserId;
+      record.deletionReason = reason;
+      context.recordAudit(
+        clinicId,
+        actorUserId,
+        "finance.payment_proof_deleted",
+        "payment_proof",
+        {
+          entityType: record.entityType,
+          entityId: record.entityId,
+          fileName: record.fileName,
+          sha256: record.sha256,
+          reason,
+        },
+        id,
+      );
+      return metadata(record);
+    },
+    /** Tipo do registro do comprovante (para a permissão de excluir). */
+    async findPaymentProofEntity(clinicId: string, id: string) {
+      const record = visibleProof(clinicId, id);
+      return record ? record.entityType : null;
     },
   };
 }

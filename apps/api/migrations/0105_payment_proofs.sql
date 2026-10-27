@@ -15,3 +15,11 @@ CREATE TABLE payment_proofs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX payment_proofs_entity_idx ON payment_proofs(clinic_id,entity_type,entity_id,created_at);
+-- Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada.
+ALTER TABLE payment_proofs ADD COLUMN reversed_at timestamptz;
+-- Comprovante enviado por engano: sai da lista, mas o registro fica para auditoria.
+ALTER TABLE payment_proofs
+  ADD COLUMN deleted_at timestamptz,
+  ADD COLUMN deleted_by_user_id uuid REFERENCES users(id),
+  ADD COLUMN deletion_reason text CHECK (deletion_reason IS NULL OR length(deletion_reason) BETWEEN 5 AND 500),
+  ADD CONSTRAINT payment_proofs_deletion CHECK ((deleted_at IS NULL) = (deleted_by_user_id IS NULL));

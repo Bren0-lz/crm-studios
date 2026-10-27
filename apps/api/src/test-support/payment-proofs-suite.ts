@@ -94,5 +94,101 @@ export async function verifyPaymentProofsRepository(
       input,
     ),
   ).rejects.toMatchObject({ code: "PAYMENT_PROOF_ENTITY_NOT_FOUND" });
+
+  // Estorno: os comprovantes ficam no histórico, marcados como da baixa estornada.
+  await repository.reverseReceivablePayment(clinicId, actor, receivable.id);
+  const afterReversal = await repository.listPaymentProofs(
+    clinicId,
+    "receivable",
+    receivable.id,
+  );
+  expect(afterReversal.map((proof) => Boolean(proof.reversedAt))).toEqual([
+    true,
+    true,
+  ]);
+  await expect(
+    repository.createPaymentProof(
+      clinicId,
+      actor,
+      "receivable",
+      receivable.id,
+      input,
+    ),
+  ).rejects.toMatchObject({ code: "PAYMENT_PROOF_NOT_SETTLED" });
+  await repository.settleReceivable(clinicId, actor, receivable.id, "card");
+  const third = await repository.createPaymentProof(
+    clinicId,
+    actor,
+    "receivable",
+    receivable.id,
+    { ...input, fileName: "cartao.pdf" },
+  );
+  expect(third.reversedAt).toBeUndefined();
+
+  // Exclusão por engano: sai da lista e do download; o motivo fica na auditoria.
+  expect(await repository.findPaymentProofEntity(clinicId, first.id)).toBe(
+    "receivable",
+  );
+  const deleted = await repository.deletePaymentProof(
+    clinicId,
+    actor,
+    first.id,
+    "Arquivo de outro cliente",
+  );
+  expect(deleted?.id).toBe(first.id);
+  expect(
+    (
+      await repository.listPaymentProofs(clinicId, "receivable", receivable.id)
+    ).map((proof) => proof.fileName),
+  ).toEqual(["recibo.pdf", "cartao.pdf"]);
+  expect(
+    await repository.getPaymentProofContent(clinicId, actor, first.id),
+  ).toBeNull();
+  expect(
+    await repository.deletePaymentProof(clinicId, actor, first.id, "De novo"),
+  ).toBeNull();
+  expect(
+    (await repository.listAdminAuditEvents(clinicId)).find(
+      (event) =>
+        event.action === "finance.payment_proof_deleted" &&
+        event.entityId === first.id,
+    )?.metadata,
+  ).toMatchObject({ reason: "Arquivo de outro cliente", fileName: "pix.pdf" });
+
+  // Filial: quem está em outra filial não vê, não baixa nem anexa.
+  const centro = (await repository.saveBranch(clinicId, actor, {
+    name: `Filial comprovante ${nextTestCpf()}`,
+  }))!;
+  const inCentro = <T>(work: () => Promise<T>) =>
+    repository.branchScope.run(
+      { branchIds: [centro.id], writeBranchId: centro.id },
+      work,
+    );
+  expect(
+    await inCentro(() =>
+      repository.listPaymentProofs(clinicId, "receivable", receivable.id),
+    ),
+  ).toEqual([]);
+  expect(
+    await inCentro(() =>
+      repository.getPaymentProofContent(clinicId, actor, third.id),
+    ),
+  ).toBeNull();
+  await expect(
+    inCentro(() =>
+      repository.createPaymentProof(
+        clinicId,
+        actor,
+        "receivable",
+        receivable.id,
+        input,
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "PAYMENT_PROOF_ENTITY_NOT_FOUND" });
+  expect(
+    await inCentro(() =>
+      repository.deletePaymentProof(clinicId, actor, third.id, "Outra filial"),
+    ),
+  ).toBeNull();
   return receivable.id;
 }

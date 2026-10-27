@@ -5,35 +5,95 @@ import {
   type PaymentProofEntity,
   type PaymentProofInput,
 } from "@crm/contracts";
+import type { Pool, PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 import { inspectClinicalAttachment } from "../../modules/clinical/clinical-integrity.js";
 import type { PostgresRepositoryContext } from "./context.js";
-const columns = `id,clinic_id AS "clinicId",entity_type AS "entityType",entity_id AS "entityId",file_name AS "fileName",mime_type AS "mimeType",size_in_bytes AS "sizeInBytes",sha256,author_user_id AS "authorId",author_name AS "authorName",created_at AS "createdAt"`;
-type Row = Omit<PaymentProof, "createdAt"> & { createdAt: Date };
-const map = (row: Row): PaymentProof => ({
+const columns = `id,clinic_id AS "clinicId",entity_type AS "entityType",entity_id AS "entityId",file_name AS "fileName",mime_type AS "mimeType",size_in_bytes AS "sizeInBytes",sha256,author_user_id AS "authorId",author_name AS "authorName",created_at AS "createdAt",reversed_at AS "reversedAt"`;
+type Row = Omit<PaymentProof, "createdAt" | "reversedAt"> & {
+  createdAt: Date;
+  reversedAt: Date | null;
+};
+const map = ({ reversedAt, ...row }: Row): PaymentProof => ({
   ...row,
   createdAt: row.createdAt.toISOString(),
+  ...(reversedAt ? { reversedAt: reversedAt.toISOString() } : {}),
 });
-// Trava o registro pago para serializar anexos simultâneos (limite por registro).
-const settledQuery: Record<PaymentProofEntity, string> = {
-  receivable:
-    "SELECT status='paid' AS settled FROM receivables WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
-  payable:
-    "SELECT status='paid' AS settled FROM payables WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
-  commission_account_payment:
-    "SELECT reversed_at IS NULL AS settled FROM commission_account_payments WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
-};
+// Situação e filial do registro (a baixa conciliada segue a filial do profissional).
+// `lock` trava o registro para serializar anexos simultâneos (limite por registro).
+const entityQuery = (entityType: PaymentProofEntity, lock: boolean) =>
+  ({
+    receivable: `SELECT status='paid' AS settled,branch_id AS "branchId" FROM receivables WHERE clinic_id=$1 AND id=$2`,
+    payable: `SELECT status='paid' AS settled,branch_id AS "branchId" FROM payables WHERE clinic_id=$1 AND id=$2`,
+    commission_account_payment: `SELECT cap.reversed_at IS NULL AS settled,pr.branch_id AS "branchId" FROM commission_account_payments cap JOIN professionals pr ON pr.id=cap.professional_id WHERE cap.clinic_id=$1 AND cap.id=$2`,
+  })[entityType] +
+  (lock
+    ? " FOR UPDATE" +
+      (entityType === "commission_account_payment" ? " OF cap" : "")
+    : "");
+
+/** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
+export async function markPaymentProofsReversed(
+  client: Pool | PoolClient,
+  clinicId: string,
+  entityType: PaymentProofEntity,
+  entityId: string,
+) {
+  await client.query(
+    "UPDATE payment_proofs SET reversed_at=now() WHERE clinic_id=$1 AND entity_type=$2 AND entity_id=$3 AND reversed_at IS NULL AND deleted_at IS NULL",
+    [clinicId, entityType, entityId],
+  );
+}
+
 export function createPaymentProofsRepository(
   context: PostgresRepositoryContext,
 ) {
+  /** Registro da baixa nas filiais da leitura em curso (fora delas = não encontrado). */
+  async function entityOf(
+    client: Pool | PoolClient,
+    clinicId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+    lock = false,
+  ) {
+    const entry = (
+      await client.query<{ settled: boolean; branchId: string }>(
+        entityQuery(entityType, lock),
+        [clinicId, entityId],
+      )
+    ).rows[0];
+    const readIds = context.branchReadIds();
+    return entry && (!readIds || readIds.includes(entry.branchId))
+      ? entry
+      : null;
+  }
+  /** Comprovante não excluído cujo registro está nas filiais da leitura. */
+  async function visibleProof(
+    client: Pool | PoolClient,
+    clinicId: string,
+    id: string,
+  ) {
+    const row = (
+      await client.query<Row>(
+        `SELECT ${columns} FROM payment_proofs WHERE clinic_id=$1 AND id=$2 AND deleted_at IS NULL`,
+        [clinicId, id],
+      )
+    ).rows[0];
+    return row &&
+      (await entityOf(client, clinicId, row.entityType, row.entityId))
+      ? row
+      : null;
+  }
   return {
     async listPaymentProofs(
       clinicId: string,
       entityType: PaymentProofEntity,
       entityId: string,
     ) {
+      if (!(await entityOf(context.pool, clinicId, entityType, entityId)))
+        return [];
       const result = await context.pool.query<Row>(
-        `SELECT ${columns} FROM payment_proofs WHERE clinic_id=$1 AND entity_type=$2 AND entity_id=$3 ORDER BY created_at,id`,
+        `SELECT ${columns} FROM payment_proofs WHERE clinic_id=$1 AND entity_type=$2 AND entity_id=$3 AND deleted_at IS NULL ORDER BY created_at,id`,
         [clinicId, entityType, entityId],
       );
       return result.rows.map(map);
@@ -56,12 +116,13 @@ export function createPaymentProofsRepository(
             "Usuário não encontrado.",
             404,
           );
-        const entry = (
-          await client.query<{ settled: boolean }>(settledQuery[entityType], [
-            clinicId,
-            entityId,
-          ])
-        ).rows[0];
+        const entry = await entityOf(
+          client,
+          clinicId,
+          entityType,
+          entityId,
+          true,
+        );
         if (!entry)
           throw new DomainError(
             "PAYMENT_PROOF_ENTITY_NOT_FOUND",
@@ -75,7 +136,7 @@ export function createPaymentProofsRepository(
             409,
           );
         const count = await client.query<{ total: number }>(
-          "SELECT count(*)::int AS total FROM payment_proofs WHERE clinic_id=$1 AND entity_type=$2 AND entity_id=$3",
+          "SELECT count(*)::int AS total FROM payment_proofs WHERE clinic_id=$1 AND entity_type=$2 AND entity_id=$3 AND deleted_at IS NULL AND reversed_at IS NULL",
           [clinicId, entityType, entityId],
         );
         if (count.rows[0]!.total >= paymentProofLimits.maxFiles)
@@ -123,18 +184,19 @@ export function createPaymentProofsRepository(
       id: string,
     ): Promise<PaymentProofContent | null> {
       return context.inTransaction(async (client) => {
-        const result = await client.query<{
-          fileName: string;
-          mimeType: PaymentProofInput["mimeType"];
-          sizeInBytes: number;
-          sha256: string;
-          content: Buffer;
-        }>(
-          'SELECT file_name AS "fileName",mime_type AS "mimeType",size_in_bytes AS "sizeInBytes",sha256,content FROM payment_proofs WHERE clinic_id=$1 AND id=$2',
-          [clinicId, id],
-        );
-        const file = result.rows[0];
-        if (!file) return null;
+        if (!(await visibleProof(client, clinicId, id))) return null;
+        const file = (
+          await client.query<{
+            fileName: string;
+            mimeType: PaymentProofInput["mimeType"];
+            sizeInBytes: number;
+            sha256: string;
+            content: Buffer;
+          }>(
+            'SELECT file_name AS "fileName",mime_type AS "mimeType",size_in_bytes AS "sizeInBytes",sha256,content FROM payment_proofs WHERE clinic_id=$1 AND id=$2',
+            [clinicId, id],
+          )
+        ).rows[0]!;
         await context.addAdminAudit(
           client,
           clinicId,
@@ -147,6 +209,42 @@ export function createPaymentProofsRepository(
         const { content, ...metadata } = file;
         return { ...metadata, contentBase64: content.toString("base64") };
       });
+    },
+    async deletePaymentProof(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      reason: string,
+    ) {
+      return context.inTransaction(async (client) => {
+        const row = await visibleProof(client, clinicId, id);
+        if (!row) return null;
+        await client.query(
+          "UPDATE payment_proofs SET deleted_at=now(),deleted_by_user_id=$3,deletion_reason=$4 WHERE clinic_id=$1 AND id=$2",
+          [clinicId, id, actorUserId, reason],
+        );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "finance.payment_proof_deleted",
+          "payment_proof",
+          id,
+          {
+            entityType: row.entityType,
+            entityId: row.entityId,
+            fileName: row.fileName,
+            sha256: row.sha256,
+            reason,
+          },
+        );
+        return map(row);
+      });
+    },
+    /** Tipo do registro do comprovante (para a permissão de excluir). */
+    async findPaymentProofEntity(clinicId: string, id: string) {
+      const row = await visibleProof(context.pool, clinicId, id);
+      return row ? row.entityType : null;
     },
   };
 }
