@@ -233,6 +233,8 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.administration.getAutoFinalizationSettings;
     this.updateAutoFinalizationSettings =
       this.administration.updateAutoFinalizationSettings;
+    this.getProLaboreSettings = this.administration.getProLaboreSettings;
+    this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -282,6 +284,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
     this.getDailyCash = this.finance.getDailyCash;
+    this.listCashMovements = this.finance.listCashMovements;
     this.listReceivedPayments = this.finance.listReceivedPayments;
     this.getRelationshipSettings = this.relationship.getRelationshipSettings;
     this.updateRelationshipSettings =
@@ -476,6 +479,14 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAdministrationRepository
   >["getAutoFinalizationSettings"];
 
+  readonly getProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getProLaboreSettings"];
+
+  readonly updateProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateProLaboreSettings"];
+
   readonly updateAutoFinalizationSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateAutoFinalizationSettings"];
@@ -642,6 +653,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getDailyCash: ReturnType<
     typeof createFinanceRepository
   >["getDailyCash"];
+
+  readonly listCashMovements: ReturnType<
+    typeof createFinanceRepository
+  >["listCashMovements"];
 
   readonly listReceivedPayments: ReturnType<
     typeof createFinanceRepository

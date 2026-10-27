@@ -141,6 +141,9 @@ describe("management reports redesign", () => {
     await screen.findByText("Cliente sem retorno");
     expect(load).toHaveBeenCalledTimes(2);
     fireEvent.keyDown(clientsTab, { key: "End" });
+    const financeTab = screen.getByRole("tab", { name: "Financeiro" });
+    expect(financeTab).toHaveFocus();
+    fireEvent.keyDown(financeTab, { key: "ArrowLeft" });
     expect(screen.getByRole("tab", { name: "DRE" })).toHaveFocus();
     await waitFor(() => expect(dre).toHaveBeenCalledTimes(1));
   });
@@ -458,7 +461,10 @@ describe("management reports redesign", () => {
     const load = vi.spyOn(api, "salesPeriodReport");
     open();
     await screen.findByText("DRE indisponível");
-    expect(screen.getAllByRole("tab")).toHaveLength(1);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "DRE",
+      "Financeiro",
+    ]);
     expect(screen.getByRole("tab", { name: "DRE" })).toHaveAttribute(
       "aria-selected",
       "true",

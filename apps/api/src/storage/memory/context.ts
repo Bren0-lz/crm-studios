@@ -17,6 +17,7 @@ import type {
   ClinicCatalogEntry,
   NavTabLabel,
   AutoFinalizationSettings,
+  ProLaboreSettings,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -659,6 +660,8 @@ export class MemoryRepositoryContext {
     string,
     AutoFinalizationSettings
   >();
+  /** Pró-labore configurado, por clínica (sem entrada = padrão). */
+  readonly proLaboreSettings = new Map<string, ProLaboreSettings>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,
