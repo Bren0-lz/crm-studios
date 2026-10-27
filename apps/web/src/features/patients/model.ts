@@ -10,6 +10,7 @@ import type {
   GuidedPatientNext,
   GuidedPatientResult,
   Patient,
+  PatientDiscount,
   PatientExportColumn,
   PatientImportDuplicate,
   PatientImportRow,
@@ -29,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  currency,
   localIsoDate,
   shortDate,
   timeLabel,
@@ -341,3 +343,15 @@ export const timelineKindConfig: Record<
   message: { filter: "messages", icon: MessageCircle },
   satisfaction: { filter: "satisfaction", icon: Star },
 };
+
+/** "10% de desconto" ou "R$ 25,00 de desconto"; vazio sem desconto. */
+export function patientDiscountLabel(
+  discount: PatientDiscount | null | undefined,
+) {
+  if (!discount) return "";
+  const value =
+    discount.type === "percentage"
+      ? `${discount.percent.toLocaleString("pt-BR")}%`
+      : currency.format(discount.amountInCents / 100);
+  return `${value} de desconto`;
+}
