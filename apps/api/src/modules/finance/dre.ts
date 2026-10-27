@@ -133,9 +133,13 @@ export function buildDre(
     );
     if (!period) continue;
     const category = categories.find((item) => item.id === payable.categoryId),
-      group = category?.dreGroup ?? "unclassified";
-    period.expenses[group] += payable.amountInCents;
-    addCategory(payable.categoryId, payable.amountInCents, group);
+      group = category?.dreGroup ?? "unclassified",
+      // Despesa da folha: a parte de comissão já entra como custo do serviço na competência.
+      amount =
+        payable.amountInCents - (payable.payroll?.commissionInCents ?? 0);
+    if (!amount) continue;
+    period.expenses[group] += amount;
+    addCategory(payable.categoryId, amount, group);
   }
   if (!costCenterId)
     for (const commission of commissions) {

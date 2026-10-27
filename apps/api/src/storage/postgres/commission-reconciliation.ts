@@ -13,11 +13,15 @@ import {
   commissionReconciliationChanges,
 } from "../../modules/finance/commission-reconciliation.js";
 import type { PostgresRepositoryContext } from "./context.js";
-const adjustmentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",reconciliation_id AS "reconciliationId",professional_id AS "professionalId",professional_name AS "professionalName",competence,amount_in_cents AS "amountInCents",reason,actor_id AS "actorId",status,paid_at AS "paidAt",created_at AS "createdAt"`;
+const adjustmentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",reconciliation_id AS "reconciliationId",professional_id AS "professionalId",professional_name AS "professionalName",competence,amount_in_cents AS "amountInCents",reason,actor_id AS "actorId",status,paid_at AS "paidAt",created_at AS "createdAt",payroll_payable_id AS "payrollPayableId"`;
 const paymentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",professional_id AS "professionalId",professional_name AS "professionalName",amount_in_cents AS "amountInCents",actor_id AS "actorId",occurred_at AS "occurredAt",original_included AS "originalIncluded",adjustment_ids AS "adjustmentIds",reversed_at AS "reversedAt"`;
-type AdjustmentRow = Omit<CommissionAdjustment, "createdAt" | "paidAt"> & {
+type AdjustmentRow = Omit<
+  CommissionAdjustment,
+  "createdAt" | "paidAt" | "payrollPayableId"
+> & {
   createdAt: Date;
   paidAt: Date | null;
+  payrollPayableId: string | null;
 };
 type PaymentRow = Omit<
   CommissionAccountPayment,
@@ -26,11 +30,13 @@ type PaymentRow = Omit<
 const mapAdjustment = ({
   paidAt,
   createdAt,
+  payrollPayableId,
   ...row
 }: AdjustmentRow): CommissionAdjustment => ({
   ...row,
   createdAt: createdAt.toISOString(),
   ...(paidAt ? { paidAt: paidAt.toISOString() } : {}),
+  ...(payrollPayableId ? { payrollPayableId } : {}),
 });
 const mapPayment = ({
   occurredAt,
@@ -103,7 +109,7 @@ export function createCommissionReconciliationRepository(
     return Boolean(
       (
         await client.query(
-          "SELECT id FROM payables WHERE clinic_id=$1 AND commission_id=$2 AND status<>'cancelled'",
+          "SELECT id FROM payables WHERE clinic_id=$1 AND status<>'cancelled' AND (commission_id=$2 OR id=(SELECT payroll_payable_id FROM commission_entries WHERE clinic_id=$1 AND id=$2))",
           [clinicId, id],
         )
       ).rowCount,

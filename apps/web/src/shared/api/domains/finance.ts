@@ -1,4 +1,11 @@
 import type {
+  PayrollEmployee,
+  PayrollEmployeeInput,
+  PayrollLaunchInput,
+  PayrollLaunchResult,
+  PayrollSummary,
+} from "@crm/contracts";
+import type {
   CommissionReconciliationPreview,
   CommissionReconciliationInput,
   CommissionReconciliation,
@@ -73,15 +80,6 @@ export const financeApi = {
     request<CommissionReconciliation>(
       `/finance/commissions/${id}/reconciliation`,
       { method: "POST", body: JSON.stringify(input) },
-    ),
-  settleCommissionAccount: (
-    id: string,
-    professionalId: string,
-    expectedAmountInCents: number,
-  ) =>
-    request<CommissionAccountPayment>(
-      `/finance/commissions/${id}/accounts/${professionalId}/pay`,
-      { method: "POST", body: JSON.stringify({ expectedAmountInCents }) },
     ),
   reverseCommissionAccountPayment: (id: string) =>
     request<CommissionAccountPayment>(
@@ -273,12 +271,28 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify({ competence }),
     }),
-  settleCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/pay`, {
+  /** Folha da competência; `branchIds` vazio = todas as filiais acessíveis. */
+  payroll: (competence: string, branchIds: string[], options?: RequestInit) =>
+    request<PayrollSummary>(
+      `/finance/payroll?competence=${competence}${branchIds.length ? `&branchIds=${branchIds.join(",")}` : ""}`,
+      options,
+    ),
+  payrollEmployees: (options?: RequestInit) =>
+    request<PayrollEmployee[]>("/finance/payroll/employees", options),
+  savePayrollEmployee: (input: PayrollEmployeeInput, id?: string) =>
+    request<PayrollEmployee>(
+      id ? `/finance/payroll/employees/${id}` : "/finance/payroll/employees",
+      { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
+    ),
+  launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
+    request<PayrollLaunchResult>("/finance/payroll/launch", {
+      ...options,
       method: "POST",
+      body: JSON.stringify(input),
     }),
-  reverseCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/reverse`, {
+  cancelPayrollLaunch: (payableId: string, options?: RequestInit) =>
+    request<Payable>(`/finance/payroll/payables/${payableId}/cancel`, {
+      ...options,
       method: "POST",
     }),
   createFinancialCategory: (input: FinancialCategoryInput) =>

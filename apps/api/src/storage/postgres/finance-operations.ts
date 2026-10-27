@@ -677,7 +677,7 @@ export function createFinanceOperationsRepository(
           [clinicId],
         );
         const commissions = await client.query<CommissionEntryRow>(
-          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
           [clinicId, branchIds],
         );
         const ids = await client.query<{ id: string }>(

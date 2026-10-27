@@ -11,7 +11,6 @@ import { PatientContextNotice } from "../../shared/components/PatientContextNoti
 import { ExternalOperationsPanel } from "./ExternalOperationsPanel";
 import { FinanceClassificationPanel } from "./FinanceClassificationPanel";
 import type {
-  CommissionEntry,
   FinancialWorkspace,
   PaymentTiming,
   PaymentMethod,
@@ -34,6 +33,7 @@ import {
 } from "./CommissionRuleModal";
 import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
+import { PayrollSection } from "./PayrollSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
 import { PayableModal } from "./PayableModal";
@@ -76,6 +76,7 @@ export function FinancePage() {
     | "receivables"
     | "payables"
     | "commissions"
+    | "payroll"
     | "dailyCash"
     | "forecast"
     | "entries"
@@ -239,21 +240,6 @@ export function FinancePage() {
     setSelectedReceivables([]);
     await reloadAfterAction();
   }
-  async function toggleCommission(item: CommissionEntry) {
-    setError("");
-    try {
-      if (item.status === "paid") await api.reverseCommission(item.id);
-      else await api.settleCommission(item.id);
-      toast.success(
-        item.status === "paid"
-          ? "Pagamento da comissão estornado."
-          : "Comissão paga.",
-      );
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
   async function generateCommissions() {
     setError("");
     try {
@@ -392,6 +378,14 @@ export function FinancePage() {
                 Comissões
                 <span className="tab-count">{data.commissions.length}</span>
               </button>
+              {can("finance.payroll_view") && (
+                <button
+                  className={`tab-button ${tab === "payroll" ? "active" : ""}`}
+                  onClick={() => setTab("payroll")}
+                >
+                  Folha
+                </button>
+              )}
               <button
                 className={`tab-button ${tab === "dailyCash" ? "active" : ""}`}
                 onClick={() => setTab("dailyCash")}
@@ -420,7 +414,9 @@ export function FinancePage() {
               )}
             </div>
           </section>
-          {tab === "dailyCash" ? (
+          {tab === "payroll" ? (
+            <PayrollSection workspace={data} professionals={professionals} />
+          ) : tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
@@ -532,6 +528,10 @@ export function FinancePage() {
                     usuário (Configurações › Usuários); a regra daqui só conta
                     enquanto o usuário não tiver uma.
                   </p>
+                  <p className="panel-help">
+                    O pagamento das comissões é feito pela folha de pagamento
+                    (aba Folha), junto com o salário de cada colaborador.
+                  </p>
                 </div>
                 {canManage && (
                   <div className="page-actions">
@@ -564,8 +564,6 @@ export function FinancePage() {
                     : undefined
                 }
                 commissions={data.commissions}
-                canManage={canManage}
-                onToggle={(item) => void toggleCommission(item)}
               />
             </section>
           )}

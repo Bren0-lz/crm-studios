@@ -23,6 +23,8 @@ const additionalPermissions = new Set([
   "reports.team_finance",
   "communications.templates",
   "communications.campaigns",
+  "finance.payroll_view",
+  "finance.payroll_manage",
 ]);
 const operations = {
   agenda: {
@@ -137,6 +139,8 @@ const operations = {
     commissions_generate: "Gerar comissões",
     commissions_pay: "Pagar comissão",
     commissions_reverse: "Estornar comissão",
+    payroll_view: "Consultar folha de pagamento",
+    payroll_manage: "Gerenciar colaboradores e lançar a folha de pagamento",
     categories_create: "Cadastrar categoria financeira",
     cost_centers_create: "Cadastrar centro de custo",
     payables_create: "Cadastrar conta a pagar",
@@ -212,6 +216,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             dependencies.push("finance.external_records_view");
           if (key === "reports.team_finance")
             dependencies.push("reports.management");
+          if (key === "finance.payroll_manage")
+            dependencies.push("finance.payroll_view");
           if (key === "patients.timeline") {
             dependencies.push("crm.view");
             legacyView.push("crm");

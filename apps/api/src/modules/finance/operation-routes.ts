@@ -14,13 +14,13 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { payrollOnlyError } from "./payroll.js";
 export function registerFinanceOperationRoutes({
   app,
   authenticate,
   repository,
   assertNoHoliday,
   assertServiceAvailable,
-  assertPermissions,
 }: RouteContext) {
   app.get(
     "/finance/commissions/:id/reconciliation",
@@ -49,28 +49,9 @@ export function registerFinanceOperationRoutes({
   app.post(
     "/finance/commissions/:id/accounts/:professionalId/pay",
     { preHandler: authenticate },
-    async (request) => {
-      const { id, professionalId } = z
-        .object({ id: z.uuid(), professionalId: z.uuid() })
-        .parse(request.params);
-      const { expectedAmountInCents } = z
-        .object({
-          expectedAmountInCents: z
-            .number()
-            .int()
-            .min(-2147483647)
-            .max(2147483647),
-        })
-        .parse(request.body);
-      if (expectedAmountInCents < 0)
-        assertPermissions(request, "finance.commissions_reverse");
-      return repository.settleCommissionAccount(
-        request.user.clinicId,
-        request.user.sub,
-        id,
-        professionalId,
-        expectedAmountInCents,
-      );
+    // O saldo conciliado (comissão + ajustes) é pago pela folha de pagamento.
+    async () => {
+      throw payrollOnlyError();
     },
   );
   app.post(

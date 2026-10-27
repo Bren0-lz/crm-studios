@@ -1148,6 +1148,46 @@ export interface ClinicRepository {
     clinicId: string,
     input: CommissionRuleInput,
   ): Promise<CommissionRule>;
+  /** Colaboradores da folha nas filiais da leitura em curso. */
+  listPayrollEmployees(
+    clinicId: string,
+  ): Promise<import("@crm/contracts").PayrollEmployee[]>;
+  createPayrollEmployee(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollEmployeeInput,
+  ): Promise<import("@crm/contracts").PayrollEmployee>;
+  updatePayrollEmployee(
+    clinicId: string,
+    actorId: string,
+    employeeId: string,
+    input: import("@crm/contracts").PayrollEmployeeInput,
+  ): Promise<import("@crm/contracts").PayrollEmployee | null>;
+  /**
+   * Folha da competência por filial (as pedidas, dentro das da leitura em curso; ausente =
+   * todas). BRANCH_ACCESS_DENIED (403) para filial fora do acesso.
+   */
+  getPayroll(
+    clinicId: string,
+    competence: string,
+    branchIds?: string[],
+  ): Promise<import("@crm/contracts").PayrollSummary>;
+  /**
+   * Lança o que está pendente na competência: uma despesa por colaborador com salário +
+   * comissões + ajustes; pagar a despesa paga as comissões e os ajustes incluídos.
+   * PAYROLL_NOTHING_PENDING (409) quando não há nada a lançar.
+   */
+  launchPayroll(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollLaunchInput,
+  ): Promise<import("@crm/contracts").PayrollLaunchResult>;
+  /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
+  cancelPayrollLaunch(
+    clinicId: string,
+    actorId: string,
+    payableId: string,
+  ): Promise<Payable | null>;
   generateCommissions(
     clinicId: string,
     competence: string,
