@@ -3,6 +3,7 @@
 UPDATE users SET permissions = permissions || ARRAY(
   SELECT export_key FROM (VALUES
     ('reports.dre', 'reports.dre_export'),
+    ('reports.dre', 'reports.financial_export'),
     ('reports.management', 'reports.management_export'),
     ('reports.clients', 'reports.clients_export'),
     ('reports.sales', 'reports.sales_export')

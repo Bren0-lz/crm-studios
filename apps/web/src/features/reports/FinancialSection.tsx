@@ -415,8 +415,12 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
             showBranch={!validBranch && report.branches.length > 1}
             branchName={branchName}
             professionals={professionals}
-            exportable={can("reports.export")}
-            fileName={`financeiro-${report.from}-${report.to}.csv`}
+            exportable={can("reports.financial_export")}
+            exportPeriod={{
+              periodFrom: report.from,
+              periodTo: report.to,
+              branchId: validBranch,
+            }}
           />
         </>
       )}

@@ -27,6 +27,7 @@ const additionalPermissions = new Set([
 /** Exportação de planilha de cada relatório → consulta do relatório exportado. */
 const reportSpreadsheetExports: Partial<Record<string, PermissionKey>> = {
   "reports.dre_export": "reports.dre",
+  "reports.financial_export": "reports.dre",
   "reports.management_export": "reports.management",
   "reports.clients_export": "reports.clients",
   "reports.sales_export": "reports.sales",
@@ -159,6 +160,7 @@ const operations = {
     clients: "Consultar relatório de clientes",
     sales: "Consultar vendas",
     dre_export: "Exportar planilha da DRE",
+    financial_export: "Exportar planilha do relatório financeiro",
     management_export: "Exportar planilha do relatório gerencial",
     clients_export: "Exportar planilha do relatório de clientes",
     sales_export: "Exportar planilha de vendas",

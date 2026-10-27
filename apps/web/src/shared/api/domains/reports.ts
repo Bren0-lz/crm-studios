@@ -6,6 +6,7 @@ import type {
 import type {
   ClientReport,
   DashboardViewSummary,
+  FinancialExportFilter,
   FinancialReport,
   ManagementReport,
   NotificationsSummary,
@@ -63,6 +64,13 @@ export const reportsApi = {
       `/reports/financial?${new URLSearchParams({ from, to })}`,
       allBranches,
     ),
+  /** Planilha do extrato com os filtros da tela; todas as filiais, como o relatório. */
+  financialReportCsv: (input: Partial<FinancialExportFilter>) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(input))
+      if (value) query.set(key, String(value));
+    return requestBlob(`/reports/financial/export?${query}`, allBranches);
+  },
   updateProLabore: (input: ProLaboreSettingsInput) =>
     request<ProLaboreSettings>("/admin/pro-labore", {
       method: "PUT",

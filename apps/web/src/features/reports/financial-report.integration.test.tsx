@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import App from "../../App";
 import {
   storedUser,
@@ -127,6 +127,12 @@ async function openFinancialTab(admin = true) {
     calls.push({ url, ...(init ? { init } : {}) });
     if (url.includes("/reports/financial?"))
       return { ok: true, status: 200, json: async () => report() } as Response;
+    if (url.includes("/reports/financial/export?"))
+      return {
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(["planilha"], { type: "text/csv" }),
+      } as Response;
     if (url.includes("/admin/pro-labore"))
       return {
         ok: true,
@@ -281,5 +287,47 @@ describe("aba Financeiro dos relatórios", () => {
     expect(
       screen.queryByRole("button", { name: "Configurar pró-labore" }),
     ).not.toBeInTheDocument();
+    // Consultar o relatório não dá direito à planilha (reports.financial_export).
+    expect(
+      screen.queryByRole("button", { name: "Exportar extrato" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("exporta o extrato pela API com a filial e os filtros da tela", async () => {
+    const original = {
+      createObjectURL: URL.createObjectURL,
+      revokeObjectURL: URL.revokeObjectURL,
+    };
+    const createObjectURL = vi.fn(() => "blob:extrato");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    onTestFinished(() => {
+      Object.assign(URL, original);
+    });
+    const calls = await openFinancialTab();
+    fireEvent.change(screen.getByLabelText("Filial"), {
+      target: { value: centro },
+    });
+    fireEvent.change(screen.getByLabelText("Forma de pagamento"), {
+      target: { value: "card" },
+    });
+    fireEvent.change(screen.getByLabelText("Buscar"), {
+      target: { value: "ana" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Exportar extrato" }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    const exported = calls.find((call) =>
+      call.url.includes("/reports/financial/export?"),
+    )!;
+    const query = new URL(exported.url).searchParams;
+    expect(Object.fromEntries(query)).toEqual({
+      periodFrom: "2026-10-01",
+      periodTo: "2026-10-25",
+      branchId: centro,
+      paymentMethod: "card",
+      search: "ana",
+    });
+    expect(new Headers(exported.init?.headers).get("x-branch-id")).toBe("all");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:extrato");
   });
 });

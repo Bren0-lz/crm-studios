@@ -7,86 +7,23 @@ import {
   type FinancialReport,
   type FinancialTotals,
   type DailyCashPaymentMethod,
+  emptyFinancialFilters,
+  entryBranch,
+  inBranch,
+  NO_BRANCH,
+  type FinancialFilters,
 } from "@crm/contracts";
 import { dailyCashMethodLabels } from "../finance/index";
 
-/** Filtros do extrato; vazio = sem filtro. */
-export interface FinancialFilters {
-  search: string;
-  direction: "" | FinancialEntry["direction"];
-  origin: "" | FinancialEntryOrigin;
-  category: string;
-  costCenter: string;
-  paymentMethod: "" | DailyCashPaymentMethod;
-  professionalId: string;
-  counterpart: string;
-  from: string;
-  to: string;
-}
-
-export const emptyFinancialFilters: FinancialFilters = {
-  search: "",
-  direction: "",
-  origin: "",
-  category: "",
-  costCenter: "",
-  paymentMethod: "",
-  professionalId: "",
-  counterpart: "",
-  from: "",
-  to: "",
-};
-
-export const NO_BRANCH = "sem-filial";
-
-/** Filial do movimento para filtro e comparativo (sem filial = `NO_BRANCH`). */
-export function entryBranch(entry: FinancialEntry) {
-  return entry.branchId ?? NO_BRANCH;
-}
-
-export function inBranch(entries: readonly FinancialEntry[], branchId: string) {
-  return branchId
-    ? entries.filter((entry) => entryBranch(entry) === branchId)
-    : [...entries];
-}
-
-const normalize = (value: string) =>
-  value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-export function filterFinancialEntries(
-  entries: readonly FinancialEntry[],
-  filters: FinancialFilters,
-) {
-  const search = normalize(filters.search.trim());
-  return entries.filter(
-    (entry) =>
-      (!filters.direction || entry.direction === filters.direction) &&
-      (!filters.origin || entry.origin === filters.origin) &&
-      (!filters.category || entry.categoryName === filters.category) &&
-      (!filters.costCenter ||
-        (entry.costCenterName ?? "") === filters.costCenter) &&
-      (!filters.paymentMethod ||
-        entry.paymentMethod === filters.paymentMethod) &&
-      (!filters.professionalId ||
-        entry.professionalId === filters.professionalId) &&
-      (!filters.counterpart ||
-        (entry.counterpart ?? "") === filters.counterpart) &&
-      (!filters.from || entry.date >= filters.from) &&
-      (!filters.to || entry.date <= filters.to) &&
-      (!search ||
-        normalize(
-          [
-            entry.description,
-            entry.counterpart,
-            entry.categoryName,
-            entry.costCenterName,
-            entry.professionalName,
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ).includes(search)),
-  );
-}
+// Filtros e planilha do extrato ficam nos contratos: a API gera a mesma planilha.
+export {
+  emptyFinancialFilters,
+  entryBranch,
+  filterFinancialEntries,
+  inBranch,
+  NO_BRANCH,
+  type FinancialFilters,
+} from "@crm/contracts";
 
 export function activeFilterCount(filters: FinancialFilters) {
   return Object.values(filters).filter((value) => value !== "").length;
@@ -201,47 +138,4 @@ export function outflowSplit(entries: readonly FinancialEntry[]) {
       if (entry.origin === "commission") professionals += entry.amountInCents;
       else expenses += entry.amountInCents;
   return { expenses, professionals };
-}
-
-/** Planilha (CSV com `;`, BOM para o Excel) dos movimentos filtrados. */
-export function financialEntriesCsv(
-  entries: readonly FinancialEntry[],
-  branchName: (entry: FinancialEntry) => string,
-) {
-  const rows: Array<Array<string | number>> = [
-    [
-      "Data",
-      "Tipo",
-      "Descrição",
-      "Cliente/fornecedor/profissional",
-      "Origem",
-      "Categoria",
-      "Centro de custo",
-      "Filial",
-      "Forma de pagamento",
-      "Valor",
-    ],
-    ...entries.map((entry) => [
-      entry.date.split("-").reverse().join("/"),
-      entry.direction === "in" ? "Entrada" : "Saída",
-      entry.description,
-      entry.counterpart ?? "",
-      financialEntryOriginLabels[entry.origin],
-      entry.categoryName,
-      entry.costCenterName ?? "",
-      branchName(entry),
-      dailyCashMethodLabels[entry.paymentMethod],
-      (entryEffect(entry) / 100).toFixed(2).replace(".", ","),
-    ]),
-  ];
-  return (
-    "﻿" +
-    rows
-      .map((row) =>
-        row
-          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-          .join(";"),
-      )
-      .join("\r\n")
-  );
 }

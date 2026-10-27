@@ -9,7 +9,11 @@ import type {
   RecurringPayable,
   RecurringPayableInput,
 } from "@crm/contracts";
-import { patientFirstName, type PaymentReceipt } from "@crm/contracts";
+import {
+  cashPaymentMethodLabels,
+  patientFirstName,
+  type PaymentReceipt,
+} from "@crm/contracts";
 import { currency } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
@@ -56,15 +60,8 @@ export const dailyCashKinds: Record<
   commission: { label: "Comissão", pill: "open" },
 };
 
-export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> = {
-  pix: "Pix",
-  card: "Cartão",
-  cash: "Dinheiro",
-  bank_transfer: "Transferência",
-  boleto: "Boleto",
-  other: "Outro",
-  unspecified: "Não informada",
-};
+export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> =
+  cashPaymentMethodLabels;
 
 export function dailyCashMovementAmount(movement: DailyCashMovement) {
   const effect =

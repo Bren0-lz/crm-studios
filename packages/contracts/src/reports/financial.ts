@@ -109,12 +109,198 @@ export interface FinancialReport {
   professionals: FinancialProfessional[];
 }
 
+/** Maior período do relatório financeiro: o caixa de cada consulta é montado na hora. */
+export const financialReportMaxDays = 366;
+
+const financialPeriodShape = { from: z.iso.date(), to: z.iso.date() };
+
+function refineFinancialPeriod(
+  value: { from: string; to: string },
+  context: z.core.$RefinementCtx,
+) {
+  if (value.from > value.to)
+    context.addIssue({
+      code: "custom",
+      message: "A data inicial deve ser anterior à data final.",
+      path: ["from"],
+    });
+  else if (
+    (Date.parse(`${value.to}T00:00:00Z`) -
+      Date.parse(`${value.from}T00:00:00Z`)) /
+      86_400_000 >=
+    financialReportMaxDays
+  )
+    context.addIssue({
+      code: "custom",
+      message: "Escolha um período de até 12 meses.",
+      path: ["to"],
+    });
+}
+
 export const financialReportFilterSchema = z
-  .object({ from: z.iso.date(), to: z.iso.date() })
-  .refine((value) => value.from <= value.to, {
-    message: "A data inicial deve ser anterior à data final.",
-    path: ["from"],
-  });
+  .object(financialPeriodShape)
+  .superRefine(refineFinancialPeriod);
+
+/** Filtros do extrato detalhado; vazio = sem filtro. */
+export const financialEntryFiltersSchema = z.object({
+  search: z.string().max(200).default(""),
+  direction: z.enum(["", "in", "out"]).default(""),
+  origin: z
+    .enum(["", "plan", "tab", "manual_receivable", "expense", "commission"])
+    .default(""),
+  category: z.string().max(200).default(""),
+  costCenter: z.string().max(200).default(""),
+  paymentMethod: z
+    .enum([
+      "",
+      "pix",
+      "card",
+      "cash",
+      "bank_transfer",
+      "boleto",
+      "other",
+      "unspecified",
+    ])
+    .default(""),
+  professionalId: z.string().max(64).default(""),
+  counterpart: z.string().max(200).default(""),
+  /** Datas (aaaa-mm-dd) dentro do período do relatório. */
+  from: z.union([z.literal(""), z.iso.date()]).default(""),
+  to: z.union([z.literal(""), z.iso.date()]).default(""),
+});
+export type FinancialFilters = z.infer<typeof financialEntryFiltersSchema>;
+
+export const emptyFinancialFilters: FinancialFilters =
+  financialEntryFiltersSchema.parse({});
+
+/**
+ * `GET /reports/financial/export`: período do relatório (`periodFrom`/`periodTo`), filial
+ * (`branchId`, vazio = todas) e os mesmos filtros do extrato.
+ */
+export const financialExportFilterSchema = financialEntryFiltersSchema
+  .extend({
+    periodFrom: financialPeriodShape.from,
+    periodTo: financialPeriodShape.to,
+    branchId: z.string().max(64).default(""),
+  })
+  .superRefine((value, context) =>
+    refineFinancialPeriod(
+      { from: value.periodFrom, to: value.periodTo },
+      context,
+    ),
+  );
+export type FinancialExportFilter = z.infer<typeof financialExportFilterSchema>;
+
+/** Filial do movimento no filtro e no comparativo (sem filial = `NO_BRANCH`). */
+export const NO_BRANCH = "sem-filial";
+
+export function entryBranch(entry: FinancialEntry) {
+  return entry.branchId ?? NO_BRANCH;
+}
+
+export function inBranch(entries: readonly FinancialEntry[], branchId: string) {
+  return branchId
+    ? entries.filter((entry) => entryBranch(entry) === branchId)
+    : [...entries];
+}
+
+const normalizeSearch = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+/** Movimentos que passam nos filtros do extrato (busca sem acento). */
+export function filterFinancialEntries(
+  entries: readonly FinancialEntry[],
+  filters: FinancialFilters,
+) {
+  const search = normalizeSearch(filters.search.trim());
+  return entries.filter(
+    (entry) =>
+      (!filters.direction || entry.direction === filters.direction) &&
+      (!filters.origin || entry.origin === filters.origin) &&
+      (!filters.category || entry.categoryName === filters.category) &&
+      (!filters.costCenter ||
+        (entry.costCenterName ?? "") === filters.costCenter) &&
+      (!filters.paymentMethod ||
+        entry.paymentMethod === filters.paymentMethod) &&
+      (!filters.professionalId ||
+        entry.professionalId === filters.professionalId) &&
+      (!filters.counterpart ||
+        (entry.counterpart ?? "") === filters.counterpart) &&
+      (!filters.from || entry.date >= filters.from) &&
+      (!filters.to || entry.date <= filters.to) &&
+      (!search ||
+        normalizeSearch(
+          [
+            entry.description,
+            entry.counterpart,
+            entry.categoryName,
+            entry.costCenterName,
+            entry.professionalName,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ).includes(search)),
+  );
+}
+
+/** Forma de pagamento como aparece no caixa e no extrato. */
+export const cashPaymentMethodLabels: Record<DailyCashPaymentMethod, string> = {
+  pix: "Pix",
+  card: "Cartão",
+  cash: "Dinheiro",
+  bank_transfer: "Transferência",
+  boleto: "Boleto",
+  other: "Outro",
+  unspecified: "Não informada",
+};
+
+/** Planilha (CSV com `;` e BOM para o Excel) dos movimentos do extrato. */
+export function financialEntriesCsv(
+  entries: readonly FinancialEntry[],
+  branchName: (entry: FinancialEntry) => string,
+) {
+  const rows: Array<Array<string | number>> = [
+    [
+      "Data",
+      "Tipo",
+      "Descrição",
+      "Cliente/fornecedor/profissional",
+      "Origem",
+      "Categoria",
+      "Centro de custo",
+      "Filial",
+      "Forma de pagamento",
+      "Valor",
+    ],
+    ...entries.map((entry) => [
+      entry.date.split("-").reverse().join("/"),
+      entry.direction === "in" ? "Entrada" : "Saída",
+      entry.description,
+      entry.counterpart ?? "",
+      financialEntryOriginLabels[entry.origin],
+      entry.categoryName,
+      entry.costCenterName ?? "",
+      branchName(entry),
+      cashPaymentMethodLabels[entry.paymentMethod],
+      (((entry.direction === "in" ? 1 : -1) * entry.amountInCents) / 100)
+        .toFixed(2)
+        .replace(".", ","),
+    ]),
+  ];
+  return (
+    "\uFEFF" +
+    rows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+          .join(";"),
+      )
+      .join("\r\n")
+  );
+}
 
 export interface FinancialBreakdownRow {
   key: string;
