@@ -3,9 +3,17 @@ import type {
   InventoryWorkspace,
   Product,
   ProductInput,
+  ProductSize,
   ProductUpdateInput,
   StockMovement,
   StockMovementInput,
+} from "@crm/contracts";
+import {
+  productItemName,
+  productSizeLabel,
+  productSizeLabels,
+  productSizeSchema,
+  sortProductSizes,
 } from "@crm/contracts";
 import { ChevronDown, Pencil, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
@@ -20,14 +28,18 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, shortDate } from "../../shared/lib/formatting";
+import { sizeChoiceValue, soldOutSizes, stockChoices } from "./model";
 
-const emptyProduct: ProductInput = {
+type ProductForm = ProductInput & { sizes: ProductSize[] };
+
+const emptyProduct: ProductForm = {
   name: "",
   sku: "",
   unit: "un",
   costInCents: 0,
   salePriceInCents: 0,
   initialStock: 0,
+  sizes: [],
 };
 const emptyAdjustment: StockMovementInput = {
   productId: "",
@@ -69,12 +81,20 @@ export function InventorySection({
     [adjusting, setAdjusting] = useState(false),
     [busy, setBusy] = useState(false),
     [formError, setFormError] = useState(""),
-    [form, setForm] = useState<ProductInput>(emptyProduct),
+    [form, setForm] = useState<ProductForm>(emptyProduct),
     [active, setActive] = useState(true),
-    [adjustment, setAdjustment] = useState<StockMovementInput>(emptyAdjustment);
+    [hasSizes, setHasSizes] = useState(false),
+    [initialSizeStock, setInitialSizeStock] = useState<
+      Partial<Record<ProductSize, number>>
+    >({}),
+    [adjustment, setAdjustment] = useState<StockMovementInput>(emptyAdjustment),
+    [sizeChoice, setSizeChoice] = useState("");
   const version = useDataVersion("inventory");
-  const productDirty = useFormDirty({ form, active }, Boolean(editor));
-  const adjustmentDirty = useFormDirty(adjustment, adjusting);
+  const productDirty = useFormDirty(
+    { form, active, hasSizes, initialSizeStock },
+    Boolean(editor),
+  );
+  const adjustmentDirty = useFormDirty({ adjustment, sizeChoice }, adjusting);
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -115,23 +135,62 @@ export function InventorySection({
   function edit(product: Product | "new") {
     setForm(product === "new" ? emptyProduct : { ...product, initialStock: 0 });
     setActive(product === "new" ? true : product.active);
+    setHasSizes(product !== "new" && product.sizes.length > 0);
+    setInitialSizeStock({});
     setFormError("");
     setEditor(product);
   }
+  const adjustedProduct = data?.products.find(
+    (item) => item.id === adjustment.productId,
+  );
+  const adjustedChoices = adjustedProduct ? stockChoices(adjustedProduct) : [];
+  // Produto com tamanhos sempre pede o tamanho; sem tamanhos, só quando há sobra de tamanho antigo.
+  const asksSize =
+    Boolean(adjustedProduct?.sizes.length) || adjustedChoices.length > 1;
+  const adjustmentOut =
+    adjustment.kind === "adjustment_out" || adjustment.kind === "loss";
   function openAdjustment() {
+    setSizeChoice("");
     setAdjustment(emptyAdjustment);
     setFormError("");
     setAdjusting(true);
   }
+  function toggleSize(size: ProductSize, checked: boolean) {
+    setForm({
+      ...form,
+      sizes: sortProductSizes(
+        checked
+          ? [...form.sizes, size]
+          : form.sizes.filter((item) => item !== size),
+      ),
+    });
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (hasSizes && !form.sizes.length) {
+      setFormError("Selecione ao menos um tamanho.");
+      return;
+    }
+    const sizes = hasSizes ? form.sizes : [];
+    const input: ProductInput = {
+      ...form,
+      sizes,
+      ...(sizes.length
+        ? {
+            initialStock: 0,
+            initialSizeStock: sizes
+              .map((size) => ({ size, quantity: initialSizeStock[size] ?? 0 }))
+              .filter((entry) => entry.quantity > 0),
+          }
+        : {}),
+    };
     setBusy(true);
     setFormError("");
     try {
-      if (editor === "new") await api.createProduct(form);
+      if (editor === "new") await api.createProduct(input);
       else if (editor)
         await api.updateProduct(editor.id, {
-          ...form,
+          ...input,
           active,
         } as ProductUpdateInput);
       toast.success(
@@ -149,7 +208,12 @@ export function InventorySection({
     setBusy(true);
     setFormError("");
     try {
-      await api.createStockMovement(adjustment);
+      await api.createStockMovement({
+        ...adjustment,
+        ...(sizeChoice && sizeChoice !== "none"
+          ? { size: sizeChoice as ProductSize }
+          : {}),
+      });
       toast.success("Estoque ajustado.");
       setAdjusting(false);
     } catch (cause) {
@@ -232,6 +296,21 @@ export function InventorySection({
                       <span className="inventory-product">
                         <strong>{product.name}</strong>
                         <small>{product.sku}</small>
+                        {product.sizeStock.length > 0 && (
+                          <small>
+                            {product.sizeStock
+                              .map(
+                                (entry) =>
+                                  `${productSizeLabel(entry.size)}: ${entry.currentStock}`,
+                              )
+                              .join(" · ")}
+                          </small>
+                        )}
+                        {soldOutSizes(product).length > 0 && (
+                          <small className="inventory-sold-out">
+                            Esgotado: {soldOutSizes(product).join(", ")}
+                          </small>
+                        )}
                       </span>
                     </th>
                     <td>
@@ -317,7 +396,7 @@ export function InventorySection({
                         <td className="inventory-muted">
                           {shortDate.format(new Date(item.createdAt))}
                         </td>
-                        <th scope="row">{item.productName}</th>
+                        <th scope="row">{productItemName(item)}</th>
                         <td>{movementLabels[item.kind]}</td>
                         <td
                           className={`numeric-value ${item.quantity > 0 ? "inventory-in" : "inventory-out"}`}
@@ -389,7 +468,7 @@ export function InventorySection({
                   setForm({ ...form, salePriceInCents: value })
                 }
               />
-              {editor === "new" && (
+              {editor === "new" && !hasSizes && (
                 <label>
                   Estoque inicial
                   <input
@@ -440,6 +519,62 @@ export function InventorySection({
                   ))}
                 </select>
               </label>
+              <label className="checkbox-field span-2">
+                <input
+                  type="checkbox"
+                  checked={hasSizes}
+                  onChange={(event) => setHasSizes(event.target.checked)}
+                />
+                Possui distinção por tamanhos
+              </label>
+              {hasSizes && (
+                <fieldset className="form-fieldset span-2">
+                  <legend>Tamanhos disponíveis</legend>
+                  <div className="product-size-grid">
+                    {productSizeSchema.options.map((size) => (
+                      <label key={size} className="checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={form.sizes.includes(size)}
+                          onChange={(event) =>
+                            toggleSize(size, event.target.checked)
+                          }
+                        />
+                        {productSizeLabels[size]}
+                      </label>
+                    ))}
+                  </div>
+                  {editor !== "new" && (
+                    <p className="field-hint">
+                      O saldo de um tamanho desmarcado continua no estoque até
+                      ser baixado por um ajuste.
+                    </p>
+                  )}
+                </fieldset>
+              )}
+              {editor === "new" && hasSizes && form.sizes.length > 0 && (
+                <fieldset className="form-fieldset span-2">
+                  <legend>Estoque inicial por tamanho</legend>
+                  <div className="product-size-grid">
+                    {form.sizes.map((size) => (
+                      <label key={size}>
+                        {`Estoque inicial ${productSizeLabels[size]}`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={initialSizeStock[size] ?? 0}
+                          onChange={(event) =>
+                            setInitialSizeStock({
+                              ...initialSizeStock,
+                              [size]: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
               {editor !== "new" && (
                 <label className="checkbox-field">
                   <input
@@ -475,12 +610,13 @@ export function InventorySection({
               <select
                 required
                 value={adjustment.productId}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setSizeChoice("");
                   setAdjustment({
                     ...adjustment,
                     productId: event.target.value,
-                  })
-                }
+                  });
+                }}
               >
                 <option value="">Selecione</option>
                 {data?.products.map((item) => (
@@ -507,6 +643,27 @@ export function InventorySection({
                 <option value="loss">Perda</option>
               </select>
             </label>
+            {asksSize && (
+              <label>
+                Tamanho
+                <select
+                  required
+                  value={sizeChoice}
+                  onChange={(event) => setSizeChoice(event.target.value)}
+                >
+                  <option value="">Selecione</option>
+                  {adjustedChoices.map((choice) => (
+                    <option
+                      key={sizeChoiceValue(choice.size)}
+                      value={sizeChoiceValue(choice.size)}
+                      disabled={!choice.configured && !adjustmentOut}
+                    >
+                      {`${productSizeLabel(choice.size)} · ${choice.currentStock} ${adjustedProduct?.unit ?? ""}${choice.configured ? "" : " (fora dos tamanhos)"}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Quantidade
               <input

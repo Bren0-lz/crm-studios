@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  productInputSchema,
+  productItemName,
+  productSizeStock,
+  productSizeLabels,
+  productUpdateSchema,
   cpfMatchKey,
   receivableContactMessage,
   planPixChargeMessage,
@@ -583,6 +588,113 @@ describe("shared contracts", () => {
       }).items[0],
     ).toEqual({ productId, quantity: 2, unitPriceInCents: 1500 });
   });
+
+  it("validates product sizes and keeps them in scale order", () => {
+    const base = {
+      name: "Camiseta",
+      sku: "CAM",
+      costInCents: 1000,
+      salePriceInCents: 3000,
+    };
+    expect(productInputSchema.parse(base).sizes).toBeUndefined();
+    expect(
+      productInputSchema.parse({
+        ...base,
+        sizes: ["baby_look_gg", "unique", "gg", "pp"],
+      }).sizes,
+    ).toEqual(["pp", "gg", "unique", "baby_look_gg"]);
+    expect(() =>
+      productInputSchema.parse({ ...base, sizes: ["m", "m"] }),
+    ).toThrow("Cada tamanho entra uma vez só.");
+    expect(() =>
+      productInputSchema.parse({ ...base, sizes: ["xg"] }),
+    ).toThrow();
+    expect(productUpdateSchema.parse({ ...base, sizes: [] }).sizes).toEqual([]);
+    expect(productSizeLabels.unique).toBe("Tamanho único");
+    expect(productSizeLabels.baby_look_p).toBe("Baby look P");
+  });
+
+  it("validates the initial stock per size and sizes in a sale", () => {
+    const base = {
+      name: "Camiseta",
+      sku: "CAM",
+      costInCents: 1000,
+      salePriceInCents: 3000,
+      sizes: ["p", "m"],
+    };
+    expect(() =>
+      productInputSchema.parse({ ...base, initialStock: 2 }),
+    ).toThrow("Informe o estoque inicial por tamanho.");
+    expect(() =>
+      productInputSchema.parse({
+        ...base,
+        initialSizeStock: [{ size: "g", quantity: 1 }],
+      }),
+    ).toThrow("O estoque inicial deve usar os tamanhos do produto");
+    expect(
+      productInputSchema.parse({
+        ...base,
+        initialSizeStock: [{ size: "m", quantity: 4 }],
+      }).initialSizeStock,
+    ).toEqual([{ size: "m", quantity: 4 }]);
+    const productId = "22222222-2222-4222-8222-222222222222";
+    const sale = {
+      patientId: "11111111-1111-4111-8111-111111111111",
+      settlement: "receivable" as const,
+      dueDate: "2026-09-12",
+    };
+    expect(
+      productSaleInputSchema.parse({
+        ...sale,
+        items: [
+          { productId, size: "p", quantity: 1 },
+          { productId, size: "m", quantity: 1 },
+        ],
+      }).items,
+    ).toHaveLength(2);
+    expect(() =>
+      productSaleInputSchema.parse({
+        ...sale,
+        items: [
+          { productId, size: "p", quantity: 1 },
+          { productId, size: "p", quantity: 2 },
+        ],
+      }),
+    ).toThrow("Cada produto entra uma vez só na venda.");
+  });
+
+  it("lists the stock per size with leftovers outside the configured sizes", () => {
+    expect(
+      productSizeStock(
+        ["p", "g"],
+        [
+          { size: "g", currentStock: 2 },
+          { size: "m", currentStock: 0 },
+          { size: "gg", currentStock: 1 },
+          { size: null, currentStock: 3 },
+        ],
+      ),
+    ).toEqual([
+      { size: "p", currentStock: 0 },
+      { size: "g", currentStock: 2 },
+      { size: "gg", currentStock: 1 },
+      { size: null, currentStock: 3 },
+    ]);
+    expect(productSizeStock([], [{ size: null, currentStock: 5 }])).toEqual([]);
+    expect(
+      productSizeStock(
+        [],
+        [
+          { size: null, currentStock: 5 },
+          { size: "m", currentStock: 1 },
+        ],
+      ),
+    ).toEqual([{ size: "m", currentStock: 1 }]);
+    expect(
+      productItemName({ productName: "Camiseta", size: "baby_look_m" }),
+    ).toBe("Camiseta · Baby look M");
+    expect(productItemName({ productName: "Óleo" })).toBe("Óleo");
+  });
 });
 
 describe("relationship center contracts", () => {
@@ -1152,9 +1264,7 @@ describe("appointment auto finalization", () => {
     expect(autoFinalizationDelayLabel(0)).toBe("imediatamente");
     expect(autoFinalizationDelayLabel(45)).toBe("45 minutos");
     expect(autoFinalizationDelayLabel(90)).toBe("1 hora e 30 minutos");
-    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe(
-      "2 dias e 1 minuto",
-    );
+    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe("2 dias e 1 minuto");
   });
 
   it("requires an ordered period of up to one year", () => {
@@ -1627,7 +1737,9 @@ describe("planPixChargeMessage", () => {
         totalSessions: 1,
         installments: 3,
       }),
-    ).toContain("tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.");
+    ).toContain(
+      "tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.",
+    );
   });
 });
 
