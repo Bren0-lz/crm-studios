@@ -885,6 +885,47 @@ describe("guided client registration", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("charges the first installment already with the client discount", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Configurar desconto" }),
+      );
+      const discount = await screen.findByRole("dialog", {
+        name: "Desconto do cliente",
+      });
+      fireEvent.click(within(discount).getByLabelText("Valor (R$)"));
+      fireEvent.change(
+        within(discount).getByLabelText("Valor do desconto (R$)"),
+        { target: { value: "20,00" } },
+      );
+      fireEvent.click(
+        within(discount).getByRole("button", { name: "Aplicar desconto" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto do cliente" }),
+        ).toBeNull(),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      expect(posts[0]).toMatchObject({
+        patient: {
+          discount: { type: "amount", amountInCents: 2000, scope: "once" },
+        },
+      });
+      const href = within(charge)
+        .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
+        .getAttribute("href")!;
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toContain(
+        "em 3 parcelas; a 1ª parcela é de R$ 140,00, já com o seu desconto de R$ 20,00. Chave Pix:",
+      );
+    });
+
     it("uses the message configured by the clinic", async () => {
       mockPlanSale(
         "financeiro@aryana.com.br",

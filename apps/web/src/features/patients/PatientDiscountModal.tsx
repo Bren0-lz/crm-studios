@@ -28,15 +28,27 @@ export function PatientDiscountModal({
   const [amountInCents, setAmountInCents] = useState<number | null>(
     discount?.type === "amount" ? discount.amountInCents : null,
   );
+  const [scope, setScope] = useState<PatientDiscount["scope"]>(
+    discount?.scope ?? "once",
+  );
+  const [charges, setCharges] = useState(
+    discount?.scope === "next" && discount.charges
+      ? String(discount.charges)
+      : "3",
+  );
   const [error, setError] = useState("");
-  const dirty = useFormDirty({ type, percent, amountInCents });
+  const dirty = useFormDirty({ type, percent, amountInCents, scope, charges });
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    const reach = {
+      scope,
+      ...(scope === "next" ? { charges: Number(charges) || 0 } : {}),
+    };
     const parsed = patientDiscountSchema.safeParse(
       type === "percentage"
-        ? { type, percent: Number(percent.replace(",", ".")) || 0 }
-        : { type, amountInCents: amountInCents ?? 0 },
+        ? { type, percent: Number(percent.replace(",", ".")) || 0, ...reach }
+        : { type, amountInCents: amountInCents ?? 0, ...reach },
     );
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Desconto inválido.");
@@ -99,6 +111,57 @@ export function PatientDiscountModal({
             />
           </label>
         )}
+        <fieldset className="form-fieldset span-2">
+          <legend>Onde o desconto vale</legend>
+          <div className="form-fieldset-grid">
+            <label className="checkbox-field">
+              <input
+                type="radio"
+                name="patient-discount-scope"
+                checked={scope === "once"}
+                onChange={() => setScope("once")}
+              />
+              Só no próximo pagamento
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="radio"
+                name="patient-discount-scope"
+                checked={scope === "next"}
+                onChange={() => setScope("next")}
+              />
+              Nas próximas cobranças
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="radio"
+                name="patient-discount-scope"
+                checked={scope === "permanent"}
+                onChange={() => setScope("permanent")}
+              />
+              Permanente (até remover)
+            </label>
+          </div>
+        </fieldset>
+        {scope === "next" && (
+          <label className="span-2">
+            Quantas cobranças (parcelas ou renovações)
+            <input
+              type="number"
+              min={2}
+              max={36}
+              value={charges}
+              onChange={(e) => setCharges(e.target.value)}
+            />
+          </label>
+        )}
+        <p className="muted-copy span-2">
+          Cada parcela ou renovação de plano é uma cobrança. O desconto entra
+          nas próximas cobranças geradas; as que já existem não mudam.
+          {discount && (discount.usedCharges ?? 0) > 0
+            ? ` Já usado em ${discount.usedCharges} ${discount.usedCharges === 1 ? "cobrança" : "cobranças"}.`
+            : ""}
+        </p>
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           {discount && (

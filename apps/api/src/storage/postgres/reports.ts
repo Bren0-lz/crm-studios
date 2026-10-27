@@ -37,6 +37,7 @@ type PlanSaleRow = {
   serviceName: string;
   totalValueInCents: number;
   cancelledValueInCents: number;
+  customerDiscountInCents: number;
   createdAt: Date;
   cancelledAt: Date | null;
 };
@@ -72,6 +73,9 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       kind: "sale",
       occurredAt: plan.createdAt.toISOString(),
       amountInCents: plan.totalValueInCents,
+      ...(plan.customerDiscountInCents
+        ? { customerDiscountInCents: plan.customerDiscountInCents }
+        : {}),
     });
     if (plan.cancelledAt)
       sales.push({
@@ -123,6 +127,7 @@ export function createReportsRepository(
                 pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT coalesce(sum(r.customer_discount_in_cents),0)::int FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -165,6 +170,7 @@ export function createReportsRepository(
                 pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT coalesce(sum(r.customer_discount_in_cents),0)::int FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id

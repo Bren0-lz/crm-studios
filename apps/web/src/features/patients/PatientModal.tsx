@@ -1,6 +1,7 @@
 import {
   patientFirstName,
   patientTagDisplayColor,
+  discountedInstallments,
   planInstallmentSchedule,
   planPixChargeMessage,
   whatsappLink,
@@ -221,6 +222,9 @@ export function PatientModal({
   } | null>(null);
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  /** Horários da turma escolhida: base do 1º pagamento proporcional do plano. */
+  const slotsOf = (groupId: string) =>
+    groups?.find((group) => group.id === groupId)?.weeklySlots;
   const dirty = useFormDirty({
     form,
     step,
@@ -371,7 +375,9 @@ export function PatientModal({
               input.plan,
               ...(input.additionalPlans ?? []).map((entry) => entry.plan),
             ]
-          : [input.plan];
+          : input.next === "single"
+            ? [input.plan]
+            : [];
       const createdPlans = [
         ...(result.plan ? [result.plan] : []),
         ...(result.additionalPlans ?? []).map((entry) => entry.plan),
@@ -379,20 +385,36 @@ export function PatientModal({
       const pixPlans = createdPlans.filter(
         (plan) => plan.paymentMethod === "pix",
       );
-      // 1º pagamento proporcional (turma) de cada item no Pix, somado.
-      const pixFirstCharges = createdPlans.flatMap((plan, index) =>
-        plan.paymentMethod === "pix"
+      // 1º pagamento de cada item no Pix (proporcional à turma e com o desconto do cliente),
+      // somado. O desconto é consumido na mesma ordem em que o sistema gera as cobranças.
+      let discountState = form.discount ?? null;
+      const pixFirstCharges = createdPlans.flatMap((plan, index) => {
+        const firstInstallmentInCents =
+          sentPlans[index]?.firstInstallmentInCents;
+        const discounted = discountedInstallments(
+          planInstallmentSchedule({ ...plan, firstInstallmentInCents }),
+          discountState,
+        );
+        if (discountState && discounted.usedCharges)
+          discountState = {
+            ...discountState,
+            usedCharges:
+              (discountState.usedCharges ?? 0) + discounted.usedCharges,
+          };
+        const first = discounted.installments[0];
+        return plan.paymentMethod === "pix" && first
           ? [
               {
-                prorated:
-                  sentPlans[index]?.firstInstallmentInCents !== undefined,
-                amountInCents:
-                  sentPlans[index]?.firstInstallmentInCents ??
-                  planInstallmentSchedule(plan)[0]?.amountInCents ??
-                  0,
+                prorated: firstInstallmentInCents !== undefined,
+                amountInCents: first.amountInCents + first.customerDiscountInCents,
+                discountInCents: first.customerDiscountInCents,
               },
             ]
-          : [],
+          : [];
+      });
+      const pixDiscount = pixFirstCharges.reduce(
+        (sum, item) => sum + item.discountInCents,
+        0,
       );
       if (pixPlans.length > 0 && pixKey) {
         const installments = pixPlans[0]!.installments;
@@ -425,6 +447,7 @@ export function PatientModal({
                   0,
                 )
               : undefined,
+            ...(pixDiscount ? { discountInCents: pixDiscount } : {}),
           }),
         });
         return;

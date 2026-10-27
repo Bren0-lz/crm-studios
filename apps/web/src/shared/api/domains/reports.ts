@@ -23,6 +23,7 @@ export const reportsApi = {
       search?: string;
       columns?: ClientDetailsColumn[];
       status?: "active" | "inactive" | undefined;
+      discount?: "with" | "without" | undefined;
     },
     exporting = false,
   ) => {

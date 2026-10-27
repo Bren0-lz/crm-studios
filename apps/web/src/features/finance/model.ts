@@ -189,7 +189,10 @@ export function receiptMessage(receipt: PaymentReceipt) {
   const method = receipt.paymentInstallments
     ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
     : "";
-  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}${method}. Obrigado! ${receipt.clinicName}`;
+  const discount = receipt.customerDiscountInCents
+    ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
+    : "";
+  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)}${discount} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}${method}. Obrigado! ${receipt.clinicName}`;
 }
 
 /** Explicações curtas dos termos financeiros (U41), usadas no HelpTip. */
@@ -213,11 +216,15 @@ export function receivableInstallmentLine(
     | "status"
     | "paymentMethod"
     | "paymentInstallments"
+    | "customerDiscountInCents"
   >,
 ) {
   return [
     item.installmentCount > 1
       ? `Parcela ${item.installmentNumber} de ${item.installmentCount}`
+      : "",
+    item.customerDiscountInCents
+      ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
       : "",
     item.status === "paid" && item.paymentMethod
       ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`

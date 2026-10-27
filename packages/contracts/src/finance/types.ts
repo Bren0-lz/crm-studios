@@ -36,6 +36,8 @@ export interface DreReport {
     serviceRevenueInCents: number;
     productRevenueInCents: number;
     otherRevenueInCents: number;
+    /** Descontos do cliente nas cobranças do mês (as receitas já vêm com eles descontados). */
+    customerDiscountInCents?: number;
     expenses: Record<DreGroup, number>;
     resultInCents: number;
   }>;
@@ -43,6 +45,8 @@ export interface DreReport {
     revenueInCents: number;
     expensesInCents: number;
     resultInCents: number;
+    /** Descontos do cliente no período (informativo: já fora das receitas). */
+    customerDiscountInCents?: number;
   };
   categories: Array<{
     id: string;
@@ -275,6 +279,11 @@ export interface Receivable {
   paymentMethod?: PaymentMethod;
   /** Parcelas na própria forma de pagamento (ex.: cartão em 3x); ausente = à vista. */
   paymentInstallments?: number;
+  /**
+   * Desconto do cliente aplicado ao gerar a cobrança do plano (`amountInCents` já é o
+   * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
+   */
+  customerDiscountInCents?: number;
 }
 
 export interface FinancialSummary {
@@ -525,6 +534,8 @@ export interface PaymentReceipt {
   /** Desconto e juros aplicados na baixa (U39). */
   discountInCents?: number;
   interestInCents?: number;
+  /** Desconto do cliente já aplicado na cobrança (valor cheio = valor + desconto). */
+  customerDiscountInCents?: number;
 }
 
 export interface TabAppointmentOption {

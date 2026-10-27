@@ -4865,6 +4865,77 @@ describe("CRM API", () => {
       await app.close();
     });
 
+    it("computes the prorated first charge of each guided plan from its class", async () => {
+      const { app, headers, guided, createGroup } = await setup();
+      // Primeira turma do teste: às segundas. Em janeiro/2026 são 4 segundas; até o dia 10, 1.
+      const groupId = await createGroup(SERVICE_ID);
+      const created = await guided({
+        next: "plan",
+        patient: { fullName: "Proporcional Guiado", phone: "11966670010" },
+        plan: {
+          ...planTerms,
+          kind: "recurring",
+          installments: 1,
+          // Valor enviado pela tela é descartado: o servidor calcula pela turma.
+          firstInstallmentInCents: 1,
+        },
+        groupId,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const receivables = (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().summary.receivables as {
+          planId?: string;
+          amountInCents: number;
+        }[]
+      ).filter((item) => item.planId === created.json().plan.id);
+      expect(receivables.map((item) => item.amountInCents)).toEqual([10_000]);
+      await app.close();
+    });
+
+    it("checks the installment limit of every plan in the guided registration", async () => {
+      const { app, headers, guided, findPatients } = await setup();
+      const saved = await app.inject({
+        method: "PUT",
+        url: "/admin/payment-methods",
+        headers,
+        payload: {
+          methods: [
+            { method: "pix", acceptsInstallments: false, maxInstallments: 1 },
+          ],
+        },
+      });
+      expect(saved.statusCode).toBe(200);
+      // O principal está dentro do limite; o adicional no Pix em 2x, não.
+      const additionalTerms = await configuredPlan(app, planTerms);
+      const refused = await guided({
+        next: "plan",
+        patient: { fullName: "Adicional Parcelado", phone: "11966670009" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "card" },
+        additionalPlans: [
+          {
+            plan: {
+              ...additionalTerms,
+              kind: "fixed_package",
+              paymentMethod: "pix",
+            },
+          },
+        ],
+      });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json()).toMatchObject({
+        code: "INSTALLMENTS_NOT_ALLOWED",
+        message: "Pix não aceita parcelamento: use 1 parcela.",
+      });
+      expect(await findPatients("Adicional Parcelado")).toEqual([]);
+      await app.close();
+    });
+
     it("filters subscribers without a linked group in the list and in the export", async () => {
       const { app, headers, guided, createGroup } = await setup();
       const groupId = await createGroup(SERVICE_ID);
