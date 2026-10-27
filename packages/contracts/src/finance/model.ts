@@ -95,7 +95,91 @@ export function serviceCommissionsInForce(
     );
 }
 
-export const productInputSchema = z.object({
+/** Tamanhos que um produto pode ter (roupas): padrão, tamanho único e baby look. */
+export const productSizeSchema = z.enum([
+  "pp",
+  "p",
+  "m",
+  "g",
+  "gg",
+  "unique",
+  "baby_look_pp",
+  "baby_look_p",
+  "baby_look_m",
+  "baby_look_g",
+  "baby_look_gg",
+]);
+export type ProductSize = z.infer<typeof productSizeSchema>;
+export const productSizeLabels: Record<ProductSize, string> = {
+  pp: "PP",
+  p: "P",
+  m: "M",
+  g: "G",
+  gg: "GG",
+  unique: "Tamanho único",
+  baby_look_pp: "Baby look PP",
+  baby_look_p: "Baby look P",
+  baby_look_m: "Baby look M",
+  baby_look_g: "Baby look G",
+  baby_look_gg: "Baby look GG",
+};
+/** Tamanhos na ordem da escala (independe da ordem em que foram marcados). */
+export function sortProductSizes(sizes: readonly ProductSize[]): ProductSize[] {
+  return productSizeSchema.options.filter((size) => sizes.includes(size));
+}
+const productSizesSchema = z
+  .array(productSizeSchema)
+  .max(productSizeSchema.options.length)
+  .refine((sizes) => new Set(sizes).size === sizes.length, {
+    message: "Cada tamanho entra uma vez só.",
+  })
+  .transform(sortProductSizes);
+
+/** Saldo de uma chave de estoque do produto: um tamanho, ou `null` para o estoque sem tamanho. */
+export interface ProductSizeStock {
+  size: ProductSize | null;
+  currentStock: number;
+}
+
+export function productSizeLabel(size: ProductSize | null | undefined) {
+  return size ? productSizeLabels[size] : "Sem tamanho";
+}
+
+/** Nome do item vendido com o tamanho, quando houver ("Camiseta · M"). */
+export function productItemName(item: {
+  productName: string;
+  size?: ProductSize | undefined;
+}) {
+  return item.size
+    ? `${item.productName} · ${productSizeLabels[item.size]}`
+    : item.productName;
+}
+
+/**
+ * Saldos por tamanho mostrados no estoque: todos os tamanhos configurados (mesmo zerados) e,
+ * fora deles, só as chaves que ainda têm saldo (tamanho removido ou estoque de antes dos
+ * tamanhos), para poderem ser baixadas. Produto sem tamanhos e sem sobras devolve lista vazia.
+ */
+export function productSizeStock(
+  sizes: readonly ProductSize[],
+  rows: readonly ProductSizeStock[],
+): ProductSizeStock[] {
+  const stockOf = (size: ProductSize | null) =>
+    rows
+      .filter((row) => row.size === size)
+      .reduce((sum, row) => sum + row.currentStock, 0);
+  const configured = (size: ProductSize | null) =>
+    sizes.length ? size !== null && sizes.includes(size) : size === null;
+  return [...productSizeSchema.options, null]
+    .filter(
+      (size) =>
+        (sizes.length > 0 && configured(size)) ||
+        (!configured(size) && stockOf(size) > 0),
+    )
+    .map((size) => ({ size, currentStock: stockOf(size) }));
+}
+
+const productBaseSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
@@ -104,10 +188,48 @@ export const productInputSchema = z.object({
   costInCents: z.number().int().min(0),
   salePriceInCents: z.number().int().min(0),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
+  /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
+  sizes: productSizesSchema.optional(),
 });
+
+export const productInputSchema = productBaseSchema
+  .extend({
+    /** Estoque inicial de cada tamanho (produto com tamanhos usa este no lugar de `initialStock`). */
+    initialSizeStock: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(productSizeSchema.options.length)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const sizes = value.sizes ?? [];
+    const initial = value.initialSizeStock ?? [];
+    if (sizes.length && value.initialStock > 0)
+      context.addIssue({
+        code: "custom",
+        message: "Informe o estoque inicial por tamanho.",
+        path: ["initialStock"],
+      });
+    if (
+      initial.some((entry) => !sizes.includes(entry.size)) ||
+      new Set(initial.map((entry) => entry.size)).size !== initial.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "O estoque inicial deve usar os tamanhos do produto, uma vez cada.",
+        path: ["initialSizeStock"],
+      });
+  });
 
 export const stockMovementInputSchema = z.object({
   productId: z.uuid(),
+  /** Obrigatório para produto com tamanhos; ausente = estoque sem tamanho. */
+  size: productSizeSchema.optional(),
   kind: z.enum(["purchase", "adjustment_in", "adjustment_out", "loss"]),
   quantity: z.number().int().min(1).max(1_000_000),
   notes: z.string().trim().min(3).max(500),
@@ -120,6 +242,7 @@ export const patientTabInputSchema = z.object({
 
 export const patientTabItemInputSchema = z.object({
   productId: z.uuid(),
+  size: productSizeSchema.optional(),
   quantity: z.number().int().min(1).max(10_000),
 });
 
@@ -154,7 +277,7 @@ export const patientTabCloseInputSchema = z
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
-export const productUpdateSchema = productInputSchema
+export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
   .extend({ active: z.boolean().default(true) });
 export const patientTabItemUpdateSchema = z.object({
@@ -170,6 +293,7 @@ export const productSaleInputSchema = z
       .array(
         z.object({
           productId: z.uuid(),
+          size: productSizeSchema.optional(),
           quantity: z.number().int().min(1).max(10_000),
           unitPriceInCents: z.number().int().min(0).max(2147483647).optional(),
         }),
@@ -178,7 +302,8 @@ export const productSaleInputSchema = z
       .max(50)
       .refine(
         (items) =>
-          new Set(items.map((item) => item.productId)).size === items.length,
+          new Set(items.map((item) => `${item.productId}:${item.size ?? ""}`))
+            .size === items.length,
         { message: "Cada produto entra uma vez só na venda." },
       ),
     costCenterId: z.uuid().optional(),
@@ -454,7 +579,11 @@ export function receivableContactMessage(input: {
 /** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
 export const pixMessageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Marina" },
-  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
   { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
   { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
   { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },

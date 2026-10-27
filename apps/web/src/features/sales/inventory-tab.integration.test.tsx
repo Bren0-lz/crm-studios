@@ -98,6 +98,113 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     );
   });
 
+  it("configura os tamanhos do produto quando ele tem distinção por tamanho", async () => {
+    const { repository } = await setupApi();
+    const panel = await openInventoryTab();
+    await within(panel).findByText("Nenhum produto");
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Novo produto" }),
+    );
+    let dialog = screen.getByRole("dialog", { name: "Novo produto" });
+    expect(
+      within(dialog).queryByRole("group", { name: "Tamanhos disponíveis" }),
+    ).not.toBeInTheDocument();
+    change("Nome", "Camiseta do estúdio", dialog);
+    change("Código do produto", "CAM", dialog);
+    fireEvent.click(
+      within(dialog).getByLabelText("Possui distinção por tamanhos"),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar produto" }),
+    );
+    expect(
+      await within(dialog).findByText("Selecione ao menos um tamanho."),
+    ).toBeInTheDocument();
+    const sizes = within(dialog).getByRole("group", {
+      name: "Tamanhos disponíveis",
+    });
+    for (const label of [
+      "PP",
+      "P",
+      "M",
+      "G",
+      "GG",
+      "Tamanho único",
+      "Baby look PP",
+      "Baby look P",
+      "Baby look M",
+      "Baby look G",
+      "Baby look GG",
+    ])
+      expect(within(sizes).getByLabelText(label)).toBeInTheDocument();
+    fireEvent.click(within(sizes).getByLabelText("G"));
+    fireEvent.click(within(sizes).getByLabelText("Baby look M"));
+    fireEvent.click(within(sizes).getByLabelText("P"));
+    expect(within(dialog).queryByLabelText("Estoque inicial")).toBeNull();
+    change("Estoque inicial P", "2", dialog);
+    change("Estoque inicial Baby look M", "1", dialog);
+    await save("Novo produto", "Salvar produto");
+    const product = (
+      await repository.getInventoryWorkspace(clinicId)
+    ).products.find((item) => item.sku === "CAM")!;
+    expect(product).toMatchObject({
+      sizes: ["p", "g", "baby_look_m"],
+      currentStock: 3,
+    });
+    expect(
+      await within(panel).findByText("P: 2 · G: 0 · Baby look M: 1"),
+    ).toBeInTheDocument();
+    // Sem estoque mínimo: o produto tem saldo, mas o tamanho zerado aparece como esgotado.
+    expect(within(panel).getByText("Esgotado: G")).toBeInTheDocument();
+
+    // Ajuste de estoque pede o tamanho do produto.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Ajustar estoque" }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Ajustar estoque" });
+    expect(within(dialog).queryByLabelText("Tamanho")).toBeNull();
+    change("Produto", product.id, dialog);
+    expect(
+      within(dialog).getByRole("option", { name: "G · 0 un" }),
+    ).toBeInTheDocument();
+    change("Tamanho", "g", dialog);
+    change("Quantidade", "4", dialog);
+    change("Motivo", "Compra de camisetas", dialog);
+    await save("Ajustar estoque", "Salvar ajuste");
+    expect(
+      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByText(/Esgotado/)).toBeNull();
+    const history = expand("Histórico de estoque");
+    const movement = within(history)
+      .getByText("Compra de camisetas")
+      .closest<HTMLElement>("tr")!;
+    expect(
+      within(movement).getByText("Camiseta do estúdio · G"),
+    ).toBeInTheDocument();
+
+    // Sem tamanhos, o saldo dos tamanhos antigos continua visível até ser baixado.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Editar Camiseta do estúdio" }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    const checkbox = within(dialog).getByLabelText<HTMLInputElement>(
+      "Possui distinção por tamanhos",
+    );
+    expect(checkbox.checked).toBe(true);
+    fireEvent.click(checkbox);
+    await save("Editar produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === product.id,
+      ),
+    ).toMatchObject({ sizes: [], currentStock: 7 });
+    expect(
+      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
+    ).toBeInTheDocument();
+  });
+
   it("tira o Estoque do Financeiro, mesmo com permissão de consultar", async () => {
     await setupApi();
     open("/financeiro");

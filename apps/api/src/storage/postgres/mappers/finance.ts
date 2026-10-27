@@ -8,13 +8,21 @@ import type {
   Payable,
   PaymentMethod,
   Product,
+  ProductSize,
   Receivable,
   ReceivableStatus,
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
-import { serviceCommissionsInForce } from "@crm/contracts";
+import {
+  productSizeStock,
+  serviceCommissionsInForce,
+  sortProductSizes,
+} from "@crm/contracts";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
+
+/** Coluna com os saldos por tamanho; exige a tabela `products` sem apelido na consulta. */
+export const productStockRowsColumn = `(SELECT coalesce(json_agg(json_build_object('size',s.size,'currentStock',s.current_stock)),'[]'::json) FROM product_stock s WHERE s.product_id=products.id) AS "stockRows"`;
 
 export interface ProductRow {
   branchId?: string;
@@ -28,6 +36,9 @@ export interface ProductRow {
   costInCents: number;
   salePriceInCents: number;
   currentStock: number;
+  sizes: ProductSize[];
+  /** Linhas de `product_stock` ("" = sem tamanho), via `productStockRowsColumn`. */
+  stockRows?: { size: string; currentStock: number }[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +50,7 @@ export interface StockMovementRow {
   productId: string;
   productName: string;
   kind: StockMovement["kind"];
+  size?: string;
   quantity: number;
   balanceAfter: number;
   notes: string;
@@ -67,6 +79,7 @@ export interface PatientTabItemRow {
   tabId: string;
   productId: string;
   productName: string;
+  size?: string;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
@@ -284,6 +297,14 @@ export function mapProduct(row: ProductRow): Product {
     costInCents: row.costInCents,
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
+    sizes: sortProductSizes(row.sizes),
+    sizeStock: productSizeStock(
+      row.sizes,
+      (row.stockRows ?? []).map((item) => ({
+        size: (item.size || null) as ProductSize | null,
+        currentStock: item.currentStock,
+      })),
+    ),
     lowStock: row.currentStock <= 0,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
@@ -298,6 +319,7 @@ export function mapStockMovement(row: StockMovementRow): StockMovement {
     productId: row.productId,
     productName: row.productName,
     kind: row.kind,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     balanceAfter: row.balanceAfter,
     notes: row.notes,
@@ -311,6 +333,7 @@ export function mapPatientTabItem(row: PatientTabItemRow): PatientTabItem {
     id: row.id,
     productId: row.productId,
     productName: row.productName,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     unitPriceInCents: row.unitPriceInCents,
     unitCostInCents: row.unitCostInCents,
