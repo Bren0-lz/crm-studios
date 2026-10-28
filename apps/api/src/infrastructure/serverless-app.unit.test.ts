@@ -1,8 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-  migrationDatabaseUrl,
-  serverlessDatabaseUrl,
-} from "./database-connection.js";
 import { assertServerlessConfig, stripApiPrefix } from "./serverless-app.js";
 
 describe("serverless entry", () => {
@@ -21,60 +17,16 @@ describe("serverless entry", () => {
     const secret = "a".repeat(40);
     expect(() =>
       assertServerlessConfig({ STORAGE_MODE: "memory", JWT_SECRET: secret }),
-    ).toThrow(/STORAGE_MODE=postgres/);
+    ).toThrow(/STORAGE_MODE=mysql/);
     expect(() =>
       assertServerlessConfig({
-        STORAGE_MODE: "postgres",
+        STORAGE_MODE: "mysql",
         JWT_SECRET: "development-secret-change-before-production",
       }),
     ).toThrow(/JWT_SECRET/);
     expect(() =>
-      assertServerlessConfig({ STORAGE_MODE: "postgres", JWT_SECRET: secret }),
+      assertServerlessConfig({ STORAGE_MODE: "mysql", JWT_SECRET: secret }),
     ).not.toThrow();
-  });
-
-  it("moves the Supabase session pooler to transaction mode and keeps other URLs", () => {
-    const pooler = "aws-0-sa-east-1.pooler.supabase.com";
-    expect(
-      serverlessDatabaseUrl(
-        `postgresql://postgres.abc:senha@${pooler}:5432/postgres`,
-      ),
-    ).toBe(`postgresql://postgres.abc:senha@${pooler}:6543/postgres`);
-    expect(
-      serverlessDatabaseUrl(
-        `postgresql://postgres.abc:senha@${pooler}/postgres?sslmode=require`,
-      ),
-    ).toBe(
-      `postgresql://postgres.abc:senha@${pooler}:6543/postgres?sslmode=require`,
-    );
-    for (const unchanged of [
-      `postgresql://postgres.abc:senha@${pooler}:6543/postgres`,
-      "postgresql://postgres:senha@db.abc.supabase.co:5432/postgres",
-      "postgresql://crm:crm@localhost:5432/crm",
-    ]) {
-      expect(serverlessDatabaseUrl(unchanged)).toBe(unchanged);
-    }
-  });
-
-  it("moves the Supabase transaction pooler back to session mode for migrations", () => {
-    const pooler = "aws-0-sa-east-1.pooler.supabase.com";
-    expect(
-      migrationDatabaseUrl(
-        `postgresql://postgres.abc:senha@${pooler}:6543/postgres`,
-      ),
-    ).toBe(`postgresql://postgres.abc:senha@${pooler}:5432/postgres`);
-    expect(
-      migrationDatabaseUrl(
-        `postgresql://postgres.abc:senha@${pooler}:6543/postgres?pgbouncer=true`,
-      ),
-    ).toBe(`postgresql://postgres.abc:senha@${pooler}:5432/postgres`);
-    for (const unchanged of [
-      `postgresql://postgres.abc:senha@${pooler}:5432/postgres`,
-      "postgresql://postgres:senha@db.abc.supabase.co:5432/postgres",
-      "postgresql://crm:crm@localhost:6543/crm",
-    ]) {
-      expect(migrationDatabaseUrl(unchanged)).toBe(unchanged);
-    }
   });
 });
 
@@ -90,10 +42,8 @@ describe("startup error messages", () => {
     expect(message).not.toContain("curta-demais-segredo");
     expect(
       describeStartupError(
-        new Error(
-          "falhou postgresql://postgres.abc:senha123@host:6543/postgres",
-        ),
+        new Error("falhou mysql://u123_crm:senha123@host:3306/u123_crm"),
       ),
-    ).toBe("falhou postgresql://***@host:6543/postgres");
+    ).toBe("falhou mysql://***@host:3306/u123_crm");
   });
 });

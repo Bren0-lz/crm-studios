@@ -1,11 +1,5 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
-import {
-  legacyPermissions,
-  permissionCatalog,
-  togglePermissions,
-  type PermissionKey,
-} from "@crm/contracts";
-import { readFileSync } from "node:fs";
+import { togglePermissions, type PermissionKey } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { ROUTE_ACCESS } from "../../infrastructure/route-access.js";
@@ -310,44 +304,5 @@ describe("per-operation API authorization", () => {
         })
       ).statusCode,
     ).toBe(200);
-  });
-  it("migration backfill matches the shared legacy rules and never includes admin-only export", () => {
-    const sql = readFileSync(
-      new URL(
-        "../../../migrations/0045_operation_permissions.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    const rows = [
-      ...sql.matchAll(
-        /\('([^']+)', ARRAY\[([^\]]*)\]::text\[\], ARRAY\[([^\]]*)\]::text\[\]\)/g,
-      ),
-    ];
-    expect(rows.map((row) => row[1]).sort()).toEqual(
-      permissionCatalog
-        // History and waitlist came after 0045; waitlist has its own grant in 0097.
-        .filter(
-          (item) =>
-            !item.legacyAdmin &&
-            !item.explicitGrantOnly &&
-            item.module !== "history" &&
-            item.module !== "waitlist",
-        )
-        .map((item) => item.key)
-        .sort(),
-    );
-    for (const row of rows) {
-      const definition = permissionCatalog.find((item) => item.key === row[1])!;
-      const parse = (text: string) =>
-        [...text.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-      expect(parse(row[2]!)).toEqual(definition.legacyView);
-      expect(parse(row[3]!)).toEqual(definition.legacyEdit);
-    }
-    expect(sql).toContain("WHERE u.permissions IS NULL");
-    expect(sql).not.toContain("history.view");
-    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
-      "patients.export",
-    );
   });
 });

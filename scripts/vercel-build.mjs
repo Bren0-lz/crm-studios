@@ -22,11 +22,16 @@ mkdirSync(functionDir, { recursive: true });
 // Migrações antes de tudo, só no deploy de produção (previews não tocam o banco do site).
 // Se uma falhar, o comando sai com erro, o build para e a versão anterior continua no ar:
 // o código novo nunca é publicado sem as colunas de que precisa.
-if (process.env.VERCEL_ENV === "production" && process.env.STORAGE_MODE === "postgres") {
+if (
+  process.env.VERCEL_ENV === "production" &&
+  process.env.STORAGE_MODE === "mysql"
+) {
   console.log("› Aplicando migrações pendentes no banco");
   execSync("npm run db:migrate", { cwd: root, stdio: "inherit" });
 } else {
-  console.log("› Migrações puladas (não é deploy de produção com STORAGE_MODE=postgres)");
+  console.log(
+    "› Migrações puladas (não é deploy de produção com STORAGE_MODE=mysql)",
+  );
 }
 
 console.log("› Compilando o site com VITE_API_URL=/api");
@@ -37,7 +42,9 @@ execSync("npm run build -w @crm/web", {
   // gera o React de desenvolvimento, mais pesado e com nomes de arquivo e linhas embutidos.
   env: { ...process.env, NODE_ENV: "production", VITE_API_URL: "/api" },
 });
-cpSync(join(root, "apps", "web", "dist"), join(output, "static"), { recursive: true });
+cpSync(join(root, "apps", "web", "dist"), join(output, "static"), {
+  recursive: true,
+});
 
 console.log("› Empacotando a API como função");
 await build({
@@ -51,11 +58,12 @@ await build({
   banner: {
     js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
   },
-  // pg-native é opcional no pg e não é usado.
-  external: ["pg-native"],
   logLevel: "warning",
 });
-writeFileSync(join(functionDir, "package.json"), JSON.stringify({ type: "module" }));
+writeFileSync(
+  join(functionDir, "package.json"),
+  JSON.stringify({ type: "module" }),
+);
 writeFileSync(
   join(functionDir, ".vc-config.json"),
   JSON.stringify(

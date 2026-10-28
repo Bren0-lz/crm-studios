@@ -28,7 +28,7 @@ Gate focado num arquivo de teste: `npm exec -w @crm/api -- vitest run src/<arqui
 passa `src` como filtro, roda tudo e retorna 0 mesmo se o arquivo filtrado não existir.
 Uma tarefa só está concluída quando todos retornam exit code 0.
 
-Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm run test:postgres`
+Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm run test:mysql`
 (exige `TEST_DATABASE_URL`; os testes ficam `skip` sem ele — escreva-os mesmo assim).
 
 ### Regras do loop
@@ -54,10 +54,14 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   `packages/contracts/src/<domínio>/{model,types}.ts`; index.ts mantém os exports públicos.
 - **Repositório duplo**: todo método novo entra na interface `ClinicRepository`
   (`apps/api/src/repository.ts`) e é implementado **nos dois**:
-  `memory-repository.ts` e `postgres-repository.ts`. Os testes da API usam o de memória;
-  o PostgreSQL tem testes opt-in em `storage/postgres/tests/*.integration.test.ts`.
-- **PostgreSQL**: operações com escrita em várias tabelas usam transação
-  (`this.inTransaction(...)`); tudo filtrado por `clinic_id`. Migrações em
+  `memory-repository.ts` e `mysql-repository.ts`. Os testes da API usam o de memória;
+  o MySQL tem testes opt-in em `storage/mysql/tests/*.integration.test.ts` (cada arquivo cria
+  o próprio banco com `createTestDatabase`).
+- **MySQL 8 / MariaDB 10.6+** (hospedagem compartilhada, ex.: Hostinger): operações com escrita em
+  várias tabelas usam transação (`this.inTransaction(...)`); tudo filtrado por `clinic_id`. Sem
+  gatilhos, funções ou procedures no banco — a regra fica na aplicação (filial padrão, conflito de
+  agenda, histórico montado na leitura em `system-history.ts`). Datas em UTC; dia/mês da clínica via
+  `localDate`/`localDayStart` de `storage/mysql/sql.ts`. Migrações em
   `apps/api/migrations/00NN_nome.sql`, aplicadas em ordem automaticamente.
 - **Rotas** em `apps/api/src/modules/<domínio>/routes.ts`: `preHandler: authenticate` + guardas de perfil
   (`requireCommercialAccess`, `requireFinanceAccess`…); erros de domínio com
