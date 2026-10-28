@@ -3,14 +3,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildApp } from "../app.js";
 import { config } from "../config.js";
 import { createDatabasePool } from "../database.js";
-import { PostgresClinicRepository } from "../postgres-repository.js";
-import { serverlessDatabaseUrl } from "./database-connection.js";
+import { MysqlClinicRepository } from "../mysql-repository.js";
 
 /**
  * Entrada da API como função serverless (Vercel). A mesma aplicação Fastify do `server.ts`,
  * mas sem `listen`, sem migrações e sem seed: cada instância só atende requisições. As
- * migrações rodam à parte (`npm run db:setup`), porque a função usa o pooler em modo
- * transação, que não suporta a trava de sessão das migrações.
+ * migrações rodam à parte (`npm run db:migrate`, no build).
  */
 
 /** Prefixo público das rotas da API no mesmo domínio do site. */
@@ -25,9 +23,9 @@ export function assertServerlessConfig(current: {
   STORAGE_MODE: string;
   JWT_SECRET: string;
 }) {
-  if (current.STORAGE_MODE !== "postgres") {
+  if (current.STORAGE_MODE !== "mysql") {
     throw new Error(
-      "A função serverless exige STORAGE_MODE=postgres (memória não persiste entre instâncias).",
+      "A função serverless exige STORAGE_MODE=mysql (memória não persiste entre instâncias).",
     );
   }
   if (current.JWT_SECRET === defaultJwtSecret) {
@@ -41,12 +39,8 @@ function getApp() {
   assertServerlessConfig(config);
   appPromise ??= (async () => {
     // Uma conexão por instância, devolvida logo depois de ociosa: são muitas instâncias
-    // curtas dividindo o limite de clientes do pooler.
-    const pool = createDatabasePool({
-      max: 1,
-      url: serverlessDatabaseUrl(config.DATABASE_URL),
-      idleTimeoutMillis: 5_000,
-    });
+    // curtas dividindo o limite de conexões do banco.
+    const pool = createDatabasePool({ max: 1, idleTimeoutMillis: 5_000 });
     // Falha cedo e com motivo claro se a DATABASE_URL estiver errada ou o banco inacessível.
     try {
       await pool.query("SELECT 1");
@@ -61,7 +55,7 @@ function getApp() {
       );
     }
     const app = await buildApp({
-      repository: new PostgresClinicRepository(pool),
+      repository: new MysqlClinicRepository(pool),
     });
     app.addHook("onClose", () => pool.end());
     await app.ready();
