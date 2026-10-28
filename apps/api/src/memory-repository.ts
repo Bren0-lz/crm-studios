@@ -9,6 +9,7 @@ import { createFinancialDatesRepository } from "./storage/memory/financial-dates
 import { createRegistryRepository } from "./storage/memory/registry.js";
 import { createAgendaLinksRepository } from "./storage/memory/agenda-links.js";
 import { createDocumentSignaturesRepository } from "./storage/memory/document-signatures.js";
+import { createDocumentSignatureLinksRepository } from "./storage/memory/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/memory/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/memory/commission-operations.js";
 import { createFinanceOperationsRepository } from "./storage/memory/finance-operations.js";
@@ -83,6 +84,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
   readonly getDocumentSignatureContent: ClinicRepository["getDocumentSignatureContent"];
+  readonly createDocumentSignatureLink: ClinicRepository["createDocumentSignatureLink"];
+  readonly getDocumentSignatureLink: ClinicRepository["getDocumentSignatureLink"];
+  readonly openPublicSignatureDocument: ClinicRepository["openPublicSignatureDocument"];
+  readonly signPublicDocument: ClinicRepository["signPublicDocument"];
   readonly listClinicalResources: ClinicRepository["listClinicalResources"];
   readonly saveClinicalResource: ClinicRepository["saveClinicalResource"];
   readonly finalizeClinicalResource: ClinicRepository["finalizeClinicalResource"];
@@ -221,6 +226,13 @@ export class MemoryClinicRepository implements ClinicRepository {
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
     this.getDocumentSignatureContent = signatures.getDocumentSignatureContent;
+    const signatureLinks = createDocumentSignatureLinksRepository(this.context);
+    this.createDocumentSignatureLink =
+      signatureLinks.createDocumentSignatureLink;
+    this.getDocumentSignatureLink = signatureLinks.getDocumentSignatureLink;
+    this.openPublicSignatureDocument =
+      signatureLinks.openPublicSignatureDocument;
+    this.signPublicDocument = signatureLinks.signPublicDocument;
 
     this.revokeUserSessions = this.administration.revokeUserSessions;
     this.findUserByEmail = this.administration.findUserByEmail;

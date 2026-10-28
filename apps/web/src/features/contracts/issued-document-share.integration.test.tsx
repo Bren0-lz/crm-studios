@@ -8,12 +8,13 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { documentSignatureMessage, whatsappLink } from "@crm/contracts";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 describe("issued document sharing", () => {
-  it("offers WhatsApp and Save PDF only on issued documents", async () => {
+  it("offers the WhatsApp signing link and Save PDF only on issued documents", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -39,9 +40,20 @@ describe("issued document sharing", () => {
       { ...base, id: "d1", title: "Contrato Pilates", status: "issued" },
       { ...base, id: "d2", title: "Declaração de março", status: "draft" },
     ];
-    vi.mocked(fetch).mockImplementation(async (input) => {
+    const token = "a".repeat(43);
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
-      const body = /\/documents(\?|$)/.test(url) ? documents : [];
+      const body = url.endsWith("/documents/d1/signature-link")
+        ? {
+            document: documents[0],
+            token,
+            patientPhone: "11999991234",
+            clinicName: "Studios Aryana",
+          }
+        : /\/documents(\?|$)/.test(url)
+          ? documents
+          : [];
+      if (url.endsWith("/signature-link")) expect(init?.method).toBe("POST");
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     installDocumentBrowserMocks();
@@ -60,14 +72,28 @@ describe("issued document sharing", () => {
     const draft = screen
       .getByText("Declaração de março")
       .closest("article") as HTMLElement;
-    const whatsapp = within(issued).getByRole("link", { name: /WhatsApp/ });
+    fireEvent.click(within(issued).getByRole("button", { name: /WhatsApp/ }));
+    const sharing = screen.getByRole("dialog", {
+      name: "Enviar para assinatura",
+    });
+    const whatsapp = await within(sharing).findByRole("link", {
+      name: /Abrir WhatsApp/,
+    });
     expect(whatsapp).toHaveAttribute(
       "href",
-      `https://wa.me/?text=${encodeURIComponent('Olá, Viviane! Segue o documento "Contrato Pilates" emitido pela clínica. Qualquer dúvida, é só responder esta mensagem.')}`,
+      whatsappLink(
+        "11999991234",
+        documentSignatureMessage({
+          patientName: "Viviane Araújo",
+          clinicName: "Studios Aryana",
+          link: `${window.location.origin}/assinar-contrato/${token}`,
+        }),
+      ),
     );
     expect(whatsapp).toHaveAttribute("target", "_blank");
+    fireEvent.click(within(sharing).getByRole("button", { name: "Fechar" }));
     expect(
-      within(draft).queryByRole("link", { name: /WhatsApp/ }),
+      within(draft).queryByRole("button", { name: /WhatsApp/ }),
     ).not.toBeInTheDocument();
     expect(
       within(draft).queryByRole("button", { name: /Salvar PDF/ }),

@@ -45,6 +45,11 @@ import type {
 import type {
   DocumentSignatureInput,
   DocumentSignatureContent,
+  DocumentSignatureLinkDetails,
+  DocumentSignatureLinkShare,
+  PublicDocumentSignInput,
+  PublicRequestMetadata,
+  PublicSignatureDocument,
 } from "@crm/contracts";
 import type {
   ProductUpdateInput,
@@ -1335,6 +1340,26 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<DocumentSignatureContent | null>;
+  /** Gera (ou reaproveita) o link público de assinatura de um documento emitido. */
+  createDocumentSignatureLink(
+    clinicId: string,
+    actorUserId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkShare | null>;
+  getDocumentSignatureLink(
+    clinicId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkDetails | null>;
+  /** Abre o documento pelo link público e registra a visualização. */
+  openPublicSignatureDocument(
+    token: string,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
+  signPublicDocument(
+    token: string,
+    input: PublicDocumentSignInput,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
   listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
   createDocumentTemplate(
     clinicId: string,

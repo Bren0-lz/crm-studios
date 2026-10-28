@@ -12,7 +12,7 @@ export interface ModuleRequirement {
   permission: PermissionKey;
 }
 /**
- * - `public`: sem login (saúde e login).
+ * - `public`: sem login (saúde, login e link de assinatura de documento).
  * - `login`: basta estar logado (usuário ativo).
  * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
@@ -315,6 +315,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /documents/:id/signature": operation("contracts.status"),
   "GET /documents/:id/signature/content": view("contracts"),
+  "POST /documents/:id/signature-link": operation("contracts.status"),
+  "GET /documents/:id/signature-link": view("contracts"),
+  // Link de assinatura enviado ao cliente (sem login; o token identifica o documento).
+  "GET /public/document-signatures/:token": "public",
+  "POST /public/document-signatures/:token": "public",
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
   "POST /documents/preview": operation("contracts.issue"),
