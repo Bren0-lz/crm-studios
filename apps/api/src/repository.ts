@@ -949,6 +949,15 @@ export interface ClinicRepository {
     clinicId: string,
     input: AssessmentTemplateInput,
   ): Promise<AssessmentTemplate>;
+  /** Todas as versões de todos os modelos, inclusive arquivados. */
+  listAssessmentTemplates(clinicId: string): Promise<AssessmentTemplate[]>;
+  /** Arquiva (ou reativa) todas as versões da família; devolve a versão mais recente. */
+  setAssessmentTemplateActive(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    active: boolean,
+  ): Promise<AssessmentTemplate | null>;
   createClinicalAssessment(
     clinicId: string,
     authorUserId: string,

@@ -1,4 +1,5 @@
 import {
+  assessmentTemplateActiveInputSchema,
   assessmentTemplateInputSchema,
   clinicalAddendumInputSchema,
   clinicalAlertInputSchema,
@@ -211,6 +212,32 @@ export function registerClinicalRoutes(context: RouteContext) {
     },
   );
 
+  app.get(
+    "/assessment-templates",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.listAssessmentTemplates(request.user.clinicId),
+  );
+  app.patch(
+    "/assessment-templates/:id/status",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const template = await repository.setAssessmentTemplateActive(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        assessmentTemplateActiveInputSchema.parse(request.body).active,
+      );
+      if (!template)
+        throw new DomainError(
+          "ASSESSMENT_TEMPLATE_NOT_FOUND",
+          "Modelo não encontrado.",
+          404,
+        );
+      return template;
+    },
+  );
   app.post(
     "/assessment-templates/drafts",
     { preHandler: authenticate },
