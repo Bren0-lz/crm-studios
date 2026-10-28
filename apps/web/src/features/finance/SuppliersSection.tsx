@@ -1,33 +1,19 @@
-import type { Supplier, SupplierInput } from "@crm/contracts";
+import { formatPhone, type Supplier } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { SupplierModal } from "./SupplierModal";
 /** `embedded` mostra a lista aberta (sub-aba de Cadastros) em vez do bloco recolhível. */
 export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   const { can } = useAuthorization();
-  const toast = useToast();
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(embedded),
     [editor, setEditor] = useState<Supplier | "new" | null>(null),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [form, setForm] = useState<SupplierInput>({
-      name: "",
-      kind: "company",
-      document: "",
-      phone: "",
-      email: "",
-      notes: "",
-      active: true,
-    });
-  const dirty = useFormDirty(form, Boolean(editor));
+    [error, setError] = useState("");
   async function load() {
     setError("");
     try {
@@ -35,22 +21,6 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
     } catch (cause) {
       setError((cause as Error).message);
     }
-  }
-  function edit(item: Supplier | "new") {
-    setForm(
-      item === "new"
-        ? {
-            name: "",
-            kind: "company",
-            document: "",
-            phone: "",
-            email: "",
-            notes: "",
-            active: true,
-          }
-        : item,
-    );
-    setEditor(item);
   }
   useEffect(() => {
     if (!embedded) return;
@@ -66,7 +36,7 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   const create = can("finance.suppliers_manage") && (
     <button
       className={embedded ? "secondary-button" : "primary-button"}
-      onClick={() => edit("new")}
+      onClick={() => setEditor("new")}
     >
       {embedded && <Plus size={16} aria-hidden="true" />}
       Novo fornecedor
@@ -94,9 +64,14 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
               <span>
                 {item.kind === "company" ? "Pessoa jurídica" : "Pessoa física"}{" "}
                 · {item.active ? "Ativo" : "Inativo"}
+                {(item.whatsapp || item.phone) &&
+                  ` · ${formatPhone(item.whatsapp || item.phone)}`}
               </span>
               {can("finance.suppliers_manage") && (
-                <button className="secondary-button" onClick={() => edit(item)}>
+                <button
+                  className="secondary-button"
+                  onClick={() => setEditor(item)}
+                >
                   Editar
                 </button>
               )}
@@ -133,126 +108,11 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
         </details>
       )}
       {editor && (
-        <Modal
-          title={editor === "new" ? "Novo fornecedor" : "Editar fornecedor"}
-          subtitle="Desativar mantém os vínculos e o histórico das despesas."
-          busy={busy}
-          dirty={dirty}
+        <SupplierModal
+          supplier={editor}
           onClose={() => setEditor(null)}
-        >
-          <form
-            className="clinical-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setBusy(true);
-              setError("");
-              try {
-                await api.saveSupplier(
-                  form,
-                  editor !== "new" ? editor.id : undefined,
-                );
-                toast.success(
-                  editor === "new"
-                    ? "Fornecedor cadastrado."
-                    : "Fornecedor atualizado.",
-                );
-                await load();
-                setEditor(null);
-              } catch (cause) {
-                setError((cause as Error).message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {error && <ErrorBanner error={error} />}
-            <fieldset className="form-fields form-grid" disabled={busy}>
-              <label>
-                Nome
-                <input
-                  required
-                  minLength={2}
-                  maxLength={160}
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm({ ...form, name: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  value={form.kind}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      kind: event.target.value as SupplierInput["kind"],
-                    })
-                  }
-                >
-                  <option value="company">Pessoa jurídica</option>
-                  <option value="person">Pessoa física</option>
-                </select>
-              </label>
-              <label>
-                CPF / CNPJ
-                <input
-                  value={form.document}
-                  maxLength={30}
-                  onChange={(event) =>
-                    setForm({ ...form, document: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Telefone
-                <input
-                  value={form.phone}
-                  maxLength={30}
-                  onChange={(event) =>
-                    setForm({ ...form, phone: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                E-mail
-                <input
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(event) =>
-                    setForm({ ...form, email: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Observações
-                <textarea
-                  value={form.notes}
-                  maxLength={1000}
-                  onChange={(event) =>
-                    setForm({ ...form, notes: event.target.value })
-                  }
-                />
-              </label>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) =>
-                    setForm({ ...form, active: event.target.checked })
-                  }
-                />
-                Ativo
-              </label>
-            </fieldset>
-            <div className="modal-actions">
-              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={busy}>
-                Salvar fornecedor
-              </button>
-            </div>
-          </form>
-        </Modal>
+          onSaved={load}
+        />
       )}
     </section>
   );
