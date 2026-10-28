@@ -196,12 +196,28 @@ export const patientTabServiceInputSchema = z.object({
   appointmentId: z.uuid(),
   amountInCents: z.number().int().min(0).max(2147483647).optional(),
 });
+/** Recorrência do valor contratado com o fornecedor. */
+export const supplierBillingCycleSchema = z.enum([
+  "one_time",
+  "monthly",
+  "quarterly",
+  "yearly",
+]);
 export const supplierInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
   kind: z.enum(["person", "company"]),
   document: z.string().trim().max(30).default(""),
   phone: z.string().trim().max(30).default(""),
+  whatsapp: z.string().trim().max(30).default(""),
   email: z.email().optional().or(z.literal("")),
+  hiredOn: z.iso.date().optional(),
+  contractAmountInCents: z.number().int().min(0).max(2147483647).optional(),
+  billingCycle: supplierBillingCycleSchema.default("one_time"),
+  paymentMethod: paymentMethodSchema.optional(),
+  installments: z.number().int().min(1).max(120).default(1),
+  paymentTerms: z.string().trim().max(300).default(""),
+  orders: z.string().max(2000).default(""),
+  contracts: z.string().max(2000).default(""),
   notes: z.string().max(1000).default(""),
   active: z.boolean().default(true),
 });
@@ -455,7 +471,11 @@ export function receivableContactMessage(input: {
 /** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
 export const pixMessageVariables = [
   { code: "{{nome}}", label: "Nome", example: "Marina" },
-  { code: "{{nome_completo}}", label: "Nome completo", example: "Marina Costa" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
   { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
   { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
   { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },

@@ -794,6 +794,66 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("saves PostgreSQL supplier hiring and payment details and clears them on edit", async () => {
+    const name = "PG fornecedor com contrato";
+    try {
+      const created = await repository.saveSupplier(clinicId, ownerId, {
+        name,
+        kind: "company",
+        document: "11222333000181",
+        phone: "1133334444",
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360_000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        paymentTerms: "Vencimento todo dia 5",
+        orders: "Pedido 42",
+        contracts: "Contrato 2026/07",
+        notes: "",
+        active: true,
+      });
+      expect(created).toMatchObject({
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360_000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        orders: "Pedido 42",
+        contracts: "Contrato 2026/07",
+      });
+      const updated = await repository.saveSupplier(
+        clinicId,
+        ownerId,
+        {
+          name,
+          kind: "company",
+          document: "",
+          phone: "",
+          whatsapp: "",
+          billingCycle: "one_time",
+          installments: 1,
+          paymentTerms: "",
+          orders: "",
+          contracts: "",
+          notes: "",
+          active: true,
+        },
+        created!.id,
+      );
+      expect(updated).not.toHaveProperty("hiredOn");
+      expect(updated).not.toHaveProperty("contractAmountInCents");
+      expect(updated).not.toHaveProperty("paymentMethod");
+    } finally {
+      await pool.query(
+        "DELETE FROM suppliers WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    }
+  });
+
   it("lists PostgreSQL payments and reversals by event date in the clinic time zone", async () => {
     await cleanupDailyCash();
     const [patients, services] = await Promise.all([
