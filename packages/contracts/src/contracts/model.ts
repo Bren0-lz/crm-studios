@@ -4,7 +4,7 @@ import {
   type DocumentTemplateValues,
 } from "./variables.js";
 import { documentContentSchema, documentContentText } from "./content.js";
-import { formatCpf, formatPhone } from "../common/model.js";
+import { formatCpf, formatPhone, isValidCpf } from "../common/model.js";
 
 export const documentKindSchema = z.enum([
   "contract",
@@ -307,8 +307,8 @@ export const publicDocumentSignInputSchema = z.object({
     .trim()
     .transform((value) => value.replace(/\D/g, ""))
     .refine(
-      (value) => value === "" || value.length === 11,
-      "Informe o CPF com 11 dígitos.",
+      (value) => value === "" || isValidCpf(value),
+      "Informe um CPF válido.",
     )
     .optional(),
   accepted: z.literal(true, "Confirme que leu e concorda com o documento."),
@@ -317,6 +317,24 @@ export const publicDocumentSignInputSchema = z.object({
     .max(700_000)
     .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Desenhe a assinatura."),
 });
+
+/** Por quantos dias o link de assinatura enviado ao cliente continua abrindo. */
+export const signatureLinkValidityDays = 7;
+
+/** Fim da validade de um link gerado em `createdAt`. */
+export function signatureLinkExpiresAt(createdAt: string | Date) {
+  return new Date(
+    new Date(createdAt).getTime() + signatureLinkValidityDays * 86_400_000,
+  ).toISOString();
+}
+
+/** Link vencido e ainda sem assinatura: não abre nem aceita assinatura. */
+export function signatureLinkExpired(
+  link: { expiresAt: string; signedAt?: string },
+  at: Date = new Date(),
+) {
+  return !link.signedAt && new Date(link.expiresAt).getTime() <= at.getTime();
+}
 
 /** Mensagem de WhatsApp com o link para ler e assinar o contrato. */
 export function documentSignatureMessage(input: {

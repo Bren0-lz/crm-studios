@@ -475,6 +475,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         document.id,
       );
       expect(share?.document.signatureLink).toMatchObject({ viewCount: 0 });
+      const link = share!.document.signatureLink!;
+      expect(
+        new Date(link.expiresAt).getTime() - new Date(link.createdAt).getTime(),
+      ).toBe(7 * 86_400_000);
       expect(
         (
           await repository.createDocumentSignatureLink(
@@ -523,6 +527,112 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         signerName: patient!.fullName,
       });
       expect(listed?.signatureLink?.signedAt).toBeTruthy();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("expires the public signature link and renews the token on a new send", async () => {
+    const name = "postgres-document-signature-link-expiry-test";
+    const cleanup = async () => {
+      await pool.query(
+        `DELETE FROM issued_documents WHERE template_id IN
+           (SELECT id FROM document_templates WHERE clinic_id = $1 AND name = $2)`,
+        [clinicId, name],
+      );
+      await pool.query(
+        "DELETE FROM document_templates WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    };
+    await cleanup();
+    try {
+      const [patient] = await repository.listPatients(clinicId);
+      const template = await repository.createDocumentTemplate(clinicId, {
+        name,
+        kind: "contract",
+        body: "Contrato de {{paciente_nome}} com link que expira.",
+      });
+      const document = await repository.createIssuedDocument(
+        clinicId,
+        ownerId,
+        { templateId: template.id, patientId: patient!.id, title: name },
+      );
+      await repository.updateIssuedDocumentStatus(
+        clinicId,
+        document.id,
+        "issued",
+      );
+      const first = await repository.createDocumentSignatureLink(
+        clinicId,
+        ownerId,
+        document.id,
+      );
+      await repository.openPublicSignatureDocument(first!.token, {});
+      // Simula o fim do prazo: o link foi gerado há 8 dias.
+      await pool.query(
+        `UPDATE document_signature_links
+            SET created_at = now() - interval '8 days',
+                expires_at = now() - interval '1 day'
+          WHERE clinic_id = $1 AND document_id = $2`,
+        [clinicId, document.id],
+      );
+      await expect(
+        repository.openPublicSignatureDocument(first!.token, {}),
+      ).rejects.toMatchObject({
+        code: "DOCUMENT_SIGNATURE_LINK_EXPIRED",
+        statusCode: 410,
+      });
+      const signatureImage = "data:image/png;base64,cG5n";
+      await expect(
+        repository.signPublicDocument(
+          first!.token,
+          { signerName: "Cliente", accepted: true, signatureImage },
+          {},
+        ),
+      ).rejects.toMatchObject({ code: "DOCUMENT_SIGNATURE_LINK_EXPIRED" });
+      expect(
+        (await repository.getDocumentSignatureLink(clinicId, document.id))
+          ?.viewCount,
+      ).toBe(1);
+
+      const renewed = await repository.createDocumentSignatureLink(
+        clinicId,
+        ownerId,
+        document.id,
+      );
+      expect(renewed!.token).not.toBe(first!.token);
+      expect(
+        new Date(renewed!.document.signatureLink!.expiresAt).getTime(),
+      ).toBeGreaterThan(Date.now());
+      expect(
+        await repository.openPublicSignatureDocument(first!.token, {}),
+      ).toBeNull();
+      await repository.signPublicDocument(
+        renewed!.token,
+        { signerName: "Cliente", accepted: true, signatureImage },
+        {},
+      );
+      // Assinado, continua visível depois do prazo e um novo envio não troca o link.
+      await pool.query(
+        `UPDATE document_signature_links
+            SET created_at = now() - interval '8 days',
+                expires_at = now() - interval '1 day'
+          WHERE clinic_id = $1 AND document_id = $2`,
+        [clinicId, document.id],
+      );
+      expect(
+        await repository.openPublicSignatureDocument(renewed!.token, {}),
+      ).toMatchObject({ status: "signed" });
+      expect(
+        (
+          await repository.createDocumentSignatureLink(
+            clinicId,
+            ownerId,
+            document.id,
+          )
+        )?.token,
+      ).toBe(renewed!.token);
     } finally {
       await cleanup();
     }

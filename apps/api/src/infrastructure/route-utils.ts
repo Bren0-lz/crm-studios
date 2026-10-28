@@ -13,6 +13,8 @@ export const optionalPatientFilterSchema = z.object({
 export interface BuildAppOptions {
   repository: ClinicRepository;
   logger?: boolean;
+  /** Saltos de proxy confiáveis para `request.ip` (padrão: `TRUST_PROXY`). */
+  trustProxy?: number;
 }
 
 export function reportToCsv(report: ManagementReport) {

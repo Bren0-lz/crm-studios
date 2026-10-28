@@ -1,16 +1,18 @@
-import type {
-  ClinicBranding,
-  DocumentContent,
-  DocumentSignatureLinkDetails,
-  DocumentSignatureLinkView,
-  DocumentStatus,
-  PublicDocumentSignInput,
-  PublicRequestMetadata,
-  PublicSignatureDocument,
+import {
+  signatureLinkExpiresAt,
+  type ClinicBranding,
+  type DocumentContent,
+  type DocumentSignatureLinkDetails,
+  type DocumentSignatureLinkView,
+  type DocumentStatus,
+  type PublicDocumentSignInput,
+  type PublicRequestMetadata,
+  type PublicSignatureDocument,
 } from "@crm/contracts";
 import type { PoolClient } from "pg";
 import { DomainError } from "../../repository.js";
 import {
+  assertSignatureLinkOpen,
   createSignatureToken,
   documentTextSha256,
   maxStoredSignatureViews,
@@ -28,8 +30,16 @@ interface PublicLinkRow {
   branding: ClinicBranding | null;
   documentStatus: DocumentStatus;
   views: DocumentSignatureLinkView[];
+  expiresAt: Date;
   signedAt: Date | null;
   signature: { signerName: string; documentSha256: string } | null;
+}
+
+function assertRowOpen(row: PublicLinkRow) {
+  assertSignatureLinkOpen({
+    expiresAt: row.expiresAt.toISOString(),
+    ...(row.signedAt ? { signedAt: row.signedAt.toISOString() } : {}),
+  });
 }
 
 /** Documento pelo token, travado para registrar visualização ou assinatura. */
@@ -39,7 +49,7 @@ async function lockByToken(client: PoolClient, token: string) {
             COALESCE(NULLIF(d.branding->>'name', ''), c.name) AS "clinicName",
             d.snapshot_body AS "snapshotBody", d.snapshot_content AS "snapshotContent",
             d.branding, d.status AS "documentStatus", l.views,
-            l.signed_at AS "signedAt", l.signature
+            l.expires_at AS "expiresAt", l.signed_at AS "signedAt", l.signature
        FROM document_signature_links l
        JOIN issued_documents d ON d.id = l.document_id AND d.clinic_id = l.clinic_id
        JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
@@ -103,23 +113,49 @@ export function createDocumentSignatureLinksRepository(
             "Emita o documento antes de enviar o link de assinatura.",
             409,
           );
-        const existing = await client.query<{ token: string }>(
-          "SELECT token FROM document_signature_links WHERE clinic_id=$1 AND document_id=$2",
+        const existing = await client.query<{
+          token: string;
+          expiresAt: Date;
+          signedAt: Date | null;
+        }>(
+          `SELECT token, expires_at AS "expiresAt", signed_at AS "signedAt"
+             FROM document_signature_links WHERE clinic_id=$1 AND document_id=$2`,
           [clinicId, documentId],
         );
-        let token = existing.rows[0]?.token;
-        if (!token) {
+        const current = existing.rows[0];
+        let token = current?.token;
+        // Link vencido sem assinatura: troca o token (o antigo deixa de abrir) e renova o prazo.
+        const renewing = Boolean(
+          current &&
+          !current.signedAt &&
+          current.expiresAt.getTime() <= Date.now(),
+        );
+        if (!token || renewing) {
           token = createSignatureToken();
+          const createdAt = new Date().toISOString();
           await client.query(
-            `INSERT INTO document_signature_links (clinic_id, document_id, token, created_by)
-             VALUES ($1, $2, $3, $4)`,
-            [clinicId, documentId, token, actorUserId],
+            `INSERT INTO document_signature_links
+               (clinic_id, document_id, token, created_by, created_at, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (clinic_id, document_id) DO UPDATE
+               SET token = EXCLUDED.token, created_by = EXCLUDED.created_by,
+                   created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at`,
+            [
+              clinicId,
+              documentId,
+              token,
+              actorUserId,
+              createdAt,
+              signatureLinkExpiresAt(createdAt),
+            ],
           );
           await context.addAdminAudit(
             client,
             clinicId,
             actorUserId,
-            "document.signature_link_created",
+            renewing
+              ? "document.signature_link_renewed"
+              : "document.signature_link_created",
             "document",
             documentId,
           );
@@ -145,6 +181,7 @@ export function createDocumentSignatureLinksRepository(
       const result = await context.pool.query<{
         token: string;
         createdAt: Date;
+        expiresAt: Date;
         createdByName: string;
         viewCount: number;
         firstViewedAt: Date | null;
@@ -160,7 +197,7 @@ export function createDocumentSignatureLinksRepository(
         } | null;
         signatureImage: string | null;
       }>(
-        `SELECT l.token, l.created_at AS "createdAt", u.full_name AS "createdByName",
+        `SELECT l.token, l.created_at AS "createdAt", l.expires_at AS "expiresAt", u.full_name AS "createdByName",
                 l.view_count AS "viewCount", l.first_viewed_at AS "firstViewedAt",
                 l.last_viewed_at AS "lastViewedAt", l.views, l.signed_at AS "signedAt",
                 l.signature, l.signature_image AS "signatureImage"
@@ -174,6 +211,7 @@ export function createDocumentSignatureLinksRepository(
       return {
         token: row.token,
         createdAt: row.createdAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
         createdByName: row.createdByName,
         viewCount: row.viewCount,
         ...(row.firstViewedAt
@@ -210,6 +248,7 @@ export function createDocumentSignatureLinksRepository(
       return context.inTransaction(async (client) => {
         const row = await lockByToken(client, token);
         if (!row) return null;
+        assertRowOpen(row);
         const viewedAt = new Date().toISOString();
         const views = [
           ...row.views,
@@ -242,6 +281,7 @@ export function createDocumentSignatureLinksRepository(
             "Este documento já foi assinado.",
             409,
           );
+        assertRowOpen(row);
         if (row.documentStatus !== "issued")
           throw new DomainError(
             "DOCUMENT_NOT_AVAILABLE",

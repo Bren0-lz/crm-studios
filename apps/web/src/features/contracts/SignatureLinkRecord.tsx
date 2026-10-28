@@ -1,5 +1,6 @@
 import {
   formatCpf,
+  signatureLinkExpired,
   type DocumentSignatureLinkDetails,
   type IssuedDocument,
 } from "@crm/contracts";
@@ -33,10 +34,17 @@ export function SignatureLinkRecord({
             <span className="status-pill issued">Assinado pelo link</span>{" "}
             {link.signerName} em {when(link.signedAt)}.
           </>
+        ) : signatureLinkExpired(link) ? (
+          <>
+            <span className="status-pill expired">Link expirado</span> Venceu em{" "}
+            {when(link.expiresAt)}. Envie de novo pelo WhatsApp para gerar outro
+            link.
+          </>
         ) : (
           <>
             <span className="status-pill draft">Aguardando assinatura</span>{" "}
             Link enviado em {when(link.createdAt)} por {link.createdByName}.
+            Vale até {when(link.expiresAt)}.
           </>
         )}{" "}
         {link.viewCount
@@ -101,6 +109,16 @@ function SignatureLinkDetailsModal({
                 {when(details.createdAt)} por {details.createdByName}
               </dd>
             </div>
+            {!details.signedAt && (
+              <div>
+                <dt>Validade</dt>
+                <dd>
+                  {signatureLinkExpired(details)
+                    ? `Expirado em ${when(details.expiresAt)}`
+                    : `Vale até ${when(details.expiresAt)}`}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Primeira visualização</dt>
               <dd>

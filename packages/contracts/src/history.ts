@@ -108,6 +108,11 @@ export const historyActions: {
     label: "Link de assinatura gerado",
   },
   {
+    action: "document.signature_link_renewed",
+    module: "contracts",
+    label: "Link de assinatura renovado",
+  },
+  {
     action: "product.updated",
     module: "patients",
     label: "Produto atualizado",

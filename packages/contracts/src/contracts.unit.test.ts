@@ -99,6 +99,9 @@ import {
   compareClinicalAlerts,
   adminUserServiceCommissionsSchema,
   serviceCommissionsInForce,
+  publicDocumentSignInputSchema,
+  signatureLinkExpiresAt,
+  signatureLinkExpired,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1730,5 +1733,51 @@ describe("comissões por serviço do usuário", () => {
         "2026-10-25",
       ).map((item) => `${item.serviceName} ${item.effectiveFrom}`),
     ).toEqual(["Dança 2026-12-01", "Pilates 2026-06-01", "Pilates 2026-11-01"]);
+  });
+
+  it("accepts only a valid CPF when signing through the public link", () => {
+    const base = {
+      signerName: "Cliente",
+      accepted: true,
+      signatureImage: "data:image/png;base64,cG5n",
+    };
+    expect(
+      publicDocumentSignInputSchema.parse({
+        ...base,
+        signerCpf: "123.456.789-09",
+      }).signerCpf,
+    ).toBe("12345678909");
+    expect(
+      publicDocumentSignInputSchema.parse({ ...base, signerCpf: "" }).signerCpf,
+    ).toBe("");
+    expect(
+      publicDocumentSignInputSchema.safeParse({
+        ...base,
+        signerCpf: "123.456.789-00",
+      }).success,
+    ).toBe(false);
+    expect(
+      publicDocumentSignInputSchema.safeParse({
+        ...base,
+        signerCpf: "111.111.111-11",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("expires an unsigned signature link after 7 days", () => {
+    const expiresAt = signatureLinkExpiresAt("2026-10-20T12:00:00.000Z");
+    expect(expiresAt).toBe("2026-10-27T12:00:00.000Z");
+    expect(
+      signatureLinkExpired({ expiresAt }, new Date("2026-10-27T11:59:59Z")),
+    ).toBe(false);
+    expect(
+      signatureLinkExpired({ expiresAt }, new Date("2026-10-27T12:00:00Z")),
+    ).toBe(true);
+    expect(
+      signatureLinkExpired(
+        { expiresAt, signedAt: "2026-10-21T10:00:00.000Z" },
+        new Date("2026-11-30T12:00:00Z"),
+      ),
+    ).toBe(false);
   });
 });

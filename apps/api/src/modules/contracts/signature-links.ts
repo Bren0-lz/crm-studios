@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import type {
-  DocumentSignatureLinkView,
-  PublicRequestMetadata,
+import {
+  signatureLinkExpired,
+  type DocumentSignatureLinkView,
+  type PublicRequestMetadata,
 } from "@crm/contracts";
+import { DomainError } from "../../repository.js";
 
 /** Token do link público: 32 bytes aleatórios em base64url (43 caracteres). */
 export function createSignatureToken() {
@@ -30,4 +32,17 @@ export function signatureLinkView(
       ? { userAgent: metadata.userAgent.slice(0, 300) }
       : {}),
   };
+}
+
+/** Link vencido e sem assinatura: 410, sem registrar visualização nem aceitar assinatura. */
+export function assertSignatureLinkOpen(link: {
+  expiresAt: string;
+  signedAt?: string;
+}) {
+  if (signatureLinkExpired(link))
+    throw new DomainError(
+      "DOCUMENT_SIGNATURE_LINK_EXPIRED",
+      "Este link expirou. Peça um novo à clínica.",
+      410,
+    );
 }

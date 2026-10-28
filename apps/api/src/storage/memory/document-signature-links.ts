@@ -1,13 +1,16 @@
-import type {
-  DocumentSignatureLink,
-  DocumentSignatureLinkDetails,
-  IssuedDocument,
-  PublicDocumentSignInput,
-  PublicRequestMetadata,
-  PublicSignatureDocument,
+import {
+  signatureLinkExpired,
+  signatureLinkExpiresAt,
+  type DocumentSignatureLink,
+  type DocumentSignatureLinkDetails,
+  type IssuedDocument,
+  type PublicDocumentSignInput,
+  type PublicRequestMetadata,
+  type PublicSignatureDocument,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import {
+  assertSignatureLinkOpen,
   createSignatureToken,
   documentTextSha256,
   maxStoredSignatureViews,
@@ -25,6 +28,7 @@ function summary(link: StoredLink): DocumentSignatureLink {
   return {
     token: link.token,
     createdAt: link.createdAt,
+    expiresAt: link.expiresAt,
     createdByName: link.createdByName,
     viewCount: link.viewCount,
     ...(link.firstViewedAt ? { firstViewedAt: link.firstViewedAt } : {}),
@@ -89,7 +93,9 @@ export function createDocumentSignatureLinksRepository(
           409,
         );
       let link = links.get(documentId);
-      if (!link) {
+      // Link vencido sem assinatura: troca o token (o antigo deixa de abrir) e renova o prazo.
+      const renewing = Boolean(link && signatureLinkExpired(link));
+      if (!link || renewing) {
         const actor = context.users.find(
           (item) => item.clinicId === clinicId && item.id === actorUserId,
         );
@@ -99,21 +105,26 @@ export function createDocumentSignatureLinksRepository(
             "Usuário não encontrado.",
             404,
           );
+        const createdAt = now();
         link = {
           clinicId,
           documentId,
-          token: createSignatureToken(),
-          createdAt: now(),
-          createdByName: actor.fullName,
           viewCount: 0,
           views: [],
+          ...link,
+          token: createSignatureToken(),
+          createdAt,
+          expiresAt: signatureLinkExpiresAt(createdAt),
+          createdByName: actor.fullName,
         };
         links.set(documentId, link);
         sync(document, link);
         context.recordAudit(
           clinicId,
           actorUserId,
-          "document.signature_link_created",
+          renewing
+            ? "document.signature_link_renewed"
+            : "document.signature_link_created",
           "document",
           {},
           documentId,
@@ -144,6 +155,7 @@ export function createDocumentSignatureLinksRepository(
       const link = byToken(token);
       const document = link && findDocument(link);
       if (!link || !document) return null;
+      assertSignatureLinkOpen(link);
       const viewedAt = now();
       link.viewCount += 1;
       link.firstViewedAt ??= viewedAt;
@@ -168,6 +180,7 @@ export function createDocumentSignatureLinksRepository(
           "Este documento já foi assinado.",
           409,
         );
+      assertSignatureLinkOpen(link);
       if (document.status !== "issued")
         throw new DomainError(
           "DOCUMENT_NOT_AVAILABLE",
