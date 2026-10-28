@@ -95,6 +95,7 @@ describe("contract signature link", () => {
       await screen.findByText("Aguardando assinatura"),
     ).toBeInTheDocument();
     expect(screen.getByText(/Ainda não visualizado/)).toBeInTheDocument();
+    expect(screen.getByText(/Vale até/)).toBeInTheDocument();
   });
 
   it("opens the contract without login, records the view and the drawn signature", async () => {
@@ -164,5 +165,36 @@ describe("contract signature link", () => {
     localStorage.clear();
     open("/assinar-contrato/link-invalido");
     expect(await screen.findByText("Link indisponível")).toBeInTheDocument();
+  });
+
+  it("tells the client when the link expired without recording the view", async () => {
+    const { repository, patient, dance } = await clientWithTemplates();
+    const draft = await repository.createIssuedDocument(clinicId, actorId, {
+      patientId: patient.id,
+      templateId: dance.id,
+      title: "Contrato Dançaterapia",
+    });
+    await repository.updateIssuedDocumentStatus(clinicId, draft.id, "issued");
+    const share = await repository.createDocumentSignatureLink(
+      clinicId,
+      actorId,
+      draft.id,
+    );
+    const later = new Date(Date.now() + 8 * 86_400_000);
+    vi.useFakeTimers({ toFake: ["Date"], now: later });
+    try {
+      localStorage.clear();
+      open(`/assinar-contrato/${share!.token}`);
+      expect(await screen.findByText("Link expirado")).toBeInTheDocument();
+      expect(
+        screen.getByText("Este link expirou. Peça um novo à clínica."),
+      ).toBeInTheDocument();
+      expect(
+        (await repository.getDocumentSignatureLink(clinicId, draft.id))
+          ?.viewCount,
+      ).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

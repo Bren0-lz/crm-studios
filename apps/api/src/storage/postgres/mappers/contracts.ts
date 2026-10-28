@@ -22,6 +22,7 @@ export interface DocumentTemplateRow {
 export interface SignatureLinkRow {
   token: string;
   createdAt: string;
+  expiresAt: string;
   createdByName: string;
   viewCount: number;
   firstViewedAt: string | null;
@@ -69,7 +70,8 @@ export const issuedDocumentColumns = `
   d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
   d.created_at AS "createdAt", d.updated_at AS "updatedAt",
   (SELECT jsonb_build_object(
-      'token', l.token, 'createdAt', l.created_at, 'createdByName', u.full_name,
+      'token', l.token, 'createdAt', l.created_at, 'expiresAt', l.expires_at,
+      'createdByName', u.full_name,
       'viewCount', l.view_count, 'firstViewedAt', l.first_viewed_at,
       'lastViewedAt', l.last_viewed_at, 'signedAt', l.signed_at,
       'signerName', l.signature->>'signerName')
@@ -85,6 +87,7 @@ export function mapSignatureLink(
   return {
     token: row.token,
     createdAt: isoDate(row.createdAt),
+    expiresAt: isoDate(row.expiresAt),
     createdByName: row.createdByName,
     viewCount: row.viewCount,
     ...(row.firstViewedAt ? { firstViewedAt: isoDate(row.firstViewedAt) } : {}),

@@ -5,7 +5,7 @@ import {
 import { FileSignature } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { useParams } from "react-router-dom";
-import { api } from "../../api";
+import { api, ApiClientError } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -107,6 +107,7 @@ export function PublicSignaturePage() {
   );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [expired, setExpired] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [signerName, setSignerName] = useState("");
@@ -123,7 +124,14 @@ export function PublicSignaturePage() {
         setDocument(data);
         setSignerName(data.patientName);
       })
-      .catch((cause: Error) => active && setLoadError(cause.message))
+      .catch((cause: Error) => {
+        if (!active) return;
+        setLoadError(cause.message);
+        setExpired(
+          cause instanceof ApiClientError &&
+            cause.code === "DOCUMENT_SIGNATURE_LINK_EXPIRED",
+        );
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
@@ -169,7 +177,7 @@ export function PublicSignaturePage() {
         <section className="panel">
           <EmptyState
             icon={FileSignature}
-            title="Link indisponível"
+            title={expired ? "Link expirado" : "Link indisponível"}
             copy={
               loadError ||
               "Confira se o link foi copiado por inteiro ou peça um novo à clínica."

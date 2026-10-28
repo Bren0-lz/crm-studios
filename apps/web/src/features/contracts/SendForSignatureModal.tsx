@@ -17,6 +17,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { shortDate } from "../../shared/lib/formatting";
 import { DocumentPaper } from "./DocumentPaper";
 import { signatureLinkUrl, signatureWhatsappLink } from "./model";
 
@@ -203,6 +204,9 @@ export function SendForSignatureModal({
             {share.patientPhone
               ? "O WhatsApp abre na conversa do cliente com a mensagem pronta."
               : "O cliente não tem telefone no cadastro: o WhatsApp vai pedir o contato."}{" "}
+            {share.document.signatureLink &&
+              !share.document.signatureLink.signedAt &&
+              `O link vale até ${shortDate.format(new Date(share.document.signatureLink.expiresAt))}. `}
             A visualização e a assinatura ficam registradas no documento.
           </p>
           <div className="modal-actions">

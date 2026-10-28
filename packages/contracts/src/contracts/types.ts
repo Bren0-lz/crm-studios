@@ -78,6 +78,8 @@ export type PublicDocumentSignInput = z.infer<
 export interface DocumentSignatureLink {
   token: string;
   createdAt: string;
+  /** Até quando o link abre; depois, "Enviar para assinatura" gera outro. */
+  expiresAt: string;
   createdByName: string;
   viewCount: number;
   firstViewedAt?: string;
