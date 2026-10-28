@@ -78,5 +78,49 @@ export function createAssessmentOperationsRepository(
         return mapAssessmentTemplate(result.rows[0]!);
       });
     },
+
+    async listAssessmentTemplates(clinicId: string) {
+      const result = await context.pool.query<AssessmentTemplateRow>(
+        `SELECT ${columns} FROM assessment_templates WHERE clinic_id=$1 ORDER BY name, version DESC`,
+        [clinicId],
+      );
+      return result.rows.map(mapAssessmentTemplate);
+    },
+
+    async setAssessmentTemplateActive(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      active: boolean,
+    ) {
+      return context.inTransaction(async (client) => {
+        const target = (
+          await client.query<{ familyId: string; name: string }>(
+            `SELECT coalesce(family_id,id) AS "familyId", name FROM assessment_templates WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, id],
+          )
+        ).rows[0];
+        if (!target) return null;
+        const updated = await client.query<AssessmentTemplateRow>(
+          `UPDATE assessment_templates SET active=$3 WHERE clinic_id=$1 AND coalesce(family_id,id)=$2 RETURNING ${columns}`,
+          [clinicId, target.familyId, active],
+        );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          active
+            ? "assessment.template_restored"
+            : "assessment.template_archived",
+          "assessment_template",
+          target.familyId,
+          { name: target.name },
+        );
+        const latest = updated.rows.reduce((current, row) =>
+          row.version > current.version ? row : current,
+        );
+        return mapAssessmentTemplate(latest);
+      });
+    },
   };
 }
