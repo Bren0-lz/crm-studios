@@ -8,6 +8,7 @@ import type {
 import type {
   StoredAutoCampaign,
   StoredAutoCampaignDelivery,
+  StoredAutoCampaignRedemption,
 } from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
@@ -509,6 +510,8 @@ export class MemoryRepositoryContext {
   readonly autoCampaigns: StoredAutoCampaign[] = [];
 
   readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
+  readonly autoCampaignRedemptions: StoredAutoCampaignRedemption[] = [];
 
   readonly documentTemplates: DocumentTemplate[] = [];
 

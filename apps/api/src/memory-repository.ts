@@ -82,6 +82,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly deleteAutoCampaign: ClinicRepository["deleteAutoCampaign"];
   readonly listAutoCampaignDeliveries: ClinicRepository["listAutoCampaignDeliveries"];
   readonly saveAutoCampaignDelivery: ClinicRepository["saveAutoCampaignDelivery"];
+  readonly listAutoCampaignRedemptions: ClinicRepository["listAutoCampaignRedemptions"];
   readonly deleteAutoCampaignDelivery: ClinicRepository["deleteAutoCampaignDelivery"];
   readonly getAutoCampaignSourceData: ClinicRepository["getAutoCampaignSourceData"];
   readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
@@ -240,6 +241,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.deleteAutoCampaign = autoCampaigns.deleteAutoCampaign;
     this.listAutoCampaignDeliveries = autoCampaigns.listAutoCampaignDeliveries;
     this.saveAutoCampaignDelivery = autoCampaigns.saveAutoCampaignDelivery;
+    this.listAutoCampaignRedemptions =
+      autoCampaigns.listAutoCampaignRedemptions;
     this.deleteAutoCampaignDelivery = autoCampaigns.deleteAutoCampaignDelivery;
     this.getAutoCampaignSourceData = autoCampaigns.getAutoCampaignSourceData;
     this.contracts = createContractsRepository(this.context);
