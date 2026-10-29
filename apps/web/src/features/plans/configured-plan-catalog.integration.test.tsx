@@ -313,13 +313,13 @@ describe("configured plan catalog", () => {
       });
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
-    fill("Valor total", "125.50");
+    fill("Valor total", "125,50");
     fill("Serviço 1", first.serviceId);
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
     );
-    fill("Valor do serviço 1", "100");
+    fill("Valor do serviço 1", "100,00");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
@@ -329,7 +329,7 @@ describe("configured plan catalog", () => {
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
-    fill("Valor do serviço 2", "25.50");
+    fill("Valor do serviço 2", "25,50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
@@ -366,7 +366,7 @@ describe("configured plan catalog", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remover serviço 2" }),
     );
-    fill("Valor total", "100");
+    fill("Valor total", "100,00");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );

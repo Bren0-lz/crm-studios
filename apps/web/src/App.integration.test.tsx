@@ -354,13 +354,13 @@ describe("configured plan catalog", () => {
       });
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
-    fill("Valor total", "125.50");
+    fill("Valor total", "125,50");
     fill("Serviço 1", first.serviceId);
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
     );
-    fill("Valor do serviço 1", "100");
+    fill("Valor do serviço 1", "100,00");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
@@ -370,7 +370,7 @@ describe("configured plan catalog", () => {
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
-    fill("Valor do serviço 2", "25.50");
+    fill("Valor do serviço 2", "25,50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
@@ -407,7 +407,7 @@ describe("configured plan catalog", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remover serviço 2" }),
     );
-    fill("Valor total", "100");
+    fill("Valor total", "100,00");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -6304,7 +6304,7 @@ describe("application shell", () => {
       target: { value: "Escritório Silva" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
-      target: { value: "450" },
+      target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
       target: { value: "20" },
@@ -7112,7 +7112,7 @@ describe("application shell", () => {
         name: "Ajustar valor da parcela",
       });
       fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(adjust).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7188,7 +7188,7 @@ describe("application shell", () => {
         "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "199.9" },
+        target: { value: "199,90" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desc" },
@@ -7256,7 +7256,7 @@ describe("application shell", () => {
         within(dialog).getByRole("button", { name: "Fechar" }),
       ).toBeEnabled();
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7317,7 +7317,7 @@ describe("application shell", () => {
         name: "Renegociar parcelas",
       });
       fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), {
-        target: { value: "300" },
+        target: { value: "300,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
@@ -13133,7 +13133,7 @@ describe("guided client registration", () => {
       target: { value: "8" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480" },
+      target: { value: "480,00" },
     });
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
