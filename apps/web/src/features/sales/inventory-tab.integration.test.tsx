@@ -40,8 +40,14 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     change("Custo (R$)", "10", dialog);
     change("Preço de venda (R$)", "20", dialog);
     change("Estoque inicial", "10", dialog);
+    // O aviso de reposição é opcional e vem desligado.
     expect(
-      within(dialog).queryByLabelText("Estoque mínimo"),
+      within(dialog).getByLabelText<HTMLInputElement>(
+        "Avisar quando for hora de repor",
+      ).checked,
+    ).toBe(false);
+    expect(
+      within(dialog).queryByLabelText("Avisar quando restarem"),
     ).not.toBeInTheDocument();
     change("Categoria", category!.id, dialog);
     await save("Novo produto", "Salvar produto");
@@ -52,6 +58,7 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       salePriceInCents: 2000,
       currentStock: 10,
       categoryId: category!.id,
+      restockAlertAt: null,
     });
     await within(panel).findByText("Faixa terapêutica", { exact: true });
 
@@ -96,6 +103,79 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     await waitFor(() =>
       expect(within(row).getByText("Inativo")).toBeInTheDocument(),
     );
+  });
+
+  it("liga e desliga o aviso de reposição do produto", async () => {
+    const { repository } = await setupApi();
+    const product = await repository.createProduct(clinicId, actorId, {
+      name: "Óleo de massagem",
+      sku: "OLEO",
+      unit: "un",
+      costInCents: 1500,
+      salePriceInCents: 3000,
+      initialStock: 4,
+    });
+    await repository.createProduct(clinicId, actorId, {
+      name: "Faixa elástica",
+      sku: "FAIXA",
+      unit: "un",
+      costInCents: 500,
+      salePriceInCents: 1500,
+      initialStock: 0,
+    });
+    const panel = await openInventoryTab();
+    const row = (name: string) =>
+      within(panel)
+        .getByText(name, { exact: true })
+        .closest<HTMLElement>("tr")!;
+    await within(panel).findByText("Óleo de massagem", { exact: true });
+    expect(
+      within(row("Óleo de massagem")).getByText("Ativo"),
+    ).toBeInTheDocument();
+    expect(
+      within(row("Faixa elástica")).getByText("Sem estoque"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Editar Óleo de massagem" }),
+    );
+    let dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    fireEvent.click(
+      within(dialog).getByLabelText("Avisar quando for hora de repor"),
+    );
+    change("Avisar quando restarem", "5", dialog);
+    await save("Editar produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === product.id,
+      ),
+    ).toMatchObject({ restockAlertAt: 5, lowStock: true });
+    expect(
+      await within(row("Óleo de massagem")).findByText("Repor estoque"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Editar Óleo de massagem" }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    const checkbox = within(dialog).getByLabelText<HTMLInputElement>(
+      "Avisar quando for hora de repor",
+    );
+    expect(checkbox.checked).toBe(true);
+    expect(
+      within(dialog).getByLabelText<HTMLInputElement>("Avisar quando restarem")
+        .value,
+    ).toBe("5");
+    fireEvent.click(checkbox);
+    await save("Editar produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === product.id,
+      ),
+    ).toMatchObject({ restockAlertAt: null, lowStock: false });
+    expect(
+      await within(row("Óleo de massagem")).findByText("Ativo"),
+    ).toBeInTheDocument();
   });
 
   it("configura os tamanhos do produto quando ele tem distinção por tamanho", async () => {
@@ -155,7 +235,7 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     expect(
       await within(panel).findByText("P: 2 · G: 0 · Baby look M: 1"),
     ).toBeInTheDocument();
-    // Sem estoque mínimo: o produto tem saldo, mas o tamanho zerado aparece como esgotado.
+    // Sem aviso de reposição: o produto tem saldo, mas o tamanho zerado aparece como esgotado.
     expect(within(panel).getByText("Esgotado: G")).toBeInTheDocument();
 
     // Ajuste de estoque pede o tamanho do produto.

@@ -307,7 +307,7 @@ export function createFinanceRepository(
         servicesResult,
       ] = await Promise.all([
         repositoryContext.pool.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<StockMovementRow>(
@@ -384,7 +384,7 @@ export function createFinanceRepository(
               404,
             );
         const result = await client.query<ProductRow>(
-          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,category_id,brand_id,branch_id,sizes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",sizes,active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`,
+          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,category_id,brand_id,branch_id,sizes,restock_alert_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`,
           [
             clinicId,
             input.name,
@@ -397,6 +397,7 @@ export function createFinanceRepository(
             input.brandId ?? null,
             repositoryContext.branchWriteId(),
             input.sizes ?? [],
+            input.restockAlertAt ?? null,
           ],
         );
         const product = result.rows[0]!;
@@ -420,7 +421,7 @@ export function createFinanceRepository(
             );
           }
         const created = await client.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
           [product.id],
         );
         await client.query("COMMIT");
@@ -448,7 +449,7 @@ export function createFinanceRepository(
       try {
         await client.query("BEGIN");
         const product = await client.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",sizes,active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$2 AND clinic_id=$1 FOR UPDATE`,
+          `SELECT id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$2 AND clinic_id=$1 FOR UPDATE`,
           [clinicId, input.productId],
         );
         const row = product.rows[0];

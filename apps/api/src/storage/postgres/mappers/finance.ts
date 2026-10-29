@@ -17,6 +17,7 @@ import type {
 import {
   productSizeStock,
   serviceCommissionsInForce,
+  productNeedsRestock,
   sortProductSizes,
 } from "@crm/contracts";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
@@ -36,6 +37,7 @@ export interface ProductRow {
   costInCents: number;
   salePriceInCents: number;
   currentStock: number;
+  restockAlertAt: number | null;
   sizes: ProductSize[];
   /** Linhas de `product_stock` ("" = sem tamanho), via `productStockRowsColumn`. */
   stockRows?: { size: string; currentStock: number }[];
@@ -302,6 +304,7 @@ export function mapProduct(row: ProductRow): Product {
     costInCents: row.costInCents,
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
+    restockAlertAt: row.restockAlertAt,
     sizes: sortProductSizes(row.sizes),
     sizeStock: productSizeStock(
       row.sizes,
@@ -310,7 +313,7 @@ export function mapProduct(row: ProductRow): Product {
         currentStock: item.currentStock,
       })),
     ),
-    lowStock: row.currentStock <= 0,
+    lowStock: productNeedsRestock(row.currentStock, row.restockAlertAt),
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

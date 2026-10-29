@@ -82,6 +82,7 @@ import {
   type PlanTemplateInput,
   type Product,
   type ProductSize,
+  productNeedsRestock,
   productSizeStock,
   type Professional,
   type Receivable,
@@ -1644,11 +1645,14 @@ export class MemoryRepositoryContext {
     return this.productStocks.get(productId)?.get(size ?? "") ?? 0;
   }
 
-  /** Recalcula total, alerta de sem estoque e saldos por tamanho a partir das chaves de estoque. */
+  /** Recalcula total, aviso de reposição e saldos por tamanho a partir das chaves de estoque. */
   refreshProductStock(product: Product) {
     const rows = [...(this.productStocks.get(product.id) ?? new Map())];
     product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
-    product.lowStock = product.currentStock <= 0;
+    product.lowStock = productNeedsRestock(
+      product.currentStock,
+      product.restockAlertAt,
+    );
     product.sizeStock = productSizeStock(
       product.sizes,
       rows.map(([size, currentStock]) => ({
