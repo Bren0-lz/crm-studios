@@ -61,8 +61,18 @@ import type {
   ReceivableRenegotiationInput,
   RecurringPayable,
   RecurringPayableInput,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import { request } from "../transport";
+
+const proofPath: Record<PaymentProofEntity, string> = {
+  receivable: "receivables",
+  payable: "payables",
+  commission_account_payment: "commission-account-payments",
+};
 
 export const financeApi = {
   commissionReconciliation: (id: string) =>
@@ -96,6 +106,25 @@ export const financeApi = {
     request<ExternalOperation>("/finance/external-operations", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  paymentProofs: (entity: PaymentProofEntity, id: string) =>
+    request<PaymentProof[]>(`/finance/${proofPath[entity]}/${id}/proofs`),
+  createPaymentProof: (
+    entity: PaymentProofEntity,
+    id: string,
+    input: PaymentProofInput,
+  ) =>
+    request<PaymentProof>(`/finance/${proofPath[entity]}/${id}/proofs`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  paymentProofContent: (id: string) =>
+    request<PaymentProofContent>(`/finance/payment-proofs/${id}/content`),
+  /** Comprovante enviado por engano: sai da lista; o motivo fica no histórico. */
+  deletePaymentProof: (id: string, reason: string) =>
+    request<PaymentProof>(`/finance/payment-proofs/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
     }),
   externalOperationContent: (id: string) =>
     request<ExternalOperationContent>(

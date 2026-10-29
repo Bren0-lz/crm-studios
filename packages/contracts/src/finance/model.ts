@@ -479,9 +479,12 @@ export const recurringPayableInputSchema = z
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
     costCenterId: z.uuid(),
-    /** Na variável, `amountInCents` é a estimativa; o valor de cada mês é informado na conta. */
+    /**
+     * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
+     * informado na conta.
+     */
     amountType: recurringPayableAmountTypeSchema.default("fixed"),
-    amountInCents: z.number().int().min(1),
+    amountInCents: z.number().int().min(0),
     dayOfMonth: z.number().int().min(1).max(28),
     /** Dias de antecedência do aviso no sino; ausente, não avisa. */
     reminderDaysBefore: z
@@ -494,6 +497,13 @@ export const recurringPayableInputSchema = z
     endMonth: competenceMonthSchema.optional(),
     active: z.boolean().default(true),
   })
+  .refine(
+    (value) => value.amountType === "variable" || value.amountInCents > 0,
+    {
+      message: "Informe o valor mensal.",
+      path: ["amountInCents"],
+    },
+  )
   .refine((value) => !value.endMonth || value.endMonth >= value.startMonth, {
     message: "O mês final não pode ser anterior ao mês inicial.",
     path: ["endMonth"],

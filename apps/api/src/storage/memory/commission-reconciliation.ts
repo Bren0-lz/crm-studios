@@ -389,6 +389,11 @@ export function createCommissionReconciliationRepository(
         delete entry.paidAt;
       }
       payment.reversedAt = now();
+      context.markPaymentProofsReversed(
+        clinicId,
+        "commission_account_payment",
+        paymentId,
+      );
       context.commissionPaymentEvents.push({
         id: uuid(),
         clinicId,

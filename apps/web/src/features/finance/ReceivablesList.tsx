@@ -26,6 +26,7 @@ export function ReceivablesList({
   onReverse,
   onAdjust,
   onReceipt,
+  onProofs,
   onContact,
 }: {
   receivables: Receivable[];
@@ -41,6 +42,7 @@ export function ReceivablesList({
   onReverse: (id: string) => void;
   onAdjust: (item: Receivable) => void;
   onReceipt: (id: string) => void;
+  onProofs: (item: Receivable) => void;
   onContact: (item: Receivable, overdue: boolean) => void;
 }) {
   const { can } = useAuthorization();
@@ -265,6 +267,15 @@ export function ReceivablesList({
                     onClick={() => onReceipt(item.id)}
                   >
                     Recibo
+                  </button>
+                )}
+                {item.status === "paid" && (
+                  <button
+                    className="secondary-button button-sm"
+                    aria-label={`Comprovantes de ${item.description}`}
+                    onClick={() => onProofs(item)}
+                  >
+                    Comprovantes
                   </button>
                 )}
                 {canManage &&

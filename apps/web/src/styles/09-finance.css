@@ -307,9 +307,14 @@
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
-.payables-table .finance-row,
-.recurring-table .finance-row {
+.payables-table .finance-row {
   grid-template-columns: minmax(0, 1fr) 90px 130px 140px minmax(180px, auto);
+}
+
+/* Colunas de largura fixa: cada linha é uma grade própria e precisa bater com o cabeçalho.
+   audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
+.recurring-table .finance-row {
+  grid-template-columns: minmax(0, 1fr) 90px 130px 100px 170px;
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
@@ -386,6 +391,11 @@
 .finance-list .finance-row > .finance-amount {
   font-size: var(--text-md);
   white-space: nowrap;
+}
+
+/* O cabeçalho "Valor" segue o tamanho dos outros títulos de coluna. */
+.finance-list .finance-head > .finance-amount {
+  font-size: inherit;
 }
 
 .finance-list .status-pill {
@@ -1066,6 +1076,66 @@
   color: var(--red);
 }
 
+/* Comprovantes de pagamento: campo no fim dos modais de baixa e lista de arquivos. */
+.proof-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proof-field .muted-copy {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.proof-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.proof-list li > div {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.proof-list strong {
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proof-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.proof-history-title {
+  margin: var(--space-4) 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.proof-list small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 /* Despesas fixas: bloco "Avisos de vencimento" no topo da seção. */
 .recurring-reminders {
   display: grid;
@@ -1114,4 +1184,51 @@
 .recurring-reminder-text > span {
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+/* Despesas fixas: o menu "Mais ações" da última linha não pode ser cortado pela tabela.
+   Só onde a tabela cabe (> 820px) ou vira cartões (≤ 700px); entre os dois, ela rola. */
+@media (min-width: 821px) {
+  .recurring-payables .finance-panel,
+  .recurring-payables .recurring-table {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 700px) {
+  .recurring-payables .finance-panel,
+  .recurring-payables .recurring-table {
+    min-width: 0;
+    overflow: visible;
+  }
+}
+
+/* Valor da despesa variável: estimativa com a legenda logo abaixo. */
+.recurring-amount {
+  display: grid;
+}
+
+.recurring-amount > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+/* Despesa fixa: dia e período numa linha; aviso e resumo logo abaixo. */
+.recurring-schedule {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.recurring-schedule-dates {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: calc(var(--space-3) + 2px);
+}
+
+@media (max-width: 700px) {
+  .recurring-schedule-dates {
+    grid-template-columns: 1fr;
+  }
 }

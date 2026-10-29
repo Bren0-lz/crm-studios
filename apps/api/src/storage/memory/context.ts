@@ -1,5 +1,5 @@
 import { starterAssessmentTemplates } from "@crm/contracts";
-import type { ExternalOperation } from "@crm/contracts";
+import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
   StoredMessageTemplateImage,
@@ -289,6 +289,30 @@ export class MemoryRepositoryContext {
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
+  readonly paymentProofs: (PaymentProof & {
+    contentBase64: string;
+    deletedAt?: string;
+    deletedByUserId?: string;
+    deletionReason?: string;
+  })[] = [];
+
+  /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
+  markPaymentProofsReversed(
+    clinicId: string,
+    entityType: PaymentProof["entityType"],
+    entityId: string,
+  ) {
+    const timestamp = now();
+    for (const proof of this.paymentProofs)
+      if (
+        proof.clinicId === clinicId &&
+        proof.entityType === entityType &&
+        proof.entityId === entityId &&
+        !proof.reversedAt &&
+        !proof.deletedAt
+      )
+        proof.reversedAt = timestamp;
+  }
   readonly planPurchases = new Map<
     string,
     { fingerprint: string; result: PlanPurchaseResult }
@@ -2063,6 +2087,8 @@ export class MemoryRepositoryContext {
       );
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
+    if (operation === "payment_reversal")
+      this.markPaymentProofsReversed(clinicId, "payable", payableId);
     payable.updatedAt = now();
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
