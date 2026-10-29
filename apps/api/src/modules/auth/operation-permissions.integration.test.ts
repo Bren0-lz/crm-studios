@@ -417,7 +417,7 @@ describe("per-operation API authorization", () => {
     expect(sql).not.toContain("history.view");
     const split = readFileSync(
       new URL(
-        "../../../migrations/0101_spreadsheet_export_permissions.sql",
+        "../../../migrations/0111_spreadsheet_export_permissions.sql",
         import.meta.url,
       ),
       "utf8",
