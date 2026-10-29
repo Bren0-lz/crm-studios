@@ -73,7 +73,7 @@ describe("settings workflows through real HTTP handlers", () => {
     change("WhatsApp", "11977776666", dialog);
     change("E-mail", "fornecedor@example.com", dialog);
     change("Data de contratação", "2026-09-01", dialog);
-    change("Valor contratado (R$)", "1200", dialog);
+    change("Valor contratado (R$)", "1200,00", dialog);
     change("Recorrência", "monthly", dialog);
     change("Forma de pagamento", "boleto", dialog);
     change("Parcelas", "3", dialog);

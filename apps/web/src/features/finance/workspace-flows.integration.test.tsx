@@ -287,7 +287,7 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Nova conta a receber",
     });
     change("Descrição", "Sessão avulsa negociada", dialog);
-    change("Valor (R$)", "125.50", dialog);
+    change("Valor (R$)", "125,50", dialog);
     change("Vencimento", "2040-06-10", dialog);
     change("Competência", "2040-06", dialog);
     await save("Nova conta a receber", "Salvar lançamento");
