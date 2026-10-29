@@ -1,3 +1,4 @@
+import { starterAssessmentTemplates } from "@crm/contracts";
 import { hash } from "bcryptjs";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -105,6 +106,18 @@ export async function seedDemoData(pool: Pool) {
       VALUES ('11111111-1111-4111-8111-111111111111', 'Studios Aryana', 'Studios Aryana Ltda.', 'America/Sao_Paulo')
       ON CONFLICT (id) DO NOTHING
     `);
+    // Banco novo: as migrações rodam antes da clínica existir, então a 0101 não a alcança.
+    for (const template of starterAssessmentTemplates)
+      await client.query(
+        `INSERT INTO assessment_templates (id, clinic_id, name, specialty, fields, version, status, family_id)
+         SELECT x.id, '11111111-1111-4111-8111-111111111111', $1::text, $2::text, $3::jsonb, 1, 'published', x.id
+         FROM (SELECT gen_random_uuid() AS id) x
+         WHERE NOT EXISTS (
+           SELECT 1 FROM assessment_templates
+           WHERE clinic_id = '11111111-1111-4111-8111-111111111111' AND name = $1::text
+         )`,
+        [template.name, template.specialty, JSON.stringify(template.fields)],
+      );
     await client.query(
       `
       INSERT INTO users (id, clinic_id, full_name, email, password_hash, role)
