@@ -24,6 +24,7 @@ import {
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
+import { payrollOnlyError } from "./payroll.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
   const {
@@ -450,19 +451,9 @@ export function registerFinanceRoutes(context: RouteContext) {
   app.post(
     "/finance/commissions/:id/pay",
     { preHandler: authenticate },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const commission = await repository.settleCommission(
-        request.user.clinicId,
-        request.user.sub,
-        id,
-      );
-      if (!commission)
-        return reply.status(404).send({
-          code: "COMMISSION_NOT_FOUND",
-          message: "Comissão não encontrada ou já paga.",
-        });
-      return commission;
+    // Comissão é paga pela folha de pagamento (Financeiro › Folha).
+    async () => {
+      throw payrollOnlyError();
     },
   );
 
@@ -518,8 +509,8 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const input = payableInputSchema.parse(request.body);
-      if (input.commissionId)
-        assertPermissions(request, "finance.commissions_pay");
+      // Comissão é paga pela folha de pagamento, não por despesa avulsa.
+      if (input.commissionId) throw payrollOnlyError();
       return reply
         .status(201)
         .send(

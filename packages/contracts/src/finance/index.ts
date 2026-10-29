@@ -8,5 +8,5 @@ export * from "./external-operations.js";
 export * from "./entry-filters.js";
 
 export * from "./commission-reconciliation.js";
-
+export * from "./payroll.js";
 export * from "./payment-proofs.js";

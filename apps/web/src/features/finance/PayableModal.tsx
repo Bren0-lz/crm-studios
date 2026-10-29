@@ -110,44 +110,6 @@ export function PayableModal({
               }
             />
           </label>
-          {can("finance.commissions_pay") && (
-            <label className="span-2">
-              Comissão vinculada (opcional)
-              <select
-                value={form.commissionId ?? ""}
-                onChange={(event) => {
-                  const commission = workspace.commissions.find(
-                      (item) => item.id === event.target.value,
-                    ),
-                    next = { ...form };
-                  if (commission) {
-                    next.commissionId = commission.id;
-                    next.amountInCents = commission.amountInCents;
-                    next.dreCompetence = commission.competence;
-                  } else delete next.commissionId;
-                  setForm(next);
-                }}
-              >
-                <option value="">Despesa sem comissão</option>
-                {workspace.commissions
-                  .filter(
-                    (item) =>
-                      item.status === "open" &&
-                      item.amountInCents > 0 &&
-                      !workspace.payables.some(
-                        (payable) =>
-                          payable.commissionId === item.id &&
-                          payable.status !== "cancelled",
-                      ),
-                  )
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.professionalName} · {item.competence}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
           <label>
             Fornecedor cadastrado
             <select

@@ -1090,7 +1090,7 @@ export class PostgresRepositoryContext {
       ce.professional_id AS "professionalId", p.full_name AS "professionalName",
       ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot", ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
       ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status, ce.paid_at AS "paidAt",
-      ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
+      ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
       WHERE ce.clinic_id = $1 AND ($2::text IS NULL OR ce.competence = $2) ORDER BY ce.competence DESC`,
       [clinicId, competence ?? null],
     );
@@ -1600,6 +1600,30 @@ export class PostgresRepositoryContext {
                 actorUserId,
               ]
             : [clinicId, current.rows[0].commissionId],
+        );
+      }
+      // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+      for (const table of ["commission_entries", "commission_adjustments"]) {
+        const included = await client.query<{ status: string }>(
+          `SELECT status FROM ${table} WHERE clinic_id=$1 AND payroll_payable_id=$2 FOR UPDATE`,
+          [clinicId, payableId],
+        );
+        if (included.rows.some((row) => row.status !== expected))
+          throw new DomainError(
+            "PAYROLL_EXPENSE_STATE",
+            "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+            409,
+          );
+        if (!included.rowCount) continue;
+        await client.query(
+          operation === "payment"
+            ? `UPDATE ${table} SET status='paid',paid_at=coalesce($3::timestamptz,now())${table === "commission_entries" ? ",paid_by_user_id=$4" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`
+            : `UPDATE ${table} SET status='open',paid_at=NULL${table === "commission_entries" ? ",paid_by_user_id=NULL" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`,
+          operation === "payment"
+            ? table === "commission_entries"
+              ? [clinicId, payableId, timing?.paidAt ?? null, actorUserId]
+              : [clinicId, payableId, timing?.paidAt ?? null]
+            : [clinicId, payableId],
         );
       }
       await client.query(

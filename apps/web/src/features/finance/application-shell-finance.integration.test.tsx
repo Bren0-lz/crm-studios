@@ -1967,11 +1967,17 @@ describe("application shell", () => {
         "status-pill",
         "open",
       );
+      // Pagamento é pela folha: a lista não tem Pagar nem Estornar.
       expect(
-        within(juliana).getByRole("button", {
+        within(juliana).queryByRole("button", {
           name: "Pagar comissão de Juliana Prado",
         }),
-      ).toHaveClass("primary-button", "button-sm");
+      ).not.toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          /O pagamento das comissões é feito pela folha/,
+        ),
+      ).toBeInTheDocument();
 
       const rafael = rowOf("Rafael Costa");
       expect(
@@ -1980,29 +1986,10 @@ describe("application shell", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        within(rafael).getByRole("button", {
+        within(rafael).queryByRole("button", {
           name: "Estornar comissão de Rafael Costa",
         }),
-      ).toHaveClass("danger-button", "button-sm");
-
-      fireEvent.click(
-        within(juliana).getByRole("button", {
-          name: "Pagar comissão de Juliana Prado",
-        }),
-      );
-      await vi.waitFor(() =>
-        expect(
-          vi
-            .mocked(fetch)
-            .mock.calls.some(
-              ([url, options]) =>
-                options?.method === "POST" &&
-                String(url).includes(
-                  "/finance/commissions/g1g1g1g1-0000-4000-8000-000000000001/pay",
-                ),
-            ),
-        ).toBe(true),
-      );
+      ).not.toBeInTheDocument();
     });
 
     it("shows an empty commissions list with the next step", async () => {
