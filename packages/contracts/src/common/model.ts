@@ -92,15 +92,20 @@ export function isValidCnpj(value: string): boolean {
   );
 }
 
-// CPF até 11 dígitos e CNPJ a partir do 12º; também formata valores parciais.
-export function formatTaxId(value: string): string {
-  const digits = cnpjDigits(value);
-  if (digits.length <= 11) return formatCpf(digits);
-  return digits
+// 00.000.000/0000-00; também formata valores parciais para uso durante a digitação.
+export function formatCnpj(value: string): string {
+  return cnpjDigits(value)
     .replace(/^(\d{2})(\d)/, "$1.$2")
     .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4")
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+}
+
+// CPF até 11 dígitos e CNPJ a partir do 12º; também formata valores parciais.
+export function formatTaxId(value: string): string {
+  const digits = cnpjDigits(value);
+  if (digits.length <= 11) return formatCpf(digits);
+  return formatCnpj(digits);
 }
 
 /** CPF (11 dígitos) ou CNPJ (14 dígitos) com os dígitos verificadores corretos. */

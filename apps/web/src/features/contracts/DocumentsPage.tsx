@@ -1,6 +1,8 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import { DocumentSignatureActions } from "./DocumentSignatureActions";
+import { SendForSignatureModal } from "./SendForSignatureModal";
+import { SignatureLinkRecord } from "./SignatureLinkRecord";
 import {
   defaultContractTemplateBody,
   documentContentFromText,
@@ -48,11 +50,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { CancelDocumentModal } from "./CancelDocumentModal";
-import {
-  documentKindLabels,
-  fetchContractsPageData,
-  issuedDocumentWhatsappLink,
-} from "./model";
+import { documentKindLabels, fetchContractsPageData } from "./model";
 import { DocumentPaper } from "./DocumentPaper";
 import { DocumentWizard } from "./DocumentWizard";
 import { DocumentPdfPreview } from "./DocumentPdfPreview";
@@ -100,6 +98,9 @@ export function DocumentsPage() {
   } | null>(null);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
+  const [sending, setSending] = useState<{
+    document: IssuedDocument | null;
+  } | null>(null);
   const canManage = canEdit("contracts");
   const [templateForm, setTemplateForm] =
     useState<DocumentTemplateInput>(defaultTemplateForm);
@@ -107,6 +108,9 @@ export function DocumentsPage() {
   const [activeTab, setActiveTab] = useState<ContractsTab>("documentos");
   const tabsId = useId();
   const canCreateTemplate = canManage && can("contracts.templates_create");
+  // Enviar pelo WhatsApp emite o contrato e gera o link: exige emitir e alterar situação.
+  const canSendForSignature =
+    canManage && can("contracts.issue") && can("contracts.status");
   const tabs: Array<{ key: ContractsTab; label: string; icon: LucideIcon }> = [
     { key: "documentos", label: "Documentos", icon: FileText },
     { key: "modelos", label: "Modelos", icon: Files },
@@ -260,6 +264,14 @@ export function DocumentsPage() {
     }
   }
 
+  function upsertDocument(updated: IssuedDocument) {
+    setDocuments((current) =>
+      current.some((item) => item.id === updated.id)
+        ? current.map((item) => (item.id === updated.id ? updated : item))
+        : [updated, ...current],
+    );
+  }
+
   function replaceDocument(updated: IssuedDocument) {
     setDocuments((current) =>
       current.map((document) =>
@@ -319,6 +331,17 @@ export function DocumentsPage() {
                 </div>
                 <div className="page-actions">
                   <span className="list-count">{visibleDocuments.length}</span>
+                  {canSendForSignature && (
+                    <button
+                      type="button"
+                      className="whatsapp-button"
+                      disabled={!activeTemplates.length}
+                      onClick={() => setSending({ document: null })}
+                    >
+                      <MessageCircle size={16} aria-hidden="true" />
+                      Enviar pelo WhatsApp
+                    </button>
+                  )}
                   {canManage && can("contracts.issue") && (
                     <button
                       type="button"
@@ -383,6 +406,7 @@ export function DocumentsPage() {
                             branding={item.branding ?? branding}
                           />
                         </details>
+                        <SignatureLinkRecord document={item} />
                       </div>
                       <span className={`status-pill ${item.status}`}>
                         {item.status === "draft"
@@ -408,15 +432,16 @@ export function DocumentsPage() {
                           )}
                         {item.status === "issued" && (
                           <>
-                            <a
-                              className="whatsapp-button button-sm"
-                              href={issuedDocumentWhatsappLink(item)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <MessageCircle size={15} aria-hidden="true" />
-                              WhatsApp
-                            </a>
+                            {canManage && can("contracts.status") && (
+                              <button
+                                type="button"
+                                className="whatsapp-button button-sm"
+                                onClick={() => setSending({ document: item })}
+                              >
+                                <MessageCircle size={15} aria-hidden="true" />
+                                WhatsApp
+                              </button>
+                            )}
                             <button
                               className="secondary-button button-sm"
                               onClick={() =>
@@ -668,15 +693,18 @@ export function DocumentsPage() {
           document={preparing.document}
           branding={branding}
           onClose={() => setPreparing(null)}
-          onSaved={(updated) =>
-            setDocuments((current) =>
-              current.some((item) => item.id === updated.id)
-                ? current.map((item) =>
-                    item.id === updated.id ? updated : item,
-                  )
-                : [updated, ...current],
-            )
-          }
+          onSaved={upsertDocument}
+        />
+      )}
+      {sending && (
+        <SendForSignatureModal
+          document={sending.document}
+          templates={activeTemplates}
+          patients={patients}
+          plans={plans}
+          patientId={contextPatientId}
+          onSent={upsertDocument}
+          onClose={() => setSending(null)}
         />
       )}
       {versioning && (

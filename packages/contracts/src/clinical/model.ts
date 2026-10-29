@@ -42,6 +42,11 @@ export const assessmentTemplateInputSchema = z.object({
   fields: z.array(assessmentFieldSchema).min(1).max(60),
 });
 
+/** Arquivar (`false`) tira o modelo da lista de formulários; reativar (`true`) devolve. */
+export const assessmentTemplateActiveInputSchema = z.object({
+  active: z.boolean(),
+});
+
 export const assessmentValueSchema = z.union([
   z.array(z.string().max(160)).max(60),
   z.string().max(5000),
@@ -151,8 +156,14 @@ const clinicalAlertSeverityOrder = { critical: 0, warning: 1, info: 2 };
 
 /** Ordena alertas do mais grave para o mais leve; empate: o mais recente primeiro. */
 export function compareClinicalAlerts(
-  a: { severity: z.infer<typeof clinicalAlertSeveritySchema>; createdAt: string },
-  b: { severity: z.infer<typeof clinicalAlertSeveritySchema>; createdAt: string },
+  a: {
+    severity: z.infer<typeof clinicalAlertSeveritySchema>;
+    createdAt: string;
+  },
+  b: {
+    severity: z.infer<typeof clinicalAlertSeveritySchema>;
+    createdAt: string;
+  },
 ) {
   return (
     clinicalAlertSeverityOrder[a.severity] -

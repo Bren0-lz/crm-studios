@@ -207,8 +207,9 @@ export function createClinicalRepository(
           clinicId,
           patientId,
         ),
+        // Inclui versões antigas e arquivadas: as avaliações já registradas usam os campos delas.
         templates: repositoryContext.assessmentTemplates.filter(
-          (item) => item.clinicId === clinicId && item.active,
+          (item) => item.clinicId === clinicId,
         ),
         assessments: repositoryContext.clinicalAssessments
           .filter(

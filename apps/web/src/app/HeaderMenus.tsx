@@ -7,6 +7,7 @@ import {
   ListTodo,
   PauseCircle,
   PhoneCall,
+  Receipt,
   WalletCards,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -91,10 +92,11 @@ interface NotificationGroup {
 
 /**
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
- * (Relacionamento), parcelas vencidas (Financeiro), atendimentos a finalizar (Agenda) e
- * os retornos combinados: tarefas comerciais vencidas (Comercial), contatos adiados que
- * voltaram (Relacionamento), pausas com retorno previsto (Planos) e uma linha por campanha
- * automática com mensagens pendentes (Comunicações). Grupos zerados não aparecem.
+ * (Relacionamento), parcelas vencidas e despesas fixas a vencer (Financeiro), atendimentos a
+ * finalizar (Agenda) e os retornos combinados: tarefas comerciais vencidas (Comercial),
+ * contatos adiados que voltaram (Relacionamento), pausas com retorno previsto (Planos) e uma
+ * linha por campanha automática com mensagens pendentes (Comunicações). Grupos zerados não
+ * aparecem.
  */
 function notificationGroups(
   summary: NotificationsSummary | null,
@@ -119,6 +121,15 @@ function notificationGroups(
       count: summary.overdueReceivables ?? 0,
       to: "/financeiro",
       icon: <WalletCards size={16} aria-hidden="true" />,
+    });
+  if (canView("finance") && (summary.recurringPayablesDue ?? 0) > 0)
+    groups.push({
+      key: "recurring-payables",
+      label: "Despesas fixas a vencer",
+      detail: "No prazo de aviso ou vencidas, ainda sem pagamento",
+      count: summary.recurringPayablesDue ?? 0,
+      to: "/financeiro?aba=contas-a-pagar",
+      icon: <Receipt size={16} aria-hidden="true" />,
     });
   if (canView("agenda") && (summary.pendingFinalization ?? 0) > 0)
     groups.push({
