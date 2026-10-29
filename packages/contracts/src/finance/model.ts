@@ -305,7 +305,36 @@ export const patientTabCloseInputSchema = z
 
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
-  .extend({ active: z.boolean().default(true) });
+  .extend({
+    active: z.boolean().default(true),
+    /**
+     * Novo saldo de cada tamanho, definido no próprio cadastro: a diferença para o saldo atual
+     * vira um ajuste no histórico de estoque. Ausente = saldos não mudam.
+     */
+    sizeQuantities: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(productSizeSchema.options.length)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const entries = value.sizeQuantities ?? [];
+    if (
+      (value.sizes &&
+        entries.some((entry) => !value.sizes!.includes(entry.size))) ||
+      new Set(entries.map((entry) => entry.size)).size !== entries.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "As quantidades devem usar os tamanhos do produto, uma vez cada.",
+        path: ["sizeQuantities"],
+      });
+  });
 export const patientTabItemUpdateSchema = z.object({
   quantity: z.number().int().min(1).max(10000),
   unitPriceInCents: z.number().int().min(0).max(2147483647),

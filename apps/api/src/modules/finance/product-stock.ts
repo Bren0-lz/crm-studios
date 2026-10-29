@@ -35,3 +35,6 @@ export function assertStockSize(
 
 export const isStockOut = (kind: string) =>
   kind === "adjustment_out" || kind === "loss";
+
+/** Motivo do ajuste gravado quando o saldo de um tamanho muda no cadastro do produto. */
+export const sizeQuantityNotes = "Quantidade ajustada no cadastro do produto";

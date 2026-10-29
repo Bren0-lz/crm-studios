@@ -285,6 +285,105 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
+  it("define a quantidade de cada tamanho ao editar o produto", async () => {
+    const { repository } = await setupApi();
+    const product = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta do estúdio",
+      sku: "CAM",
+      unit: "un",
+      costInCents: 2000,
+      salePriceInCents: 5000,
+      initialStock: 0,
+      sizes: ["p"],
+      initialSizeStock: [{ size: "p", quantity: 2 }],
+    });
+    const panel = await openInventoryTab();
+    fireEvent.click(
+      await within(panel).findByRole("button", {
+        name: "Editar Camiseta do estúdio",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    const quantities = within(dialog).getByRole("group", {
+      name: "Quantidade por tamanho",
+    });
+    expect(
+      within(quantities).getByLabelText<HTMLInputElement>("Quantidade P").value,
+    ).toBe("2");
+    fireEvent.click(
+      within(
+        within(dialog).getByRole("group", { name: "Tamanhos disponíveis" }),
+      ).getByLabelText("M"),
+    );
+    change("Quantidade M", "3", dialog);
+    await save("Editar produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === product.id,
+      ),
+    ).toMatchObject({
+      sizes: ["p", "m"],
+      currentStock: 5,
+      sizeStock: [
+        { size: "p", currentStock: 2 },
+        { size: "m", currentStock: 3 },
+      ],
+    });
+    expect(await within(panel).findByText("P: 2 · M: 3")).toBeInTheDocument();
+  });
+
+  it("cadastra categoria e marca sem fechar o formulário do produto", async () => {
+    const { repository } = await setupApi();
+    const panel = await openInventoryTab();
+    await within(panel).findByText("Nenhum produto");
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Novo produto" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo produto" });
+    change("Nome", "Meia antiderrapante", dialog);
+    change("Categoria", "__new__", dialog);
+    const category = screen.getByRole("dialog", { name: "Nova categoria" });
+    change("Nome", "Meias", category);
+    fireEvent.click(
+      within(category).getByRole("button", { name: "Cadastrar" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Nova categoria" }),
+      ).not.toBeInTheDocument(),
+    );
+    // O produto continua aberto, com o que já foi preenchido e a categoria nova escolhida.
+    expect(within(dialog).getByLabelText<HTMLInputElement>("Nome").value).toBe(
+      "Meia antiderrapante",
+    );
+    expect(
+      within(dialog).getByRole("option", { name: "Meias" }),
+    ).toHaveProperty("selected", true);
+
+    change("Marca", "__new__", dialog);
+    const brand = screen.getByRole("dialog", { name: "Nova marca" });
+    change("Nome", "Toesox", brand);
+    fireEvent.click(within(brand).getByRole("button", { name: "Cadastrar" }));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("option", { name: "Toesox" }),
+      ).toHaveProperty("selected", true),
+    );
+    change("Código do produto", "MEIA", dialog);
+    await save("Novo produto", "Salvar produto");
+    const [meias] = await repository.listClinicCatalog(
+      clinicId,
+      "product_category",
+    );
+    const [toesox] = await repository.listClinicCatalog(
+      clinicId,
+      "product_brand",
+    );
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products[0],
+    ).toMatchObject({ categoryId: meias!.id, brandId: toesox!.id });
+  });
+
   it("tira o Estoque do Financeiro, mesmo com permissão de consultar", async () => {
     await setupApi();
     open("/financeiro");

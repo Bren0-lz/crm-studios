@@ -29,6 +29,13 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import { sizeChoiceValue, soldOutSizes, stockChoices } from "./model";
+import {
+  NewCatalogEntryModal,
+  type ProductCatalogKind,
+} from "./NewCatalogEntryModal";
+
+/** Opção do select de categoria/marca que abre o cadastro rápido. */
+const NEW_CATALOG_ENTRY = "__new__";
 
 type ProductForm = ProductInput & { sizes: ProductSize[] };
 
@@ -59,6 +66,14 @@ const movementLabels: Record<StockMovement["kind"], string> = {
   sale_reversal: "Estorno de venda",
 };
 
+/** Saldo atual de cada tamanho configurado, como o formulário edita. */
+function currentSizeStock(product: Product) {
+  const stock: Partial<Record<ProductSize, number>> = {};
+  for (const entry of product.sizeStock)
+    if (entry.size) stock[entry.size] = entry.currentStock;
+  return stock;
+}
+
 function productStatus(product: Product) {
   if (!product.active) return { label: "Inativo", className: "" };
   if (product.currentStock <= 0)
@@ -74,7 +89,9 @@ export function InventorySection({
   /** Abre a sub-aba "Nova venda"; ausente quando falta permissão para vender. */
   onSell?: (() => void) | undefined;
 }) {
-  const { can } = useAuthorization();
+  const { can, user } = useAuthorization();
+  // Cadastrar categoria e marca é exclusivo do administrador (como em Configurações › Cadastros).
+  const canCreateCatalog = user?.role === "admin";
   const toast = useToast();
   const [data, setData] = useState<InventoryWorkspace | null>(null),
     [error, setError] = useState(""),
@@ -88,14 +105,17 @@ export function InventorySection({
     [active, setActive] = useState(true),
     [hasSizes, setHasSizes] = useState(false),
     [restockAlert, setRestockAlert] = useState(false),
-    [initialSizeStock, setInitialSizeStock] = useState<
+    [sizeQuantities, setSizeQuantities] = useState<
       Partial<Record<ProductSize, number>>
     >({}),
+    [catalogCreator, setCatalogCreator] = useState<ProductCatalogKind | null>(
+      null,
+    ),
     [adjustment, setAdjustment] = useState<StockMovementInput>(emptyAdjustment),
     [sizeChoice, setSizeChoice] = useState("");
   const version = useDataVersion("inventory");
   const productDirty = useFormDirty(
-    { form, active, hasSizes, restockAlert, initialSizeStock },
+    { form, active, hasSizes, restockAlert, sizeQuantities },
     Boolean(editor),
   );
   const adjustmentDirty = useFormDirty({ adjustment, sizeChoice }, adjusting);
@@ -141,7 +161,7 @@ export function InventorySection({
     setActive(product === "new" ? true : product.active);
     setHasSizes(product !== "new" && product.sizes.length > 0);
     setRestockAlert(product !== "new" && product.restockAlertAt !== null);
-    setInitialSizeStock({});
+    setSizeQuantities(product === "new" ? {} : currentSizeStock(product));
     setFormError("");
     setEditor(product);
   }
@@ -160,6 +180,16 @@ export function InventorySection({
     setFormError("");
     setAdjusting(true);
   }
+  function catalogCreated(entry: ClinicCatalogEntry) {
+    if (catalogCreator === "product_category") {
+      setCategories((items) => [...items, entry]);
+      setForm((current) => ({ ...current, categoryId: entry.id }));
+    } else {
+      setBrands((items) => [...items, entry]);
+      setForm((current) => ({ ...current, brandId: entry.id }));
+    }
+    setCatalogCreator(null);
+  }
   function toggleSize(size: ProductSize, checked: boolean) {
     setForm({
       ...form,
@@ -177,28 +207,41 @@ export function InventorySection({
       return;
     }
     const sizes = hasSizes ? form.sizes : [];
-    const input: ProductInput = {
+    const quantities = sizes.map((size) => ({
+      size,
+      quantity: sizeQuantities[size] ?? 0,
+    }));
+    const fields: ProductInput = {
       ...form,
       sizes,
       restockAlertAt: restockAlert ? (form.restockAlertAt ?? 1) : null,
-      ...(sizes.length
-        ? {
-            initialStock: 0,
-            initialSizeStock: sizes
-              .map((size) => ({ size, quantity: initialSizeStock[size] ?? 0 }))
-              .filter((entry) => entry.quantity > 0),
-          }
-        : {}),
     };
     setBusy(true);
     setFormError("");
     try {
-      if (editor === "new") await api.createProduct(input);
-      else if (editor)
+      if (editor === "new")
+        await api.createProduct({
+          ...fields,
+          ...(sizes.length
+            ? {
+                initialStock: 0,
+                initialSizeStock: quantities.filter(
+                  (entry) => entry.quantity > 0,
+                ),
+              }
+            : {}),
+        });
+      else if (editor) {
+        // Só os tamanhos cujo saldo mudou: o resto do estoque segue o que estiver gravado.
+        const current = currentSizeStock(editor);
         await api.updateProduct(editor.id, {
-          ...input,
+          ...fields,
           active,
+          sizeQuantities: quantities.filter(
+            (entry) => entry.quantity !== (current[entry.size] ?? 0),
+          ),
         } as ProductUpdateInput);
+      }
       toast.success(
         editor === "new" ? "Produto cadastrado." : "Produto atualizado.",
       );
@@ -426,6 +469,7 @@ export function InventorySection({
           title={editor === "new" ? "Novo produto" : "Editar produto"}
           subtitle="Preços e classificação. O saldo muda pelos ajustes de estoque."
           busy={busy}
+          inactive={Boolean(catalogCreator)}
           dirty={productDirty}
           onClose={() => setEditor(null)}
         >
@@ -495,10 +539,12 @@ export function InventorySection({
                 <select
                   value={form.categoryId ?? ""}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      categoryId: event.target.value || null,
-                    })
+                    event.target.value === NEW_CATALOG_ENTRY
+                      ? setCatalogCreator("product_category")
+                      : setForm({
+                          ...form,
+                          categoryId: event.target.value || null,
+                        })
                   }
                 >
                   <option value="">Não classificado</option>
@@ -507,6 +553,9 @@ export function InventorySection({
                       {item.name}
                     </option>
                   ))}
+                  {canCreateCatalog && (
+                    <option value={NEW_CATALOG_ENTRY}>+ Nova categoria</option>
+                  )}
                 </select>
               </label>
               <label>
@@ -514,7 +563,12 @@ export function InventorySection({
                 <select
                   value={form.brandId ?? ""}
                   onChange={(event) =>
-                    setForm({ ...form, brandId: event.target.value || null })
+                    event.target.value === NEW_CATALOG_ENTRY
+                      ? setCatalogCreator("product_brand")
+                      : setForm({
+                          ...form,
+                          brandId: event.target.value || null,
+                        })
                   }
                 >
                   <option value="">Não informada</option>
@@ -523,6 +577,9 @@ export function InventorySection({
                       {item.name}
                     </option>
                   ))}
+                  {canCreateCatalog && (
+                    <option value={NEW_CATALOG_ENTRY}>+ Nova marca</option>
+                  )}
                 </select>
               </label>
               <label className="checkbox-field span-2">
@@ -558,20 +615,24 @@ export function InventorySection({
                   )}
                 </fieldset>
               )}
-              {editor === "new" && hasSizes && form.sizes.length > 0 && (
+              {hasSizes && form.sizes.length > 0 && (
                 <fieldset className="form-fieldset span-2">
-                  <legend>Estoque inicial por tamanho</legend>
+                  <legend>
+                    {editor === "new"
+                      ? "Estoque inicial por tamanho"
+                      : "Quantidade por tamanho"}
+                  </legend>
                   <div className="product-size-grid">
                     {form.sizes.map((size) => (
                       <label key={size}>
-                        {`Estoque inicial ${productSizeLabels[size]}`}
+                        {`${editor === "new" ? "Estoque inicial" : "Quantidade"} ${productSizeLabels[size]}`}
                         <input
                           type="number"
                           min={0}
-                          value={initialSizeStock[size] ?? 0}
+                          value={sizeQuantities[size] ?? 0}
                           onChange={(event) =>
-                            setInitialSizeStock({
-                              ...initialSizeStock,
+                            setSizeQuantities({
+                              ...sizeQuantities,
                               [size]: Number(event.target.value),
                             })
                           }
@@ -579,9 +640,16 @@ export function InventorySection({
                       </label>
                     ))}
                   </div>
+                  {editor !== "new" && (
+                    <p className="field-hint">
+                      Mudar uma quantidade registra um ajuste no histórico de
+                      estoque.
+                    </p>
+                  )}
                 </fieldset>
               )}
-              <div className="field-with-hint span-2">
+              <fieldset className="form-fieldset restock-fieldset span-2">
+                <legend>Aviso de reposição</legend>
                 <label className="checkbox-field">
                   <input
                     type="checkbox"
@@ -594,32 +662,32 @@ export function InventorySection({
                   />
                   Avisar quando for hora de repor
                 </label>
+                {restockAlert && (
+                  <label className="restock-quantity">
+                    Avisar quando restarem
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={form.restockAlertAt ?? ""}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          restockAlertAt: Number(event.target.value) || null,
+                        })
+                      }
+                    />
+                  </label>
+                )}
                 <p className="field-hint">
                   Opcional. Quando o estoque chegar à quantidade escolhida, o
                   produto aparece como “Repor estoque” na lista e entra em
                   “Produtos para repor” nos Indicadores.
                   {hasSizes && " Vale o total somando todos os tamanhos."}
                 </p>
-              </div>
-              {restockAlert && (
-                <label>
-                  Avisar quando restarem
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={form.restockAlertAt ?? ""}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        restockAlertAt: Number(event.target.value) || null,
-                      })
-                    }
-                  />
-                </label>
-              )}
+              </fieldset>
               {editor !== "new" && (
-                <label className="checkbox-field">
+                <label className="checkbox-field span-2">
                   <input
                     type="checkbox"
                     checked={active}
@@ -637,6 +705,13 @@ export function InventorySection({
             </div>
           </form>
         </Modal>
+      )}
+      {editor && catalogCreator && (
+        <NewCatalogEntryModal
+          kind={catalogCreator}
+          onClose={() => setCatalogCreator(null)}
+          onCreated={catalogCreated}
+        />
       )}
       {adjusting && (
         <Modal

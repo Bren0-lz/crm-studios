@@ -16,6 +16,7 @@ import { assertCategoryDreGroup, buildDre } from "../../modules/finance/dre.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+import { sizeQuantityNotes } from "../../modules/finance/product-stock.js";
 
 export function createFinanceOperationsRepository(
   context: MemoryRepositoryContext,
@@ -142,13 +143,33 @@ export function createFinanceOperationsRepository(
             "Classificação do produto não encontrada.",
             404,
           );
-      const { sizes, restockAlertAt, ...fields } = input;
+      const { sizes, restockAlertAt, sizeQuantities, ...fields } = input;
+      const finalSizes = sizes ?? item.sizes;
+      if (sizeQuantities?.some((entry) => !finalSizes.includes(entry.size)))
+        throw new DomainError(
+          "PRODUCT_SIZE_INVALID",
+          "As quantidades devem usar os tamanhos do produto.",
+          400,
+        );
       Object.assign(item, fields, {
         ...(sizes ? { sizes } : {}),
         ...(restockAlertAt !== undefined ? { restockAlertAt } : {}),
         updatedAt: now(),
       });
       context.refreshProductStock(item);
+      for (const { size, quantity } of sizeQuantities ?? []) {
+        const delta = quantity - context.productStockOf(item.id, size);
+        if (!delta) continue;
+        context.changeProductStock(item, size, delta);
+        context.pushStockMovement(
+          item,
+          delta > 0 ? "adjustment_in" : "adjustment_out",
+          delta,
+          sizeQuantityNotes,
+          undefined,
+          size,
+        );
+      }
       context.recordAudit(
         clinicId,
         actorUserId,
