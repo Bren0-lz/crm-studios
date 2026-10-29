@@ -230,7 +230,7 @@ function OperationPanel({ data }: { data: ManagementReport }) {
             <dd>{operational.waitlistCount}</dd>
           </div>
           <div>
-            <dt>Produtos acabando no estoque</dt>
+            <dt>Produtos para repor</dt>
             <dd>{operational.lowStockCount}</dd>
           </div>
           <div>

@@ -12,73 +12,95 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { messageVariables } from "@crm/contracts";
 import {
+  Banknote,
   Bold,
   CalendarClock,
+  ClipboardList,
   Italic,
+  KeyRound,
   Strikethrough,
   UserRound,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
-const variablePattern = new RegExp(
-  messageVariables
-    .map((variable) => variable.code)
-    .sort((a, b) => b.length - a.length)
-    .map((code) => code.replace(/[{}]/g, "\\$&"))
-    .join("|"),
-  "g",
-);
+/** Código que o editor oferece (`{{nome}}`), com o rótulo da etiqueta e o exemplo da dica. */
+export interface MessageVariableOption {
+  code: string;
+  label: string;
+  example: string;
+}
 
-function variableLabel(code: string) {
-  return (
-    messageVariables.find((variable) => variable.code === code)?.label ?? code
+function variablePatternOf(variables: readonly MessageVariableOption[]) {
+  return new RegExp(
+    variables
+      .map((variable) => variable.code)
+      .sort((a, b) => b.length - a.length)
+      .map((code) => code.replace(/[{}]/g, "\\$&"))
+      .join("|"),
+    "g",
   );
 }
 
+function variableIcon(code: string) {
+  if (code.includes("nome")) return UserRound;
+  if (code.includes("atendimento") || code.includes("sessoes"))
+    return CalendarClock;
+  if (code.includes("valor") || code.includes("parcela")) return Banknote;
+  if (code.includes("chave")) return KeyRound;
+  return ClipboardList;
+}
+
 /** Código como `{{nome}}` mostrado como etiqueta verde, igual aos campos do contrato. */
-const MessageVariable = Node.create({
-  name: "messageVariable",
-  group: "inline",
-  inline: true,
-  atom: true,
-  addAttributes: () => ({
-    code: {
-      default: messageVariables[0].code,
-      parseHTML: (element) => element.getAttribute("data-message-variable"),
+function messageVariableNode(
+  variables: readonly MessageVariableOption[],
+  variablePattern: RegExp,
+) {
+  const variableLabel = (code: string) =>
+    variables.find((variable) => variable.code === code)?.label ?? code;
+  return Node.create({
+    name: "messageVariable",
+    group: "inline",
+    inline: true,
+    atom: true,
+    addAttributes: () => ({
+      code: {
+        default: variables[0]?.code ?? "",
+        parseHTML: (element) => element.getAttribute("data-message-variable"),
+      },
+    }),
+    parseHTML: () => [{ tag: "span[data-message-variable]" }],
+    renderHTML({ node, HTMLAttributes }) {
+      return [
+        "span",
+        mergeAttributes(HTMLAttributes, {
+          "data-message-variable": node.attrs.code,
+          class: "document-field",
+          title: node.attrs.code,
+        }),
+        variableLabel(String(node.attrs.code)),
+      ];
     },
-  }),
-  parseHTML: () => [{ tag: "span[data-message-variable]" }],
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-message-variable": node.attrs.code,
-        class: "document-field",
-        title: node.attrs.code,
-      }),
-      variableLabel(String(node.attrs.code)),
-    ];
-  },
-  renderText: ({ node }) => String(node.attrs.code),
-  addInputRules() {
-    return [
-      nodeInputRule({
-        find: new RegExp(`(?:${variablePattern.source})$`),
-        type: this.type,
-        getAttributes: (match) => ({ code: match[0] }),
-      }),
-    ];
-  },
-  addPasteRules() {
-    return [
-      nodePasteRule({
-        find: variablePattern,
-        type: this.type,
-        getAttributes: (match) => ({ code: match[0] }),
-      }),
-    ];
-  },
-});
+    renderText: ({ node }) => String(node.attrs.code),
+    addInputRules() {
+      return [
+        nodeInputRule({
+          find: new RegExp(`(?:${variablePattern.source})$`),
+          type: this.type,
+          getAttributes: (match) => ({ code: match[0] }),
+        }),
+      ];
+    },
+    addPasteRules() {
+      return [
+        nodePasteRule({
+          find: variablePattern,
+          type: this.type,
+          getAttributes: (match) => ({ code: match[0] }),
+        }),
+      ];
+    },
+  });
+}
 
 /** Texto da mensagem: um parágrafo por linha, com os códigos no lugar das etiquetas. */
 function messageText(doc: ProseMirrorNode) {
@@ -96,7 +118,7 @@ function messageText(doc: ProseMirrorNode) {
   return lines.join("\n");
 }
 
-function messageDoc(text: string): JSONContent {
+function messageDoc(text: string, variablePattern: RegExp): JSONContent {
   return {
     type: "doc",
     content: text.split("\n").map((line) => {
@@ -138,7 +160,8 @@ function maxLengthExtension(maxLength: number) {
 /**
  * Campo da mensagem do WhatsApp: botões que inserem os códigos (mostrados como etiquetas
  * verdes), atalhos de formatação com os marcadores do WhatsApp e o texto com até `maxLength`
- * caracteres. `value` e `onChange` usam o texto puro, com `{{nome}}` etc.
+ * caracteres. `value` e `onChange` usam o texto puro, com `{{nome}}` etc. `variables` troca
+ * os códigos oferecidos (padrão: os das campanhas); `variables` precisa ser estável.
  */
 export function MessageBodyEditor({
   labelId,
@@ -146,13 +169,29 @@ export function MessageBodyEditor({
   onChange,
   placeholder,
   maxLength,
+  variables = messageVariables,
+  toolbarLabel = "Personalizar mensagem",
+  formatting = true,
+  required = true,
+  disabled = false,
+  describedBy,
 }: {
   labelId: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   maxLength: number;
+  variables?: readonly MessageVariableOption[];
+  toolbarLabel?: string;
+  formatting?: boolean;
+  required?: boolean;
+  disabled?: boolean;
+  describedBy?: string;
 }) {
+  const variablePattern = useMemo(
+    () => variablePatternOf(variables),
+    [variables],
+  );
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -174,16 +213,18 @@ export function MessageBodyEditor({
         trailingNode: false,
         underline: false,
       }),
-      MessageVariable,
+      messageVariableNode(variables, variablePattern),
       maxLengthExtension(maxLength),
     ],
-    content: messageDoc(value),
+    content: messageDoc(value, variablePattern),
+    editable: !disabled,
     editorProps: {
       attributes: {
         role: "textbox",
         "aria-labelledby": labelId,
         "aria-multiline": "true",
-        "aria-required": "true",
+        "aria-required": String(required),
+        ...(describedBy ? { "aria-describedby": describedBy } : {}),
         class: "message-body-content",
         spellcheck: "true",
       },
@@ -195,8 +236,14 @@ export function MessageBodyEditor({
 
   useEffect(() => {
     if (editor && messageText(editor.state.doc) !== value)
-      editor.commands.setContent(messageDoc(value), { emitUpdate: false });
-  }, [editor, value]);
+      editor.commands.setContent(messageDoc(value, variablePattern), {
+        emitUpdate: false,
+      });
+  }, [editor, value, variablePattern]);
+
+  useEffect(() => {
+    editor?.setEditable(!disabled, false);
+  }, [editor, disabled]);
 
   function insertCode(code: string) {
     editor
@@ -233,56 +280,60 @@ export function MessageBodyEditor({
       <div
         className="template-toolbar"
         role="toolbar"
-        aria-label="Personalizar mensagem"
+        aria-label={toolbarLabel}
       >
-        {messageVariables.map((variable) => (
-          <button
-            key={variable.code}
-            type="button"
-            className="variable-chip"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => insertCode(variable.code)}
-            title={`Insere ${variable.code}: vira "${variable.example}" na mensagem`}
-          >
-            {variable.code.includes("atendimento") ? (
-              <CalendarClock size={14} aria-hidden="true" />
-            ) : (
-              <UserRound size={14} aria-hidden="true" />
-            )}
-            Inserir {variable.label.toLowerCase()}
-          </button>
-        ))}
-        <span className="template-toolbar-divider" aria-hidden="true" />
-        <button
-          type="button"
-          className="icon-button format-button"
-          aria-label="Negrito"
-          title="Negrito (*texto*)"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => format("*")}
-        >
-          <Bold size={15} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon-button format-button"
-          aria-label="Itálico"
-          title="Itálico (_texto_)"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => format("_")}
-        >
-          <Italic size={15} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon-button format-button"
-          aria-label="Riscado"
-          title="Riscado (~texto~)"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => format("~")}
-        >
-          <Strikethrough size={15} aria-hidden="true" />
-        </button>
+        {variables.map((variable) => {
+          const Icon = variableIcon(variable.code);
+          return (
+            <button
+              key={variable.code}
+              type="button"
+              className="variable-chip"
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertCode(variable.code)}
+              title={`Insere ${variable.code}: vira "${variable.example}" na mensagem`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              Inserir {variable.label.toLowerCase()}
+            </button>
+          );
+        })}
+        {formatting && (
+          <>
+            <span className="template-toolbar-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className="icon-button format-button"
+              aria-label="Negrito"
+              title="Negrito (*texto*)"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => format("*")}
+            >
+              <Bold size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-button format-button"
+              aria-label="Itálico"
+              title="Itálico (_texto_)"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => format("_")}
+            >
+              <Italic size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-button format-button"
+              aria-label="Riscado"
+              title="Riscado (~texto~)"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => format("~")}
+            >
+              <Strikethrough size={15} aria-hidden="true" />
+            </button>
+          </>
+        )}
       </div>
       <div className="message-body-editor">
         {!value && (

@@ -931,7 +931,6 @@ for (const storage of ["memory", "postgres"] as const) {
           costInCents: 500,
           salePriceInCents: 1000,
           initialStock: 3,
-          minimumStock: 1,
         });
         await repository.addPatientTabItem(clinicId, actorId, tab.id, {
           productId: product.id,

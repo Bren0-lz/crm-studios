@@ -47,12 +47,14 @@ export async function request<T>(
   return body as T;
 }
 
-export async function requestBlob(path: string) {
+export async function requestBlob(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const response = await fetch(`${API_URL}${path}`, {
+    ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...branchHeaders(),
+      ...options.headers,
     },
   });
   if (!response.ok) {

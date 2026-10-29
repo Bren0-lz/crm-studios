@@ -8705,7 +8705,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
@@ -11141,6 +11141,8 @@ describe("button variants", () => {
     "text-button",
     "danger-button",
     "icon-button",
+    // Etiqueta verde que insere um código nos editores de mensagem.
+    "variable-chip",
   ];
 
   /** Botões da página (fora da barra lateral e do topo) sem uma das variantes padronizadas. */

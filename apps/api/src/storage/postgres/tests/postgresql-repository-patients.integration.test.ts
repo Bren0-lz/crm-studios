@@ -302,7 +302,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ),
         "utf8",
       );
+      // A 0101 troca o "Exportar relatórios" da 0045 por uma permissão por planilha.
+      const spreadsheetSplit = readFileSync(
+        new URL(
+          "../../../../migrations/0111_spreadsheet_export_permissions.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await client.query(sql);
+      await client.query(spreadsheetSplit);
       for (const item of cases) {
         const row = await client.query(
           "SELECT permissions FROM users WHERE id=$1",
