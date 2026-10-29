@@ -13,6 +13,7 @@ import { CommercialPage } from "../features/commercial/CommercialPage";
 import { CampaignSenderPage } from "../features/communications/campaigns/CampaignSenderPage";
 import { CommunicationsPage } from "../features/communications/CommunicationsPage";
 import { DocumentsPage } from "../features/contracts/DocumentsPage";
+import { PublicSignaturePage } from "../features/contracts/PublicSignaturePage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FinancePage } from "../features/finance/FinancePage";
 import { SalesPage } from "../features/sales/SalesPage";
@@ -43,6 +44,11 @@ export function AppRoutes() {
     canView(module) ? element : <Navigate to="/" replace />;
   return (
     <Routes>
+      {/* Link enviado ao cliente: aberto sem login, fora do Shell da equipe. */}
+      <Route
+        path="/assinar-contrato/:token"
+        element={<PublicSignaturePage />}
+      />
       <Route
         path="/login"
         element={

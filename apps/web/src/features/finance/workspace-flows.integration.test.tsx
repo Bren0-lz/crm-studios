@@ -13,6 +13,12 @@ describe("finance workflows through real HTTP handlers", () => {
       kind: "company",
       document: "",
       phone: "",
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "",
+      contracts: "",
       notes: "",
       active: true,
     });

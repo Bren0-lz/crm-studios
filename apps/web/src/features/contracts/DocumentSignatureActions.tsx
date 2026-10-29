@@ -103,6 +103,7 @@ export function DocumentSignatureActions({
         </div>
       ) : (
         document.status === "issued" &&
+        !document.signatureLink?.signedAt &&
         can("contracts.status") && (
           <button
             className="secondary-button button-sm"
