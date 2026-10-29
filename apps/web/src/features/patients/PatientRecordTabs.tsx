@@ -34,6 +34,7 @@ import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
 import { PatientMessagePreferences } from "../communications/index";
+import { SignatureLinkRecord } from "../contracts/index";
 import {
   PlanCard,
   SessionMovementsModal,
@@ -570,6 +571,9 @@ export function PatientRecordTabs({
                         <div className="patient-tab-item-main">
                           <strong>{item.title}</strong>
                           <span>{item.templateName}</span>
+                          {item.status !== "cancelled" && (
+                            <SignatureLinkRecord document={item} />
+                          )}
                         </div>
                         <div className="patient-tab-item-side">
                           <span className={`status-pill ${item.status}`}>

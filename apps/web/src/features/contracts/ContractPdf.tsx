@@ -10,6 +10,7 @@ import {
 import {
   documentContentFromText,
   documentContentText,
+  formatCpf,
   type ClinicBranding,
   type DocumentContent,
   type DocumentNode,
@@ -79,13 +80,34 @@ const styles = StyleSheet.create({
     color: "#657168",
     textAlign: "center",
   },
+  signature: {
+    marginTop: 24,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#d9ded9",
+    fontSize: 9,
+    color: "#3d4a43",
+  },
+  signatureTitle: { fontSize: 11, fontWeight: 600, marginBottom: 6 },
+  signatureImage: { width: 180, maxHeight: 70, objectFit: "contain" },
 });
+
+/** Assinatura feita pelo link: vai ao fim do PDF do documento assinado. */
+export interface DocumentPdfSignature {
+  signerName: string;
+  signedAt: string;
+  signerCpf?: string | undefined;
+  signatureImage?: string | undefined;
+  ipAddress?: string | undefined;
+  documentSha256?: string | undefined;
+}
 
 export interface DocumentPdfInput {
   title: string;
   body: string;
   content?: DocumentContent | undefined;
   branding?: ClinicBranding | null | undefined;
+  signature?: DocumentPdfSignature | undefined;
 }
 
 export function ContractPdf({
@@ -93,6 +115,7 @@ export function ContractPdf({
   body,
   content,
   branding,
+  signature,
 }: DocumentPdfInput) {
   const source = content ?? documentContentFromText(body);
   function inline(node: DocumentNode, key: number): ReactNode {
@@ -168,6 +191,35 @@ export function ContractPdf({
           </View>
         </View>
         {source.doc.content?.map(block)}
+        {signature && (
+          <View style={styles.signature} wrap={false}>
+            <Text style={styles.signatureTitle}>
+              Assinado eletronicamente pelo link
+            </Text>
+            {signature.signatureImage &&
+              /^data:image\/png;base64,/.test(signature.signatureImage) && (
+                <Image
+                  style={styles.signatureImage}
+                  src={signature.signatureImage}
+                />
+              )}
+            <Text>
+              {signature.signerName}
+              {signature.signerCpf
+                ? ` · CPF ${formatCpf(signature.signerCpf)}`
+                : ""}
+            </Text>
+            <Text>
+              Em {new Date(signature.signedAt).toLocaleString("pt-BR")}
+              {signature.ipAddress ? ` · IP ${signature.ipAddress}` : ""}
+            </Text>
+            {signature.documentSha256 && (
+              <Text>
+                Código do documento (SHA-256): {signature.documentSha256}
+              </Text>
+            )}
+          </View>
+        )}
         <Text
           fixed
           style={styles.footer}

@@ -1131,6 +1131,10 @@
   color: var(--muted);
   font-size: var(--text-sm);
 }
+/* Situação da assinatura na aba Contratos: o selo mantém o tamanho do status-pill. */
+.patient-tab-item-main .signature-link-record .status-pill {
+  font-size: var(--text-xs);
+}
 .patient-tab-item-side {
   display: flex;
   flex: 0 0 auto;
