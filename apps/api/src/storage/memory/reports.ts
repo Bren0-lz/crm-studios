@@ -7,6 +7,8 @@ import {
   type SalesPeriodReport,
   type TeamProductionSources,
   allocatePlanRevenue,
+  productItemName,
+  productNeedsRestock,
 } from "@crm/contracts";
 import { commissionAmount } from "../../modules/finance/commission-calculation.js";
 import { competencesBetween } from "../../modules/reports/team-finance.js";
@@ -77,7 +79,10 @@ export function createReportsRepository(
           sourceType: item.sourceType,
           patientId: tab.patientId,
           patientName: tab.patientName,
-          itemName: item.productName,
+          itemName:
+            item.sourceType === "product"
+              ? productItemName(item)
+              : item.productName,
           quantity: item.quantity,
           ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
         };
@@ -734,7 +739,7 @@ export function createReportsRepository(
               .filter(
                 (item) =>
                   item.clinicId === clinicId &&
-                  item.currentStock <= item.minimumStock,
+                  productNeedsRestock(item.currentStock, item.restockAlertAt),
               ).length,
             productUnitsSold: byProduct.reduce(
               (sum, item) => sum + item.unitsSold,

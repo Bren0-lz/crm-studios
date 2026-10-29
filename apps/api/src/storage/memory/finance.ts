@@ -1,3 +1,7 @@
+import {
+  assertStockSize,
+  isStockOut,
+} from "../../modules/finance/product-stock.js";
 import { receiptWithClinic } from "../../modules/finance/receipt.js";
 import {
   prepareTabServiceCredits,
@@ -146,24 +150,38 @@ export function createFinanceRepository(
         unit: input.unit,
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
-        minimumStock: input.minimumStock,
+        restockAlertAt: input.restockAlertAt ?? null,
+        sizes: input.sizes ?? [],
+        sizeStock: [],
         branchId,
         id: uuid(),
         clinicId,
-        currentStock: input.initialStock,
-        lowStock: input.initialStock <= input.minimumStock,
+        currentStock: 0,
+        lowStock: true,
         active: true,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
       repositoryContext.products.push(product);
-      if (input.initialStock > 0)
-        repositoryContext.pushStockMovement(
-          product,
-          "initial_stock",
-          input.initialStock,
-          "Estoque inicial",
-        );
+      repositoryContext.refreshProductStock(product);
+      const initial = product.sizes.length
+        ? (input.initialSizeStock ?? []).map(
+            (entry) => [entry.size, entry.quantity] as const,
+          )
+        : [[undefined, input.initialStock] as const];
+      for (const [size, quantity] of initial)
+        if (quantity > 0) {
+          repositoryContext.changeProductStock(product, size, quantity);
+          repositoryContext.pushStockMovement(
+            product,
+            "initial_stock",
+            quantity,
+            "Estoque inicial",
+            undefined,
+            size,
+          );
+        }
+      product.updatedAt = timestamp;
       return product;
     },
 
@@ -181,23 +199,21 @@ export function createFinanceRepository(
           "Produto não encontrado.",
           404,
         );
-      const quantity = ["adjustment_out", "loss"].includes(input.kind)
-        ? -input.quantity
-        : input.quantity;
-      if (product.currentStock + quantity < 0)
-        throw new DomainError(
-          "INSUFFICIENT_STOCK",
-          "O estoque disponível é insuficiente.",
-          409,
-        );
-      product.currentStock += quantity;
-      product.lowStock = product.currentStock <= product.minimumStock;
-      product.updatedAt = now();
+      const out = isStockOut(input.kind);
+      assertStockSize(product, input.size, {
+        leftoverStock: out
+          ? repositoryContext.productStockOf(product.id, input.size)
+          : 0,
+      });
+      const quantity = out ? -input.quantity : input.quantity;
+      repositoryContext.changeProductStock(product, input.size, quantity);
       return repositoryContext.pushStockMovement(
         product,
         input.kind,
         quantity,
         input.notes,
+        undefined,
+        input.size,
       );
     },
 
@@ -267,13 +283,15 @@ export function createFinanceRepository(
         tab,
         product,
       );
-      if (product.currentStock < input.quantity)
-        throw new DomainError(
-          "INSUFFICIENT_STOCK",
-          "O estoque disponível é insuficiente.",
-          409,
-        );
-      const existing = tab.items.find((item) => item.productId === product.id);
+      assertStockSize(product, input.size);
+      repositoryContext.changeProductStock(
+        product,
+        input.size,
+        -input.quantity,
+      );
+      const existing = tab.items.find(
+        (item) => item.productId === product.id && item.size === input.size,
+      );
       if (existing) {
         existing.quantity += input.quantity;
         existing.totalInCents = existing.quantity * existing.unitPriceInCents;
@@ -282,21 +300,20 @@ export function createFinanceRepository(
           id: uuid(),
           productId: product.id,
           productName: product.name,
+          ...(input.size ? { size: input.size } : {}),
           quantity: input.quantity,
           unitPriceInCents: product.salePriceInCents,
           unitCostInCents: product.costInCents,
           totalInCents: input.quantity * product.salePriceInCents,
         });
       }
-      product.currentStock -= input.quantity;
-      product.lowStock = product.currentStock <= product.minimumStock;
-      product.updatedAt = now();
       repositoryContext.pushStockMovement(
         product,
         "sale",
         -input.quantity,
         `Reserva na comanda de ${tab.patientName}`,
         tab.id,
+        input.size,
       );
       tab.totalInCents =
         tab.items.reduce((sum, item) => sum + item.totalInCents, 0) +
@@ -442,15 +459,14 @@ export function createFinanceRepository(
         const product = repositoryContext.products.find(
           (candidate) => candidate.id === item.productId,
         )!;
-        product.currentStock += item.quantity;
-        product.lowStock = product.currentStock <= product.minimumStock;
-        product.updatedAt = now();
+        repositoryContext.changeProductStock(product, item.size, item.quantity);
         repositoryContext.pushStockMovement(
           product,
           "sale_reversal",
           item.quantity,
           `Estorno da comanda de ${tab.patientName}`,
           tab.id,
+          item.size,
         );
       }
       if (tab.receivableId) {

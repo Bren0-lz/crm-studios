@@ -107,6 +107,7 @@ export {
   mapPatientTabItem,
   mapPayable,
   mapProduct,
+  productStockRowsColumn,
   mapReceivable,
   mapRecurringPayable,
   mapStockMovement,
