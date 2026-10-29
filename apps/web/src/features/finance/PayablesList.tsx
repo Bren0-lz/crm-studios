@@ -1,4 +1,8 @@
-import { type Payable, saoPauloToday } from "@crm/contracts";
+import {
+  type Payable,
+  paymentMethodWithInstallments,
+  saoPauloToday,
+} from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -11,6 +15,7 @@ export function PayablesList({
   onCreate,
   onSettle,
   onReverse,
+  onProofs,
   onSetAmount,
 }: {
   payables: Payable[];
@@ -18,6 +23,7 @@ export function PayablesList({
   onCreate: () => void;
   onSettle: (item: Payable) => void;
   onReverse: (id: string) => void;
+  onProofs: (item: Payable) => void;
   /** Despesa fixa variável: informar o valor do mês antes de pagar. */
   onSetAmount: (item: Payable) => void;
 }) {
@@ -61,6 +67,11 @@ export function PayablesList({
             <div className="finance-item">
               <strong title={item.description}>{item.description}</strong>
               <span title={detail}>{detail}</span>
+              {item.status === "paid" && item.paymentMethod && (
+                <span className="finance-installment">
+                  Pago: {paymentMethodWithInstallments(item.paymentMethod)}
+                </span>
+              )}
             </div>
             <span className="finance-due">
               <span className="finance-label">Vencimento </span>
@@ -75,6 +86,15 @@ export function PayablesList({
               </span>
             </span>
             <div className="finance-actions">
+              {item.status === "paid" && (
+                <button
+                  className="secondary-button button-sm"
+                  aria-label={`Comprovantes de ${item.description}`}
+                  onClick={() => onProofs(item)}
+                >
+                  Comprovantes
+                </button>
+              )}
               {canManage &&
                 item.status === "open" &&
                 item.amountPending &&

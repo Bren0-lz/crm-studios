@@ -3,6 +3,7 @@ import { createWaitlistRepository } from "./storage/postgres/waitlist.js";
 import { createBranchesRepository } from "./storage/postgres/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
+import { createPaymentProofsRepository } from "./storage/postgres/payment-proofs.js";
 import { createPlanPurchasesRepository } from "./storage/postgres/plan-purchases.js";
 import { createFinancialDatesRepository } from "./storage/postgres/financial-dates.js";
 import { createRegistryRepository } from "./storage/postgres/registry.js";
@@ -54,6 +55,11 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
   readonly createExternalOperation: ClinicRepository["createExternalOperation"];
   readonly getExternalOperationContent: ClinicRepository["getExternalOperationContent"];
+  readonly listPaymentProofs: ClinicRepository["listPaymentProofs"];
+  readonly createPaymentProof: ClinicRepository["createPaymentProof"];
+  readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
+  readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
+  readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -154,6 +160,12 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createExternalOperation = externalOperations.createExternalOperation;
     this.getExternalOperationContent =
       externalOperations.getExternalOperationContent;
+    const paymentProofs = createPaymentProofsRepository(this.context);
+    this.listPaymentProofs = paymentProofs.listPaymentProofs;
+    this.createPaymentProof = paymentProofs.createPaymentProof;
+    this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
+    this.deletePaymentProof = paymentProofs.deletePaymentProof;
+    this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;
