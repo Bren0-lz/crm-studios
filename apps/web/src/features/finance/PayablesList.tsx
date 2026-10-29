@@ -52,7 +52,10 @@ export function PayablesList({
         const detail = [
           item.supplier || item.categoryName,
           item.costCenterName,
-          item.amountPending && "Valor estimado: informe o valor do mês",
+          item.amountPending &&
+            (item.amountInCents > 0
+              ? "Valor estimado: informe o valor do mês"
+              : "Sem estimativa: informe o valor do mês"),
         ]
           .filter(Boolean)
           .join(" · ");
@@ -67,7 +70,9 @@ export function PayablesList({
               {shortDate.format(new Date(`${item.dueDate}T12:00:00`))}
             </span>
             <strong className="finance-amount cash-out">
-              {signedCurrency(-item.amountInCents)}
+              {item.amountPending && item.amountInCents === 0
+                ? "A informar"
+                : signedCurrency(-item.amountInCents)}
             </strong>
             <span>
               <span className={`status-pill ${situation.pill}`}>
