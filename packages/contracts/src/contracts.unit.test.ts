@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  appointmentCreateInputSchema,
+  autoCampaignInputSchema,
+  recurringAppointmentCreateInputSchema,
   productInputSchema,
   productItemName,
   productNeedsRestock,
@@ -2152,6 +2155,64 @@ describe("comissões por serviço do usuário", () => {
         { expiresAt, signedAt: "2026-10-21T10:00:00.000Z" },
         new Date("2026-11-30T12:00:00Z"),
       ),
+    ).toBe(false);
+  });
+});
+
+describe("campanhas automáticas promocionais", () => {
+  const campaign = {
+    name: "Aniversariantes",
+    trigger: "birthday",
+    steps: [{ offset: 7, message: "Olá, {{nome}}" }],
+  };
+
+  it("accepts an optional promotion with validity and cooldown", () => {
+    expect(autoCampaignInputSchema.parse(campaign).promotion).toBeUndefined();
+    expect(
+      autoCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validDays: 10, cooldown: { amount: 3, unit: "weeks" } },
+      }).promotion,
+    ).toEqual({ validDays: 10, cooldown: { amount: 3, unit: "weeks" } });
+    for (const promotion of [
+      { validDays: 0 },
+      { validDays: 366 },
+      { validDays: 10, cooldown: { amount: 0, unit: "days" } },
+      { validDays: 10, cooldown: { amount: 1, unit: "years" } },
+    ])
+      expect(
+        autoCampaignInputSchema.safeParse({ ...campaign, promotion }).success,
+      ).toBe(false);
+  });
+
+  it("takes the promotion used when scheduling", () => {
+    const appointment = {
+      patientId: "11111111-1111-4111-8111-111111111111",
+      professionalId: "22222222-2222-4222-8222-222222222222",
+      roomId: "33333333-3333-4333-8333-333333333333",
+      serviceId: "44444444-4444-4444-8444-444444444444",
+      startsAt: "2039-06-20T13:00:00.000Z",
+    };
+    const promotion = {
+      campaignId: "55555555-5555-4555-8555-555555555555",
+      occurrenceKey: "cliente:2039",
+    };
+    expect(
+      appointmentCreateInputSchema.parse({ ...appointment, promotion })
+        .promotion,
+    ).toEqual(promotion);
+    expect(
+      recurringAppointmentCreateInputSchema.parse({
+        ...appointment,
+        occurrences: 4,
+        promotion,
+      }),
+    ).toMatchObject({ occurrences: 4, promotion });
+    expect(
+      appointmentCreateInputSchema.safeParse({
+        ...appointment,
+        promotion: { campaignId: "x", occurrenceKey: "" },
+      }).success,
     ).toBe(false);
   });
 });

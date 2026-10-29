@@ -20,6 +20,8 @@ import type {
   AutoCampaign,
   AutoCampaignDelivery,
   AutoCampaignDeliveryInput,
+  AutoCampaignPromotion,
+  AutoCampaignRedemption,
   AutoCampaignTrigger,
 } from "@crm/contracts";
 import type { AutoCampaignSourceData } from "./modules/communications/auto-campaigns.js";
@@ -799,9 +801,11 @@ export interface ClinicRepository {
     cutoff: string,
     at: string,
   ): Promise<number>;
+  /** Com `promotion`, grava o uso da promoção junto do atendimento (mesma transação). */
   createAppointment(
     clinicId: string,
     input: AppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment>;
   rescheduleAppointment(
     clinicId: string,
@@ -834,9 +838,11 @@ export interface ClinicRepository {
     appointmentId: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null>;
+  /** Com `promotion`, o uso fica ligado à 1ª ocorrência. */
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment[]>;
   listScheduleBlocks(
     clinicId: string,
@@ -1467,6 +1473,10 @@ export interface ClinicRepository {
     actorUserId: string,
     input: AutoCampaignDeliveryWrite,
   ): Promise<AutoCampaignDelivery>;
+  /** Usos de promoção das campanhas não excluídas, com o status atual do atendimento. */
+  listAutoCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
   /** Desfaz o registro: a mensagem volta a pendente. */
   deleteAutoCampaignDelivery(
     clinicId: string,
@@ -1632,12 +1642,27 @@ export interface AutoCampaignWrite {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: Array<{ id?: string | undefined; offset: number; message: string }>;
+  promotion?: AutoCampaignPromotion | undefined;
 }
 
 export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
   /** Mensagem já preenchida, guardada como estava no envio. */
   message: string;
+  /** Calculado pela rota quando a campanha é promocional e a mensagem foi enviada. */
+  promotionValidUntil?: string | undefined;
 };
+
+/** Uso de promoção já validado pela rota (oferta vigente para o cliente). */
+export interface AutoCampaignRedemptionWrite {
+  campaignId: string;
+  occurrenceKey: string;
+  redeemedOn: string;
+  blockedUntil?: string | undefined;
+}
+
+export interface AppointmentCreateOptions {
+  promotion?: AutoCampaignRedemptionWrite | undefined;
+}
 
 export interface MessageTemplateWrite {
   title: string;

@@ -13,6 +13,8 @@ import type {
 import type {
   Appointment,
   AppointmentInput,
+  AppointmentPromotion,
+  AutoCampaignPromotionOffer,
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
@@ -117,7 +119,14 @@ export const agendaApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  createAppointment: (input: AppointmentInput) =>
+  /** Promoções de campanhas automáticas que o cliente pode usar se agendar hoje. */
+  appointmentPromotions: (patientId: string) =>
+    request<AutoCampaignPromotionOffer[]>(
+      `/appointments/promotions?patientId=${encodeURIComponent(patientId)}`,
+    ),
+  createAppointment: (
+    input: AppointmentInput & { promotion?: AppointmentPromotion | undefined },
+  ) =>
     request<Appointment>("/appointments", {
       method: "POST",
       body: JSON.stringify(input),
@@ -135,7 +144,11 @@ export const agendaApi = {
     }),
   appointmentReschedules: (id: string) =>
     request<AppointmentRescheduleEvent[]>(`/appointments/${id}/reschedules`),
-  createRecurringAppointments: (input: RecurringAppointmentInput) =>
+  createRecurringAppointments: (
+    input: RecurringAppointmentInput & {
+      promotion?: AppointmentPromotion | undefined;
+    },
+  ) =>
     request<Appointment[]>("/appointments/recurring", {
       method: "POST",
       body: JSON.stringify(input),
