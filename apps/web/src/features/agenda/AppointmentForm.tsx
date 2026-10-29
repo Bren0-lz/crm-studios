@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiClientError } from "../../api";
@@ -57,6 +58,8 @@ export function AppointmentForm({
   initialSlot,
   packageSessions,
   offerPromotions = false,
+  additional,
+  additionalDirty = false,
 }: {
   patients: PatientOption[];
   professionals: Professional[];
@@ -85,6 +88,9 @@ export function AppointmentForm({
   packageSessions?: Record<string, number> | undefined;
   /** Pergunta se o atendimento usa a promoção de uma campanha automática. */
   offerPromotions?: boolean | undefined;
+  /** Campos extras do modal (ex.: documento para assinatura), antes dos avisos do cliente. */
+  additional?: ReactNode;
+  additionalDirty?: boolean;
 }) {
   const { can, canView } = useAuthorization();
   const [form, setForm] = useState({
@@ -154,7 +160,7 @@ export function AppointmentForm({
   // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
   const missing = form.patientId ? [] : ["Cliente"];
   const missingId = useId();
-  useModalDirty(useFormDirty(form));
+  useModalDirty(useFormDirty(form) || additionalDirty);
   const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -561,6 +567,7 @@ export function AppointmentForm({
                 rows={3}
               />
             </label>
+            {additional}
             {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
             <AppointmentPatientWarnings
               patient={

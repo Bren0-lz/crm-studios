@@ -637,20 +637,23 @@ test("purchases a contextual plan with group enrollment and an issued document",
   await dialog
     .getByLabel("Primeiro vencimento", { exact: true })
     .fill(clinicToday());
-  const options = dialog.getByText("Agenda, turma e contrato da contratação", {
-    exact: true,
-  });
-  await options.focus();
-  await options.press("Enter");
   await dialog
     .getByRole("combobox", { name: "Turma", exact: true })
     .selectOption(group.id);
   await dialog
-    .getByRole("combobox", { name: "Modelo de contrato ou termo", exact: true })
+    .getByRole("combobox", {
+      name: "Documento para o cliente assinar",
+      exact: true,
+    })
     .selectOption(document.id);
   await dialog
     .getByRole("button", { name: "Criar plano e parcelas", exact: true })
     .click();
+  // Plano salvo: o mesmo modal mostra o link de assinatura para o WhatsApp.
+  await expect(
+    dialog.getByRole("link", { name: "Abrir WhatsApp", exact: true }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Concluir", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const plans = await (await api.get(`/plans?patientId=${patient.id}`)).json();
   expect(plans).toHaveLength(1);
