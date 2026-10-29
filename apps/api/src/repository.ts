@@ -38,6 +38,10 @@ import type {
   ExternalOperation,
   ExternalOperationInput,
   ExternalOperationContent,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -1070,6 +1074,40 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<ExternalOperationContent | null>;
+  /** Comprovantes de uma baixa (parcela, despesa ou baixa conciliada), sem o conteúdo. */
+  listPaymentProofs(
+    clinicId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+  ): Promise<PaymentProof[]>;
+  /** Anexa um comprovante a um registro já pago/recebido. */
+  createPaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+    input: PaymentProofInput,
+  ): Promise<PaymentProof>;
+  getPaymentProofContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<PaymentProofContent | null>;
+  /**
+   * Exclui um comprovante enviado por engano: sai da lista, o registro e o motivo ficam na
+   * auditoria. `null` = não encontrado (ou fora das filiais da leitura).
+   */
+  deletePaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    reason: string,
+  ): Promise<PaymentProof | null>;
+  /** Tipo do registro de um comprovante visível (para conferir a permissão de excluir). */
+  findPaymentProofEntity(
+    clinicId: string,
+    id: string,
+  ): Promise<PaymentProofEntity | null>;
   purchasePatientPlan(
     clinicId: string,
     actorUserId: string,

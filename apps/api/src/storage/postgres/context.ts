@@ -1,3 +1,4 @@
+import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
   formatSequenceNumber,
   settlementBreakdown,
@@ -1508,6 +1509,13 @@ export class PostgresRepositoryContext {
           balanceReceivableId,
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(
+          client,
+          clinicId,
+          "receivable",
+          receivableId,
+        );
       const receivable = await this.findReceivable(
         client,
         clinicId,
@@ -1657,6 +1665,8 @@ export class PostgresRepositoryContext {
             (operation === "payment" ? current.rows[0].cashAvailableAt : null),
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(client, clinicId, "payable", payableId);
       const payable = await this.findPayable(client, clinicId, payableId);
       await client.query("COMMIT");
       return payable;

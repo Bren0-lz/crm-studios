@@ -1187,6 +1187,66 @@
   color: var(--red);
 }
 
+/* Comprovantes de pagamento: campo no fim dos modais de baixa e lista de arquivos. */
+.proof-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proof-field .muted-copy {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.proof-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proof-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.proof-list li > div {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.proof-list strong {
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proof-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.proof-history-title {
+  margin: var(--space-4) 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.proof-list small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 /* Despesas fixas: bloco "Avisos de vencimento" no topo da seção. */
 .recurring-reminders {
   display: grid;
