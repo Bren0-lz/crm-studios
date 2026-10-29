@@ -30,7 +30,11 @@ import {
   hasDatabaseCode,
   productStockRowsColumn,
 } from "./helpers.js";
-import { changeProductStock } from "./product-stock.js";
+import { changeProductStock, productStockOf } from "./product-stock.js";
+import {
+  sizeQuantityNotes,
+  stockKey,
+} from "../../modules/finance/product-stock.js";
 
 const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
 const supplierColumns = `id,clinic_id AS "clinicId",name,kind,document,phone,whatsapp,email,hired_on::text AS "hiredOn",contract_amount_in_cents AS "contractAmountInCents",billing_cycle AS "billingCycle",payment_method AS "paymentMethod",installments,payment_terms AS "paymentTerms",orders,contracts,notes,active,created_at AS "createdAt",updated_at AS "updatedAt"`;
@@ -288,7 +292,44 @@ export function createFinanceOperationsRepository(
               input.restockAlertAt ?? null,
             ],
           );
-          if (!result.rows[0]) return null;
+          const updated = result.rows[0];
+          if (!updated) return null;
+          if (
+            input.sizeQuantities?.some(
+              (entry) => !updated.sizes.includes(entry.size),
+            )
+          )
+            throw new DomainError(
+              "PRODUCT_SIZE_INVALID",
+              "As quantidades devem usar os tamanhos do produto.",
+              400,
+            );
+          let stockChanged = false;
+          for (const { size, quantity } of input.sizeQuantities ?? []) {
+            const delta = quantity - (await productStockOf(client, id, size));
+            if (!delta) continue;
+            const balance = await changeProductStock(
+              client,
+              clinicId,
+              id,
+              size,
+              delta,
+            );
+            await client.query(
+              `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+              [
+                clinicId,
+                id,
+                delta > 0 ? "adjustment_in" : "adjustment_out",
+                delta,
+                balance,
+                sizeQuantityNotes,
+                actorUserId,
+                stockKey(size),
+              ],
+            );
+            stockChanged = true;
+          }
           await context.addAdminAudit(
             client,
             clinicId,
@@ -298,7 +339,12 @@ export function createFinanceOperationsRepository(
             id,
             { name: input.name },
           );
-          return mapProduct(result.rows[0]);
+          if (!stockChanged) return mapProduct(updated);
+          const reloaded = await client.query<ProductRow>(
+            `SELECT ${productColumns} FROM products WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, id],
+          );
+          return mapProduct(reloaded.rows[0]!);
         });
       } catch (error) {
         if (hasDatabaseCode(error, "23505"))
@@ -697,7 +743,7 @@ export function createFinanceOperationsRepository(
           [clinicId],
         );
         const commissions = await client.query<CommissionEntryRow>(
-          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+          `SELECT ce.id,ce.clinic_id AS "clinicId",ce.professional_id AS "professionalId",p.full_name AS "professionalName",ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",ce.competence,ce.base_amount_in_cents AS "baseAmountInCents",ce.percentage,ce.amount_in_cents AS "amountInCents",ce.status,ce.paid_at AS "paidAt",ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId" FROM commission_entries ce JOIN professionals p ON p.id=ce.professional_id WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
           [clinicId, branchIds],
         );
         const ids = await client.query<{ id: string }>(

@@ -11,7 +11,6 @@ import { PatientContextNotice } from "../../shared/components/PatientContextNoti
 import { ExternalOperationsPanel } from "./ExternalOperationsPanel";
 import { FinanceClassificationPanel } from "./FinanceClassificationPanel";
 import type {
-  CommissionEntry,
   FinancialWorkspace,
   Payable,
   PaymentTiming,
@@ -36,6 +35,7 @@ import {
 } from "./CommissionRuleModal";
 import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
+import { PayrollSection } from "./PayrollSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
 import { PayableAmountModal } from "./PayableAmountModal";
@@ -48,6 +48,8 @@ import { ReceivablesList } from "./ReceivablesList";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
+import { PaymentProofsModal } from "./PaymentProofs";
+import { proofFailureMessage, uploadPaymentProofs } from "./payment-proofs";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { ReceivableFilter, SettleTarget } from "./types";
@@ -81,6 +83,7 @@ export function FinancePage() {
     | "receivables"
     | "payables"
     | "commissions"
+    | "payroll"
     | "dailyCash"
     | "forecast"
     | "entries"
@@ -101,6 +104,11 @@ export function FinancePage() {
     useState<ReceivableFilter>("all");
   const [receivableSearch, setReceivableSearch] = useState("");
   const [settling, setSettling] = useState<SettleTarget | null>(null);
+  const [viewingProofs, setViewingProofs] = useState<{
+    entity: "receivable" | "payable";
+    id: string;
+    subtitle: string;
+  } | null>(null);
   const [payableModal, setPayableModal] = useState(false);
   const [informingPayable, setInformingPayable] = useState<Payable | null>(
     null,
@@ -175,10 +183,15 @@ export function FinancePage() {
     method: PaymentMethod,
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
+    proofs: File[] = [],
   ) {
     if (target.kind === "receivable")
       await api.settleReceivable(target.id, method, timing, adjustments);
     else await api.settlePayable(target.id, method, timing);
+    // A baixa já está registrada: falha de envio só avisa (dá para anexar depois).
+    const failedProofs = proofs.length
+      ? await uploadPaymentProofs(target.kind, target.id, proofs)
+      : [];
     const balance =
       target.kind === "receivable" && adjustments
         ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
@@ -190,6 +203,7 @@ export function FinancePage() {
           ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
           : "Pagamento recebido.",
     );
+    if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
     if (target.kind === "receivable") setSelectedReceivables([]);
@@ -255,21 +269,6 @@ export function FinancePage() {
     setRenegotiating(false);
     setSelectedReceivables([]);
     await reloadAfterAction();
-  }
-  async function toggleCommission(item: CommissionEntry) {
-    setError("");
-    try {
-      if (item.status === "paid") await api.reverseCommission(item.id);
-      else await api.settleCommission(item.id);
-      toast.success(
-        item.status === "paid"
-          ? "Pagamento da comissão estornado."
-          : "Comissão paga.",
-      );
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
   }
   async function generateCommissions() {
     setError("");
@@ -409,6 +408,14 @@ export function FinancePage() {
                 Comissões
                 <span className="tab-count">{data.commissions.length}</span>
               </button>
+              {can("finance.payroll_view") && (
+                <button
+                  className={`tab-button ${tab === "payroll" ? "active" : ""}`}
+                  onClick={() => setTab("payroll")}
+                >
+                  Folha
+                </button>
+              )}
               <button
                 className={`tab-button ${tab === "dailyCash" ? "active" : ""}`}
                 onClick={() => setTab("dailyCash")}
@@ -437,7 +444,9 @@ export function FinancePage() {
               )}
             </div>
           </section>
-          {tab === "dailyCash" ? (
+          {tab === "payroll" ? (
+            <PayrollSection workspace={data} professionals={professionals} />
+          ) : tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
@@ -490,6 +499,13 @@ export function FinancePage() {
                 onContact={(item, overdue) =>
                   setContacting({ receivable: item, overdue })
                 }
+                onProofs={(item) =>
+                  setViewingProofs({
+                    entity: "receivable",
+                    id: item.id,
+                    subtitle: `${item.patientName} · ${item.description}`,
+                  })
+                }
                 onReceipt={(id) =>
                   void api
                     .paymentReceipt(id)
@@ -523,6 +539,18 @@ export function FinancePage() {
                 canManage={canManage}
                 onCreate={() => setPayableModal(true)}
                 onReverse={(id) => void reversePayable(id)}
+                onProofs={(item) =>
+                  setViewingProofs({
+                    entity: "payable",
+                    id: item.id,
+                    subtitle: [
+                      item.description,
+                      item.supplier || item.categoryName,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                  })
+                }
                 onSetAmount={setInformingPayable}
                 onSettle={(item) =>
                   setSettling({
@@ -549,6 +577,10 @@ export function FinancePage() {
                     Para quem tem usuário ligado, vale a comissão definida no
                     usuário (Configurações › Usuários); a regra daqui só conta
                     enquanto o usuário não tiver uma.
+                  </p>
+                  <p className="panel-help">
+                    O pagamento das comissões é feito pela folha de pagamento
+                    (aba Folha), junto com o salário de cada colaborador.
                   </p>
                 </div>
                 {canManage && (
@@ -582,8 +614,6 @@ export function FinancePage() {
                     : undefined
                 }
                 commissions={data.commissions}
-                canManage={canManage}
-                onToggle={(item) => void toggleCommission(item)}
               />
             </section>
           )}
@@ -667,12 +697,28 @@ export function FinancePage() {
           onConfirm={createCommissionRule}
         />
       )}
+      {viewingProofs && (
+        <PaymentProofsModal
+          entity={viewingProofs.entity}
+          entityId={viewingProofs.id}
+          subtitle={viewingProofs.subtitle}
+          canAttach={
+            canManage &&
+            can(
+              viewingProofs.entity === "receivable"
+                ? "finance.receive"
+                : "finance.payables_pay",
+            )
+          }
+          onClose={() => setViewingProofs(null)}
+        />
+      )}
       {settling && (
         <SettleModal
           target={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(method, timing, adjustments) =>
-            settle(settling, method, timing, adjustments)
+          onConfirm={(method, timing, adjustments, proofs) =>
+            settle(settling, method, timing, adjustments, proofs)
           }
         />
       )}
