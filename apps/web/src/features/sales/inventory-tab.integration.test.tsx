@@ -37,8 +37,8 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     let dialog = screen.getByRole("dialog", { name: "Novo produto" });
     change("Nome", "Faixa terapêutica", dialog);
     change("Código do produto", "FAIXA", dialog);
-    change("Custo (R$)", "10", dialog);
-    change("Preço de venda (R$)", "20", dialog);
+    change("Custo (R$)", "10,00", dialog);
+    change("Preço de venda (R$)", "20,00", dialog);
     change("Estoque inicial", "10", dialog);
     // O aviso de reposição é opcional e vem desligado.
     expect(

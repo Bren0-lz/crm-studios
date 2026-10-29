@@ -41,15 +41,42 @@ describe("parseMoneyToCents", () => {
 });
 
 describe("MoneyInput", () => {
-  it("accepts a comma or a dot and formats on blur", () => {
+  it("fills cents from the right without typing a comma or a dot", () => {
     render(<Harness />);
     const input = screen.getByLabelText("Valor");
-    fireEvent.change(input, { target: { value: "45,90" } });
-    expect(screen.getByRole("status")).toHaveTextContent("4590");
-    fireEvent.change(input, { target: { value: "45.9" } });
-    expect(screen.getByRole("status")).toHaveTextContent("4590");
-    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: "4" } });
+    expect(input).toHaveValue("0,04");
+    expect(screen.getByRole("status")).toHaveTextContent("4");
+    fireEvent.change(input, { target: { value: "0,045" } });
+    expect(input).toHaveValue("0,45");
+    fireEvent.change(input, { target: { value: "0,459" } });
+    expect(input).toHaveValue("4,59");
+    fireEvent.change(input, { target: { value: "4,590" } });
     expect(input).toHaveValue("45,90");
+    expect(screen.getByRole("status")).toHaveTextContent("4590");
+    fireEvent.change(input, { target: { value: "45,9012" } });
+    expect(input).toHaveValue("4.590,12");
+    expect(screen.getByRole("status")).toHaveTextContent("459012");
+  });
+
+  it("removes the last digit on backspace", () => {
+    render(<Harness initial={4590} />);
+    const input = screen.getByLabelText("Valor");
+    expect(input).toHaveValue("45,90");
+    fireEvent.change(input, { target: { value: "45,9" } });
+    expect(input).toHaveValue("4,59");
+    expect(screen.getByRole("status")).toHaveTextContent("459");
+  });
+
+  it("ignores letters and keeps a typed zero", () => {
+    render(<Harness />);
+    const input = screen.getByLabelText("Valor");
+    fireEvent.change(input, { target: { value: "R$ 1a5" } });
+    expect(input).toHaveValue("0,15");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "0" } });
+    expect(input).toHaveValue("0,00");
+    expect(screen.getByRole("status")).toHaveTextContent("0");
   });
 
   it("lets the field be cleared instead of keeping a fixed zero", () => {
@@ -59,9 +86,17 @@ describe("MoneyInput", () => {
     fireEvent.change(input, { target: { value: "" } });
     expect(input).toHaveValue("");
     expect(screen.getByRole("status")).toHaveTextContent("null");
-    fireEvent.change(input, { target: { value: "45" } });
-    expect(input).toHaveValue("45");
-    expect(screen.getByRole("status")).toHaveTextContent("4500");
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.change(input, { target: { value: "0,0" } });
+    expect(input).toHaveValue("");
+    expect(screen.getByRole("status")).toHaveTextContent("null");
+  });
+
+  it("caps the value at 999.999.999,99", () => {
+    render(<Harness />);
+    const input = screen.getByLabelText("Valor");
+    fireEvent.change(input, { target: { value: "1234567890123" } });
+    expect(input).toHaveValue("123.456.789,01");
   });
 
   it("shows a value replaced from outside", () => {
