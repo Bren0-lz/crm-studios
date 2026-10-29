@@ -12,7 +12,7 @@ import type {
   FinancialDateCorrection,
 } from "@crm/contracts";
 import type { PaymentTiming } from "@crm/contracts";
-import type { Supplier } from "@crm/contracts";
+import type { Supplier, SupplierOrder } from "@crm/contracts";
 import type {
   ClinicalResource,
   ClinicCatalogEntry,
@@ -687,6 +687,7 @@ export class MemoryRepositoryContext {
   readonly replacementCredits: ReplacementCredit[] = [];
 
   readonly suppliers: Supplier[] = [];
+  readonly supplierOrders: SupplierOrder[] = [];
   readonly products: Product[] = [];
   /** Saldo por produto e chave de estoque ("" = sem tamanho); `currentStock` é a soma. */
   readonly productStocks = new Map<string, Map<string, number>>();

@@ -30,6 +30,11 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/waitlist(?:\/|$)/, ["waitlist", "history"]],
   [/^\/plans(?:\/|$|\?)/, ["plans", "finance", "history"]],
   [/^\/plan-(?:catalog|templates)(?:\/|$)/, ["plans"]],
+  // Pedido ao fornecedor cadastra produtos e dá entrada no estoque.
+  [
+    /^\/finance\/suppliers\/[^/]+\/orders$/,
+    ["finance", "inventory", "history"],
+  ],
   [/^\/finance\//, ["finance", "history"]],
   [/^\/admin\/users(?:\/[^/]+)?$/, ["agenda", "finance", "history"]],
   [

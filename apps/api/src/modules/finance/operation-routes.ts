@@ -6,6 +6,7 @@ import {
   patientTabItemUpdateSchema,
   patientTabServiceInputSchema,
   supplierInputSchema,
+  supplierOrderInputSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
@@ -303,6 +304,37 @@ export function registerFinanceOperationRoutes({
         code: "SUPPLIER_NOT_FOUND",
         message: "Fornecedor não encontrado.",
       }),
+  );
+  app.get(
+    "/finance/suppliers/:id/orders",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.listSupplierOrders(
+        request.user.clinicId,
+        ids.parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "SUPPLIER_NOT_FOUND",
+        message: "Fornecedor não encontrado.",
+      }),
+  );
+  app.post(
+    "/finance/suppliers/:id/orders",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const order = await repository.createSupplierOrder(
+        request.user.clinicId,
+        request.user.sub,
+        ids.parse(request.params).id,
+        supplierOrderInputSchema.parse(request.body),
+      );
+      return order
+        ? reply.status(201).send(order)
+        : reply.status(404).send({
+            code: "SUPPLIER_NOT_FOUND",
+            message: "Fornecedor não encontrado.",
+          });
+    },
   );
   app.post(
     "/finance/receivables",
