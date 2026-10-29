@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   appointmentInputSchema,
+  appointmentPromotionSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusSchema,
   autoFinalizationSettingsInputSchema,
@@ -24,6 +25,8 @@ export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
 export type AppointmentVisitType = z.infer<typeof appointmentVisitTypeSchema>;
 
 export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
+
+export type AppointmentPromotion = z.infer<typeof appointmentPromotionSchema>;
 
 export type AppointmentRescheduleInput = z.infer<
   typeof appointmentRescheduleInputSchema

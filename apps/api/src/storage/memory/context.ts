@@ -8,6 +8,7 @@ import type {
 import type {
   StoredAutoCampaign,
   StoredAutoCampaignDelivery,
+  StoredAutoCampaignRedemption,
 } from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
@@ -83,7 +84,7 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
-  discountedInstallments,
+  discountedPlanInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
@@ -536,6 +537,8 @@ export class MemoryRepositoryContext {
   readonly autoCampaigns: StoredAutoCampaign[] = [];
 
   readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
+  readonly autoCampaignRedemptions: StoredAutoCampaignRedemption[] = [];
 
   readonly documentTemplates: DocumentTemplate[] = [];
 
@@ -1907,17 +1910,16 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    // O desconto do cliente vale nas primeiras cobranças enquanto o alcance permitir.
-    const discounted = discountedInstallments(
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const discounted = discountedPlanInstallments(
       planInstallmentSchedule(input),
-      patient.discount,
+      input.discount,
+      renewedFrom?.discount,
+      input.orderDiscountInCents,
     );
-    if (patient.discount && discounted.usedCharges > 0)
-      patient.discount = {
-        ...patient.discount,
-        usedCharges:
-          (patient.discount.usedCharges ?? 0) + discounted.usedCharges,
-      };
+    delete plan.discount;
+    delete plan.orderDiscountInCents;
+    if (discounted.discount) plan.discount = discounted.discount;
     const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),

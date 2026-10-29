@@ -31,7 +31,11 @@ import {
   zonedTimeToUtc,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type AppointmentCreateOptions,
+  type AutoCampaignRedemptionWrite,
+} from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
 
@@ -51,6 +55,24 @@ export function createAgendaRepository(
       enrollment.startsOn = clinicDate(timestamp);
     }
   };
+  const recordRedemption = (
+    clinicId: string,
+    patientId: string,
+    appointmentId: string,
+    promotion: AutoCampaignRedemptionWrite,
+  ) =>
+    repositoryContext.autoCampaignRedemptions.push({
+      id: uuid(),
+      clinicId,
+      campaignId: promotion.campaignId,
+      patientId,
+      occurrenceKey: promotion.occurrenceKey,
+      appointmentId,
+      redeemedOn: promotion.redeemedOn,
+      ...(promotion.blockedUntil
+        ? { blockedUntil: promotion.blockedUntil }
+        : {}),
+    });
   return {
     async listHolidays(clinicId: string, from?: string, to?: string) {
       return (repositoryContext.holidays.get(clinicId) ?? [])
@@ -172,7 +194,11 @@ export function createAgendaRepository(
       return finalized;
     },
 
-    async createAppointment(clinicId: string, input: AppointmentInput) {
+    async createAppointment(
+      clinicId: string,
+      input: AppointmentInput,
+      options?: AppointmentCreateOptions,
+    ) {
       const patient = repositoryContext.patients.find(
         (item) => item.id === input.patientId && item.clinicId === clinicId,
       );
@@ -182,10 +208,19 @@ export function createAgendaRepository(
           "Cliente, profissional, sala ou serviço não encontrado.",
           404,
         );
-      return repositoryContext.insertAppointment(clinicId, input, {
-        patientId: patient.id,
-        patientName: patient.fullName,
-      });
+      const appointment = await repositoryContext.insertAppointment(
+        clinicId,
+        input,
+        { patientId: patient.id, patientName: patient.fullName },
+      );
+      if (options?.promotion)
+        recordRedemption(
+          clinicId,
+          patient.id,
+          appointment.id,
+          options.promotion,
+        );
+      return appointment;
     },
 
     async createLeadAppointment(
@@ -513,6 +548,7 @@ export function createAgendaRepository(
     async createRecurringAppointments(
       clinicId: string,
       input: RecurringAppointmentInput,
+      options?: AppointmentCreateOptions,
     ) {
       const originalLength = repositoryContext.appointments.length;
       const seriesId = uuid();
@@ -532,6 +568,13 @@ export function createAgendaRepository(
           appointment.seriesId = seriesId;
           appointments.push(appointment);
         }
+        if (options?.promotion)
+          recordRedemption(
+            clinicId,
+            input.patientId,
+            appointments[0]!.id,
+            options.promotion,
+          );
         return appointments;
       } catch (error) {
         repositoryContext.appointments.splice(originalLength);

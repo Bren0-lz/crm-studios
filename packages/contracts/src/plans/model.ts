@@ -4,6 +4,7 @@ import {
   addMonthsToIsoDate,
   paymentMethodSchema,
 } from "../common/model.js";
+import { patientDiscountSchema } from "./discount.js";
 import type {
   PatientPlan,
   PlanPaymentSummary,
@@ -436,6 +437,16 @@ export const planTermsSchema = z.object({
    * (`planFirstChargeProration`); ausente = divisão normal do valor total.
    */
   firstInstallmentInCents: z.number().int().min(0).max(2147483647).optional(),
+  /**
+   * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
+   * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.
+   */
+  discount: patientDiscountSchema.optional(),
+  /**
+   * Parte do desconto geral do pedido (cadastro com plano e produto) que cabe a este
+   * plano: abate das cobranças geradas na venda, a partir da 1ª. Não segue na renovação.
+   */
+  orderDiscountInCents: z.number().int().min(0).max(2147483647).optional(),
 });
 
 export const validPlanPeriod = (value: PlanTerms) =>

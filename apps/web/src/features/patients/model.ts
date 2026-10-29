@@ -8,6 +8,7 @@ import {
 } from "@crm/contracts/patients";
 import type {
   GroupClass,
+  PatientDiscount,
   GuidedPatientNext,
   GuidedPatientResult,
   Patient,
@@ -345,3 +346,12 @@ export const timelineKindConfig: Record<
 
 /** "10% de desconto · nas próximas 3 cobranças (1 usada)"; vazio sem desconto. */
 export const patientDiscountLabel = patientDiscountDescription;
+
+/** Termos do plano com o desconto escolhido (ou sem desconto). */
+export function withPlanDiscount<
+  T extends { discount?: PatientDiscount | undefined },
+>(form: T, discount: PatientDiscount | null): T {
+  const terms = { ...form };
+  delete terms.discount;
+  return discount ? { ...terms, discount } : terms;
+}

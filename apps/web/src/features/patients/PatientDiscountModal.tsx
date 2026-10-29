@@ -4,19 +4,41 @@ import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
+/** Para quem vale o desconto: plano (com alcance nas cobranças), produto ou o pedido todo. */
+export type DiscountTarget = "plan" | "product" | "order";
+
+const discountTitles: Record<DiscountTarget, [string, string]> = {
+  plan: [
+    "Desconto do plano",
+    "Defina um desconto em porcentagem ou em valor para este plano.",
+  ],
+  product: [
+    "Desconto do produto",
+    "Defina um desconto em porcentagem ou em valor para este produto.",
+  ],
+  order: [
+    "Desconto geral",
+    "Desconto sobre a soma dos planos e produtos da sacola, dividido entre eles pelo valor de cada um.",
+  ],
+};
+
 /**
- * Desconto do cliente (porcentagem ou valor). Só altera o formulário do cadastro:
- * o desconto é gravado junto com o cliente ao salvar.
+ * Desconto do plano, produto ou pedido vendido no cadastro (porcentagem ou valor). Só
+ * altera o formulário: o desconto é gravado junto com a venda ao salvar. Produto e
+ * desconto geral valem uma vez, na venda; só o plano escolhe o alcance nas cobranças.
  */
 export function PatientDiscountModal({
   discount,
+  target = "plan",
   onApply,
   onClose,
 }: {
   discount: PatientDiscount | null | undefined;
+  target?: DiscountTarget;
   onApply: (discount: PatientDiscount | null) => void;
   onClose: () => void;
 }) {
+  const [title, subtitle] = discountTitles[target];
   const [type, setType] = useState<PatientDiscount["type"]>(
     discount?.type ?? "percentage",
   );
@@ -41,10 +63,13 @@ export function PatientDiscountModal({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const reach = {
-      scope,
-      ...(scope === "next" ? { charges: Number(charges) || 0 } : {}),
-    };
+    const reach =
+      target === "plan"
+        ? {
+            scope,
+            ...(scope === "next" ? { charges: Number(charges) || 0 } : {}),
+          }
+        : { scope: "once" as const };
     const parsed = patientDiscountSchema.safeParse(
       type === "percentage"
         ? { type, percent: Number(percent.replace(",", ".")) || 0, ...reach }
@@ -60,8 +85,8 @@ export function PatientDiscountModal({
   return (
     <Modal
       eyebrow="Clientes"
-      title="Desconto do cliente"
-      subtitle="Defina um desconto em porcentagem ou em valor para este cliente."
+      title={title}
+      subtitle={subtitle}
       dirty={dirty}
       onClose={onClose}
     >
@@ -111,39 +136,41 @@ export function PatientDiscountModal({
             />
           </label>
         )}
-        <fieldset className="form-fieldset span-2">
-          <legend>Onde o desconto vale</legend>
-          <div className="form-fieldset-grid">
-            <label className="checkbox-field">
-              <input
-                type="radio"
-                name="patient-discount-scope"
-                checked={scope === "once"}
-                onChange={() => setScope("once")}
-              />
-              Só no próximo pagamento
-            </label>
-            <label className="checkbox-field">
-              <input
-                type="radio"
-                name="patient-discount-scope"
-                checked={scope === "next"}
-                onChange={() => setScope("next")}
-              />
-              Nas próximas cobranças
-            </label>
-            <label className="checkbox-field">
-              <input
-                type="radio"
-                name="patient-discount-scope"
-                checked={scope === "permanent"}
-                onChange={() => setScope("permanent")}
-              />
-              Permanente (até remover)
-            </label>
-          </div>
-        </fieldset>
-        {scope === "next" && (
+        {target === "plan" && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Onde o desconto vale</legend>
+            <div className="form-fieldset-grid">
+              <label className="checkbox-field">
+                <input
+                  type="radio"
+                  name="patient-discount-scope"
+                  checked={scope === "once"}
+                  onChange={() => setScope("once")}
+                />
+                Só no próximo pagamento
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="radio"
+                  name="patient-discount-scope"
+                  checked={scope === "next"}
+                  onChange={() => setScope("next")}
+                />
+                Nas próximas cobranças
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="radio"
+                  name="patient-discount-scope"
+                  checked={scope === "permanent"}
+                  onChange={() => setScope("permanent")}
+                />
+                Permanente (até remover)
+              </label>
+            </div>
+          </fieldset>
+        )}
+        {target === "plan" && scope === "next" && (
           <label className="span-2">
             Quantas cobranças (parcelas ou renovações)
             <input
@@ -155,13 +182,16 @@ export function PatientDiscountModal({
             />
           </label>
         )}
-        <p className="muted-copy span-2">
-          Cada parcela ou renovação de plano é uma cobrança. O desconto entra
-          nas próximas cobranças geradas; as que já existem não mudam.
-          {discount && (discount.usedCharges ?? 0) > 0
-            ? ` Já usado em ${discount.usedCharges} ${discount.usedCharges === 1 ? "cobrança" : "cobranças"}.`
-            : ""}
-        </p>
+        {target === "plan" && (
+          <p className="muted-copy span-2">
+            Cada parcela ou renovação deste plano é uma cobrança. O desconto
+            vale só nas cobranças deste plano, não nas de outros planos do
+            cliente.
+            {discount && (discount.usedCharges ?? 0) > 0
+              ? ` Já usado em ${discount.usedCharges} ${discount.usedCharges === 1 ? "cobrança" : "cobranças"}.`
+              : ""}
+          </p>
+        )}
         {error && <div className="form-error span-2">{error}</div>}
         <div className="modal-actions span-2">
           {discount && (
