@@ -393,7 +393,8 @@ export function createFinanceOperationsRepository(
         createdAt: current?.createdAt ?? now(),
         updatedAt: now(),
       };
-      if (current) Object.assign(current, item);
+      // Substitui o registro inteiro para que campos opcionais apagados não fiquem para trás.
+      if (current) suppliers.splice(suppliers.indexOf(current), 1, item);
       else suppliers.push(item);
       context.recordAudit(
         clinicId,

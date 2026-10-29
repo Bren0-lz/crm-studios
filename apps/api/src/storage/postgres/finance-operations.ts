@@ -33,16 +33,52 @@ import {
 import { changeProductStock } from "./product-stock.js";
 
 const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
-const supplierColumns = `id,clinic_id AS "clinicId",name,kind,document,phone,email,notes,active,created_at AS "createdAt",updated_at AS "updatedAt"`;
-type SupplierRow = Omit<Supplier, "createdAt" | "updatedAt"> & {
+const supplierColumns = `id,clinic_id AS "clinicId",name,kind,document,phone,whatsapp,email,hired_on::text AS "hiredOn",contract_amount_in_cents AS "contractAmountInCents",billing_cycle AS "billingCycle",payment_method AS "paymentMethod",installments,payment_terms AS "paymentTerms",orders,contracts,notes,active,created_at AS "createdAt",updated_at AS "updatedAt"`;
+type SupplierRow = Omit<
+  Supplier,
+  | "createdAt"
+  | "updatedAt"
+  | "hiredOn"
+  | "contractAmountInCents"
+  | "paymentMethod"
+> & {
+  hiredOn: string | null;
+  contractAmountInCents: number | null;
+  paymentMethod: Supplier["paymentMethod"] | null;
   createdAt: Date;
   updatedAt: Date;
 };
-const mapSupplier = (row: SupplierRow): Supplier => ({
+const mapSupplier = ({
+  hiredOn,
+  contractAmountInCents,
+  paymentMethod,
+  ...row
+}: SupplierRow): Supplier => ({
   ...row,
+  ...(hiredOn ? { hiredOn } : {}),
+  ...(contractAmountInCents !== null ? { contractAmountInCents } : {}),
+  ...(paymentMethod ? { paymentMethod } : {}),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
+const supplierValues = (input: SupplierInput) => [
+  input.name,
+  input.kind,
+  input.document,
+  input.phone,
+  input.whatsapp,
+  input.email || null,
+  input.hiredOn ?? null,
+  input.contractAmountInCents ?? null,
+  input.billingCycle,
+  input.paymentMethod ?? null,
+  input.installments,
+  input.paymentTerms,
+  input.orders,
+  input.contracts,
+  input.notes,
+  input.active,
+];
 export function createFinanceOperationsRepository(
   context: PostgresRepositoryContext,
 ) {
@@ -458,31 +494,12 @@ export function createFinanceOperationsRepository(
       return context.inTransaction(async (client) => {
         const result = id
           ? await client.query<SupplierRow>(
-              `UPDATE suppliers SET name=$3,kind=$4,document=$5,phone=$6,email=$7,notes=$8,active=$9,updated_at=now() WHERE clinic_id=$1 AND id=$2 RETURNING ${supplierColumns}`,
-              [
-                clinicId,
-                id,
-                input.name,
-                input.kind,
-                input.document,
-                input.phone,
-                input.email || null,
-                input.notes,
-                input.active,
-              ],
+              `UPDATE suppliers SET name=$3,kind=$4,document=$5,phone=$6,whatsapp=$7,email=$8,hired_on=$9,contract_amount_in_cents=$10,billing_cycle=$11,payment_method=$12,installments=$13,payment_terms=$14,orders=$15,contracts=$16,notes=$17,active=$18,updated_at=now() WHERE clinic_id=$1 AND id=$2 RETURNING ${supplierColumns}`,
+              [clinicId, id, ...supplierValues(input)],
             )
           : await client.query<SupplierRow>(
-              `INSERT INTO suppliers(clinic_id,name,kind,document,phone,email,notes,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING ${supplierColumns}`,
-              [
-                clinicId,
-                input.name,
-                input.kind,
-                input.document,
-                input.phone,
-                input.email || null,
-                input.notes,
-                input.active,
-              ],
+              `INSERT INTO suppliers(clinic_id,name,kind,document,phone,whatsapp,email,hired_on,contract_amount_in_cents,billing_cycle,payment_method,installments,payment_terms,orders,contracts,notes,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING ${supplierColumns}`,
+              [clinicId, ...supplierValues(input)],
             );
         if (!result.rows[0]) return null;
         await context.addAdminAudit(
