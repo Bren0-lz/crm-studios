@@ -296,7 +296,7 @@ describe("application shell", () => {
       target: { value: "Escritório Silva" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
-      target: { value: "450" },
+      target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
       target: { value: "20" },
@@ -1375,7 +1375,7 @@ describe("application shell", () => {
         name: "Ajustar valor da parcela",
       });
       fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(adjust).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -1451,7 +1451,7 @@ describe("application shell", () => {
         "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "199.9" },
+        target: { value: "199,90" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desc" },
@@ -1519,7 +1519,7 @@ describe("application shell", () => {
         within(dialog).getByRole("button", { name: "Fechar" }),
       ).toBeEnabled();
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -1580,7 +1580,7 @@ describe("application shell", () => {
         name: "Renegociar parcelas",
       });
       fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), {
-        target: { value: "300" },
+        target: { value: "300,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },

@@ -404,24 +404,19 @@ export function autoCampaignTriggerAllowed(
 
 /**
  * Último dia da promoção para quem recebeu a mensagem: conta `validDays` a partir da data
- * programada da primeira mensagem (`before`: maior antecedência; `after`: menor espera).
- * Sem data do evento (sessões restantes), conta a partir de hoje, o dia do envio.
+ * do evento (aniversário, consulta, vencimento…). Sem data do evento (sessões restantes),
+ * conta a partir de hoje, o dia do envio.
  */
 export function promotionValidUntil(
-  campaign: Pick<AutoCampaign, "trigger" | "steps">,
+  campaign: Pick<AutoCampaign, "trigger">,
   promotion: AutoCampaignPromotion,
   eventDate: string | undefined,
   today: string,
 ) {
   const timing = autoCampaignTriggerTiming[campaign.trigger];
-  const offsets = campaign.steps.map((step) => step.offset);
-  if (!eventDate || timing === "sessions" || !offsets.length)
+  if (!eventDate || timing === "sessions")
     return addDays(today, promotion.validDays);
-  const firstMessage =
-    timing === "before"
-      ? addDays(eventDate, -Math.max(...offsets))
-      : addDays(eventDate, Math.min(...offsets));
-  return addDays(firstMessage, promotion.validDays);
+  return addDays(eventDate, promotion.validDays);
 }
 
 /** Último dia em que quem usou a promoção fica fora da campanha. */

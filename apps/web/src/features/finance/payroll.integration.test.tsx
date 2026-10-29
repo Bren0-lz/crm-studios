@@ -77,7 +77,7 @@ describe("folha de pagamento pela API real", () => {
     expect(within(dialog).getByLabelText("Profissional da agenda")).toHaveValue(
       professional.id,
     );
-    change("Salário fixo (R$)", "1500.00", dialog);
+    change("Salário fixo (R$)", "1500,00", dialog);
     await save("Novo colaborador");
 
     const matriz = await within(panel).findByRole("region", {
