@@ -21,6 +21,7 @@ import {
   recurringPayableInputSchema,
   saoPauloToday,
   stockMovementInputSchema,
+  type PaymentMethod,
   type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -28,7 +29,29 @@ import { DomainError } from "../../repository.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions } = context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertPermissions,
+    assertInstallmentsAllowed,
+  } = context;
+
+  /** Pago na hora com parcelas na forma (ex.: cartão 3x): respeita a configuração da forma. */
+  const assertPaymentInstallments = (
+    clinicId: string,
+    input: {
+      settlement: "paid" | "receivable";
+      paymentMethod?: PaymentMethod | undefined;
+      paymentInstallments?: number | undefined;
+    },
+  ) =>
+    input.settlement === "paid"
+      ? assertInstallmentsAllowed(clinicId, {
+          installments: input.paymentInstallments,
+          paymentMethod: input.paymentMethod,
+        })
+      : Promise.resolve();
 
   app.get(
     "/inventory/workspace",
@@ -106,11 +129,13 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientTabCloseInputSchema.parse(request.body);
+      await assertPaymentInstallments(request.user.clinicId, input);
       const tab = await repository.closePatientTab(
         request.user.clinicId,
         request.user.sub,
         id,
-        patientTabCloseInputSchema.parse(request.body),
+        input,
       );
       if (!tab)
         return reply.status(404).send({
@@ -124,16 +149,19 @@ export function registerFinanceRoutes(context: RouteContext) {
   app.post(
     "/product-sales",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = productSaleInputSchema.parse(request.body);
+      await assertPaymentInstallments(request.user.clinicId, input);
+      return reply
         .status(201)
         .send(
           await repository.createProductSale(
             request.user.clinicId,
             request.user.sub,
-            productSaleInputSchema.parse(request.body),
+            input,
           ),
-        ),
+        );
+    },
   );
 
   app.post(
@@ -172,9 +200,14 @@ export function registerFinanceRoutes(context: RouteContext) {
         interestInCents,
         receivedInCents,
         balanceDueDate,
+        paymentInstallments,
         ...timing
       } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: paymentInstallments,
+        paymentMethod: timing.paymentMethod,
+      });
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
@@ -186,6 +219,7 @@ export function registerFinanceRoutes(context: RouteContext) {
           interestInCents,
           ...(receivedInCents === undefined ? {} : { receivedInCents }),
           ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+          ...(paymentInstallments === undefined ? {} : { paymentInstallments }),
         },
       );
       if (!receivable)

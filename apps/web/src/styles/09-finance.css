@@ -1070,6 +1070,22 @@
   grid-column: 1;
 }
 
+/* Posição no parcelamento e forma do pagamento, abaixo da descrição da parcela. */
+.finance-list .finance-item > .finance-installment {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* Pagamento do plano: forma combinada e situação das parcelas. */
+.plan-payment {
+  margin-top: var(--space-2);
+}
+
+.plan-meta .plan-payment-progress.overdue {
+  color: var(--red);
+}
+
 /* Despesas fixas: bloco "Avisos de vencimento" no topo da seção. */
 .recurring-reminders {
   display: grid;

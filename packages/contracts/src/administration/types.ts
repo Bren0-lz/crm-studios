@@ -71,6 +71,8 @@ export interface SaleMovement {
   quantity: number;
   amountInCents: number;
   receivableId?: string;
+  /** Venda de plano: desconto do cliente nas cobranças do plano (`amountInCents` é o valor do plano). */
+  customerDiscountInCents?: number;
 }
 
 export interface UserSummary {

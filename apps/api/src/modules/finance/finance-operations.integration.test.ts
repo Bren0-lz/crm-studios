@@ -29,7 +29,6 @@ describe("mixed tabs and financial classification", () => {
       costInCents: 1000,
       salePriceInCents: 2000,
       initialStock: 10,
-      minimumStock: 2,
     });
     const tab = await repository.openPatientTab(clinicId, actorId, {
       patientId: patient!.id,

@@ -1712,7 +1712,6 @@ describe("CRM API", () => {
         costInCents: 2000,
         salePriceInCents: 4500,
         initialStock: 5,
-        minimumStock: 2,
       },
     });
     expect(product.statusCode).toBe(201);

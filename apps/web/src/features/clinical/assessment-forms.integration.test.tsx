@@ -1,5 +1,11 @@
 import type { AssessmentTemplate, ClinicalAssessment } from "@crm/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -337,9 +343,13 @@ describe("modelos de avaliação na página Prontuários", () => {
     fireEvent.click(
       within(studio).getByRole("button", { name: "Publicar modelo" }),
     );
-    expect(
-      await screen.findByRole("tabpanel", { name: "Modelos de avaliação" }),
-    ).toHaveTextContent("Anamnese esportiva");
+    // A biblioteca recarrega depois de publicar: espera o modelo novo aparecer na lista.
+    const published = await screen.findByRole("tabpanel", {
+      name: "Modelos de avaliação",
+    });
+    await waitFor(() =>
+      expect(published).toHaveTextContent("Anamnese esportiva"),
+    );
     expect(writes.at(-1)).toMatchObject({
       method: "POST",
       url: expect.stringContaining("/assessment-templates/drafts"),

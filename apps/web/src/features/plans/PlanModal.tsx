@@ -80,6 +80,9 @@ export function PlanModal({
                 installments: input.installments,
                 firstDueDate: input.firstDueDate,
                 autoRenew: Boolean(input.autoRenew),
+                ...(input.paymentMethod
+                  ? { paymentMethod: input.paymentMethod }
+                  : {}),
               })
             : options.groupId || options.document || options.appointments.length
               ? (

@@ -5,6 +5,10 @@ import type {
   StoredMessageTemplateImage,
   StoredWhatsappCampaign,
 } from "./campaigns.js";
+import type {
+  StoredAutoCampaign,
+  StoredAutoCampaignDelivery,
+} from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -18,6 +22,8 @@ import type {
   ClinicCatalogEntry,
   NavTabLabel,
   AutoFinalizationSettings,
+  PaymentMethodSettings,
+  ProLaboreSettings,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -77,10 +83,14 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
+  discountedInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
+  type ProductSize,
+  productNeedsRestock,
+  productSizeStock,
   type Professional,
   type Receivable,
   type ReceivableRenegotiation,
@@ -496,6 +506,10 @@ export class MemoryRepositoryContext {
 
   readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
 
+  readonly autoCampaigns: StoredAutoCampaign[] = [];
+
+  readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
@@ -671,6 +685,10 @@ export class MemoryRepositoryContext {
     string,
     AutoFinalizationSettings
   >();
+  /** Parcelamento por forma de pagamento, por clínica (sem entrada = até 36x em todas). */
+  readonly paymentMethodSettings = new Map<string, PaymentMethodSettings>();
+  /** Pró-labore configurado, por clínica (sem entrada = padrão). */
+  readonly proLaboreSettings = new Map<string, ProLaboreSettings>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,
@@ -682,6 +700,8 @@ export class MemoryRepositoryContext {
 
   readonly suppliers: Supplier[] = [];
   readonly products: Product[] = [];
+  /** Saldo por produto e chave de estoque ("" = sem tamanho); `currentStock` é a soma. */
+  readonly productStocks = new Map<string, Map<string, number>>();
 
   readonly stockMovements: StockMovement[] = [];
 
@@ -1636,12 +1656,55 @@ export class MemoryRepositoryContext {
     });
   }
 
+  productStockOf(productId: string, size: ProductSize | undefined) {
+    return this.productStocks.get(productId)?.get(size ?? "") ?? 0;
+  }
+
+  /** Recalcula total, aviso de reposição e saldos por tamanho a partir das chaves de estoque. */
+  refreshProductStock(product: Product) {
+    const rows = [...(this.productStocks.get(product.id) ?? new Map())];
+    product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
+    product.lowStock = productNeedsRestock(
+      product.currentStock,
+      product.restockAlertAt,
+    );
+    product.sizeStock = productSizeStock(
+      product.sizes,
+      rows.map(([size, currentStock]) => ({
+        size: (size || null) as ProductSize | null,
+        currentStock,
+      })),
+    );
+  }
+
+  /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */
+  changeProductStock(
+    product: Product,
+    size: ProductSize | undefined,
+    delta: number,
+  ) {
+    const balance = this.productStockOf(product.id, size) + delta;
+    if (balance < 0)
+      throw new DomainError(
+        "INSUFFICIENT_STOCK",
+        "O estoque disponível é insuficiente.",
+        409,
+      );
+    const rows = this.productStocks.get(product.id) ?? new Map();
+    rows.set(size ?? "", balance);
+    this.productStocks.set(product.id, rows);
+    this.refreshProductStock(product);
+    product.updatedAt = now();
+    return balance;
+  }
+
   pushStockMovement(
     product: Product,
     kind: StockMovement["kind"],
     quantity: number,
     notes: string,
     patientTabId?: string,
+    size?: ProductSize,
   ) {
     const movement: StockMovement = {
       id: uuid(),
@@ -1649,8 +1712,9 @@ export class MemoryRepositoryContext {
       productId: product.id,
       productName: product.name,
       kind,
+      ...(size ? { size } : {}),
       quantity,
-      balanceAfter: product.currentStock,
+      balanceAfter: this.productStockOf(product.id, size),
       notes,
       ...(patientTabId ? { patientTabId } : {}),
       createdAt: now(),
@@ -1815,7 +1879,18 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const installments: Receivable[] = planInstallmentSchedule(input).map(
+    // O desconto do cliente vale nas primeiras cobranças enquanto o alcance permitir.
+    const discounted = discountedInstallments(
+      planInstallmentSchedule(input),
+      patient.discount,
+    );
+    if (patient.discount && discounted.usedCharges > 0)
+      patient.discount = {
+        ...patient.discount,
+        usedCharges:
+          (patient.discount.usedCharges ?? 0) + discounted.usedCharges,
+      };
+    const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),
         clinicId,
@@ -1836,6 +1911,9 @@ export class MemoryRepositoryContext {
         installmentCount: input.installments,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        ...(installment.customerDiscountInCents
+          ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,
