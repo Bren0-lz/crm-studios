@@ -23,6 +23,9 @@ const configSchema = z.object({
     .enum(["auto", "disable", "require", "verify"])
     .default("auto"),
   DATABASE_SSL_CA: z.string().optional(),
+  // Quantos proxies à frente da API são confiáveis para ler o IP do cliente em
+  // X-Forwarded-For (1 na Vercel). 0 ignora o cabeçalho, que o próprio cliente pode forjar.
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
   SEED_DEMO_DATA: z
     .enum(["true", "false"])
     .default("true")

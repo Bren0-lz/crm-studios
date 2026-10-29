@@ -6307,7 +6307,12 @@ describe("application shell", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }),
     );
-    expect(await within(section).findByText("Contador")).toBeInTheDocument();
+    // A linha na tabela (o nome também pode aparecer no bloco de avisos de vencimento).
+    expect(
+      await within(
+        section.querySelector(".recurring-table") as HTMLElement,
+      ).findByText("Contador"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Nova despesa fixa" }),
     ).not.toBeInTheDocument();
@@ -6317,8 +6322,10 @@ describe("application shell", () => {
       supplier: "Escritório Silva",
       categoryId: category.id,
       costCenterId: center.id,
+      amountType: "fixed",
       amountInCents: 45000,
       dayOfMonth: 20,
+      reminderDaysBefore: 3,
       startMonth: "2026-10",
       endMonth: "2027-09",
       active: true,
@@ -11422,7 +11429,7 @@ describe("screens without loose elements", () => {
     const more = await screen.findByRole("button", { name: "Mais ações" });
     // Cabeçalho do prontuário: ação principal visível, o resto no menu.
     const actions = more.closest(".clinical-chart-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Imprimir", "Exportar"]) {
+    for (const name of ["Registrar avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
     expect(

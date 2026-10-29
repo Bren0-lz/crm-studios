@@ -8,9 +8,10 @@ import type {
   Receivable,
   RecurringPayable,
   RecurringPayableInput,
+  RecurringPayableReminder,
 } from "@crm/contracts";
 import { patientFirstName, type PaymentReceipt } from "@crm/contracts";
-import { currency } from "../../shared/lib/formatting";
+import { currency, shortDate } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
 export function dailyCashGroups(cash: DailyCash) {
@@ -148,13 +149,43 @@ export function recurringPayableInput(
     ...(item.supplier ? { supplier: item.supplier } : {}),
     categoryId: item.categoryId,
     costCenterId: item.costCenterId,
+    amountType: item.amountType,
     amountInCents: item.amountInCents,
     dayOfMonth: item.dayOfMonth,
+    ...(item.reminderDaysBefore !== undefined
+      ? { reminderDaysBefore: item.reminderDaysBefore }
+      : {}),
     startMonth: item.startMonth,
     ...(item.endMonth ? { endMonth: item.endMonth } : {}),
     active: item.active,
     ...changes,
   };
+}
+
+/** Texto do aviso de uma despesa fixa: quanto falta para o vencimento e se falta o valor. */
+export function recurringReminderLabel(
+  reminder: RecurringPayableReminder,
+  today: string,
+) {
+  const days = Math.round(
+    (Date.parse(`${reminder.dueDate}T12:00:00Z`) -
+      Date.parse(`${today}T12:00:00Z`)) /
+      86_400_000,
+  );
+  const when =
+    days > 1
+      ? `vence em ${days} dias`
+      : days === 1
+        ? "vence amanhã"
+        : days === 0
+          ? "vence hoje"
+          : "vencida";
+  return [
+    `Conta de ${formatCompetence(reminder.competence)} ${when} (${shortDate.format(new Date(`${reminder.dueDate}T12:00:00`))})`,
+    reminder.amountPending && "valor do mês a informar",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export function recurringPayableStatus(
