@@ -46,6 +46,35 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
   atualizar dependências npm; editar `docs/PLANO_*.md`; editar migrações existentes
   (criar migração **nova** com o próximo número é permitido).
 
+### PRs sem conflito
+
+Em 10/2026, 7 PRs abertos ao mesmo tempo a partir da mesma `main` antiga (`a8e69e8`) entraram
+em conflito com a `main` e entre si, com números de migração repetidos. Para não repetir:
+
+- **Comece da `main` atual**: `git fetch origin main` e crie o branch da tarefa a partir de
+  `origin/main`, nunca de um branch antigo nem de outro PR aberto (exceto PR empilhado de
+  propósito, dito na descrição: "depende do #N").
+- **Antes de abrir o PR (e antes de cada push depois)**: `git fetch origin main && git merge
+  origin/main` (merge, não rebase), resolva, rode o gate completo de novo e confirme que
+  `git merge-tree --write-tree origin/main HEAD` sai com 0. PR que já nasce em conflito não
+  está concluído.
+- **Número de migração**: o próximo depois do maior número em `origin/main` **e** nos branches
+  remotos (`git fetch origin` e depois
+  `git for-each-ref --format='%(refname)' refs/remotes/origin | xargs -I{} git ls-tree --name-only {} apps/api/migrations/ | sort | tail -1`).
+  Nunca repita um número (já houve três `0101` e vários `0102`). Lacunas na numeração não importam.
+  Teste que lê migração pelo nome (`readFile(".../migrations/NNNN_...")`) acompanha a renumeração.
+- **Arquivos quentes** (`storage/*/finance.ts`, `storage/*/context.ts`, `route-access.ts`,
+  `features/finance/model.ts`, `09-finance.css`, `contracts/src/finance/*`): não deixe dois
+  PRs abertos mexendo neles ao mesmo tempo sem empilhar um sobre o outro. CSS, rotas e campos
+  novos entram **junto do bloco relacionado**, não sempre no fim do arquivo/objeto (o fim é onde todo PR
+  escreve e onde todos conflitam).
+- **Ao resolver conflito**: trecho por trecho. Nunca `git checkout --ours/--theirs` no arquivo
+  inteiro (ele descarta também o que entrou sem conflito). Depois, confira que nada da `main`
+  sumiu: `git diff origin/main -- <arquivo> | grep '^-'` deve mostrar só o que o PR removeu de
+  propósito. Nunca use `git stash` no meio de um merge (ele desfaz o merge).
+- **Mudança de infraestrutura** (trocar banco, mover pastas, renomear em massa) só com a fila
+  de PRs vazia ou com o dono avisado: ela conflita com todo PR aberto.
+
 ### Convenções do projeto
 
 - **Monorepo npm workspaces**: `packages/contracts` (zod + tipos compartilhados, importado

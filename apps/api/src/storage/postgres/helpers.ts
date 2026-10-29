@@ -107,10 +107,12 @@ export {
   mapPatientTabItem,
   mapPayable,
   mapProduct,
+  productStockRowsColumn,
   mapReceivable,
   mapRecurringPayable,
   mapStockMovement,
   payableColumns,
+  paymentInstallmentsValue,
   receivableColumns,
   recurringPayableColumns,
 } from "./mappers/finance.js";

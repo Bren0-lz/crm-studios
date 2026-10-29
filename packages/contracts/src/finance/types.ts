@@ -1,5 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
@@ -38,6 +39,8 @@ export interface DreReport {
     serviceRevenueInCents: number;
     productRevenueInCents: number;
     otherRevenueInCents: number;
+    /** Descontos do cliente nas cobranças do mês (as receitas já vêm com eles descontados). */
+    customerDiscountInCents?: number;
     expenses: Record<DreGroup, number>;
     resultInCents: number;
   }>;
@@ -45,6 +48,8 @@ export interface DreReport {
     revenueInCents: number;
     expensesInCents: number;
     resultInCents: number;
+    /** Descontos do cliente no período (informativo: já fora das receitas). */
+    customerDiscountInCents?: number;
   };
   categories: Array<{
     id: string;
@@ -166,12 +171,22 @@ export interface ReceivedPayment {
   paymentMethod?: PaymentMethod;
 }
 
-export interface Product extends Omit<ProductInput, "initialStock"> {
+export interface Product extends Omit<
+  ProductInput,
+  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt"
+> {
+  /** Aviso de reposição; `null` = sem aviso. */
+  restockAlertAt: number | null;
+  /** Vazio = produto sem distinção por tamanhos. */
+  sizes: ProductSize[];
+  /** Saldo por tamanho (ver `productSizeStock`); `currentStock` é a soma de todas as chaves. */
+  sizeStock: ProductSizeStock[];
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
   id: string;
   clinicId: string;
   currentStock: number;
+  /** Pede reposição: sem estoque ou no aviso de reposição (ver `productNeedsRestock`). */
   lowStock: boolean;
   active: boolean;
   createdAt: string;
@@ -191,7 +206,10 @@ export interface StockMovement {
     | "loss"
     | "sale"
     | "sale_reversal";
+  /** Ausente = estoque sem tamanho. */
+  size?: ProductSize;
   quantity: number;
+  /** Saldo da chave movimentada (do tamanho, quando houver) logo após o movimento. */
   balanceAfter: number;
   notes: string;
   patientTabId?: string;
@@ -202,6 +220,7 @@ export interface PatientTabItem {
   id: string;
   productId: string;
   productName: string;
+  size?: ProductSize;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
@@ -245,10 +264,17 @@ export interface InventoryWorkspace {
 }
 
 export type PaymentTiming = z.infer<typeof paymentTimingSchema>;
-/** Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio. */
+/**
+ * Ajustes da baixa (U39); sem eles a parcela é paga pelo valor cheio, à vista.
+ * `paymentInstallments`: parcelas na própria forma (ex.: cartão em 3x).
+ */
 export type SettlementAdjustments = Pick<
   z.input<typeof receivableSettlementSchema>,
-  "discountInCents" | "interestInCents" | "receivedInCents" | "balanceDueDate"
+  | "discountInCents"
+  | "interestInCents"
+  | "receivedInCents"
+  | "balanceDueDate"
+  | "paymentInstallments"
 >;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface Receivable {
@@ -276,6 +302,13 @@ export interface Receivable {
   createdAt: string;
   updatedAt: string;
   paymentMethod?: PaymentMethod;
+  /** Parcelas na própria forma de pagamento (ex.: cartão em 3x); ausente = à vista. */
+  paymentInstallments?: number;
+  /**
+   * Desconto do cliente aplicado ao gerar a cobrança do plano (`amountInCents` já é o
+   * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
+   */
+  customerDiscountInCents?: number;
 }
 
 export interface FinancialSummary {
@@ -439,6 +472,13 @@ export interface DailyCashMovement {
   amountInCents: number;
 }
 
+/** Movimento do caixa com o registro de origem (relatório financeiro por período). */
+export interface CashMovement extends DailyCashMovement {
+  receivableId?: string;
+  payableId?: string;
+  commissionId?: string;
+}
+
 export interface DailyCashMethodTotal {
   paymentMethod: DailyCashPaymentMethod;
   inflowInCents: number;
@@ -521,6 +561,11 @@ export interface PaymentReceipt {
   description: string;
   amountInCents: number;
   paymentMethod: PaymentMethod;
+  /** Parcelas na própria forma de pagamento (ex.: cartão em 3x). */
+  paymentInstallments?: number;
+  /** Parcela do plano/venda: "2 de 3" quando há mais de uma. */
+  installmentNumber?: number;
+  installmentCount?: number;
   paidAt: string;
   /** Dados da clínica (Configurações › Dados da clínica). */
   clinicName: string;
@@ -530,6 +575,8 @@ export interface PaymentReceipt {
   /** Desconto e juros aplicados na baixa (U39). */
   discountInCents?: number;
   interestInCents?: number;
+  /** Desconto do cliente já aplicado na cobrança (valor cheio = valor + desconto). */
+  customerDiscountInCents?: number;
 }
 
 export interface TabAppointmentOption {

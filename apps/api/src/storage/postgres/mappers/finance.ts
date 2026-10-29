@@ -8,13 +8,22 @@ import type {
   Payable,
   PaymentMethod,
   Product,
+  ProductSize,
   Receivable,
   ReceivableStatus,
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
-import { serviceCommissionsInForce } from "@crm/contracts";
+import {
+  productSizeStock,
+  serviceCommissionsInForce,
+  productNeedsRestock,
+  sortProductSizes,
+} from "@crm/contracts";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
+
+/** Coluna com os saldos por tamanho; exige a tabela `products` sem apelido na consulta. */
+export const productStockRowsColumn = `(SELECT coalesce(json_agg(json_build_object('size',s.size,'currentStock',s.current_stock)),'[]'::json) FROM product_stock s WHERE s.product_id=products.id) AS "stockRows"`;
 
 export interface ProductRow {
   branchId?: string;
@@ -28,7 +37,10 @@ export interface ProductRow {
   costInCents: number;
   salePriceInCents: number;
   currentStock: number;
-  minimumStock: number;
+  restockAlertAt: number | null;
+  sizes: ProductSize[];
+  /** Linhas de `product_stock` ("" = sem tamanho), via `productStockRowsColumn`. */
+  stockRows?: { size: string; currentStock: number }[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +52,7 @@ export interface StockMovementRow {
   productId: string;
   productName: string;
   kind: StockMovement["kind"];
+  size?: string;
   quantity: number;
   balanceAfter: number;
   notes: string;
@@ -68,6 +81,7 @@ export interface PatientTabItemRow {
   tabId: string;
   productId: string;
   productName: string;
+  size?: string;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
@@ -97,6 +111,8 @@ export interface ReceivableRow {
   createdAt: Date;
   updatedAt: Date;
   paymentMethod: PaymentMethod | null;
+  paymentInstallments?: number | null;
+  customerDiscountInCents?: number | null;
 }
 
 export interface FinancialCategoryRow {
@@ -201,6 +217,11 @@ export interface CommissionEntryRow {
   createdAt: Date;
 }
 
+/** Parcelas do pagamento gravadas só quando há parcelamento (1 = à vista = NULL). */
+export function paymentInstallmentsValue(value: number | undefined) {
+  return value && value > 1 ? value : null;
+}
+
 export const receivableColumns = `
   r.branch_id AS "branchId",r.posted_on::text AS "postedOn",r.cash_available_at AS "cashAvailableAt",
   r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
@@ -211,7 +232,8 @@ export const receivableColumns = `
   r.amount_in_cents AS "amountInCents", r.status, r.paid_at AS "paidAt",
   (r.status = 'open' AND r.due_date < CURRENT_DATE) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
-  , r.payment_method AS "paymentMethod"
+  , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
+  , r.customer_discount_in_cents AS "customerDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -290,8 +312,16 @@ export function mapProduct(row: ProductRow): Product {
     costInCents: row.costInCents,
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
-    minimumStock: row.minimumStock,
-    lowStock: row.currentStock <= row.minimumStock,
+    restockAlertAt: row.restockAlertAt,
+    sizes: sortProductSizes(row.sizes),
+    sizeStock: productSizeStock(
+      row.sizes,
+      (row.stockRows ?? []).map((item) => ({
+        size: (item.size || null) as ProductSize | null,
+        currentStock: item.currentStock,
+      })),
+    ),
+    lowStock: productNeedsRestock(row.currentStock, row.restockAlertAt),
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -305,6 +335,7 @@ export function mapStockMovement(row: StockMovementRow): StockMovement {
     productId: row.productId,
     productName: row.productName,
     kind: row.kind,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     balanceAfter: row.balanceAfter,
     notes: row.notes,
@@ -318,6 +349,7 @@ export function mapPatientTabItem(row: PatientTabItemRow): PatientTabItem {
     id: row.id,
     productId: row.productId,
     productName: row.productName,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     unitPriceInCents: row.unitPriceInCents,
     unitCostInCents: row.unitCostInCents,
@@ -375,6 +407,12 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
+    ...(row.paymentInstallments && row.paymentInstallments > 1
+      ? { paymentInstallments: row.paymentInstallments }
+      : {}),
+    ...(row.customerDiscountInCents
+      ? { customerDiscountInCents: row.customerDiscountInCents }
+      : {}),
   };
 }
 

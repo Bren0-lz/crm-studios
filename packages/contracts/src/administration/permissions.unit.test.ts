@@ -93,7 +93,14 @@ describe("operation permissions", () => {
       [],
     );
     expect(view).toContain("clinical.export");
-    expect(view).toContain("reports.export");
+    expect(view).toEqual(
+      expect.arrayContaining([
+        "reports.management_export",
+        "reports.clients_export",
+        "reports.sales_export",
+      ]),
+    );
+    expect(view).not.toContain("reports.dre_export");
     expect(view).not.toContain("patients.export");
     expect(view).not.toContain("patients.inventory_view");
     const edit = legacyPermissions("user", ["agenda"], ["agenda"]);

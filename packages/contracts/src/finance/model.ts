@@ -5,6 +5,7 @@ import {
   competenceMonthSchema,
   paymentMethodSchema,
 } from "../common/model.js";
+import { maxInstallmentsLimit } from "./installments.js";
 import {
   fillMessageTemplate,
   patientFirstName,
@@ -99,7 +100,99 @@ export function serviceCommissionsInForce(
     );
 }
 
-export const productInputSchema = z.object({
+/** Tamanhos que um produto pode ter (roupas): padrão, tamanho único e baby look. */
+export const productSizeSchema = z.enum([
+  "pp",
+  "p",
+  "m",
+  "g",
+  "gg",
+  "unique",
+  "baby_look_pp",
+  "baby_look_p",
+  "baby_look_m",
+  "baby_look_g",
+  "baby_look_gg",
+]);
+export type ProductSize = z.infer<typeof productSizeSchema>;
+export const productSizeLabels: Record<ProductSize, string> = {
+  pp: "PP",
+  p: "P",
+  m: "M",
+  g: "G",
+  gg: "GG",
+  unique: "Tamanho único",
+  baby_look_pp: "Baby look PP",
+  baby_look_p: "Baby look P",
+  baby_look_m: "Baby look M",
+  baby_look_g: "Baby look G",
+  baby_look_gg: "Baby look GG",
+};
+/** Tamanhos na ordem da escala (independe da ordem em que foram marcados). */
+export function sortProductSizes(sizes: readonly ProductSize[]): ProductSize[] {
+  return productSizeSchema.options.filter((size) => sizes.includes(size));
+}
+const productSizesSchema = z
+  .array(productSizeSchema)
+  .max(productSizeSchema.options.length)
+  .refine((sizes) => new Set(sizes).size === sizes.length, {
+    message: "Cada tamanho entra uma vez só.",
+  })
+  .transform(sortProductSizes);
+
+/** Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou abaixo. */
+export function productNeedsRestock(
+  currentStock: number,
+  restockAlertAt: number | null | undefined,
+) {
+  return currentStock <= Math.max(0, restockAlertAt ?? 0);
+}
+
+/** Saldo de uma chave de estoque do produto: um tamanho, ou `null` para o estoque sem tamanho. */
+export interface ProductSizeStock {
+  size: ProductSize | null;
+  currentStock: number;
+}
+
+export function productSizeLabel(size: ProductSize | null | undefined) {
+  return size ? productSizeLabels[size] : "Sem tamanho";
+}
+
+/** Nome do item vendido com o tamanho, quando houver ("Camiseta · M"). */
+export function productItemName(item: {
+  productName: string;
+  size?: ProductSize | undefined;
+}) {
+  return item.size
+    ? `${item.productName} · ${productSizeLabels[item.size]}`
+    : item.productName;
+}
+
+/**
+ * Saldos por tamanho mostrados no estoque: todos os tamanhos configurados (mesmo zerados) e,
+ * fora deles, só as chaves que ainda têm saldo (tamanho removido ou estoque de antes dos
+ * tamanhos), para poderem ser baixadas. Produto sem tamanhos e sem sobras devolve lista vazia.
+ */
+export function productSizeStock(
+  sizes: readonly ProductSize[],
+  rows: readonly ProductSizeStock[],
+): ProductSizeStock[] {
+  const stockOf = (size: ProductSize | null) =>
+    rows
+      .filter((row) => row.size === size)
+      .reduce((sum, row) => sum + row.currentStock, 0);
+  const configured = (size: ProductSize | null) =>
+    sizes.length ? size !== null && sizes.includes(size) : size === null;
+  return [...productSizeSchema.options, null]
+    .filter(
+      (size) =>
+        (sizes.length > 0 && configured(size)) ||
+        (!configured(size) && stockOf(size) > 0),
+    )
+    .map((size) => ({ size, currentStock: stockOf(size) }));
+}
+
+const productBaseSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
@@ -108,11 +201,53 @@ export const productInputSchema = z.object({
   costInCents: z.number().int().min(0),
   salePriceInCents: z.number().int().min(0),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
-  minimumStock: z.number().int().min(0).max(1_000_000).default(0),
+  /**
+   * Aviso de reposição (opcional): o produto pede reposição quando o saldo total chega a esta
+   * quantidade ou menos. `null` = sem aviso; ausente = nenhum (cadastro) ou mantém o atual (edição).
+   */
+  restockAlertAt: z.number().int().min(1).max(1_000_000).nullable().optional(),
+  /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
+  sizes: productSizesSchema.optional(),
 });
+
+export const productInputSchema = productBaseSchema
+  .extend({
+    /** Estoque inicial de cada tamanho (produto com tamanhos usa este no lugar de `initialStock`). */
+    initialSizeStock: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(productSizeSchema.options.length)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const sizes = value.sizes ?? [];
+    const initial = value.initialSizeStock ?? [];
+    if (sizes.length && value.initialStock > 0)
+      context.addIssue({
+        code: "custom",
+        message: "Informe o estoque inicial por tamanho.",
+        path: ["initialStock"],
+      });
+    if (
+      initial.some((entry) => !sizes.includes(entry.size)) ||
+      new Set(initial.map((entry) => entry.size)).size !== initial.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "O estoque inicial deve usar os tamanhos do produto, uma vez cada.",
+        path: ["initialSizeStock"],
+      });
+  });
 
 export const stockMovementInputSchema = z.object({
   productId: z.uuid(),
+  /** Obrigatório para produto com tamanhos; ausente = estoque sem tamanho. */
+  size: productSizeSchema.optional(),
   kind: z.enum(["purchase", "adjustment_in", "adjustment_out", "loss"]),
   quantity: z.number().int().min(1).max(1_000_000),
   notes: z.string().trim().min(3).max(500),
@@ -125,6 +260,7 @@ export const patientTabInputSchema = z.object({
 
 export const patientTabItemInputSchema = z.object({
   productId: z.uuid(),
+  size: productSizeSchema.optional(),
   quantity: z.number().int().min(1).max(10_000),
 });
 
@@ -141,6 +277,13 @@ export const financialDatesSchema = paymentTimingSchema.extend({
   dueDate: z.iso.date().optional(),
   reason: z.string().trim().min(3).max(500),
 });
+/** Parcelas do pagamento na própria forma (ex.: cartão em 3x); ausente = à vista. */
+export const paymentInstallmentsSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxInstallmentsLimit)
+  .optional();
 export const paymentInputSchema = z.object({
   ...paymentTimingSchema.shape,
   paymentMethod: paymentMethodSchema.default("pix"),
@@ -152,6 +295,7 @@ export const patientTabCloseInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -159,7 +303,7 @@ export const patientTabCloseInputSchema = z
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
-export const productUpdateSchema = productInputSchema
+export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
   .extend({ active: z.boolean().default(true) });
 export const patientTabItemUpdateSchema = z.object({
@@ -175,6 +319,7 @@ export const productSaleInputSchema = z
       .array(
         z.object({
           productId: z.uuid(),
+          size: productSizeSchema.optional(),
           quantity: z.number().int().min(1).max(10_000),
           unitPriceInCents: z.number().int().min(0).max(2147483647).optional(),
         }),
@@ -183,13 +328,15 @@ export const productSaleInputSchema = z
       .max(50)
       .refine(
         (items) =>
-          new Set(items.map((item) => item.productId)).size === items.length,
+          new Set(items.map((item) => `${item.productId}:${item.size ?? ""}`))
+            .size === items.length,
         { message: "Cada produto entra uma vez só na venda." },
       ),
     costCenterId: z.uuid().optional(),
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -516,6 +663,7 @@ export const financeForecastFilterSchema = z.object({
 
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
+  paymentInstallments: paymentInstallmentsSchema,
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */
@@ -628,6 +776,10 @@ export function planPixChargeMessage(input: {
   totalSessions: number;
   pixKey: string;
   template?: string | undefined;
+  /** 1º pagamento proporcional às aulas até o vencimento (`firstInstallmentInCents`). */
+  firstChargeInCents?: number | undefined;
+  /** Desconto do cliente no 1º pagamento (o valor cobrado já vem com ele descontado). */
+  discountInCents?: number | undefined;
 }): string {
   const money = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
@@ -635,9 +787,11 @@ export function planPixChargeMessage(input: {
       .replace(/\u00a0/g, " ");
   const installments = Math.max(1, input.installments);
   // Mesma divisão de `planInstallmentSchedule`: o resto vai nos primeiros centavos.
+  const discount = Math.max(0, input.discountInCents ?? 0);
   const firstCharge =
-    Math.floor(input.totalValueInCents / installments) +
-    (input.totalValueInCents % installments ? 1 : 0);
+    (input.firstChargeInCents ??
+      Math.floor(input.totalValueInCents / installments) +
+        (input.totalValueInCents % installments ? 1 : 0)) - discount;
   const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
   const sessionValue =
     input.totalSessions > 0
@@ -656,9 +810,16 @@ export function planPixChargeMessage(input: {
       chave_pix: input.pixKey,
     });
   const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
-  const charge =
-    installments > 1
-      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}`
-      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}, referente a ${sessions}${perSession}`;
+  const prorated =
+    input.firstChargeInCents !== undefined &&
+    input.firstChargeInCents !== input.totalValueInCents;
+  const withDiscount = discount
+    ? `, já com o seu desconto de ${money(discount)}`
+    : "";
+  const charge = prorated
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o vencimento, é de ${money(firstCharge)}${withDiscount}`
+    : installments > 1
+      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
+      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;
   return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;
 }

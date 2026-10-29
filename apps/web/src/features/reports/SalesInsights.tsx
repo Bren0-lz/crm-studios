@@ -320,7 +320,7 @@ export function SalesInsights({
             Vendas realizadas e pagamentos registrados no período selecionado.
           </p>
         </div>
-        {can("reports.sales", "reports.export") && (
+        {can("reports.sales_export") && (
           <button
             type="button"
             className="secondary-button"
@@ -346,6 +346,9 @@ export function SalesInsights({
               <small>
                 {money(report.summary.grossSalesInCents)} em vendas ·{" "}
                 {money(report.summary.cancelledSalesInCents)} em estornos
+                {report.summary.customerDiscountInCents
+                  ? ` · ${money(report.summary.customerDiscountInCents)} em descontos a clientes`
+                  : ""}
               </small>
             </article>
             <article>
@@ -412,6 +415,9 @@ export function SalesInsights({
                           {item.itemName}
                           <small className="reports-cell-detail">
                             {item.patientName}
+                            {item.customerDiscountInCents
+                              ? ` · desconto do cliente ${money(item.customerDiscountInCents)}`
+                              : ""}
                           </small>
                         </th>
                         <td>

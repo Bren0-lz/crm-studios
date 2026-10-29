@@ -1,9 +1,10 @@
 ﻿import { useState } from "react";
-import { BarChart3, CalendarDays, Users, Wallet } from "lucide-react";
+import { BarChart3, Banknote, CalendarDays, Users, Wallet } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ClientDetailsSection } from "./ClientDetailsSection";
 import { ClientInsights } from "./ClientInsights";
 import { DreSection } from "./DreSection";
+import { FinancialSection } from "./FinancialSection";
 import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -42,6 +43,12 @@ export function ReportsPage() {
       key: "dre" as const,
       label: "DRE",
       icon: Wallet,
+      visible: can("reports.dre"),
+    },
+    {
+      key: "finance" as const,
+      label: "Financeiro",
+      icon: Banknote,
       visible: can("reports.dre"),
     },
   ].filter((tab) => tab.visible);
@@ -143,6 +150,8 @@ export function ReportsPage() {
             {(tab) =>
               tab === "overview" ? (
                 <ReportsDetails period={period} />
+              ) : tab === "finance" ? (
+                <FinancialSection period={period} />
               ) : tab === "clients" ? (
                 <ReportTabs
                   sub

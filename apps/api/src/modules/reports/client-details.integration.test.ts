@@ -104,7 +104,6 @@ describe("client detail reports", () => {
       costInCents: 500,
       salePriceInCents: 1000,
       initialStock: 10,
-      minimumStock: 1,
     });
     const tab = await repository.openPatientTab(clinicId, actorId, {
       patientId: patient.id,

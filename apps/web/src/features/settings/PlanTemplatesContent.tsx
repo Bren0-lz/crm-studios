@@ -134,6 +134,11 @@ export function PlanTemplatesContent() {
                           : item.kind
                             ? planKindLabels[item.kind]
                             : null,
+                        item.maxInstallments === 1
+                          ? "Só à vista"
+                          : item.maxInstallments
+                            ? `Parcela em até ${item.maxInstallments}x`
+                            : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
