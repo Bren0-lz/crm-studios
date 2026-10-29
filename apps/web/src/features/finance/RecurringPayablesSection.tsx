@@ -12,6 +12,7 @@ import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import {
@@ -127,8 +128,12 @@ export function RecurringPayablesSection({
                       <strong>{reminder.description}</strong>
                       <span>
                         {recurringReminderLabel(reminder, today)} ·{" "}
-                        {signedCurrency(-reminder.amountInCents)}
-                        {reminder.amountPending && " (estimado)"}
+                        {reminder.amountPending && reminder.amountInCents === 0
+                          ? "valor a informar"
+                          : signedCurrency(-reminder.amountInCents)}
+                        {reminder.amountPending &&
+                          reminder.amountInCents > 0 &&
+                          " (estimado)"}
                       </span>
                     </span>
                     {canInform && payable && reminder.amountPending && (
@@ -158,7 +163,7 @@ export function RecurringPayablesSection({
             <div className="finance-row finance-head" aria-hidden="true">
               <span>Descrição e período</span>
               <span>Vencimento</span>
-              <span className="finance-amount">Valor mensal</span>
+              <span className="finance-amount">Valor por mês</span>
               <span>Situação</span>
               <span className="finance-actions">Ações</span>
             </div>
@@ -176,6 +181,11 @@ export function RecurringPayablesSection({
                     payable.amountPending,
                 )
                 .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+              // Encerrada não oferece mais editar, pausar nem encerrar.
+              const canEdit =
+                editable &&
+                status !== "ended" &&
+                can("finance.recurring_update");
               const settings = [
                 item.amountType === "variable"
                   ? "Valor variável (estimativa)"
@@ -217,9 +227,24 @@ export function RecurringPayablesSection({
                     <span className="finance-label">Vencimento </span>
                     <span>Dia {item.dayOfMonth}</span>
                   </span>
-                  <strong className="finance-amount cash-out">
-                    {signedCurrency(-item.amountInCents)}
-                  </strong>
+                  {item.amountType === "variable" ? (
+                    <span className="finance-amount recurring-amount">
+                      {item.amountInCents === 0 ? (
+                        <strong>A informar</strong>
+                      ) : (
+                        <>
+                          <strong className="cash-out">
+                            {signedCurrency(-item.amountInCents)}
+                          </strong>
+                          <span>estimativa</span>
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    <strong className="finance-amount cash-out">
+                      {signedCurrency(-item.amountInCents)}
+                    </strong>
+                  )}
                   <span>
                     <span className={`status-pill ${status}`}>
                       {status === "ended"
@@ -230,50 +255,53 @@ export function RecurringPayablesSection({
                     </span>
                   </span>
                   <div className="finance-actions">
-                    {canInform && pendingPayable && (
+                    {canInform && pendingPayable ? (
+                      <button
+                        className="primary-button button-sm"
+                        aria-label={`Informar valor de ${item.description}`}
+                        onClick={() => setInforming(pendingPayable)}
+                      >
+                        Informar valor
+                      </button>
+                    ) : (
+                      canEdit && (
                         <button
-                          className="primary-button button-sm"
-                          aria-label={`Informar valor de ${item.description}`}
-                          onClick={() => setInforming(pendingPayable)}
+                          className="secondary-button button-sm"
+                          aria-label={`Editar ${item.description}`}
+                          disabled={busyId === item.id}
+                          onClick={() => setEditing(item)}
                         >
-                          Informar valor
+                          Editar
                         </button>
-                      )}
-                    {editable && status !== "ended" && (
-                      <>
-                        {can("finance.recurring_update") && (
-                          <button
-                            className="secondary-button button-sm"
-                            aria-label={`Editar ${item.description}`}
-                            disabled={busyId === item.id}
-                            onClick={() => setEditing(item)}
-                          >
-                            Editar
-                          </button>
-                        )}
-                        {can("finance.recurring_update") && (
-                          <button
-                            className="secondary-button button-sm"
-                            aria-label={`${item.active ? "Pausar" : "Reativar"} ${item.description}`}
-                            disabled={busyId === item.id}
-                            onClick={() =>
-                              void update(item, { active: !item.active })
-                            }
-                          >
-                            {item.active ? "Pausar" : "Reativar"}
-                          </button>
-                        )}
-                        {can("finance.recurring_update") && (
-                          <button
-                            className="danger-button button-sm"
-                            aria-label={`Encerrar ${item.description}`}
-                            disabled={busyId === item.id}
-                            onClick={() => setEnding(item)}
-                          >
-                            Encerrar
-                          </button>
-                        )}
-                      </>
+                      )
+                    )}
+                    {canEdit && (
+                      <ActionMenu
+                        label={`Mais ações de ${item.description}`}
+                        iconOnly
+                        align="end"
+                        disabled={busyId === item.id}
+                        items={[
+                          ...(canInform && pendingPayable
+                            ? [
+                                {
+                                  label: "Editar",
+                                  onSelect: () => setEditing(item),
+                                },
+                              ]
+                            : []),
+                          {
+                            label: item.active ? "Pausar" : "Reativar",
+                            onSelect: () =>
+                              void update(item, { active: !item.active }),
+                          },
+                          {
+                            label: "Encerrar",
+                            danger: true,
+                            onSelect: () => setEnding(item),
+                          },
+                        ]}
+                      />
                     )}
                   </div>
                 </div>
