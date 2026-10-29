@@ -8,6 +8,7 @@ import {
   productSaleInputSchema,
   supplierInputSchema,
   supplierBillingCycleSchema,
+  supplierOrderInputSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
@@ -20,11 +21,36 @@ export type PatientTabServiceInput = z.infer<
 >;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
 export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
+export type SupplierOrderInput = z.infer<typeof supplierOrderInputSchema>;
 export interface Supplier extends SupplierInput {
   id: string;
   clinicId: string;
   createdAt: string;
   updatedAt: string;
+}
+export interface SupplierOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  size?: ProductSize;
+  quantity: number;
+  /** Custo unitário informado no pedido; `null` quando não foi informado. */
+  unitCostInCents: number | null;
+  /** O produto foi cadastrado por este pedido. */
+  createdProduct: boolean;
+}
+export interface SupplierOrder {
+  id: string;
+  clinicId: string;
+  supplierId: string;
+  /** Filial em que os itens entraram no estoque. */
+  branchId?: string;
+  orderedOn: string;
+  number: string;
+  totalInCents: number;
+  notes: string;
+  items: SupplierOrderItem[];
+  createdAt: string;
 }
 export type ManualReceivableInput = z.infer<typeof manualReceivableInputSchema>;
 export type FinancialClassification = z.infer<

@@ -41,6 +41,7 @@ import {
   formatTaxId,
   formatCnpj,
   supplierInputSchema,
+  supplierOrderInputSchema,
   isValidCnpj,
   isValidTaxId,
   clinicalRecordInputSchema,
@@ -507,6 +508,47 @@ describe("shared contracts", () => {
     expect(() =>
       supplierInputSchema.parse({ ...parsed, installments: 0 }),
     ).toThrow();
+  });
+
+  it("requires each supplier order item to name exactly one product", () => {
+    const order = {
+      orderedOn: "2026-10-20",
+      totalInCents: 1_000,
+      items: [{ productName: "Óleo", quantity: 2 }],
+    };
+    expect(supplierOrderInputSchema.parse(order)).toMatchObject({
+      number: "",
+      notes: "",
+    });
+    expect(() =>
+      supplierOrderInputSchema.parse({ ...order, items: [{ quantity: 1 }] }),
+    ).toThrow();
+    expect(() =>
+      supplierOrderInputSchema.parse({
+        ...order,
+        items: [
+          {
+            productId: "11111111-1111-4111-8111-111111111111",
+            productName: "Óleo",
+            quantity: 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      supplierOrderInputSchema.parse({ ...order, items: [] }),
+    ).toThrow();
+  });
+
+  it("accepts a product without sale price yet", () => {
+    expect(
+      productInputSchema.parse({
+        name: "Bola suíça",
+        sku: "BOLA",
+        costInCents: 0,
+        salePriceInCents: null,
+      }).salePriceInCents,
+    ).toBeNull();
   });
 
   it("validates and formats the clinic CPF/CNPJ", () => {

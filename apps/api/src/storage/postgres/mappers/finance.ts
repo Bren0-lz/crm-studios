@@ -35,7 +35,7 @@ export interface ProductRow {
   sku: string;
   unit: string;
   costInCents: number;
-  salePriceInCents: number;
+  salePriceInCents: number | null;
   currentStock: number;
   restockAlertAt: number | null;
   sizes: ProductSize[];
