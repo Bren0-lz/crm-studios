@@ -14,13 +14,16 @@ export type PlanTemplateRow = Omit<PlanTemplate, "createdAt" | "updatedAt"> & {
 };
 
 export const planTemplateColumns = `id, clinic_id AS "clinicId", name, total_value_in_cents AS "totalValueInCents", kind, plan_type AS "planType",
+  max_installments AS "maxInstallments",
   coalesce((SELECT jsonb_agg(jsonb_build_object('serviceId',x.service_id,'totalSessions',x.total_sessions,'totalValueInCents',x.total_value_in_cents,'sessionsPerWeek',x.sessions_per_week) ORDER BY x.position)
     FROM plan_template_services x WHERE x.template_id=plan_templates.id),'[]'::jsonb) AS services,
   active, created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 export function mapPlanTemplate(row: PlanTemplateRow): PlanTemplate {
+  const { maxInstallments, ...rest } = row;
   return {
-    ...row,
+    ...rest,
+    ...(maxInstallments ? { maxInstallments } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

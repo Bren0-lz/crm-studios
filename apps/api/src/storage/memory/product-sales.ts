@@ -134,6 +134,9 @@ export function createProductSalesRepository(
         settlement: input.settlement,
         dueDate: input.dueDate,
         ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+        ...(input.paymentInstallments
+          ? { paymentInstallments: input.paymentInstallments }
+          : {}),
         ...(input.categoryId ? { categoryId: input.categoryId } : {}),
         ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       });

@@ -3,6 +3,7 @@ import {
   type PatientSegmentSummary,
   matchesPatientProfile,
   matchesPatientSegment,
+  patientDiscountDescription,
   patientProfileLabels,
 } from "@crm/contracts/patients";
 import type {
@@ -36,6 +37,7 @@ import {
 } from "../../shared/lib/formatting";
 import type {
   GuidedDemonstrationForm,
+  GuidedPlanEntry,
   GuidedSingleForm,
   PatientRecordFilter,
   PatientSort,
@@ -73,6 +75,24 @@ export const defaultPatientFilters = {
   /** Assinantes sem turma vinculada: calculado na API (`GET /patients?withoutGroup=true`). */
   withoutGroup: false,
 };
+
+/** Plano novo do passo "Assinar um plano"; `id` identifica o bloco na lista. */
+export function defaultGuidedPlanEntry(id: number): GuidedPlanEntry {
+  return {
+    id,
+    form: { kind: "fixed_package", ...defaultPlanTerms() },
+    groupId: "",
+  };
+}
+
+export function defaultSingleForm(): GuidedSingleForm {
+  return {
+    ...defaultPlanTerms(),
+    name: "Serviço avulso",
+    installments: 1,
+    validUntil: "",
+  };
+}
 
 export function defaultPlanTerms(): GuidedSingleForm {
   const today = localIsoDate();
@@ -159,19 +179,58 @@ export function guidedNotice(
     return `Aula experimental agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
   }
   if (!plan) return "";
-  if (plan.kind === "single") return `Serviço avulso “${plan.name}” criado.`;
-  const created = `Plano “${plan.name}” criado.`;
-  if (!enrollment) return created;
-  const groupName =
-    groups.find((item) => item.id === enrollment.groupId)?.name ?? "escolhida";
-  if (enrollment.status === "waitlisted")
-    return `${created} A turma ${groupName} está cheia: o cliente entrou na lista de espera${
-      enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""
-    }.`;
-  return `${created} Matrícula feita na turma ${groupName}.`;
+  const entries = [{ plan, enrollment }, ...(result.additionalPlans ?? [])];
+  const list = (names: string[]) =>
+    new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(
+      names.map((name) => `“${name}”`),
+    );
+  // Serviços avulsos comprados junto com os planos ganham frase própria.
+  const subscriptions = entries
+    .filter((entry) => entry.plan.kind !== "single")
+    .map((entry) => entry.plan.name);
+  const singles = entries
+    .filter((entry) => entry.plan.kind === "single")
+    .map((entry) => entry.plan.name);
+  const created = [
+    ...(subscriptions.length === 1
+      ? [`Plano ${list(subscriptions)} criado.`]
+      : subscriptions.length > 1
+        ? [`Planos ${list(subscriptions)} criados.`]
+        : []),
+    ...(singles.length === 1
+      ? [`Serviço avulso ${list(singles)} criado.`]
+      : singles.length > 1
+        ? [`Serviços avulsos ${list(singles)} criados.`]
+        : []),
+  ].join(" ");
+  return [
+    created,
+    ...entries.flatMap(({ enrollment: item }) => {
+      if (!item) return [];
+      const groupName =
+        groups.find((group) => group.id === item.groupId)?.name ?? "escolhida";
+      return item.status === "waitlisted"
+        ? `A turma ${groupName} está cheia: o cliente entrou na lista de espera${
+            item.queuePosition ? ` (posição ${item.queuePosition})` : ""
+          }.`
+        : `Matrícula feita na turma ${groupName}.`;
+    }),
+  ].join(" ");
 }
 
 export const guidedPlanKinds = ["fixed_package", "recurring"] as const;
+
+/** Planos que o cliente pode assinar de uma vez no cadastro guiado (o principal + 9 adicionais). */
+export const maxGuidedPlans = 10;
+
+/** Campos obrigatórios ainda vazios de um plano do cadastro guiado. */
+export function missingPlanFields(plan: GuidedSingleForm) {
+  return [
+    !plan.planTemplateId && "Plano cadastrado",
+    !plan.validFrom && "Início",
+    !plan.firstDueDate && "Primeiro vencimento",
+  ].filter((item): item is string => Boolean(item));
+}
 
 export const guidedStepLabels: Record<GuidedPatientNext, string> = {
   demonstration: "Aula experimental",
@@ -283,3 +342,6 @@ export const timelineKindConfig: Record<
   message: { filter: "messages", icon: MessageCircle },
   satisfaction: { filter: "satisfaction", icon: Star },
 };
+
+/** "10% de desconto · nas próximas 3 cobranças (1 usada)"; vazio sem desconto. */
+export const patientDiscountLabel = patientDiscountDescription;

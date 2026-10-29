@@ -21,6 +21,9 @@ import {
   type RoomInput,
   type ServiceInput,
   defaultAutoFinalizationSettings,
+  type PaymentMethodInstallments,
+  type PaymentMethodSettingsInput,
+  resolvePaymentMethodSettings,
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
@@ -101,6 +104,21 @@ function mapAutoFinalization(
     delayMinutes: row.delayMinutes,
     ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
   };
+}
+
+type PaymentMethodRow = {
+  methods: PaymentMethodInstallments[] | null;
+  updatedAt: Date | null;
+};
+
+const paymentMethodColumns = `payment_method_settings AS methods,
+  payment_method_settings_updated_at AS "updatedAt"`;
+
+function mapPaymentMethods(row: PaymentMethodRow | undefined) {
+  return resolvePaymentMethodSettings(
+    row?.methods,
+    row?.updatedAt?.toISOString(),
+  );
 }
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
@@ -754,6 +772,57 @@ export function createAdministrationRepository(
           { enabled: input.enabled, delayMinutes: input.delayMinutes },
         );
         return mapAutoFinalization(result.rows[0]);
+      });
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const result = await repositoryContext.pool.query<PaymentMethodRow>(
+        `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapPaymentMethods(result.rows[0]);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<PaymentMethodRow>(
+          `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1 FOR UPDATE`,
+          [clinicId],
+        );
+        if (!current.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        // Formas fora da requisição mantêm o que estava gravado.
+        const { methods } = resolvePaymentMethodSettings([
+          ...input.methods,
+          ...(current.rows[0]!.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ]);
+        const result = await client.query<PaymentMethodRow>(
+          `UPDATE clinics SET payment_method_settings = $2::jsonb,
+             payment_method_settings_updated_at = now()
+           WHERE id = $1 RETURNING ${paymentMethodColumns}`,
+          [clinicId, JSON.stringify(methods)],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.payment_methods_updated",
+          "clinic",
+          clinicId,
+          { methods },
+        );
+        return mapPaymentMethods(result.rows[0]);
       });
     },
 

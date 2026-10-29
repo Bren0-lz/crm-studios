@@ -39,12 +39,16 @@ export function createReportsRepository(
         itemName: `${plan.name} (${plan.serviceName})`,
         quantity: 1,
       };
+      const customerDiscountInCents = repositoryContext.receivables
+        .filter((item) => item.planId === plan.id)
+        .reduce((sum, item) => sum + (item.customerDiscountInCents ?? 0), 0);
       sales.push({
         ...base,
         id: `${plan.id}:sale`,
         kind: "sale",
         occurredAt: plan.createdAt,
         amountInCents: plan.totalValueInCents,
+        ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
       });
       if (plan.cancelledAt)
         sales.push({

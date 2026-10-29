@@ -35,6 +35,8 @@ export interface SalesReportPeriod {
   netSalesInCents: number;
   receivedInCents: number;
   attendedPatients: number;
+  /** Descontos do cliente nas vendas de plano do período (informativo). */
+  customerDiscountInCents?: number;
 }
 
 export interface SalesReport {

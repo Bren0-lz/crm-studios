@@ -1,6 +1,7 @@
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   nextPlanPeriod,
+  planPaymentSummary,
   validityAfterPause,
   planTemplateInputSchema,
   type PatientPlan,
@@ -38,8 +39,10 @@ export function createPlansRepository(
       input = planTemplateInputSchema.parse(input);
       repositoryContext.assertTemplateServices(clinicId, input.services);
       const timestamp = now();
+      const { maxInstallments, ...fields } = input;
       const item: PlanTemplate = {
-        ...structuredClone(input),
+        ...structuredClone(fields),
+        ...(maxInstallments ? { maxInstallments } : {}),
         id: uuid(),
         clinicId,
         active: true,
@@ -79,6 +82,8 @@ export function createPlansRepository(
         repositoryContext.assertTemplateServices(clinicId, merged.services);
       const previous = structuredClone(item);
       Object.assign(item, structuredClone(input), { updatedAt: now() });
+      // null apaga o limite próprio (volta a valer só o da forma de pagamento).
+      if (!item.maxInstallments) delete item.maxInstallments;
       repositoryContext.addAdminAudit(
         actorUserId,
         "plan_template.updated",
@@ -193,7 +198,20 @@ export function createPlansRepository(
               ? plan.patientId === patientId
               : repositoryContext.inBranchScope(plan)),
         )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((plan) => {
+          const paymentSummary = planPaymentSummary(
+            repositoryContext.receivables
+              .filter(
+                (item) => item.clinicId === clinicId && item.planId === plan.id,
+              )
+              .map((item) => ({
+                ...item,
+                overdue: item.status === "open" && item.dueDate < currentDate,
+              })),
+          );
+          return paymentSummary ? { ...plan, paymentSummary } : plan;
+        });
     },
 
     async createPatientPlan(

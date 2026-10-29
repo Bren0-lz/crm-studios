@@ -10111,6 +10111,7 @@ describe("settings tabs", () => {
       "Planos",
       "Feriados",
       "Finalização automática",
+      "Formas de pagamento",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
