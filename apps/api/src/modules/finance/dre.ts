@@ -47,6 +47,7 @@ export function buildDre(
       serviceRevenueInCents: 0,
       productRevenueInCents: 0,
       otherRevenueInCents: 0,
+      customerDiscountInCents: 0,
       expenses: Object.fromEntries(groups.map((group) => [group, 0])) as Record<
         DreGroup,
         number
@@ -89,6 +90,9 @@ export function buildDre(
         clinicDateOf(new Date(receivable.createdAt), timezone).slice(0, 7),
       period = months.find((item) => item.month === competence);
     if (!period) continue;
+    period.customerDiscountInCents =
+      (period.customerDiscountInCents ?? 0) +
+      (receivable.customerDiscountInCents ?? 0);
     const category = categories.find(
         (item) => item.id === receivable.categoryId,
       ),
@@ -180,6 +184,10 @@ export function buildDre(
       (total, item) => total + item.resultInCents,
       0,
     );
+  const customerDiscountInCents = months.reduce(
+    (total, item) => total + (item.customerDiscountInCents ?? 0),
+    0,
+  );
   return {
     from,
     to,
@@ -188,6 +196,7 @@ export function buildDre(
       revenueInCents,
       expensesInCents: revenueInCents - resultInCents,
       resultInCents,
+      ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
     },
     categories: [...categoryTotals.values()],
   };

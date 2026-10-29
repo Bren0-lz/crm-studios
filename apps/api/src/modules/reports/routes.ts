@@ -3,7 +3,14 @@ import { buildClientDetails } from "./client-details.js";
 import { clientDetailsFilterSchema } from "@crm/contracts";
 import {
   clientReportFilterSchema,
+  entryBranch,
+  filterFinancialEntries,
+  financialEntriesCsv,
+  financialExportFilterSchema,
+  financialReportFilterSchema,
+  inBranch,
   managementReportFilterSchema,
+  proLaboreSettingsInputSchema,
   retentionReportFilterSchema,
   salesReportFilterSchema,
   salesPeriodReportFilterSchema,
@@ -25,6 +32,7 @@ import {
 } from "./retention-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
 import { buildTeamFinanceReport } from "./team-finance.js";
+import { buildFinancialReport } from "./financial-report.js";
 
 export function registerReportsRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess, assertPermissions } =
@@ -99,6 +107,95 @@ export function registerReportsRoutes(context: RouteContext) {
         }),
       };
     },
+  );
+
+  /** Caixa do período em detalhe nas filiais que o usuário acessa. */
+  async function loadFinancialReport(
+    clinicId: string,
+    from: string,
+    to: string,
+  ) {
+    const readIds = repository.branchScope.readIds();
+    const [movements, workspace, professionals, branches, proLabore, settings] =
+      await Promise.all([
+        repository.listCashMovements(clinicId, from, to),
+        repository.getFinancialWorkspace(clinicId),
+        repository.listProfessionals(clinicId),
+        repository.listBranches(clinicId),
+        repository.getProLaboreSettings(clinicId),
+        repository.getClinicSettings(clinicId),
+      ]);
+    return buildFinancialReport(
+      from,
+      to,
+      {
+        movements,
+        receivables: workspace.summary.receivables,
+        payables: workspace.payables,
+        categories: workspace.categories,
+        costCenters: workspace.costCenters,
+        commissions: workspace.commissions,
+        adjustments: workspace.commissionAdjustments ?? [],
+        professionals,
+        branches: readIds
+          ? branches.filter((branch) => readIds.includes(branch.id))
+          : branches,
+        proLabore,
+      },
+      settings?.timezone || DEFAULT_CLINIC_TIMEZONE,
+    );
+  }
+
+  // Caixa do período em detalhe: de onde entrou, para onde saiu, profissionais e pró-labore.
+  app.get(
+    "/reports/financial",
+    { preHandler: authenticate },
+    async (request) => {
+      const { from, to } = financialReportFilterSchema.parse(request.query);
+      return loadFinancialReport(request.user.clinicId, from, to);
+    },
+  );
+
+  // Planilha do extrato com os mesmos filtros da tela (permissão `reports.financial_export`).
+  app.get(
+    "/reports/financial/export",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { periodFrom, periodTo, branchId, ...filters } =
+        financialExportFilterSchema.parse(request.query);
+      const report = await loadFinancialReport(
+        request.user.clinicId,
+        periodFrom,
+        periodTo,
+      );
+      const names = new Map(
+        report.branches.map((branch) => [branch.id, branch.name]),
+      );
+      const entries = filterFinancialEntries(
+        inBranch(report.entries, branchId),
+        filters,
+      );
+      return reply
+        .header("Content-Type", "text/csv; charset=utf-8")
+        .header(
+          "Content-Disposition",
+          `attachment; filename="extrato-financeiro-${periodFrom}-${periodTo}.csv"`,
+        )
+        .send(
+          financialEntriesCsv(
+            entries,
+            (entry) => names.get(entryBranch(entry)) ?? "Sem filial",
+          ),
+        );
+    },
+  );
+
+  app.put("/admin/pro-labore", { preHandler: authenticate }, async (request) =>
+    repository.updateProLaboreSettings(
+      request.user.clinicId,
+      request.user.sub,
+      proLaboreSettingsInputSchema.parse(request.body),
+    ),
   );
 
   app.get(

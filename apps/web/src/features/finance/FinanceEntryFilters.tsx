@@ -26,6 +26,7 @@ function activeFilterCount(filter: FinancialEntryFilter) {
       filter.costCenterId,
       filter.supplierId,
       filter.paymentMethod,
+      filter.installments,
     ] as const
   ).filter(Boolean).length;
 }
@@ -279,6 +280,26 @@ export function FinanceEntryFilters({
                 ))}
               </select>
             </label>
+            {!payables && (
+              <label>
+                Parcelamento
+                <select
+                  value={draft.installments ?? ""}
+                  onChange={(event) =>
+                    patch({
+                      installments:
+                        (event.target
+                          .value as FinancialEntryFilter["installments"]) ||
+                        undefined,
+                    })
+                  }
+                >
+                  <option value="">Todos</option>
+                  <option value="installments">Parceladas</option>
+                  <option value="single">À vista</option>
+                </select>
+              </label>
+            )}
             {error && <ErrorBanner error={error} />}
             <div className="modal-actions span-2">
               <button

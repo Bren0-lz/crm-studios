@@ -44,8 +44,12 @@ export async function salesReportToXlsx(
       ["Recebido", report.summary.receivedInCents / 100],
       ["Clientes atendidos", report.summary.attendedPatients],
       ["Clientes sem retorno", report.patientsWithoutReturn.length],
+      [
+        "Descontos concedidos a clientes",
+        (report.summary.customerDiscountInCents ?? 0) / 100,
+      ],
     ]);
-    for (const row of [3, 4, 5, 6])
+    for (const row of [3, 4, 5, 6, 9])
       summary.getCell("B" + row).numFmt = currencyFormat;
   } else {
     summary.columns = [

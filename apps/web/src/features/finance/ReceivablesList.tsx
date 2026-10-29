@@ -6,6 +6,7 @@ import { currency, shortDate } from "../../shared/lib/formatting";
 import {
   normalizeSearch,
   receivableFilterLabels,
+  receivableInstallmentLine,
   receivableSituation,
   signedCurrency,
 } from "./model";
@@ -206,6 +207,11 @@ export function ReceivablesList({
               <div className="finance-item">
                 <strong title={item.patientName}>{item.patientName}</strong>
                 <span title={item.description}>{item.description}</span>
+                {receivableInstallmentLine(item) && (
+                  <span className="finance-installment">
+                    {receivableInstallmentLine(item)}
+                  </span>
+                )}
               </div>
               <span className="finance-due">
                 <span className="finance-label">Vencimento </span>
